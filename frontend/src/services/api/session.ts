@@ -54,6 +54,7 @@ export interface SessionEventsQuery {
   exclude_run_id?: string;
   include_active_user_message?: boolean;
   compact_message_chunks?: boolean;
+  include_approval_statuses?: boolean;
   /** 按 trace(run) 窗口读取：只取最新 N 轮（历史分页首屏） */
   trace_limit?: number;
   /** 游标：只返回该 (started_at, trace_id) 之前的 traces（翻更早页） */
@@ -223,6 +224,9 @@ export function buildSessionEventsUrl(
   }
   if (options?.compact_message_chunks) {
     searchParams.set("compact_message_chunks", "true");
+  }
+  if (options?.include_approval_statuses) {
+    searchParams.set("include_approval_statuses", "true");
   }
   if (options?.trace_limit) {
     searchParams.set("trace_limit", String(options.trace_limit));
@@ -462,7 +466,7 @@ export const sessionApi = {
     });
   },
 
-  async getPendingSteers(sessionId: string): Promise<{
+  async getPendingSteers(sessionId: string, options?: { signal?: AbortSignal }): Promise<{
     session_id: string;
     items: Array<{
       message_id: string;
@@ -476,7 +480,7 @@ export const sessionApi = {
       >;
     }>;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`);
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, options);
   },
 
   /**

@@ -6,7 +6,7 @@ import math
 import re
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from redis.exceptions import ResponseError
 
@@ -287,7 +287,7 @@ async def dispatch_local_stream(
     *,
     timeout: float | None = None,
     machine_id: str | None = None,
-) -> AsyncIterator[bytes]:
+) -> AsyncGenerator[bytes, None]:
     """流式版下发：请求入队同 :func:`dispatch_local_call`，结果按 NDJSON 行逐块产出。
 
     daemon 把整个文件装进一个 chunked POST（``/api/sandbox/results/stream/…``），
@@ -324,6 +324,9 @@ async def dispatch_local_stream(
     }
     redis = _binary_redis()  # stream list 是裸二进制帧（req/resp 均为 JSON，bytes 兼容）
     stream_key = _stream_key(user_id, call_id)
+    expected_size = None
+    received_size = 0
+    max_bytes = payload.get("max_bytes")
     resp_key = f"sandbox:resp:{call_id}"
     repusher = _AckRepusher(redis, registry.queue_key(user_id, target), req)
 
@@ -383,11 +386,30 @@ async def dispatch_local_stream(
                     outcome = "failed"
                     raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": error})
                 if ftype == _frames_codec.FRAME_EOF:
+                    if expected_size is not None and received_size != expected_size:
+                        raise AppError(
+                            ErrorCode.SANDBOX_EXEC_FAILED,
+                            args={"detail": "binary stream size mismatch"},
+                        )
                     outcome = "done"
                     return
+                if ftype == _frames_codec.FRAME_META:
+                    expected_size = json.loads(frame_body).get("size")
+                    if not isinstance(expected_size, int) or expected_size < 0:
+                        raise AppError(
+                            ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "invalid stream size"}
+                        )
+                    if max_bytes is not None and expected_size > max_bytes:
+                        raise AppError(
+                            ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "file_too_large"}
+                        )
                 if ftype == _frames_codec.FRAME_DATA:
+                    received_size += len(frame_body)
+                    if max_bytes is not None and received_size > max_bytes:
+                        raise AppError(
+                            ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "file_too_large"}
+                        )
                     yield frame_body  # 裸字节：无 base64 解码开销
-                # FRAME_META：跳过（尺寸供上层核对，不在数据流里重复）
             if not acked and time.monotonic() > ack_deadline:
                 outcome = "ack_timeout"
                 raise AppError(

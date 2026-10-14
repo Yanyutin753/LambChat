@@ -417,6 +417,18 @@ class ErrorCode(Enum):
         "Upload failed: duplicate record conflict",
     )
     FILE_URL_FAILED = ("file_url_failed", 500, "Failed to generate file URL")
+    DIRECT_UPLOAD_INVALID = (
+        "direct_upload_invalid",
+        400,
+        "Uploaded parts do not match the authorized file",
+    )
+    DIRECT_UPLOAD_INACTIVE = ("direct_upload_inactive", 409, "Upload is no longer active")
+    DIRECT_UPLOAD_STORAGE_CHANGED = (
+        "direct_upload_storage_changed",
+        409,
+        "Storage configuration changed; start a new upload",
+    )
+    UPLOAD_CANCELED = ("upload_canceled", 409, "Upload was canceled")
     FILE_EXTENSION_NOT_ALLOWED = (
         "file_extension_not_allowed",
         400,

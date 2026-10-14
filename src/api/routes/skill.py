@@ -269,7 +269,9 @@ async def list_user_skills(
         favorite_skill_names = normalize_skill_name_list(
             user_doc.metadata.get("favorite_skill_names", [])
         )
-    available_tags = await storage.list_user_skill_tags(user.sub)
+    matching_names, available_tags, parsed_metadata = await storage.get_skill_list_snapshot(
+        user.sub, q=q, tags=tags
+    )
 
     skills = await storage.list_user_skills(
         user.sub,
@@ -280,14 +282,16 @@ async def list_user_skills(
         favorite_skill_names=favorite_skill_names,
         q=q,
         tags=tags,
+        matching_skill_names=matching_names if q or tags else None,
     )
-    total = await storage.count_user_skills(user.sub, q=q, tags=tags)
-    disabled_count = await storage.count_disabled_user_skills(
-        user.sub,
-        disabled_skills=disabled_skills,
-        q=q,
-        tags=tags,
-    )
+    if q or tags:
+        total = len(matching_names)
+        disabled_count = len(set(disabled_skills).intersection(matching_names))
+    else:
+        total = await storage.count_user_skills(user.sub)
+        disabled_count = await storage.count_disabled_user_skills(
+            user.sub, disabled_skills=disabled_skills
+        )
     enabled_count = total - disabled_count
     if not skills:
         return UserSkillListResponse(
@@ -306,17 +310,16 @@ async def list_user_skills(
         skill_names=skill_names,
     )
 
-    # 批量获取所有 SKILL.md 用于提取 description
-    skill_md_map = await storage.batch_get_skill_md_contents(skill_names, user.sub)
-    description_map: dict[str, str] = {}
-    tags_map: dict[str, list[str]] = {}
-    for name, content in skill_md_map.items():
-        if content:
-            _, parsed_desc, parsed_tags = await _parse_skill_md_offload(content)
-            if parsed_desc:
-                description_map[name] = parsed_desc
-            if parsed_tags:
-                tags_map[name] = parsed_tags
+    # Only page entries beyond the bounded snapshot need another metadata read.
+    missing_names = [name for name in skill_names if name not in parsed_metadata]
+    if missing_names:
+        skill_md_map = await storage.batch_get_skill_md_contents(missing_names, user.sub)
+        for name, content in skill_md_map.items():
+            if content:
+                _, description, parsed_tags = await _parse_skill_md_offload(content)
+                parsed_metadata[name] = description, parsed_tags
+    description_map = {name: parsed[0] for name, parsed in parsed_metadata.items()}
+    tags_map = {name: parsed[1] for name, parsed in parsed_metadata.items()}
 
     items = [
         UserSkill(
@@ -681,14 +684,10 @@ async def batch_toggle_skills(
     storage: SkillStorage = Depends(get_storage),
 ):
     """批量切换 Skills 的启用状态"""
-    missing_names = []
     _reject_oversized_skill_batch(body.names)
     names = normalize_skill_name_list(body.names)
-    for name in names:
-        try:
-            await _ensure_skill_exists(storage, name, user.sub)
-        except AppError:
-            missing_names.append(name)
+    existing_names = set(await storage.get_all_user_skill_names(user.sub, skill_names=names))
+    missing_names = [name for name in names if name not in existing_names]
 
     if missing_names:
         missing = ", ".join(sorted(missing_names))

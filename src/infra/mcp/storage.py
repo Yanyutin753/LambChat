@@ -8,6 +8,8 @@ import copy
 import inspect
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 
+from pymongo import ReturnDocument
+
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.mcp.encryption import (
@@ -197,10 +199,6 @@ class MCPStorage(StorageOperations):
         """Update a system MCP server (admin only)"""
         collection = self._get_system_collection()
 
-        doc = await collection.find_one({"name": name})
-        if not doc or _is_legacy_sandbox_server(doc):
-            return None
-
         update_data: dict[str, Any] = {
             "updated_at": utc_now_iso(),
             "updated_by": admin_user_id,
@@ -225,13 +223,18 @@ class MCPStorage(StorageOperations):
                 role_name: quota.model_dump() for role_name, quota in updates.role_quotas.items()
             }
 
-        await collection.update_one({"name": name}, {"$set": update_data})
+        updated_doc = await collection.find_one_and_update(
+            _supported_server_query({"name": name}),
+            {"$set": update_data},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not updated_doc:
+            return None
 
         # Invalidate all caches since system server affects all users
         await self._invalidate_all_cache()
 
-        updated_doc = await collection.find_one({"name": name})
-        return await self._doc_to_system_server_async(updated_doc) if updated_doc else None
+        return await self._doc_to_system_server_async(updated_doc)
 
     async def delete_system_server(self, name: str) -> bool:
         """Delete a system MCP server (admin only)"""
@@ -307,10 +310,6 @@ class MCPStorage(StorageOperations):
         """Update a user MCP server"""
         collection = self._get_user_collection()
 
-        doc = await collection.find_one({"name": name, "user_id": user_id})
-        if not doc or _is_legacy_sandbox_server(doc):
-            return None
-
         update_data: dict[str, Any] = {"updated_at": utc_now_iso()}
 
         if updates.transport is not None:
@@ -326,13 +325,18 @@ class MCPStorage(StorageOperations):
                 else updates.headers
             )
 
-        await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
+        updated_doc = await collection.find_one_and_update(
+            _supported_server_query({"name": name, "user_id": user_id}),
+            {"$set": update_data},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not updated_doc:
+            return None
 
         # Invalidate cache for this user
         await self._invalidate_user_cache(user_id)
 
-        updated_doc = await collection.find_one({"name": name, "user_id": user_id})
-        return await self._doc_to_user_server_async(updated_doc) if updated_doc else None
+        return await self._doc_to_user_server_async(updated_doc)
 
     async def delete_user_server(self, name: str, user_id: str) -> bool:
         """Delete a user MCP server"""

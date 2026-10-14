@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -16,84 +15,35 @@ def _role(name: str) -> SimpleNamespace:
 class _RoleManager:
     def __init__(self, roles: dict[str, SimpleNamespace | None]) -> None:
         self._roles = roles
-        self.calls: list[str] = []
+        self.calls: list[list[str]] = []
 
-    async def get_role_by_name(self, name: str) -> SimpleNamespace | None:
-        self.calls.append(name)
-        return self._roles.get(name)
+    async def get_roles_by_names(self, names):
+        self.calls.append(names)
+        return [self._roles[name] for name in names if self._roles.get(name) is not None]
 
 
 class _Storage:
     def __init__(self, models_by_role: dict[str, list[str] | None]) -> None:
         self._models = models_by_role
-        self.calls: list[str] = []
+        self.calls: list[list[str]] = []
 
-    async def get_role_models(self, role_id: str) -> list[str] | None:
-        self.calls.append(role_id)
-        return self._models.get(role_id)
-
-
-@pytest.mark.asyncio
-async def test_role_lookups_run_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
-    started: list[str] = []
-    all_started = asyncio.Event()
-
-    class _SlowRoleManager(_RoleManager):
-        async def get_role_by_name(self, name: str) -> SimpleNamespace | None:
-            started.append(name)
-            if len(started) == 2:
-                all_started.set()
-            await asyncio.wait_for(all_started.wait(), timeout=1.0)
-            return _role(name)
-
-    monkeypatch.setattr(
-        "src.infra.agent.config_storage.get_agent_config_storage", lambda: _Storage({})
-    )
-    import src.infra.role.manager as role_manager_module
-
-    monkeypatch.setattr(role_manager_module, "get_role_manager", lambda: _SlowRoleManager({}))
-
-    result = await model_access.resolve_user_allowed_model_ids(
-        TokenPayload(sub="u", username="u", roles=["admin", "user"])
-    )
-
-    assert result is None  # 无任何角色-模型配置 → 不受限
+    async def get_role_models_by_ids(self, role_ids):
+        self.calls.append(role_ids)
+        return {role_id: self._models.get(role_id) for role_id in role_ids}
 
 
 @pytest.mark.asyncio
-async def test_role_model_lookups_run_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
-    started: list[str] = []
-    all_started = asyncio.Event()
-
-    class _SlowStorage(_Storage):
-        async def get_role_models(self, role_id: str) -> list[str] | None:
-            started.append(role_id)
-            if len(started) == 2:
-                all_started.set()
-            await asyncio.wait_for(all_started.wait(), timeout=1.0)
-            return ["m"]
-
-    monkeypatch.setattr(
-        "src.infra.agent.config_storage.get_agent_config_storage", lambda: _SlowStorage({})
-    )
-    import src.infra.role.manager as role_manager_module
-
-    monkeypatch.setattr(
-        role_manager_module,
-        "get_role_manager",
-        lambda: _RoleManager(
-            {
-                "admin": _role("admin"),
-                "user": _role("user"),
-            }
-        ),
-    )
-
+async def test_role_and_model_reads_are_batched(monkeypatch):
+    roles = _RoleManager({"admin": _role("admin"), "user": _role("user")})
+    storage = _Storage({"id-admin": ["m"], "id-user": ["m"]})
+    monkeypatch.setattr("src.infra.agent.config_storage.get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr("src.infra.role.manager.get_role_manager", lambda: roles)
     result = await model_access.resolve_user_allowed_model_ids(
         TokenPayload(sub="u", username="u", roles=["admin", "user"])
     )
-
     assert result == ["m"]
+    assert roles.calls == [["admin", "user"]]
+    assert storage.calls == [["id-admin", "id-user"]]
 
 
 @pytest.mark.asyncio

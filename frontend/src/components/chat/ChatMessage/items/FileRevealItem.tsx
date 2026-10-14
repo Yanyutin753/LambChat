@@ -372,7 +372,7 @@ export function FileRevealItem({
                     }
               }
             >
-              {!mediaLoaded && !isExcalidraw && (
+              {!mediaLoaded && !isImage && !isExcalidraw && (
                 <div className="absolute inset-0">
                   <MediaSkeleton />
                 </div>

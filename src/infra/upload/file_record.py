@@ -233,6 +233,56 @@ class FileRecordStorage:
             raise AppError(ErrorCode.FILE_NOT_FOUND)
         return record
 
+    async def get_private_key_access(self, keys: list[str], user_id: str) -> dict[str, bool]:
+        """Classify private keys and authorize their captures with two batch reads."""
+        from src.infra.session.storage import SessionStorage
+
+        keys = list(dict.fromkeys(keys))
+        if len(keys) > REFERENCE_KEYS_MAX:
+            raise ValueError("Too many file keys")
+        if not keys:
+            return {}
+        await self.ensure_indexes_if_needed()
+        records = {
+            record["key"]: record async for record in self.collection.find({"key": {"$in": keys}})
+        }
+        private = {
+            key: False
+            for key in keys
+            if key.startswith("cua_screenshots/")
+            or (key.startswith("tool_binaries/") and records.get(key, {}).get("private_session_id"))
+        }
+        candidates = {
+            key: records[key]
+            for key in private
+            if key in records
+            and records[key].get("uploaded_by") == user_id
+            and records[key].get("private_session_id")
+            and not records[key].get("deleting_at")
+        }
+        if not candidates:
+            return private
+        session_ids = list(
+            dict.fromkeys(record["private_session_id"] for record in candidates.values())
+        )
+        sessions = {
+            session["session_id"]: session
+            async for session in SessionStorage().collection.find(
+                {
+                    "session_id": {"$in": session_ids},
+                    "user_id": user_id,
+                    "attachment_delete_operation": {"$exists": False},
+                },
+                {"session_id": 1, "private_capture_epoch": 1},
+            )
+        }
+        for key, record in candidates.items():
+            session = sessions.get(record["private_session_id"])
+            private[key] = session is not None and (
+                record.get("private_capture_epoch", 0) == session.get("private_capture_epoch", 0)
+            )
+        return private
+
     async def delete_private_session_files(
         self, session_id: str, *, max_epoch: int | None = None
     ) -> None:

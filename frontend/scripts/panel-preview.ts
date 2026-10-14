@@ -1,7 +1,8 @@
 /** Local-only UI fixture server. No requests are forwarded to a real API. */
 import { createServer } from "vite";
-import { readFileSync } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { Readable } from "node:stream";
 import { Permission, type PermissionsResponse } from "../src/types/auth";
 
 const now = "2026-09-30T08:00:00Z";
@@ -1542,6 +1543,11 @@ function response(
     return { state: "running", platform: "preview" };
   if (path === "/api/sandbox/fs/cloud/list") {
     const directory = url.searchParams.get("path") || "";
+    if (process.env.PANEL_PREVIEW_WORKSPACE_FIXTURES) {
+      return { entries: directory.replace(/^\.\//, "") === "images"
+        ? [{ path: "images/图片.PNG", is_dir: false }]
+        : [{ path: "images", is_dir: true }, { path: "images.zip", is_dir: false }, { path: "empty.bin", is_dir: false }] };
+    }
     return {
       entries:
         scenario === "empty"
@@ -1680,6 +1686,65 @@ const server = await createServer({
           const previewParams = new URL(
             req.headers.referer ?? "http://localhost",
           ).searchParams;
+          const workspaceBackend = process.env.PANEL_PREVIEW_WORKSPACE_BACKEND;
+          if (workspaceBackend && req.method === "GET" &&
+              ["/api/sandbox/fs/cloud/read", "/api/sandbox/fs/cloud/list", "/api/sandbox/fs/cloud/status"].includes(url.pathname)) {
+            if (url.pathname.endsWith("/status")) {
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ state: "running", platform: "cubesandbox" }));
+              return;
+            }
+            const config = JSON.parse(readFileSync(workspaceBackend, "utf8")) as { url: string; session_id: string };
+            const target = new URL(url.pathname + url.search, config.url);
+            target.searchParams.set("session_id", config.session_id);
+            const controller = new AbortController();
+            res.on("close", () => controller.abort());
+            void fetch(target, { signal: controller.signal }).then((response) => {
+              res.statusCode = response.status;
+              res.setHeader("Content-Type", response.headers.get("Content-Type") || "application/json");
+              res.setHeader("Cache-Control", "no-store");
+              if (!response.body) { res.end(); return; }
+              const source = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+              source.on("error", () => res.destroy());
+              source.pipe(res);
+            }).catch(() => {
+              if (!res.headersSent) {
+                res.statusCode = 503;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: "workspace_stream_unavailable" }));
+              } else res.destroy();
+            });
+            return;
+          }
+          const workspaceFixtures = process.env.PANEL_PREVIEW_WORKSPACE_FIXTURES;
+          if (workspaceFixtures && req.method === "GET" &&
+              url.pathname === "/api/sandbox/fs/cloud/read" && url.searchParams.get("stream") === "true") {
+            const file = (url.searchParams.get("path") || "").replace(/^\.\//, "");
+            if (!["images/图片.PNG", "images.zip", "empty.bin"].includes(file)) {
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: "file_not_found" }));
+              return;
+            }
+            res.setHeader("Content-Type", "application/octet-stream");
+            res.setHeader("Cache-Control", "no-store");
+            const source = createReadStream(`${workspaceFixtures}/${file}`, { highWaterMark: 256 * 1024 });
+            res.on("close", () => source.destroy());
+            source.on("error", () => res.destroy());
+            source.pipe(res);
+            return;
+          }
+          if (
+            req.method === "GET" &&
+            url.pathname === "/preview-slow-image.webp"
+          ) {
+            const timer = setTimeout(() => {
+              res.setHeader("Content-Type", "image/webp");
+              res.setHeader("Cache-Control", "no-store");
+              res.end(readFileSync("public/images/best-practice/chat-home.webp"));
+            }, 8000);
+            res.on("close", () => clearTimeout(timer));
+            return;
+          }
           // Failure-only health fixture; never stores or switches a server URL.
           if (
             req.method === "GET" &&
@@ -2598,12 +2663,18 @@ const server = await createServer({
                 ? [
                     [
                       "桌面工作区.webp",
-                      "/images/best-practice/chat-home.webp",
+                      previewParams.has("image-loading")
+                        ? "/preview-slow-image.webp"
+                        : "/images/best-practice/chat-home.webp",
                       "image",
                     ],
                     [
-                      "暂不可用的图片.webp",
-                      "/preview-missing-image.webp",
+                      previewParams.get("failure") === "image"
+                        ? "暂不可用的图片.webp"
+                        : "品牌图.webp",
+                      previewParams.get("failure") === "image"
+                        ? "/preview-missing-image.webp"
+                        : "/images/lamb.webp",
                       "image",
                     ],
                     [
@@ -2611,6 +2682,13 @@ const server = await createServer({
                       "/images/best-practice/mobile-view.webp",
                       "image",
                     ],
+                    ...(previewParams.get("images") === "many"
+                      ? [
+                          ["工作区全览.webp", "/images/best-practice/chat-home.webp", "image"],
+                          ["移动端预览.webp", "/images/best-practice/mobile-view.webp", "image"],
+                          ["品牌预览.webp", "/images/lamb.webp", "image"],
+                        ]
+                      : []),
                   ]
                 : []),
               ...(previewParams.has("videos")

@@ -15,6 +15,7 @@ import os
 import time
 from collections import defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -392,16 +393,18 @@ async def test_late_call_rejected_as_expired(monkeypatch, tmp_path):
         state["n"] += 1
         return real_monotonic() + (10.0 if state["n"] > 1 else 0.0)
 
-    monkeypatch.setattr(daemon_module.time, "monotonic", stepped_clock)
+    # Keep the event loop on its real clock; only daemon deadline reads advance.
+    monkeypatch.setattr(daemon_module, "time", SimpleNamespace(monotonic=stepped_clock))
+    executor = FakeExecutor()
     await _run(
         _cfg("none", data_root=tmp_path),
         FakeFactory([client, _terminator()]),
-        executor=FakeExecutor(),
+        executor=executor,
         auditor=auditor,
     )
 
     assert client.posted == [("c1", {"stage": "done", "status": "error", "error": "expired"})]
-    assert FakeExecutor().calls == [] or True  # executor 替身未注入调用记录
+    assert executor.calls == []
     assert [e["event"] for e in auditor.records["s5"]] == ["received", "allowed", "expired"]
 
 

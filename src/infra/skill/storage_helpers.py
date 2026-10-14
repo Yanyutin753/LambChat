@@ -136,3 +136,42 @@ async def _parse_skill_md_offload(content: str) -> tuple[Optional[str], str, lis
     from src.infra.skill.parser import parse_skill_md
 
     return await run_blocking_io(parse_skill_md, content)
+
+
+async def batch_list_skill_file_paths_from_collection(
+    collection: Any, skill_names: list[str], user_id: str
+) -> dict[str, list[str]]:
+    """Read only path metadata, retaining each skill's independent file budget."""
+    names = normalize_skill_name_list(skill_names, SKILL_BATCH_FILE_LOOKUP_LIMIT)
+    if not names:
+        return {}
+    result: dict[str, list[str]] = {name: [] for name in names}
+    pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$limit": 1},
+        {"$project": {"_id": {"$literal": names}}},
+        {"$unwind": "$_id"},
+        {
+            "$lookup": {
+                "from": collection.name,
+                "let": {"skill": "$_id"},
+                "pipeline": [
+                    {
+                        "$match": {
+                            "user_id": user_id,
+                            "file_path": {"$ne": "__meta__"},
+                            "$expr": {"$eq": ["$skill_name", "$$skill"]},
+                        }
+                    },
+                    {"$project": {"_id": 0, "file_path": 1}},
+                    {"$limit": SKILL_FILES_PER_SKILL_LIMIT},
+                ],
+                "as": "paths",
+            }
+        },
+    ]
+    async for group in await collection.aggregate(pipeline):
+        result[group["_id"]] = [
+            normalize_skill_file_path(doc["file_path"]) for doc in group["paths"]
+        ]
+    return result

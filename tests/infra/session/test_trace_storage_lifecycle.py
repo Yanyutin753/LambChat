@@ -34,9 +34,11 @@ async def test_ensure_indexes_initializes_collection_and_tracks_task(
     class _Collection:
         def __init__(self) -> None:
             self.create_index_names: list[str] = []
+            self.created_indexes = []
 
         async def create_index(self, *_args, **_kwargs) -> None:
             self.create_index_names.append(_kwargs["name"])
+            self.created_indexes.append((_args[0], _kwargs))
 
     traces_collection = _Collection()
     chunks_collection = _Collection()
@@ -62,6 +64,10 @@ async def test_ensure_indexes_initializes_collection_and_tracks_task(
     assert storage._collection is traces_collection
     assert storage._chunks_collection is chunks_collection
     assert "trace_id_unique_idx" in traces_collection.create_index_names
+    assert (
+        [("session_id", 1), ("started_at", -1), ("trace_id", -1)],
+        {"name": "session_started_at_trace_id_desc_idx", "background": True},
+    ) in traces_collection.created_indexes
     assert chunks_collection.create_index_names == [
         "trace_chunk_unique_idx",
         "session_run_chunk_idx",

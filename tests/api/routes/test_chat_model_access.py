@@ -81,6 +81,9 @@ class _ModelStorage:
 
 
 class _AgentConfigStorage:
+    async def get_role_models_by_ids(self, role_ids):
+        return {role_id: await self.get_role_models(role_id) for role_id in role_ids}
+
     async def get_role_models(self, role_id: str) -> list[str] | None:
         if role_id == "role-user":
             return ["allowed-enabled"]
@@ -102,6 +105,9 @@ class _EmptyRole:
 
 
 class _RoleManager:
+    async def get_roles_by_names(self, names):
+        return [role for name in names if (role := await self.get_role_by_name(name)) is not None]
+
     async def get_role_by_name(self, role_name: str) -> _Role | None:
         if role_name == "user":
             return _Role()

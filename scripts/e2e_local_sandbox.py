@@ -1129,6 +1129,52 @@ async def run_daemon_child(pat: str, machine_id: str) -> None:
     await run_daemon(cfg, pat=pat)
 
 
+async def workspace_preview_battery(user_id: str, pat: str, machine_id: str) -> None:
+    """Real daemon → relay → workspace preview route; same fixtures as cloud E2E."""
+    from urllib.parse import urlencode
+
+    from e2e_workspace_preview import preview_fixtures, verify_stream
+
+    from src.infra.backend.local import LocalSandboxBackend
+    from src.infra.session.manager import SessionManager
+    from src.kernel.schemas.session import SessionCreate
+
+    sessions = SessionManager()
+    session = await sessions.create_session(
+        SessionCreate(
+            name="Workspace preview E2E",
+            metadata={"agent_options": {"sandbox": "local", "sandbox_machine_id": machine_id}},
+        ),
+        user_id=user_id,
+    )
+    backend = LocalSandboxBackend(user_id=user_id, session_id=session.id, machine_id=machine_id)
+    fixtures = preview_fixtures()
+    try:
+        uploads = await backend.aupload_files(list(fixtures.items()))
+        check("workspace preview fixture upload", all(not item.error for item in uploads))
+        for name, content in fixtures.items():
+            started = time.monotonic()
+            query = urlencode({"session_id": session.id, "path": name, "stream": "true"})
+            request = urllib.request.Request(
+                f"{SERVER}/api/sandbox/fs/read?{query}", headers={"Authorization": f"Bearer {pat}"}
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                assert response.headers["Content-Type"] == "application/octet-stream"
+
+                async def chunks():
+                    while chunk := response.read(256 * 1024):
+                        yield chunk
+
+                await verify_stream(chunks(), content, archive=name.endswith(".zip"))
+            check(
+                f"workspace preview {name} exact bytes",
+                True,
+                f"{len(content)} bytes / {time.monotonic() - started:.3f}s",
+            )
+    finally:
+        await sessions.delete_session(session.id)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stress", action="store_true", help="追加压测段")
@@ -1171,6 +1217,7 @@ def main() -> int:
             await comprehensive(user_id, pat, machine_id, holder)
             await agent_tools_battery(user_id, pat, machine_id)
             await file_tools_battery(user_id, machine_id)
+            await workspace_preview_battery(user_id, pat, machine_id)
             if args.stress:
                 await stress(user_id, machine_id)
 

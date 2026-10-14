@@ -719,7 +719,7 @@ async def test_session_indexes_are_initialized_once_across_instances() -> None:
         SessionStorage._indexes_done = original_done
         SessionStorage._indexes_lock = original_lock
 
-    assert len(shared_collection.created_indexes) == 8
+    assert len(shared_collection.created_indexes) == 9
     # 列表排序 (metadata.is_pinned desc, updated_at desc) 的组合索引
     (keys, kwargs) = shared_collection.created_indexes[0]
     assert list(keys) == [

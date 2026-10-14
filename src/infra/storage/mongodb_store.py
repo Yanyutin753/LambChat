@@ -193,6 +193,20 @@ def _bounded_ops_list(ops: Iterable[Op]) -> list[Op]:
     return ops_list
 
 
+def _get_batch_query(ops: list[GetOp]) -> dict[str, Any]:
+    identities = dict.fromkeys((op.namespace, op.key) for op in ops)
+    return {"$or": [{"namespace": list(namespace), "key": key} for namespace, key in identities]}
+
+
+def _get_batch_results(ops: list[GetOp], docs: Iterable[dict[str, Any]]) -> list[Result]:
+    by_identity = {(tuple(doc["namespace"]), doc["key"]): doc for doc in docs}
+    results: list[Result] = []
+    for op in ops:
+        doc = by_identity.get((op.namespace, op.key))
+        results.append(_doc_to_item(doc) if doc else None)
+    return results
+
+
 class MongoDBStore(BaseStore):
     """基于 MongoDB 的 LangGraph Store 实现。
 
@@ -276,6 +290,9 @@ class MongoDBStore(BaseStore):
         """同步批量操作 — 使用 pymongo 同步客户端，与 motor 事件循环隔离。"""
         col = self._sync_collection()
         ops_list = _bounded_ops_list(ops)
+        get_ops = [op for op in ops_list if isinstance(op, GetOp)]
+        if get_ops and len(get_ops) == len(ops_list):
+            return _get_batch_results(get_ops, col.find(_get_batch_query(get_ops)))
         results: list[Result] = [None] * len(ops_list)
 
         for i, op in enumerate(ops_list):
@@ -341,6 +358,10 @@ class MongoDBStore(BaseStore):
         ops_list = _bounded_ops_list(ops)
         results: list[Result] = [None] * len(ops_list)
         col = self.collection
+        get_ops = [op for op in ops_list if isinstance(op, GetOp)]
+        if get_ops and len(get_ops) == len(ops_list):
+            docs = [doc async for doc in col.find(_get_batch_query(get_ops))]
+            return _get_batch_results(get_ops, docs)
         next_index = 0
         worker_count = min(_store_batch_concurrency(), len(ops_list))
 

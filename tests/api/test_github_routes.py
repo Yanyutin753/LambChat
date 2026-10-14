@@ -283,3 +283,42 @@ async def test_install_github_skills_rejects_too_many_requested_names(
     assert exc.value.error_code.code == "github_install_limit"
     assert exc.value.http_status == 400
     assert exc.value.args_data == {"max": 2}
+
+
+@pytest.mark.asyncio
+async def test_install_github_skills_indexes_scan_once_preserving_first_duplicate(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    class ScannedSkills(list):
+        iterations = 0
+
+        def __iter__(self):
+            self.iterations += 1
+            return super().__iter__()
+
+    scanned = ScannedSkills(
+        [
+            {"name": "one", "path": "first-one"},
+            {"name": "one", "path": "second-one"},
+            {"name": "two", "path": "two"},
+        ]
+    )
+    monkeypatch.setattr(github, "scan_for_skills", AsyncMock(return_value=scanned))
+    fetch = AsyncMock(return_value={"SKILL.md": "skill content"})
+    monkeypatch.setattr(github, "fetch_all_files_recursive", fetch)
+    storage = MagicMock()
+    storage.get_skill_files = AsyncMock(return_value={"SKILL.md": "already installed"})
+    monkeypatch.setattr(github, "SkillStorage", lambda: storage)
+
+    result = await github.install_github_skills(
+        github.GitHubInstallRequest(repo_url="owner/repo", skill_names=["two", "one", "missing"]),
+        user=type("User", (), {"sub": "user-1"})(),
+    )
+
+    assert scanned.iterations == 1
+    assert [call.args[3] for call in fetch.await_args_list] == ["two", "first-one"]
+    assert result.errors == [
+        "Skill 'two' already exists",
+        "Skill 'one' already exists",
+        "Skill 'missing' not found",
+    ]

@@ -320,16 +320,20 @@ async def load_cluster_snapshots(*, redis_client: Any | None = None) -> list[dic
     """Load all known instance snapshots from Redis."""
     client = redis_client or get_redis_client()
     try:
-        keys = await _scan_keys(client, f"{_INSTANCE_KEY_PREFIX}*")
+        keys = sorted(await _scan_keys(client, f"{_INSTANCE_KEY_PREFIX}*"))
+        if not keys:
+            return []
+        pipeline = client.pipeline(transaction=False)
+        for key in keys:
+            pipeline.get(key)
+        raw_values = await pipeline.execute(raise_on_error=False)
         snapshots_by_instance_id: dict[str, dict[str, Any]] = {}
-        for key in sorted(keys):
-            try:
-                raw_value = await client.get(key)
-            except Exception as exc:
+        for key, raw_value in zip(keys, raw_values):
+            if isinstance(raw_value, Exception):
                 logger.warning(
                     "[DistributedMemoryHealth] skipping unreadable cluster snapshot key=%s: %s",
                     key,
-                    exc,
+                    raw_value,
                 )
                 continue
             if not raw_value:

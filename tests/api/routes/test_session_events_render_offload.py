@@ -53,7 +53,7 @@ def _patch_route(monkeypatch: pytest.MonkeyPatch, events: list[dict[str, Any]]) 
     monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: _FakeDualWriter())
 
 
-async def _call(event_count: int):
+async def _call(event_count: int, *, compact: bool = False):
     del event_count
     return await session_routes.get_session_events(
         "session-1",
@@ -65,7 +65,7 @@ async def _call(event_count: int):
         trace_limit=None,
         before_trace_started_at=None,
         before_trace_id=None,
-        compact_message_chunks=False,
+        compact_message_chunks=compact,
         user=_user(),
     )
 
@@ -104,3 +104,106 @@ async def test_small_history_response_stays_plain_dict(monkeypatch: pytest.Monke
 
     assert isinstance(result, dict)
     assert len(result["events"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_compacted_large_history_keeps_raw_size_offload_and_complete_content(monkeypatch):
+    import json
+
+    from src.infra.session.history_compaction import compact_history_events
+
+    count = session_history_render.HISTORY_JSON_OFFLOAD_EVENT_COUNT + 1
+    chunks = [
+        {"event_type": "message:chunk", "data": {"content": "answer"}, "seq": i}
+        for i in range(count)
+    ]
+    attachment = {"event_type": "user:message", "data": {"attachments": [{"key": "private/file"}]}}
+    tool = {"event_type": "tool:end", "data": {"result": {"nested": [1, 2]}}}
+    _patch_route(monkeypatch, [attachment, *chunks, tool])
+    calls = []
+    original = session_history_render.run_long_blocking_io
+
+    async def spy(func, *args, **kwargs):
+        calls.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(session_history_render, "run_long_blocking_io", spy)
+    response = await _call(count + 2, compact=True)
+    assert isinstance(response, Response)
+    payload = json.loads(response.body)
+    assert payload["events"] == [
+        attachment,
+        {**chunks[0], "data": {"content": "answer" * count}},
+        tool,
+    ]
+    assert calls == [compact_history_events, session_history_render._render_history_json_bytes]
+
+
+@pytest.mark.asyncio
+async def test_premerged_long_answer_json_is_offloaded(monkeypatch):
+    import json
+
+    event = {"event_type": "message:chunk", "data": {"content": "x" * (128 * 1024)}}
+    _patch_route(monkeypatch, [event])
+    calls = []
+    original = session_history_render.run_long_blocking_io
+
+    async def spy(func, *args, **kwargs):
+        calls.append(func)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(session_history_render, "run_long_blocking_io", spy)
+    response = await _call(1)
+    assert isinstance(response, Response)
+    assert json.loads(response.body)["events"] == [event]
+    assert calls == [session_history_render._render_history_json_bytes]
+
+
+@pytest.mark.asyncio
+async def test_small_compacted_history_stays_dict_without_thread_offload(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    events = [
+        {"event_type": "message:chunk", "data": {"content": "a"}, "seq": 1},
+        {"event_type": "message:chunk", "data": {"content": "b"}, "seq": 2},
+    ]
+    _patch_route(monkeypatch, events)
+    offload = AsyncMock(side_effect=AssertionError("small history must stay inline"))
+    monkeypatch.setattr(session_history_render, "run_long_blocking_io", offload)
+    response = await _call(2, compact=True)
+    assert isinstance(response, dict)
+    assert response["events"] == [{**events[0], "data": {"content": "ab"}}]
+    offload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_prepare_history_counts_content_across_chunks_and_retains_input(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    events = [
+        {"event_type": "message:chunk", "data": {"content": "x" * (64 * 1024)}} for _ in range(2)
+    ]
+    offload = AsyncMock(side_effect=AssertionError("no compaction was requested"))
+    monkeypatch.setattr(session_history_render, "run_long_blocking_io", offload)
+    prepared, should_offload = await session_history_render.prepare_history_events(events, False)
+    assert prepared is events
+    assert should_offload is True
+    offload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"nested": {"stdout": "x" * (128 * 1024)}},
+        {"rows": list(range(6000))},
+    ],
+)
+async def test_large_nested_tool_result_is_offloaded_without_losing_data(monkeypatch, result):
+    import json
+
+    event = {"event_type": "tool:result", "data": {"result": result, "tool_call_id": "tool"}}
+    _patch_route(monkeypatch, [event])
+    response = await _call(1)
+    assert isinstance(response, Response)
+    assert json.loads(response.body)["events"] == [event]

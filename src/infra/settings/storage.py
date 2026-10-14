@@ -277,13 +277,57 @@ class SettingsStorage:
         collection = self._get_collection()
         doc = await collection.find_one({"_id": key})
 
+        pool_pair = (
+            await self._read_mongodb_pool_pair(key) if key in _MONGODB_POOL_SIZE_SETTINGS else None
+        )
+        return self._item_from_doc(key, doc, mask_sensitive=mask_sensitive, pool_pair=pool_pair)
+
+    async def get_many(self, keys: list[str]) -> dict[str, SettingItem | None]:
+        """Read requested settings once with the same masking and bad-row fallback as get."""
+        keys = [key for key in dict.fromkeys(keys) if key in SETTING_DEFINITIONS]
+        if not keys:
+            return {}
+        has_pool_settings = any(key in _MONGODB_POOL_SIZE_SETTINGS for key in keys)
+        stored_keys = list(keys)
+        if has_pool_settings:
+            stored_keys = list(
+                dict.fromkeys(
+                    [*stored_keys, *_MONGODB_POOL_SIZE_SETTINGS, _MONGODB_POOL_PAIR_DOC_ID]
+                )
+            )
+        cursor = self._get_collection().find(
+            {"_id": {"$in": stored_keys}},
+            {
+                "value": 1,
+                "business_min": 1,
+                "business_max": 1,
+                "checkpoint_min": 1,
+                "checkpoint_max": 1,
+                "updated_at": 1,
+                "updated_by": 1,
+            },
+        )
+        docs = {doc["_id"]: doc for doc in await cursor.to_list(length=len(stored_keys))}
+        pool_pair = docs.get(_MONGODB_POOL_PAIR_DOC_ID)
+        if has_pool_settings and pool_pair is None:
+            pool_pair = _pool_pair_values_from_docs(docs)
+        return {key: self._item_from_doc(key, docs.get(key), pool_pair=pool_pair) for key in keys}
+
+    def _item_from_doc(
+        self,
+        key: str,
+        doc: dict[str, Any] | None,
+        *,
+        mask_sensitive: bool = True,
+        pool_pair: dict[str, Any] | None = None,
+    ) -> SettingItem | None:
+        definition = SETTING_DEFINITIONS[key]
         # Get default from SETTING_DEFINITIONS (single source of truth)
         default_value = _get_default_from_settings(key)
 
         value: Any
         if key in _MONGODB_POOL_SIZE_SETTINGS:
-            pair = await self._read_mongodb_pool_pair(key)
-            value = _pool_pair_value(key, pair)
+            value = _pool_pair_value(key, pool_pair or {})
         else:
             value = doc["value"] if doc else default_value
 

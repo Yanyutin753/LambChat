@@ -1,4 +1,6 @@
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -11,22 +13,15 @@ async def test_delete_removes_store_payload_for_long_memory():
     seen: dict[str, object] = {}
 
     class FakeCollection:
-        async def find_one(self, query, _projection=None):
-            seen["find_query"] = query
+        async def find_one_and_delete(self, query, *, projection):
+            seen["delete_query"] = query
+            assert projection == {"content_storage_mode": 1, "content_store_key": 1}
             return {
                 "user_id": "u1",
                 "memory_id": "m1",
                 "content_storage_mode": "store",
                 "content_store_key": "memory:m1",
             }
-
-        async def delete_one(self, query):
-            seen["delete_query"] = query
-
-            class Result:
-                deleted_count = 1
-
-            return Result()
 
     class FakeStore:
         async def aput(self, namespace, key, value):
@@ -44,7 +39,6 @@ async def test_delete_removes_store_payload_for_long_memory():
     result = await backend.delete("u1", "m1")
 
     assert result["success"] is True
-    assert seen["find_query"] == {"user_id": "u1", "memory_id": "m1"}
     assert seen["delete_query"] == {"user_id": "u1", "memory_id": "m1"}
     assert seen["store_delete"] == {
         "namespace": ("memories", "u1", "content"),
@@ -59,17 +53,9 @@ async def test_delete_scoped_adds_current_project_visibility_clause():
     seen: dict[str, object] = {}
 
     class FakeCollection:
-        async def find_one(self, query, _projection=None):
-            seen["find_query"] = query
-            return {"content_storage_mode": "inline"}
-
-        async def delete_one(self, query):
+        async def find_one_and_delete(self, query, *, projection):
             seen["delete_query"] = query
-
-            class Result:
-                deleted_count = 1
-
-            return Result()
+            return {"content_storage_mode": "inline"}
 
     backend = NativeMemoryBackend()
     backend._collection = FakeCollection()
@@ -88,13 +74,90 @@ async def test_delete_scoped_adds_current_project_visibility_clause():
         ]
     }
     assert result["success"] is True
-    assert seen["find_query"] == {
+    assert seen["delete_query"] == {
         "user_id": "u1",
         "memory_id": "m1",
         **expected_scope,
     }
-    assert seen["delete_query"] == seen["find_query"]
     assert seen["invalidated"] is True
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+async def test_batch_delete_atomic_results_keep_duplicates_owner_and_side_effect_order(
+    monkeypatch, cleanup_fails
+):
+    from src.api.routes import memory as memory_routes
+    from src.infra.memory.client.native import vector_store
+    from src.kernel.schemas.user import TokenPayload
+
+    events = []
+    docs = [
+        {
+            "user_id": "u1",
+            "memory_id": "long",
+            "content_storage_mode": "store",
+            "content_store_key": "memory:long",
+        },
+        {"user_id": "u1", "memory_id": "inline", "content_storage_mode": "inline"},
+        {"user_id": "other", "memory_id": "foreign", "content_storage_mode": "inline"},
+    ]
+
+    class Collection:
+        async def find_one_and_delete(self, query, *, projection):
+            events.append(("delete", query["memory_id"]))
+            assert projection == {"content_storage_mode": 1, "content_store_key": 1}
+            for index, doc in enumerate(docs):
+                if all(doc.get(key) == value for key, value in query.items()):
+                    return docs.pop(index)
+            return None
+
+        async def find_one(self, *args):
+            raise AssertionError("deletion must not read old keys separately")
+
+    async def delete_content(namespace, key, value):
+        events.append(("content", key))
+        assert namespace == ("memories", "u1", "content") and value is None
+        if cleanup_fails:
+            raise RuntimeError("cleanup failed")
+
+    async def invalidate(user_id):
+        events.append(("cache", user_id))
+
+    async def delete_vector(user_id, memory_id):
+        events.append(("vector", memory_id))
+
+    backend = NativeMemoryBackend()
+    backend._collection = Collection()
+    backend._store = SimpleNamespace(aput=delete_content)
+    backend._invalidate_cache = invalidate
+    monkeypatch.setattr(vector_store, "index_delete", delete_vector)
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    request = SimpleNamespace(
+        json=AsyncMock(return_value={"memory_ids": ["long", "long", "foreign", "inline"]})
+    )
+    user = TokenPayload(sub="u1", username="test", roles=["user"])
+    if cleanup_fails:
+        with pytest.raises(RuntimeError, match="cleanup failed"):
+            await memory_routes.batch_delete_memories(request, user=user)
+        assert events == [("delete", "long"), ("content", "memory:long")]
+        assert [doc["memory_id"] for doc in docs] == ["inline", "foreign"]
+    else:
+        assert await memory_routes.batch_delete_memories(request, user=user) == {
+            "success": True,
+            "deleted": 2,
+        }
+        assert events == [
+            ("delete", "long"),
+            ("content", "memory:long"),
+            ("cache", "u1"),
+            ("vector", "long"),
+            ("delete", "long"),
+            ("delete", "foreign"),
+            ("delete", "inline"),
+            ("cache", "u1"),
+            ("vector", "inline"),
+        ]
+        assert [doc["memory_id"] for doc in docs] == ["foreign"]
 
 
 @pytest.mark.asyncio

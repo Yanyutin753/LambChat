@@ -462,6 +462,10 @@
     "requestNewResetLink": "再設定リンクを再取得"
   },
   "backendErrors": {
+    "directUploadInvalid": "アップロードしたパートが許可されたファイルと一致しません。再アップロードしてください。",
+    "directUploadInactive": "アップロードが無効になりました。再アップロードしてください。",
+    "directUploadStorageChanged": "ストレージ設定が変更されました。再アップロードしてください。",
+    "uploadCanceled": "アップロードをキャンセルしました",
     "accountInactive": "アカウントが有効化されていません。メール認証後にログインしてください。",
     "approvalAlreadyHandled": "この承認リクエストはすでに処理されています。",
     "approvalNotFound": "承認リクエストが見つかりません。",

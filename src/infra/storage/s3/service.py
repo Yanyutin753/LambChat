@@ -23,6 +23,7 @@ from src.infra.storage.s3.backends import (
     MinioS3Backend,
 )
 from src.infra.storage.s3.base import BinaryReadFile, BinaryWriteFile, S3StorageBackend
+from src.infra.storage.s3.direct_upload import DirectUploadStorage
 from src.infra.storage.s3.types import S3Config, S3Provider, UploadResult
 from src.infra.utils.datetime import utc_now
 
@@ -48,6 +49,7 @@ class S3StorageService:
 
     def __init__(self, config: Optional[S3Config] = None):
         self._backend: Optional[S3StorageBackend] = None
+        self._direct_upload: DirectUploadStorage | None = None
         if config:
             self._config = config
         else:
@@ -64,11 +66,18 @@ class S3StorageService:
         """Configure the storage service"""
         self._config = config
         self._backend = None
+        self._direct_upload = None
 
     @property
     def is_local(self) -> bool:
         """Whether the storage backend is local filesystem."""
         return self._config.provider == S3Provider.LOCAL
+
+    @property
+    def direct_upload(self) -> DirectUploadStorage:
+        if self._direct_upload is None:
+            self._direct_upload = DirectUploadStorage(self._config)
+        return self._direct_upload
 
     @staticmethod
     async def _retry_async(
@@ -438,6 +447,9 @@ class S3StorageService:
 
     async def close(self) -> None:
         """Close the storage service"""
+        if self._direct_upload:
+            await self._direct_upload.close()
+            self._direct_upload = None
         if self._backend:
             await self._backend.close()
             self._backend = None

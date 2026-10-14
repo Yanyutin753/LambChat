@@ -13,6 +13,33 @@ class _FakeRedisClient:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
         self.set_calls: list[tuple[str, str, int | None]] = []
+        self.pipeline_calls = []
+
+    def pipeline(self, transaction=True):
+        assert transaction is False
+        client = self
+
+        class Pipeline:
+            def __init__(self):
+                self.keys = []
+
+            def get(self, key):
+                self.keys.append(key)
+                return self
+
+            async def execute(self, raise_on_error=True):
+                client.pipeline_calls.append(list(self.keys))
+                results = []
+                for key in self.keys:
+                    try:
+                        results.append(await client.get(key))
+                    except Exception as error:
+                        if raise_on_error:
+                            raise
+                        results.append(error)
+                return results
+
+        return Pipeline()
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
         self.set_calls.append((key, value, ex))
@@ -710,3 +737,25 @@ async def test_load_cluster_snapshots_returns_empty_list_when_redis_fails() -> N
 
     assert loaded == []
     assert memory_health.build_cluster_overview(loaded)["instance_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_snapshot_reads_use_one_pipeline_and_preserve_partial_failures():
+    prefix = "health:memory:instance:"
+    client = _FailingKeyReadRedisClient({prefix + "unreadable"})
+    client.values = {
+        prefix + "good": json.dumps(_build_payload(instance_id="good")),
+        prefix + "unreadable": "ignored",
+        prefix + "expired": None,
+        prefix + "malformed": "{",
+    }
+    snapshots = await memory_health.load_cluster_snapshots(redis_client=client)
+    assert [snapshot["instance_id"] for snapshot in snapshots] == ["good"]
+    assert client.pipeline_calls == [sorted(client.values)]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_empty_scan_skips_pipeline():
+    client = _FakeRedisClient()
+    assert await memory_health.load_cluster_snapshots(redis_client=client) == []
+    assert client.pipeline_calls == []

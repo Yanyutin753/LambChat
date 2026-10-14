@@ -13,6 +13,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.conversation_history_index import (
     CONVERSATION_SEARCH_INDEX_VERSION,
+    MEMORY_SOURCE_REFS_MAX,
     build_conversation_search_payload,
     extract_conversation_turn,
     merge_source_refs,
@@ -376,6 +377,8 @@ class ConversationHistoryService:
         self,
         user_id: str,
         refs: Sequence[ConversationSourceRef | dict[str, str]],
+        *,
+        limit: int = MEMORY_SOURCE_REFS_MAX,
     ) -> list[ConversationSourceRef]:
         """Return only references owned by the user and safe for history access."""
         normalized: list[ConversationSourceRef] = []
@@ -389,7 +392,7 @@ class ConversationHistoryService:
             except Exception:
                 continue
             normalized.append(ref)
-        normalized = merge_source_refs([], normalized)
+        normalized = merge_source_refs([], normalized, limit=limit)
         sessions = await self._get_sessions([ref.session_id for ref in normalized])
         candidates = [
             ref for ref in normalized if _is_visible_session(sessions.get(ref.session_id), user_id)
@@ -404,11 +407,16 @@ class ConversationHistoryService:
             }
             for ref in candidates
         ]
-        docs = await self.collection.find(
-            {"$or": pair_query},
-            {"_id": 0, "session_id": 1, "run_id": 1},
-        ).to_list(length=len(pair_query))
-        valid_pairs = {(str(doc.get("session_id")), str(doc.get("run_id"))) for doc in docs}
+        valid_pairs: set[tuple[str, str]] = set()
+        for index in range(0, len(pair_query), SESSION_LOOKUP_BATCH_SIZE):
+            batch = pair_query[index : index + SESSION_LOOKUP_BATCH_SIZE]
+            cursor = self.collection.find(
+                {"$or": batch},
+                {"_id": 0, "session_id": 1, "run_id": 1},
+            )
+            # Several trace documents can share a run; document count cannot bound valid pairs.
+            async for doc in cursor:
+                valid_pairs.add((str(doc.get("session_id")), str(doc.get("run_id"))))
         return [ref for ref in candidates if (ref.session_id, ref.run_id) in valid_pairs]
 
     async def backfill_indexes(self, batch_size: int = 20) -> int:

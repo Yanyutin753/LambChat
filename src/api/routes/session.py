@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
 from src.api.routes.session_history_render import (
-    HISTORY_JSON_OFFLOAD_EVENT_COUNT,
+    prepare_history_events,
     render_history_response_offloaded,
 )
 from src.api.server_timing import timed_server_phase
@@ -325,6 +325,7 @@ async def get_session_events(
         None, description="游标决胜键：started_at 相同时按 trace_id 比较"
     ),
     compact_message_chunks: bool = False,
+    include_approval_statuses: bool = False,
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -332,13 +333,6 @@ async def get_session_events(
 
     只能获取自己拥有的会话事件。
 
-    Args:
-        session_id: 会话 ID
-        event_types: 可选的事件类型过滤（逗号分隔）
-        run_id: 可选的运行 ID 过滤（用于隔离多轮对话）
-        exclude_run_id: 可选的运行 ID 排除（用于排除正在运行的 run）
-        trace_limit: 可选的按 trace(run) 窗口读取最新 N 轮，
-            响应携带 has_more_traces 与 trace_window 游标供向上翻页
     """
     from src.infra.session.dual_writer import get_dual_writer
 
@@ -417,10 +411,7 @@ async def get_session_events(
     # 预算按 trace 整轮消费：每个 run 的事件完整返回（最新单轮超预算也完整），
     # 超限丢弃的是更旧的整轮；这里不再二次切片以免切断 run
     events_limited = limit is not None and (events_truncated_by_budget or len(events) > limit)
-    if compact_message_chunks:
-        from src.infra.session.history_compaction import compact_history_events
-
-        events = compact_history_events(events)
+    events, offload_history_json = await prepare_history_events(events, compact_message_chunks)
 
     response = {
         "events": events,
@@ -443,7 +434,13 @@ async def get_session_events(
             if has_more_traces and oldest_trace_started_at and oldest_trace_id
             else None
         )
-    if len(events) >= HISTORY_JSON_OFFLOAD_EVENT_COUNT:
+    if include_approval_statuses:
+        from src.api.routes.session_approval_prefetch import prefetch_session_approval_statuses
+
+        approvals = await prefetch_session_approval_statuses(events, session_id, user)
+        if approvals is not None:
+            response["approval_statuses"] = approvals
+    if offload_history_json:
         return await render_history_response_offloaded(response)
     return response
 

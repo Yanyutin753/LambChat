@@ -381,8 +381,14 @@ class SandboxClientRegistry:
         seen_raw = await redis.hgetall(_machseen_key(user_id))
         machines: list[dict] = []
         online_ids: set[str] = set()
-        for mid in sorted(await redis.smembers(_machset_key(user_id))):
-            value = await redis.get(_machine_key(user_id, mid))
+        machine_ids = sorted(await redis.smembers(_machset_key(user_id)))
+        values = []
+        if machine_ids:
+            pipeline = redis.pipeline(transaction=False)
+            for mid in machine_ids:
+                pipeline.get(_machine_key(user_id, mid))
+            values = await pipeline.execute()
+        for mid, value in zip(machine_ids, values):
             if value is None:
                 await redis.eval(
                     _PRUNE_MACHINE_SCRIPT,
@@ -514,11 +520,13 @@ class SandboxClientRegistry:
         default = await self.get_default_machine(user_id)
         if default and await self._machine_online(user_id, default):
             return default
-        online = [
-            mid
-            for mid in await redis.smembers(_machset_key(user_id))
-            if await redis.exists(_machine_key(user_id, mid))
-        ]
+        machine_ids = list(await redis.smembers(_machset_key(user_id)))
+        online = []
+        if machine_ids:
+            pipeline = redis.pipeline(transaction=False)
+            for mid in machine_ids:
+                pipeline.exists(_machine_key(user_id, mid))
+            online = [mid for mid, exists in zip(machine_ids, await pipeline.execute()) if exists]
         if len(online) == 1:
             return online[0]
         if await redis.exists(_key(user_id)):

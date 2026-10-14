@@ -6,8 +6,10 @@ import base64
 import binascii
 import os
 import shlex
+from collections.abc import AsyncGenerator
 from typing import Any, Literal, cast
 
+import httpx
 from deepagents.backends.utils import create_file_data, slice_read_response
 
 from src.infra.async_utils import run_long_blocking_io
@@ -279,6 +281,44 @@ class CubeSandboxBackend(E2BBackend):
         if resp.status_code != 200:
             raise IOError(f"envd raw read HTTP {resp.status_code}: {(resp.text or '')[:120]}")
         return resp.content
+
+    async def _aiter_file_bytes(self, path: str) -> AsyncGenerator[bytes, None]:
+        files_api = cast(Any, self._sandbox.files)
+        sandbox = cast(Any, self._sandbox)
+        config = sandbox._config
+        url = httpx.URL(f"http://{sandbox.get_host(ENVD_PORT)}/files")
+        headers = {**sandbox._traffic_token_headers(), **files_api._base_headers()}
+        if config.proxy_node_ip:
+            headers["Host"] = url.host
+            url = url.copy_with(host=config.proxy_node_ip, port=config.proxy_port)
+        started = False
+        try:
+            async with httpx.AsyncClient(
+                headers=headers,
+                trust_env=False,
+                timeout=httpx.Timeout(config.request_timeout, read=60),
+                follow_redirects=True,
+            ) as client:
+                async with client.stream(
+                    "GET", url, params={"path": path, "username": DEFAULT_ENVD_USER}
+                ) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes(chunk_size=256 * 1024):
+                        started = True
+                        yield chunk
+                    return
+        except Exception:
+            if started:
+                raise  # Never restart a partially delivered stream.
+            logger.info("Cube binary stream using bounded command fallback: %s", path)
+        size = await self._astat_size(path)
+        if size is None:
+            raise IOError("file_not_found")
+        for command in _b64_chunk_commands(path, size):
+            result = await self.aexecute(command)
+            if result.exit_code != 0:
+                raise IOError("binary read command failed")
+            yield _decode_b64_pieces([_pieces_from_output(result.output)], None)
 
     def _read_bytes(self, path: str, size: int | None) -> bytes:
         """字节精确读取：HTTP 直读优先（快、无膨胀），失败回落 base64 命令通道。"""

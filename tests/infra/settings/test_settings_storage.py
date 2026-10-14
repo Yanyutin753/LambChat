@@ -422,3 +422,100 @@ async def test_malformed_row_skipped_not_crash(monkeypatch):
     # 好行：正常返回
     good = await storage.get("ENABLE_MEMORY")
     assert good is not None and good.value is True
+
+
+class _BatchSettingsCursor:
+    def __init__(self, docs):
+        self.docs = docs
+
+    async def to_list(self, length=None):
+        return [dict(doc) for doc in self.docs[:length]]
+
+
+class _BatchSettingsCollection:
+    def __init__(self, docs):
+        self.docs = docs
+        self.queries = []
+
+    def find(self, query, projection=None):
+        self.queries.append(query)
+        return _BatchSettingsCursor([doc for doc in self.docs if doc["_id"] in query["_id"]["$in"]])
+
+
+async def test_get_many_settings_masks_sensitive_values_and_isolates_bad_row():
+    from datetime import datetime
+
+    from src.infra.settings.storage import SettingsStorage
+
+    collection = _BatchSettingsCollection(
+        [
+            {"_id": "LLM_REQUEST_TIMEOUT", "value": 45, "updated_at": datetime(2026, 1, 1)},
+            {"_id": "LLM_FIRST_EVENT_TIMEOUT", "value": 15, "updated_at": "2026-01-01T00:00:00Z"},
+            {"_id": "MONGODB_URL", "value": "fixture-secret", "updated_at": "2026-01-01T00:00:00Z"},
+        ]
+    )
+    storage = SettingsStorage()
+    storage._collection = collection
+    keys = ["LLM_REQUEST_TIMEOUT", "LLM_FIRST_EVENT_TIMEOUT", "MONGODB_URL"]
+
+    result = await storage.get_many(keys)
+
+    assert result["LLM_REQUEST_TIMEOUT"] is None
+    assert result["LLM_FIRST_EVENT_TIMEOUT"].updated_at == "2026-01-01T00:00:00Z"
+    assert result["MONGODB_URL"].value == "********"
+    assert collection.queries == [{"_id": {"$in": keys}}]
+
+
+@pytest.mark.parametrize("atomic_pair", [True, False])
+async def test_get_many_pool_settings_match_single_read_effective_values(atomic_pair):
+    from src.infra.settings.storage import SettingsStorage
+
+    docs = [
+        {"_id": "MONGODB_POOL_MIN_SIZE", "value": 1, "updated_at": "2026-01-01T00:00:00Z"},
+        {"_id": "MONGODB_POOL_MAX_SIZE", "value": 80},
+    ]
+    if atomic_pair:
+        docs.append(
+            {
+                "_id": "__settings_atomic__:mongodb_pools",
+                "business_min": 3,
+                "business_max": 90,
+                "checkpoint_min": 2,
+                "checkpoint_max": 100,
+            }
+        )
+    collection = _BatchSettingsCollection(docs)
+    storage = SettingsStorage()
+    storage._collection = collection
+
+    result = await storage.get_many(["MONGODB_POOL_MIN_SIZE", "MONGODB_POOL_MAX_SIZE"])
+
+    assert result["MONGODB_POOL_MIN_SIZE"].value == (3 if atomic_pair else 1)
+    assert result["MONGODB_POOL_MAX_SIZE"].value == (90 if atomic_pair else 80)
+    assert result["MONGODB_POOL_MIN_SIZE"].updated_at == "2026-01-01T00:00:00Z"
+    assert result["MONGODB_POOL_MAX_SIZE"].updated_at is None
+    assert len(collection.queries) == 1
+
+
+async def test_get_many_settings_empty_input_skips_database():
+    from src.infra.settings.storage import SettingsStorage
+
+    storage = SettingsStorage()
+    assert await storage.get_many([]) == {}
+    assert storage._collection is None
+
+
+@pytest.mark.parametrize("count", [1, 100])
+async def test_get_many_settings_uses_one_database_query(count):
+    from src.infra.settings.storage import _MONGODB_POOL_SIZE_SETTINGS, SettingsStorage
+
+    keys = [key for key in SETTING_DEFINITIONS if key not in _MONGODB_POOL_SIZE_SETTINGS][:count]
+    storage = SettingsStorage()
+    collection = _BatchSettingsCollection([])
+    storage._collection = collection
+
+    result = await storage.get_many(keys)
+
+    assert set(result) == set(keys)
+    assert len(collection.queries) == 1
+    assert all(item.updated_at is None for item in result.values())

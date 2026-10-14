@@ -26,10 +26,10 @@ interface FetchOptions extends RequestInit {
  * 自动添加 Authorization header（使用 getValidAccessToken 主动刷新过期 token）
  * 处理 401 响应
  */
-export async function authFetch<T>(
+export async function authFetchResponse(
   url: string,
   options: FetchOptions = {},
-): Promise<T> {
+): Promise<Response> {
   const {
     skipAuth = false,
     headers = {},
@@ -79,7 +79,7 @@ export async function authFetch<T>(
         if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
         throw error;
       }
-      return authFetch<T>(url, { ...options, skipAuth: false, _retry: true });
+      return authFetchResponse(url, { ...options, skipAuth: false, _retry: true });
     }
 
     redirectToLogin();
@@ -104,6 +104,11 @@ export async function authFetch<T>(
     throw error;
   }
 
+  return response;
+}
+
+export async function authFetch<T>(url: string, options: FetchOptions = {}): Promise<T> {
+  const response = await authFetchResponse(url, options);
   // 处理空响应
   // 注意：当响应体为空时返回 null，调用者应处理 T | null 的情况
   // 对于必须返回非空值的场景，API 应确保返回空对象 {} 而不是空响应

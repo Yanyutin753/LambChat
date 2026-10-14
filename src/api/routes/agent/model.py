@@ -413,12 +413,11 @@ async def batch_create_models(
     if shared.get("max_input_tokens"):
         profile = ModelProfile(max_input_tokens=int(shared["max_input_tokens"]))
 
-    created_models = []
-    try:
+    def pending_models():
         for item in models:
             if not item.get("value") or not item.get("label"):
                 continue
-            model = ModelConfig(
+            yield ModelConfig(
                 value=item["value"],
                 label=item["label"],
                 provider=provider,
@@ -429,9 +428,9 @@ async def batch_create_models(
                 profile=profile,
                 enabled=True,
             )
-            created = await storage.create(model)
-            created_models.append(created)
-            logger.debug(f"[Model] Batch created model: {created.value}")
+
+    try:
+        created_models = await storage.create_many(pending_models())
     finally:
         # Always invalidate cache, even on partial failure
         from src.infra.llm.models_service import invalidate_cache

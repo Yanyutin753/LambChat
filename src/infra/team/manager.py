@@ -114,12 +114,11 @@ class TeamManager:
         from src.infra.agent.model_storage import get_model_storage
 
         storage = get_model_storage()
-        models = {}
+        models, _ = await storage.get_many_by_ids_and_values(model_ids)
         for model_id in model_ids:
-            model = await storage.get(model_id)
+            model = models.get(model_id)
             if not model or not model.enabled:
                 raise ValueError("team_member_model_unavailable")
-            models[model_id] = model
 
         if user is None:
             return
@@ -131,8 +130,8 @@ class TeamManager:
             return
 
         allowed = set(allowed_model_ids)
-        for model_id, model in models.items():
-            if model_id not in allowed and model.value not in allowed:
+        for model_id in model_ids:
+            if model_id not in allowed and models[model_id].value not in allowed:
                 raise ValueError("team_member_model_not_allowed")
 
     async def _validate_member_agent_access(
@@ -171,13 +170,9 @@ class TeamManager:
             from src.infra.role.manager import get_role_manager
 
             storage = get_agent_config_storage()
-            role_manager = get_role_manager()
-            for role_name in user.roles or []:
-                role = await role_manager.get_role_by_name(role_name)
-                if not role:
-                    continue
-                role_ids.append(role.id)
-                role_agent_map[role.id] = await storage.get_role_agents(role.id)
+            roles = await get_role_manager().get_roles_by_names(user.roles or [])
+            role_ids = [role.id for role in roles]
+            role_agent_map = await storage.get_role_agents_by_ids(role_ids)
 
         allowed_agents = await AgentFactory.get_filtered_agents(
             user_roles=role_ids,
@@ -330,20 +325,25 @@ class TeamManager:
         team: TeamResponse,
     ) -> list[TeamMemberResponse]:
         """Return active members with validation. Logs warnings for missing presets."""
-        validated = []
-        for member in team.active_members:
-            try:
-                preset = await self.persona_manager.storage.get_by_id(member.persona_preset_id)
-                if preset is None:
-                    logger.warning(
-                        "Member %s references missing preset %s",
-                        member.member_id,
-                        member.persona_preset_id,
-                    )
-                    continue
-            except Exception:
+        members = team.active_members
+        if not members:
+            return []
+        preset_ids = list(dict.fromkeys(member.persona_preset_id for member in members))
+        try:
+            presets = await self.persona_manager.storage.get_by_ids(preset_ids)
+        except Exception:
+            for member in members:
                 logger.warning(
                     "Failed to validate member %s (preset %s)",
+                    member.member_id,
+                    member.persona_preset_id,
+                )
+            return []
+        validated = []
+        for member in members:
+            if presets.get(member.persona_preset_id) is None:
+                logger.warning(
+                    "Member %s references missing preset %s",
                     member.member_id,
                     member.persona_preset_id,
                 )

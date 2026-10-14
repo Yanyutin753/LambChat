@@ -22,7 +22,7 @@ interface ImageWithSkeletonProps {
   onClick?: () => void;
   /** Skip getFullUrl resolution (src is already absolute or data: URI) */
   skipUrlResolve?: boolean;
-  /** Render inline without wrapper div (for thumbnails, avatars, etc.) */
+  /** Compact wrapper using className for sizing (thumbnails, avatars, etc.) */
   inline?: boolean;
   /** Aspect ratio for skeleton placeholder, e.g. "16/10", "1/1", "4/3" */
   aspectRatio?: string;
@@ -44,7 +44,7 @@ interface ImageWithSkeletonProps {
  *
  * Modes:
  * - Default (block): wraps in a relative container with rounded-lg shadow
- * - Inline: no wrapper, just the img + hidden skeleton — fits inside existing containers
+ * - Inline: compact wrapper fitting the caller's dimensions
  */
 export function ImageWithSkeleton({
   src,
@@ -114,14 +114,18 @@ export function ImageWithSkeleton({
         type={onClick ? "button" : undefined}
         aria-label={onClick ? alt || t("documents.preview") : undefined}
         onClick={onClick}
+        aria-busy={!isLoaded && !hasError}
         style={hasError ? { aspectRatio } : undefined}
         className={`relative overflow-hidden image-with-skeleton ${className ?? ""} ${onClick ? "block text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
       >
         {!isLoaded && !hasError && (
-          <div
-            className="w-full skeleton-line rounded-[inherit]"
-            style={{ aspectRatio }}
-          />
+          <>
+            <div aria-hidden="true" className="w-full" style={{ aspectRatio }} />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 skeleton-line rounded-[inherit] pointer-events-none"
+            />
+          </>
         )}
         {hasError ? (
           (errorFallback ?? (
@@ -146,7 +150,7 @@ export function ImageWithSkeleton({
               transition: isLoaded ? "opacity 0.3s ease" : "none",
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit: "inherit",
               ...style,
             }}
           />
@@ -161,16 +165,20 @@ export function ImageWithSkeleton({
       type={onClick ? "button" : undefined}
       aria-label={onClick ? alt || t("documents.preview") : undefined}
       onClick={onClick}
+      aria-busy={!isLoaded && !hasError}
       className={`relative my-2 overflow-hidden rounded-lg shadow ${
         wrapperClassName ?? ""
       } image-with-skeleton ${onClick ? "block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
     >
       {/* Skeleton placeholder */}
       {!isLoaded && !hasError && (
-        <div
-          className="skeleton-line w-full rounded-lg"
-          style={{ aspectRatio }}
-        />
+        <>
+          <div aria-hidden="true" className="w-full" style={{ aspectRatio }} />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 skeleton-line rounded-[inherit] pointer-events-none"
+          />
+        </>
       )}
 
       {/* Actual image */}

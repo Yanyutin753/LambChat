@@ -11,6 +11,11 @@ from src.kernel.errors import AppError
 KEY = "cua_screenshots/owner/session/a.png"
 
 
+async def _documents(docs):
+    for doc in docs:
+        yield dict(doc)
+
+
 @pytest.fixture
 def screenshot(monkeypatch):
     record = {
@@ -21,8 +26,19 @@ def screenshot(monkeypatch):
     }
     records = FileRecordStorage()
     records.find_by_key = AsyncMock(return_value=record)
+    records.ensure_indexes_if_needed = AsyncMock()
+    records._collection = SimpleNamespace(
+        find=Mock(side_effect=lambda query: _documents([{**record, "key": KEY}]))
+    )
     sessions = SimpleNamespace(
-        collection=SimpleNamespace(find_one=AsyncMock(return_value={"user_id": "owner"}))
+        collection=SimpleNamespace(
+            find_one=AsyncMock(return_value={"user_id": "owner"}),
+            find=Mock(
+                side_effect=lambda query, projection: _documents(
+                    [{"session_id": "session", "user_id": "owner"}]
+                )
+            ),
+        )
     )
     monkeypatch.setattr(upload, "_file_record_storage", records)
     monkeypatch.setattr(SessionStorage, "__new__", lambda cls: sessions)
@@ -99,6 +115,110 @@ async def test_signed_url_routes_never_create_bearer_links_for_captures(screensh
         url = result.url
     assert url == f"https://app.example/api/upload/file/{KEY}"
     storage.get_presigned_url.assert_not_awaited()
+
+
+@pytest.mark.parametrize("count", [1, 100])
+async def test_batch_signed_urls_queries_records_and_sessions_once(screenshot, count):
+    from src.api.routes.upload_signed_urls import SignedUrlRequest, get_signed_urls
+
+    record, sessions, storage, req = screenshot
+    keys = [f"tool_binaries/owner/session/{index}.png" for index in range(count)]
+    records = upload._file_record_storage
+    records._collection.find.side_effect = lambda query: _documents(
+        [{**record, "key": key} for key in keys]
+    )
+    result = await get_signed_urls(
+        SignedUrlRequest(keys=keys), req, current_user=SimpleNamespace(sub="owner")
+    )
+
+    assert [item.key for item in result.urls] == keys
+    assert all(
+        item.url == f"https://app.example/api/upload/file/{item.key}" for item in result.urls
+    )
+    assert result.expires_in == 0
+    records._collection.find.assert_called_once_with({"key": {"$in": keys}})
+    records.find_by_key.assert_not_awaited()
+    sessions.collection.find.assert_called_once()
+    sessions.collection.find_one.assert_not_awaited()
+    storage.get_presigned_url.assert_not_awaited()
+
+
+async def test_batch_signed_urls_preserves_denials_fallback_and_duplicate_results(screenshot):
+    from src.api.routes.upload_signed_urls import SignedUrlRequest, get_signed_urls
+
+    record, sessions, storage, req = screenshot
+    keys = [KEY, "cua_screenshots/missing.png", "tool_binaries/legacy.png", KEY]
+    denied = {
+        "foreign": {"uploaded_by": "other"},
+        "deleting": {"deleting_at": "now"},
+        "stale": {"private_capture_epoch": 1},
+        "missing-session": {"private_session_id": "gone"},
+    }
+    keys.extend(f"tool_binaries/{name}.png" for name in denied)
+    upload._file_record_storage._collection.find.side_effect = lambda query: _documents(
+        [{**record, "key": KEY}]
+        + [
+            {**record, **flags, "key": f"tool_binaries/{name}.png"}
+            for name, flags in denied.items()
+        ]
+    )
+    storage.get_presigned_url.return_value = "https://signed.example/legacy"
+
+    result = await get_signed_urls(
+        SignedUrlRequest(keys=keys), req, current_user=SimpleNamespace(sub="owner")
+    )
+
+    private_keys = [key for key in keys if key != "tool_binaries/legacy.png"]
+    assert [item.key for item in result.urls] == [*private_keys, "tool_binaries/legacy.png"]
+    for item in result.urls[:-1]:
+        assert (item.url is not None) == (item.key == KEY)
+        assert item.error == (None if item.key == KEY else "File not found")
+    assert result.urls[-1].url == "https://signed.example/legacy"
+    storage.get_presigned_url.assert_awaited_once_with("tool_binaries/legacy.png", 3600)
+
+
+async def test_batch_signed_urls_rejects_session_delete_marker(screenshot):
+    from src.api.routes.upload_signed_urls import SignedUrlRequest, get_signed_urls
+
+    _, sessions, storage, req = screenshot
+    sessions.collection.find.side_effect = lambda query, projection: _documents([])
+    result = await get_signed_urls(
+        SignedUrlRequest(keys=[KEY]), req, current_user=SimpleNamespace(sub="owner")
+    )
+
+    assert result.urls[0].error == "File not found"
+    query = sessions.collection.find.call_args.args[0]
+    assert query["user_id"] == "owner"
+    assert query["attachment_delete_operation"] == {"$exists": False}
+    storage.get_presigned_url.assert_not_awaited()
+
+
+async def test_batch_signed_urls_isolates_public_signing_errors(screenshot):
+    from src.api.routes.upload_signed_urls import SignedUrlRequest, get_signed_urls
+
+    _, _, storage, req = screenshot
+    storage.get_presigned_url.side_effect = [
+        RuntimeError("unavailable"),
+        "https://signed.example/ok",
+    ]
+    result = await get_signed_urls(
+        SignedUrlRequest(keys=["image/bad.png", "image/ok.png"]),
+        req,
+        current_user=SimpleNamespace(sub="owner"),
+    )
+
+    assert [item.key for item in result.urls] == ["image/bad.png", "image/ok.png"]
+    assert result.urls[0].error == "unavailable"
+    assert result.urls[1].url == "https://signed.example/ok"
+    upload._file_record_storage._collection.find.assert_not_called()
+
+
+async def test_private_batch_lookup_rejects_oversized_keys_before_query(screenshot):
+    with pytest.raises(ValueError, match="Too many file keys"):
+        await upload._file_record_storage.get_private_key_access(
+            [f"cua_screenshots/{index}.png" for index in range(101)], "owner"
+        )
+    upload._file_record_storage._collection.find.assert_not_called()
 
 
 async def test_noncanonical_key_cannot_bypass_private_guard(screenshot):

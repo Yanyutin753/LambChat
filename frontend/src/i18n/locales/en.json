@@ -462,6 +462,10 @@
     "requestNewResetLink": "Request a new reset link"
   },
   "backendErrors": {
+    "directUploadInvalid": "Uploaded parts do not match the authorized file. Please upload again.",
+    "directUploadInactive": "This upload is no longer active. Please upload again.",
+    "directUploadStorageChanged": "Storage configuration changed. Please upload again.",
+    "uploadCanceled": "Upload canceled",
     "accountInactive": "Your account is inactive. Please verify your email before signing in.",
     "approvalAlreadyHandled": "This approval request has already been handled.",
     "approvalNotFound": "Approval request not found.",

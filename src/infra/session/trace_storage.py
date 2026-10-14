@@ -194,6 +194,11 @@ class TraceStorage(
                 name="session_started_at_desc_idx",
                 background=True,
             )
+            await collection.create_index(
+                [("session_id", 1), ("started_at", -1), ("trace_id", -1)],
+                name="session_started_at_trace_id_desc_idx",
+                background=True,
+            )
             # 索引：用于 EventMerger 查询未合并的已完成 traces
             await collection.create_index(
                 [("status", 1), ("metadata.merged", 1)],

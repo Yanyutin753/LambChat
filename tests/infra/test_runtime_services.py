@@ -312,7 +312,7 @@ async def test_start_runtime_services_skips_scheduled_task_runtime_when_disabled
 
     assert scheduled_task_storage.ensure_indexes_calls == 0
     assert scheduled_task_service.load_calls == 0
-    assert scheduler.registered_job_ids == []
+    assert scheduler.registered_job_ids == ["upload.direct_cleanup"]
     # ENABLE_SCHEDULED_TASK 只应关掉用户定时任务功能（reconcile/DB 加载）；
     # 基础设施 job（task.orphan_recovery / memory.compaction）依赖的
     # runtime scheduler 必须仍然启动，否则孤儿接管在默认部署下永不运行。

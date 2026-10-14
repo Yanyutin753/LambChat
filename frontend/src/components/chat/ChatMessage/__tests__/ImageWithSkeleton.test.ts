@@ -8,7 +8,7 @@ test("block image skeleton overlays the image while loading to avoid extra blank
   expect(source).toMatch(
     /className=\{`relative my-2 overflow-hidden rounded-lg shadow/,
   );
-  expect(source).toMatch(/className="skeleton-line w-full rounded-lg"/);
+  expect(source).toMatch(/className="absolute inset-0 skeleton-line rounded-\[inherit\] pointer-events-none"/);
   expect(source).toMatch(
     /className=\{`\s*\$\{\s*!isLoaded \? "absolute inset-0 pointer-events-none" : ""\s*\}/s,
   );

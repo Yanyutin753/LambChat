@@ -5,10 +5,12 @@ Memory API router - list and manage stored memories
 import json
 import re
 import uuid
+from collections.abc import AsyncIterable, AsyncIterator
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import StreamingResponse
+from pymongo import ReturnDocument
 
 from src.api.deps import get_current_user_required
 from src.infra.async_utils.blocking import run_blocking_io
@@ -31,6 +33,7 @@ _MEMORY_EXPORT_VERSION = 1
 _DEFAULT_MEMORY_IMPORT_CONTENT_MAX_CHARS = 64_000
 _DEFAULT_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS = 2_000_000
 _DEFAULT_MEMORY_EXPORT_CONTENT_MAX_CHARS = 64_000
+_SOURCE_REF_BATCH_SIZE = 50
 
 
 async def _get_backend():
@@ -134,7 +137,7 @@ def _memory_projection() -> dict[str, int]:
     }
 
 
-async def _validated_source_ref_docs(user_id: str, raw_refs: Any) -> list[dict[str, str]]:
+def _normalized_source_refs(raw_refs: Any) -> list[ConversationSourceRef]:
     normalized: list[ConversationSourceRef] = []
     if isinstance(raw_refs, list):
         for raw_ref in raw_refs:
@@ -146,18 +149,67 @@ async def _validated_source_ref_docs(user_id: str, raw_refs: Any) -> list[dict[s
                 )
             except Exception:
                 continue
-    normalized = merge_source_refs([], normalized)
-    if not normalized:
-        return []
-    try:
-        allowed = await ConversationHistoryService().validate_source_refs(user_id, normalized)
-    except Exception as exc:
-        logger.warning(
-            "Memory API source reference validation failed: error_type=%s",
-            type(exc).__name__,
+    return merge_source_refs([], normalized)
+
+
+async def _validated_source_ref_docs_batch(
+    user_id: str, raw_groups: list[Any]
+) -> list[list[dict[str, str]]]:
+    results: list[list[dict[str, str]]] = []
+    for index in range(0, len(raw_groups), _SOURCE_REF_BATCH_SIZE):
+        groups = [
+            _normalized_source_refs(raw)
+            for raw in raw_groups[index : index + _SOURCE_REF_BATCH_SIZE]
+        ]
+        refs = [ref for group in groups for ref in group]
+        allowed_pairs: set[tuple[str, str]] = set()
+        if refs:
+            try:
+                allowed = await ConversationHistoryService().validate_source_refs(
+                    user_id, refs, limit=len(refs)
+                )
+                allowed_pairs = {(ref.session_id, ref.run_id) for ref in allowed}
+            except Exception as exc:
+                logger.warning(
+                    "Memory API source reference validation failed: error_type=%s",
+                    type(exc).__name__,
+                )
+        results.extend(
+            [ref.model_dump() for ref in group if (ref.session_id, ref.run_id) in allowed_pairs]
+            for group in groups
         )
-        return []
-    return [ref.model_dump() for ref in allowed]
+    return results
+
+
+async def _validated_source_ref_docs(user_id: str, raw_refs: Any) -> list[dict[str, str]]:
+    return (await _validated_source_ref_docs_batch(user_id, [raw_refs]))[0]
+
+
+async def _iter_memory_batches_with_source_refs(
+    user_id: str, cursor: AsyncIterable[dict[str, Any]]
+) -> AsyncIterator[list[tuple[dict[str, Any], list[dict[str, str]]]]]:
+    batch: list[dict[str, Any]] = []
+    async for doc in cursor:
+        batch.append(doc)
+        if len(batch) == _SOURCE_REF_BATCH_SIZE:
+            validated = await _validated_source_ref_docs_batch(
+                user_id, [item.get("source_refs") for item in batch]
+            )
+            yield list(zip(batch, validated, strict=True))
+            batch = []
+    if batch:
+        validated = await _validated_source_ref_docs_batch(
+            user_id, [item.get("source_refs") for item in batch]
+        )
+        yield list(zip(batch, validated, strict=True))
+
+
+async def _iter_memories_with_source_refs(
+    user_id: str, cursor: AsyncIterable[dict[str, Any]]
+) -> AsyncIterator[tuple[dict[str, Any], list[dict[str, str]]]]:
+    async for batch in _iter_memory_batches_with_source_refs(user_id, cursor):
+        for item in batch:
+            yield item
 
 
 def _json_iterencode_chunks(encoder: json.JSONEncoder, value: Any) -> list[str]:
@@ -231,8 +283,7 @@ async def list_memories(
     )
 
     memories = []
-    async for doc in cursor:
-        source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
+    async for doc, source_refs in _iter_memories_with_source_refs(user.sub, cursor):
         memory = {
             "memory_id": doc["memory_id"],
             "title": doc.get("title", ""),
@@ -430,7 +481,7 @@ async def export_memories(
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """Export all stored memories for the current user."""
-    from src.infra.memory.client.native.content import hydrate_memory_text
+    from src.infra.memory.client.native.content import hydrate_memory_texts
 
     backend = await _get_backend()
     if not backend:
@@ -450,38 +501,38 @@ async def export_memories(
         yield ',"memories":['
 
         first = True
-        async for doc in cursor:
-            content = await hydrate_memory_text(backend, doc)
-            source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
-            content_original_chars = len(content)
-            max_content_chars = _get_memory_export_content_max_chars()
-            content_truncated = content_original_chars > max_content_chars
-            if content_truncated:
-                content = content[:max_content_chars]
-            item = {
-                "memory_id": doc["memory_id"],
-                "title": doc.get("title", ""),
-                "summary": doc.get("summary", ""),
-                "memory_type": doc.get("memory_type", ""),
-                "tags": doc.get("tags", []),
-                "content": content,
-                "context": doc.get("context", ""),
-                "source": doc.get("source", ""),
-                "created_at": to_iso(doc.get("created_at")),
-                "updated_at": to_iso(doc.get("updated_at")),
-                "accessed_at": to_iso(doc.get("accessed_at")),
-                "access_count": doc.get("access_count", 0),
-                "source_refs": source_refs,
-            }
-            if content_truncated:
-                item["content_truncated"] = True
-                item["content_original_chars"] = content_original_chars
-            if first:
-                first = False
-            else:
-                yield ","
-            for chunk in await run_blocking_io(_json_iterencode_chunks, encoder, item):
-                yield chunk
+        async for batch in _iter_memory_batches_with_source_refs(user.sub, cursor):
+            contents = await hydrate_memory_texts(backend, [doc for doc, _ in batch])
+            for (doc, source_refs), content in zip(batch, contents, strict=True):
+                content_original_chars = len(content)
+                max_content_chars = _get_memory_export_content_max_chars()
+                content_truncated = content_original_chars > max_content_chars
+                if content_truncated:
+                    content = content[:max_content_chars]
+                item = {
+                    "memory_id": doc["memory_id"],
+                    "title": doc.get("title", ""),
+                    "summary": doc.get("summary", ""),
+                    "memory_type": doc.get("memory_type", ""),
+                    "tags": doc.get("tags", []),
+                    "content": content,
+                    "context": doc.get("context", ""),
+                    "source": doc.get("source", ""),
+                    "created_at": to_iso(doc.get("created_at")),
+                    "updated_at": to_iso(doc.get("updated_at")),
+                    "accessed_at": to_iso(doc.get("accessed_at")),
+                    "access_count": doc.get("access_count", 0),
+                    "source_refs": source_refs,
+                }
+                if content_truncated:
+                    item["content_truncated"] = True
+                    item["content_original_chars"] = content_original_chars
+                if first:
+                    first = False
+                else:
+                    yield ","
+                for chunk in await run_blocking_io(_json_iterencode_chunks, encoder, item):
+                    yield chunk
 
         yield "]}"
 
@@ -515,8 +566,12 @@ async def import_memories(
     created = 0
     overwritten = 0
     now = utc_now()
+    validated_sources = await _validated_source_ref_docs_batch(
+        user.sub,
+        [raw.get("source_refs") if isinstance(raw, dict) else None for raw in raw_memories],
+    )
 
-    for raw in raw_memories:
+    for raw, source_refs in zip(raw_memories, validated_sources, strict=True):
         if not isinstance(raw, dict):
             raise AppError(ErrorCode.MEMORY_MUST_BE_OBJECT)
 
@@ -536,12 +591,6 @@ async def import_memories(
         title = _clean_text(raw.get("title") or "Imported memory", 80)
         summary = _clean_text(raw.get("summary") or content, 300)
         tags = _clean_tags(raw.get("tags"))
-        source_refs = await _validated_source_ref_docs(user.sub, raw.get("source_refs"))
-
-        existing_doc = await backend._collection.find_one(
-            {"user_id": user.sub, "memory_id": memory_id},
-            {"content_storage_mode": 1, "content_store_key": 1},
-        )
 
         content_fields = await build_content_fields(backend, user.sub, memory_id, content)
         embedding = None
@@ -588,12 +637,14 @@ async def import_memories(
             **content_fields,
         }
 
-        result = await backend._collection.replace_one(
+        existing_doc = await backend._collection.find_one_and_replace(
             {"user_id": user.sub, "memory_id": memory_id},
             doc,
             upsert=True,
+            return_document=ReturnDocument.BEFORE,
+            projection={"content_storage_mode": 1, "content_store_key": 1},
         )
-        if getattr(result, "matched_count", 0):
+        if existing_doc is not None:
             overwritten += 1
         else:
             created += 1

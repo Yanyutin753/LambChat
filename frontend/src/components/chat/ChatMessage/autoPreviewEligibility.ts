@@ -32,21 +32,13 @@ function isEligibleObservedCompletionMessage(input: {
   message: AutoPreviewMessageLike;
   observedStreamingMessageIds: ReadonlySet<string>;
   currentRunId?: string | null;
-  allowHistoricalLatest?: boolean;
 }): boolean {
-  const {
-    message,
-    observedStreamingMessageIds,
-    currentRunId,
-    allowHistoricalLatest,
-  } = input;
+  const { message, observedStreamingMessageIds, currentRunId } = input;
   const isCurrentRunMessage = !!currentRunId && message.runId === currentRunId;
   return (
     !message.isStreaming &&
     !!message.parts?.length &&
-    (allowHistoricalLatest ||
-      observedStreamingMessageIds.has(message.id) ||
-      isCurrentRunMessage)
+    (observedStreamingMessageIds.has(message.id) || isCurrentRunMessage)
   );
 }
 
@@ -140,7 +132,6 @@ export function getLatestObservedCompletionRevealPreviewRequest(input: {
   observedStreamingMessageIds: ReadonlySet<string>;
   suppressAutoPreview?: boolean;
   currentRunId?: string | null;
-  allowHistoricalLatest?: boolean;
 }): RevealPreviewRequest | null {
   if (input.suppressAutoPreview) {
     return null;
@@ -157,7 +148,6 @@ export function getLatestObservedCompletionRevealPreviewRequest(input: {
         message,
         observedStreamingMessageIds: input.observedStreamingMessageIds,
         currentRunId: input.currentRunId,
-        allowHistoricalLatest: input.allowHistoricalLatest,
       })
     ) {
       continue;

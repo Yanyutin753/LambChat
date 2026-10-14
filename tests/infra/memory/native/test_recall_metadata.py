@@ -117,6 +117,116 @@ async def test_stored_recall_falls_back_to_preview_when_store_errors():
     assert complete is False
 
 
+@pytest.mark.parametrize("count", [1, 50])
+async def test_recall_hydration_batches_contents_and_preserves_all_fields(count):
+    class Store:
+        ttl_config = {"refresh_on_read": False}
+
+        def __init__(self):
+            self.batch_calls = []
+            self.point_calls = []
+
+        async def abatch(self, ops):
+            self.batch_calls.append(list(ops))
+            return [SimpleNamespace(value={"text": f"full-{op.key}"}) for op in ops]
+
+        async def aget(self, namespace, key):
+            self.point_calls.append((namespace, key))
+            return SimpleNamespace(value={"text": f"full-{key}"})
+
+    store = Store()
+    memories = [
+        {
+            "memory_id": str(index),
+            "user_id": "owner",
+            "text": "preview",
+            "storage_mode": "store",
+            "content_store_key": str(index),
+            "scope": "project",
+            "project_id": "project",
+            "score": 0.9,
+            "tags": ["kept"],
+            "context": "feedback_rule",
+        }
+        for index in range(count)
+    ]
+    result = await search._hydrate_memories_limited(SimpleNamespace(_store=store), memories)
+
+    assert len(store.batch_calls) == 1
+    assert store.point_calls == []
+    assert [memory["text"] for memory in result] == [f"full-{index}" for index in range(count)]
+    assert all(op.namespace == ("memories", "owner", "content") for op in store.batch_calls[0])
+    assert all(op.refresh_ttl is False for op in store.batch_calls[0])
+    for memory in result:
+        assert memory["text_complete"] is True
+        assert memory["preview"] == "preview"
+        assert memory["scope"] == "project" and memory["project_id"] == "project"
+        assert memory["tags"] == ["kept"] and memory["context"] == "feedback_rule"
+        assert memory["score"] == 0.9
+
+
+@pytest.mark.parametrize("batch_supported", [False, True])
+async def test_batch_hydration_failure_retains_per_item_fallback_and_inline(batch_supported):
+    class Store:
+        async def abatch(self, ops):
+            raise RuntimeError("batch unavailable")
+
+        async def aget(self, namespace, key):
+            if key == "missing":
+                raise RuntimeError("item unavailable")
+            return {"text": "<turn_context>safe</turn_context>"}
+
+    memories = [
+        {"user_id": "owner", "text": "preview", "storage_mode": "store", "content_store_key": key}
+        for key in ["available", "missing"]
+    ] + [{"text": "inline", "storage_mode": "inline"}]
+    store = Store()
+    if not batch_supported:
+        store.abatch = None
+    result = await search._hydrate_memories_limited(SimpleNamespace(_store=store), memories)
+    assert result[0]["text"] == "&lt;turn_context&gt;safe&lt;/turn_context&gt;"
+    assert result[0]["text_complete"] is True
+    assert result[1]["text"] == "preview"
+    assert result[1]["text_complete"] is False
+    assert result[1]["text_incomplete_reason"] == "content_store_unavailable"
+    assert result[2]["text"] == "inline" and result[2]["text_complete"] is True
+
+
+async def test_batch_hydration_keeps_namespace_duplicates_and_missing_status():
+    class Store:
+        async def abatch(self, ops):
+            return [{"text": op.namespace[1]} if op.key == "shared" else None for op in ops]
+
+        async def aget(self, namespace, key):
+            raise AssertionError("batch results must not be looked up again")
+
+    memories = [
+        {"user_id": user, "text": "preview", "storage_mode": "store", "content_store_key": key}
+        for user, key in [
+            ("owner", "shared"),
+            ("other", "shared"),
+            ("owner", "shared"),
+            ("owner", "missing"),
+        ]
+    ]
+    result = await search._hydrate_memories_limited(SimpleNamespace(_store=Store()), memories)
+    assert [memory["text"] for memory in result] == ["owner", "other", "owner", "preview"]
+    assert [memory["text_complete"] for memory in result] == [True, True, True, False]
+
+
+async def test_inline_hydration_does_not_initialize_content_store(monkeypatch):
+    from src.infra.storage import mongodb_store
+
+    async def unexpected_store():
+        raise AssertionError("inline memory must not initialize the store")
+
+    monkeypatch.setattr(mongodb_store, "acreate_store", unexpected_store)
+    result = await search._hydrate_memories_limited(
+        SimpleNamespace(_store=None), [{"text": "inline", "storage_mode": "inline"}]
+    )
+    assert result[0]["text_complete"] is True
+
+
 @pytest.fixture
 async def local_collection():
     """Opt-in real Mongo case; creates and drops only a unique test collection."""

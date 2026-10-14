@@ -17,11 +17,14 @@ import os
 import shlex
 import threading
 import time
+from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
 from deepagents.backends.sandbox import BaseSandbox
 from deepagents.backends.utils import create_file_data, slice_read_response
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend.e2b_async import (
     _DEFAULT_COMMAND_TIMEOUT,
     _KEEPALIVE_MIN_INTERVAL,
@@ -159,6 +162,28 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
 
     def _files_read(self, path: str, format: Literal["text", "bytes"]) -> Any:
         return self._sdk("files.read", lambda: self._sandbox.files.read(path=path, format=format))
+
+    async def _aiter_file_bytes(self, path: str) -> AsyncGenerator[bytes, None]:
+        sandbox = await self._async_client_or_none()
+        if sandbox is None:
+            raise IOError("async file stream unavailable")
+        reader = await self._asdk(
+            "files.read", lambda: sandbox.files.read(path=path, format="stream")
+        )
+        try:
+            async for chunk in reader:
+                yield chunk
+        finally:
+            await reader.aclose()
+
+    async def astream_file(self, path: str) -> AsyncGenerator[bytes, None]:
+        from src.infra.sandbox.file_stream import bounded_async_chunks
+
+        resolved = self._resolve_path(path)
+        size = await run_long_blocking_io(self._file_size, resolved)
+        async with aclosing(bounded_async_chunks(self._aiter_file_bytes(resolved), size)) as stream:
+            async for chunk in stream:
+                yield chunk
 
     def _files_write(self, path: str, data: Any) -> None:
         self._sdk("files.write", lambda: self._sandbox.files.write(path=path, data=data))

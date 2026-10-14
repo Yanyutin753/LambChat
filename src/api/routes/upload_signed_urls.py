@@ -67,18 +67,27 @@ async def get_signed_urls(
     private_urls = []
     public_keys = []
     base_url = upload_route._get_base_url(req)
+    private_keys = [
+        key
+        for key in body.keys
+        if key.startswith(("cua_screenshots/", "tool_binaries/"))
+        and "\\" not in key
+        and not any(part in (".", "..", "") for part in key.split("/"))
+    ]
+    private_access = (
+        await upload_route._file_record_storage.get_private_key_access(
+            private_keys, current_user.sub
+        )
+        if private_keys
+        else {}
+    )
     for key in body.keys:
         if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
             private_urls.append(SignedUrlItem(key=key, error="File not found"))
-        elif key.startswith(
-            ("cua_screenshots/", "tool_binaries/")
-        ) and await upload_route._file_record_storage.is_private_key(key):
-            try:
-                await upload_route._file_record_storage.require_private_access(
-                    key, current_user.sub
-                )
+        elif key in private_access:
+            if private_access[key]:
                 private_urls.append(SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}"))
-            except AppError:
+            else:
                 private_urls.append(SignedUrlItem(key=key, error="File not found"))
         else:
             public_keys.append(key)
