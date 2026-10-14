@@ -215,23 +215,27 @@ def _tool_accepts_runtime(tool: BaseTool) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_tool_event_context(runtime: Any) -> tuple[Any | None, int, str]:
+def _resolve_tool_event_context(runtime: Any) -> tuple[Any | None, int, str, str | None]:
     """从 ToolRuntime.config 取 presenter 与事件深度。
 
     depth 推导对齐 ``AgentEventProcessor._get_agent_context`` 与
     ``summary_stats._resolve_presenter``：checkpoint_ns 含「|」视为子代理
-    （depth 1），否则主代理（depth 0）。返回 (presenter, depth, ns)，
+    （depth 1）；独立子代理以 metadata 的稳定 ID 为准。返回 (presenter, depth, ns, agent_id)，
     无图上下文时 presenter 为 None。
     """
     config = getattr(runtime, "config", None)
     if not isinstance(config, dict):
-        return None, 0, ""
+        return None, 0, "", None
     configurable = config.get("configurable")
     if not isinstance(configurable, dict):
-        return None, 0, ""
-    ns = str(configurable.get("checkpoint_ns") or "")
-    depth = 1 if "|" in ns else 0
-    return configurable.get("presenter"), depth, ns
+        return None, 0, "", None
+    metadata = config.get("metadata") or {}
+    ns = str(metadata.get("langgraph_checkpoint_ns") or configurable.get("checkpoint_ns") or "")
+    agent_id = metadata.get("lambchat_subagent_id")
+    if not isinstance(agent_id, str) or not agent_id:
+        agent_id = None
+    depth = 1 if agent_id or "|" in ns else 0
+    return configurable.get("presenter"), depth, ns, agent_id
 
 
 class ToolResultBinaryMiddleware(AgentMiddleware):
@@ -600,7 +604,9 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
         """
         from src.infra.agent.events.tool_events import stable_tool_call_key
 
-        presenter, depth, ns = _resolve_tool_event_context(getattr(request, "runtime", None))
+        presenter, depth, ns, agent_id = _resolve_tool_event_context(
+            getattr(request, "runtime", None)
+        )
         if presenter is None:
             return
 
@@ -622,6 +628,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     tool_args,
                     tool_call_id=tool_call_id,
                     depth=depth,
+                    agent_id=agent_id,
                 )
             )
             await presenter.emit(
@@ -631,6 +638,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     tool_call_id=tool_call_id,
                     success=True,
                     depth=depth,
+                    agent_id=agent_id,
                 )
             )
         except Exception:
