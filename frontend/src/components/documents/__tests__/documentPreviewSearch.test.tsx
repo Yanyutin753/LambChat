@@ -80,7 +80,10 @@ test("file search waits for the lazy viewer instead of accepting a silent no-op"
   expect(screen.getByRole("button", { name: "搜索" })).toBeDisabled();
   await act(async () => previewLoad.release?.());
   await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
-  expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled();
+  await waitFor(
+    () => expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled(),
+    { timeout: 8000 },
+  );
   fireEvent.click(screen.getByRole("button", { name: "搜索" }));
   expect(
     await screen.findByRole(

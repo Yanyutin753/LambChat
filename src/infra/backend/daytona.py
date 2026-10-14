@@ -16,6 +16,8 @@ import asyncio
 import os
 import shlex
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import aclosing
 
 import daytona
 from daytona import FileDownloadRequest, FileUpload
@@ -285,6 +287,25 @@ class DaytonaBackend(BaseSandbox):
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
         return await run_long_blocking_io(self.glob, pattern, path)
+
+    async def astream_file(self, path: str) -> AsyncGenerator[bytes, None]:
+        from daytona import AsyncDaytona, DaytonaConfig
+
+        from src.infra.sandbox.file_stream import bounded_async_chunks
+
+        resolved = path if path.startswith("/") else f"{self.work_dir.rstrip('/')}/{path}"
+        size = await run_long_blocking_io(self._file_size, resolved)
+        async with AsyncDaytona(
+            DaytonaConfig(api_key=settings.DAYTONA_API_KEY, server_url=settings.DAYTONA_SERVER_URL)
+        ) as client:
+            sandbox = await client.get(self.id)
+            async with aclosing(
+                bounded_async_chunks(
+                    await sandbox.fs.download_file_stream(resolved, timeout=self._timeout), size
+                )
+            ) as stream:
+                async for chunk in stream:
+                    yield chunk
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """Download files from the sandbox.

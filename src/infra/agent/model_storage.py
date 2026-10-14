@@ -6,6 +6,7 @@ Model 配置存储层
 - 存储在 MongoDB
 """
 
+from collections.abc import Iterable
 from typing import Any, Optional
 
 from pymongo import UpdateOne
@@ -318,6 +319,11 @@ class ModelStorage:
         Returns:
             创建的模型配置
         """
+        model_dict = await self._prepare_create_doc(model)
+        await self._get_collection().insert_one(model_dict)
+        return ModelConfig(**await self._decrypt_doc(model_dict))
+
+    async def _prepare_create_doc(self, model: ModelConfig) -> dict[str, Any]:
         now = utc_now()
         model_dict = model.model_dump()
 
@@ -334,10 +340,30 @@ class ModelStorage:
         if model_dict.get("api_key"):
             model_dict["api_key"] = await self._encrypt_api_key(model_dict["api_key"])
 
-        await self._get_collection().insert_one(model_dict)
-        # 返回前解密 api_key
-        model_dict = await self._decrypt_doc(model_dict)
-        return ModelConfig(**model_dict)
+        return model_dict
+
+    async def create_many(self, models: Iterable[ModelConfig]) -> list[ModelConfig]:
+        """Create in ordered batches, preserving the written prefix on preparation failures."""
+        pending: list[dict[str, Any]] = []
+        created: list[ModelConfig] = []
+        collection = self._get_collection()
+        try:
+            for model in models:
+                doc = await self._prepare_create_doc(model)
+                pending.append(doc)
+                # Return conversion formerly followed insert_one, so a failure
+                # here must also commit the current row before propagating.
+                created.append(ModelConfig(**await self._decrypt_doc(dict(doc))))
+                if len(pending) >= MODEL_BULK_WRITE_BATCH_SIZE:
+                    batch, pending = pending, []
+                    await collection.insert_many(batch, ordered=True)
+        except Exception:
+            if pending:
+                await collection.insert_many(pending, ordered=True)
+            raise
+        if pending:
+            await collection.insert_many(pending, ordered=True)
+        return created
 
     async def update(self, model_id: str, update: dict[str, Any]) -> Optional[ModelConfig]:
         """更新模型配置

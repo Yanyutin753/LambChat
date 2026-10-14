@@ -9,6 +9,33 @@ from src.infra.memory.client.native.indexing import (
 )
 
 
+def test_native_memory_type_recency_index_is_nonunique_and_keeps_existing_indexes():
+    from src.infra.memory.client.native.backend import NativeMemoryBackend
+
+    class Collection:
+        def __init__(self):
+            self.indexes = {}
+
+        def create_index(self, keys, **options):
+            self.indexes[options["name"]] = (keys, options)
+
+    collection = Collection()
+    NativeMemoryBackend._create_indexes_sync(collection)
+    keys, options = collection.indexes["native_mem_user_type_recency_idx"]
+    assert keys == [("user_id", 1), ("memory_type", 1), ("updated_at", -1)]
+    assert options.get("unique", False) is False
+    assert collection.indexes["native_mem_user_type_idx"][0] == [
+        ("user_id", 1),
+        ("memory_type", 1),
+        ("created_at", -1),
+    ]
+    assert collection.indexes["native_mem_recency_idx"][0] == [
+        ("user_id", 1),
+        ("updated_at", -1),
+        ("access_count", -1),
+    ]
+
+
 @pytest.mark.parametrize("project_id", ["p1", "p2", None])
 @pytest.mark.parametrize("context", ["project_constraint", "feedback_rule"])
 @pytest.mark.parametrize("personal_count", [80, 100])

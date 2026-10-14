@@ -56,6 +56,9 @@ class _NestedSkillStorage:
     async def list_skill_file_paths(self, skill_name: str, user_id: str) -> list[str]:
         return list(self.files.get(skill_name, {}).keys())
 
+    async def batch_list_skill_file_paths(self, skill_names, user_id):
+        return {name: list(self.files.get(name, {})) for name in skill_names}
+
     async def batch_get_skill_files(self, skill_keys: list[tuple[str, str]]) -> dict:
         return {
             (skill_name, user_id): self.files.get(skill_name, {})
@@ -129,3 +132,44 @@ async def test_skill_glob_from_subdirectory_searches_below_it() -> None:
     result = await _backend().aglob("**/deep.py", "/skills/demo/scripts")
 
     assert _paths(result) == ["/demo/scripts/sub/deep.py"]
+
+
+async def test_recursive_root_glob_batches_visible_paths_without_loading_contents():
+    backend = _backend()
+    storage = backend._storage
+    calls = []
+    storage.files["demo"]["assets/diagram.png"] = "binary reference must not be read"
+
+    async def batch(skill_names, user_id):
+        calls.append((skill_names, user_id))
+        return {name: list(storage.files[name]) for name in skill_names}
+
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("recursive root glob must only batch path metadata")
+
+    storage.batch_list_skill_file_paths = batch
+    storage.list_skill_file_paths = forbidden
+    storage.batch_get_skill_files = forbidden
+    storage.get_skill_file = forbidden
+    result = await backend.aglob("**/*", "/skills")
+    assert calls == [(["browser", "demo"], "user-1")]
+    assert _paths(result) == [
+        "/browser/SKILL.md",
+        "/browser/scripts/interact.py",
+        "/demo/README.md",
+        "/demo/SKILL.md",
+        "/demo/assets/diagram.png",
+        "/demo/docs/x.md",
+        "/demo/scripts/browse.py",
+        "/demo/scripts/sub/deep.py",
+    ]
+
+
+async def test_recursive_root_glob_preserves_budget_order(monkeypatch):
+    import src.infra.backend.skills_store as module
+
+    monkeypatch.setattr(module, "SKILLS_GREP_MAX_MATCHES", 2)
+    result = await _backend().aglob("**/*", "/skills")
+    assert _paths(result) == ["/browser/SKILL.md", "/browser/scripts/interact.py"]
+    assert _field(result, "truncated") is True
+    assert _field(result, "truncation_reason") == "budget"

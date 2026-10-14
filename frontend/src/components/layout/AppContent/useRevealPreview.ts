@@ -70,7 +70,7 @@ export function useRevealPreview(
   externalNavigationToken?: string | null,
   externalNavigationPreview?: RevealPreviewRequest | null,
   currentRunId?: string | null,
-  isLoadingHistory = false,
+  isRunActive = false,
 ): RevealPreviewReturn {
   const [, forcePreviewRender] = useState(0);
   const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(
@@ -83,6 +83,7 @@ export function useRevealPreview(
   const dismissedPreviewKeysRef = useRef<Set<string>>(new Set());
   const observedStreamingMessageIdsRef = useRef<Set<string>>(new Set());
   const observedStreamingSessionIdRef = useRef<string | null>(sessionId);
+  const observedLiveRunIdRef = useRef<string | null>(null);
   const handledExternalPreviewRef = useRef<{
     token: string | null;
     sessionId: string | null;
@@ -99,7 +100,13 @@ export function useRevealPreview(
   if (observedStreamingSessionIdRef.current !== sessionId) {
     observedStreamingSessionIdRef.current = sessionId;
     observedStreamingMessageIdsRef.current.clear();
+    observedLiveRunIdRef.current = null;
   }
+  if (isRunActive && currentRunId) {
+    observedLiveRunIdRef.current = currentRunId;
+  }
+  const observedCurrentRunId =
+    observedLiveRunIdRef.current === currentRunId ? currentRunId : null;
 
   useEffect(() => {
     isNearBottomRef.current = isNearBottom;
@@ -308,9 +315,9 @@ export function useRevealPreview(
           messages,
           observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
           suppressAutoPreview: !!externalNavigationPreview,
-          currentRunId,
+          currentRunId: observedCurrentRunId,
         }),
-      [messages, externalNavigationPreview, currentRunId],
+      [messages, externalNavigationPreview, observedCurrentRunId],
     ),
     (a, b) => a?.messageId === b?.messageId && a?.partIndex === b?.partIndex,
   );
@@ -322,10 +329,9 @@ export function useRevealPreview(
           messages,
           observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
           suppressAutoPreview: !!externalNavigationPreview,
-          currentRunId,
-          allowHistoricalLatest: !isLoadingHistory,
+          currentRunId: observedCurrentRunId,
         }),
-      [messages, externalNavigationPreview, currentRunId, isLoadingHistory],
+      [messages, externalNavigationPreview, observedCurrentRunId],
     ),
     (a, b) => a?.previewKey === b?.previewKey,
   );

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -35,9 +36,37 @@ class _FakeRedisClient:
         self.published: list[tuple[str, str]] = []
         self.publish_subscriber_count = 1
         self.scan_calls = 0
+        self.get_calls = []
+        self.pipeline_calls = []
+        self.pipeline_error = None
 
     async def get(self, key: str) -> str | None:
-        return self.values.get(key)
+        self.get_calls.append(key)
+        value = self.values.get(key)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def pipeline(self, *, transaction):
+        assert transaction is False
+        client = self
+
+        class Pipeline:
+            def __init__(self):
+                self.keys = []
+
+            def get(self, key):
+                self.keys.append(key)
+                return self
+
+            async def execute(self, *, raise_on_error):
+                assert raise_on_error is False
+                client.pipeline_calls.append(list(self.keys))
+                if client.pipeline_error:
+                    raise client.pipeline_error
+                return [client.values.get(key) for key in self.keys]
+
+        return Pipeline()
 
     async def set(self, key: str, value: str, ex: int | None = None) -> bool:
         self.values[key] = value
@@ -435,6 +464,81 @@ async def test_send_to_user_limits_route_set_fanout(
         f"ws:deliver:instance-{websocket_module.WS_ROUTE_SCAN_LIMIT - 1:03d}"
     )
     assert fake_redis.scan_calls == 0
+
+
+@pytest.mark.parametrize("count", [1, 100])
+async def test_route_status_reads_use_one_pipeline(monkeypatch, count):
+    redis = _FakeRedisClient()
+    instances = [f"instance-{index:03d}" for index in range(count)]
+    redis.sets["ws:routes:user-1"] = {instance.encode() for instance in instances}
+    redis.values = {f"ws:route:user-1:{instance}": "1" for instance in instances}
+    monkeypatch.setattr(websocket_module, "create_redis_client", lambda **kwargs: redis)
+    manager = ConnectionManager()
+    manager._instance_id = "local"
+
+    assert await manager.send_to_user_with_broadcast("user-1", {"type": "test"}) == count
+    assert redis.pipeline_calls == [[f"ws:route:user-1:{instance}" for instance in instances]]
+    assert redis.get_calls == []
+    assert [channel for channel, _ in redis.published] == [
+        namespaced_channel(f"ws:deliver:{instance}") for instance in instances
+    ]
+    assert all(json.loads(payload)["user_id"] == "user-1" for _, payload in redis.published)
+
+
+async def test_pipeline_expired_route_cleans_only_requested_user_and_keeps_order(monkeypatch):
+    redis = _FakeRedisClient()
+    redis.sets["ws:routes:user-1"] = {"a", "b", "c"}
+    redis.values = {"ws:route:user-1:a": "1", "ws:route:other:b": "1", "ws:route:user-1:c": "1"}
+    redis.sets["ws:routes:other"] = {"b"}
+    monkeypatch.setattr(websocket_module, "create_redis_client", lambda **kwargs: redis)
+    manager = ConnectionManager()
+
+    assert await manager.send_to_user_with_broadcast("user-1", {"type": "test"}) == 2
+    assert redis.sets["ws:routes:user-1"] == {"a", "c"}
+    assert redis.sets["ws:routes:other"] == {"b"}
+    assert [channel for channel, _ in redis.published] == [
+        namespaced_channel("ws:deliver:a"),
+        namespaced_channel("ws:deliver:c"),
+    ]
+    assert redis.get_calls == []
+
+
+@pytest.mark.parametrize("pipeline_fails", [False, True])
+async def test_pipeline_route_error_preserves_published_prefix_and_local_fallback(
+    monkeypatch, pipeline_fails
+):
+    redis = _FakeRedisClient()
+    redis.sets["ws:routes:user-1"] = {"a", "b", "c"}
+    redis.values = {
+        "ws:route:user-1:a": "1",
+        "ws:route:user-1:b": TimeoutError("route unavailable"),
+        "ws:route:user-1:c": "1",
+    }
+    if pipeline_fails:
+        redis.pipeline_error = TimeoutError("pipeline unavailable")
+    monkeypatch.setattr(websocket_module, "create_redis_client", lambda **kwargs: redis)
+    manager = ConnectionManager()
+    manager._send_to_user_local = AsyncMock(return_value=7)
+    message = {"type": "test"}
+
+    assert await manager.send_to_user_with_broadcast("user-1", message) == 7
+    manager._send_to_user_local.assert_awaited_once_with("user-1", message)
+    assert [channel for channel, _ in redis.published] == [namespaced_channel("ws:deliver:a")]
+    assert redis.sets["ws:routes:user-1"] == {"a", "b", "c"}
+    assert redis.get_calls == (["ws:route:user-1:a", "ws:route:user-1:b"] if pipeline_fails else [])
+
+
+async def test_corrupt_instance_bytes_keep_prior_delivery_before_local_fallback(monkeypatch):
+    redis = _FakeRedisClient()
+    redis.sets["ws:routes:user-1"] = {b"a", b"\xff"}
+    redis.values["ws:route:user-1:a"] = "1"
+    monkeypatch.setattr(websocket_module, "create_redis_client", lambda **kwargs: redis)
+    manager = ConnectionManager()
+    manager._send_to_user_local = AsyncMock(return_value=7)
+
+    assert await manager.send_to_user_with_broadcast("user-1", {"type": "test"}) == 7
+    assert [channel for channel, _ in redis.published] == [namespaced_channel("ws:deliver:a")]
+    assert redis.get_calls == ["ws:route:user-1:a"]
 
 
 @pytest.mark.asyncio

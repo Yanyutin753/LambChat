@@ -150,15 +150,25 @@ async def _resolve_permissions_for_roles(user_roles: list[str] | None) -> set[st
 
     storage = RoleStorage()
     permissions: set[str] = set()
-    for role_name in user_roles:
+    from src.infra.role.storage import ROLE_BATCH_LOOKUP_LIMIT
+
+    for start in range(0, len(user_roles), ROLE_BATCH_LOOKUP_LIMIT):
+        names = user_roles[start : start + ROLE_BATCH_LOOKUP_LIMIT]
         try:
-            role = await storage.get_by_name(role_name)
+            roles = await storage.get_by_names(names)
         except Exception:
-            continue
-        if not role:
-            continue
-        for permission in role.permissions:
-            permissions.add(permission if isinstance(permission, str) else permission.value)
+            # Preserve per-role fault isolation when a batch contains malformed data.
+            roles = []
+            for name in names:
+                try:
+                    role = await storage.get_by_name(name)
+                    if role:
+                        roles.append(role)
+                except Exception:
+                    continue
+        for role in roles:
+            for permission in role.permissions:
+                permissions.add(permission if isinstance(permission, str) else permission.value)
     return permissions
 
 

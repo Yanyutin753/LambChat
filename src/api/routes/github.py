@@ -489,9 +489,13 @@ async def install_github_skills(
     except Exception as e:
         raise AppError(ErrorCode.GITHUB_SCAN_FAILED, message=str(e))
 
+    skills_by_name: dict[str, dict] = {}
+    for skill in all_skills:
+        skills_by_name.setdefault(skill["name"], skill)
+
     for skill_name in requested_skill_names:
         try:
-            skill_info = next((s for s in all_skills if s["name"] == skill_name), None)
+            skill_info = skills_by_name.get(skill_name)
             if not skill_info:
                 errors.append(f"Skill '{skill_name}' not found")
                 continue

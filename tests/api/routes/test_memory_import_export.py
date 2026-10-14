@@ -4,8 +4,11 @@ import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from starlette.responses import StreamingResponse
 
 from src.api.routes import memory as memory_routes
@@ -15,6 +18,67 @@ from src.kernel.schemas.user import TokenPayload
 
 def _user() -> TokenPayload:
     return TokenPayload(sub="user-1", username="tester", roles=["user"])
+
+
+@pytest.mark.parametrize("count", [1, 50, 51])
+async def test_export_hydrates_contents_in_streaming_batches(monkeypatch, count):
+    namespace = ("memories", "user-1", "content")
+    store = _FakeStore(
+        {(namespace, str(index)): {"text": f"full-{index}"} for index in range(count)}
+    )
+    backend = _FakeBackend(
+        [
+            {
+                "memory_id": str(index),
+                "user_id": "user-1",
+                "content": "preview",
+                "content_storage_mode": "store",
+                "content_store_key": str(index),
+            }
+            for index in range(count)
+        ],
+        store,
+    )
+
+    async def get_backend():
+        return backend
+
+    monkeypatch.setattr(memory_routes, "_get_backend", get_backend)
+    response = await memory_routes.export_memories(user=_user())
+    chunks = []
+    async for chunk in response.body_iterator:
+        text = chunk.decode() if isinstance(chunk, bytes) else chunk
+        chunks.append(text)
+        if "memory_id" in text:
+            assert backend._collection.last_cursor.read_count == min(count, 50)
+            assert len(store.batch_calls) == 1
+            break
+    async for chunk in response.body_iterator:
+        chunks.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
+
+    result = json.loads("".join(chunks))
+    assert [item["content"] for item in result["memories"]] == [
+        f"full-{index}" for index in range(count)
+    ]
+    assert [len(batch) for batch in store.batch_calls] == ([count] if count <= 50 else [50, 1])
+    assert store.point_calls == []
+
+
+async def test_inline_export_does_not_read_content_store(monkeypatch):
+    store = _FakeStore()
+    backend = _FakeBackend(
+        [{"memory_id": "inline", "user_id": "user-1", "content": "inline"}], store
+    )
+
+    async def get_backend():
+        return backend
+
+    monkeypatch.setattr(memory_routes, "_get_backend", get_backend)
+    response = await memory_routes.export_memories(user=_user())
+    async for _chunk in response.body_iterator:
+        pass
+    assert store.batch_calls == []
+    assert store.point_calls == []
 
 
 def test_memory_import_total_content_limit_setting_default() -> None:
@@ -31,20 +95,34 @@ def test_memory_import_total_content_limit_setting_default() -> None:
 class _AsyncCursor:
     def __init__(self, docs: list[dict[str, Any]]):
         self._docs = docs
+        self.read_count = 0
 
     def __aiter__(self):
         return self._iter()
 
     async def _iter(self):
         for doc in self._docs:
+            self.read_count += 1
             yield doc
 
 
 class _FakeStore:
     def __init__(self, values: dict[tuple[tuple[str, ...], str], dict[str, Any]] | None = None):
         self.values = values or {}
+        self.batch_calls = []
+        self.point_calls = []
+
+    async def abatch(self, ops):
+        self.batch_calls.append(list(ops))
+        return [
+            SimpleNamespace(value=self.values[(op.namespace, op.key)])
+            if (op.namespace, op.key) in self.values
+            else None
+            for op in ops
+        ]
 
     async def aget(self, namespace: tuple[str, ...], key: str) -> Any:
+        self.point_calls.append((namespace, key))
         value = self.values.get((namespace, key))
         if value is None:
             return None
@@ -62,13 +140,15 @@ class _FakeStore:
 class _FakeCollection:
     def __init__(self, docs: list[dict[str, Any]]):
         self.docs = docs
+        self.atomic_replaces = []
 
     def find(self, query: dict[str, Any], projection: dict[str, int] | None = None) -> _AsyncCursor:
         docs = []
         for doc in self.docs:
             if doc.get("user_id") == query.get("user_id"):
                 docs.append(dict(doc))
-        return _AsyncCursor(docs)
+        self.last_cursor = _AsyncCursor(docs)
+        return self.last_cursor
 
     async def find_one(
         self, query: dict[str, Any], projection: dict[str, int] | None = None
@@ -78,17 +158,22 @@ class _FakeCollection:
                 return dict(doc)
         return None
 
-    async def replace_one(
-        self, query: dict[str, Any], replacement: dict[str, Any], upsert: bool = False
-    ) -> SimpleNamespace:
+    async def find_one_and_replace(
+        self, query, replacement, *, upsert, return_document, projection
+    ):
+        assert upsert is True and return_document == ReturnDocument.BEFORE
+        assert projection == {"content_storage_mode": 1, "content_store_key": 1}
+        self.atomic_replaces.append(query)
         for index, doc in enumerate(self.docs):
             if all(doc.get(key) == value for key, value in query.items()):
+                previous = dict(doc)
                 self.docs[index] = dict(replacement)
-                return SimpleNamespace(matched_count=1, upserted_id=None)
+                return previous
         if upsert:
+            if any(doc["memory_id"] == replacement["memory_id"] for doc in self.docs):
+                raise DuplicateKeyError("memory id reserved")
             self.docs.append(dict(replacement))
-            return SimpleNamespace(matched_count=0, upserted_id="inserted")
-        return SimpleNamespace(matched_count=0, upserted_id=None)
+        return None
 
 
 class _FakeBackend:
@@ -381,6 +466,111 @@ async def test_import_memories_overwrites_matching_memory_id(monkeypatch: pytest
     assert docs["same-id"]["content"] == "new content"
     assert docs["fresh-id"]["user_id"] == "user-1"
     assert backend.invalidated_users == ["user-1"]
+
+
+@pytest.mark.parametrize("count", [1, 50])
+async def test_import_atomic_replaces_do_not_read_old_documents_separately(monkeypatch, count):
+    backend = _FakeBackend([])
+    backend._collection.find_one = AsyncMock(side_effect=AssertionError("independent old-key read"))
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+
+    result = await memory_routes.import_memories(
+        {
+            "memories": [
+                {"memory_id": str(index), "content": "inline content"} for index in range(count)
+            ]
+        },
+        user=_user(),
+    )
+
+    assert result == {"success": True, "imported": count, "created": count, "overwritten": 0}
+    assert len(backend._collection.atomic_replaces) == count
+    backend._collection.find_one.assert_not_awaited()
+
+
+async def test_import_duplicate_ids_preserve_long_inline_long_cleanup_order(monkeypatch):
+    monkeypatch.setattr(memory_routes.settings, "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 10)
+    events = []
+
+    class Store(_FakeStore):
+        async def aput(self, namespace, key, value):
+            events.append(("delete" if value is None else "put", key))
+            await super().aput(namespace, key, value)
+
+    namespace = ("memories", "user-1", "content")
+    store = Store({(namespace, "legacy"): {"text": "old long content"}})
+    backend = _FakeBackend(
+        [
+            {
+                "memory_id": "same",
+                "user_id": "user-1",
+                "content_storage_mode": "store",
+                "content_store_key": "legacy",
+            }
+        ],
+        store,
+    )
+    replace = backend._collection.find_one_and_replace
+
+    async def tracked_replace(query, replacement, **kwargs):
+        events.append(("replace", replacement["content_storage_mode"]))
+        return await replace(query, replacement, **kwargs)
+
+    backend._collection.find_one_and_replace = tracked_replace
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    result = await memory_routes.import_memories(
+        {
+            "memories": [
+                {"memory_id": "same", "content": text} for text in ["a" * 20, "inline", "c" * 20]
+            ]
+        },
+        user=_user(),
+    )
+
+    assert result == {"success": True, "imported": 3, "created": 0, "overwritten": 3}
+    assert events == [
+        ("put", "memory:same"),
+        ("replace", "store"),
+        ("delete", "legacy"),
+        ("replace", "inline"),
+        ("delete", "memory:same"),
+        ("put", "memory:same"),
+        ("replace", "store"),
+    ]
+    assert store.values == {(namespace, "memory:same"): {"text": "c" * 20, "memory_id": "same"}}
+    assert backend.invalidated_users == ["user-1"]
+
+
+async def test_import_partial_validation_failure_keeps_prior_commit_and_stops(monkeypatch):
+    backend = _FakeBackend([])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+
+    with pytest.raises(AppError):
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {"memory_id": "first", "content": "saved content"},
+                    {"memory_id": "invalid", "content": "tiny"},
+                    {"memory_id": "last", "content": "not reached"},
+                ]
+            },
+            user=_user(),
+        )
+    assert [doc["memory_id"] for doc in backend._collection.docs] == ["first"]
+    assert backend.invalidated_users == []
+
+
+async def test_import_other_user_memory_is_not_overwritten(monkeypatch):
+    other = {"memory_id": "shared", "user_id": "user-2", "content": "other user's content"}
+    backend = _FakeBackend([dict(other)])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+
+    with pytest.raises(DuplicateKeyError):
+        await memory_routes.import_memories(
+            {"memories": [{"memory_id": "shared", "content": "attempted overwrite"}]}, user=_user()
+        )
+    assert backend._collection.docs == [other]
+    assert backend._collection.atomic_replaces == [{"user_id": "user-1", "memory_id": "shared"}]
 
 
 @pytest.mark.asyncio

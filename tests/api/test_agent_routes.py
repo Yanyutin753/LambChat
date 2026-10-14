@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from src.api.routes import agent as agent_routes
@@ -9,31 +7,39 @@ from src.kernel.schemas.agent import AgentRequest
 
 
 @pytest.mark.asyncio
-async def test_gather_limited_caps_concurrent_agent_route_work() -> None:
-    active = 0
-    max_active = 0
-    release = asyncio.Event()
-    started = asyncio.Event()
+async def test_list_agents_reads_roles_and_agent_access_in_batches(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
 
-    async def _work(value: int) -> int:
-        nonlocal active, max_active
-        active += 1
-        max_active = max(max_active, active)
-        if active == 2:
-            started.set()
-        await release.wait()
-        active -= 1
-        return value
+    from src.kernel.schemas.user import TokenPayload
 
-    task = asyncio.create_task(
-        agent_routes._gather_limited([lambda i=i: _work(i) for i in range(5)], limit=2)
+    roles = [SimpleNamespace(id="r1", name="one"), SimpleNamespace(id="r2", name="two")]
+    get_roles = AsyncMock(return_value=roles)
+    get_access = AsyncMock(return_value={"r1": ["fast"], "r2": None})
+    config = SimpleNamespace(
+        get_user_preference=AsyncMock(return_value=None), get_role_agents_by_ids=get_access
     )
-    await asyncio.wait_for(started.wait(), timeout=1)
-
-    assert max_active == 2
-
-    release.set()
-    assert await task == [0, 1, 2, 3, 4]
+    monkeypatch.setattr(
+        "src.infra.user.storage.UserStorage",
+        lambda: SimpleNamespace(
+            get_by_id=AsyncMock(return_value=SimpleNamespace(roles=["one", "two"]))
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: SimpleNamespace(get_roles_by_names=get_roles),
+    )
+    monkeypatch.setattr("src.infra.agent.config_storage.get_agent_config_storage", lambda: config)
+    monkeypatch.setattr(
+        "src.infra.agent.model_access.resolve_user_allowed_model_ids", AsyncMock(return_value=None)
+    )
+    filtered = AsyncMock(return_value=[{"id": "fast"}])
+    monkeypatch.setattr(agent_routes.AgentFactory, "get_filtered_agents", filtered)
+    response = await agent_routes.list_agents(TokenPayload(sub="u", username="u", roles=[]))
+    assert response["agents"] == [{"id": "fast"}]
+    get_roles.assert_awaited_once_with(["one", "two"])
+    get_access.assert_awaited_once_with(["r1", "r2"])
+    assert filtered.await_args.kwargs["role_agent_map"] == {"r1": ["fast"], "r2": None}
 
 
 def test_bounded_role_names_preserves_order_and_caps_large_role_lists() -> None:

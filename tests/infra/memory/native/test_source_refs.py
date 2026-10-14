@@ -48,10 +48,10 @@ class _HistoryService:
         self.allowed = allowed
         self.calls = []
 
-    async def validate_source_refs(self, user_id, refs):
+    async def validate_source_refs(self, user_id, refs, *, limit=20):
         self.calls.append((user_id, refs))
         allowed_pairs = {(ref.session_id, ref.run_id) for ref in self.allowed}
-        return [ref for ref in refs if (ref.session_id, ref.run_id) in allowed_pairs]
+        return [ref for ref in refs if (ref.session_id, ref.run_id) in allowed_pairs][-limit:]
 
 
 def _backend(collection):
@@ -147,3 +147,15 @@ async def test_recall_source_ref_validation_drops_stale_refs_but_keeps_memory(mo
     assert [memory["memory_id"] for memory in validated] == ["memory-1", "memory-2"]
     assert validated[0]["source_refs"] == [valid.model_dump()]
     assert validated[1]["source_refs"] == []
+
+
+async def test_recall_source_batch_preserves_twenty_authorized_refs_per_memory(monkeypatch):
+    refs = [ConversationSourceRef(session_id="visible", run_id=f"run-{i}") for i in range(40)]
+    service = _HistoryService(refs)
+    monkeypatch.setattr(search_module, "ConversationHistoryService", lambda: service)
+    memories = [
+        {"memory_id": "first", "source_refs": [ref.model_dump() for ref in refs[:20]]},
+        {"memory_id": "second", "source_refs": [ref.model_dump() for ref in refs[20:]]},
+    ]
+    assert await search_module.validate_memory_source_refs("user-1", memories) == memories
+    assert len(service.calls) == 1

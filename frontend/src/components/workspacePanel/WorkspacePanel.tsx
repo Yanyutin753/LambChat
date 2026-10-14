@@ -32,7 +32,7 @@ import { RightPanelActiveContext } from "../common/useRightPanelEntry";
 import { LazyDocumentPreview } from "../documents/LazyDocumentPreview";
 import type { DocumentPreviewProps } from "../documents/useDocumentPreviewState";
 import "./workspacePanel.css";
-import { getFileTypeInfo } from "../documents/utils";
+import { getFileTypeInfo, isImageFile } from "../documents/utils";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
 import {
   useWorkspaceTree,
@@ -159,7 +159,7 @@ export function WorkspacePanel({
 
   const [preview, setPreview] = useState<Pick<
     DocumentPreviewProps,
-    "path" | "content" | "signedUrl" | "footer"
+    "path" | "content" | "signedUrl" | "imageUrl" | "footer"
   > | null>(null);
   const [query, setQuery] = useState("");
   const [showFiles, setShowFiles] = useState(true);
@@ -179,6 +179,13 @@ export function WorkspacePanel({
     action: "read" | "reveal";
   } | null>(null);
   const previewRequest = useRef(0);
+  const previewAbort = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const url = preview?.signedUrl;
+    return () => {
+      if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+    };
+  }, [preview]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
@@ -202,6 +209,7 @@ export function WorkspacePanel({
     setContextMenu(null);
     copyPath.current = "";
     return () => {
+      previewAbort.current?.abort();
       previewRequest.current += 1;
     };
   }, [previewPrefix]);
@@ -223,14 +231,18 @@ export function WorkspacePanel({
     async (path: string) => {
       if (!sessionId) return;
       const request = ++previewRequest.current;
+      previewAbort.current?.abort();
+      const controller = new AbortController();
+      previewAbort.current = controller;
       setOpeningPath(path);
       setPreviewError(null);
       try {
-        const result = await source.read(sessionId, path, 0, 2000);
+        const result = await source.read(sessionId, path, 0, 2000, controller.signal);
         if (request !== previewRequest.current) return;
         if (result.error) throw new Error(result.error);
-        if (result.encoding !== "utf-8" && result.encoding !== "base64")
+        if (result.encoding !== "utf-8" && result.encoding !== "base64" && result.encoding !== "binary")
           throw new Error("Missing file content");
+        const blobUrl = result.blob ? URL.createObjectURL(result.blob) : null;
         setPreview({
           path,
           footer:
@@ -241,7 +253,9 @@ export function WorkspacePanel({
                 })}
               </p>
             ) : undefined,
-          ...(result.encoding === "base64"
+          ...(blobUrl
+            ? { signedUrl: blobUrl, imageUrl: isImageFile(path) ? blobUrl : undefined }
+            : result.encoding === "base64"
             ? {
                 signedUrl: `data:application/octet-stream;base64,${result.content ?? ""}`,
               }
@@ -312,6 +326,7 @@ export function WorkspacePanel({
   }, [isCloudView, refreshCloudStatus, refresh]);
 
   const backToFiles = () => {
+    previewAbort.current?.abort();
     const opener = selectedButtonRef.current;
     const request = ++previewRequest.current;
     setOpeningPath(null);
@@ -345,7 +360,7 @@ export function WorkspacePanel({
                 style={{ paddingLeft: padding }}
               >
                 <ChevronRight
-                  size={13}
+                  size={16}
                   className={clsx(
                     "shrink-0 text-theme-text-muted transition-transform duration-150 motion-reduce:transition-none",
                     expanded && "rotate-90",
@@ -373,7 +388,7 @@ export function WorkspacePanel({
               {expanded && node.error && (
                 <div
                   className="flex min-w-0 items-center gap-2 pr-3 pb-1"
-                  style={{ paddingLeft: padding + 21 }}
+                  style={{ paddingLeft: padding + 24 }}
                 >
                   <p
                     role="alert"
@@ -422,12 +437,13 @@ export function WorkspacePanel({
               aria-busy={isLoading}
               onContextMenu={(e) => handleContextMenu(e, node.path)}
               className="workspace-file-row"
-              style={{ paddingLeft: padding + 21 }}
+              style={{ paddingLeft: padding }}
             >
+              <span aria-hidden="true" className="size-4 shrink-0" />
               {isLoading ? (
                 <LoadingSpinner
                   color="text-current"
-                  size={18}
+                  size={16}
                   className="shrink-0"
                 />
               ) : (

@@ -56,6 +56,19 @@ class RoleManager:
         """
         return await self.storage.get_by_name(name)
 
+    async def get_roles_by_names(self, names: list[str]) -> list[Role]:
+        """Resolve all requested roles in batches, preserving order and duplicates."""
+        from src.infra.role.storage import ROLE_BATCH_LOOKUP_LIMIT
+
+        unique_names = list(dict.fromkeys(names))
+        roles_by_name: dict[str, Role] = {}
+        for start in range(0, len(unique_names), ROLE_BATCH_LOOKUP_LIMIT):
+            roles = await self.storage.get_by_names(
+                unique_names[start : start + ROLE_BATCH_LOOKUP_LIMIT]
+            )
+            roles_by_name.update((role.name, role) for role in roles)
+        return [roles_by_name[name] for name in names if name in roles_by_name]
+
     async def update_role(self, role_id: str, role_data: RoleUpdate) -> Optional[Role]:
         """
         更新角色

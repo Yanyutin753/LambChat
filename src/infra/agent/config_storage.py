@@ -219,6 +219,23 @@ class AgentConfigStorage:
             return None
         return allowed_agents[:ROLE_AGENT_ACCESS_LIMIT]
 
+    async def get_role_agents_by_ids(self, role_ids: list[str]) -> dict[str, list[str] | None]:
+        """Batch-load role agent access without truncating the requested role set."""
+        unique_ids = list(dict.fromkeys(role_ids))
+        result: dict[str, list[str] | None] = dict.fromkeys(unique_ids)
+        for start in range(0, len(unique_ids), ROLE_AGENT_MAPPING_LIST_LIMIT):
+            batch = unique_ids[start : start + ROLE_AGENT_MAPPING_LIST_LIMIT]
+            cursor = self._get_collection(_COLL_ROLE_AGENTS).find(
+                {"role_id": {"$in": batch}},
+                {"allowed_agents": {"$slice": ROLE_AGENT_ACCESS_LIMIT}},
+            )
+            async for doc in cursor:
+                allowed_agents = doc.get("allowed_agents")
+                result[doc["role_id"]] = (
+                    allowed_agents[:ROLE_AGENT_ACCESS_LIMIT] if allowed_agents else None
+                )
+        return result
+
     async def set_role_agents(
         self, role_id: str, role_name: str, agent_ids: list[str]
     ) -> list[str]:
@@ -279,6 +296,23 @@ class AgentConfigStorage:
         if allowed_models is None:
             return None
         return allowed_models[:ROLE_MODEL_ACCESS_LIMIT]
+
+    async def get_role_models_by_ids(self, role_ids: list[str]) -> dict[str, list[str] | None]:
+        """Batch-load role model restrictions, retaining explicit empty lists."""
+        unique_ids = list(dict.fromkeys(role_ids))
+        result: dict[str, list[str] | None] = dict.fromkeys(unique_ids)
+        for start in range(0, len(unique_ids), ROLE_MODEL_MAPPING_LIST_LIMIT):
+            batch = unique_ids[start : start + ROLE_MODEL_MAPPING_LIST_LIMIT]
+            cursor = self._get_collection(_COLL_ROLE_MODELS).find(
+                {"role_id": {"$in": batch}},
+                {"allowed_models": {"$slice": ROLE_MODEL_ACCESS_LIMIT}},
+            )
+            async for doc in cursor:
+                allowed_models = doc.get("allowed_models")
+                result[doc["role_id"]] = (
+                    allowed_models[:ROLE_MODEL_ACCESS_LIMIT] if allowed_models is not None else None
+                )
+        return result
 
     async def set_role_models(
         self, role_id: str, role_name: str, model_values: list[str]

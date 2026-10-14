@@ -5,6 +5,16 @@ import re
 from types import SimpleNamespace
 
 
+def _mock_stream_transport(monkeypatch, handler):
+    import httpx
+
+    class Client(httpx.AsyncClient):
+        def __init__(self, **kwargs):
+            super().__init__(transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+
+
 class _FakeCommandsAPI:
     """模拟 Cube commands.run：识别 stat/base64/dd/mkdir 片段，其余回固定输出。
 
@@ -63,6 +73,9 @@ class _FakeFilesAPI:
     def write(self, path: str, data: str | bytes) -> None:
         self.contents[path] = data.encode("utf-8") if isinstance(data, str) else data
 
+    def _base_headers(self):
+        return {}
+
     def read(self, path: str, format: str = "text"):  # noqa: A002 - 与 SDK 签名对齐
         data = self.contents[path]
         # 真实 Cube SDK 无 format 参数，恒 resp.text（utf-8 replace）
@@ -101,6 +114,10 @@ class _FakeCubeSandbox:
         self._client = None
         self.files = _FakeFilesAPI()
         self.commands = _FakeCommandsAPI(self.files)
+        self._config = SimpleNamespace(proxy_node_ip="", proxy_port=80, request_timeout=30)
+
+    def _traffic_token_headers(self):
+        return {"X-API-Key": "test-only-key"}
 
     def get_host(self, port: int) -> str:
         return f"{port}-cube-test.cube.app"
@@ -420,6 +437,111 @@ def test_cubesandbox_download_falls_back_when_envd_http_fails() -> None:
     assert responses[0].error is None
     assert responses[0].content == payload
     assert any("base64" in c["cmd"] for c in sandbox.commands.calls), "应回落命令通道"
+
+
+async def test_cubesandbox_download_honors_changed_limit_without_text_read(monkeypatch):
+    from src.infra.backend import cubesandbox as module
+
+    sandbox = _FakeCubeSandbox()
+    client = _FakeHttpClient(sandbox.files)
+    sandbox._client = client
+    payload = b"\x89PNG\x00\xff"
+    sandbox.files.contents["/w/image.png"] = payload
+    backend = module.CubeSandboxBackend(sandbox=sandbox, work_dir="/w")
+    backend._async_disabled = True
+    monkeypatch.setattr(module, "SANDBOX_DOWNLOAD_MAX_BYTES", len(payload) - 1)
+    denied = await backend.adownload_files(["image.png"])
+    assert denied[0].error and denied[0].content is None
+    assert client.calls == []
+    monkeypatch.setattr(module, "SANDBOX_DOWNLOAD_MAX_BYTES", len(payload))
+    allowed = await backend.adownload_files(["image.png"])
+    assert allowed[0].error is None and allowed[0].content == payload
+    assert len(client.calls) == 1
+
+
+async def test_cubesandbox_stream_uses_http_and_closes_on_cancel(monkeypatch):
+    import httpx
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    payload = b"\xff\x00" * (256 * 1024)
+    sandbox.files.contents["/w/image.png"] = payload
+    responses = []
+
+    class BodyStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield payload[: 256 * 1024]
+            yield payload[256 * 1024 :]
+
+    def handle(request):
+        assert request.url.params["path"] == "/w/image.png"
+        assert request.headers["X-API-Key"] == "test-only-key"
+        response = httpx.Response(200, stream=BodyStream())
+        responses.append(response)
+        return response
+
+    _mock_stream_transport(monkeypatch, handle)
+    stream = CubeSandboxBackend(sandbox=sandbox, work_dir="/w").astream_file("image.png")
+    assert await anext(stream) == payload[: 256 * 1024]
+    assert not responses[0].is_closed
+    await stream.aclose()
+    assert responses[0].is_closed
+    assert not any("base64" in call["cmd"] for call in sandbox.commands.calls)
+
+
+async def test_cubesandbox_stream_never_restarts_after_partial_failure(monkeypatch):
+    import httpx
+    import pytest
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    class BrokenStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"x" * (256 * 1024)
+            raise httpx.ReadError("broken transfer")
+
+    sandbox = _FakeCubeSandbox()
+    sandbox.files.contents["/w/image.png"] = b"x" * (512 * 1024)
+    _mock_stream_transport(monkeypatch, lambda request: httpx.Response(200, stream=BrokenStream()))
+    stream = CubeSandboxBackend(sandbox=sandbox, work_dir="/w").astream_file("image.png")
+    assert len(await anext(stream)) == 256 * 1024
+    with pytest.raises(httpx.ReadError, match="broken transfer"):
+        await anext(stream)
+    assert not any("base64" in call["cmd"] for call in sandbox.commands.calls)
+
+
+async def test_cubesandbox_cancel_interrupts_a_blocked_network_read(monkeypatch):
+    import asyncio
+
+    import httpx
+    import pytest
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    closed = asyncio.Event()
+    waiting = asyncio.Event()
+
+    class WaitingStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"x" * (256 * 1024)
+            waiting.set()
+            await asyncio.Event().wait()
+
+        async def aclose(self):
+            closed.set()
+
+    _mock_stream_transport(monkeypatch, lambda request: httpx.Response(200, stream=WaitingStream()))
+    sandbox = _FakeCubeSandbox()
+    sandbox.files.contents["/w/image.png"] = b"x" * (512 * 1024)
+    stream = CubeSandboxBackend(sandbox=sandbox, work_dir="/w").astream_file("image.png")
+    assert len(await anext(stream)) == 256 * 1024
+    read = asyncio.create_task(anext(stream))
+    await asyncio.wait_for(waiting.wait(), 1)
+    read.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(read, 0.5)
+    assert closed.is_set()
 
 
 async def test_cubesandbox_adownload_uses_envd_http_primary_channel() -> None:

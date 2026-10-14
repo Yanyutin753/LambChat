@@ -105,3 +105,26 @@ async def test_list_by_session_applies_cursor_limit() -> None:
     assert len(shares) == SHARE_LIST_LIMIT_MAX
     assert storage.collection.cursor.limit_value == SHARE_LIST_LIMIT_MAX
     assert storage.collection.cursor.to_list_length == SHARE_LIST_LIMIT_MAX
+
+
+@pytest.mark.asyncio
+async def test_share_list_sort_indexes_are_additive_and_non_unique():
+    from unittest.mock import AsyncMock
+
+    storage = ShareStorage()
+    storage._collection = type("Collection", (), {"create_index": AsyncMock()})()
+    await storage.ensure_indexes()
+    calls = {
+        call.kwargs.get("name"): call for call in storage.collection.create_index.await_args_list
+    }
+    for name, keys in {
+        "owner_created_at_idx": [("owner_id", 1), ("created_at", -1)],
+        "session_created_at_idx": [("session_id", 1), ("created_at", -1)],
+        "owner_project_created_at_idx": [("owner_id", 1), ("project_id", 1), ("created_at", -1)],
+    }.items():
+        assert calls[name].args == (keys,)
+        assert not calls[name].kwargs.get("unique", False)
+    assert any(
+        call.args == ("share_id",) and call.kwargs.get("unique")
+        for call in storage.collection.create_index.await_args_list
+    )

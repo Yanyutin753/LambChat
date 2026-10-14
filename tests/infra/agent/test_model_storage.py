@@ -574,3 +574,183 @@ async def test_get_many_by_ids_and_values_resolves_model_beyond_first_batch() ->
 
     assert by_id["model-late"].value == "model-late"
     assert by_value["model-late"].value == "model-late"
+
+
+class _OrderedInsertCollection:
+    def __init__(self, fail_value=None):
+        self.inserted_docs = []
+        self.insert_sizes = []
+        self.fail_value = fail_value
+
+    async def insert_many(self, docs, ordered=True):
+        assert ordered is True
+        self.insert_sizes.append(len(docs))
+        for doc in docs:
+            if doc["value"] == self.fail_value:
+                raise RuntimeError("ordered insert failure")
+            self.inserted_docs.append(dict(doc))
+
+
+@pytest.mark.asyncio
+async def test_create_many_uses_ordered_bounded_inserts_without_coalescing_values(monkeypatch):
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    async def encrypt(key):
+        return {"encrypted": key}
+
+    async def decrypt(doc):
+        doc["api_key"] = doc["api_key"]["encrypted"]
+        return doc
+
+    monkeypatch.setattr(storage, "_encrypt_api_key", encrypt)
+    monkeypatch.setattr(storage, "_decrypt_doc", decrypt)
+    models = (
+        model_storage.ModelConfig(
+            value="same-value", label=str(i), api_key="secret", api_base=f"https://channel-{i}.test"
+        )
+        for i in range(205)
+    )
+    created = await storage.create_many(models)
+    assert collection.insert_sizes == [100, 100, 5]
+    assert [model.label for model in created] == [str(i) for i in range(205)]
+    assert len({model.id for model in created}) == 205
+    assert all(model.created_at and model.updated_at for model in created)
+    assert all(model.api_key == "secret" for model in created)
+    assert all(doc["api_key"] == {"encrypted": "secret"} for doc in collection.inserted_docs)
+
+
+@pytest.mark.asyncio
+async def test_create_many_flushes_prefix_when_input_model_parsing_fails():
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    def models():
+        yield model_storage.ModelConfig(value="first", label="First")
+        yield model_storage.ModelConfig(value="second", label="Second")
+        raise ValueError("input model parse failure")
+
+    with pytest.raises(ValueError, match="input model parse failure"):
+        await storage.create_many(models())
+    assert [doc["value"] for doc in collection.inserted_docs] == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_create_many_flushes_only_preceding_rows_when_encryption_fails(monkeypatch):
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    async def encrypt(key):
+        if key == "bad":
+            raise RuntimeError("encryption failure")
+        return {"encrypted": key}
+
+    async def decrypt(doc):
+        doc["api_key"] = doc["api_key"]["encrypted"]
+        return doc
+
+    monkeypatch.setattr(storage, "_encrypt_api_key", encrypt)
+    monkeypatch.setattr(storage, "_decrypt_doc", decrypt)
+    models = [
+        model_storage.ModelConfig(value=value, label=value, api_key=key)
+        for value, key in [("first", "ok"), ("second", "bad"), ("third", "ok")]
+    ]
+    with pytest.raises(RuntimeError, match="encryption failure"):
+        await storage.create_many(models)
+    assert [doc["value"] for doc in collection.inserted_docs] == ["first"]
+
+
+@pytest.mark.asyncio
+async def test_create_many_keeps_failing_return_row_but_never_inserts_later_rows(monkeypatch):
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    async def decrypt(doc):
+        if doc["value"] == "second":
+            raise RuntimeError("return model parse failure")
+        return doc
+
+    monkeypatch.setattr(storage, "_decrypt_doc", decrypt)
+    with pytest.raises(RuntimeError, match="return model parse failure"):
+        await storage.create_many(
+            [
+                model_storage.ModelConfig(value=value, label=value)
+                for value in ["first", "second", "third"]
+            ]
+        )
+    assert [doc["value"] for doc in collection.inserted_docs] == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_create_many_ordered_db_failure_keeps_prefix_and_wins_over_later_parse_failure():
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection(fail_value="second")
+    storage._collection = collection
+
+    def models():
+        for value in ["first", "second", "third"]:
+            yield model_storage.ModelConfig(value=value, label=value)
+        raise ValueError("later parse failure")
+
+    with pytest.raises(RuntimeError, match="ordered insert failure"):
+        await storage.create_many(models())
+    assert [doc["value"] for doc in collection.inserted_docs] == ["first"]
+
+
+@pytest.mark.asyncio
+async def test_create_many_return_schema_failure_keeps_the_written_row(monkeypatch):
+    from pydantic import ValidationError
+
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    async def decrypt(doc):
+        if doc["value"] == "second":
+            doc["label"] = ["invalid"]
+        return doc
+
+    monkeypatch.setattr(storage, "_decrypt_doc", decrypt)
+    with pytest.raises(ValidationError):
+        await storage.create_many(
+            [
+                model_storage.ModelConfig(value=value, label=value)
+                for value in ["first", "second", "third"]
+            ]
+        )
+    assert [doc["value"] for doc in collection.inserted_docs] == ["first", "second"]
+    assert collection.inserted_docs[1]["label"] == "second"
+
+
+@pytest.mark.asyncio
+async def test_create_many_propagates_cancellation_and_preserves_committed_batch(monkeypatch):
+    import asyncio
+
+    storage = ModelStorage()
+    collection = _OrderedInsertCollection()
+    storage._collection = collection
+
+    async def encrypt(key):
+        if key == "cancel":
+            raise asyncio.CancelledError()
+        return {"encrypted": key}
+
+    async def decrypt(doc):
+        doc["api_key"] = doc["api_key"]["encrypted"]
+        return doc
+
+    monkeypatch.setattr(storage, "_encrypt_api_key", encrypt)
+    monkeypatch.setattr(storage, "_decrypt_doc", decrypt)
+    with pytest.raises(asyncio.CancelledError):
+        await storage.create_many(
+            model_storage.ModelConfig(
+                value=str(i), label=str(i), api_key="cancel" if i == 101 else "ok"
+            )
+            for i in range(103)
+        )
+    assert collection.insert_sizes == [100]
+    assert [doc["value"] for doc in collection.inserted_docs] == [str(i) for i in range(100)]

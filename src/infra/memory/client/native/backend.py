@@ -488,12 +488,11 @@ class NativeMemoryBackend(MemoryBackend):
         memory_id: str,
         query: dict[str, Any],
     ) -> dict[str, Any]:
-        existing_doc = await self._collection.find_one(
+        existing_doc = await self._collection.find_one_and_delete(
             query,
-            {"content_storage_mode": 1, "content_store_key": 1},
+            projection={"content_storage_mode": 1, "content_store_key": 1},
         )
-        result = await self._collection.delete_one(query)
-        if result.deleted_count > 0:
+        if existing_doc is not None:
             if existing_doc and existing_doc.get("content_storage_mode") == "store":
                 await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
             await self._invalidate_cache(user_id)
@@ -552,6 +551,10 @@ class NativeMemoryBackend(MemoryBackend):
         col.create_index(
             [("user_id", 1), ("memory_type", 1), ("created_at", -1)],
             name="native_mem_user_type_idx",
+        )
+        col.create_index(
+            [("user_id", 1), ("memory_type", 1), ("updated_at", -1)],
+            name="native_mem_user_type_recency_idx",
         )
         col.create_index(
             [("memory_id", 1)],

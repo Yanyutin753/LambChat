@@ -493,20 +493,72 @@ class RoleStorage:
         return roles
 
     async def get_by_names(self, names: list[str]) -> list[Role]:
-        """
-        通过名称列表批量获取角色（每个角色独立走缓存）
-
-        Args:
-            names: 角色名称列表
-
-        Returns:
-            角色列表
-        """
+        """Batch-load bounded roles, sharing the versioned positive/negative cache."""
         names = _bounded_unique_strings(names, ROLE_BATCH_LOOKUP_LIMIT)
         if not names:
             return []
-        results = await asyncio.gather(*(self.get_by_name(name) for name in names))
-        return [role for role in results if role]
+        versions = ["0"] * len(names)
+        results: dict[str, Role | None] = {}
+        cache_read_failed = False
+        try:
+            async with asyncio.timeout(_ROLE_CACHE_TIMEOUT_SECONDS):
+                redis = await _get_redis()
+                versions = [
+                    value or "0"
+                    for value in await redis.mget(
+                        [f"{_ROLE_OBJ_VERSION_PREFIX}{name}" for name in names]
+                    )
+                ]
+                cached = await redis.mget(
+                    [
+                        f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{version}"
+                        for name, version in zip(names, versions)
+                    ]
+                )
+                for name, value in zip(names, cached):
+                    if value is not None:
+                        try:
+                            results[name] = _cache_dict_to_role(
+                                await run_blocking_io(json.loads, value)
+                            )
+                        except Exception:
+                            logger.warning("[Role Cache] Invalid cached role %s", name)
+        except Exception as e:
+            cache_read_failed = True
+            logger.warning("[Role Cache] Redis batch get failed: %s", e)
+
+        missing = [name for name in names if name not in results]
+        if missing:
+            results.update(dict.fromkeys(missing))
+            async for doc in self.collection.find({"name": {"$in": missing}}):
+                doc["id"] = str(doc.pop("_id"))
+                results[doc["name"]] = Role(**_normalize_role_dict(doc))
+
+            if not cache_read_failed:
+                try:
+                    async with asyncio.timeout(_ROLE_CACHE_TIMEOUT_SECONDS):
+                        current_versions = await redis.mget(
+                            [f"{_ROLE_OBJ_VERSION_PREFIX}{name}" for name in missing]
+                        )
+                        original_versions = dict(zip(names, versions))
+                        pipeline = redis.pipeline(transaction=False)
+                        for name, current_version in zip(missing, current_versions):
+                            current_version = current_version or "0"
+                            if current_version != original_versions[name]:
+                                continue
+                            role = results[name]
+                            data = await run_blocking_io(
+                                json.dumps, _role_to_cache_dict(role) if role else None
+                            )
+                            pipeline.set(
+                                f"{_ROLE_OBJ_CACHE_PREFIX}{name}:v{current_version}",
+                                data,
+                                ex=_ROLE_OBJ_CACHE_TTL,
+                            )
+                        await pipeline.execute()
+                except Exception as e:
+                    logger.warning("[Role Cache] Redis batch set failed: %s", e)
+        return [role for name in names if (role := results[name]) is not None]
 
     async def invalidate_cache(self, role_name: str) -> None:
         """使指定角色的缓存失效（递增版本号）"""

@@ -50,6 +50,16 @@ class ShareStorage:
         await self.collection.create_index("owner_id")
         # 项目分享按 project_id 检索；稀疏索引避免对老数据/会话分享建空值索引
         await self.collection.create_index("project_id", sparse=True)
+        await self.collection.create_index(
+            [("owner_id", 1), ("created_at", -1)], name="owner_created_at_idx"
+        )
+        await self.collection.create_index(
+            [("session_id", 1), ("created_at", -1)], name="session_created_at_idx"
+        )
+        await self.collection.create_index(
+            [("owner_id", 1), ("project_id", 1), ("created_at", -1)],
+            name="owner_project_created_at_idx",
+        )
 
     def _generate_share_id(self) -> str:
         """生成安全的分享 ID（12字符）"""

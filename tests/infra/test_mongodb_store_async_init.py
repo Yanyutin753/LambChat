@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from langgraph.store.base import GetOp, ListNamespacesOp, SearchOp
+from langgraph.store.base import GetOp, ListNamespacesOp, PutOp, SearchOp
 
 from src.infra.storage import mongodb_store as store_module
 
@@ -106,7 +106,7 @@ async def test_close_store_awaits_future_returned_by_backend_close() -> None:
 
 
 @pytest.mark.asyncio
-async def test_abatch_limits_concurrent_operations(
+async def test_abatch_limits_concurrent_mixed_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -128,12 +128,17 @@ async def test_abatch_limits_concurrent_operations(
             self.active -= 1
             return op.key
 
+        async def _aput(self, col, op):
+            return None
+
     store = SlowGetStore()
     store._collection = object()
 
-    results = await store.abatch(GetOp(("ns",), f"key-{i}") for i in range(20))
+    results = await store.abatch(
+        [GetOp(("ns",), f"key-{i}") for i in range(20)] + [PutOp(("ns",), "write", {})]
+    )
 
-    assert results == [f"key-{i}" for i in range(20)]
+    assert results == [f"key-{i}" for i in range(20)] + [None]
     assert store.max_active <= 3
 
 

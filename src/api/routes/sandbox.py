@@ -1,9 +1,9 @@
 """本地沙箱中继：daemon SSE 通道、结果回传、在线状态、桌面文件树只读端点。"""
 
 import asyncio
-import base64
 import contextlib
 import json
+import posixpath
 import re
 import socket
 import time
@@ -32,6 +32,7 @@ from src.infra.sandbox.relay.registry import (
 from src.infra.sandbox.relay.registry import (
     version_tuple as _version_tuple,
 )
+from src.infra.sandbox.workspace_preview import read_workspace_preview
 from src.infra.storage.redis import (
     create_redis_client,
     get_binary_redis_client,
@@ -730,6 +731,7 @@ async def sandbox_fs_read(
     path: str = Query(...),
     offset: int = Query(0, ge=0, description="起始行（0 基）"),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES, description="读取行数"),
+    stream: bool = Query(False),
     user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """读文本/二进制预览（行分页语义与模型侧 read_file 完全同源）。
@@ -739,29 +741,74 @@ async def sandbox_fs_read(
     （超过模型输出限制时走有大小上限的文件传输通道）。
     """
     cwd, machine_id = await _resolve_fs_target(user, session_id)
-    result = await _dispatch_fs(
-        user,
-        "fs_read",
-        {
-            "cwd": cwd,
-            "path": _sanitize_fs_path(path),
-            "offset": offset,
-            "limit": limit,
-        },
-        machine_id,
-    )
-    if str(result.get("error", "")).startswith("Binary file exceeds maximum preview size"):
+    rel = _sanitize_fs_path(path)
+
+    async def read(file_path: str, start: int, lines: int) -> dict[str, Any]:
+        return await _dispatch_fs(
+            user,
+            "fs_read",
+            {"cwd": cwd, "path": file_path, "offset": start, "limit": lines},
+            machine_id,
+        )
+
+    async def download(file_path: str) -> bytes | str:
         from src.infra.backend.local import LocalSandboxBackend
 
-        # File previews use the bounded transfer channel, not model stdout limits.
         backend = LocalSandboxBackend(
             user_id=user.sub, session_id=session_id, machine_id=machine_id
         )
-        content = await backend._adownload_via_fs(_sanitize_fs_path(path), cwd=cwd)
-        if isinstance(content, str):
-            return {"error": content}
-        return {"encoding": "base64", "content": base64.b64encode(content).decode("ascii")}
-    return result
+        return await backend._adownload_via_fs(file_path, cwd=cwd)
+
+    async def stream_download(file_path: str) -> AsyncIterator[bytes]:
+        from src.infra.backend.local import LocalSandboxBackend
+
+        backend = LocalSandboxBackend(
+            user_id=user.sub, session_id=session_id, machine_id=machine_id
+        )
+        async with contextlib.aclosing(backend.astream_file(file_path, cwd=cwd)) as source:
+            async for chunk in source:
+                yield chunk
+
+    return await _workspace_preview_response(
+        await read_workspace_preview(
+            rel,
+            offset,
+            limit,
+            read=read,
+            download=download,
+            stream=stream_download if stream else None,
+        )
+    )
+
+
+async def _workspace_preview_response(result):
+    if isinstance(result, dict):
+        return result
+    try:
+        first = await anext(result, None)
+    except Exception as exc:
+        await result.aclose()
+        if isinstance(exc, AppError):
+            raise
+        return {"error": str(exc)}
+
+    async def body():
+        try:
+            if first is not None:
+                yield first
+            async for chunk in result:
+                yield chunk
+        finally:
+            await result.aclose()
+
+    return StreamingResponse(
+        body(),
+        media_type="application/octet-stream",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -874,6 +921,7 @@ async def sandbox_fs_cloud_read(
     path: str = Query(...),
     offset: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES),
+    stream: bool = Query(False),
     user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
 ):
     """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。
@@ -886,15 +934,49 @@ async def sandbox_fs_cloud_read(
     backend, _work_dir = await _cloud_backend(user, session_id)
     await touch_browse_lease(user.sub)
     schedule_browse_reaper(user.sub)
-    result = await backend.aread(_cloud_rel(_sanitize_fs_path(path)), offset, limit)
-    if result.error:
-        return {"error": result.error}
-    file_data = result.file_data or {}
-    return {
-        "encoding": file_data.get("encoding"),
-        "content": file_data.get("content"),
-        "total_lines": result.total_lines,
-        "start_line": result.start_line,
-        "end_line": result.end_line,
-        "next_offset": result.next_offset,
-    }
+    rel = _cloud_rel(_sanitize_fs_path(path))
+
+    async def read(file_path: str, start: int, lines: int) -> dict[str, Any]:
+        result = await backend.aread(file_path, start, lines)
+        if result.error:
+            return {"error": result.error}
+        file_data = result.file_data or {}
+        return {
+            "encoding": file_data.get("encoding"),
+            "content": file_data.get("content"),
+            "total_lines": result.total_lines,
+            "start_line": result.start_line,
+            "end_line": result.end_line,
+            "next_offset": result.next_offset,
+        }
+
+    async def download(file_path: str) -> bytes | str:
+        downloads = await backend.adownload_files([posixpath.join(_work_dir, file_path)])
+        result = downloads[0]
+        if result.error or result.content is None:
+            return result.error or "file_not_found"
+        return result.content
+
+    async def stream_download(file_path: str) -> AsyncIterator[bytes]:
+        provider = getattr(backend, "default", backend)
+        iterator = provider.astream_file(file_path)
+        renewed = time.monotonic()
+        try:
+            async for chunk in iterator:
+                if time.monotonic() - renewed >= 60:
+                    await touch_browse_lease(user.sub)
+                    renewed = time.monotonic()
+                yield chunk
+        finally:
+            await iterator.aclose()
+
+    return await _workspace_preview_response(
+        await read_workspace_preview(
+            rel,
+            offset,
+            limit,
+            read=read,
+            download=download,
+            stream=stream_download if stream else None,
+        )
+    )

@@ -732,8 +732,11 @@ class SkillsStoreBackend(BackendProtocol):
                 # （`**` 递归、路径相对匹配；只出文件不出目录）
                 matcher = compile_grep_include_glob(pattern)
                 file_entries: list[FileInfo] = []
+                paths_by_skill = await storage.batch_list_skill_file_paths(
+                    skill_names, self._user_id
+                )
                 for skill_name in skill_names:
-                    for file_path in sorted(await self._get_skill_file_paths(storage, skill_name)):
+                    for file_path in sorted(paths_by_skill.get(skill_name, [])):
                         if matcher(f"{skill_name}/{file_path}"):
                             file_entries.append(
                                 FileInfo(path=f"/{skill_name}/{file_path}", is_dir=False)

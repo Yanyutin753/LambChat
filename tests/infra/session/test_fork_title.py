@@ -419,6 +419,7 @@ async def test_resolve_fork_target_projects_only_needed_trace_fields() -> None:
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
+                "events": 1,
             },
         ),
         {},
@@ -512,3 +513,66 @@ async def test_fork_session_continues_when_checkpoint_clone_fails(monkeypatch) -
     ]
     assert seeded_messages[0].content == "hello"
     assert seeded_messages[1].content == "hi there"
+
+
+@pytest.mark.asyncio
+async def test_fork_target_batches_until_first_match_and_preserves_turn_counts():
+    traces = [
+        {"run_id": f"run-{i}", "trace_id": f"trace-{i}", "events": [], "started_at": i}
+        for i in range(250)
+    ]
+    traces.insert(0, {"run_id": None, "trace_id": "invalid-run", "events": []})
+    event = {"event_type": "user:message", "data": {"message_id": "target"}}
+    collection = _FakeTraceCollection(traces)
+    manager = SessionManager()
+    batches = []
+
+    async def batch_reader(docs, event_types=None, active_user_only_trace_ids=None):
+        ids = [doc["trace_id"] for doc in docs]
+        batches.append(ids)
+        assert len(ids) <= 100
+        assert active_user_only_trace_ids == set(ids)
+        return {"trace-101": [event]} if "trace-101" in ids else {}
+
+    async def unexpected_single(*args, **kwargs):
+        raise AssertionError("unexpected per-trace query")
+
+    manager._trace_storage = SimpleNamespace(
+        collection=collection,
+        read_trace_events_batch_compat=batch_reader,
+        read_trace_events_compat=unexpected_single,
+    )
+    target = await manager._resolve_fork_target("source", "target")
+    assert target["run_id"] == "run-101"
+    assert target["completed_run_count"] == 101
+    assert target["turn_index"] == 102
+    assert [len(batch) for batch in batches] == [100, 100]
+    assert len(collection.cursor._traces) == 51
+    assert not collection.cursor.to_list_called
+
+
+@pytest.mark.asyncio
+async def test_fork_target_batch_failure_preserves_assistant_match_and_counts():
+    collection = _FakeTraceCollection(
+        [
+            {"run_id": "run-1", "trace_id": "t1", "events": []},
+            {"run_id": "run-2", "trace_id": "t2", "events": []},
+        ]
+    )
+    manager = SessionManager()
+
+    async def batch_reader(*args, **kwargs):
+        raise RuntimeError("batch failure")
+
+    async def failed_reader(*args, **kwargs):
+        raise RuntimeError("trace failure")
+
+    manager._trace_storage = SimpleNamespace(
+        collection=collection,
+        read_trace_events_batch_compat=batch_reader,
+        read_trace_events_compat=failed_reader,
+    )
+    target = await manager._resolve_fork_target("source", "run-2")
+    assert target["target_type"] == "assistant"
+    assert target["completed_run_count"] == 2
+    assert target["turn_index"] == 2

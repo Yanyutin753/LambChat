@@ -29,11 +29,14 @@ class _FakeCollection:
         self._docs = docs
         self.cursors: list[_AsyncCursor] = []
 
-    def find(self, query: dict[str, Any]) -> _AsyncCursor:
+    def find(self, query: dict[str, Any], projection: dict[str, int] | None = None) -> _AsyncCursor:
         def _matches(doc: dict[str, Any]) -> bool:
             for key, expected in query.items():
                 if isinstance(expected, dict) and "$ne" in expected:
                     if doc.get(key) == expected["$ne"]:
+                        return False
+                elif isinstance(expected, dict) and "$in" in expected:
+                    if doc.get(key) not in expected["$in"]:
                         return False
                 elif doc.get(key) != expected:
                     return False

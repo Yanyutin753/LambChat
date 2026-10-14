@@ -342,6 +342,7 @@ test("background readiness excludes a previous run until the current POST is adm
   let sending!: Promise<void>;
   act(() => { sending = result.current.sendMessage("next turn"); });
   expect(result.current.isLoading).toBe(true);
+  expect(result.current.currentRunId).toBeNull();
   expect(result.current.canContinueInBackground).toBe(false);
   await act(async () => { accept("session-1", "run-2"); });
   expect(result.current.canContinueInBackground).toBe(true);

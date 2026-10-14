@@ -30,6 +30,9 @@ class _MissingTimeoutSettingsStorage:
     def __init__(self) -> None:
         self.values: dict[str, Any] = {}
 
+    async def get_many(self, keys):
+        return {key: self.values.get(key) for key in keys}
+
     async def get(self, key: str):
         return self.values.get(key)
 

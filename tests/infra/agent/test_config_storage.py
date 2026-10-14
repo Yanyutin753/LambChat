@@ -400,3 +400,72 @@ async def test_set_catalog_config_uses_single_bulk_write() -> None:
         assert operation._upsert is True
     # delete_many keeps only registered agent ids.
     assert collection.delete_many_calls == [{"agent_id": {"$nin": [agent.id for agent in agents]}}]
+
+
+@pytest.mark.asyncio
+async def test_get_role_agents_by_ids_batches_all_ids_and_preserves_none(monkeypatch):
+    monkeypatch.setattr(config_storage, "ROLE_AGENT_MAPPING_LIST_LIMIT", 2)
+    docs = [
+        {"role_id": "third", "allowed_agents": []},
+        {"role_id": "first", "allowed_agents": ["fast", "fast", "search"]},
+    ]
+    collection = _FakeFindCollection(docs)
+    storage = config_storage.AgentConfigStorage()
+    storage._collections[config_storage._COLL_ROLE_AGENTS] = collection
+
+    assert await storage.get_role_agents_by_ids(["first", "missing", "third", "first"]) == {
+        "first": ["fast", "fast", "search"],
+        "missing": None,
+        "third": None,
+    }
+    assert [args[0] for args, _kwargs in collection.calls] == [
+        {"role_id": {"$in": ["first", "missing"]}},
+        {"role_id": {"$in": ["third"]}},
+    ]
+    assert all(
+        args[1] == {"allowed_agents": {"$slice": config_storage.ROLE_AGENT_ACCESS_LIMIT}}
+        for args, _kwargs in collection.calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_role_agents_by_ids_empty_input_skips_storage():
+    storage = config_storage.AgentConfigStorage()
+    assert await storage.get_role_agents_by_ids([]) == {}
+    assert storage._collections == {}
+
+
+@pytest.mark.asyncio
+async def test_get_role_models_by_ids_batches_all_ids_and_retains_empty_restriction(monkeypatch):
+    monkeypatch.setattr(config_storage, "ROLE_MODEL_MAPPING_LIST_LIMIT", 2)
+    collection = _FakeFindCollection(
+        [
+            {"role_id": "first", "allowed_models": []},
+            {"role_id": "last", "allowed_models": ["model"]},
+            {"role_id": "unset", "allowed_models": None},
+        ]
+    )
+    storage = config_storage.AgentConfigStorage()
+    storage._collections[config_storage._COLL_ROLE_MODELS] = collection
+
+    assert await storage.get_role_models_by_ids(["first", "missing", "last", "unset", "first"]) == {
+        "first": [],
+        "missing": None,
+        "last": ["model"],
+        "unset": None,
+    }
+    assert [args[0] for args, _kwargs in collection.calls] == [
+        {"role_id": {"$in": ["first", "missing"]}},
+        {"role_id": {"$in": ["last", "unset"]}},
+    ]
+    assert all(
+        args[1] == {"allowed_models": {"$slice": model_access.ROLE_MODEL_ACCESS_LIMIT}}
+        for args, _kwargs in collection.calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_role_models_by_ids_empty_input_skips_storage():
+    storage = config_storage.AgentConfigStorage()
+    assert await storage.get_role_models_by_ids([]) == {}
+    assert storage._collections == {}

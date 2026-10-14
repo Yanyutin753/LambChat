@@ -246,3 +246,57 @@ async def test_list_sessions_excludes_hidden_sessions(
     }
     assert collection.count_query == expected_query
     assert collection.find_query == expected_query
+
+
+@pytest.mark.asyncio
+async def test_project_id_page_queries_owner_and_limits_cursor(monkeypatch):
+    collection = _RecordingListCollection()
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+
+    async def no_indexes():
+        return None
+
+    monkeypatch.setattr(storage, "ensure_indexes_if_needed", no_indexes)
+    ids, total = await storage.list_ids_by_project_paginated(
+        "project-1", "user-1", skip=200, limit=20
+    )
+    assert ids == [] and total == 0
+    assert (
+        collection.find_query
+        == collection.count_query
+        == {"user_id": "user-1", "metadata.project_id": "project-1"}
+    )
+    assert collection.cursor.skip_value == 200
+    assert collection.cursor.limit_value == collection.cursor.to_list_length == 20
+
+
+def test_project_id_pagination_declares_exact_nonunique_sort_index():
+    assert (
+        [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1), ("_id", -1)],
+        "user_project_updated_id_idx",
+        {},
+    ) in session_storage._SESSION_INDEX_SPEC
+
+
+@pytest.mark.asyncio
+async def test_project_id_page_preserves_custom_and_legacy_ids_and_exact_total(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    collection = _RecordingListCollection()
+    collection.count_documents = AsyncMock(return_value=5000)
+    collection.cursor.to_list = AsyncMock(
+        return_value=[
+            {"session_id": "custom-id", "_id": "ignored-id"},
+            {"_id": "legacy-id"},
+        ]
+    )
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+    monkeypatch.setattr(storage, "ensure_indexes_if_needed", AsyncMock())
+    ids, total = await storage.list_ids_by_project_paginated("project-1", "user-1", limit=2)
+    assert ids == ["custom-id", "legacy-id"] and total == 5000
+    assert collection.count_documents.await_args.args == (
+        {"user_id": "user-1", "metadata.project_id": "project-1"},
+    )
+    collection.cursor.to_list.assert_awaited_once_with(length=2)

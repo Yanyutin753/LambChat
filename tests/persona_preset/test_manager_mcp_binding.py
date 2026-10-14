@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
+import pytest
+
 from src.infra.persona_preset.manager import PersonaPresetManager
 
 
@@ -53,6 +57,29 @@ class FakeMCPStorage:
         self._system = system_servers
         self._user = user_servers
         self.point_lookups: list[str] = []
+        self.batch_lookups: list[list[str]] = []
+
+    async def get_visible_server_names(self, names, *, user_id, user_roles, is_admin):
+        self.batch_lookups.append(names)
+        roles_resolved = True
+        if any(name in self._system for name in names) and user_roles is None and not is_admin:
+            from src.infra.mcp.quota import resolve_user_mcp_access
+
+            try:
+                user_roles, _quota_admin = await resolve_user_mcp_access(user_id)
+            except Exception:
+                roles_resolved = False
+        return {
+            name
+            for name in names
+            if name in self._system
+            and roles_resolved
+            and (
+                is_admin
+                or not self._system[name]
+                or set(user_roles or []).intersection(self._system[name])
+            )
+        } | {name for name in names if name not in self._system and name in self._user}
 
     async def get_system_server(self, name):
         self.point_lookups.append(f"system:{name}")
@@ -123,8 +150,8 @@ async def test_use_preset_passes_mcp_whitelist_into_snapshot() -> None:
     assert snapshot.missing_skill_names == ["gone-skill"]
     assert snapshot.mcp_server_names == ["arxiv"]  # weather 限 researcher 角色，不可见
     assert snapshot.missing_mcp_server_names == ["weather"]
-    # 点查路径：system 两次（weather 非用户服务不再查 user 表）
-    assert manager.mcp_storage.point_lookups == ["system:arxiv", "system:weather"]
+    assert manager.mcp_storage.point_lookups == []
+    assert manager.mcp_storage.batch_lookups == [["arxiv", "weather"]]
 
 
 async def test_use_preset_drops_invisible_mcp_and_records_missing() -> None:
@@ -237,3 +264,102 @@ async def test_use_preset_without_bindings_skips_all_queries() -> None:
     assert snapshot.missing_mcp_server_names == []
     assert manager.skill_storage.effective_calls == 0
     assert manager.mcp_storage.point_lookups == []
+    assert manager.mcp_storage.batch_lookups == []
+
+
+@pytest.mark.parametrize("count", [1, 100])
+@pytest.mark.parametrize("admin", [False, True])
+async def test_use_preset_batches_mcp_and_resolves_roles_once(monkeypatch, count, admin):
+    from src.infra.mcp import quota
+
+    names = [f"server-{index}" for index in range(count)]
+    manager = _make_manager(set(), system_mcp={name: ["user"] for name in names})
+    preset = await manager.storage.create(
+        {
+            "scope": "user",
+            "owner_user_id": "user-1",
+            "name": "Bound",
+            "system_prompt": "You chat.",
+            "mcp_server_names": names,
+            "visibility": "private",
+            "status": "published",
+            "version": 1,
+        }
+    )
+    resolve = AsyncMock(return_value=(["user"], False))
+    monkeypatch.setattr(quota, "resolve_user_mcp_access", resolve)
+    manager.storage.increment_usage = AsyncMock()
+    manager.storage.touch_user_preference = AsyncMock()
+
+    snapshot = await manager.use_preset(preset["id"], user_id="user-1", is_admin=admin)
+
+    assert snapshot.mcp_server_names == names
+    assert snapshot.missing_mcp_server_names == []
+    assert manager.mcp_storage.batch_lookups == [names]
+    assert manager.mcp_storage.point_lookups == []
+    if admin:
+        resolve.assert_not_awaited()
+    else:
+        resolve.assert_awaited_once_with("user-1")
+    manager.storage.increment_usage.assert_awaited_once_with(preset["id"])
+    manager.storage.touch_user_preference.assert_awaited_once_with(
+        user_id="user-1", preset_id=preset["id"]
+    )
+
+
+async def test_use_preset_mcp_batch_failure_is_conservative(monkeypatch):
+    manager = _make_manager(set(), system_mcp={"server": []})
+    preset = await manager.storage.create(
+        {
+            "scope": "global",
+            "name": "Shared",
+            "system_prompt": "You chat.",
+            "mcp_server_names": ["server"],
+            "visibility": "public",
+            "status": "published",
+            "version": 1,
+        }
+    )
+    manager.mcp_storage.get_visible_server_names = AsyncMock(
+        side_effect=RuntimeError("query failed")
+    )
+    manager.mcp_storage.get_system_server = AsyncMock(side_effect=RuntimeError("query failed"))
+
+    snapshot = await manager.use_preset(
+        preset["id"], user_id="user-1", is_admin=False, user_roles=["user"]
+    )
+
+    assert snapshot.mcp_server_names == []
+    assert snapshot.missing_mcp_server_names == ["server"]
+
+
+@pytest.mark.parametrize("system_present", [False, True])
+async def test_use_preset_owned_mcp_survives_missing_role_context(monkeypatch, system_present):
+    from src.infra.mcp import quota
+
+    manager = _make_manager(
+        set(), system_mcp={"system": []} if system_present else {}, user_mcp={"owned"}
+    )
+    preset = await manager.storage.create(
+        {
+            "scope": "user",
+            "owner_user_id": "user-1",
+            "name": "Owned",
+            "system_prompt": "You chat.",
+            "mcp_server_names": ["system", "owned"] if system_present else ["owned"],
+            "visibility": "private",
+            "status": "published",
+            "version": 1,
+        }
+    )
+    resolve = AsyncMock(side_effect=RuntimeError("role query failed"))
+    monkeypatch.setattr(quota, "resolve_user_mcp_access", resolve)
+
+    snapshot = await manager.use_preset(preset["id"], user_id="user-1", is_admin=False)
+
+    assert snapshot.mcp_server_names == ["owned"]
+    assert snapshot.missing_mcp_server_names == (["system"] if system_present else [])
+    if system_present:
+        resolve.assert_awaited_once_with("user-1")
+    else:
+        resolve.assert_not_awaited()

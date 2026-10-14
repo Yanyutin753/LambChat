@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 from datetime import datetime
@@ -151,30 +150,6 @@ class _RecordingIdsCollection:
     def find(self, query: dict[str, Any]):
         self.find_queries.append(query)
         return _EmptyAsyncCursor()
-
-
-class _CountingRoleStorage(RoleStorage):
-    def __init__(self) -> None:
-        super().__init__()
-        self.looked_up_names: list[str] = []
-
-    async def get_by_name(self, name: str):
-        self.looked_up_names.append(name)
-        return None
-
-
-class _ConcurrentCountingRoleStorage(RoleStorage):
-    def __init__(self) -> None:
-        super().__init__()
-        self.active = 0
-        self.max_active = 0
-
-    async def get_by_name(self, name: str):
-        self.active += 1
-        self.max_active = max(self.max_active, self.active)
-        await asyncio.sleep(0)
-        self.active -= 1
-        return None
 
 
 @pytest.mark.asyncio
@@ -396,27 +371,152 @@ async def test_get_by_ids_caps_mongo_in_query(
     assert len(collection.find_queries[0]["_id"]["$in"]) == 3
 
 
+class _BatchRedis(_FakeRedis):
+    def __init__(self):
+        super().__init__()
+        self.mget_calls = []
+        self.writes = []
+        self.pending = []
+
+    async def mget(self, keys):
+        self.mget_calls.append(keys)
+        return [self.values.get(key) for key in keys]
+
+    def pipeline(self, transaction=False):
+        return self
+
+    def set(self, key, value, ex=None):
+        self.pending.append((key, value, ex))
+        return self
+
+    async def execute(self):
+        self.writes.extend(self.pending)
+        for key, value, _ex in self.pending:
+            self.values[key] = value
+        self.pending = []
+        return []
+
+
+class _BatchRoleCollection:
+    def __init__(self, docs):
+        self.docs = docs
+        self.queries = []
+
+    def find(self, query):
+        self.queries.append(query)
+        return _ListRoleCursor(
+            [dict(doc) for doc in self.docs if doc["name"] in query["name"]["$in"]]
+        )
+
+
+def _role_doc(name):
+    return {
+        "_id": f"id-{name}",
+        "name": name,
+        "permissions": [],
+        "created_at": datetime(2026, 1, 1),
+        "updated_at": datetime(2026, 1, 1),
+    }
+
+
 @pytest.mark.asyncio
-async def test_get_by_names_caps_sequential_cache_lookups(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 3, raising=False)
-    storage = _CountingRoleStorage()
+async def test_get_by_names_batches_misses_with_bounded_input_order(monkeypatch):
+    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 3)
+    redis = _BatchRedis()
+    monkeypatch.setattr(role_storage, "_role_cache_redis", redis)
+    storage = RoleStorage()
+    collection = _BatchRoleCollection([_role_doc("third"), _role_doc("first")])
+    storage._collection = collection
 
-    roles = await storage.get_by_names([f"role-{index}" for index in range(5)] + ["role-1"])
+    roles = await storage.get_by_names(["first", "missing", "first", "third", "fourth"])
 
-    assert roles == []
-    assert storage.looked_up_names == ["role-0", "role-1", "role-2"]
+    assert [role.name for role in roles] == ["first", "third"]
+    assert collection.queries == [{"name": {"$in": ["first", "missing", "third"]}}]
+    assert len(redis.mget_calls) == 3
+    assert {key for key, _value, _ex in redis.writes} == {
+        "role:obj:first:v0",
+        "role:obj:missing:v0",
+        "role:obj:third:v0",
+    }
+    assert redis.values["role:obj:missing:v0"] == "null"
+
+    collection.queries.clear()
+    roles = await storage.get_by_names(["missing", "third", "first"])
+    assert [role.name for role in roles] == ["third", "first"]
+    assert collection.queries == []
 
 
 @pytest.mark.asyncio
-async def test_get_by_names_fetches_bounded_roles_concurrently(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 3, raising=False)
-    storage = _ConcurrentCountingRoleStorage()
+async def test_get_by_names_skips_stale_cache_write_when_version_changes(monkeypatch):
+    class ChangingRedis(_BatchRedis):
+        async def mget(self, keys):
+            result = await super().mget(keys)
+            return ["1"] if len(self.mget_calls) == 3 else result
 
-    roles = await storage.get_by_names([f"role-{index}" for index in range(5)])
+    redis = ChangingRedis()
+    monkeypatch.setattr(role_storage, "_role_cache_redis", redis)
+    storage = RoleStorage()
+    storage._collection = _BatchRoleCollection([_role_doc("first")])
 
-    assert roles == []
-    assert storage.max_active > 1
+    assert [role.name for role in await storage.get_by_names(["first"])] == ["first"]
+    assert redis.writes == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [TimeoutError(), RuntimeError("redis unavailable")])
+async def test_get_by_names_cache_failure_uses_one_authoritative_query(monkeypatch, failure):
+    class UnavailableRedis(_BatchRedis):
+        async def mget(self, keys):
+            self.mget_calls.append(keys)
+            raise failure
+
+    redis = UnavailableRedis()
+    monkeypatch.setattr(role_storage, "_role_cache_redis", redis)
+    storage = RoleStorage()
+    storage._collection = _BatchRoleCollection([_role_doc("first"), _role_doc("second")])
+
+    assert [role.name for role in await storage.get_by_names(["second", "first"])] == [
+        "second",
+        "first",
+    ]
+    assert len(storage.collection.queries) == 1
+    assert len(redis.mget_calls) == 1
+    assert redis.writes == []
+
+
+@pytest.mark.asyncio
+async def test_role_manager_batches_all_names_preserving_duplicates(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.role.manager import RoleManager
+    from src.kernel.schemas.role import Role
+
+    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 2)
+    manager = RoleManager()
+    manager.storage.get_by_names = AsyncMock(
+        side_effect=lambda names: [
+            Role(id=f"role-{name}", name=name) for name in reversed(names) if name != "missing"
+        ]
+    )
+    roles = await manager.get_roles_by_names(["first", "missing", "last", "first"])
+
+    assert [role.name for role in roles] == ["first", "last", "first"]
+    assert [call.args[0] for call in manager.storage.get_by_names.await_args_list] == [
+        ["first", "missing"],
+        ["last"],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_by_names_corrupt_cache_does_not_hide_other_roles(monkeypatch):
+    redis = _BatchRedis()
+    redis.values["role:obj:broken:v0"] = "invalid json"
+    redis.values["role:obj:negative:v0"] = "null"
+    monkeypatch.setattr(role_storage, "_role_cache_redis", redis)
+    storage = RoleStorage()
+    storage._collection = _BatchRoleCollection([_role_doc("broken"), _role_doc("fresh")])
+
+    roles = await storage.get_by_names(["negative", "broken", "fresh"])
+
+    assert [role.name for role in roles] == ["broken", "fresh"]
+    assert storage.collection.queries == [{"name": {"$in": ["broken", "fresh"]}}]

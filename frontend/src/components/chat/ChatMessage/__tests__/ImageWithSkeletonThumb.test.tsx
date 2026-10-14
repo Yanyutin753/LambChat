@@ -19,13 +19,22 @@ test("auto-height inline images reserve skeleton space until loaded", () => {
   );
   const skeleton = container.querySelector(".skeleton-line") as HTMLElement;
   const img = screen.getByAltText("placeholder");
-  expect(skeleton.style.aspectRatio).toBe("4 / 3");
-  expect(skeleton).not.toHaveClass("absolute");
+  expect(skeleton).toHaveClass("absolute", "inset-0");
+  expect(skeleton.previousElementSibling).toHaveStyle({ aspectRatio: "4 / 3" });
   expect(img).toHaveStyle({ position: "absolute" });
 
   fireEvent.load(img);
   expect(container.querySelector(".skeleton-line")).toBeNull();
   expect(img.style.position).toBe("");
+});
+
+test.each([false, true])("skeleton covers the complete image container in inline=%s mode", (inline) => {
+  const { container } = render(<ImageWithSkeleton src={`https://example.test/fill-${inline}.png`} inline={inline} className="h-24 w-full object-contain" />);
+  expect(container.querySelector(".skeleton-line")).toHaveClass("absolute", "inset-0");
+  expect(container.querySelector(".image-with-skeleton")).toHaveAttribute("aria-busy", "true");
+  fireEvent.load(container.querySelector("img")!);
+  expect(container.querySelector(".skeleton-line")).toBeNull();
+  expect(container.querySelector(".image-with-skeleton")).toHaveAttribute("aria-busy", "false");
 });
 
 test.each([false, true])(

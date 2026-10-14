@@ -155,6 +155,8 @@ PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由
 
 工具展示：启动时设置 `PANEL_PREVIEW_TOOL_GALLERY=/绝对路径/gallery.json`，再访问 `/chat/preview-report?tool-gallery=0`。JSON 为 `{ name, events }` 数组，索引选择对应的模拟对话；每次请求重新读取文件。仅展示 fixture，不执行工具或连接真实 MCP 服务。
 
+图片入口与加载走查：`/chat/preview-report?images=1` 展示三张可加载图片，`images=many` 展示六张，折叠入口最多显示三张缩略图和 `+N`。加 `image-loading=1` 将首张图片延迟八秒返回且禁用缓存，可检查折叠缩略图、展开图片及全屏预览骨架；`failure=image` 显式启用一张失败图片，可组合 `theme=light|dark`。仅本地只读图片样例，不证明真实私有图片鉴权或网络重试。
+
 输入区组合走查：`/chat/preview-report?composer-stack=workspace&chat-state=working&theme=dark` 同时显示项目目录、执行中的外置任务摘要和本地电脑入口；`composer-stack=human` 显示模拟 Ask Human 确认表单。已完成对话隐藏摘要。只读 fixture，不提交确认、不执行工具，也不访问真实目录。
 
 头像与资源卡片走查：按用户最终选择，保留现有卡片与渐变条，仅统一满幅头像背景、图标渲染和头像选择器。角色、团队、技能、技能商店、MCP、渠道、记忆和定时任务复用头像组件。Boring Avatars 圆形头像由共享组件提供；最终验证见本轮交付结果；只读预览不证明头像保存或上传。

@@ -77,6 +77,7 @@ async def test_list_user_skills_returns_paginated_response(
             favorite_skill_names=None,
             q: str | None = None,
             tags=None,
+            matching_skill_names=None,
         ):
             assert user_id == "user-1"
             assert skip == 20
@@ -119,6 +120,14 @@ async def test_list_user_skills_returns_paginated_response(
             assert q == "plan"
             assert tags == ["planning"]
             return 0
+
+        async def get_skill_list_snapshot(self, user_id, q=None, tags=None):
+            assert (user_id, q, tags) == ("user-1", "plan", ["planning"])
+            return (
+                ["planner", *[f"plan-{i}" for i in range(36)]],
+                ["planning"],
+                {"planner": ("Plan work", ["planning"])},
+            )
 
         async def list_user_skill_tags(self, user_id: str):
             assert user_id == "user-1"
@@ -174,6 +183,7 @@ async def test_list_user_skills_offloads_skill_md_parsing(
             favorite_skill_names=None,
             q: str | None = None,
             tags=None,
+            matching_skill_names=None,
         ):
             return [
                 {
@@ -195,6 +205,9 @@ async def test_list_user_skills_offloads_skill_md_parsing(
             tags=None,
         ):
             return 0
+
+        async def get_skill_list_snapshot(self, user_id, q=None, tags=None):
+            return ["planner"], [], {}
 
         async def list_user_skill_tags(self, user_id: str):
             return []
@@ -280,6 +293,9 @@ async def test_list_user_skills_bounds_metadata_lists_before_storage(
             return _LargeMetadataUserDoc()
 
     class _FakeStorage:
+        async def get_skill_list_snapshot(self, user_id, q=None, tags=None):
+            return [], [], {}
+
         async def list_user_skill_tags(self, user_id: str):
             assert user_id == "user-1"
             return []
@@ -294,6 +310,7 @@ async def test_list_user_skills_bounds_metadata_lists_before_storage(
             favorite_skill_names=None,
             q: str | None = None,
             tags=None,
+            matching_skill_names=None,
         ):
             assert disabled_skills == [f"disabled-{index}" for index in range(100)]
             assert pinned_skill_names == [f"pinned-{index}" for index in range(100)]
@@ -716,10 +733,10 @@ async def test_batch_toggle_skills_bounds_existing_disabled_metadata(
             self.updated = metadata
 
     class _FakeStorage:
-        async def list_skill_file_paths(self, skill_name: str, user_id: str):
-            assert skill_name == "planner"
+        async def get_all_user_skill_names(self, user_id: str, *, skill_names: list[str]):
+            assert skill_names == ["planner"]
             assert user_id == "user-1"
-            return ["SKILL.md"]
+            return ["planner"]
 
         async def invalidate_user_cache(self, user_id: str):
             assert user_id == "user-1"
@@ -737,3 +754,225 @@ async def test_batch_toggle_skills_bounds_existing_disabled_metadata(
     assert user_storage.updated is not None
     assert user_storage.updated["disabled_skills"][0] == "planner"
     assert len(user_storage.updated["disabled_skills"]) == 100
+
+
+class _ToggleFilesCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+        self.queries: list[dict] = []
+
+    def _matching(self, query: dict) -> list[dict]:
+        self.queries.append(query)
+        names = query.get("skill_name")
+        return [
+            doc
+            for doc in self.docs
+            if doc["user_id"] == query["user_id"]
+            and doc["file_path"] != "__meta__"
+            and (names is None or doc["skill_name"] in names.get("$in", [doc["skill_name"]]))
+            and (names is None or doc["skill_name"] not in names.get("$nin", []))
+        ]
+
+    async def aggregate(self, pipeline: list[dict]):
+        names = sorted({doc["skill_name"] for doc in self._matching(pipeline[0]["$match"])})
+        limit = pipeline[-1]["$limit"]
+        return _ToggleCursor([{"_id": name} for name in names[:limit]])
+
+    def find(self, query: dict, projection: dict):
+        query = dict(query)
+        query["skill_name"] = {"$in": [query["skill_name"]]}
+        return _ToggleCursor(self._matching(query))
+
+
+class _ToggleCursor:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def limit(self, count: int):
+        self.docs = self.docs[:count]
+        return self
+
+    async def __aiter__(self):
+        for doc in self.docs:
+            yield doc
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [0, 1, 100])
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_batch_toggle_skill_existence_uses_one_query(
+    monkeypatch: pytest.MonkeyPatch, count: int, enabled: bool
+) -> None:
+    from src.infra.skill.storage import SkillStorage
+
+    names = [f"requested-{index}" for index in range(count)]
+    collection = _ToggleFilesCollection(
+        [
+            {"skill_name": name, "user_id": "user-1", "file_path": path}
+            for name in [*[f"a-unrequested-{index}" for index in range(101)], *names]
+            for path in ["SKILL.md", "notes.md"]
+        ]
+    )
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+    events = []
+
+    async def invalidate(user_id: str):
+        events.append(("invalidate", user_id))
+
+    class _UserStorage(_FakeUserStorage):
+        async def update_metadata(self, user_id: str, metadata: dict):
+            events.append(("update", user_id, metadata))
+
+    monkeypatch.setattr(storage, "invalidate_user_cache", invalidate)
+    monkeypatch.setattr(skill_route, "UserStorage", _UserStorage)
+
+    result = await skill_route.batch_toggle_skills(
+        skill_route.BatchToggleRequest(names=[*names, *names[:1], ""], enabled=enabled),
+        user=_fake_user(),
+        storage=storage,
+    )
+
+    assert result == {"updated": names, "errors": []}
+    expected_query = {
+        "user_id": "user-1",
+        "file_path": {"$ne": "__meta__"},
+        "skill_name": {"$in": names},
+    }
+    assert collection.queries == ([expected_query] if names else [])
+    assert events == [
+        ("invalidate", "user-1"),
+        (
+            "update",
+            "user-1",
+            {"disabled_skills": ["archived"] if enabled else [*names, "archived"][:100]},
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_batch_toggle_missing_skills_and_other_users_do_not_mutate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.skill.storage import SkillStorage
+
+    collection = _ToggleFilesCollection(
+        [
+            {"skill_name": "owned", "user_id": "user-1", "file_path": "notes.md"},
+            {"skill_name": "foreign", "user_id": "user-2", "file_path": "SKILL.md"},
+            {"skill_name": "meta-only", "user_id": "user-1", "file_path": "__meta__"},
+        ]
+    )
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    def unexpected_user_storage():
+        raise AssertionError("missing skills must be rejected before metadata/cache mutation")
+
+    monkeypatch.setattr(skill_route, "UserStorage", unexpected_user_storage)
+    names = ["owned", "missing", "foreign", "meta-only"]
+    with pytest.raises(AppError) as exc:
+        await skill_route.batch_toggle_skills(
+            skill_route.BatchToggleRequest(names=names, enabled=False),
+            user=_fake_user(),
+            storage=storage,
+        )
+
+    assert exc.value.error_code.code == "skills_not_found"
+    assert exc.value.args_data == {"missing": "foreign, meta-only, missing"}
+    assert len(collection.queries) == 1
+
+
+@pytest.mark.asyncio
+async def test_skill_name_batch_filter_preserves_exclusions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.skill.storage import SkillStorage
+
+    collection = _ToggleFilesCollection(
+        [
+            {"skill_name": name, "user_id": "user-1", "file_path": "notes.md"}
+            for name in ["planner", "writer", "unrequested"]
+        ]
+    )
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    result = await storage.get_all_user_skill_names(
+        "user-1",
+        skill_names=["writer", "planner", "writer", ""],
+        exclude_skill_names=["writer"],
+    )
+
+    assert result == ["planner"]
+    assert collection.queries == [
+        {
+            "user_id": "user-1",
+            "file_path": {"$ne": "__meta__"},
+            "skill_name": {"$in": ["writer", "planner"], "$nin": ["writer"]},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_skill_list_reuses_one_request_snapshot_for_filters_counts_and_page_metadata(
+    monkeypatch,
+):
+    from unittest.mock import AsyncMock
+
+    class Storage:
+        snapshot_calls = 0
+
+        async def get_skill_list_snapshot(self, user_id, q=None, tags=None):
+            self.snapshot_calls += 1
+            assert (user_id, q, tags) == ("user-1", "plan", ["planning"])
+            return (
+                ["archived", "planner"],
+                ["planning", "writing"],
+                {"planner": ("Snapshot description", ["planning"])},
+            )
+
+        async def list_user_skills(self, user_id, **kwargs):
+            assert kwargs["matching_skill_names"] == ["archived", "planner"]
+            assert kwargs["disabled_skills"] == ["archived"]
+            return [
+                {
+                    "skill_name": "planner",
+                    "enabled": True,
+                    "file_count": 1,
+                    "file_paths": ["SKILL.md"],
+                }
+            ]
+
+        async def batch_get_skill_md_contents(self, *args):
+            raise AssertionError("page metadata was already parsed")
+
+        async def count_user_skills(self, *args, **kwargs):
+            raise AssertionError("filtered count must reuse snapshot")
+
+        async def count_disabled_user_skills(self, *args, **kwargs):
+            raise AssertionError("filtered disabled count must reuse snapshot")
+
+    class Marketplace:
+        async def get_user_published_skills(self, user_id, **kwargs):
+            return {}
+
+    storage = Storage()
+    monkeypatch.setattr(skill_route, "UserStorage", lambda: _FakeUserStorage())
+    monkeypatch.setattr(skill_route, "initialize_user_starter_pack", AsyncMock())
+    response = await skill_route.list_user_skills(
+        language="en",
+        skip=0,
+        limit=20,
+        q="plan",
+        tags=["planning"],
+        user=_fake_user(),
+        storage=storage,
+        marketplace=Marketplace(),
+    )
+    assert storage.snapshot_calls == 1
+    assert response.total == 2
+    assert response.enabled_count == 1
+    assert response.available_tags == ["planning", "writing"]
+    assert response.skills[0].description == "Snapshot description"
+    assert response.skills[0].tags == ["planning"]

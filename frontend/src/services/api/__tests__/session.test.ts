@@ -286,3 +286,11 @@ test("generate title url keeps explicit lang and falls back to english", async (
     i18n.language = previous;
   }
 });
+
+
+test("session approval status prefetch is optional in event requests", () => {
+  expect(buildSessionEventsUrl("session-1", { include_approval_statuses: true }))
+    .toBe("/api/sessions/session-1/events?include_approval_statuses=true");
+  expect(buildSessionEventsUrl("session-1", { include_approval_statuses: false }))
+    .toBe("/api/sessions/session-1/events");
+});

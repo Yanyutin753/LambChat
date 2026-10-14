@@ -264,6 +264,32 @@ test("binary file bytes reach the document renderer through a downloadable URL",
   tree.root = [];
 });
 
+test("streamed blobs release their URL when the workspace closes", async () => {
+  const OriginalURL = URL;
+  const revoke = vi.fn();
+  const create = vi.fn(() => "blob:workspace-image");
+  class PreviewURL extends OriginalURL {
+    static createObjectURL = create;
+    static revokeObjectURL = revoke;
+  }
+  vi.stubGlobal("URL", PreviewURL);
+  tree.root = [{ path: "photo.png", name: "photo.png", isDir: false }];
+  read.mockResolvedValue({ encoding: "binary", blob: new Blob(["image bytes"]) });
+  try {
+    const view = render(<WorkspacePanel sessionId="s" sandboxMode="local" />);
+    fireEvent.click(screen.getByRole("button", { name: "photo.png" }));
+    expect(await screen.findByText("blob:workspace-image")).toBeVisible();
+    expect(revoke).not.toHaveBeenCalled();
+    const signal = read.mock.lastCall?.[4];
+    view.unmount();
+    expect(revoke).toHaveBeenCalledWith("blob:workspace-image");
+    expect(signal.aborted).toBe(true);
+  } finally {
+    tree.root = [];
+    vi.unstubAllGlobals();
+  }
+});
+
 test("a paginated text read clearly identifies its partial preview", async () => {
   tree.root = [{ path: "large.py", name: "large.py", isDir: false }];
   read.mockResolvedValue({

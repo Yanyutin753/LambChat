@@ -19,6 +19,44 @@ from src.kernel.schemas.share import (
 )
 
 
+@pytest.mark.parametrize(
+    "build", [share_route._build_safe_session_info, share_route._build_project_session_item]
+)
+def test_shared_agent_label_keeps_missing_agent_fallback_and_propagates_other_errors(
+    monkeypatch, build
+):
+    from src.kernel.errors import AppError, ErrorCode
+
+    session = SimpleNamespace(
+        id="session",
+        name="history",
+        agent_id="missing-agent",
+        metadata={},
+        created_at=None,
+        updated_at=None,
+        task_status=None,
+        task_error=None,
+        completed_at=None,
+    )
+
+    def missing(_agent_id):
+        raise AppError(ErrorCode.AGENT_NOT_REGISTERED)
+
+    monkeypatch.setattr(share_route, "get_agent_class", missing)
+    result = build(session)
+    assert (
+        result["agent_name"] if isinstance(result, dict) else result.agent_name
+    ) == "missing-agent"
+
+    def unrelated(_agent_id):
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+
+    monkeypatch.setattr(share_route, "get_agent_class", unrelated)
+    with pytest.raises(AppError) as exc:
+        build(session)
+    assert exc.value.error_code == ErrorCode.SESSION_NOT_FOUND
+
+
 def _user(sub: str = "user-1", permissions: list[str] | None = None) -> SimpleNamespace:
     return SimpleNamespace(sub=sub, permissions=permissions or ["session:share"])
 
@@ -39,6 +77,9 @@ class _FakeSessionStorage:
 
     async def list_ids_by_project(self, project_id: str, user_id: str) -> list[str]:
         return list(self.project_session_ids)
+
+    async def list_ids_by_project_paginated(self, project_id, user_id, skip=0, limit=100):
+        return self.project_session_ids[skip : skip + limit], len(self.project_session_ids)
 
 
 class _FakeShareStorage:
@@ -410,8 +451,9 @@ async def test_get_shared_content_project_full_uses_live_members(monkeypatch) ->
             return share
 
     class _SessionStorage:
-        async def list_ids_by_project(self, _pid, _uid):
-            return ["live-1", "live-2"]
+        async def list_ids_by_project_paginated(self, _pid, _uid, skip=0, limit=100):
+            assert (skip, limit) == (0, share_route.SHARE_PROJECT_MANIFEST_DEFAULT)
+            return ["live-1", "live-2"], 2
 
     class _Manager:
         async def get_sessions(self, ids):
@@ -665,3 +707,40 @@ async def test_get_shared_content_project_paginates(monkeypatch) -> None:
     page2 = await share_route.get_shared_content("sharetoken", session_limit=2, session_skip=2)
     assert len(page2.sessions) == 1
     assert page2.has_more is False
+
+
+@pytest.mark.asyncio
+async def test_full_project_manifest_reads_only_requested_live_page(monkeypatch):
+    share = _project_share(share_type=ShareType.FULL)
+    calls = []
+
+    class Sessions:
+        async def list_ids_by_project(self, *args):
+            raise AssertionError("FULL manifest must not load every ID")
+
+        async def list_ids_by_project_paginated(self, project_id, owner_id, skip=0, limit=100):
+            calls.append((project_id, owner_id, skip, limit))
+            return ["live-201", "live-202"], 10000
+
+    class Manager:
+        async def get_sessions(self, ids):
+            assert ids == ["live-201", "live-202"]
+            return {
+                sid: SimpleNamespace(
+                    id=sid, name=sid, agent_id="fast", metadata={}, updated_at=None
+                )
+                for sid in ids
+            }
+
+    class Users:
+        async def get_by_id(self, uid):
+            return SimpleNamespace(username="owner", avatar_url=None)
+
+    monkeypatch.setattr(share_route, "SessionStorage", lambda: Sessions())
+    monkeypatch.setattr(share_route, "SessionManager", lambda: Manager())
+    monkeypatch.setattr(share_route, "UserStorage", lambda: Users())
+    response = await share_route._build_project_manifest(share, session_skip=200, session_limit=2)
+    assert calls == [(share.project_id, share.owner_id, 200, 2)]
+    assert response.sessions_total == 10000
+    assert response.has_more is True
+    assert [session.id for session in response.sessions] == ["live-201", "live-202"]

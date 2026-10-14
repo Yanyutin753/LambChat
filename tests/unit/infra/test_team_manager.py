@@ -154,6 +154,9 @@ async def test_create_team_preserves_member_model_id(manager, mock_storage, monk
     )
 
     class _ModelStorage:
+        async def get_many_by_ids_and_values(self, model_ids):
+            return {model_id: await self.get(model_id) for model_id in model_ids}, {}
+
         async def get(self, model_id):
             assert model_id == "model-member"
             return model
@@ -276,12 +279,15 @@ async def test_validate_member_agent_access_rejects_role_disallowed_agent(manage
     )
 
     class _RoleManager:
-        async def get_role_by_name(self, role_name):
-            return MagicMock(id=f"role-{role_name}")
+        def __init__(self):
+            self.storage = self
+
+        async def get_roles_by_names(self, role_names):
+            return [MagicMock(id=f"role-{name}") for name in role_names]
 
     class _AgentConfigStorage:
-        async def get_role_agents(self, role_id):
-            return ["fast"]
+        async def get_role_agents_by_ids(self, role_ids):
+            return {role_id: ["fast"] for role_id in role_ids}
 
     import src.infra.agent.config_storage as config_storage
     import src.infra.role.manager as role_manager
@@ -307,6 +313,9 @@ async def test_validate_member_model_access_allows_empty_member_model(
     called = False
 
     class _ModelStorage:
+        async def get_many_by_ids_and_values(self, model_ids):
+            return {model_id: await self.get(model_id) for model_id in model_ids}, {}
+
         async def get(self, _model_id):
             nonlocal called
             called = True
@@ -336,6 +345,9 @@ async def test_validate_member_model_access_allows_enabled_allowed_model(
     )
 
     class _ModelStorage:
+        async def get_many_by_ids_and_values(self, model_ids):
+            return {model_id: await self.get(model_id) for model_id in model_ids}, {}
+
         async def get(self, model_id):
             assert model_id == "model-member"
             return model
@@ -365,6 +377,9 @@ async def test_validate_member_model_access_allows_enabled_allowed_model(
 @pytest.mark.asyncio
 async def test_validate_member_model_access_rejects_missing_or_disabled_model(manager, monkeypatch):
     class _ModelStorage:
+        async def get_many_by_ids_and_values(self, model_ids):
+            return {model_id: await self.get(model_id) for model_id in model_ids}, {}
+
         async def get(self, _model_id):
             return None
 
@@ -392,6 +407,9 @@ async def test_validate_member_model_access_rejects_role_disallowed_model(manage
     )
 
     class _ModelStorage:
+        async def get_many_by_ids_and_values(self, model_ids):
+            return {model_id: await self.get(model_id) for model_id in model_ids}, {}
+
         async def get(self, _model_id):
             return model
 
@@ -544,8 +562,8 @@ async def test_validate_team_members_handles_missing_presets(manager, mock_perso
 
 @pytest.mark.asyncio
 async def test_validate_team_members_with_valid_preset(manager, mock_persona_manager):
-    mock_persona_manager.storage.get_by_id = AsyncMock(
-        return_value={"name": "Helper", "avatar": "avatar.png", "tags": ["helpful"]}
+    mock_persona_manager.storage.get_by_ids = AsyncMock(
+        return_value={"preset-1": {"name": "Helper", "avatar": "avatar.png", "tags": ["helpful"]}}
     )
     members = [
         TeamMemberResponse(
@@ -596,7 +614,7 @@ async def test_resolve_team_for_runtime_returns_team(manager, mock_storage, mock
     ]
     team = _make_team(members=members)
     mock_storage.get_team = AsyncMock(return_value=team)
-    mock_persona_manager.storage.get_by_id = AsyncMock(return_value={"name": "Bot"})
+    mock_persona_manager.storage.get_by_ids = AsyncMock(return_value={"preset-1": {"name": "Bot"}})
 
     result = await manager.resolve_team_for_runtime("team-1", owner_user_id="user-1")
     assert result is not None
@@ -621,3 +639,162 @@ async def test_resolve_team_for_runtime_returns_none_when_all_active_presets_mis
     result = await manager.resolve_team_for_runtime("team-1", owner_user_id="user-1")
 
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_validate_team_members_batches_active_presets_preserving_order(
+    manager, mock_persona_manager, caplog
+):
+    members = [
+        TeamMemberResponse(member_id="m-1", persona_preset_id="preset-2", position=2),
+        TeamMemberResponse(member_id="m-missing", persona_preset_id="missing", position=0),
+        TeamMemberResponse(member_id="m-2", persona_preset_id="preset-1", position=1),
+        TeamMemberResponse(member_id="m-repeat", persona_preset_id="preset-2"),
+        TeamMemberResponse(member_id="m-disabled", persona_preset_id="disabled", enabled=False),
+    ]
+    mock_persona_manager.storage.get_by_ids.return_value = {"preset-2": {}, "preset-1": {}}
+
+    result = await manager.validate_team_members(_make_team(members=members))
+
+    assert result == [members[0], members[2], members[3]]
+    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with(
+        ["preset-2", "missing", "preset-1"]
+    )
+    mock_persona_manager.storage.get_by_id.assert_not_awaited()
+    assert "Member m-missing references missing preset missing" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_validate_team_members_batch_failure_skips_members(
+    manager, mock_persona_manager, caplog
+):
+    members = [TeamMemberResponse(member_id="m-1", persona_preset_id="preset-1")]
+    mock_persona_manager.storage.get_by_ids.side_effect = RuntimeError("database unavailable")
+
+    assert await manager.validate_team_members(_make_team(members=members)) == []
+    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with(["preset-1"])
+    assert "Failed to validate member m-1 (preset preset-1)" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_validate_team_members_without_active_members_skips_lookup(
+    manager, mock_persona_manager
+):
+    assert await manager.validate_team_members(_make_team()) == []
+    mock_persona_manager.storage.get_by_ids.assert_not_awaited()
+    mock_persona_manager.storage.get_by_id.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_member_models_batches_ids_and_preserves_error_precedence(
+    manager, monkeypatch
+):
+    import src.infra.agent.model_access as model_access
+    import src.infra.agent.model_storage as model_storage
+
+    models = {
+        "first": ModelConfig(id="first", value="provider/first", label="First", enabled=True),
+        "second": ModelConfig(id="second", value="provider/second", label="Second", enabled=True),
+    }
+    storage = MagicMock()
+    storage.get = AsyncMock(side_effect=lambda model_id: models.get(model_id))
+    storage.get_many_by_ids_and_values = AsyncMock(return_value=(models, {}))
+    allowed = AsyncMock(return_value=["provider/first", "second"])
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: storage)
+    monkeypatch.setattr(model_access, "resolve_user_allowed_model_ids", allowed)
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=[])
+    members = TeamCreate(
+        name="Team",
+        members=[
+            {"persona_preset_id": "preset", "model_id": "first"},
+            {"persona_preset_id": "preset", "model_id": "second"},
+            {"persona_preset_id": "preset", "model_id": "first"},
+        ],
+    ).members
+
+    await manager._validate_member_model_access(members, user=user)
+    storage.get_many_by_ids_and_values.assert_awaited_once_with(["first", "second"])
+    storage.get.assert_not_awaited()
+
+    models.pop("second")
+    allowed.reset_mock()
+    with pytest.raises(ValueError, match="team_member_model_unavailable"):
+        await manager._validate_member_model_access(members, user=user)
+    allowed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_member_model_override_requires_id_not_value(manager, monkeypatch):
+    import src.infra.agent.model_storage as model_storage
+
+    model = ModelConfig(id="actual-id", value="provider/model", label="Model", enabled=True)
+    storage = MagicMock()
+    storage.get = AsyncMock(return_value=None)
+    storage.get_many_by_ids_and_values = AsyncMock(return_value=({}, {"provider/model": model}))
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: storage)
+    members = TeamCreate(
+        name="Team",
+        members=[
+            {"persona_preset_id": "preset", "model_id": "provider/model"},
+        ],
+    ).members
+
+    with pytest.raises(ValueError, match="team_member_model_unavailable"):
+        await manager._validate_member_model_access(members)
+    storage.get_many_by_ids_and_values.assert_awaited_once_with(["provider/model"])
+
+
+@pytest.mark.asyncio
+async def test_validate_member_agent_access_batches_roles_without_truncating_permissions(
+    manager, monkeypatch
+):
+    import src.agents.core.base as agent_base
+    import src.infra.agent.config_storage as config_storage
+    import src.infra.role.manager as role_manager
+    import src.infra.role.storage as role_storage
+
+    roles = role_manager.RoleManager()
+
+    def found_roles(names):
+        found = []
+        for name in names:
+            if name != "missing":
+                role = MagicMock(id=f"role-{name}")
+                role.name = name
+                found.append(role)
+        return found
+
+    role_lookup = AsyncMock(side_effect=found_roles)
+    roles.storage.get_by_names = role_lookup
+    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 2)
+    configs = MagicMock()
+    configs.get_role_agents_by_ids = AsyncMock(
+        return_value={"role-first": None, "role-last": ["search"]}
+    )
+    monkeypatch.setattr(role_manager, "get_role_manager", lambda: roles)
+    monkeypatch.setattr(config_storage, "get_agent_config_storage", lambda: configs)
+    monkeypatch.setattr(
+        agent_base.AgentFactory, "list_agents", classmethod(lambda cls: [{"id": "search"}])
+    )
+    filtered = AsyncMock(return_value=[{"id": "search"}])
+    monkeypatch.setattr(agent_base.AgentFactory, "get_filtered_agents", filtered)
+    members = TeamCreate(
+        name="Team", members=[{"persona_preset_id": "preset", "agent_id": "search"}]
+    ).members
+    user = TokenPayload(
+        sub="user-1", username="tester", roles=["first", "missing", "last", "first"], permissions=[]
+    )
+
+    await manager._validate_member_agent_access(members, user=user)
+
+    assert [call.args[0] for call in role_lookup.await_args_list] == [
+        ["first", "missing"],
+        ["last"],
+    ]
+    configs.get_role_agents_by_ids.assert_awaited_once_with(
+        ["role-first", "role-last", "role-first"]
+    )
+    filtered.assert_awaited_once_with(
+        user_roles=["role-first", "role-last", "role-first"],
+        role_agent_map={"role-first": None, "role-last": ["search"]},
+    )

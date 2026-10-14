@@ -330,14 +330,37 @@ class ConnectionManager:
                 return 0
             published = 0
             instance_ids = await redis_client.smembers(self._route_set_key(user_id))
-            for raw_instance_id in sorted(instance_ids)[:WS_ROUTE_SCAN_LIMIT]:
+            targets = sorted(instance_ids)[:WS_ROUTE_SCAN_LIMIT]
+            route_values = None
+            if targets:
+                try:
+                    pipeline = redis_client.pipeline(transaction=False)
+                    for raw_instance_id in targets:
+                        instance_id = (
+                            raw_instance_id.decode("utf-8")
+                            if isinstance(raw_instance_id, bytes)
+                            else str(raw_instance_id)
+                        )
+                        pipeline.get(self._route_key_for_instance(user_id, instance_id))
+                    route_values = await pipeline.execute(raise_on_error=False)
+                except Exception:
+                    # Keep per-instance error handling when the optional batch read fails.
+                    route_values = None
+            for index, raw_instance_id in enumerate(targets):
                 instance_id = (
                     raw_instance_id.decode("utf-8")
                     if isinstance(raw_instance_id, bytes)
                     else str(raw_instance_id)
                 )
                 route_key = self._route_key_for_instance(user_id, instance_id)
-                if await redis_client.get(route_key) is None:
+                value = (
+                    route_values[index]
+                    if route_values is not None
+                    else await redis_client.get(route_key)
+                )
+                if isinstance(value, Exception):
+                    raise value
+                if value is None:
                     await redis_client.srem(self._route_set_key(user_id), instance_id)
                     continue
                 subscriber_count = await redis_client.publish(

@@ -4,9 +4,10 @@
  * 游标解析/合并/门控等纯逻辑见 ./historyPagination。
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { Feedback, Message, SessionEventsResponse } from "../../types";
+import type { SessionApprovalStatus } from "../../types/session";
 import { sessionApi } from "../../services/api";
 import i18n from "../../i18n";
 import type { ActiveGoalSpec, HistoryEvent, UseAgentOptions } from "./types";
@@ -68,19 +69,26 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
   const historyEventsRef = useRef<HistoryEvent[]>([]);
   const historyTraceWindowRef = useRef<HistoryTraceWindow | null>(null);
   const historyFeedbackRef = useRef<Feedback[]>([]);
+  const historyApprovalStatusesRef = useRef<Record<string, SessionApprovalStatus>>({});
   const hasMoreHistoryTracesRef = useRef(false);
   const isLoadingOlderHistoryRef = useRef(false);
   const historyEpochRef = useRef(0);
+  const olderAbortControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    historyEpochRef.current += 1;
+    olderAbortControllerRef.current?.abort();
+  }, []);
 
   /** 首屏加载后记录事件快照与游标窗口 */
   const recordFirstWindow = useCallback(
     (
       eventsData: Pick<
         SessionEventsResponse,
-        "events" | "has_more_traces" | "trace_window"
+        "events" | "has_more_traces" | "trace_window" | "approval_statuses"
       >,
     ) => {
       historyEventsRef.current = (eventsData.events || []) as HistoryEvent[];
+      historyApprovalStatusesRef.current = eventsData.approval_statuses || {};
       const firstWindowState = resolveHistoryTraceWindow(eventsData);
       historyTraceWindowRef.current = firstWindowState.traceWindow;
       hasMoreHistoryTracesRef.current = firstWindowState.hasMore;
@@ -95,9 +103,12 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
 
   const reset = useCallback(() => {
     historyEpochRef.current += 1;
+    olderAbortControllerRef.current?.abort();
+    olderAbortControllerRef.current = null;
     historyEventsRef.current = [];
     historyTraceWindowRef.current = null;
     historyFeedbackRef.current = [];
+    historyApprovalStatusesRef.current = {};
     hasMoreHistoryTracesRef.current = false;
     setHasMoreHistoryTraces(false);
     isLoadingOlderHistoryRef.current = false;
@@ -121,12 +132,16 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
         run_id: runId,
         include_active_user_message: true,
         compact_message_chunks: true,
+        include_approval_statuses: true,
         signal: controller.signal,
       });
       if (!isCurrent() || epoch !== historyEpochRef.current) return null;
       const targetEvents = (response.events || []) as HistoryEvent[];
+      historyApprovalStatusesRef.current = {
+        ...historyApprovalStatusesRef.current, ...response.approval_statuses,
+      };
       historyEventsRef.current = mergeOlderHistoryEvents(targetEvents, historyEventsRef.current);
-      const targetMessages = reconstructMessagesFromEvents(targetEvents, processedEventIdsRef.current, { options, activeSubagentStack: [], onApprovalLookup });
+      const targetMessages = reconstructMessagesFromEvents(targetEvents, processedEventIdsRef.current, { options, activeSubagentStack: [], onApprovalLookup, approvalStatuses: response.approval_statuses, isCurrent: () => isCurrent() && epoch === historyEpochRef.current });
       setMessages(previous => {
         if (!isCurrent() || epoch !== historyEpochRef.current) return previous;
         const existingRuns = new Set(previous.map(message => message.runId).filter(Boolean));
@@ -169,6 +184,10 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     ) {
       return;
     }
+    const epoch = historyEpochRef.current;
+    const controller = new AbortController();
+    olderAbortControllerRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && epoch === historyEpochRef.current && sessionIdRef.current === targetSessionId;
     isLoadingOlderHistoryRef.current = true;
     setIsLoadingOlderHistory(true);
     try {
@@ -177,11 +196,13 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
         // 丢掉写入方已死（stale running）的历史轮次
         include_active_user_message: true,
         compact_message_chunks: true,
+        include_approval_statuses: true,
         trace_limit: HISTORY_TRACE_PAGE_SIZE,
         before_trace_started_at: traceWindow.oldest_trace_started_at,
         before_trace_id: traceWindow.oldest_trace_id,
+        signal: controller.signal,
       });
-      if (sessionIdRef.current !== targetSessionId) return;
+      if (!isCurrent()) return;
 
       const olderEvents = (olderData.events || []) as HistoryEvent[];
       if (olderEvents.length === 0) {
@@ -190,11 +211,17 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
         return;
       }
 
+      // shortcut: replay the complete loaded window so retry traces, runless boundary
+      // events and legacy steer IDs keep their original ordering. Incremental run replay
+      // needs stable event anchors and retry-run ownership before it can be equivalent.
       const mergedEvents = mergeOlderHistoryEvents(
         olderEvents,
         historyEventsRef.current,
       );
       historyEventsRef.current = mergedEvents;
+      historyApprovalStatusesRef.current = {
+        ...historyApprovalStatusesRef.current, ...olderData.approval_statuses,
+      };
       const windowState = resolveHistoryTraceWindow(olderData);
       historyTraceWindowRef.current = windowState.traceWindow;
       hasMoreHistoryTracesRef.current = windowState.hasMore;
@@ -205,7 +232,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       let reconstructedMessages = reconstructMessagesFromEvents(
         mergedEvents,
         processedEventIdsRef.current,
-        { options, activeSubagentStack: [], onApprovalLookup },
+        { options, activeSubagentStack: [], onApprovalLookup, approvalStatuses: historyApprovalStatusesRef.current, isCurrent },
       );
       const streamingRunId =
         messagesRef.current.find(
@@ -233,10 +260,13 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       setGoalsByRunId(extractGoalsByRunFromEvents(mergedEvents));
       setMessages(reconstructedMessages);
     } catch (err) {
-      console.warn("[loadOlderHistory] Failed to load older history:", err);
+      if (isCurrent()) console.warn("[loadOlderHistory] Failed to load older history:", err);
     } finally {
-      isLoadingOlderHistoryRef.current = false;
-      setIsLoadingOlderHistory(false);
+      if (olderAbortControllerRef.current === controller) olderAbortControllerRef.current = null;
+      if (isCurrent()) {
+        isLoadingOlderHistoryRef.current = false;
+        setIsLoadingOlderHistory(false);
+      }
     }
   }, [
     options,

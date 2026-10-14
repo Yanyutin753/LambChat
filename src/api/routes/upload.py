@@ -27,6 +27,7 @@ from src.api.routes.file_type import (
     get_permission_for_category,
 )
 from src.api.routes.upload_cover import get_file_cover_response
+from src.api.routes.upload_direct import router as direct_upload_router
 from src.api.routes.upload_model_safe import get_model_safe_file_response
 from src.api.routes.upload_signed_urls import (
     SignedUrlItem,
@@ -411,7 +412,7 @@ async def resolve_upload_limits(user_roles: list[str]) -> dict:
 
     Most permissive value across roles wins. Falls back to global settings.
     """
-    from src.infra.role.storage import RoleStorage
+    from src.infra.role.manager import RoleManager
 
     defaults = {
         "image": settings.FILE_UPLOAD_MAX_SIZE_IMAGE,
@@ -433,9 +434,8 @@ async def resolve_upload_limits(user_roles: list[str]) -> dict:
     role_overrides: dict[str, int] = {}
 
     try:
-        role_storage = RoleStorage()
-        for role_name in user_roles:
-            role = await role_storage.get_by_name(role_name)
+        roles = await RoleManager().get_roles_by_names(user_roles)
+        for role in roles:
             if role and role.limits:
                 for key, field_name in field_map.items():
                     value = getattr(role.limits, field_name, None)
@@ -479,30 +479,13 @@ async def check_file_exists(
     }
 
 
-@router.post("/file")
-async def upload_file(
-    request: Request,
-    file: UploadFile = File(...),
-    current_user: TokenPayload = Depends(get_current_user_required),
-) -> dict:
-    """
-    Upload a file to S3
-
-    Requires: file:upload:{type} permission based on file type
-    Files are stored in folders organized by user_id.
-
-    Args:
-        request: FastAPI request object (for base_url)
-        file: File to upload
-        current_user: Current authenticated user
-
-    Returns:
-        Upload result with URL and metadata
-    """
-    storage = await get_or_init_storage()
-
+async def validate_upload_metadata(
+    name: str,
+    mime_type: str | None,
+    current_user: TokenPayload,
+) -> tuple[FileCategory, int]:
     # Determine file category from filename and content_type (no need to read content)
-    category = get_file_category(file.filename or "", file.content_type)
+    category = get_file_category(name, mime_type)
     permission = get_permission_for_category(category)
 
     # Check permission
@@ -529,6 +512,33 @@ async def upload_file(
     max_size_mb = size_limits.get(category, 10)
     max_size_bytes = max_size_mb * 1024 * 1024
 
+    # Validate file extension
+    ext = name.lower().split(".")[-1]
+    allowed_exts = FILE_EXTENSIONS.get(category, set())
+    if category != FileCategory.UNKNOWN and ext not in allowed_exts:
+        raise AppError(
+            ErrorCode.FILE_EXTENSION_NOT_ALLOWED, args={"ext": ext, "category": category.value}
+        )
+
+    return category, max_size_bytes
+
+
+@router.post("/file")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: TokenPayload = Depends(get_current_user_required),
+) -> dict:
+    """Upload a permitted file to the user's S3 folder and return its metadata."""
+    storage = await get_or_init_storage()
+
+    category, max_size_bytes = await validate_upload_metadata(
+        file.filename or "",
+        file.content_type,
+        current_user,
+    )
+    max_size_mb = max_size_bytes // (1024 * 1024)
+    ext = (file.filename or "").lower().split(".")[-1]
     content_length = request.headers.get("content-length")
     if content_length:
         try:
@@ -536,14 +546,6 @@ async def upload_file(
                 raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
         except ValueError:
             pass
-
-    # Validate file extension
-    ext = (file.filename or "").lower().split(".")[-1]
-    allowed_exts = FILE_EXTENSIONS.get(category, set())
-    if category != FileCategory.UNKNOWN and ext not in allowed_exts:
-        raise AppError(
-            ErrorCode.FILE_EXTENSION_NOT_ALLOWED, args={"ext": ext, "category": category.value}
-        )
 
     spooled_upload: SpooledUpload | None = None
     storage_key = ""
@@ -814,23 +816,15 @@ async def delete_avatar(
         raise AppError(ErrorCode.AVATAR_DELETE_FAILED, message=str(e))
 
 
+router.include_router(direct_upload_router)
+
+
 @router.delete("/{key:path}", dependencies=[Depends(require_permissions("file:upload"))])
 async def delete_file(
     key: str,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> dict:
-    """
-    Delete a file from S3
-
-    Requires: file:upload permission
-
-    Args:
-        key: File key to delete
-        current_user: Current authenticated user
-
-    Returns:
-        Deletion status
-    """
+    """Schedule owned, unreferenced files for cleanup and preserve referenced files."""
     record = await _file_record_storage.find_by_key(key, current_user.sub)
     if record is None:
         raise AppError(ErrorCode.FILE_NOT_FOUND)

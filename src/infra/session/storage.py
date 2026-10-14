@@ -50,6 +50,11 @@ _SESSION_INDEX_SPEC: list[tuple[list[tuple[str, int]], str, dict[str, Any]]] = [
         "user_project_updated_idx",
         {},
     ),
+    (
+        [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1), ("_id", -1)],
+        "user_project_updated_id_idx",
+        {},
+    ),
     ([("session_id", 1)], "session_id_idx", {"sparse": True}),
     (
         [("user_id", 1), ("search_terms", 1), ("updated_at", -1)],
@@ -617,6 +622,23 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
         async for doc in cursor:
             session_ids.append(doc.get("session_id") or str(doc["_id"]))
         return session_ids
+
+    async def list_ids_by_project_paginated(
+        self, project_id: str, user_id: str, skip: int = 0, limit: int = 100
+    ) -> tuple[list[str], int]:
+        """Read only the requested live project manifest page, with an exact total."""
+        await self.ensure_indexes_if_needed()
+        query = {"user_id": user_id, "metadata.project_id": project_id}
+        cursor = (
+            self.collection.find(query, {"session_id": 1, "_id": 1})
+            .sort([("updated_at", -1), ("_id", -1)])
+            .skip(skip)
+            .limit(limit)
+        )
+        total, docs = await asyncio.gather(
+            self.collection.count_documents(query), cursor.to_list(length=limit)
+        )
+        return [doc.get("session_id") or str(doc["_id"]) for doc in docs], total
 
     async def move_to_project(
         self, session_id: str, user_id: str, project_id: Optional[str]

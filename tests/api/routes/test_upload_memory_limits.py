@@ -390,3 +390,23 @@ async def test_upload_delete_unknown_key_never_starts_background_object_deletion
     assert exc_info.value.error_code.code == "file_not_found"
     assert exc_info.value.http_status == 404
     assert calls == []
+
+
+async def test_upload_limits_batch_roles_and_preserve_most_permissive_limits(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.api.routes import upload
+
+    roles = [
+        SimpleNamespace(limits=SimpleNamespace(max_file_size_image=123)),
+        SimpleNamespace(limits=SimpleNamespace(max_file_size_image=456)),
+    ]
+    lookup = AsyncMock(return_value=roles)
+    monkeypatch.setattr(
+        "src.infra.role.manager.RoleManager", lambda: SimpleNamespace(get_roles_by_names=lookup)
+    )
+    limits = await upload.resolve_upload_limits(["small", "large"])
+    assert limits["image"] == 456
+    assert limits["video"] == upload.settings.FILE_UPLOAD_MAX_SIZE_VIDEO
+    lookup.assert_awaited_once_with(["small", "large"])

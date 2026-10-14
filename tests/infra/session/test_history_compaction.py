@@ -430,3 +430,45 @@ def test_empty_and_single_events_pass_through(factory) -> None:
     assert compact_history_events([]) == []
     single = factory(1)
     assert compact_history_events([single]) == [single]
+
+
+class _AppendForbiddenString(str):
+    def __add__(self, other):
+        raise AssertionError("stream content must be collected and joined once")
+
+
+@pytest.mark.parametrize("mark_merges", [False, True])
+def test_compaction_collects_long_interleaved_chunks_without_repeated_string_copies(mark_merges):
+    attachment = {"event_type": "user:message", "data": {"attachments": [{"key": "private/file"}]}}
+    tool = _tool_start(3)
+    events = [attachment, tool]
+    for i in range(1000):
+        events.extend(
+            [
+                _thinking(_AppendForbiddenString("think"), seq=i + 1),
+                _tool_args(_AppendForbiddenString("arg"), seq=i + 1),
+            ]
+        )
+    events.extend(_chunk(_AppendForbiddenString("answer"), seq=i + 1) for i in range(1000))
+    original = deepcopy(events)
+    result = compact_history_events(events, mark_merges=mark_merges)
+    assert result[:2] == [attachment, tool]
+    assert [event["data"]["content"] for event in result[2:]] == [
+        "think" * 1000,
+        "arg" * 1000,
+        "answer" * 1000,
+    ]
+    assert [event["seq"] for event in result[2:]] == [1, 1, 1]
+    if mark_merges:
+        assert all(event["data"]["merged_count"] == 1000 for event in result[2:])
+    assert events == original
+
+
+def test_consecutive_compaction_joins_once_and_keeps_final_envelope():
+    events = [_chunk(_AppendForbiddenString("text"), seq=i + 1) for i in range(1000)]
+    result = compact_consecutive_message_chunks(events)
+    assert len(result) == 1
+    assert result[0]["data"]["content"] == "text" * 1000
+    assert result[0]["seq"] == 1000
+    assert result[0]["timestamp"] == events[-1]["timestamp"]
+    assert all(event["data"]["content"] == "text" for event in events)

@@ -172,6 +172,9 @@ def _build_safe_session_info(session) -> dict:
         agent_name = agent_cls._agent_name
     except (ValueError, AttributeError):
         pass
+    except AppError as exc:
+        if exc.error_code != ErrorCode.AGENT_NOT_REGISTERED:
+            raise
 
     metadata = session.metadata or {}
     model = metadata.get("agent_options", {}).get("model")
@@ -211,6 +214,9 @@ def _build_project_session_item(session) -> SharedProjectSessionItem:
         agent_name = agent_cls._agent_name
     except (ValueError, AttributeError):
         pass
+    except AppError as exc:
+        if exc.error_code != ErrorCode.AGENT_NOT_REGISTERED:
+            raise
 
     model = (session.metadata or {}).get("agent_options", {}).get("model")
 
@@ -299,11 +305,12 @@ async def _build_project_manifest(
 
     if share.share_type == ShareType.PARTIAL:
         member_ids = list(share.session_ids or [])
+        sessions_total = len(member_ids)
+        page_ids = member_ids[session_skip : session_skip + session_limit]
     else:  # FULL 实时
-        member_ids = await SessionStorage().list_ids_by_project(share.project_id, share.owner_id)
-    sessions_total = len(member_ids)
-
-    page_ids = member_ids[session_skip : session_skip + session_limit]
+        page_ids, sessions_total = await SessionStorage().list_ids_by_project_paginated(
+            share.project_id, share.owner_id, skip=session_skip, limit=session_limit
+        )
     session_map = await SessionManager().get_sessions(page_ids) if page_ids else {}
 
     items: list[SharedProjectSessionItem] = []

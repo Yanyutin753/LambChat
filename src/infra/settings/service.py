@@ -208,16 +208,23 @@ class SettingsService:
             Number of settings imported
         """
         imported = 0
+        env_values = {
+            key: value for key in SETTING_DEFINITIONS if (value := os.environ.get(key)) is not None
+        }
+        if not env_values:
+            return 0
+        try:
+            existing_settings = await self._storage.get_many(list(env_values))
+        except Exception:
+            # Preserve per-item reads and partial imports if the bulk read fails.
+            existing_settings = None
 
-        for key, definition in SETTING_DEFINITIONS.items():
-            # Only environment values can be imported. Persisted settings without
-            # an environment value are loaded by the later get_all startup pass.
-            env_value = os.environ.get(key)
-            if env_value is None:
-                continue
-
-            # Check if already in database
-            existing = await self._storage.get(key)
+        for key, env_value in env_values.items():
+            existing = (
+                existing_settings.get(key)
+                if existing_settings is not None
+                else await self._storage.get(key)
+            )
             if existing is not None and existing.updated_at is not None:
                 continue  # Already set, skip
 
