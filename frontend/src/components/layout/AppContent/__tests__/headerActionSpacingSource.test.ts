@@ -54,7 +54,20 @@ test("mobile sidebar and model triggers use compact 36px touch heights", () => {
   );
 });
 
-test("header controls share horizontal padding instead of fixed width slots", () => {
-  const css = readFileSync(new URL("../../../../styles/components.css", import.meta.url), "utf8");
-  expect(css).toMatch(/\.chat-header__actions > button,\s*\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*auto;[^}]*padding-inline:\s*0\.5rem;/);
+test("header controls share 32px height and square icon slots", () => {
+  const css = readFileSync(
+    new URL("../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  expect(css).toMatch(/\.chat-header__actions > \.relative > button\s*\{[^}]*height:\s*2rem;[^}]*min-height:\s*2rem;/);
+  expect(css).toMatch(/\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*2rem;[^}]*min-width:\s*2rem;/);
+  expect(css).toMatch(/\.chat-header__actions > button:has\(\.composer-usage-amount\)\s*\{[^}]*width:\s*auto;/);
+});
+
+test("narrow header action slots share compact 36px touch targets", () => {
+  const css = readFileSync(
+    new URL("../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  expect(css).toMatch(/@media \(max-width: 639px\)\s*\{\s*\.chat-header__actions > button,\s*\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*2\.25rem;[^}]*height:\s*2\.25rem;[^}]*min-width:\s*2\.25rem;[^}]*min-height:\s*2\.25rem;/);
 });

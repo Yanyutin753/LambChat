@@ -4,6 +4,7 @@ import type { SandboxMachine } from "../../../services/api/sandbox";
 import {
   buildSandboxMachineRows,
   resolveSandboxButtonLabel,
+  resolveSandboxPolicyMachine,
 } from "../sandboxOption";
 
 const machines: SandboxMachine[] = [
@@ -25,6 +26,16 @@ const machines: SandboxMachine[] = [
   },
 ];
 const t = (k: string) => k;
+
+test("policy target follows server automatic resolution without guessing among multiple computers", () => {
+  expect(resolveSandboxPolicyMachine(machines, "srv1", "mac1")?.machine_id).toBe("srv1");
+  expect(resolveSandboxPolicyMachine(machines, "", "mac1")?.machine_id).toBe("mac1");
+  expect(resolveSandboxPolicyMachine([machines[1]], "", "mac1")?.machine_id).toBe("srv1");
+  expect(resolveSandboxPolicyMachine(machines, "", null)).toBeUndefined();
+  expect(resolveSandboxPolicyMachine(machines, "missing", "mac1")).toBeUndefined();
+  expect(resolveSandboxPolicyMachine([...machines, { ...machines[0], machine_id: "legacy" }], "", null)?.machine_id).toBe("legacy");
+  expect(resolveSandboxPolicyMachine([{ ...machines[0], online: false }, machines[1]], "", "mac1")?.machine_id).toBe("srv1");
+});
 
 // ---------------------------------------------------------------------------
 // 统一沙箱面板（档位 + 执行设备同弹窗）：设备行构造与按钮标签

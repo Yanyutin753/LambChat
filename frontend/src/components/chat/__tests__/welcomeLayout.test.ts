@@ -66,7 +66,7 @@ test("caps welcome suggestion prompts to two rows with vertical scrolling", () =
 
 test("caps welcome persona choices to two rows with vertical scrolling", () => {
   expect(welcomeCss).toMatch(
-    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*--welcome-persona-card-height: 6rem;/,
+    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*--welcome-persona-card-height: 7rem;/,
   );
   expect(welcomeCss).toMatch(
     /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*var\(--welcome-persona-card-height\) \* 2 \+ var\(--welcome-persona-row-gap\)[\s\S]*overflow-y: auto;/,
@@ -91,7 +91,7 @@ test("keeps mobile welcome cards readable with stable touch targets", () => {
   );
 });
 
-test("keeps the persona gallery aligned with the composer at every breakpoint", () => {
+test("keeps the persona gallery wider than the composer without inner horizontal insets", () => {
   const promptWidths = [
     "sm:max-w-[48rem]",
     "md:max-w-[50rem]",
@@ -100,11 +100,11 @@ test("keeps the persona gallery aligned with the composer at every breakpoint", 
     "2xl:max-w-[56rem]",
   ];
   const personaWidths = [
-    "sm:max-w-[44rem]",
-    "md:max-w-[46rem]",
-    "lg:max-w-[48rem]",
-    "xl:max-w-[50rem]",
-    "2xl:max-w-[52rem]",
+    "sm:max-w-[52rem]",
+    "md:max-w-[54rem]",
+    "lg:max-w-[56rem]",
+    "xl:max-w-[58rem]",
+    "2xl:max-w-[60rem]",
   ];
 
   const promptClass = getWelcomeSuggestionsContainerClass("prompts");
@@ -114,7 +114,11 @@ test("keeps the persona gallery aligned with the composer at every breakpoint", 
   const personaClass = getWelcomeSuggestionsContainerClass("personas");
   expect(personaClass).toContain(personaWidths.join(" "));
   expect(personaClass).not.toMatch(/(?:^|\s)max-w-\[/);
-  expect(personaClass).not.toContain(promptWidths.join(" "));
+  expect(personaClass).toContain("px-4 sm:px-0");
+  expect(personaClass).not.toContain("sm:px-10");
+  for (const source of [welcomePageSource, chatSkeletonsSource]) {
+    expect(source).toMatch(/welcome-input[^"\n]*sm:max-w-\[44rem\] md:max-w-\[46rem\] lg:max-w-\[48rem\] xl:max-w-\[50rem\] 2xl:max-w-\[52rem\]/);
+  }
 });
 
 test("defines the complete shared welcome suggestion container class", () => {
@@ -318,4 +322,22 @@ test("uses selected team starter prompts before default suggestions", () => {
   );
 
   expect(prompts).toEqual([{ icon: "🧭", text: "组织一次研究评审" }]);
+});
+
+
+test("keeps desktop rows readable while preserving the original mobile gallery", () => {
+  const desktopCss = welcomeCss.slice(welcomeCss.indexOf("@media (min-width: 640px) {", welcomeCss.indexOf(".welcome-persona-gallery")), welcomeCss.indexOf("@media (min-width: 1280px)"));
+  expect(desktopCss).not.toMatch(/mask-image/);
+  const mobileCss = welcomeCss.slice(welcomeCss.indexOf("@media (max-width: 639px) {", welcomeCss.indexOf(".welcome-persona-gallery")), welcomeCss.indexOf("/* Mobile keyboard open"));
+  expect(mobileCss).toContain("--welcome-persona-card-height: 4.75rem;");
+  expect(mobileCss).toContain("padding: 0.8125rem;");
+  expect(mobileCss).toContain("gap: 0.875rem !important;");
+  expect(mobileCss).toContain("width: 2.375rem;");
+  expect(mobileCss).toContain("mask-image: linear-gradient(to bottom, black 82%, transparent 100%);");
+  expect(mobileCss).toMatch(/\.welcome-persona-description\s*\{[^}]*-webkit-line-clamp: 2;/);
+});
+
+test("wraps desktop names while retaining mobile single-line titles", () => {
+  expect(welcomePageSource.match(/welcome-persona-name min-w-0 truncate sm:line-clamp-2 sm:whitespace-normal sm:break-words/g)).toHaveLength(2);
+  expect(welcomePageSource.match(/text-13 sm:text-15 font-bold sm:font-semibold/g)).toHaveLength(2);
 });

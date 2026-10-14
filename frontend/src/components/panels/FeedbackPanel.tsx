@@ -24,7 +24,11 @@ import {
 } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { FeedbackListSkeleton } from "../skeletons";
+import {
+  FeedbackListSkeleton,
+  FeedbackSummarySkeleton,
+  FeedbackFiltersSkeleton,
+} from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { Button, ImageViewer } from "../common";
 import { feedbackApi } from "../../services/api/feedback";
@@ -45,8 +49,8 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
   const upPct = stats.up_percentage;
 
   return (
-    <div className="panel-summary mb-4 p-4 rounded-2xl bg-theme-bg-card border border-theme-border">
-      <div className="flex items-center gap-5">
+    <div className="feedback-summary panel-summary">
+      <div className="feedback-summary__layout">
         {/* Left: big percentage */}
         <div className="flex flex-col items-center flex-shrink-0">
           <div className="relative">
@@ -58,7 +62,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.5"
-                className="text-stone-100 dark:text-stone-700"
+                className="text-theme-border"
               />
               <circle
                 cx="18"
@@ -70,7 +74,6 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
                 strokeDasharray={`${upPct * 0.9738} 100`}
                 strokeLinecap="round"
                 className="text-emerald-500 dark:text-emerald-400"
-                style={{ transition: "stroke-dasharray 0.8s ease-out" }}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -86,17 +89,16 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
         </div>
 
         {/* Right: distribution bars */}
-        <div className="flex-1 space-y-2.5 min-w-0">
-          <div className="flex items-center gap-2.5">
-            <span className="w-7 text-11 text-theme-text-secondary flex-shrink-0">
+        <div className="feedback-summary__distribution">
+          <div className="feedback-summary__bar">
+            <span className="text-11 text-theme-text-secondary flex-shrink-0">
               {t("feedback.positive")}
             </span>
-            <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
+            <div className="h-2 rounded-full bg-theme-border overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500"
+                className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400"
                 style={{
-                  width: `${Math.max(upPct, 2)}%`,
-                  transition: "width 0.6s ease-out",
+                  width: `${upPct}%`,
                 }}
               />
             </div>
@@ -104,16 +106,15 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
               {stats.up_count}
             </span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-7 text-11 text-theme-text-secondary flex-shrink-0">
+          <div className="feedback-summary__bar">
+            <span className="text-11 text-theme-text-secondary flex-shrink-0">
               {t("feedback.negative")}
             </span>
-            <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
+            <div className="h-2 rounded-full bg-theme-border overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-red-300 to-red-400 dark:from-red-500 dark:to-red-400"
+                className="h-full rounded-full bg-red-500 dark:bg-red-400"
                 style={{
-                  width: `${Math.max(100 - upPct, 2)}%`,
-                  transition: "width 0.6s ease-out",
+                  width: `${stats.total_count ? 100 - upPct : 0}%`,
                 }}
               />
             </div>
@@ -265,16 +266,13 @@ function FeedbackCard({
   const isUp = feedback.rating === "up";
 
   return (
-    <div
-      className="panel-inset px-4 sm:px-6 py-4 border-b border-stone-100/80 dark:border-stone-800/60 last:border-b-0
-      hover:bg-stone-50/60 dark:hover:bg-white/[0.02] transition-colors duration-150"
-    >
+    <div className="feedback-row panel-inset">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="feedback-row__header">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
             className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full
-            bg-gradient-to-br from-stone-200 to-stone-300 dark:from-stone-600 dark:to-stone-700
+            bg-theme-border
             text-stone-500 dark:text-stone-300 text-11 font-bold"
           >
             {feedback.username.charAt(0).toUpperCase()}
@@ -283,7 +281,7 @@ function FeedbackCard({
             {feedback.username}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="feedback-row__meta">
           <span
             className={`inline-flex items-center gap-1 text-11 font-medium select-none ${
               isUp
@@ -318,7 +316,7 @@ function FeedbackCard({
       )}
 
       {/* Action bar — always visible */}
-      <div className="flex items-center justify-between mt-2.5 pt-0">
+      <div className="feedback-row__actions">
         <button
           onClick={onViewDetail}
           className="flex min-h-11 items-center gap-0.5 text-12 text-theme-text-tertiary
@@ -583,18 +581,24 @@ export function FeedbackPanel() {
         illustration="panel-feedback"
         className="panel-header--section-switch"
         actions={
-          stats && (
+          stats ? (
             <FilterTabs
               active={activeFilter}
               stats={stats}
               onChange={handleFilterChange}
             />
-          )
+          ) : isLoading ? (
+            <FeedbackFiltersSkeleton />
+          ) : null
         }
       />
 
       {/* Rating summary */}
-      {stats && <RatingSummary stats={stats} />}
+      {stats ? (
+        <RatingSummary stats={stats} />
+      ) : isLoading ? (
+        <FeedbackSummarySkeleton />
+      ) : null}
 
       {/* Feedback list */}
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">

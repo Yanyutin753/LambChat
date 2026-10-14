@@ -140,6 +140,7 @@ async def _invoke_chat(
         return None
 
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
+    monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", _noop)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
@@ -272,6 +273,7 @@ async def test_chat_stream_passes_base_url_in_queued_task_context(
 
     task_manager = _TaskManager()
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
+    monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", _noop)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)

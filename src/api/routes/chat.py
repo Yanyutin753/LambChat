@@ -19,6 +19,7 @@ from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
 from src.api.routes.chat_request_config import (  # noqa: F401 - 转发导入保持 from chat import 兼容
+    build_assistant_identity,
     build_conversation_config,
     resolve_persona_request,
 )
@@ -299,6 +300,9 @@ async def _submit_chat(
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
+    assistant_identity = await build_assistant_identity(
+        agent_id, request, user.sub, preferred_language
+    )
     # 界面 locale 固定回复语言；随 agent_options 全链路透传（task_context /
     # submit / submit_arq / scheduler 均携带 agent_options）
     apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
@@ -484,6 +488,7 @@ async def _submit_chat(
                 attachment_references_claimed=attachment_references_claimed,
                 schedule_search_index=settings.TASK_BACKEND != "arq",
                 run_modes=derive_user_message_run_modes(request.auto_mode, request.goal),
+                assistant_identity=assistant_identity,
             )
             user_message_persisted = True
             if not await limiter.mark_queued_run_ready(user.sub, run_id):
@@ -551,6 +556,7 @@ async def _submit_chat(
                 auto_mode=request.auto_mode,
                 base_url=base_url,
                 write_user_message_immediately=True,
+                assistant_identity=assistant_identity,
                 attachment_references_claimed=attachment_references_claimed,
                 index_user_message=True,
             )
@@ -584,6 +590,7 @@ async def _submit_chat(
                 auto_mode=request.auto_mode,
                 base_url=base_url,
                 write_user_message_immediately=True,
+                assistant_identity=assistant_identity,
                 attachment_references_claimed=attachment_references_claimed,
             )
         except Exception:

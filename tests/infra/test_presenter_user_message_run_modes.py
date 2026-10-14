@@ -60,3 +60,17 @@ def test_derive_user_message_run_modes_reflects_auto_and_goal() -> None:
         "goal",
     ]
     assert derive_user_message_run_modes(auto_mode=False, goal=None) == []
+
+
+@pytest.mark.asyncio
+async def test_user_event_persists_assistant_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    presenter = _presenter()
+    saved: list[dict[str, Any]] = []
+
+    async def save(event: dict[str, Any], **kwargs: Any) -> None:
+        saved.append(event)
+
+    monkeypatch.setattr(presenter, "save_event", save)
+    identity = {"seed": "role-1", "name": "Reviewer", "avatar": "generated:role-1"}
+    await presenter.emit_user_message("ok", assistant_identity=identity)
+    assert saved[0]["data"]["assistant_identity"] == identity

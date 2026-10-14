@@ -1,7 +1,7 @@
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { useState, memo, type ReactNode } from "react";
 import { ModalSurface } from "../common/ModalSurface";
-import { Brain, Settings } from "lucide-react";
+import { Brain, Check, Cloud, Laptop, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentOption } from "../../types";
@@ -26,49 +26,58 @@ function AgentOptionRow({
   option,
   isActive,
   onSelect,
+  sandbox = false,
 }: {
   option: NonNullable<AgentOption["options"]>[number];
   isActive: boolean;
   onSelect: () => void;
+  sandbox?: boolean;
 }) {
   const { t } = useTranslation();
+  const LocationIcon = option.value === "cloud" ? Cloud : Laptop;
   return (
     <button
       type="button"
+      aria-pressed={isActive}
       onClick={onSelect}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-14 transition-colors text-left cursor-pointer active:scale-[0.98]${
+      className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
         option.disabled ? " opacity-50" : ""
       }`}
       style={{
         background: isActive
-          ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+          ? "var(--theme-bg-subtle)"
           : "transparent",
-        color: isActive ? "var(--theme-primary)" : "var(--theme-text)",
+        color: "var(--theme-text)",
+        boxShadow: sandbox && isActive ? "inset 0 0 0 1px var(--theme-border-faint)" : undefined,
       }}
     >
-      <span
-        className="w-2.5 h-2.5 rounded-full shrink-0"
-        style={{
-          background: isActive ? "var(--theme-primary)" : "var(--theme-border)",
-        }}
-      />
-      {option.label_key
-        ? t(option.label_key)
-        : option.label || String(option.value)}
-      {isActive && (
+      {sandbox ? (
+        <LocationIcon size={18} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
+      ) : (
         <span
-          className="ml-auto text-12"
-          style={{ color: "var(--theme-primary)" }}
-        >
-          ✓
+          className="w-2.5 h-2.5 rounded-full shrink-0"
+          style={{ background: isActive ? "var(--theme-primary)" : "var(--theme-border)" }}
+        />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block">
+          {option.label_key ? t(option.label_key) : option.label || String(option.value)}
         </span>
+        {sandbox && (
+          <span className="mt-0.5 block text-12 leading-relaxed text-theme-text-muted">
+            {t(`agentOptions.sandbox.${option.value}Hint`)}
+          </span>
+        )}
+      </span>
+      {isActive && (
+        <Check size={16} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
       )}
     </button>
   );
 }
 
 export const AgentOptionButton = memo(function AgentOptionButton({
-  optionKey: _optionKey,
+  optionKey,
   option,
   value,
   onChange,
@@ -144,9 +153,9 @@ export const AgentOptionButton = memo(function AgentOptionButton({
               overscrollBehavior: "contain",
             }}
           >
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="min-w-0 text-14 font-medium font-serif text-theme-text">
-                {description}
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="min-w-0 text-14 font-semibold font-serif text-theme-text">
+                {optionKey === "sandbox" ? t("agentOptions.sandbox.description") : description}
               </h3>
               <DialogCloseButton onClick={() => setShowDropdown(false)} />
             </div>
@@ -161,9 +170,10 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   key={String(opt.value)}
                   option={opt}
                   isActive={opt.value === value}
+                  sandbox={optionKey === "sandbox"}
                   onSelect={() => {
                     onChange(opt.value);
-                    setShowDropdown(false);
+                    if (optionKey !== "sandbox") setShowDropdown(false);
                   }}
                 />
               ))}

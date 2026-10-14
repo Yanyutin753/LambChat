@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   listMachines: vi.fn(),
   teamList: vi.fn(),
   navigate: vi.fn(),
+  refreshUser: vi.fn(),
 }));
 
 vi.mock("../../../services/tauri/sandboxShell", () => ({
@@ -55,6 +56,10 @@ vi.mock("react-hot-toast", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "sandbox-test", metadata: {} }, refreshUser: mocks.refreshUser }),
+}));
+
 import { ChatInputSelectors } from "../ChatInputSelectors";
 import { ChatInputToolbar } from "../ChatInputToolbar";
 import { RunModePopover } from "../RunModePopover";
@@ -64,7 +69,7 @@ import { _resetSandboxStatusStoreForTests } from "../../../stores/sandboxStatusS
 import type { AgentOption } from "../../../types";
 
 const THINKING_DESCRIPTION = "Control thinking intensity";
-const SANDBOX_DESCRIPTION = "Choose where sandboxed commands run";
+const SANDBOX_DESCRIPTION = "Runtime and confirmation policy";
 
 const MACHINES: SandboxMachine[] = [
   {
@@ -380,7 +385,7 @@ test("sandbox panel on offline web keeps the local tier visible with a download 
   // 纯 web + daemon 离线：本地档不再隐藏——置灰显示 + 面板底部下载引导
   mocks.isShellAvailable.mockReturnValue(false);
   mocks.getStatus.mockResolvedValue({ online: false });
-  renderSelectors("sandbox");
+  renderSelectors("sandbox", { sandbox: "local" });
 
   const localRow = await screen.findByText("Local computer");
   expect(localRow).toBeInTheDocument();

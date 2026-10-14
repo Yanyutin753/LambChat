@@ -173,3 +173,19 @@ test("failed reset keeps the confirmation available for retry", async () => {
   await waitFor(() => expect(mocks.resetAll).toHaveBeenCalledTimes(1));
   expect(screen.queryByText("settings.resetAllConfirmMessage")).toBeTruthy();
 });
+
+test("save guidance uses a keyboard and touch accessible disclosure", () => {
+  const { container } = render(<SettingsPanel />);
+  const disclosure = container.querySelector(
+    "details.settings-section-header__help",
+  );
+  expect(disclosure).toBeTruthy();
+  expect(disclosure).not.toHaveAttribute("open");
+  expect(disclosure?.querySelector("summary")).toHaveTextContent(
+    "settings.navigation.saveHelp",
+  );
+  expect(disclosure).toHaveTextContent("settings.navigation.saveHint");
+  expect(container.querySelector(".settings-section-header")).not.toHaveTextContent(
+    "settings.navigation.groups.experience",
+  );
+});

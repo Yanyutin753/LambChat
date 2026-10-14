@@ -1,9 +1,10 @@
-import type { Message } from "../../types/message.ts";
+import type { AssistantIdentity, Message } from "../../types/message.ts";
 import type { MessageAttachment } from "../../types/upload.ts";
 import { uuid } from "../../utils/uuid.ts";
 
 interface CreateOptimisticMessagesForSendOptions {
   previousMessages: Message[];
+  assistantIdentity?: AssistantIdentity;
   content: string;
   attachments?: MessageAttachment[];
   enabledSkills?: string[];
@@ -19,6 +20,7 @@ interface CreateOptimisticMessagesForSendResult {
 
 export function createOptimisticMessagesForSend({
   previousMessages,
+  assistantIdentity,
   content,
   attachments,
   enabledSkills,
@@ -29,6 +31,7 @@ export function createOptimisticMessagesForSend({
   const userMessage: Message = {
     id: createId(),
     role: "user",
+    ...(assistantIdentity ? { assistantIdentity } : {}),
     content: content.trim(),
     timestamp: now,
     attachments,
@@ -39,6 +42,7 @@ export function createOptimisticMessagesForSend({
   const assistantMessage: Message = {
     id: createId(),
     role: "assistant",
+    assistantIdentity,
     content: "",
     timestamp: now,
     toolCalls: [],

@@ -214,7 +214,7 @@ test.each(["send_subagent_message", "wait_subagent"])(
       "API contract reviewer",
     );
     expect(view.getByRole("button").textContent).not.toContain("agent-1");
-    expect(view.queryByText("A report")).toBeNull();
+    expect(view.getByText("A report")).toBeTruthy();
     fireEvent.click(view.getByRole("button"));
     expect(getPersistentToolPanelState()?.panelKey).toBe("subagent-agent-1");
     expect(getPersistentToolPanelState()?.title).toBe("API contract reviewer");
@@ -298,4 +298,64 @@ test("queued wait results stay idle instead of claiming success", () => {
   });
   fireEvent.click(view.getByRole("button"));
   expect(getPersistentToolPanelState()?.status).toBe("idle");
+});
+
+
+test.each([
+  ["complete", "Completed"],
+  ["error", "Failed"],
+  ["cancelled", "Cancelled"],
+  ["timed_out", "Timed out"],
+] as const)("expired waits follow the same execution's %s status", (status, label) => {
+  const startedAt = Date.parse("2026-10-14T12:25:00Z");
+  const child = {
+    agentId: "agent-1", agentName: "Reviewer", input: "Review",
+    startedAt, status: "running" as const, isPending: true,
+  };
+  subagentPanelStore.set(child);
+  const view = show({
+    toolName: "wait_subagent",
+    args: { subagent_id: "agent-1" },
+    result: JSON.stringify({ subagent_id: "agent-1", status: "running", wait_timed_out: true }),
+    success: true,
+    completedAt: "2026-10-14T12:32:27Z",
+  });
+  expect(view.getByRole("button").textContent).toContain("Running");
+  act(() => subagentPanelStore.set({ ...child, status, isPending: false, completedAt: startedAt + 480_000 }));
+  expect(view.getByRole("button").textContent).toContain(label);
+  expect(view.getByRole("button").textContent).not.toContain("Running");
+});
+
+test("history replay resolves an old wait from its own run after a later continuation", () => {
+  const first = {
+    type: "subagent" as const, agent_id: "agent-1", agent_name: "Reviewer",
+    input: "First review", depth: 1, status: "complete" as const,
+    startedAt: Date.parse("2026-10-14T12:25:00Z"),
+    completedAt: Date.parse("2026-10-14T12:32:55Z"),
+    result: "First report",
+  };
+  const later = { ...first, input: "Second review", status: "error" as const,
+    startedAt: Date.parse("2026-10-14T13:00:00Z"),
+    completedAt: Date.parse("2026-10-14T13:05:00Z"),
+  };
+  subagentPanelStore.set({ agentId: "agent-1", agentName: "Reviewer", input: later.input,
+    status: later.status, startedAt: later.startedAt, history: [first, later],
+  });
+  const view = show({
+    toolName: "wait_subagent", args: { subagent_id: "agent-1" },
+    result: JSON.stringify({ subagent_id: "agent-1", status: "running", wait_timed_out: true }),
+    success: true, completedAt: "2026-10-14T12:32:27Z",
+  });
+  expect(view.getByRole("button").textContent).toContain("Completed");
+  expect(view.getByRole("button").textContent).not.toContain("Failed");
+  expect(view.queryByText("First report")).toBeNull();
+});
+
+test("a pending continuation does not inherit the previous execution's terminal state", () => {
+  subagentPanelStore.set({ agentId: "agent-1", agentName: "Reviewer", input: "Previous",
+    status: "complete", result: "Previous report", completedAt: Date.parse("2026-10-14T12:00:00Z"),
+  });
+  const view = show({toolName: "wait_subagent", args: {subagent_id: "agent-1"}, isPending: true});
+  expect(view.getByRole("button").textContent).not.toContain("Completed");
+  expect(view.queryByText("Previous report")).toBeNull();
 });

@@ -36,3 +36,19 @@ test("sandbox choices share the dismissible modal parent and scroll boundary", (
   fireEvent.keyDown(document, { key: "Escape" });
   expect(close).toHaveBeenCalledWith(false);
 });
+
+test("sandbox runtime selection keeps the modal open for policy selection", () => {
+  const change = vi.fn();
+  const close = vi.fn();
+  render(<AgentOptionButton optionKey="sandbox" option={{ type: "select", label: "Sandbox", default: "cloud", options: [{ value: "local", label: "Local" }] }} value="cloud" onChange={change} isOpen onOpenChange={close} />);
+  fireEvent.click(screen.getByRole("button", { name: /Local/ }));
+  expect(change).toHaveBeenCalledWith("local");
+  expect(close).not.toHaveBeenCalled();
+});
+
+test("thinking selection still closes the modal", () => {
+  const close = vi.fn();
+  render(<AgentOptionButton optionKey="enable_thinking" option={{ type: "select", label: "Thinking", default: "low", options: [{ value: "high", label: "High" }] }} value="low" onChange={vi.fn()} isOpen onOpenChange={close} />);
+  fireEvent.click(screen.getByRole("button", { name: "High" }));
+  expect(close).toHaveBeenCalledWith(false);
+});

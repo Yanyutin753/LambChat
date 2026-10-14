@@ -133,6 +133,7 @@ class BackgroundTaskManager:
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
         run_modes: Optional[List[str]] = None,
+        assistant_identity: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
@@ -165,6 +166,7 @@ class BackgroundTaskManager:
             attachment_references_claimed=attachment_references_claimed,
             schedule_search_index=schedule_search_index,
             run_modes=run_modes,
+            assistant_identity=assistant_identity,
         )
         return presenter.trace_id
 
@@ -275,6 +277,7 @@ class BackgroundTaskManager:
         session_metadata: Optional[Dict[str, Any]] = None,
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
+        assistant_identity: Optional[Dict[str, Any]] = None,
         attachment_references_claimed: bool = False,
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
@@ -282,17 +285,6 @@ class BackgroundTaskManager:
     ) -> Tuple[str, str]:
         """
         提交后台任务
-
-        Args:
-            session_id: 会话 ID
-            agent_id: Agent ID
-            message: 用户消息
-            user_id: 用户 ID
-            executor: 执行函数 (session_id, agent_id, message, user_id) -> AsyncGenerator
-            disabled_tools: 用户禁用的工具列表（可选）
-            agent_options: Agent 选项（可选，如 enable_thinking）
-            attachments: 文件附件列表（可选）
-            session_name: 自定义 session 名称（可选）
 
         Returns:
             (run_id, trace_id) 元组
@@ -377,6 +369,7 @@ class BackgroundTaskManager:
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    assistant_identity=assistant_identity,
                 )
                 user_message_written = True
 
@@ -457,6 +450,7 @@ class BackgroundTaskManager:
         auto_mode: bool = False,
         session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
+        assistant_identity: Optional[Dict[str, Any]] = None,
         attachment_references_claimed: bool = False,
         index_user_message: bool = False,
         dispatch_id: Optional[str] = None,
@@ -515,6 +509,7 @@ class BackgroundTaskManager:
                     attachment_references_claimed=attachment_references_claimed,
                     schedule_search_index=False,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    assistant_identity=assistant_identity,
                 )
                 user_message_written = True
 

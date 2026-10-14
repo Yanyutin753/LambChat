@@ -4,7 +4,14 @@ import type { MessageAttachment } from "./upload";
 // Message Types
 // ============================================
 
+export interface AssistantIdentity {
+  seed: string;
+  name: string | null;
+  avatar: string | null;
+}
+
 export interface Message {
+  assistantIdentity?: AssistantIdentity;
   id: string;
   role: "user" | "assistant" | "system";
   content: string;

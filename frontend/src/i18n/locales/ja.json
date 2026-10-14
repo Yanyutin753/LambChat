@@ -267,11 +267,13 @@
     },
     "sandbox": {
       "label": "サンドボックス",
-      "description": "サンドボックスのコマンド実行場所を選択します",
+      "description": "実行場所と確認ポリシー",
       "options": {
         "cloud": "クラウドPC",
         "local": "ローカルPC"
       },
+      "cloudHint": "隔離されたクラウド環境でコードを実行",
+      "localHint": "接続済みの個人用パソコンでコード実行とパソコン操作",
       "offlineHint": "ローカルサンドボックスはオフラインです：ダウンロードして起動すると利用できます",
       "downloadEntry": "ローカルサンドボックスをダウンロード"
     },
@@ -286,6 +288,8 @@
       "currentDevice": "このデバイス"
     },
     "sandboxPolicy": {
+      "cloudHint": "アカウント設定。保存後に開始するクラウドタスクに適用されます。",
+      "localHint": "デバイス設定。このパソコンで実行する操作に適用されます。",
       "section": "実行ポリシー",
       "all": "すべて確認",
       "commands": "コマンドのみ確認",
@@ -3545,6 +3549,7 @@
       "clearSearch": "検索をクリア",
       "subcategory": "サブカテゴリ",
       "allSubcategories": "すべてのサブカテゴリ",
+      "saveHelp": "変更の保存について",
       "saveHint": "変更した設定は個別に保存してください。カテゴリを切り替えても未保存の入力は保持されます。",
       "groups": {
         "experience": "基本設定",

@@ -267,11 +267,13 @@
     },
     "sandbox": {
       "label": "沙箱",
-      "description": "选择代码沙箱的运行位置",
+      "description": "运行位置与确认策略",
       "options": {
         "cloud": "云端电脑",
         "local": "本地电脑"
       },
+      "cloudHint": "在隔离的云端环境运行代码",
+      "localHint": "在已连接的个人电脑运行代码和电脑操作",
       "offlineHint": "本地沙箱离线：下载并启动后即可使用本地电脑",
       "downloadEntry": "下载本地沙箱"
     },
@@ -286,6 +288,8 @@
       "currentDevice": "当前设备"
     },
     "sandboxPolicy": {
+      "cloudHint": "账户设置，应用于之后启动的云端任务。",
+      "localHint": "此设备的设置，应用于在这台电脑上执行的操作。",
       "section": "执行策略",
       "all": "全部确认",
       "commands": "仅命令确认",
@@ -3545,6 +3549,7 @@
       "clearSearch": "清除搜索",
       "subcategory": "子分类",
       "allSubcategories": "全部子分类",
+      "saveHelp": "保存说明",
       "saveHint": "修改后请逐项保存；切换分类会保留尚未保存的输入。",
       "groups": {
         "experience": "基础体验",

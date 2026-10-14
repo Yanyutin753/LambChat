@@ -968,3 +968,15 @@ test("stream goal projection retains its ID but identical ordinary goal does not
   handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r2", goal: { objective: "docs", rubric: "verified" } }) }, "assistant-1", "ordinary-start", "2026-10-13T00:00:01Z", ctx);
   expect(ctx.activeGoal()?._persistent_id).toBeUndefined();
 });
+
+test("a new run identity updates only that run and survives metadata replay", () => {
+  const oldIdentity = { seed: "fast", name: "Original", avatar: null };
+  const ctx = createContext([
+    { id: "old", runId: "old", role: "assistant", content: "old", timestamp: new Date(), assistantIdentity: oldIdentity },
+    { id: "new", runId: "new", role: "assistant", content: "", timestamp: new Date() },
+  ], null);
+  handleStreamEvent({ event: "user:message", data: JSON.stringify({ content: "new", run_id: "new", assistant_identity: { seed: "search", name: "Search", avatar: "🤖" } }) }, "new", "identity", undefined, ctx);
+  handleStreamEvent({ event: "metadata", data: JSON.stringify({ agent_id: "search", run_id: "new" }) }, "new", "metadata", undefined, ctx);
+  expect(ctx.messages().find(message => message.id === "old")?.assistantIdentity).toEqual(oldIdentity);
+  expect(ctx.messages().find(message => message.id === "new")?.assistantIdentity).toEqual({ seed: "search", name: "Search", avatar: "🤖" });
+});

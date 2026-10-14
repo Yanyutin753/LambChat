@@ -17,12 +17,37 @@
   );
 }
 
-/* Header actions share the same inset around their visible content. */
-@media (min-width: 640px) {
+/* Header controls share a height; text triggers keep their content width. */
+.chat-header__identity > button,
+.chat-header__identity > .relative > button,
+.chat-header__actions > button,
+.chat-header__actions > .relative > button {
+  height: 2rem;
+  min-height: 2rem;
+}
+
+.chat-header__identity > button,
+.chat-header__actions > button,
+.chat-header__actions > .relative > button {
+  width: 2rem;
+  min-width: 2rem;
+  padding-inline: 0;
+  flex-shrink: 0;
+}
+
+.chat-header__actions > button:has(.composer-usage-amount) {
+  width: auto;
+  padding-inline: 0.5rem;
+}
+
+@media (max-width: 639px) {
   .chat-header__actions > button,
   .chat-header__actions > .relative > button {
-    width: auto;
-    padding-inline: 0.5rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding-inline: 0;
   }
 }
 
@@ -343,6 +368,20 @@
   margin-left: auto;
 }
 
+.panel-header .panel-search,
+.panel-header .panel-filter-trigger,
+.panel-header .ui-button--secondary {
+  height: 2.5rem;
+  border-color: var(--theme-border);
+  background: var(--theme-bg-card);
+}
+
+.panel-header .panel-filter-trigger:hover,
+.panel-header .ui-button--secondary:hover {
+  border-color: var(--theme-border-hover);
+  background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card));
+}
+
 @container panel (max-width: 639px) {
   .panel-header {
     padding: 0.5rem 1rem 0.625rem;
@@ -457,8 +496,6 @@
   justify-content: space-between;
   height: 2.5rem;
   padding-inline: 0.625rem;
-  background: color-mix(in srgb, var(--theme-bg-card) 60%, transparent);
-  border-color: color-mix(in srgb, var(--theme-border) 60%, transparent);
 }
 
 .panel-filter-trigger:hover {

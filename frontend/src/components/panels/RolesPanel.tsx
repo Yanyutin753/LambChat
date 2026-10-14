@@ -698,20 +698,20 @@ export function RolesPanel() {
                 onClick={() => setSelectedRole(role)}
               >
                 {/* Header badges */}
-                <div className="flex flex-wrap items-center gap-2 mb-2">
+                <div className="flex flex-wrap items-center gap-2 mb-2 text-11 leading-none">
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-11 font-medium ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${
                       role.is_system
                         ? "bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]"
                         : "bg-[var(--glass-bg-subtle)] text-[var(--theme-text-secondary)]"
                     }`}
                   >
-                    <ShieldCheck size={11} />
+                    <ShieldCheck size={11} className="shrink-0" />
                     {role.is_system
                       ? t("roles.systemRole")
                       : t("roles.customRole")}
                   </span>
-                  <span className="text-11 text-[var(--theme-text-secondary)]">
+                  <span className="text-[var(--theme-text-secondary)]">
                     {t("roles.permissionCount", {
                       count: role.permissions.length,
                     })}

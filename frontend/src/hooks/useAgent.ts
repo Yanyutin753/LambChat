@@ -744,9 +744,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
+      const personaSnapshot = currentAgent === "team" ? null : options?.getPersonaSnapshot?.();
+      const selectedAgent = agents.find((agent) => agent.id === currentAgent);
       const { messages: optimisticMessages, assistantMessageId } =
         createOptimisticMessagesForSend({
           previousMessages: messagesRef.current,
+          assistantIdentity: {
+            seed: personaSnapshot?.preset_id || currentAgent,
+            name: personaSnapshot?.name || selectedAgent?.name || `agents.${currentAgent}.name`,
+            avatar: personaSnapshot ? personaSnapshot.avatar || null : selectedAgent?.icon || null,
+          },
           content,
           attachments,
           enabledSkills: runOptions?.enabledSkills,
@@ -1053,6 +1060,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       currentAgent,
       createSSEContext,
       newlyCreatedSession?.metadata,
+      agents,
       setIsLoadingHistory,
       options,
       selectedTeamId,
