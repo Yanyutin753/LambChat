@@ -72,15 +72,20 @@ export function createGeneratingToolPart(
 function findGeneratingToolIndex(
   parts: MessagePart[],
   toolCallId: string | undefined,
+  agentId?: string,
 ): number {
   if (toolCallId) {
     return parts.findIndex(
       (p) =>
-        p.type === "tool" && (p as ToolPart).argsPartial && p.id === toolCallId,
+        p.type === "tool" &&
+        p.agent_id === agentId &&
+        p.argsPartial &&
+        p.id === toolCallId,
     );
   }
   for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i].type === "tool" && (parts[i] as ToolPart).argsPartial)
+    const part = parts[i];
+    if (part.type === "tool" && part.agent_id === agentId && part.argsPartial)
       return i;
   }
   return -1;
@@ -96,8 +101,9 @@ function mergeToolArgsDeltaInParts(
   parts: MessagePart[],
   toolCallId: string | undefined,
   delta: string,
+  agentId?: string,
 ): MessagePart[] | null {
-  const idx = findGeneratingToolIndex(parts, toolCallId);
+  const idx = findGeneratingToolIndex(parts, toolCallId, agentId);
   if (idx !== -1) {
     const newParts = [...parts];
     newParts[idx] = appendPartialArgs(newParts[idx] as ToolPart, delta);
@@ -106,7 +112,7 @@ function mergeToolArgsDeltaInParts(
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
-      const updated = mergeToolArgsDeltaInParts(p.parts, toolCallId, delta);
+      const updated = mergeToolArgsDeltaInParts(p.parts, toolCallId, delta, agentId);
       if (updated) {
         const newParts = [...parts];
         newParts[i] = { ...p, parts: updated };
@@ -132,13 +138,13 @@ export function appendToolArgsDelta(
   activeSubagentStack: SubagentStackItem[],
   messageId?: string,
 ): MessagePart[] {
-  const merged = mergeToolArgsDeltaInParts(parts, toolCallId, delta);
+  const merged = mergeToolArgsDeltaInParts(parts, toolCallId, delta, agentId);
   if (merged) return merged;
 
   // 防御：对应的工具已转正（tool:start 已升级，id 或 alias 命中）时，
   // 迟到的增量直接丢弃——最终 args 已权威，再建 part 会留下一个永远
   // 停留在「参数生成中」的幽灵卡片
-  if (toolCallId && hasUpgradedToolCallId(parts, toolCallId)) {
+  if (toolCallId && hasUpgradedToolCallId(parts, toolCallId, agentId)) {
     return parts;
   }
 
@@ -165,15 +171,18 @@ export function appendToolArgsDelta(
 function hasUpgradedToolCallId(
   parts: MessagePart[],
   toolCallId: string,
+  agentId?: string,
 ): boolean {
   return parts.some((p) => {
     if (p.type === "tool") {
       return (
-        !p.argsPartial && (p.id === toolCallId || p.alias_id === toolCallId)
+        p.agent_id === agentId &&
+        !p.argsPartial &&
+        (p.id === toolCallId || p.alias_id === toolCallId)
       );
     }
     return p.type === "subagent" && p.parts
-      ? hasUpgradedToolCallId(p.parts, toolCallId)
+      ? hasUpgradedToolCallId(p.parts, toolCallId, agentId)
       : false;
   });
 }
@@ -222,9 +231,18 @@ export function upgradeGeneratingToolPart(
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       if (p.type !== "subagent" || !p.parts) continue;
+      if (
+        targetDepth === 1 &&
+        replacement.agent_id &&
+        p.agent_id !== replacement.agent_id
+      ) {
+        continue;
+      }
       const updated = upgradeGeneratingToolPart(
         p.parts,
-        replacement,
+        !p.isPending && replacement.isPending
+          ? { ...replacement, isPending: false, cancelled: true }
+          : replacement,
         targetDepth - 1,
       );
       if (updated) {
@@ -530,7 +548,11 @@ function findAndMergeInSubagent(
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
 
-    if (p.type === "subagent" && p.depth === targetDepth && p.isPending) {
+    if (
+      p.type === "subagent" &&
+      p.depth === targetDepth &&
+      (p.isPending || part.type !== "subagent")
+    ) {
       if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
         continue;
       }
@@ -556,7 +578,9 @@ function findAndMergeInSubagent(
         };
         return updated;
       }
-      const newSubagentParts = mergeOrAppendPart(p.parts || [], part);
+      // Late callbacks belong to the finished child without restarting its spinner.
+      const settledPart = p.isPending ? part : clearAllLoadingStates([part])[0];
+      const newSubagentParts = mergeOrAppendPart(p.parts || [], settledPart);
       const newParts = [...parts];
       newParts[i] = { ...p, parts: newSubagentParts };
       return newParts;
@@ -714,8 +738,7 @@ export function updateSubagentResult(
     if (
       p.type === "subagent" &&
       p.agent_id === agentId &&
-      p.depth === targetDepth &&
-      p.isPending
+      p.depth === targetDepth
     ) {
       const newParts = [...parts];
       newParts[i] = {
@@ -771,8 +794,7 @@ export function updateSubagentResultInParts(
     if (
       p.type === "subagent" &&
       p.agent_id === agentId &&
-      p.depth === targetDepth &&
-      p.isPending
+      p.depth === targetDepth
     ) {
       const newParts = [...parts];
       newParts[i] = {
@@ -823,14 +845,15 @@ export function updateToolResultInDepth(
   result: string | Record<string, unknown>,
   success: boolean,
   error?: string,
-  _targetDepth?: number,
+  targetDepth = 0,
   targetAgentId?: string,
   completedAt?: string,
 ): MessagePart[] {
   // Try direct match on top-level tools first
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
-    if (p.type === "tool" && p.id === toolCallId && p.isPending) {
+    if (p.type === "tool" && (p.depth ?? 0) !== targetDepth) continue;
+    if (p.type === "tool" && p.id === toolCallId) {
       const newParts = [...parts];
       newParts[i] = {
         ...p,
@@ -838,12 +861,15 @@ export function updateToolResultInDepth(
         success,
         error,
         isPending: false,
+        ...(p.cancelled ? { cancelled: false } : {}),
+        ...(p.argsPartial ? { argsPartial: false } : {}),
+        ...(p.awaitingConfirmation ? { awaitingConfirmation: false } : {}),
         completedAt,
       };
       return newParts;
     }
-    // Backward compat: match by name when no id
-    if (p.type === "tool" && !p.id && p.isPending) {
+    // Legacy events without an ID cannot consume a result with an explicit ID.
+    if (!toolCallId && p.type === "tool" && !p.id && p.isPending) {
       const newParts = [...parts];
       newParts[i] = {
         ...p,
@@ -861,7 +887,7 @@ export function updateToolResultInDepth(
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
-      if (targetAgentId && p.agent_id !== targetAgentId) {
+      if (targetAgentId && p.depth === targetDepth && p.agent_id !== targetAgentId) {
         continue;
       }
       const updatedParts = updateToolResultInPartsById(
@@ -895,7 +921,7 @@ export function updateToolResultInPartsById(
 ): MessagePart[] | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
-    if (p.type === "tool" && p.id === toolCallId && p.isPending) {
+    if (p.type === "tool" && p.id === toolCallId) {
       const newParts = [...parts];
       newParts[i] = {
         ...p,
@@ -903,11 +929,14 @@ export function updateToolResultInPartsById(
         success,
         error,
         isPending: false,
+        ...(p.cancelled ? { cancelled: false } : {}),
+        ...(p.argsPartial ? { argsPartial: false } : {}),
+        ...(p.awaitingConfirmation ? { awaitingConfirmation: false } : {}),
         completedAt,
       };
       return newParts;
     }
-    if (p.type === "tool" && !p.id && p.isPending) {
+    if (!toolCallId && p.type === "tool" && !p.id && p.isPending) {
       const newParts = [...parts];
       newParts[i] = {
         ...p,

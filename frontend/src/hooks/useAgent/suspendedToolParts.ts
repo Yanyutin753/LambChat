@@ -78,9 +78,18 @@ export function takeOverDanglingToolPart(
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       if (p.type !== "subagent" || !p.parts) continue;
+      if (
+        targetDepth === 1 &&
+        replacement.agent_id &&
+        p.agent_id !== replacement.agent_id
+      ) {
+        continue;
+      }
       const updated = takeOverDanglingToolPart(
         p.parts,
-        replacement,
+        !p.isPending && replacement.isPending
+          ? { ...replacement, isPending: false, cancelled: true }
+          : replacement,
         targetDepth - 1,
       );
       if (updated) {
