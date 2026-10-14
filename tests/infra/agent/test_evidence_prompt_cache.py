@@ -100,9 +100,7 @@ async def test_evidence_snapshot_appends_only_changes_and_preserves_old_messages
 async def test_evidence_updates_preserve_serialized_prefix_across_protocols(
     provider, model_name, api_format
 ):
-    model = LLMClient._create_model(
-        provider, model_name, api_key="test-key", api_format=api_format
-    )
+    model = LLMClient._create_model(provider, model_name, api_key="test-key", api_format=api_format)
     middleware = EvidenceMiddleware(session_id="s", run_id="r", scope_version="v")
     state = {"messages": [HumanMessage(content="Observe")], "evidence": []}
     original = [SystemMessage(content="Stable instructions"), *state["messages"]]
