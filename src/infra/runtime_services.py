@@ -204,6 +204,19 @@ def register_stale_trace_recovery_job() -> None:
     register_stale_trace_recovery_job()
 
 
+def register_direct_upload_cleanup_job() -> None:
+    from src.api.routes.upload_direct import cleanup_expired_uploads
+
+    get_runtime_scheduler().register_job(
+        ScheduledJob.from_interval(
+            id="upload.direct_cleanup",
+            name="Expired direct upload cleanup",
+            interval_seconds=300,
+            handler=cleanup_expired_uploads,
+        )
+    )
+
+
 def register_scheduled_task_reconcile_job(
     scheduled_task_service: ScheduledTaskService,
 ) -> None:
@@ -262,6 +275,7 @@ async def start_runtime_services() -> None:
 
     register_orphan_recovery_job()
     register_stale_trace_recovery_job()
+    register_direct_upload_cleanup_job()
 
     if settings.ENABLE_SCHEDULED_TASK:
         # Load dynamically-created scheduled tasks from DB only when the feature is enabled.

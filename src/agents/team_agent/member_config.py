@@ -100,12 +100,9 @@ async def resolve_team_member_agent_id(
 
             storage = get_agent_config_storage()
             role_manager = get_role_manager()
-            for role_name in user.roles or []:
-                role = await role_manager.get_role_by_name(role_name)
-                if not role:
-                    continue
-                role_ids.append(role.id)
-                role_agent_map[role.id] = await storage.get_role_agents(role.id)
+            roles = await role_manager.get_roles_by_names(user.roles or [])
+            role_ids = [role.id for role in roles]
+            role_agent_map = await storage.get_role_agents_by_ids(role_ids)
 
         allowed_agents = await AgentFactory.get_filtered_agents(
             user_roles=role_ids,

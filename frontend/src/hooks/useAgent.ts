@@ -415,11 +415,21 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       options?.onClearApprovals?.(targetSessionId);
 
       try {
+        const pendingSteersPromise = sessionApi
+          .getPendingSteers(targetSessionId, { signal })
+          .catch((error) => {
+            console.warn("[loadHistory] Failed to restore pending steers:", error);
+            return { session_id: targetSessionId, items: [] };
+          });
+        const persistentGoalPromise = sessionApi
+          .getPersistentGoal(targetSessionId, { signal })
+          .catch(() => undefined);
         const [sessionData, eventsData] = await Promise.all([
           sessionApi.get(targetSessionId, { signal }),
           sessionApi.getEvents(targetSessionId, {
             include_active_user_message: true,
             compact_message_chunks: true,
+            include_approval_statuses: true,
             // 首屏只取最近一页轮次，更早的在向上滚动时按游标分页加载
             trace_limit: HISTORY_TRACE_PAGE_SIZE,
             signal,
@@ -436,26 +446,18 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             run_id: targetRunId,
             include_active_user_message: true,
             compact_message_chunks: true,
+            include_approval_statuses: true,
             signal,
           });
           if (isStaleHistoryLoad()) return null;
           eventsData.events = [...targetData.events, ...eventsData.events];
+          eventsData.approval_statuses = {
+            ...eventsData.approval_statuses, ...targetData.approval_statuses,
+          };
         }
 
-        const pendingSteersData = await sessionApi
-          .getPendingSteers(targetSessionId)
-          .catch((error) => {
-            console.warn(
-              "[loadHistory] Failed to restore pending steers:",
-              error,
-            );
-            return { session_id: targetSessionId, items: [] };
-          });
-        if (isStaleHistoryLoad()) return null;
-        restoreSteerMessages(targetSessionId);
-        hydrateSteers(pendingSteersData.items);
-
         if (sessionData) {
+          restoreSteerMessages(targetSessionId);
           if (sessionData.name) {
             dispatchSessionTitleUpdated({
               sessionId: targetSessionId,
@@ -483,15 +485,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             {
               options,
               activeSubagentStack: activeSubagentStackRef.current,
+              approvalStatuses: eventsData.approval_statuses,
+              isCurrent: () => !isStaleHistoryLoad(),
               onApprovalLookup,
             },
           );
           const lastTimestamp = getLastEventTimestamp(historyEvents);
           lastHistoryTimestampRef.current = lastTimestamp;
 
-          const persistentSnapshot = await sessionApi.getPersistentGoal(targetSessionId, { signal }).catch(() => undefined);
-          if (isStaleHistoryLoad()) return null;
-          setPersistentGoal((previous) => selectPersistentGoal(previous, persistentSnapshot ? persistentSnapshot.goal : extractPersistentGoalFromEvents(historyEvents, targetSessionId), targetSessionId));
           const restoredGoal = extractGoalFromEvents(historyEvents);
           const restoredGoalsByRun = extractGoalsByRunFromEvents(historyEvents);
           const streamRunId = resolveHistoryStreamRunId(
@@ -518,6 +519,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           setActiveGoal(restoredGoal);
           setGoalsByRunId(restoredGoalsByRun);
           setMessages(reconstructedMessages);
+
+          // Show full primary history before optional reads; keep hydration before SSE.
+          const pendingSteersData = await pendingSteersPromise;
+          if (isStaleHistoryLoad()) return null;
+          hydrateSteers(pendingSteersData.items);
+          const persistentSnapshot = await persistentGoalPromise;
+          if (isStaleHistoryLoad()) return null;
+          setPersistentGoal((previous) => selectPersistentGoal(previous, persistentSnapshot ? persistentSnapshot.goal : extractPersistentGoalFromEvents(historyEvents, targetSessionId), targetSessionId));
 
           void feedbackPromise.then((feedbackList) => {
             if (!feedbackList || isStaleHistoryLoad()) return;
@@ -761,6 +770,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         });
 
       setMessages(optimisticMessages);
+      setCurrentRunId(null);
       setIsLoading(true);
       setError(null);
       let finalAssistantMessageId = assistantMessageId;

@@ -5,6 +5,7 @@
 import asyncio
 import uuid
 from collections import Counter
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
@@ -36,6 +37,7 @@ from src.kernel.schemas.session import (
 logger = get_logger(__name__)
 
 SESSION_FORK_TRACE_INSERT_BATCH_SIZE = 25
+SESSION_MESSAGE_LOOKUP_BATCH_SIZE = 100
 
 
 @dataclass
@@ -769,7 +771,7 @@ class SessionManager:
         - user:message 事件里显式记录的 message_id（客户端自带 id 的场景）
 
         run 派生分支从 message_id 反推候选 run_id，单次 `$in` 查询即可判定；
-        仅当反推未命中时才退回逐 trace 读取 user:message 事件的兜底扫描。
+        仅当反推未命中时才退回批量读取 user:message 事件的兜底扫描。
         """
         candidate = (message_id or "").strip()
         if not candidate:
@@ -792,58 +794,27 @@ class SessionManager:
         async for _trace in run_cursor:
             return True
 
-        # 兜底：user:message 事件里显式记录的客户端 message_id
-        trace_cursor = self.trace_storage.collection.find(
-            {"session_id": session_id},
-            {"_id": 0, "trace_id": 1},
-        )
-        compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
-        async for trace in trace_cursor:
+        # 兜底：批量读取显式客户端 message_id，仍按 trace 游标流式扫描。
+        async for trace, events in self._iter_trace_user_messages(session_id):
             trace_id = trace.get("trace_id")
-            if not isinstance(trace_id, str) or not trace_id or not callable(compat_reader):
-                continue
-            try:
-                events = await compat_reader(trace_id, event_types=["user:message"])
-            except Exception as exc:  # noqa: BLE001 —— 与 fork 路径同一容错语义
-                logger.warning("Failed to read user:message events for %s: %s", trace_id, exc)
+            if not isinstance(trace_id, str) or not trace_id:
                 continue
             for event in events:
+                if event.get("event_type") != "user:message":
+                    continue
                 data = event.get("data") or {}
                 if str(data.get("message_id") or "").strip() == candidate:
                     return True
         return False
 
     async def _resolve_fork_target(self, session_id: str, message_id: str) -> dict:
-        cursor = self.trace_storage.collection.find(
-            {"session_id": session_id},
-            {
-                "_id": 0,
-                "trace_id": 1,
-                "run_id": 1,
-            },
-        ).sort("started_at", 1)
         completed_run_count = 0
-
-        async for trace in cursor:
+        async for trace, events in self._iter_trace_user_messages(session_id):
             run_id = trace.get("run_id")
             if not isinstance(run_id, str) or not run_id:
                 continue
             turn_index = completed_run_count + 1
 
-            # Chunked event storage keeps events out of the trace document;
-            # use the compat reader so both storage modes are covered.
-            trace_id = trace.get("trace_id")
-            compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
-            # Chunked event storage keeps events out of the trace document;
-            # the compat reader covers both storage modes, with the in-document
-            # events as the legacy fallback.
-            events: list[dict] = list(trace.get("events") or [])
-            if callable(compat_reader) and trace_id:
-                try:
-                    events = await compat_reader(str(trace_id), event_types=["user:message"])
-                except Exception as e:
-                    logger.warning("Failed to read events for fork target %s: %s", trace_id, e)
-                    events = []
             for event in events:
                 if event.get("event_type") != "user:message":
                     continue
@@ -871,6 +842,62 @@ class SessionManager:
             completed_run_count += 1
 
         raise NotFoundError("message_not_found")
+
+    async def _iter_trace_user_messages(
+        self, session_id: str
+    ) -> AsyncIterator[tuple[dict, list[dict]]]:
+        cursor = self.trace_storage.collection.find(
+            {"session_id": session_id},
+            {"_id": 0, "trace_id": 1, "run_id": 1, "events": 1},
+        ).sort("started_at", 1)
+        batch_reader = getattr(self.trace_storage, "read_trace_events_batch_compat", None)
+        compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
+
+        async def read_batch(traces: list[dict]) -> AsyncIterator[tuple[dict, list[dict]]]:
+            if callable(batch_reader):
+                try:
+                    events_by_trace = await batch_reader(
+                        traces,
+                        event_types=["user:message"],
+                        active_user_only_trace_ids={
+                            str(trace["trace_id"]) for trace in traces if trace.get("trace_id")
+                        },
+                    )
+                    for trace in traces:
+                        yield (
+                            trace,
+                            events_by_trace.get(
+                                str(trace.get("trace_id") or ""), list(trace.get("events") or [])
+                            ),
+                        )
+                    return
+                except Exception as exc:
+                    logger.warning("Failed to batch read user:message events: %s", exc)
+            # Isolate per-trace read failures only on the exceptional/legacy path.
+            for trace in traces:
+                events = list(trace.get("events") or [])
+                if callable(compat_reader) and trace.get("trace_id"):
+                    try:
+                        events = await compat_reader(
+                            str(trace["trace_id"]), event_types=["user:message"]
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to read user:message events for %s: %s", trace["trace_id"], exc
+                        )
+                        events = []
+                yield trace, events
+
+        batch: list[dict] = []
+        async for trace in cursor:
+            batch.append(trace)
+            if len(batch) >= SESSION_MESSAGE_LOOKUP_BATCH_SIZE:
+                async for item in read_batch(batch):
+                    yield item
+                batch = []
+        if batch:
+            async for item in read_batch(batch):
+                yield item
 
     @staticmethod
     def _resolve_user_message_id(run_id: str, data: dict) -> str:

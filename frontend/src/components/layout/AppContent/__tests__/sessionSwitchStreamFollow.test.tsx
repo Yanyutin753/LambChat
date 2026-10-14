@@ -30,8 +30,8 @@ type HarnessProps = {
 let lastScrollApi: UseMessageScrollReturn | null = null;
 
 /**
- * Mirrors ChatView's Virtuoso wiring: the list key is updated one
- * effect-cycle after sessionId changes, the custom Scroller writes the
+ * Mirrors ChatView's Virtuoso wiring: the list key is updated in the same
+ * render as sessionId changes, the custom Scroller writes the
  * scroller ref, and followOutput is gated by manualDetachFromStreamRef.
  */
 function CapturingHarness({
@@ -59,19 +59,18 @@ function CapturingHarness({
   );
   lastScrollApi = scroll;
 
-  useEffect(() => {
+  if (previousSessionIdRef.current !== sessionId) {
     const previousSessionId = previousSessionIdRef.current;
     previousSessionIdRef.current = sessionId;
-    setMessageListSessionKey((previousKey) => {
-      const nextKey = getNextMessageListSessionKey({
+    setMessageListSessionKey((previousKey) =>
+      getNextMessageListSessionKey({
         previousSessionId,
         sessionId,
         messageCount: messages.length,
         previousKey,
-      });
-      return nextKey === previousKey ? previousKey : nextKey;
-    });
-  }, [messages.length, sessionId]);
+      }),
+    );
+  }
 
   const manualDetachFromStreamRef = scroll.manualDetachFromStreamRef;
   const handleScrollerElementChange =
@@ -128,6 +127,7 @@ function CapturingHarness({
       key={messageListSessionKey}
       ref={scroll.virtuosoRef}
       data={messages}
+      initialTopMostItemIndex={{ index: "LAST", align: "end" }}
       computeItemKey={(_, message) => message.id}
       atBottomStateChange={scroll.handleVirtuosoAtBottomChange}
       followOutput={handleFollowOutput}
@@ -215,8 +215,7 @@ describe("switching into a running session keeps manual scroll control", () => {
     ];
     currentProps.isLoadingHistory = false;
     commit();
-    // The list key updates one effect-cycle later, remounting Virtuoso
-    // without any messages.length change (ChatView behavior).
+    // The new list mounts in the same commit as session B's history.
     await act(async () => {
       await Promise.resolve();
     });

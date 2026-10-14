@@ -26,7 +26,11 @@ def _app(monkeypatch, get_user, get_role, verify_pat=None, list_completions=None
         AsyncMock(return_value=TokenPayload(sub="owner", username="owner")),
     )
     monkeypatch.setattr(deps, "UserStorage", lambda: SimpleNamespace(get_by_id=get_user))
-    monkeypatch.setattr(deps, "RoleStorage", lambda: SimpleNamespace(get_by_name=get_role))
+
+    async def get_roles(names):
+        return [role for name in names if (role := await get_role(name)) is not None]
+
+    monkeypatch.setattr(deps, "RoleManager", lambda: SimpleNamespace(get_roles_by_names=get_roles))
     monkeypatch.setattr(core, "UserManager", lambda: SimpleNamespace(get_user=get_user))
     monkeypatch.setattr(
         core, "decode_token", lambda _: {"type": "refresh", "sub": "owner", "username": "owner"}

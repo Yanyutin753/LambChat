@@ -10,6 +10,16 @@ vi.mock("react-i18next", async (original) => ({
 
 afterEach(cleanup);
 
+test("loading skeleton fills the viewer stage and disappears after loading", () => {
+  render(<ImageViewer src="/loading.webp" alt="loading" isOpen onClose={() => {}} />);
+  const dialog = screen.getByRole("dialog");
+  const skeleton = dialog.querySelector(".skeleton-line");
+  expect(skeleton).toHaveClass("absolute", "inset-0");
+  expect(skeleton?.parentElement).toHaveAttribute("aria-busy", "true");
+  fireEvent.load(screen.getByAltText("loading"));
+  expect(dialog.querySelector(".skeleton-line")).toBeNull();
+});
+
 test("fullscreen image preview isolates an open file panel and restores it on close", async () => {
   const panel = document.createElement("div");
   panel.setAttribute("data-right-panel-root", "true");

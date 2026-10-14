@@ -1,4 +1,4 @@
-import type { ToolCall, MessagePart } from "./message";
+import type { ToolCall, MessagePart, FormField } from "./message";
 
 // ============================================
 // Session Types
@@ -67,8 +67,18 @@ export interface SessionTraceWindow {
   oldest_trace_id: string;
 }
 
+export interface SessionApprovalStatus {
+  id: string;
+  status: string;
+  message?: string;
+  type?: string;
+  fields?: FormField[];
+  metadata?: Record<string, unknown> | null;
+}
+
 export interface SessionEventsResponse {
   events: SSEEventRecord[];
+  approval_statuses?: Record<string, SessionApprovalStatus>;
   history_mode?: SessionHistoryMode;
   stream_run_id?: string | null;
   /** 按 trace(run) 窗口分页时：是否还有更早的轮次 */

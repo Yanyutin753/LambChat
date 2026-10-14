@@ -290,6 +290,20 @@ class ApprovalStorage:
         doc.pop("_id", None)
         return PendingApproval(**doc)
 
+    async def get_many(self, approval_ids: list[str]) -> dict[str, PendingApproval]:
+        """Read requested non-expired approvals in bounded batches, excluding responses."""
+        ids = list(dict.fromkeys(approval_ids))
+        result: dict[str, PendingApproval] = {}
+        for start in range(0, len(ids), 100):
+            cursor = self.collection.find(
+                {"_id": {"$in": ids[start : start + 100]}, **_not_expired_query()},
+                {"response": 0},
+            )
+            async for doc in cursor:
+                approval_id = doc.pop("_id")
+                result[approval_id] = PendingApproval(**doc)
+        return result
+
     async def update_status(
         self,
         approval_id: str,

@@ -70,16 +70,21 @@ def _compatible_message_chunks(left: dict[str, Any], right: dict[str, Any]) -> b
 def compact_consecutive_message_chunks(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Merge only adjacent semantically compatible assistant text chunks."""
     compacted: list[dict[str, Any]] = []
+    content_parts: dict[int, list[str]] = {}
     for source_event in events:
         event = dict(source_event)
         event["data"] = dict(event.get("data") or {})
         if compacted and _compatible_message_chunks(compacted[-1], event):
             previous = compacted[-1]
             merged = event
-            merged["data"]["content"] = previous["data"]["content"] + event["data"]["content"]
+            content_parts.setdefault(len(compacted) - 1, [previous["data"]["content"]]).append(
+                event["data"]["content"]
+            )
             compacted[-1] = merged
         else:
             compacted.append(event)
+    for index, parts in content_parts.items():
+        compacted[index]["data"]["content"] = "".join(parts)
     return compacted
 
 
@@ -176,6 +181,7 @@ def compact_history_events(
     """
     compacted: list[dict[str, Any]] = []
     group_target_index: dict[tuple[Any, ...], int] = {}
+    content_parts: dict[int, list[str]] = {}
 
     for source_event in events:
         event_type = source_event.get("event_type")
@@ -198,7 +204,9 @@ def compact_history_events(
                 and isinstance(target_data.get("content"), str)
                 and isinstance(delta, str)
             ):
-                target_data["content"] = target_data["content"] + delta
+                content_parts.setdefault(
+                    group_target_index[group_key], [target_data["content"]]
+                ).append(delta)
                 if mark_merges:
                     _apply_merge_markers(target, event)
                 continue
@@ -210,11 +218,15 @@ def compact_history_events(
             group_target_index[group_key] = len(compacted)
         elif mergeable and compacted and _compatible_adjacent_stream_events(compacted[-1], event):
             previous = compacted[-1]
-            previous["data"]["content"] = previous["data"]["content"] + event["data"]["content"]
+            content_parts.setdefault(len(compacted) - 1, [previous["data"]["content"]]).append(
+                event["data"]["content"]
+            )
             if mark_merges:
                 _apply_merge_markers(previous, event)
             continue
 
         compacted.append(event)
 
+    for index, parts in content_parts.items():
+        compacted[index]["data"]["content"] = "".join(parts)
     return compacted

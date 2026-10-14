@@ -77,3 +77,29 @@ S3_SECRET_KEY=your_secret_key
 S3_REGION=oss-cn-hangzhou
 S3_BUCKET_NAME=lambchat-files
 ```
+
+## Browser direct uploads
+
+With object storage enabled, the shared file uploader sends file parts directly to the bucket using short-lived signed URLs. Files up to 8 MiB use one part; larger files are split into 8 MiB parts. Failed parts are retried up to twice, and cancel aborts the current request and asks the backend to clean up. Local storage and TIFF/BMP/ICO image conversion retain the existing backend upload path; profile-avatar uploads also retain their existing path.
+
+Each part signature binds its authorized byte count. Browsers supply `Content-Length` automatically, and storage rejects PUTs with a different size. Atomic cancellation flags and completion admission prevent cancellation races across API replicas.
+
+The backend checks the owner's permissions and role limits, lists the actual uploaded parts before merging, and streams the finished object to compute the trusted SHA-256 used for owner-scoped deduplication. This adds one object read during the processing stage. The browser never receives bucket credentials. Ticket state is stored in MongoDB for multiple API replicas; expired uploads are cleaned every five minutes.
+
+The bucket endpoint must be reachable from the browser over HTTPS. Configure bucket CORS for each actual web, desktop, or mobile origin. An AWS S3 example (replace the origin):
+
+```json
+{
+  "CORSRules": [{
+    "AllowedOrigins": ["https://app.example.com", "tauri://localhost", "http://tauri.localhost", "capacitor://localhost", "http://localhost", "https://localhost"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }]
+}
+```
+
+OSS uses its equivalent bucket CORS settings. The backend retrieves authoritative ETags through the provider's ListParts API. After exhausted network or timeout retries, the client cleans up multipart state and uses the existing authenticated backend upload path, preserving progress and cancellation. Older servers without direct-upload endpoints also use that path. Permission, signature, and service errors remain visible.
+
+The storage identity (provider, endpoint, region, bucket) is bound to each ticket; configuration changes require a new upload. Configure an **AbortIncompleteMultipartUpload** bucket lifecycle rule (OSS: its multipart-upload expiration rule), preferably after one day. This covers a process crash between creating a provider upload and saving its ID, and long backend outages. Periodic cleanup must run against the original bucket before retiring a storage configuration. Existing metadata, object read/delete, and multipart create/list/complete/abort permissions must remain available to the backend.

@@ -14,7 +14,7 @@ from src.infra.auth.authority import authority_lookup
 from src.infra.auth.jwt import verify_token
 from src.infra.auth.pat import PAT_PREFIX
 from src.infra.logging import get_logger
-from src.infra.role.storage import RoleStorage
+from src.infra.role.manager import RoleManager
 from src.infra.user.manager import UserManager
 from src.infra.user.storage import UserStorage
 from src.kernel.errors import AppError, ErrorCode
@@ -60,17 +60,11 @@ def _set_cached_user(token: str, payload: TokenPayload) -> None:
     _auth_cache[token] = (time.monotonic() + _AUTH_CACHE_TTL_SECONDS, payload.model_copy(deep=True))
 
 
-async def _fetch_role(role_storage: RoleStorage, role_name: str):
-    """查询单个角色。缓存语义交给 RoleStorage 的全局失效缓存（Redis 版本化）。"""
-    return await role_storage.get_by_name(role_name)
-
-
 async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[str], list[str]]:
     """
     获取用户角色列表和合并后的权限列表
 
-    角色查询按 asyncio.gather 并行执行，合并顺序与逐个串行查询时一致
-    （gather 保序），角色不存在时同样跳过；不再加进程内 TTL 缓存，
+    角色批量读取，保留原始合并顺序和重复角色，角色不存在时跳过；不加进程内 TTL 缓存，
     保证角色权限变更（Redis 全局失效）即时生效。
 
     Args:
@@ -79,13 +73,11 @@ async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[s
     Returns:
         (角色列表, 权限列表)
     """
-    role_storage = RoleStorage()
+    role_manager = RoleManager()
     roles = []
     permissions = set()
 
-    fetched = await asyncio.gather(
-        *(_fetch_role(role_storage, role_name) for role_name in user_roles)
-    )
+    fetched = await role_manager.get_roles_by_names(user_roles)
 
     for role in fetched:
         if role:

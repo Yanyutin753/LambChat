@@ -76,3 +76,29 @@ S3_SECRET_KEY=your_secret_key
 S3_REGION=oss-cn-hangzhou
 S3_BUCKET_NAME=lambchat-files
 ```
+
+## 浏览器直传
+
+启用对象存储后，共享文件上传服务通过短期预签名 URL 将文件分块直接传到存储桶。8 MiB 以内只传一个分块，更大的文件按 8 MiB 切块；失败分块最多重试两次。取消会中止当前请求并通知后端清理。本地存储及 TIFF/BMP/ICO 图片转码继续使用原后端上传路径，个人头像上传也保留原路径。
+
+后端检查上传者权限和角色大小限制，合并前从存储服务列出实际分块；合并后流式读取对象，计算可信 SHA-256，保留按用户隔离的去重。处理阶段因此会产生一次对象读取流量。前端不会获得存储密钥。任务状态持久化到 MongoDB，可跨 API 实例处理；过期任务每五分钟清理一次。
+
+每个分块的签名绑定其授权字节数；浏览器自动发送 `Content-Length`，存储服务会拒绝大小不符的 PUT。取消标记与完成准入使用原子更新，防止跨 API 实例的竞争漏掉取消。
+
+存储桶端点必须能被浏览器通过 HTTPS 访问。为实际使用的网页、桌面和移动端 Origin 配置存储桶 CORS。AWS S3 配置示例（替换域名）：
+
+```json
+{
+  "CORSRules": [{
+    "AllowedOrigins": ["https://app.example.com", "tauri://localhost", "http://tauri.localhost", "capacitor://localhost", "http://localhost", "https://localhost"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }]
+}
+```
+
+OSS 使用对应的存储桶跨域设置。后端通过存储服务 ListParts 获取可信 ETag。网络不可达或超时重试耗尽后，客户端先清理分块，再使用现有的鉴权后端上传路径，保留进度与取消。旧服务端没有直传接口时也使用该路径。权限、签名和服务错误仍会显示给用户。
+
+任务绑定创建时的存储配置（提供商、端点、区域、存储桶），配置变更后需重新上传。存储桶应设置 **AbortIncompleteMultipartUpload** 生命周期规则（OSS 对应未完成分片上传过期规则），建议一天后清理，覆盖创建上传任务后尚未保存 ID 就崩溃及后端长期不可用的情况。停用旧存储配置前，应先在原桶完成过期任务清理。后端需保留原有对象元数据、读取、删除权限，以及分块创建、列举、合并和中止权限。

@@ -13,6 +13,21 @@ const chatViewSource = readFileSync(
   "utf8",
 );
 
+test("session switches update the list key before mounting the new history", () => {
+  expect(chatViewSource).toMatch(
+    /if \(previousSessionIdRef\.current !== sessionId\) \{[\s\S]*?setMessageListSessionKey/,
+  );
+  expect(chatViewSource).not.toMatch(
+    /useEffect\(\(\) => \{\s*const previousSessionId = previousSessionIdRef\.current;/,
+  );
+});
+
+test("new chat lists start at the bottom unless navigation targets a message", () => {
+  expect(chatViewSource).toMatch(
+    /initialTopMostItemIndex=\{[\s\S]*?externalNavigationToken\s*\? undefined\s*: \{ index: "LAST", align: "end" \}/,
+  );
+});
+
 test("chat scroller component identity never depends on the skeleton flag", () => {
   // components.Scroller identity changes make react-virtuoso remount the
   // scroller subtree and reset scroll to the first message. The completion

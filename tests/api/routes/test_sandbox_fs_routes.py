@@ -287,7 +287,9 @@ async def test_fs_list_platform_falls_back_to_global_default(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _cloud_app(monkeypatch, session, manager, als_result=None, aread_result=None):
+def _cloud_app(
+    monkeypatch, session, manager, als_result=None, aread_result=None, download_result=None
+):
     """云端端点测试 app:SessionManager + 沙箱管理器/backend 打桩。"""
     from src.api.routes import sandbox as route_module
     from src.infra.sandbox import session_manager as sandbox_module
@@ -304,6 +306,25 @@ def _cloud_app(monkeypatch, session, manager, als_result=None, aread_result=None
     from deepagents.backends.protocol import LsResult, ReadResult
 
     class _FakeScopedBackend:
+        async def astream_file(self, path):
+            calls.setdefault("stream_file", []).append(path)
+            result = download_result[0]
+            if result.error:
+                raise IOError(result.error)
+            yield result.content[:3]
+            yield result.content[3:]
+
+        async def adownload_files(self, paths):
+            calls.setdefault("adownload_files", []).append(paths)
+            if any(not path.startswith("/") for path in paths):
+                from deepagents.backends.protocol import FileDownloadResponse
+
+                return [
+                    FileDownloadResponse(path=path, content=None, error="invalid_path")
+                    for path in paths
+                ]
+            return download_result
+
         async def als(self, path):
             calls.setdefault("als", []).append(path)
             return (
@@ -411,6 +432,130 @@ async def test_cloud_read_returns_filedata_contract(monkeypatch):
     body = resp.json()
     assert body["encoding"] == "utf-8" and body["content"] == "cloud text"
     assert calls["aread"][0] == ("hello.txt", 0, 200)
+
+
+async def test_cloud_stream_returns_raw_binary_not_base64(monkeypatch):
+    from deepagents.backends.protocol import FileDownloadResponse
+
+    payload = b"\x89PNG\x00\xff"
+    client, calls = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        download_result=[FileDownloadResponse(path="image.png", content=payload, error=None)],
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read",
+            params={"session_id": "sess-1", "path": "./image.png", "stream": "true"},
+        )
+    assert response.content == payload
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.headers["x-accel-buffering"] == "no"
+    assert "aread" not in calls and "adownload_files" not in calls
+
+
+async def test_cloud_stream_errors_before_body_remain_json(monkeypatch):
+    from deepagents.backends.protocol import FileDownloadResponse
+
+    client, _ = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        download_result=[
+            FileDownloadResponse(path="missing.png", content=None, error="file_not_found")
+        ],
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read",
+            params={"session_id": "sess-1", "path": "missing.png", "stream": "true"},
+        )
+    assert response.json() == {"error": "file_not_found"}
+
+
+@pytest.mark.parametrize(
+    "path,size",
+    [("./images/cyberpunk.png", 3027017), ("./images.zip", 7602985), ("./tiny.PNG", 6)],
+)
+async def test_cloud_preview_downloads_files_above_model_read_limit(monkeypatch, path, size):
+    import base64
+
+    from deepagents.backends.protocol import FileDownloadResponse, ReadResult
+
+    payload = b"\x89PNG\x00\xff" + b"x" * (size - 6)
+    client, calls = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        aread_result=ReadResult(
+            error=f"file too large to read directly: {len(payload)} bytes (limit 2097152 bytes)"
+        ),
+        download_result=[FileDownloadResponse(path=path, content=payload, error=None)],
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read", params={"session_id": "sess-1", "path": path}
+        )
+    body = response.json()
+    assert body["encoding"] == "base64"
+    assert base64.b64decode(body["content"]) == payload
+    assert calls["adownload_files"] == [[f"/home/user/sessions/sess-1/{path.removeprefix('./')}"]]
+    assert "aread" not in calls
+
+
+async def test_cloud_preview_unknown_extension_keeps_large_file_fallback(monkeypatch):
+    from deepagents.backends.protocol import FileDownloadResponse, ReadResult
+
+    client, _ = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        aread_result=ReadResult(
+            error="file too large to read directly: 3000000 bytes (limit 2097152 bytes)"
+        ),
+        download_result=[FileDownloadResponse(path="blob", content=b"\x00\xff", error=None)],
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read", params={"session_id": "sess-1", "path": "blob"}
+        )
+    assert response.json() == {"encoding": "base64", "content": "AP8="}
+
+
+async def test_cloud_preview_preserves_read_permission_errors(monkeypatch):
+    from deepagents.backends.protocol import ReadResult
+
+    client, calls = _cloud_app(
+        monkeypatch, _fake_session(), None, aread_result=ReadResult(error="permission_denied")
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read", params={"session_id": "sess-1", "path": "secret.txt"}
+        )
+    assert response.json() == {"error": "permission_denied"}
+    assert "adownload_files" not in calls
+
+
+async def test_cloud_preview_preserves_download_failure(monkeypatch):
+    from deepagents.backends.protocol import FileDownloadResponse, ReadResult
+
+    client, _ = _cloud_app(
+        monkeypatch,
+        _fake_session(),
+        None,
+        aread_result=ReadResult(
+            error="file too large to read directly: 60000000 bytes (limit 2097152 bytes)"
+        ),
+        download_result=[
+            FileDownloadResponse(path="large.zip", content=None, error="file_not_found")
+        ],
+    )
+    async with client as c:
+        response = await c.get(
+            "/api/sandbox/fs/cloud/read", params={"session_id": "sess-1", "path": "large.zip"}
+        )
+    assert response.json() == {"error": "file_not_found"}
 
 
 async def test_cloud_status_zero_side_effect(monkeypatch):

@@ -462,6 +462,10 @@
     "requestNewResetLink": "Получить новую ссылку для сброса"
   },
   "backendErrors": {
+    "directUploadInvalid": "Загруженные части не соответствуют разрешённому файлу. Загрузите файл снова.",
+    "directUploadInactive": "Загрузка больше не активна. Загрузите файл снова.",
+    "directUploadStorageChanged": "Настройки хранилища изменились. Загрузите файл снова.",
+    "uploadCanceled": "Загрузка отменена",
     "accountInactive": "Аккаунт не активирован. Подтвердите email перед входом.",
     "approvalAlreadyHandled": "Этот запрос на подтверждение уже обработан.",
     "approvalNotFound": "Запрос на подтверждение не найден.",

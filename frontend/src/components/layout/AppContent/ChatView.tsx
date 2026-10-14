@@ -232,6 +232,19 @@ export function ChatView({
   const [messageListSessionKey, setMessageListSessionKey] = useState(
     sessionId ?? "__new_session__",
   );
+  // 同帧切换列表 key，避免历史定位后再重挂把滚动位置重置到顶部。
+  if (previousSessionIdRef.current !== sessionId) {
+    const previousSessionId = previousSessionIdRef.current;
+    previousSessionIdRef.current = sessionId;
+    setMessageListSessionKey((previousKey) =>
+      getNextMessageListSessionKey({
+        previousSessionId,
+        sessionId,
+        messageCount: messages.length,
+        previousKey,
+      }),
+    );
+  }
 
   // --- Older-history pagination (reverse infinite scroll) ---
   // Virtuoso 的 firstItemIndex 反向无限滚动：前插旧消息时递减 firstItemIndex，
@@ -305,22 +318,8 @@ export function ChatView({
     [virtuosoRef],
   );
 
-  useEffect(() => {
-    const previousSessionId = previousSessionIdRef.current;
-    previousSessionIdRef.current = sessionId;
-    setMessageListSessionKey((previousKey) => {
-      const nextKey = getNextMessageListSessionKey({
-        previousSessionId,
-        sessionId,
-        messageCount: messages.length,
-        previousKey,
-      });
-      return nextKey === previousKey ? previousKey : nextKey;
-    });
-  }, [messages.length, sessionId]);
-
-  // Virtuoso 挂载时列表初始位于顶部（自动滚到底部之前），startReached 会
-  // 误触发一次；loading 标志此刻已清空，拦不住，须按 remount 粒度忽略。
+  // Virtuoso 挂载期间 startReached 可能在初始定位完成前首报一次；
+  // loading 标志此刻已清空，须按 remount 粒度忽略，避免误加载旧页。
   const startReachedSkipperRef = useRef(createInitialStartReachedSkipper());
   const prevVisibleStartIndexRef = useRef<number | null>(null);
   const prevMessageListSessionKeyRef = useRef(messageListSessionKey);
@@ -470,7 +469,7 @@ export function ChatView({
     externalNavigationToken,
     externalNavigationPreview,
     currentRunId,
-    isLoadingHistory,
+    isLoading && !isLoadingHistory,
   );
 
   // --- Goal visibility ---
@@ -831,6 +830,11 @@ export function ChatView({
               data={renderItems}
               computeItemKey={(_, message) => message.id}
               firstItemIndex={firstItemIndex}
+              initialTopMostItemIndex={
+                externalNavigationToken
+                  ? undefined
+                  : { index: "LAST", align: "end" }
+              }
               startReached={handleVirtuosoStartReached}
               atBottomStateChange={handleVirtuosoAtBottomChange}
               atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}

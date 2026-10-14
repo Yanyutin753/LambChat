@@ -40,7 +40,7 @@ describe("MessageImageGallery", () => {
 
   it("uses object-contain instead of object-cover for full image visibility", () => {
     expect(source).toContain("object-contain");
-    expect(source).not.toContain("object-cover");
+    expect(source).toContain('className="w-full h-auto object-contain"');
   });
 
   it("uses ImageWithSkeleton with inline mode", () => {

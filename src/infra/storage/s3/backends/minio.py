@@ -37,10 +37,15 @@ class MinioS3Backend(S3StorageBackend):
             import minio
 
             endpoint: str | None = self.config.endpoint_url or self.config.get_endpoint_url()
+            secure = not (endpoint or "").startswith("http://")
             if endpoint:
                 endpoint = endpoint.replace("https://", "").replace("http://", "")
             else:
-                endpoint = "localhost:9000"
+                endpoint = (
+                    f"s3.{self.config.region}.amazonaws.com"
+                    if self.config.provider == S3Provider.AWS
+                    else "localhost:9000"
+                )
 
             logger.info(
                 f"Minio client config: endpoint={endpoint}, bucket={self.config.bucket_name}, "
@@ -51,7 +56,7 @@ class MinioS3Backend(S3StorageBackend):
                 endpoint=endpoint,
                 access_key=self.config.access_key,
                 secret_key=self.config.secret_key,
-                secure=True,
+                secure=secure,
                 region=(self.config.region if self.config.provider != S3Provider.AWS else None),
             )
 

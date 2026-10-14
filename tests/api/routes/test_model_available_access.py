@@ -82,6 +82,9 @@ class _RestrictedModelStorage(_ModelStorage):
 
 
 class _AgentConfigStorage:
+    async def get_role_models_by_ids(self, role_ids):
+        return {role_id: await self.get_role_models(role_id) for role_id in role_ids}
+
     async def get_role_models(self, role_id: str) -> list[str] | None:
         if role_id == "role-user":
             return ["allowed-model"]
@@ -99,6 +102,9 @@ class _EmptyRole:
 
 
 class _RoleManager:
+    async def get_roles_by_names(self, names):
+        return [role for name in names if (role := await self.get_role_by_name(name)) is not None]
+
     async def get_role_by_name(self, role_name: str) -> _Role | _EmptyRole | None:
         if role_name == "user":
             return _Role()
@@ -335,3 +341,77 @@ async def test_batch_create_models_rejects_large_batches_before_storage(
 
     assert exc.value.error_code.code == "model_batch_limit"
     assert exc.value.http_status == 413
+
+
+@pytest.mark.asyncio
+async def test_batch_create_models_uses_bulk_create_masks_keys_and_invalidates(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    class Storage:
+        def __init__(self):
+            self.calls = []
+
+        async def create_many(self, models):
+            created = list(models)
+            self.calls.append(created)
+            return created
+
+        async def count(self):
+            return {"total": 7, "enabled": 6}
+
+    storage = Storage()
+    invalidate = AsyncMock()
+    monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
+    monkeypatch.setattr("src.infra.llm.models_service.invalidate_cache", invalidate)
+    response = await model_routes.batch_create_models(
+        {
+            "shared": {"api_key": "sk-secret-long", "api_base": "https://example.test"},
+            "models": [
+                {"value": "same", "label": "First"},
+                {"label": "Skipped"},
+                {"value": "same", "label": "Second"},
+            ],
+        },
+        TokenPayload(sub="admin", username="admin", roles=["admin"]),
+    )
+    assert len(storage.calls) == 1
+    assert [model.label for model in response.models] == ["First", "Second"]
+    assert all(model.api_key != "sk-secret-long" for model in response.models)
+    assert response.count == 7
+    assert response.enabled_count == 6
+    invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_batch_create_models_keeps_lazy_parse_and_invalidates_after_partial_failure(
+    monkeypatch,
+):
+    from unittest.mock import AsyncMock
+
+    from pydantic import ValidationError
+
+    class Storage:
+        def __init__(self):
+            self.prefix = []
+
+        async def create_many(self, models):
+            for model in models:
+                self.prefix.append(model)
+            return self.prefix
+
+    storage = Storage()
+    invalidate = AsyncMock()
+    monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
+    monkeypatch.setattr("src.infra.llm.models_service.invalidate_cache", invalidate)
+    with pytest.raises(ValidationError):
+        await model_routes.batch_create_models(
+            {
+                "models": [
+                    {"value": "first", "label": "First"},
+                    {"value": "second", "label": ["invalid"]},
+                ],
+            },
+            TokenPayload(sub="admin", username="admin", roles=["admin"]),
+        )
+    assert [model.value for model in storage.prefix] == ["first"]
+    invalidate.assert_awaited_once()

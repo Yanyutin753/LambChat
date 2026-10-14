@@ -187,3 +187,23 @@ async def test_web_tools_mount_by_default_as_system_tools(monkeypatch) -> None:
     assert "web_search" in {tool.name for tool in deferred}
     # 未被显式策略覆盖的 web_fetch 仍默认直挂
     assert "web_fetch" in {tool.name for tool in direct}
+
+
+async def test_business_permissions_batch_roles_without_per_role_reads(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool import internal_registry
+
+    batch = AsyncMock(return_value=[SimpleNamespace(permissions=["scheduled_task:read"])])
+    single = AsyncMock(side_effect=AssertionError("per-role query"))
+    monkeypatch.setattr(
+        internal_registry,
+        "RoleStorage",
+        lambda: SimpleNamespace(get_by_names=batch, get_by_name=single),
+    )
+    assert await internal_registry._resolve_permissions_for_roles(["reader", "other"]) == {
+        "scheduled_task:read"
+    }
+    batch.assert_awaited_once_with(["reader", "other"])
+    single.assert_not_awaited()

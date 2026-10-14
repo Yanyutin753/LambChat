@@ -42,6 +42,27 @@ class _FakeRedis:
         self.lpop_calls = 0
         self.expired_keys: list[str] = []
 
+    def pipeline(self, transaction=True):
+        assert transaction is False
+        client = self
+
+        class Pipeline:
+            def __init__(self):
+                self.commands = []
+
+            def get(self, key):
+                self.commands.append(("get", key))
+                return self
+
+            def exists(self, key):
+                self.commands.append(("exists", key))
+                return self
+
+            async def execute(self):
+                return [await getattr(client, method)(key) for method, key in self.commands]
+
+        return Pipeline()
+
     def _alive(self, key: str) -> bool:
         exp = self.expires_at.get(key)
         return exp is None or exp > time.monotonic()

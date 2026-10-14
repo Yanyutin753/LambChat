@@ -10,7 +10,11 @@ from typing import Any, Optional
 import httpx
 
 from src.infra.logging import get_logger
-from src.infra.memory.client.native.content import hydrate_formatted_memory, sanitize_memory_text
+from src.infra.memory.client.native.content import (
+    batch_get_memory_contents,
+    hydrate_formatted_memory,
+    sanitize_memory_text,
+)
 from src.infra.memory.client.native.models import (
     STOPWORDS,
     char_ngrams,
@@ -69,6 +73,7 @@ async def _hydrate_memories_limited(
     if not memories:
         return []
 
+    items = await batch_get_memory_contents(backend, memories)
     results: list[dict[str, Any] | None] = [None] * len(memories)
     next_index = 0
     lock = asyncio.Lock()
@@ -85,7 +90,12 @@ async def _hydrate_memories_limited(
                     return
                 index = next_index
                 next_index += 1
-            results[index] = await hydrate_formatted_memory(backend, memories[index])
+            if items is None:
+                results[index] = await hydrate_formatted_memory(backend, memories[index])
+            else:
+                results[index] = await hydrate_formatted_memory(
+                    backend, memories[index], item=items[index]
+                )
 
     await asyncio.gather(*(_worker() for _ in range(worker_count)))
     return [memory for memory in results if memory is not None]
@@ -742,7 +752,9 @@ async def validate_memory_source_refs(
         return [{**memory, "source_refs": []} for memory in memories]
 
     try:
-        allowed_refs = await ConversationHistoryService().validate_source_refs(user_id, all_refs)
+        allowed_refs = await ConversationHistoryService().validate_source_refs(
+            user_id, all_refs, limit=len(all_refs)
+        )
     except Exception as exc:
         logger.warning(
             "[NativeMemory] Recalled source reference validation failed: %s",

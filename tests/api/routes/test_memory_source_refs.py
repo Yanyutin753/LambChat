@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -53,14 +52,17 @@ class _Collection:
                 return dict(doc)
         return None
 
-    async def replace_one(self, query, replacement, upsert=False):
+    async def find_one_and_replace(
+        self, query, replacement, *, upsert, return_document, projection
+    ):
         for index, doc in enumerate(self.docs):
             if all(doc.get(key) == value for key, value in query.items()):
+                previous = dict(doc)
                 self.docs[index] = dict(replacement)
-                return SimpleNamespace(matched_count=1)
+                return previous
         if upsert:
             self.docs.append(dict(replacement))
-        return SimpleNamespace(matched_count=0)
+        return None
 
 
 class _Backend:
@@ -76,7 +78,7 @@ class _Backend:
 
 
 class _HistoryService:
-    async def validate_source_refs(self, user_id, refs):
+    async def validate_source_refs(self, user_id, refs, **_kwargs):
         assert user_id == "user-1"
         return [ref for ref in refs if ref.session_id == "visible-session"]
 
@@ -175,3 +177,101 @@ async def test_import_revalidates_source_refs_before_storage(monkeypatch):
     assert backend._collection.docs[0]["source_refs"] == [
         ConversationSourceRef(session_id="visible-session", run_id="visible-run").model_dump()
     ]
+
+
+@pytest.mark.parametrize("count", [1, 50, 200])
+async def test_memory_list_validates_sources_in_bounded_batches(monkeypatch, count):
+    docs = [dict(_doc(), memory_id=f"memory-{i}") for i in range(count)]
+    calls = []
+
+    class HistoryService(_HistoryService):
+        async def validate_source_refs(self, user_id, refs, **kwargs):
+            calls.append(len(refs))
+            return await super().validate_source_refs(user_id, refs, **kwargs)
+
+    async def get_backend():
+        return _Backend(docs)
+
+    monkeypatch.setattr(memory_routes, "_get_backend", get_backend)
+    monkeypatch.setattr(memory_routes, "ConversationHistoryService", HistoryService)
+    result = await memory_routes.list_memories(
+        memory_type=None, search=None, limit=200, offset=0, user=_user()
+    )
+
+    assert len(result["memories"]) == count
+    assert all(
+        doc["source_refs"] == [{"session_id": "visible-session", "run_id": "visible-run"}]
+        for doc in result["memories"]
+    )
+    assert len(calls) == (count + 49) // 50
+
+
+@pytest.mark.parametrize("operation", ["export", "import"])
+async def test_memory_transfer_validates_sources_by_batch(monkeypatch, operation):
+    docs = [dict(_doc(), memory_id=f"memory-{i}") for i in range(101)]
+    backend = _Backend(docs if operation == "export" else [])
+    calls = []
+
+    class HistoryService(_HistoryService):
+        async def validate_source_refs(self, user_id, refs, **kwargs):
+            calls.append(len(refs))
+            return await super().validate_source_refs(user_id, refs, **kwargs)
+
+    async def get_backend():
+        return backend
+
+    monkeypatch.setattr(memory_routes, "_get_backend", get_backend)
+    monkeypatch.setattr(memory_routes, "ConversationHistoryService", HistoryService)
+    if operation == "export":
+        response = await memory_routes.export_memories(user=_user())
+        chunks = [
+            chunk if isinstance(chunk, bytes) else chunk.encode()
+            async for chunk in response.body_iterator
+        ]
+        stored = json.loads(b"".join(chunks))["memories"]
+    else:
+        result = await memory_routes.import_memories({"memories": docs}, user=_user())
+        assert result["imported"] == len(docs)
+        stored = backend._collection.docs
+    assert len(stored) == len(docs)
+    assert len(calls) == 3
+    assert all(
+        doc["source_refs"] == [{"session_id": "visible-session", "run_id": "visible-run"}]
+        for doc in stored
+    )
+
+
+async def test_memory_batch_keeps_twenty_sources_per_memory(monkeypatch):
+    calls = []
+
+    class HistoryService(_HistoryService):
+        async def validate_source_refs(self, user_id, refs, **kwargs):
+            calls.append((len(refs), kwargs["limit"]))
+            return await super().validate_source_refs(user_id, refs, **kwargs)
+
+    monkeypatch.setattr(memory_routes, "ConversationHistoryService", HistoryService)
+    groups = [
+        [{"session_id": "visible-session", "run_id": f"{group}-{i}"} for i in range(25)]
+        for group in ["first", "second"]
+    ]
+    assert await memory_routes._validated_source_ref_docs_batch("user-1", groups) == [
+        group[-20:] for group in groups
+    ]
+    assert calls == [(40, 40)]
+
+
+async def test_memory_source_stream_buffers_only_the_current_batch(monkeypatch):
+    consumed = []
+
+    async def docs():
+        for i in range(101):
+            consumed.append(i)
+            yield dict(_doc(), memory_id=f"memory-{i}")
+
+    monkeypatch.setattr(memory_routes, "ConversationHistoryService", _HistoryService)
+    stream = memory_routes._iter_memories_with_source_refs("user-1", docs())
+    first, refs = await anext(stream)
+    assert first["memory_id"] == "memory-0"
+    assert refs == [{"session_id": "visible-session", "run_id": "visible-run"}]
+    assert len(consumed) == 50
+    await stream.aclose()

@@ -278,7 +278,7 @@ class PersonaPresetManager:
         """解析预设为运行时快照。
 
         性能约定：这是每条带角色消息的热路径——无技能绑定就不查技能可用性，
-        无 MCP 绑定就不做可见性查询；绑定名按索引点查而非全表扫描；
+        无 MCP 绑定就不做可见性查询；绑定名按索引批查而非全表扫描；
         user_roles 由调用方从 JWT 透传，免去用户表回查（未提供时才解析）。
         """
         preset = await self.get_preset(preset_id, user_id=user_id, is_admin=is_admin)
@@ -293,15 +293,19 @@ class PersonaPresetManager:
 
         # MCP 可见性校验：快照只保留当前用户可见的服务（全缺时不设白名单→放行全部，
         # 与技能语义一致）；不可见的记录进 missing 供前端提示。
-        mcp_server_names = []
-        missing_mcp: list[str] = []
-        for name in preset.mcp_server_names:
-            if await self._can_use_mcp_server(
-                name, user_id=user_id, is_admin=is_admin, user_roles=user_roles
-            ):
-                mcp_server_names.append(name)
-            else:
-                missing_mcp.append(name)
+        visible_mcp: set[str] = set()
+        if preset.mcp_server_names:
+            try:
+                visible_mcp = await self.mcp_storage.get_visible_server_names(
+                    preset.mcp_server_names,
+                    user_id=user_id,
+                    user_roles=user_roles,
+                    is_admin=is_admin,
+                )
+            except Exception:
+                pass
+        mcp_server_names = [name for name in preset.mcp_server_names if name in visible_mcp]
+        missing_mcp = [name for name in preset.mcp_server_names if name not in visible_mcp]
 
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
@@ -317,36 +321,6 @@ class PersonaPresetManager:
             version=preset.version,
             avatar=preset.avatar,
         )
-
-    async def _can_use_mcp_server(
-        self,
-        name: str,
-        *,
-        user_id: str,
-        is_admin: bool,
-        user_roles: list[str] | None,
-    ) -> bool:
-        """按索引点查某 MCP server 对当前用户是否可见（等价 get_visible_servers 语义）。
-
-        查询失败按不可见处理并记录缺失，不阻塞对话。
-        """
-        try:
-            from src.infra.mcp.storage_operations import _can_access_system_server
-
-            server = await self.mcp_storage.get_system_server(name)
-            if server is not None:
-                if is_admin:
-                    return True
-                if user_roles is None:
-                    from src.infra.mcp.quota import resolve_user_mcp_access
-
-                    user_roles, _quota_admin = await resolve_user_mcp_access(user_id)
-                return _can_access_system_server(
-                    server.allowed_roles, user_roles, is_admin=is_admin
-                )
-            return await self.mcp_storage.get_user_server(name, user_id) is not None
-        except Exception:
-            return False
 
     async def _get_available_skill_names(self, user_id: str) -> set[str]:
         """Return skill names that can actually be loaded for this user."""

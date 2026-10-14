@@ -1,4 +1,4 @@
-import asyncio
+import re
 from datetime import datetime, timezone
 
 import pytest
@@ -142,6 +142,26 @@ class _FakeCollection:
         self.aggregate_pipelines.append(pipeline)
         if any("$count" in stage for stage in pipeline):
             return _FakeAggregateResult(self.count_result)
+        lookup = next(
+            (
+                stage["$lookup"]
+                for stage in pipeline
+                if "$lookup" in stage and stage["$lookup"].get("as") == "files"
+            ),
+            None,
+        )
+        if lookup:
+            selected = [doc for doc in self.docs if _matches_query(doc, pipeline[0]["$match"])]
+            groups = []
+            for sid in dict.fromkeys(doc["session_id"] for doc in selected):
+                query = dict(lookup["pipeline"][0]["$match"])
+                query.pop("$expr")
+                query["session_id"] = sid
+                files = [doc for doc in self.docs if _matches_query(doc, query)]
+                cursor = _FakeCursor(files).sort(list(lookup["pipeline"][1]["$sort"].items()))
+                cursor.limit(lookup["pipeline"][2]["$limit"])
+                groups.append({"_id": sid, "files": await cursor.to_list()})
+            return _FakeAggregateResult(groups)
         return _FakeAggregateResult(self.session_results)
 
 
@@ -207,6 +227,10 @@ def _matches_query(doc, query):
                 return False
             if "$ne" in value and doc.get(key) == value["$ne"]:
                 return False
+            if "$regex" in value:
+                flags = re.I if "i" in value.get("$options", "") else 0
+                if not re.search(value["$regex"], str(doc.get(key) or ""), flags):
+                    return False
             continue
         if doc.get(key) != value:
             return False
@@ -569,93 +593,92 @@ async def test_list_files_grouped_caps_files_per_session(
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     ]
-    # Each session triggers its own bounded find (no single $in query).
-    assert len(storage.collection.find_cursors) == len(session_ids)
-    assert [cursor._limit for cursor in storage.collection.find_cursors] == [
-        REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
-        REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
-    ]
-    # Per-session isolation: every doc fetched by a given cursor belongs to one session.
-    session_ids_by_cursor = [
-        {doc["session_id"] for doc in cursor._docs} for cursor in storage.collection.find_cursors
-    ]
-    assert all(len(ids) == 1 for ids in session_ids_by_cursor)
-    assert {next(iter(ids)) for ids in session_ids_by_cursor} == set(session_ids)
+    assert storage.collection.find_cursors == []
+    assert len(storage.collection.aggregate_pipelines) == 3
+    preview_pipeline = storage.collection.aggregate_pipelines[2]
+    assert preview_pipeline[0]["$match"] == {
+        "user_id": "user-1",
+        "session_id": {"$in": session_ids},
+    }
+    lookup = preview_pipeline[2]["$lookup"]
+    assert lookup["pipeline"][0]["$match"]["user_id"] == "user-1"
+    assert lookup["pipeline"][2] == {"$limit": REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX}
+    assert [
+        {file["session_id"] for file in session["files"]} for session in result["sessions"]
+    ] == [{sid} for sid in session_ids]
 
 
 @pytest.mark.asyncio
-async def test_list_files_grouped_bounds_parallel_session_queries(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _TrackingCursor(_FakeCursor):
-        def __init__(self, docs, tracker):
-            super().__init__(docs)
-            self._tracker = tracker
-
-        async def to_list(self, length=None):
-            self._tracker["active"] += 1
-            self._tracker["maximum"] = max(self._tracker["maximum"], self._tracker["active"])
-            await asyncio.sleep(0.01)
-            try:
-                return await super().to_list(length)
-            finally:
-                self._tracker["active"] -= 1
-
-    class _TrackingCollection(_FakeCollection):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.tracker = {"active": 0, "maximum": 0}
-
-        def find(self, query, projection=None):
-            matched = [
-                _apply_projection(doc, projection)
-                for doc in self.docs
-                if _matches_query(doc, query)
-            ]
-            cursor = _TrackingCursor(matched, self.tracker)
-            self.find_cursors.append(cursor)
-            return cursor
-
-    now = datetime.now(timezone.utc)
-    session_ids = [f"session-{index}" for index in range(20)]
+@pytest.mark.parametrize("sort_by", ["created_at", "file_name", "file_size"])
+async def test_grouped_count_avoids_sort_and_lookup_on_empty_page(sort_by):
     storage = RevealedFileStorage()
-    storage._collection = _TrackingCollection(
-        docs=[
-            {
-                "_id": f"{session_id}-file",
-                "user_id": "user-1",
-                "session_id": session_id,
-                "file_name": "file.txt",
-                "file_type": "document",
-                "source": "reveal_file",
-                "file_key": f"revealed_files/{session_id}/file.txt",
-                "created_at": now,
-            }
-            for session_id in session_ids
-        ],
-        session_results=[
-            {"_id": session_id, "file_count": 1, "latest_file_at": now}
-            for session_id in session_ids
-        ],
-        count_result=[{"total": len(session_ids)}],
+    storage._collection = _FakeCollection(count_result=[{"total": 7}])
+    storage.ensure_indexes_if_needed = _no_op_async
+    result = await storage.list_files_grouped_by_session("user-1", sort_by=sort_by, skip=10)
+    assert result["sessions"] == []
+    assert result["total_sessions"] == 7
+    assert len(storage.collection.aggregate_pipelines) == 2
+    assert storage.collection.aggregate_pipelines[0] == [
+        {"$match": {"user_id": "user-1", "session_id": {"$ne": None}}},
+        {"$group": {"_id": "$session_id"}},
+        {"$count": "total"},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sort_by", ["created_at", "file_name", "file_size"])
+@pytest.mark.parametrize("sort_order", ["asc", "desc"])
+async def test_grouped_batch_preserves_filters_and_order(monkeypatch, sort_by, sort_order):
+    now = datetime.now(timezone.utc)
+    base = {
+        "user_id": "user-1",
+        "session_id": "session-1",
+        "file_type": "document",
+        "project_id": "project-1",
+        "is_favorite": True,
+        "source": "reveal_file",
+        "created_at": now,
+    }
+    docs = [
+        {**base, "_id": str(i), "file_name": f"match-{i}", "file_size": i, "file_key": str(i)}
+        for i in range(3)
+    ]
+    docs += [
+        {**docs[0], "_id": "other-user", "user_id": "user-2"},
+        {**docs[0], "_id": "other-page", "session_id": "session-2"},
+        {**docs[0], "_id": "not-favorite", "is_favorite": False},
+        {**docs[0], "_id": "other-type", "file_type": "image"},
+        {**docs[0], "_id": "other-project", "project_id": "project-2"},
+        {**docs[0], "_id": "non-match", "file_name": "different"},
+    ]
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        docs=docs,
+        session_results=[{"_id": "session-1", "file_count": 3}],
+        count_result=[{"total": 1}],
     )
     storage.ensure_indexes_if_needed = _no_op_async
-    monkeypatch.setattr(
-        "src.infra.revealed_file.storage.settings.MONGODB_POOL_MAX_SIZE",
-        100,
-    )
-    monkeypatch.setattr(
-        "src.infra.storage.mongodb.get_mongo_client",
-        lambda: _FakeMongoClient(
-            [{"session_id": session_id, "name": session_id} for session_id in session_ids],
-            max_pool_size=4,
-        ),
-    )
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: _FakeMongoClient([]))
 
-    await storage.list_files_grouped_by_session("user-1", limit=len(session_ids))
+    async def no_sessions(_search):
+        return []
 
-    assert storage.collection.tracker["maximum"] == 3
-    assert storage.collection.tracker["maximum"] < 4
+    storage._search_session_ids = no_sessions
+    result = await storage.list_files_grouped_by_session(
+        "user-1",
+        file_type="document",
+        project_id="project-1",
+        favorites_only=True,
+        search="match",
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    ids = [file["id"] for file in result["sessions"][0]["files"]]
+    expected = (
+        ["2", "1", "0"] if sort_order == "desc" and sort_by != "created_at" else ["0", "1", "2"]
+    )
+    assert ids == expected
+    assert storage.collection.find_cursors == []
 
 
 @pytest.mark.asyncio
@@ -693,6 +716,11 @@ async def test_ensure_indexes_replaces_old_name_based_unique_index() -> None:
     )
 
     await storage._ensure_indexes()
+
+    assert (
+        [("user_id", 1), ("session_id", 1), ("created_at", -1)],
+        {"name": "user_session_created_at_idx", "background": True},
+    ) in storage.collection.created_indexes
 
     assert "user_name_source_unique_idx" in storage.collection.dropped_indexes
     assert "user_key_source_unique_idx" in storage.collection.dropped_indexes

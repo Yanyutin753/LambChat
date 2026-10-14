@@ -7,8 +7,12 @@
  * user:message / user:cancel / approval_required which are history-specific.
  */
 
+import { anchorLegacySteerMessageEvents, normalizeEventRunIds } from "./historyEventOrdering";
+export { normalizeEventRunIds } from "./historyEventOrdering";
+import { HistoryPartReplay, HistoryReplayStack } from "./historyReplayParts";
 import { getGoalProjectionIdentity } from "./goalControlScope";
 import type { Message, MessagePart, FormField } from "../../types";
+import type { SessionApprovalStatus } from "../../types/session";
 import { uuid } from "../../utils/uuid";
 import { authFetch } from "../../services/api/fetch";
 import { buildApiUrl } from "../../services/api/config";
@@ -64,6 +68,12 @@ interface ProcessHistoryOptions {
     metadata?: Record<string, unknown> | null;
   }) => void;
   activeSubagentStack: SubagentStackItem[];
+  approvalStatuses?: Record<string, SessionApprovalStatus>;
+  isCurrent?: () => boolean;
+  partReplay?: HistoryPartReplay;
+  replayStack?: HistoryReplayStack;
+  resolvedApprovalIds?: ReadonlySet<string>;
+  queriedApprovalIds?: Set<string>;
 }
 
 function parseEventTimestamp(
@@ -93,57 +103,6 @@ function canAttachToPreviousAssistant(
     Boolean(event.run_id) &&
     message.runId === event.run_id
   );
-}
-
-const STEER_REPLY_TEXT_EVENTS = new Set(["thinking", "message:chunk"]);
-
-/**
- * 旧版后端把 steer:message 事件写在模型调用成功之后，事件落在 run 尾部
- * 且不带 created_at，直接按序重建会把插话渲染在它自己的回答之后。
- * 重建前把这类事件（组）移回其回答文本轮次之前：向前跳过同 run 的连续
- * 文本事件（thinking / message:chunk），插到该文本块开始处。带
- * created_at 的新版事件按注入时刻写入，位置天然正确，直接跳过。
- */
-function anchorLegacySteerMessageEvents(
-  events: HistoryEvent[],
-): HistoryEvent[] {
-  const anchored = [...events];
-  for (let i = 0; i < anchored.length; i += 1) {
-    const event = anchored[i];
-    if (event.event_type !== "steer:message") continue;
-    const data = event.data as HistoryEventData | null | undefined;
-    if (data && typeof data.created_at === "string") continue;
-
-    // 连续多条插话一起移动，保持相对顺序
-    let groupEnd = i;
-    while (
-      groupEnd + 1 < anchored.length &&
-      anchored[groupEnd + 1].event_type === "steer:message" &&
-      anchored[groupEnd + 1].run_id === event.run_id
-    ) {
-      groupEnd += 1;
-    }
-
-    let anchor = i;
-    while (
-      anchor - 1 >= 0 &&
-      anchored[anchor - 1].run_id === event.run_id &&
-      STEER_REPLY_TEXT_EVENTS.has(anchored[anchor - 1].event_type)
-    ) {
-      anchor -= 1;
-      // thinking 通常开启一次模型调用：把插话放到回答轮次的 thinking
-      // 之前即停止，不越过轮次边界吞并上一轮的纯文本
-      if (anchored[anchor].event_type === "thinking") {
-        break;
-      }
-    }
-    if (anchor === i) continue;
-
-    const group = anchored.splice(i, groupEnd - i + 1);
-    anchored.splice(anchor, 0, ...group);
-    i = anchor + group.length - 1;
-  }
-  return anchored;
 }
 
 /**
@@ -232,20 +191,28 @@ function processHistoryEvent(
         ],
       };
     }
+    const prefetched = approvalData.id && opts.approvalStatuses && Object.hasOwn(opts.approvalStatuses, approvalData.id)
+      ? opts.approvalStatuses[approvalData.id]
+      : undefined;
+    if (prefetched && !opts.resolvedApprovalIds?.has(prefetched.id)) {
+      currentAssistantMessage = resolveLegacyScheduledTaskApproval(
+        [currentAssistantMessage], prefetched,
+      )[0];
+    }
     if (
       approvalData.id &&
+      !opts.resolvedApprovalIds?.has(approvalData.id) &&
+      !opts.queriedApprovalIds?.has(approvalData.id) &&
       (opts.options?.onApprovalRequired || opts.onApprovalLookup)
     ) {
-      authFetch<{
-        id?: string;
-        status: string;
-        message?: string;
-        type?: string;
-        fields?: FormField[];
-        metadata?: Record<string, unknown>;
-      }>(buildApiUrl(`/human/${approvalData.id}`))
+      opts.queriedApprovalIds?.add(approvalData.id);
+      const approvalLookup = prefetched
+        ? Promise.resolve(prefetched)
+        : authFetch<SessionApprovalStatus>(buildApiUrl(`/human/${approvalData.id}`));
+      approvalLookup
         .then((data) => data ?? null)
         .then((approval) => {
+          if (opts.isCurrent && !opts.isCurrent()) return;
           if (approval?.id) {
             // 无论 pending 与否都上报：已决的 scheduled-task 审批要在此
             // 补收尾历史幽灵 pill（旧版事件没有 approval_resolved 可回放）
@@ -255,13 +222,13 @@ function processHistoryEvent(
               metadata: approval.metadata ?? null,
             });
           }
-          if (approval?.status === "pending") {
+          if (approval?.status === "pending" && (!opts.isCurrent || opts.isCurrent())) {
             opts.options?.onApprovalRequired?.({
               id: approvalData.id!,
               message: approval.message || "",
               type: approval.type || "form",
               fields: approval.fields,
-              metadata: approval.metadata,
+              metadata: approval.metadata ?? undefined,
             });
           }
         })
@@ -297,24 +264,15 @@ function processHistoryEvent(
     msg = { ...msg, runId: event.run_id };
   }
 
-  // Manage subagent stack
+  // Materialize the ordered stack only when the shared fallback needs it.
   if (eventType === "agent:call") {
-    const messageId = msg.id;
-    if (
-      !opts.activeSubagentStack.some(
-        (item) =>
-          item.agent_id === (agentId || "unknown") &&
-          item.depth === depth &&
-          item.message_id === messageId,
-      )
-    ) {
-      opts.activeSubagentStack.push({
-        agent_id: agentId || "unknown",
-        depth,
-        message_id: messageId,
-      });
-    }
+    opts.replayStack?.add({ agent_id: agentId || "unknown", depth, message_id: msg.id });
   }
+  if (opts.partReplay?.replay(msg, eventType, eventData as EventData)) {
+    if (eventType === "agent:result") opts.replayStack?.remove(agentId || "unknown", msg.id);
+    return msg;
+  }
+  opts.replayStack?.flush();
 
   // Use unified event processor
   const result = processMessageEvent(
@@ -335,7 +293,7 @@ function processHistoryEvent(
   msg.toolCalls = result.toolCalls;
 
   if (result.toolResult) {
-    msg.toolResults = [...(msg.toolResults || []), result.toolResult];
+    (msg.toolResults ??= []).push(result.toolResult);
   }
   if (result.tokenUsage) {
     msg.tokenUsage = result.tokenUsage;
@@ -347,16 +305,7 @@ function processHistoryEvent(
     msg.cancelled = true;
   }
 
-  // Pop subagent stack after agent:result
-  if (eventType === "agent:result") {
-    const stackIndex = opts.activeSubagentStack.findIndex(
-      (item) =>
-        item.agent_id === (agentId || "unknown") && item.message_id === msg.id,
-    );
-    if (stackIndex !== -1) {
-      opts.activeSubagentStack.splice(stackIndex, 1);
-    }
-  }
+  if (eventType === "agent:result") opts.replayStack?.remove(agentId || "unknown", msg.id);
 
   return msg;
 }
@@ -375,35 +324,6 @@ function resetInterruptedAssistantForResume(
     ),
     cancelled: false,
   };
-}
-
-/**
- * 为缺失 run_id 的历史事件回填就近 run_id。
- * 旧记录（如推荐问题）可能缺少 run_id 信封；按时间序取前向最近的
- * run_id，无前向时回退到后向第一个 run_id，保持与逐事件反向查找一致的语义。
- */
-export function normalizeEventRunIds(events: HistoryEvent[]): HistoryEvent[] {
-  const prevRunIdByIndex: Array<string | undefined> = new Array(events.length);
-  let lastSeenRunId: string | undefined;
-  for (let index = 0; index < events.length; index++) {
-    prevRunIdByIndex[index] = lastSeenRunId;
-    const runId = events[index].run_id;
-    if (runId) lastSeenRunId = runId;
-  }
-
-  const nextRunIdByIndex: Array<string | undefined> = new Array(events.length);
-  let nextSeenRunId: string | undefined;
-  for (let index = events.length - 1; index >= 0; index--) {
-    nextRunIdByIndex[index] = nextSeenRunId;
-    const runId = events[index].run_id;
-    if (runId) nextSeenRunId = runId;
-  }
-
-  return events.map((event, index) => {
-    if (event.run_id) return event;
-    const runId = prevRunIdByIndex[index] || nextRunIdByIndex[index];
-    return runId ? { ...event, run_id: runId } : event;
-  });
 }
 
 /**
@@ -427,6 +347,22 @@ export function reconstructMessagesFromEvents(
   const normalizedEvents = normalizeEventRunIds(sortedEvents);
 
   const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
+  const sortedEventIndexes = new Map<HistoryEvent, number>();
+  const resolvedApprovalIds = new Set<string>();
+  sortedEvents.forEach((event, index) => {
+    if (!sortedEventIndexes.has(event)) sortedEventIndexes.set(event, index);
+    if (event.event_type === "approval_resolved") {
+      const id = (event.data as HistoryEventData).id;
+      if (typeof id === "string") resolvedApprovalIds.add(id);
+    }
+  });
+  const replayOptions: ProcessHistoryOptions = {
+    ...opts,
+    resolvedApprovalIds,
+    queriedApprovalIds: new Set(),
+    partReplay: new HistoryPartReplay(),
+    replayStack: new HistoryReplayStack(opts.activeSubagentStack),
+  };
 
   const identities = new Map<string, NonNullable<Message["assistantIdentity"]>>();
   const reconstructedMessages: Message[] = [];
@@ -479,7 +415,7 @@ export function reconstructMessagesFromEvents(
       const steerId =
         typeof steerData.message_id === "string" && steerData.message_id.trim()
           ? steerData.message_id
-          : `steer-h-${sortedEvents.indexOf(event)}`;
+          : `steer-h-${sortedEventIndexes.get(event) ?? -1}`;
       // 模型调用失败后消息原 ID 回队，重试送达会再次写出同
       // message_id 事件；按 ID 去重只渲染第一次（即用户发送位置）
       if (
@@ -603,7 +539,7 @@ export function reconstructMessagesFromEvents(
     // Handle seamless run resume
     if (eventType === "run:resumed") {
       // 与实时恢复一致：保留内容，后续事件继续追加。
-      opts.activeSubagentStack.length = 0;
+      replayOptions.replayStack?.clear();
       currentAssistantMessage = resetInterruptedAssistantForResume(
         currentAssistantMessage,
       );
@@ -621,7 +557,7 @@ export function reconstructMessagesFromEvents(
           event,
           lastMessage,
           processedEventIds,
-          opts,
+          replayOptions,
         );
         if (updatedMessage) {
           reconstructedMessages[lastMessageIndex] = updatedMessage;
@@ -635,7 +571,7 @@ export function reconstructMessagesFromEvents(
       event,
       currentAssistantMessage,
       processedEventIds,
-      opts,
+      replayOptions,
       !currentAssistantMessage && event.run_id
         ? (() => {
             const priorAssistantTurns =
@@ -700,6 +636,7 @@ export function reconstructMessagesFromEvents(
   // render under the last message, never as a standalone empty bubble (this
   // happens when an active-run snapshot synthesizes a recommend event next to
   // a withheld content stream).
+  replayOptions.replayStack?.flush();
   return reconstructedMessages.map((message) =>
     message.role === "assistant" && message.runId && identities.has(message.runId)
       ? { ...message, assistantIdentity: identities.get(message.runId) }

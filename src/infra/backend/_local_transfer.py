@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import base64
 import re
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import aclosing
 from typing import TYPE_CHECKING, Any
 
 from src.infra.backend._local_compat import _run_coro_sync
@@ -34,6 +35,7 @@ from src.infra.backend.protocol_compat import (
     file_upload_response,
 )
 from src.infra.logging import get_logger
+from src.infra.sandbox.file_stream import download_max_bytes
 from src.infra.sandbox.relay.dispatch import (
     dispatch_local_call,
     dispatch_local_stream,
@@ -73,8 +75,7 @@ def _download_max_bytes() -> int:
     reveal 文件、本地沙箱下载与 S3 内部上传三处上限，不各自写死；超限在
     首片回 size 后即报显式 ``file_too_large``，不继续整读。
     """
-    configured = int(getattr(settings, "S3_INTERNAL_UPLOAD_MAX_SIZE", 0) or 0)
-    return configured if configured > 0 else 1
+    return download_max_bytes()
 
 
 # win32 绝对路径形态：盘符根相对（C:\ 或 C:/开头）与 UNC（\\server\share）。
@@ -221,6 +222,52 @@ class LocalFsTransferMixin:
             else:
                 return outcome
         return await self._adownload_chunked(path, cwd=cwd)
+
+    async def astream_file(self, path: str, *, cwd: str) -> AsyncGenerator[bytes, None]:
+        started = False
+        try:
+            async with aclosing(
+                dispatch_local_stream(
+                    self._user_id,
+                    "fs_download_stream",
+                    {"cwd": cwd, "path": path, "max_bytes": _download_max_bytes()},
+                    timeout=float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT),
+                    machine_id=self._machine_id,
+                )
+            ) as source:
+                async for chunk in source:
+                    started = True
+                    yield chunk
+            return
+        except AppError as exc:
+            detail = str(exc.args_data.get("detail") or exc.message)
+            if started or exc.error_code != ErrorCode.SANDBOX_EXEC_FAILED:
+                raise
+            if "unsupported op" not in detail:
+                raise IOError(detail) from exc
+        # Old daemons retain bounded chunk downloads without buffering the whole file.
+        offset = 0
+        size = None
+        while True:
+            data = await self._afs_transfer_call_with_retry(
+                "fs_download",
+                {"cwd": cwd, "path": path, "offset": offset, "length": FS_TRANSFER_CHUNK_BYTES},
+            )
+            if data.get("error"):
+                raise IOError(str(data["error"]))
+            if size is None:
+                size = int(data.get("size") or 0)
+                if size > _download_max_bytes():
+                    raise ValueError("file_too_large")
+            chunk = base64.b64decode(data.get("content_b64") or "", validate=True)
+            offset += len(chunk)
+            if offset > _download_max_bytes():
+                raise ValueError("file_too_large")
+            yield chunk
+            if data.get("eof") or not chunk:
+                if offset != size:
+                    raise IOError("binary stream size mismatch")
+                return
 
     async def _adownload_via_stream(self, path: str, *, cwd: str) -> bytes | str:
         """经 fs_download_stream 流式读完整个文件；返回内容字节或错误文本。

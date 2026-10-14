@@ -5,11 +5,9 @@ Agent 路由
 每个 Agent 就是一个 Graph，流式请求接入 graph 后输出 SSE 事件。
 """
 
-import asyncio
 import json
 import uuid
-from collections.abc import Awaitable, Callable
-from typing import Optional, TypeVar
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -31,37 +29,8 @@ from src.kernel.schemas.user import TokenPayload
 router = APIRouter()
 logger = get_logger(__name__)
 
-AGENT_ROLE_FETCH_CONCURRENCY = 8
 AGENT_ROLE_LOOKUP_LIMIT = 100
 AGENT_SSE_DATA_MAX_BYTES = 256 * 1024
-T = TypeVar("T")
-
-
-async def _gather_limited(
-    factories: list[Callable[[], Awaitable[T]]],
-    *,
-    limit: int = AGENT_ROLE_FETCH_CONCURRENCY,
-) -> list[T]:
-    if not factories:
-        return []
-
-    results: list[T | None] = [None] * len(factories)
-    next_index = 0
-    lock = asyncio.Lock()
-    worker_count = min(max(1, limit), len(factories))
-
-    async def _worker() -> None:
-        nonlocal next_index
-        while True:
-            async with lock:
-                if next_index >= len(factories):
-                    return
-                index = next_index
-                next_index += 1
-            results[index] = await factories[index]()
-
-    await asyncio.gather(*(_worker() for _ in range(worker_count)))
-    return [result for result in results if result is not None]
 
 
 def _bounded_role_names(role_names: list[str] | None) -> list[str]:
@@ -343,36 +312,16 @@ async def list_agents(
 
         role_manager = get_role_manager()
 
-        # 并行查询所有角色信息，避免 N+1 问题
-        async def _fetch_role(role_name: str):
-            role = await role_manager.get_role_by_name(role_name)
-            if role:
-                role_agents = await storage.get_role_agents(role.id)
-                return role.id, role_agents, role_name
-            return None
-
-        role_factories: list[Callable[[], Awaitable[tuple[str, list[str], str] | None]]] = []
-        for role_name in user_roles:
-
-            async def _fetch_current_role(
-                role_name: str = role_name,
-            ) -> tuple[str, list[str], str] | None:
-                return await _fetch_role(role_name)
-
-            role_factories.append(_fetch_current_role)
-
-        role_results = await _gather_limited(role_factories)
-        for result in role_results:
-            if result is not None:
-                rid, role_agents, role_name = result
-                role_ids.append(rid)
-                role_agent_map[rid] = role_agents
-                logger.info(
-                    "[Agents API] role_name=%s, role_id=%s, role_agent_count=%s",
-                    role_name,
-                    rid,
-                    len(role_agents or []),
-                )
+        roles = await role_manager.get_roles_by_names(user_roles)
+        role_ids = [role.id for role in roles]
+        role_agent_map = await storage.get_role_agents_by_ids(role_ids)
+        for role in roles:
+            logger.info(
+                "[Agents API] role_name=%s, role_id=%s, role_agent_count=%s",
+                role.name,
+                role.id,
+                len(role_agent_map[role.id] or []),
+            )
 
     logger.info(
         "[Agents API] final role_count=%s, role_agent_counts=%s",

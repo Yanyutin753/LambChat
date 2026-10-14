@@ -2,11 +2,120 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.infra.mcp.storage import MCPStorage
 from src.kernel.schemas.mcp import MCPServerCreate, MCPTransport
+
+
+class _VisibilityCollection:
+    def __init__(self, docs):
+        self.docs = docs
+        self.queries = []
+
+    def find(self, query, projection):
+        self.queries.append(query)
+        assert projection in ({"name": 1, "allowed_roles": 1}, {"name": 1})
+        return _ListCursor(
+            [
+                doc
+                for doc in self.docs
+                if doc["name"] in query["name"]["$in"]
+                and doc.get("transport") != "sandbox"
+                and ("user_id" not in query or doc.get("user_id") == query["user_id"])
+            ]
+        )
+
+
+@pytest.mark.parametrize("count", [1, 100])
+@pytest.mark.parametrize("admin", [False, True])
+async def test_batch_mcp_visibility_queries_only_bound_names(monkeypatch, count, admin):
+    names = [f"server-{index}" for index in range(count)]
+    system = _VisibilityCollection(
+        [{"name": name, "allowed_roles": ["researcher"]} for name in names]
+    )
+    user = _VisibilityCollection(
+        [{"name": name, "user_id": "owner"} for name in [*names, "own"]]
+        + [{"name": "foreign", "user_id": "other"}]
+    )
+    storage = MCPStorage()
+    monkeypatch.setattr(storage, "_get_system_collection", lambda: system)
+    monkeypatch.setattr(storage, "_get_user_collection", lambda: user)
+
+    visible = await storage.get_visible_server_names(
+        [*names, "own", "foreign"], user_id="owner", user_roles=["user"], is_admin=admin
+    )
+
+    assert visible == ({*names, "own"} if admin else {"own"})
+    assert system.queries == [
+        {
+            "name": {"$in": [*names, "own", "foreign"]},
+            "transport": {"$ne": "sandbox"},
+        }
+    ]
+    assert user.queries == [
+        {
+            "name": {"$in": ["own", "foreign"]},
+            "user_id": "owner",
+            "transport": {"$ne": "sandbox"},
+        }
+    ]
+
+
+async def test_batch_mcp_visibility_hides_legacy_sandbox_and_allows_role(monkeypatch):
+    system = _VisibilityCollection(
+        [
+            {"name": "legacy", "transport": "sandbox"},
+            {"name": "research", "allowed_roles": ["researcher"]},
+            {"name": "public", "allowed_roles": []},
+        ]
+    )
+    user = _VisibilityCollection(
+        [
+            {"name": "legacy", "user_id": "owner"},
+            {"name": "hidden", "user_id": "owner", "transport": "sandbox"},
+        ]
+    )
+    storage = MCPStorage()
+    monkeypatch.setattr(storage, "_get_system_collection", lambda: system)
+    monkeypatch.setattr(storage, "_get_user_collection", lambda: user)
+
+    visible = await storage.get_visible_server_names(
+        ["legacy", "hidden", "research", "public"],
+        user_id="owner",
+        user_roles=["researcher"],
+        is_admin=False,
+    )
+    assert visible == {"legacy", "research", "public"}
+
+
+@pytest.mark.parametrize("system_present", [False, True])
+async def test_batch_mcp_visibility_preserves_owned_servers_on_role_lookup_failure(
+    monkeypatch, system_present
+):
+    from src.infra.mcp import quota
+
+    system = _VisibilityCollection(
+        [{"name": "system", "allowed_roles": []}] if system_present else []
+    )
+    user = _VisibilityCollection([{"name": "owned", "user_id": "owner"}])
+    storage = MCPStorage()
+    monkeypatch.setattr(storage, "_get_system_collection", lambda: system)
+    monkeypatch.setattr(storage, "_get_user_collection", lambda: user)
+    resolve = AsyncMock(side_effect=RuntimeError("role query failed"))
+    monkeypatch.setattr(quota, "resolve_user_mcp_access", resolve)
+
+    visible = await storage.get_visible_server_names(
+        ["system", "owned"] if system_present else ["owned"], user_id="owner"
+    )
+
+    assert visible == {"owned"}
+    if system_present:
+        resolve.assert_awaited_once_with("owner")
+    else:
+        resolve.assert_not_awaited()
 
 
 class _EmptyCursor:
@@ -79,7 +188,7 @@ class _ListCollection:
         self.updated_queries: list[dict[str, Any]] = []
         self.inserted_docs: list[dict[str, Any]] = []
 
-    def find(self, query: dict[str, Any]):
+    def find(self, query: dict[str, Any], projection: dict[str, int] | None = None):
         self.find_queries.append(query)
         return self.cursor
 

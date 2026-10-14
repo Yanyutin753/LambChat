@@ -121,6 +121,8 @@ YubbChat/
 !/scripts/backfill_memory_scope.py
 !/scripts/eval_systemone_gate.py
 !/scripts/e2e_local_sandbox.py
+!/scripts/e2e_workspace_preview.py
+!/scripts/WORKSPACE_PREVIEW_E2E.md
 !/scripts/run_validation.py
 !/scripts/run-validation.mjs
 !/scripts/verify_sandbox_pause_heal.py

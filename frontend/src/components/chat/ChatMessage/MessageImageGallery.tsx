@@ -68,8 +68,6 @@ export function MessageImageGallery({
 
   if (images.length === 0) return null;
 
-  const firstImage = images[0];
-
   return (
     <>
       <button
@@ -79,16 +77,27 @@ export function MessageImageGallery({
         onClick={toggleExpanded}
         className="group/imgtoggle flex w-full max-sm:min-h-11 cursor-pointer items-center gap-1.5 border-b border-theme-border pb-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
       >
-        <ImageWithSkeleton
-          src={firstImage.src}
-          thumbSrc={buildChatThumbUrl(firstImage.src)}
-          alt=""
-          skipUrlResolve
-          inline
-          className="h-7 w-7 shrink-0 rounded-md border border-theme-border bg-theme-bg-card object-contain"
-          loading="lazy"
-        />
-        <span className="min-w-0 truncate text-[0.9375rem] max-sm:text-16 leading-6 text-gray-700 dark:text-gray-300">
+        <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+          {images.slice(0, 3).map((image) => (
+            <ImageWithSkeleton
+              key={image.id}
+              src={image.src}
+              thumbSrc={buildChatThumbUrl(image.src)}
+              alt=""
+              skipUrlResolve
+              inline
+              aspectRatio="1 / 1"
+              className="h-7 w-7 shrink-0 rounded-md border border-theme-border bg-theme-bg-card object-cover"
+              loading="lazy"
+            />
+          ))}
+          {images.length > 3 && (
+            <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-theme-bg-subtle px-1 text-11 font-medium tabular-nums text-theme-text-secondary">
+              +{images.length - 3}
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 truncate text-[0.9375rem] max-sm:text-16 leading-6 text-theme-text-secondary">
           {t("chat.message.imageGalleryCount", { count: images.length })}
         </span>
         <ChevronRight

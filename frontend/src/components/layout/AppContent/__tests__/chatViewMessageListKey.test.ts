@@ -39,8 +39,10 @@ test("lets Virtuoso follow output smoothly only outside history restore", () => 
   expect(chatViewSource).not.toMatch(/followOutput=\{"smooth"\}/);
 });
 
-test("does not combine mount positioning with one-shot history positioning", () => {
-  expect(chatViewSource).not.toMatch(/initialTopMostItemIndex=/);
+test("starts ordinary history at the bottom while preserving explicit navigation", () => {
+  expect(chatViewSource).toMatch(
+    /initialTopMostItemIndex=\{[\s\S]*?externalNavigationToken\s*\? undefined\s*: \{ index: "LAST", align: "end" \}/,
+  );
   expect(chatViewSource).not.toMatch(/getInitialBottomItemLocation/);
 });
 

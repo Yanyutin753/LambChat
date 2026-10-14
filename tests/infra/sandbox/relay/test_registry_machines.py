@@ -31,6 +31,29 @@ class _FakeRedis:
         self.sets: "dict[str, set[str]]" = {}
         self.hashes: dict[str, dict[str, str]] = {}
         self.expires_at: dict[str, float] = {}
+        self.pipeline_calls = []
+
+    def pipeline(self, transaction=True):
+        assert transaction is False
+        client = self
+
+        class Pipeline:
+            def __init__(self):
+                self.commands = []
+
+            def get(self, key):
+                self.commands.append(("get", key))
+                return self
+
+            def exists(self, key):
+                self.commands.append(("exists", key))
+                return self
+
+            async def execute(self):
+                client.pipeline_calls.append(list(self.commands))
+                return [await getattr(client, method)(key) for method, key in self.commands]
+
+        return Pipeline()
 
     def _alive(self, key: str) -> bool:
         exp = self.expires_at.get(key)
@@ -495,3 +518,49 @@ async def test_listing_expired_machine_cannot_remove_a_concurrent_reconnection(r
     registry.fake.get = reconnect_after_missing_read
     await registry.list_machines("u1")
     assert await registry.is_online("u1") is True
+
+
+async def test_list_machines_batches_reads_and_preserves_expired_pruning(registry):
+    for mid in ["m1", "m2", "m3"]:
+        await registry.register("u1", "client-" + mid, "node", machine_id=mid)
+    await registry.fake.delete("sandbox:machine:u1:m2")
+    machines = await registry.list_machines("u1")
+    assert [machine["machine_id"] for machine in machines] == ["m1", "m3"]
+    assert registry.fake.pipeline_calls == [
+        [("get", "sandbox:machine:u1:" + mid) for mid in ["m1", "m2", "m3"]]
+    ]
+    assert "m2" not in await registry.fake.smembers("sandbox:machset:u1")
+
+
+async def test_resolve_target_batches_exists_and_preserves_selection(registry):
+    for mid in ["m1", "m2"]:
+        await registry.register("u1", "client-" + mid, "node", machine_id=mid)
+    await registry.fake.delete("sandbox:machdefault:u1")
+    assert await registry.resolve_target("u1") is None
+    assert len(registry.fake.pipeline_calls) == 1
+    assert set(registry.fake.pipeline_calls[0]) == {
+        ("exists", "sandbox:machine:u1:m1"),
+        ("exists", "sandbox:machine:u1:m2"),
+    }
+    await registry.fake.delete("sandbox:machine:u1:m2")
+    assert await registry.resolve_target("u1") == "m1"
+
+
+async def test_list_machines_preserves_read_error(registry):
+    await registry.register("u1", "client", "node", machine_id="m1")
+    original_get = registry.fake.get
+
+    async def failed_machine_read(key):
+        if key == "sandbox:machine:u1:m1":
+            raise RuntimeError("WRONGTYPE")
+        return await original_get(key)
+
+    registry.fake.get = failed_machine_read
+    with pytest.raises(RuntimeError, match="WRONGTYPE"):
+        await registry.list_machines("u1")
+
+
+async def test_resolve_target_keeps_exists_semantics_for_non_string_key(registry):
+    await registry.fake.sadd("sandbox:machset:u1", "m1")
+    await registry.fake.hset("sandbox:machine:u1:m1", "field", "value")
+    assert await registry.resolve_target("u1") == "m1"

@@ -335,7 +335,11 @@ export function ImageViewer({
       </ViewerTopBar>
 
       {/* Main area */}
-      <div ref={containerRef} className="flex-1 overflow-hidden relative">
+      <div
+        ref={containerRef}
+        aria-busy={isImageLoading}
+        className="flex-1 overflow-hidden relative"
+      >
         <div
           className="viewer-stage absolute inset-0 flex items-center justify-center"
           style={{
@@ -374,9 +378,10 @@ export function ImageViewer({
         </div>
 
         {isImageLoading && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-            <div className="skeleton-line w-[70vw] h-[55vh] max-w-[60rem] max-h-[45rem] rounded-lg" />
-          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 skeleton-line"
+          />
         )}
 
         {hasImageError && (

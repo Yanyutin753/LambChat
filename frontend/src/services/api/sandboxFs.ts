@@ -6,7 +6,7 @@
  */
 
 import { API_BASE } from "./config";
-import { authFetch } from "./fetch";
+import { authFetch, authFetchResponse } from "./fetch";
 import { waitForSessionWorkspace } from "./sessionWorkspace";
 
 /** fs/list 条目：path 为工作区内相对路径（posix 风格）。 */
@@ -23,13 +23,22 @@ export interface SandboxFsListResult {
 
 /** fs/read 结果：utf-8 行分页或 base64 二进制（与模型侧 read_file 同源契约）。 */
 export interface SandboxFsReadResult {
-  encoding?: "utf-8" | "base64";
+  encoding?: "utf-8" | "base64" | "binary";
+  blob?: Blob;
   content?: string;
   total_lines?: number | null;
   start_line?: number;
   end_line?: number;
   next_offset?: number | null;
   error?: string;
+}
+
+async function readPreview(url: string, signal?: AbortSignal): Promise<SandboxFsReadResult> {
+  const response = await authFetchResponse(`${url}&stream=true`, { signal });
+  if (response.headers.get("Content-Type")?.startsWith("application/octet-stream")) {
+    return { encoding: "binary", blob: await response.blob() };
+  }
+  return response.json();
 }
 
 export const sandboxFsApi = {
@@ -54,6 +63,7 @@ export const sandboxFsApi = {
     path: string,
     offset: number = 0,
     limit: number = 500,
+    signal?: AbortSignal,
   ): Promise<SandboxFsReadResult> {
     await waitForSessionWorkspace(sessionId);
     const query = new URLSearchParams({
@@ -62,8 +72,8 @@ export const sandboxFsApi = {
       offset: String(offset),
       limit: String(limit),
     });
-    return authFetch<SandboxFsReadResult>(
-      `${API_BASE}/api/sandbox/fs/read?${query.toString()}`,
+    return readPreview(
+      `${API_BASE}/api/sandbox/fs/read?${query.toString()}`, signal,
     );
   },
 };
@@ -87,6 +97,7 @@ export interface WorkspaceFsSource {
     path: string,
     offset?: number,
     limit?: number,
+    signal?: AbortSignal,
   ) => Promise<SandboxFsReadResult>;
 }
 
@@ -102,7 +113,7 @@ export const sandboxCloudFsApi: WorkspaceFsSource = {
     );
   },
 
-  async read(sessionId, path, offset = 0, limit = 500) {
+  async read(sessionId, path, offset = 0, limit = 500, signal) {
     await waitForSessionWorkspace(sessionId);
     const query = new URLSearchParams({
       session_id: sessionId,
@@ -110,8 +121,8 @@ export const sandboxCloudFsApi: WorkspaceFsSource = {
       offset: String(offset),
       limit: String(limit),
     });
-    return authFetch<SandboxFsReadResult>(
-      `${API_BASE}/api/sandbox/fs/cloud/read?${query.toString()}`,
+    return readPreview(
+      `${API_BASE}/api/sandbox/fs/cloud/read?${query.toString()}`, signal,
     );
   },
 };

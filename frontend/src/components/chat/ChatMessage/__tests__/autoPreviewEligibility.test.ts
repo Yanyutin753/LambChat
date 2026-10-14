@@ -308,7 +308,7 @@ test("returns image file reveal preview requests for latest-file auto preview", 
   });
 });
 
-test("can return the latest historical reveal preview request after history has loaded", () => {
+test("does not return historical artifacts after history has loaded", () => {
   const messages = [
     {
       id: "historical-message",
@@ -343,19 +343,4 @@ test("can return the latest historical reveal preview request after history has 
       observedStreamingMessageIds: new Set(),
     }),
   ).toBe(null);
-
-  expect(
-    getLatestObservedCompletionRevealPreviewRequest({
-      messages,
-      observedStreamingMessageIds: new Set(),
-      allowHistoricalLatest: true,
-    }),
-  ).toEqual({
-    kind: "file",
-    previewKey: "revealed/application.md",
-    filePath: "/home/user/application.md",
-    s3Key: "revealed/application.md",
-    signedUrl: "/api/upload/file/revealed/application.md",
-    fileSize: 2134,
-  });
 });

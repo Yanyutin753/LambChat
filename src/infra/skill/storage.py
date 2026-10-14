@@ -20,6 +20,7 @@ from src.infra.skill.storage_helpers import (
     SKILL_MD_SCAN_LIMIT,
     SKILL_METADATA_LIST_LIMIT,
     batch_get_skill_files_from_collection,
+    batch_list_skill_file_paths_from_collection,
     normalize_skill_file_path,
     normalize_skill_files,
     normalize_skill_name_list,
@@ -327,6 +328,13 @@ class SkillStorage:
             paths.append(normalize_skill_file_path(doc["file_path"]))
         return paths
 
+    async def batch_list_skill_file_paths(
+        self, skill_names: list[str], user_id: str
+    ) -> dict[str, list[str]]:
+        return await batch_list_skill_file_paths_from_collection(
+            self._get_files_collection(), skill_names, user_id
+        )
+
     async def get_skill_file_stats(self, skill_name: str, user_id: str) -> dict[str, Any]:
         """获取单个 Skill 的文件统计信息（created_at/updated_at 来自文件聚合，排除 __meta__）"""
         collection = self._get_files_collection()
@@ -365,6 +373,7 @@ class SkillStorage:
         favorite_skill_names: Optional[list[str]] = None,
         q: str | None = None,
         tags: Optional[list[str]] = None,
+        matching_skill_names: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """列出用户所有 Skill（带文件信息）
 
@@ -391,7 +400,8 @@ class SkillStorage:
         collection = self._get_files_collection()
         paged_skill_names: list[str] | None = None
         if q or tags:
-            matching_skill_names = await self.list_matching_skill_names(user_id, q=q, tags=tags)
+            if matching_skill_names is None:
+                matching_skill_names = await self.list_matching_skill_names(user_id, q=q, tags=tags)
             paged_skill_names = (
                 matching_skill_names
                 if has_preferences
@@ -658,11 +668,21 @@ class SkillStorage:
         q: str | None = None,
         tags: Optional[list[str]] = None,
     ) -> tuple[list[str], list[str]]:
+        names, available_tags, _ = await self.get_skill_list_snapshot(user_id, q=q, tags=tags)
+        return names, available_tags
+
+    async def get_skill_list_snapshot(
+        self,
+        user_id: str,
+        q: str | None = None,
+        tags: Optional[list[str]] = None,
+    ) -> tuple[list[str], list[str], dict[str, tuple[str, list[str]]]]:
         collection = self._get_files_collection()
         q_lower = q.lower() if q else None
         selected_tags = set(tags or [])
         matching_names: list[str] = []
         available_tags: set[str] = set()
+        metadata: dict[str, tuple[str, list[str]]] = {}
 
         cursor = collection.find(
             {"user_id": user_id, "file_path": "SKILL.md"},
@@ -671,6 +691,7 @@ class SkillStorage:
         async for doc in cursor:
             skill_name = doc["skill_name"]
             _, description, parsed_tags = await _parse_skill_md_offload(doc.get("content", ""))
+            metadata[skill_name] = description, parsed_tags
             tag_set = set(parsed_tags)
             available_tags.update(tag_set)
 
@@ -684,7 +705,7 @@ class SkillStorage:
                 continue
             matching_names.append(skill_name)
 
-        return sorted(matching_names), sorted(available_tags)
+        return sorted(matching_names), sorted(available_tags), metadata
 
     async def batch_get_skill_md_contents(
         self, skill_names: list[str], user_id: str
@@ -891,13 +912,18 @@ class SkillStorage:
         user_id: str,
         exclude_skill_names: Optional[list[str]] = None,
         limit: Optional[int] = None,
+        skill_names: Optional[list[str]] = None,
     ) -> list[str]:
         """获取用户所有 skill 名称（无论 enabled/disabled，排除 __meta__）"""
-        collection = self._get_files_collection()
         match: dict[str, Any] = {"user_id": user_id, "file_path": {"$ne": "__meta__"}}
+        if skill_names is not None:
+            names = normalize_skill_name_list(skill_names)
+            if not names:
+                return []
+            match["skill_name"] = {"$in": names}
         excluded = normalize_skill_name_list(exclude_skill_names or [])
         if excluded:
-            match["skill_name"] = {"$nin": excluded}
+            match.setdefault("skill_name", {})["$nin"] = excluded
         pipeline: list[dict[str, Any]] = [
             {"$match": match},
             {"$group": {"_id": "$skill_name"}},
@@ -905,6 +931,7 @@ class SkillStorage:
         effective_limit = SKILL_EFFECTIVE_LOAD_LIMIT if limit is None else limit
         bounded_limit = max(0, min(int(effective_limit), SKILL_EFFECTIVE_LOAD_LIMIT))
         pipeline.extend([{"$sort": {"_id": 1}}, {"$limit": bounded_limit}])
+        collection = self._get_files_collection()
         return [doc["_id"] async for doc in await collection.aggregate(pipeline)]
 
     async def invalidate_user_cache(self, user_id: str) -> None:

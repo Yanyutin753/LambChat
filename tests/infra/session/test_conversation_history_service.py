@@ -262,6 +262,39 @@ async def test_validate_source_refs_filters_cross_user_hidden_scheduled_and_mism
     assert allowed == [ConversationSourceRef(session_id="visible", run_id="run-visible")]
 
 
+async def test_source_ref_batch_keeps_more_than_twenty_authorized_pairs(fake_history_service):
+    service = fake_history_service
+    refs = [ConversationSourceRef(session_id="visible", run_id=f"run-{i}") for i in range(130)]
+    service.trace_collection.docs.extend(
+        {"session_id": ref.session_id, "run_id": ref.run_id, "status": "completed"} for ref in refs
+    )
+    queries = []
+    original_find = service.collection.find
+
+    def find(query, projection=None):
+        queries.append(query)
+        return original_find(query, projection)
+
+    service.collection.find = find
+    allowed = await service.validate_source_refs("user-1", refs, limit=len(refs))
+    assert allowed == refs
+    assert [len(query["$or"]) for query in queries] == [100, 30]
+    assert await service.validate_source_refs("user-1", refs) == refs[-20:]
+
+
+async def test_source_refs_do_not_drop_valid_runs_when_another_run_has_duplicate_traces(
+    fake_history_service,
+):
+    service = fake_history_service
+    service.trace_collection.docs = [
+        {"session_id": "visible", "run_id": "first", "status": "completed"},
+        {"session_id": "visible", "run_id": "first", "status": "completed"},
+        {"session_id": "visible", "run_id": "second", "status": "completed"},
+    ]
+    refs = [ConversationSourceRef(session_id="visible", run_id=run) for run in ["first", "second"]]
+    assert await service.validate_source_refs("user-1", refs, limit=2) == refs
+
+
 @pytest.mark.asyncio
 async def test_search_returns_stable_opaque_cursor_and_match_source(fake_history_service) -> None:
     first = await fake_history_service.search("user-1", "编译", limit=2)

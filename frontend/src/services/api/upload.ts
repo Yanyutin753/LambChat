@@ -5,6 +5,7 @@
 import type { FileCheckResult, UploadConfig, UploadResult } from "../../types";
 import { API_BASE, getFullUrl } from "./config";
 import { authFetch } from "./fetch";
+import { uploadDirect } from "./directUpload";
 import { authenticatedRequest } from "./authenticatedRequest";
 import {
   getValidAccessToken,
@@ -33,132 +34,137 @@ export interface UploadHandle {
 
 let _configPromise: Promise<UploadConfig> | null = null;
 
+function uploadViaBackend(
+  file: File,
+  folderOrOptions: string | UploadOptions = "uploads",
+): UploadHandle {
+  // Handle backward compatibility: string folder or options object
+  const options: UploadOptions =
+    typeof folderOrOptions === "string"
+      ? { folder: folderOrOptions }
+      : folderOrOptions;
+
+  const folder = options.folder || "uploads";
+  const { onProgress } = options;
+
+  let xhr = new XMLHttpRequest();
+  let aborted = false;
+
+  const promise = new Promise<UploadResult>((resolve, reject) => {
+    const uploadOnce = async (retried: boolean) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = await getValidAccessToken();
+      if (aborted) {
+        reject(new Error("Upload was aborted"));
+        return;
+      }
+
+      xhr = new XMLHttpRequest();
+
+      if (onProgress) {
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            onProgress(progress, event.loaded, event.total);
+          }
+        });
+      }
+
+      xhr.addEventListener("load", async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const raw = JSON.parse(xhr.responseText);
+            const result: UploadResult = {
+              key: raw.key,
+              url: raw.url,
+              name: raw.name,
+              type: raw.type,
+              mimeType: raw.mimeType ?? raw.mime_type ?? "",
+              size: raw.size,
+            };
+            resolve(result);
+          } catch {
+            reject(new Error("Failed to parse upload response"));
+          }
+          return;
+        }
+
+        if (xhr.status === 401 && !retried && getRefreshToken()) {
+          try {
+            await refreshAccessToken();
+            await uploadOnce(true);
+            return;
+          } catch (error) {
+            if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
+            reject(error);
+            return;
+          }
+        }
+
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          const { code, message, args } = parseErrorDetail(errorData);
+          const error = new Error(
+            translateApiError(
+              code,
+              message || `Upload failed: ${xhr.statusText}`,
+              args,
+              i18n.t.bind(i18n),
+            ),
+          ) as Error & { status?: number; code?: string };
+          error.status = xhr.status;
+          error.code = code;
+          reject(error);
+        } catch {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        reject(new Error("Network error during upload"));
+      });
+
+      xhr.addEventListener("abort", () => {
+        aborted = true;
+        reject(new Error("Upload was aborted"));
+      });
+
+      const path = `/api/upload/file?folder=${encodeURIComponent(
+        folder,
+      )}`;
+      xhr.open("POST", getFullUrl(path) || path);
+      xhr.withCredentials = true;
+
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+
+      xhr.send(formData);
+    };
+
+    void uploadOnce(false).catch(reject);
+  });
+
+  return {
+    promise,
+    abort: () => {
+      aborted = true;
+      xhr.abort();
+    },
+  };
+}
+
 export const uploadApi = {
-  /**
-   * 上传文件
-   * @param file - The file to upload
-   * @param folderOrOptions - Either a folder string (for backward compatibility) or UploadOptions object
-   */
   uploadFile(
     file: File,
     folderOrOptions: string | UploadOptions = "uploads",
   ): UploadHandle {
-    // Handle backward compatibility: string folder or options object
-    const options: UploadOptions =
-      typeof folderOrOptions === "string"
-        ? { folder: folderOrOptions }
-        : folderOrOptions;
-
-    const folder = options.folder || "uploads";
-    const { onProgress } = options;
-
-    let xhr = new XMLHttpRequest();
-    let aborted = false;
-
-    const promise = new Promise<UploadResult>((resolve, reject) => {
-      const uploadOnce = async (retried: boolean) => {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const token = await getValidAccessToken();
-        if (aborted) {
-          reject(new Error("Upload was aborted"));
-          return;
-        }
-
-        xhr = new XMLHttpRequest();
-
-        if (onProgress) {
-          xhr.upload.addEventListener("progress", (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              onProgress(progress, event.loaded, event.total);
-            }
-          });
-        }
-
-        xhr.addEventListener("load", async () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const raw = JSON.parse(xhr.responseText);
-              const result: UploadResult = {
-                key: raw.key,
-                url: raw.url,
-                name: raw.name,
-                type: raw.type,
-                mimeType: raw.mimeType ?? raw.mime_type ?? "",
-                size: raw.size,
-              };
-              resolve(result);
-            } catch {
-              reject(new Error("Failed to parse upload response"));
-            }
-            return;
-          }
-
-          if (xhr.status === 401 && !retried && getRefreshToken()) {
-            try {
-              await refreshAccessToken();
-              await uploadOnce(true);
-              return;
-            } catch (error) {
-              if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
-              reject(error);
-              return;
-            }
-          }
-
-          try {
-            const errorData = JSON.parse(xhr.responseText);
-            const { code, message, args } = parseErrorDetail(errorData);
-            const error = new Error(
-              translateApiError(
-                code,
-                message || `Upload failed: ${xhr.statusText}`,
-                args,
-                i18n.t.bind(i18n),
-              ),
-            ) as Error & { status?: number; code?: string };
-            error.status = xhr.status;
-            error.code = code;
-            reject(error);
-          } catch {
-            reject(new Error(`Upload failed: ${xhr.statusText}`));
-          }
-        });
-
-        xhr.addEventListener("error", () => {
-          reject(new Error("Network error during upload"));
-        });
-
-        xhr.addEventListener("abort", () => {
-          aborted = true;
-          reject(new Error("Upload was aborted"));
-        });
-
-        const url = `${API_BASE}/api/upload/file?folder=${encodeURIComponent(
-          folder,
-        )}`;
-        xhr.open("POST", url);
-        xhr.withCredentials = true;
-
-        if (token) {
-          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        }
-
-        xhr.send(formData);
-      };
-
-      void uploadOnce(false).catch(reject);
-    });
-
-    return {
-      promise,
-      abort: () => {
-        aborted = true;
-        xhr.abort();
-      },
-    };
+    const options = typeof folderOrOptions === "string"
+      ? { folder: folderOrOptions }
+      : folderOrOptions;
+    return uploadDirect(file, options, () => uploadViaBackend(file, options));
   },
 
   /**

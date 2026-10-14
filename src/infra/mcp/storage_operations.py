@@ -387,6 +387,53 @@ class StorageOperations:
 
         return servers
 
+    async def get_visible_server_names(  # type: ignore[misc]
+        self: "MCPStorage",
+        names: list[str],
+        *,
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+    ) -> set[str]:
+        """Resolve bound names without loading credentials; system names take precedence."""
+        names = list(dict.fromkeys(names))
+        if not names:
+            return set()
+        system = {
+            doc["name"]: doc
+            async for doc in self._get_system_collection().find(
+                _supported_server_query({"name": {"$in": names}}),
+                {"name": 1, "allowed_roles": 1},
+            )
+        }
+        roles_resolved = True
+        if system and user_roles is None and not is_admin:
+            from src.infra.mcp.quota import resolve_user_mcp_access
+
+            try:
+                user_roles, _quota_admin = await resolve_user_mcp_access(user_id)
+            except Exception:
+                roles_resolved = False
+        visible = {
+            name
+            for name, doc in system.items()
+            if roles_resolved
+            and _can_access_system_server(
+                doc.get("allowed_roles", []), user_roles, is_admin=is_admin
+            )
+        }
+        remaining = [name for name in names if name not in system]
+        if remaining:
+            user_visible = {
+                doc["name"]
+                async for doc in self._get_user_collection().find(
+                    _supported_server_query({"name": {"$in": remaining}, "user_id": user_id}),
+                    {"name": 1},
+                )
+            }
+            visible.update(user_visible)
+        return visible
+
     async def can_access_server(  # type: ignore[misc]
         self: "MCPStorage",
         name: str,
@@ -527,8 +574,23 @@ class StorageOperations:
         imported = 0
         skipped = 0
         errors = []
+        servers = import_data.get_servers()
+        existing_docs: dict[str, dict] | None = {}
+        if servers:
+            query: dict[str, Any] = {"name": {"$in": list(servers)}}
+            collection = self._get_system_collection() if is_admin else self._get_user_collection()
+            if not is_admin:
+                query["user_id"] = user_id
+            try:
+                existing_docs = {
+                    doc["name"]: doc
+                    async for doc in collection.find(query, {"name": 1, "transport": 1})
+                }
+            except Exception:
+                # Preserve per-item failures and partial success when the batch read fails.
+                existing_docs = None
 
-        for name, config in import_data.get_servers().items():
+        for name, config in servers.items():
             try:
                 # Auto-detect transport if not specified (studio format compatibility)
                 transport_str = config.get("transport")
@@ -555,13 +617,19 @@ class StorageOperations:
                 )
 
                 # Check if exists
-                existing: Optional[SystemMCPServer] | Optional[UserMCPServer] = None
-                if is_admin:
-                    existing = await self.get_system_server(name)
-                    name_reserved = await self.system_server_name_exists(name)
+                existing: dict[str, Any] | SystemMCPServer | UserMCPServer | None = None
+                if existing_docs is not None:
+                    existing = existing_docs.get(name)
+                    name_reserved = existing is not None
+                    if _is_legacy_sandbox_server(existing):
+                        existing = None
                 else:
-                    existing = await self.get_user_server(name, user_id)
-                    name_reserved = await self.user_server_name_exists(name, user_id)
+                    if is_admin:
+                        existing = await self.get_system_server(name)
+                        name_reserved = await self.system_server_name_exists(name)
+                    else:
+                        existing = await self.get_user_server(name, user_id)
+                        name_reserved = await self.user_server_name_exists(name, user_id)
 
                 if name_reserved and existing is None:
                     skipped += 1
@@ -572,9 +640,10 @@ class StorageOperations:
                     continue
 
                 # Create or update
+                updated: SystemMCPServer | UserMCPServer | None
                 if is_admin:
                     if existing:
-                        await self.update_system_server(
+                        updated = await self.update_system_server(
                             name,
                             MCPServerUpdate(
                                 transport=transport,
@@ -586,11 +655,13 @@ class StorageOperations:
                             ),
                             user_id,
                         )
+                        if updated is None:
+                            raise ValueError("Server is no longer available")
                     else:
                         await self.create_system_server(server, user_id)
                 else:
                     if existing:
-                        await self.update_user_server(
+                        updated = await self.update_user_server(
                             name,
                             MCPServerUpdate(
                                 transport=transport,
@@ -600,6 +671,8 @@ class StorageOperations:
                             ),
                             user_id,
                         )
+                        if updated is None:
+                            raise ValueError("Server is no longer available")
                     else:
                         await self.create_user_server(server, user_id)
 

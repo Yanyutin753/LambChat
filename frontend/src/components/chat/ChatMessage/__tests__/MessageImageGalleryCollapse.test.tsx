@@ -56,6 +56,17 @@ function toggleRow() {
 }
 
 describe("MessageImageGallery collapse", () => {
+  test.each([1, 3, 6])("collapsed header previews up to three of %s images", (count) => {
+    const images = Array.from({ length: count }, (_, index) => ({
+      ...IMAGES[0], id: `preview-${index}`, src: `https://example.test/${index}.png`,
+    }));
+    render(<MessageImageGallery images={images} defaultExpanded={false} />);
+    expect(toggleRow().querySelectorAll("img")).toHaveLength(Math.min(count, 3));
+    expect(toggleRow().textContent).toContain(`${count} images`);
+    if (count > 3) expect(toggleRow().textContent).toContain(`+${count - 3}`);
+    else expect(toggleRow().textContent).not.toContain("+");
+  });
+
   test("history message mounts collapsed and expands on toggle", () => {
     clearUiExpansions();
     render(

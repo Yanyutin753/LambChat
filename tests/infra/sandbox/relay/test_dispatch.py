@@ -320,6 +320,33 @@ async def test_stream_roundtrip_yields_decoded_chunks(fake, monkeypatch):
     assert not fake.kv  # resp/stream 键消费完即清
 
 
+@pytest.mark.parametrize(
+    "declared,limit,detail", [(5, 10, "size mismatch"), (5, 4, "file_too_large")]
+)
+async def test_stream_checks_metadata_size_and_limit(fake, monkeypatch, declared, limit, detail):
+    from src.infra.sandbox.relay._frames import FRAME_DATA, FRAME_EOF, FRAME_META, encode_frame
+
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        key = f"sandbox:stream:u1:{req['call_id']}"
+        await fake.rpush(key, encode_frame(FRAME_META, json.dumps({"size": declared}).encode()))
+        await fake.rpush(key, encode_frame(FRAME_DATA, b"abc"))
+        await fake.rpush(key, encode_frame(FRAME_EOF))
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as caught:
+        await _collect_stream(
+            dispatch_module.dispatch_local_stream(
+                "u1", "fs_download_stream", {"cwd": "/w", "path": "f", "max_bytes": limit}
+            )
+        )
+    await task
+    assert detail in str(caught.value.args_data.get("detail"))
+
+
 async def test_stream_error_line_raises_with_detail(fake, monkeypatch):
     monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.01)
     monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 2)

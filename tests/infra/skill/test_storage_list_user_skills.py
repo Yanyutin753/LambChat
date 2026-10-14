@@ -684,3 +684,137 @@ async def test_sync_skill_files_only_scans_removed_binary_refs_before_delete(
     ]
     assert len(collection.bulk_operations) == 2
     assert deleted_s3 == ["skills/user-1/planner/old.png"]
+
+
+@pytest.mark.asyncio
+async def test_skill_snapshot_parses_each_md_once_and_retains_all_tags(monkeypatch):
+    storage = SkillStorage()
+    collection = _FakeSkillMdCollection(
+        [
+            {"skill_name": "planner", "content": "plan"},
+            {"skill_name": "writer", "content": "write"},
+        ]
+    )
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+    calls = []
+
+    async def parse(content):
+        calls.append(content)
+        return None, content, ["planning"] if content == "plan" else ["writing"]
+
+    monkeypatch.setattr(skill_storage, "_parse_skill_md_offload", parse)
+    names, tags, metadata = await storage.get_skill_list_snapshot("user-1", q="plan")
+    assert names == ["planner"]
+    assert tags == ["planning", "writing"]
+    assert metadata == {"planner": ("plan", ["planning"]), "writer": ("write", ["writing"])}
+    assert calls == ["plan", "write"]
+    assert collection.cursor.limit_value == skill_storage.SKILL_MD_SCAN_LIMIT
+
+
+@pytest.mark.asyncio
+async def test_batch_skill_paths_query_is_owner_scoped_per_skill_bounded_and_metadata_only(
+    monkeypatch,
+):
+    class Collection:
+        name = "skill_files"
+        calls = []
+
+        async def aggregate(self, pipeline):
+            self.calls.append(pipeline)
+            return _AsyncCursor(
+                [
+                    {
+                        "_id": "planner",
+                        "paths": [{"file_path": "skill.md"}, {"file_path": "image.png"}],
+                    },
+                ]
+            )
+
+    collection = Collection()
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+    paths = await storage.batch_list_skill_file_paths(["planner", "writer", "planner"], "user-1")
+    assert paths == {"planner": ["SKILL.md", "image.png"], "writer": []}
+    assert len(collection.calls) == 1
+    pipeline = collection.calls[0]
+    assert pipeline[:4] == [
+        {"$match": {"user_id": "user-1"}},
+        {"$limit": 1},
+        {"$project": {"_id": {"$literal": ["planner", "writer"]}}},
+        {"$unwind": "$_id"},
+    ]
+    lookup = pipeline[4]["$lookup"]["pipeline"]
+    assert lookup[0]["$match"]["user_id"] == "user-1"
+    assert lookup[0]["$match"]["file_path"] == {"$ne": "__meta__"}
+    assert lookup[1] == {"$project": {"_id": 0, "file_path": 1}}
+    assert lookup[2] == {"$limit": skill_storage.SKILL_FILES_PER_SKILL_LIMIT}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scenario", ["mixed", "empty", "foreign_only"])
+async def test_batch_paths_seeds_only_requested_names_and_bounds_dirty_skill_per_owner(
+    monkeypatch, scenario
+):
+    class Collection:
+        name = "skill_files"
+        seed_docs_read = 0
+
+        def __init__(self):
+            self.docs = (
+                []
+                if scenario == "empty"
+                else [
+                    {"user_id": "other-user", "skill_name": "secret", "file_path": "secret.txt"},
+                    *[
+                        {"user_id": "user-1", "skill_name": "hot", "file_path": f"file-{i}.txt"}
+                        for i in range(1005)
+                    ],
+                    *[
+                        {"user_id": "user-1", "skill_name": "cool", "file_path": f"cool-{i}.txt"}
+                        for i in range(3)
+                    ],
+                    {"user_id": "other-user", "skill_name": "hot", "file_path": "private.txt"},
+                    {"user_id": "user-1", "skill_name": "cool", "file_path": "__meta__"},
+                ]
+            )
+            if scenario == "foreign_only":
+                self.docs = [doc for doc in self.docs if doc["user_id"] == "other-user"]
+
+        async def aggregate(self, pipeline):
+            assert pipeline[0] == {"$match": {"user_id": "user-1"}}
+            assert pipeline[1] == {"$limit": 1}
+            owned_docs = [doc for doc in self.docs if doc["user_id"] == "user-1"]
+            self.seed_docs_read = min(1, len(owned_docs))
+            if not owned_docs:
+                return _AsyncCursor([])
+            names = pipeline[2]["$project"]["_id"]["$literal"]
+            lookup = pipeline[4]["$lookup"]["pipeline"]
+            owner = lookup[0]["$match"]["user_id"]
+            assert lookup[0]["$match"]["$expr"] == {"$eq": ["$skill_name", "$$skill"]}
+            cap = lookup[2]["$limit"]
+            return _AsyncCursor(
+                [
+                    {
+                        "_id": name,
+                        "paths": [
+                            {"file_path": doc["file_path"]}
+                            for doc in self.docs
+                            if doc["user_id"] == owner
+                            and doc["skill_name"] == name
+                            and doc["file_path"] != "__meta__"
+                        ][:cap],
+                    }
+                    for name in names
+                ]
+            )
+
+    collection = Collection()
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+    paths = await storage.batch_list_skill_file_paths(["hot", "cool"], "user-1")
+    empty = scenario != "mixed"
+    assert collection.seed_docs_read == (0 if empty else 1)
+    assert set(paths) == {"hot", "cool"}
+    assert len(paths["hot"]) == (0 if empty else 100)
+    assert paths["cool"] == ([] if empty else ["cool-0.txt", "cool-1.txt", "cool-2.txt"])
+    assert "private.txt" not in paths["hot"]
