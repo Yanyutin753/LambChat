@@ -783,3 +783,66 @@ async def test_parallel_waits_for_same_child_surface_one_approval():
     second = await main().ainvoke(Command(resume="yes"), config)
     assert second["messages"][-1].content == "parent done"
     assert child.i == 2
+
+
+async def test_real_child_checkpoint_retains_terminal_timeout_and_parallel_tool_result(monkeypatch):
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    monkeypatch.setattr("src.infra.agent.subagent_sessions.SUBAGENT_EXECUTION_TIMEOUT_SECONDS", 0.2)
+    saver = InMemorySaver()
+    entered = asyncio.Event()
+    calls = []
+
+    @tool
+    async def read_probe() -> str:
+        """Return a completed observation."""
+        calls.append("read")
+        return "checkpoint batch observation"
+
+    @tool
+    async def hold_probe() -> str:
+        """Hold the other member of the tool batch."""
+        calls.append("hold")
+        entered.set()
+        await asyncio.Event().wait()
+        return "unreachable"
+
+    child = _ScriptedChatModel(
+        script=[
+            AIMessage(
+                content="Checking",
+                tool_calls=[
+                    {"id": "read", "name": "read_probe", "args": {}, "type": "tool_call"},
+                    {"id": "hold", "name": "hold_probe", "args": {}, "type": "tool_call"},
+                ],
+            )
+        ]
+    )
+
+    async def build(role, inbox):
+        return create_agent(
+            child, tools=[read_probe, hold_probe], middleware=[inbox], checkpointer=saver
+        )
+
+    sessions = SubagentSessions(
+        session_id="durable", user_id="owner", build_graph=build, checkpointer=saver
+    )
+    try:
+        started = await sessions.start(
+            "reviewer", "Inspect", call_id="durable", config={}, background=True
+        )
+        key = started["subagent_id"]
+        await asyncio.wait_for(entered.wait(), 1)
+        old_parent = sessions.snapshot()
+        await sessions.jobs[key]
+        other = SubagentSessions(
+            session_id="durable", user_id="owner", build_graph=build, checkpointer=saver
+        )
+        other.restore(old_parent)
+        result = await other.wait(key, config={})
+        assert result["status"] == "timed_out"
+        assert "checkpoint batch observation" in result["result"]
+        assert sorted(calls) == ["hold", "read"]
+        assert not other.jobs
+    finally:
+        await sessions.close()

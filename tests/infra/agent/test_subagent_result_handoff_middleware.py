@@ -369,3 +369,74 @@ async def test_queued_or_timed_out_wait_preserves_status_without_writing_complet
     assert writes == []
     assert result.update["messages"][0] is message
     assert json.loads(result.update["messages"][0].content)["status"] == state
+
+
+@pytest.mark.asyncio
+async def test_timeout_partial_report_is_saved_without_claiming_completion():
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(path=path, error=None)
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    request = SimpleNamespace(tool_call={"name": "wait_subagent", "args": {}}, runtime=object())
+    message = ToolMessage(
+        json.dumps(
+            {
+                "status": "timed_out",
+                "partial_result": True,
+                "result": "Partial progress",
+                "error": "deadline",
+            }
+        ),
+        tool_call_id="call",
+        status="error",
+        additional_kwargs={
+            "lambchat_subagent_id": "child",
+            "lambchat_subagent_status": "timed_out",
+            "lambchat_subagent_partial_result": True,
+        },
+    )
+
+    async def handler(_request):
+        return Command(update={"messages": [message]})
+
+    result = await middleware.awrap_tool_call(request, handler)
+    returned = result.update["messages"][0]
+    assert writes and "Partial progress" in writes[0]
+    assert "Partial Report" in writes[0]
+    assert "## Final Report" not in writes[0]
+    reference = json.loads(returned.content)
+    assert reference["status"] == "timed_out"
+    assert reference["partial_result"] is True
+    assert reference["error"] == "deadline"
+    assert reference["report_path"]
+    assert returned.status == "error"
+
+
+@pytest.mark.asyncio
+async def test_already_collected_partial_result_does_not_write_an_empty_report():
+    class Backend:
+        async def awrite(self, *_args):
+            raise AssertionError("collected result must stay inline")
+
+    message = ToolMessage(
+        '{"status":"timed_out","unchanged":true}',
+        tool_call_id="call",
+        additional_kwargs={
+            "lambchat_subagent_status": "timed_out",
+            "lambchat_subagent_partial_result": True,
+            "lambchat_subagent_unchanged": True,
+        },
+    )
+
+    async def handler(_request):
+        return message
+
+    middleware = SubagentResultHandoffMiddleware(backend=Backend())
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(tool_call={"name": "wait_subagent"}), handler
+    )
+    assert result is message

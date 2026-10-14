@@ -147,6 +147,11 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
             return None
 
         run_id = self._run_id_factory()
+        report_heading = (
+            "Partial Report — Task Unfinished"
+            if message.additional_kwargs.get("lambchat_subagent_partial_result")
+            else "Final Report"
+        )
         content = (
             f"# Subagent Report (run: {run_id})\n"
             f"Captured at: {time.strftime(_REPORT_TIMESTAMP_FORMAT)}\n\n"
@@ -155,7 +160,7 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
             f"Subagent type: {subagent_type}\n\n"
             "## Assignment\n"
             f"{description}\n\n"
-            "## Final Report\n"
+            f"## {report_heading}\n"
             f"{report_text}\n"
         )
         evidence = message.additional_kwargs.get("lambchat_subagent_evidence") or []
@@ -191,16 +196,19 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
         )
         if message is not None and (
             message.additional_kwargs.get("lambchat_subagent_unchanged") is True
-            or message.additional_kwargs.get("lambchat_subagent_status")
-            in {
-                "queued",
-                "running",
-                "waiting_human",
-                "error",
-                "failed",
-                "cancelled",
-                "timed_out",
-            }
+            or (
+                not message.additional_kwargs.get("lambchat_subagent_partial_result")
+                and message.additional_kwargs.get("lambchat_subagent_status")
+                in {
+                    "queued",
+                    "running",
+                    "waiting_human",
+                    "error",
+                    "failed",
+                    "cancelled",
+                    "timed_out",
+                }
+            )
         ):
             return result
 
@@ -236,7 +244,19 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
             return json.dumps(
                 {
                     "subagent_id": subagent_id,
-                    "status": "completed",
+                    "status": message.additional_kwargs.get(
+                        "lambchat_subagent_status", "completed"
+                    ),
+                    **(
+                        {
+                            "partial_result": True,
+                            "error": json.loads(await self._content_to_text(message.content)).get(
+                                "error"
+                            ),
+                        }
+                        if message.additional_kwargs.get("lambchat_subagent_partial_result")
+                        else {}
+                    ),
                     "terminal": True,
                     "wait_timed_out": False,
                     "report_path": path,

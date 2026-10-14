@@ -41,9 +41,11 @@ function SubagentControlDetail({
       : "";
   const reply =
     !isPending && !cancelled
-      ? (parsed?.error ??
-        parsed?.result ??
-        (!parsed ? extractText(result) : undefined))
+      ? parsed
+        ? [parsed.result, parsed.error]
+            .filter((value): value is string => typeof value === "string" && !!value)
+            .join("\n\n")
+        : extractText(result)
       : undefined;
   return (
     <div className="min-w-0 space-y-4 overflow-y-auto p-3 sm:p-4">
