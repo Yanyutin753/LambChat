@@ -3,7 +3,7 @@ import { clsx } from "clsx";
 import { UserRound, Tag, Sparkles, Zap, MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
-import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { AgentAvatar } from "../../../common/AgentAvatar";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { extractText } from "./toolUtils";
 import {
@@ -16,55 +16,6 @@ import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { MarkdownContent } from "../MarkdownContent";
 import { DetailSection } from "./DetailSection";
-import {
-  isPersonaImageAvatar,
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-} from "../../../persona/personaAvatar";
-import { getFullUrl } from "../../../../services/api";
-
-// ── Tiny avatar renderer for tool-result cards ──
-function ToolAvatarImg({
-  src,
-  className,
-}: {
-  src: string;
-  className?: string;
-}) {
-  return (
-    <ImageWithSkeleton src={src} alt="" inline className={className} />
-  );
-}
-
-/** Render an avatar value as <img> if it's a URL/emoji, otherwise render fallback. */
-function RenderAvatar({
-  avatar,
-  sizeClass,
-  fallback,
-}: {
-  avatar: string;
-  sizeClass?: string;
-  fallback: React.ReactNode;
-}) {
-  if (isEmojiAvatar(avatar)) {
-    return (
-      <ToolAvatarImg
-        src={getEmojiAvatarUrl(avatar)}
-        className={clsx("object-cover", sizeClass)}
-      />
-    );
-  }
-  if (isPersonaImageAvatar(avatar)) {
-    return (
-      <ToolAvatarImg
-        src={getFullUrl(avatar) ?? avatar}
-        className={clsx("object-cover", sizeClass)}
-      />
-    );
-  }
-  return <>{fallback}</>;
-}
-
 // ── PersonaDetail ─────────────────────────────────────────────────────
 
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（人设数据到达即刷新） */
@@ -103,18 +54,44 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
         <section className="space-y-3 border-b border-theme-border pb-4">
           <div className="flex items-start gap-3 min-w-0">
             <div className="size-10 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-theme-bg-subtle flex items-center justify-center">
-              <RenderAvatar avatar={avatar} sizeClass="w-full h-full object-cover" fallback={<UserRound size={16} className="text-theme-text-tertiary" />} />
+              <AgentAvatar avatar={avatar} seed={displayName} size={40} iconSize={20} />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <h3 className="text-16 font-semibold text-theme-text break-words">{displayName}</h3>
-              {description && <p className="text-14 text-theme-text-secondary leading-relaxed break-words">{description}</p>}
-              {statusVal && statusVal !== "published" && <span className="text-12 text-theme-text-tertiary">{statusVal}</span>}
+              <h3 className="text-16 font-semibold text-theme-text break-words">
+                {displayName}
+              </h3>
+              {description && (
+                <p className="text-14 text-theme-text-secondary leading-relaxed break-words">
+                  {description}
+                </p>
+              )}
+              {statusVal && statusVal !== "published" && (
+                <span className="text-12 text-theme-text-tertiary">
+                  {statusVal}
+                </span>
+              )}
             </div>
           </div>
           {(tags.length > 0 || skillNames.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-12 text-theme-text-secondary">
-              {tags.map((tag, i) => <span key={`tag-${i}`} className="inline-flex items-center gap-1.5"><Tag size={12} className="text-theme-text-tertiary" />{tag}</span>)}
-              {skillNames.map((skill, i) => <span key={`skill-${i}`} className="inline-flex items-center gap-1.5"><Zap size={12} className="text-theme-text-tertiary" />{skill}</span>)}
+              {tags.map((tag, i) => (
+                <span
+                  key={`tag-${i}`}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <Tag size={12} className="text-theme-text-tertiary" />
+                  {tag}
+                </span>
+              ))}
+              {skillNames.map((skill, i) => (
+                <span
+                  key={`skill-${i}`}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <Zap size={12} className="text-theme-text-tertiary" />
+                  {skill}
+                </span>
+              ))}
             </div>
           )}
         </section>
@@ -299,7 +276,12 @@ const PersonaItem = memo(function PersonaItem({
     <>
       <CollapsiblePill
         status={status}
-        icon={<UserRound size={12} className="shrink-0 opacity-50 text-amber-500 dark:text-amber-400" />}
+        icon={
+          <UserRound
+            size={12}
+            className="shrink-0 opacity-50 text-amber-500 dark:text-amber-400"
+          />
+        }
         label={label}
         animatedDots={isStreamingLabel}
         variant="tool"
@@ -336,16 +318,7 @@ const PersonaItem = memo(function PersonaItem({
                     "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]",
                   )}
                 >
-                  <RenderAvatar
-                    avatar={avatar}
-                    sizeClass="w-full h-full"
-                    fallback={
-                      <UserRound
-                        size={12}
-                        className="text-[var(--theme-primary)]"
-                      />
-                    }
-                  />
+                  <AgentAvatar avatar={avatar} seed={displayName} size={24} iconSize={14} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-12 text-theme-text font-medium truncate">

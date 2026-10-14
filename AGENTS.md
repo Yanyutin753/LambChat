@@ -130,6 +130,8 @@ feat/fix 分支 ──PR──▶ develop ──PR──▶ main ──▶ yang 
 
 ### 开发起点（基于最新 origin/develop）
 
+**工作区规矩：默认在当前本地分支开发，不自动创建 worktree。创建 worktree 前必须先询问用户并获得明确同意；当前工作区存在未提交改动也不能代替用户同意。保留已有改动，不覆盖、不擅自 stash 或切换分支。**
+
 **规矩：任何开发开工前，先同步远端并基于最新的 `origin/develop` 进行——新分支直接从 `origin/develop` 拉，已有分支先 rebase 到 `origin/develop` 再继续；禁止基于过期的本地 `develop` 或其他工作分支开工。**
 
 ```bash

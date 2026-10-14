@@ -2,7 +2,6 @@ import type { PersistentGoal } from "../../services/api/session";
 import { Fragment, useRef, useCallback, useState, useEffect } from "react";
 import {
   AlertCircle,
-  ArrowUpRight,
   ArrowUp,
   Cloud,
   Monitor,
@@ -15,11 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import { getFileAccept } from "./fileAccept";
-import {
-  PersonaAvatarIcon,
-  PersonaAvatarImage,
-} from "../persona/PersonaAvatarIcon";
-import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
 import { teamApi } from "../../services/api/team";
 import type { AgentOption, FileCategory } from "../../types";
 import type { Team } from "../../types/team";
@@ -74,7 +69,7 @@ export interface ChatInputToolbarProps {
   uploadCategories: FileCategory[];
   uploadFiles: (files: FileList | File[], category?: FileCategory) => void;
   selectedPersonaName?: string | null;
-  personaAvatar: { avatar?: string; primaryTag: string } | null;
+  personaAvatar: { avatar?: string; primaryTag: string; seed?: string } | null;
   onClearPersonaPreset?: () => void;
   currentAgent?: string;
   selectedTeamId?: string | null;
@@ -83,7 +78,6 @@ export interface ChatInputToolbarProps {
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   onStopClick: () => void;
-  onContinueInBackground?: () => void;
   onNoPermissionClick: () => void;
   // Run mode
   autoModeEnabled?: boolean;
@@ -131,7 +125,6 @@ export function ChatInputToolbar({
   agentOptionValues = {},
   onToggleAgentOption,
   onStopClick,
-  onContinueInBackground,
   onNoPermissionClick,
   autoModeEnabled = false,
   goalModeEnabled = false,
@@ -295,7 +288,7 @@ export function ChatInputToolbar({
                 ) : agentsError ? (
                   <AlertCircle size={16} className="text-theme-error" />
                 ) : (
-                  <AgentIcon icon={agentIcon || "Bot"} size={16} />
+                  <AgentIcon icon={agentIcon} seed={currentAgent} size={16} />
                 )
               }
               label={agentName || t(`agents.${currentAgent}.name`) || ""}
@@ -312,30 +305,7 @@ export function ChatInputToolbar({
         {selectedPersonaName && currentAgent !== "team" && (
           <ToolbarChip
             icon={
-              personaAvatar?.avatar &&
-              (personaAvatar.avatar.startsWith("http") ||
-                personaAvatar.avatar.startsWith("/") ||
-                isEmojiAvatar(personaAvatar.avatar)) ? (
-                <PersonaAvatarImage
-                  avatar={
-                    isEmojiAvatar(personaAvatar.avatar)
-                      ? getEmojiAvatarUrl(personaAvatar.avatar)
-                      : personaAvatar.avatar
-                  }
-                  alt=""
-                  className="w-4 h-4 rounded-full object-cover  transition-opacity"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <PersonaAvatarIcon
-                  avatar={personaAvatar?.avatar}
-                  primaryTag={personaAvatar?.primaryTag ?? ""}
-                  size={16}
-                  className="transition-transform duration-200 "
-                />
-              )
+              <AgentAvatar avatar={personaAvatar?.avatar} seed={personaAvatar?.seed || selectedPersonaName} size={16} />
             }
             label={selectedPersonaName}
             onClick={() => onActivePanelChange("persona")}
@@ -482,12 +452,6 @@ export function ChatInputToolbar({
           onToggleAgentOption={onToggleAgentOption}
         />
 
-        {isLoading && onContinueInBackground && <button type="button"
-          data-testid="continue-in-background" onClick={onContinueInBackground} disabled={!canSend}
-          aria-label={t("chat.backgroundContinue")} title={t("chat.backgroundContinueHint")}
-          className="flex h-9 shrink-0 items-center gap-1 rounded px-2 text-12 text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40">
-          <ArrowUpRight size={14} aria-hidden="true" /><span className="max-w-16 truncate sm:max-w-24">{t("chat.backgroundContinue")}</span>
-        </button>}
         {!canSend ? (
           <button
             type="button"

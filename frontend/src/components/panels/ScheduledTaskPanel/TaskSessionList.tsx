@@ -83,7 +83,9 @@ export function TaskSessionList({
             className="scheduled-task-button scheduled-task-button--secondary font-serif"
           >
             <ArrowLeft size={16} />
-            {t("scheduledTask.backToTasks")}
+            <span className="translate-y-[0.5px]">
+              {t("scheduledTask.backToTasks")}
+            </span>
           </button>
         }
       />
@@ -111,15 +113,16 @@ export function TaskSessionList({
                   className="glass-card scheduled-task-session-card w-full text-left"
                 >
                   {/* Left indicator: agent's real icon (emoji / lobe icon) */}
-                  <div
+                  <AgentIcon
+                    icon={agent?.icon}
+                    seed={agent?.id}
+                    size={40}
                     className={`scheduled-task-session-card__indicator ${
                       session.is_active
                         ? "scheduled-task-session-card__indicator--active"
                         : ""
                     }`}
-                  >
-                    <AgentIcon icon={agent?.icon} size={20} />
-                  </div>
+                  />
 
                   {/* Body */}
                   <div className="scheduled-task-session-card__body">

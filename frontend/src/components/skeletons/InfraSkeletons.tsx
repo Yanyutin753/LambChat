@@ -44,8 +44,8 @@ export function MCPPanelSkeleton() {
                 </div>
               </div>
               {/* Card body */}
-              <div className="flex flex-1 flex-col p-4 pt-5">
-                <div className="flex items-start gap-3">
+              <div className="scb__body flex flex-1 flex-col p-3 -mt-3 pt-4">
+                <div className="scb__header flex items-center gap-2">
                   <div className="scb__icon-ring shrink-0 skeleton-line" />
                   <div className="min-w-0 flex-1">
                     <SkeletonLine
@@ -55,7 +55,7 @@ export function MCPPanelSkeleton() {
                     {/* Transport badge */}
                     <SkeletonLine
                       width="w-10 sm:w-12"
-                      className="!h-3.5 !rounded-full mt-1"
+                      className="!h-3.5 !rounded-full mt-0.5"
                     />
                   </div>
                 </div>

@@ -2634,6 +2634,8 @@
     "empty": "페르소나가 없습니다"
   },
   "personaPresets": {
+    "generatedAvatars": "컬러 아바타",
+    "generatedAvatar": "컬러 아바타 {{number}}",
     "addStarterPrompt": "스타터 프롬프트 추가",
     "all": "전체",
     "allSkillsSelected": "모든 스킬이 선택되었습니다",

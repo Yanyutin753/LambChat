@@ -126,7 +126,7 @@ export function BookmarksPanel() {
                     handleJump(bookmark);
                   }
                 }}
-                className="glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
+                className="resource-detail-card glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 min-w-0 flex-1 text-left font-serif text-14 font-semibold leading-relaxed text-[var(--theme-text)] sm:text-16">

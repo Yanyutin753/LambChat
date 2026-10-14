@@ -212,7 +212,6 @@ export interface ChatViewProps {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStopGeneration: () => void;
-  onContinueInBackground?: () => void;
   onSupplementFollowUpMessage?: (
     content: string,
     attachments?: MessageAttachment[],

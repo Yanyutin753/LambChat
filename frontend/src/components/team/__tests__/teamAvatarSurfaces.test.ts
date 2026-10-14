@@ -30,9 +30,7 @@ test("team avatar component supports team, default-role, and generic fallback ic
   expect(teamAvatarSource).toMatch(/team-avatar/);
   expect(teamAvatarUtilsSource).toMatch(/getTeamFallbackAvatar/);
   expect(teamAvatarSource).toMatch(/avatar \?\? fallbackAvatar/);
-  expect(teamAvatarSource).toMatch(/PersonaAvatarImage/);
-  expect(teamAvatarSource).toMatch(/PersonaAvatarIcon/);
-  expect(teamAvatarSource).toMatch(/<Users/);
+  expect(teamAvatarSource).toMatch(/<AgentAvatar/);
 });
 
 test("all team selection surfaces render team avatars consistently", () => {

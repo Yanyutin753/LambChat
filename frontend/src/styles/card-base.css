@@ -52,34 +52,23 @@
   border-radius: 1rem;
   background: var(--theme-bg-card);
   border: 1px solid var(--theme-border);
-  box-shadow:
-    0 1px 3px 0 rgb(0 0 0 / 0.06),
-    0 1px 2px -1px rgb(0 0 0 / 0.04);
-  transition:
-    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.35s ease;
+  box-shadow: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .dark .scb {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  box-shadow: none;
 }
 
 .scb:hover {
-  transform: translateY(-4px);
+  transform: none;
   border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
-  box-shadow:
-    0 12px 32px -8px rgb(0 0 0 / 0.1),
-    0 4px 12px -4px rgb(0 0 0 / 0.05),
-    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
+  box-shadow: none;
 }
 
 .dark .scb:hover {
   border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
-  box-shadow:
-    0 12px 32px -8px rgb(0 0 0 / 0.4),
-    0 4px 12px -4px rgb(0 0 0 / 0.25),
-    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+  box-shadow: none;
 }
 
 .scb--animated {
@@ -145,6 +134,26 @@
     rgba(255, 255, 255, 0.04) 55%,
     transparent 70%
   );
+}
+
+/* Keep title/status spacing uniform across resource-card callers. */
+.scb__status {
+  display: flex;
+  align-items: center;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.scb__status > * {
+  margin-top: 0;
+}
+
+/* Card headers use compact icons; standalone avatar controls keep their size. */
+.scb__header > :is(.scb__icon-ring, .scb__avatar-ring, .team-card__identity-avatar) {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
 }
 
 /* --- Icon Ring --- */
@@ -430,7 +439,7 @@
 
 /* --- Footer --- */
 .scb__footer {
-  margin-top: 0.625rem;
+  margin-top: 0.5rem;
 }
 
 /* ═══════════════════════════════════════════

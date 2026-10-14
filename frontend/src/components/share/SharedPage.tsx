@@ -67,11 +67,7 @@ import { IconButton } from "../common/ui/IconButton";
 import { formatDate, formatDateTimeShort } from "../../utils/datetime";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
-import {
-  PersonaAvatarImage,
-  PersonaAvatarIcon,
-} from "../persona/PersonaAvatarIcon";
-import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
+import { AgentAvatar } from "../common/AgentAvatar";
 
 const metadataClassName =
   "inline-flex min-w-0 max-w-full items-center gap-1.5 text-12 text-theme-text-secondary [overflow-wrap:anywhere] [&>svg]:shrink-0";
@@ -631,26 +627,11 @@ export function SharedPage({
                   )}
                   {data.session.persona_preset_name && (
                     <span className={metadataClassName}>
-                      {data.session.persona_avatar &&
-                      !data.session.persona_avatar.startsWith("icon:") &&
-                      !isEmojiAvatar(data.session.persona_avatar) ? (
-                        <PersonaAvatarImage
-                          avatar={data.session.persona_avatar}
-                          className="w-3.5 h-3.5 shrink-0 rounded-full object-cover"
-                        />
-                      ) : isEmojiAvatar(data.session.persona_avatar) ? (
-                        <PersonaAvatarImage
-                          avatar={getEmojiAvatarUrl(
-                            data.session.persona_avatar,
-                          )}
-                          className="w-3.5 h-3.5 shrink-0 rounded-full object-cover"
-                        />
-                      ) : (
-                        <PersonaAvatarIcon
-                          avatar={data.session.persona_avatar}
-                          size={14}
-                        />
-                      )}
+                      <AgentAvatar
+                        avatar={data.session.persona_avatar}
+                        seed={data.session.persona_preset_name}
+                        size={14}
+                      />
                       {data.session.persona_preset_name}
                     </span>
                   )}

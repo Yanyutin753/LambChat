@@ -694,7 +694,7 @@ export function RolesPanel() {
             {paginatedRoles.map((role) => (
               <div
                 key={role.id}
-                className="glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
+                className="resource-detail-card glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
                 onClick={() => setSelectedRole(role)}
               >
                 {/* Header badges */}
@@ -738,7 +738,7 @@ export function RolesPanel() {
                 )}
 
                 {/* Permissions preview */}
-                <div className="mt-3 mb-2 flex flex-wrap gap-1.5">
+                <div className="mt-2 mb-2 flex flex-wrap gap-1.5">
                   {role.permissions.slice(0, 3).map((perm) => (
                     <span
                       key={perm}
@@ -756,7 +756,7 @@ export function RolesPanel() {
 
                 {/* Footer actions */}
                 {canManage && (
-                  <div className="mt-auto flex items-center gap-2 pt-4">
+                  <div className="mt-auto flex items-center gap-2 pt-2 sm:pt-4">
                     <div className="ml-auto" />
                     <IconButton
                       aria-label={t("common.edit")}

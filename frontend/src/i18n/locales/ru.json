@@ -2634,6 +2634,8 @@
     "empty": "Нет персон"
   },
   "personaPresets": {
+    "generatedAvatars": "Цветные аватары",
+    "generatedAvatar": "Цветной аватар {{number}}",
     "addStarterPrompt": "Добавить стартовую подсказку",
     "all": "Все",
     "allSkillsSelected": "Все навыки выбраны",
