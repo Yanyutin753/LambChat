@@ -539,18 +539,18 @@ async def test_search_agent_context_includes_env_var_tools(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_context_includes_env_var_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_team_agent_context_includes_env_var_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     _stub_context_tool_imports(monkeypatch)
-    fast_context = _load_module_from_path(
-        "fast_context_under_test",
-        "src/agents/fast_agent/context.py",
+    team_context = _load_module_from_path(
+        "team_context_under_test",
+        "src/agents/team_agent/context.py",
     )
 
-    monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", False)
-    monkeypatch.setattr(fast_context.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", False)
+    monkeypatch.setattr(team_context.settings, "ENABLE_MEMORY", False)
+    monkeypatch.setattr(team_context.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(team_context.settings, "ENABLE_SKILLS", False)
 
-    ctx = fast_context.FastAgentContext(user_id="user-1")
+    ctx = team_context.TeamAgentContext(user_id="user-1")
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}

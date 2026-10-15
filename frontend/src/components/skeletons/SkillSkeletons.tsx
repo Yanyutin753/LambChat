@@ -25,18 +25,9 @@ function SkillCardsSkeleton({
           key={i}
           className="scb flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] dark:border dark:border-[var(--theme-border)]"
         >
-          {/* Banner — matches scb__banner h-12 with 45deg gradient */}
+          {/* Preserve the banner space without guessing the loaded card color. */}
           <div
-            className="scb__banner h-12 w-full shrink-0 relative"
-            style={{
-              background: `linear-gradient(45deg, ${
-                [
-                  "var(--theme-primary-light)",
-                  "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
-                  "var(--theme-bg-card)",
-                ][i % 3]
-              }, var(--theme-bg-card))`,
-            }}
+            className="scb__banner skeleton-line h-12 w-full shrink-0 relative"
           >
             {/* Banner overlay pills — matches bannerOverlay position */}
             <div className="absolute inset-0 flex items-start justify-end px-2 py-2 z-[3]">
@@ -122,11 +113,10 @@ function SkillCardsSkeleton({
               </div>
             )}
 
-            <div className="flex-1" />
 
             {/* Meta section — matches SkillBaseCard meta area */}
             {marketplace ? (
-              <div className="mt-4 flex items-center justify-between gap-2">
+              <div className="scb__footer flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <SkeletonLine
                     width="w-8 sm:w-10"
@@ -136,37 +126,22 @@ function SkillCardsSkeleton({
                   <SkeletonLine width="w-6" className="!h-3.5 !rounded-full" />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="skeleton-line size-7 rounded-lg" />
-                  <div className="skeleton-line size-7 rounded-lg" />
+                  <div className="skeleton-line size-9 rounded-lg" />
+                  <div className="skeleton-line size-9 rounded-lg" />
                   {i % 2 === 0 && (
-                    <div className="skeleton-line size-7 rounded-lg" />
+                    <div className="skeleton-line size-9 rounded-lg" />
                   )}
                 </div>
               </div>
             ) : (
               <>
-                {/* Meta pills — matches skill-meta-pill area */}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <SkeletonLine
-                    width="w-16 sm:w-20"
-                    className="!h-[26px] !rounded-full"
-                  />
-                  <SkeletonLine
-                    width="w-24 sm:w-28"
-                    className="!h-[26px] !rounded-full"
-                  />
-                </div>
-                {/* Footer — matches scb__footer with action buttons */}
-                <div className="scb__footer">
-                  <div className="flex items-center gap-1">
-                    <div className="skeleton-line size-7 rounded-[7px]" />
-                    <div className="skeleton-line size-6 rounded-[6px]" />
-                    {i % 2 === 0 && (
-                      <div className="skeleton-line size-6 rounded-[6px]" />
-                    )}
-                    <div className="ml-auto" />
-                    <div className="skeleton-line size-7 rounded-[7px]" />
+                <div className="scb__footer flex items-center gap-2">
+                  <div className="min-w-0 flex flex-1 flex-wrap items-center gap-2">
+                    <SkeletonLine width="w-16 sm:w-20" className="!h-3" />
+                    <SkeletonLine width="w-24 sm:w-28" className="!h-3" />
                   </div>
+                  <div className="skeleton-line size-9 shrink-0 rounded-lg" />
+                  <div className="skeleton-line size-9 shrink-0 rounded-lg" />
                 </div>
               </>
             )}
@@ -179,7 +154,7 @@ function SkillCardsSkeleton({
 
 export function SkillsListSkeleton() {
   return (
-    <div className="flex h-full min-h-0 flex-col animate-fade-in">
+    <div className="flex h-full min-h-0 flex-col">
       <PanelHeaderSkeleton
         searchOnly
         hasSearchAccessory
@@ -197,7 +172,7 @@ export function SkillsListSkeleton() {
 /** Skills panel: card grid matching SkillBaseCard (.scb) structure */
 export function SkillsPanelSkeleton() {
   return (
-    <div className="skill-theme-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="skill-theme-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSubtitle hasSearchAccessory />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <SkillCardsSkeleton />
@@ -214,7 +189,7 @@ export function MarketplacePanelSkeleton({
   embedded?: boolean;
 }) {
   return (
-    <div className="skill-theme-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="skill-theme-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton
         searchOnly={embedded}
         hasSubtitle={!embedded}

@@ -172,7 +172,9 @@ class SharedProjectSessionItem(BaseModel):
 
     id: str
     name: Optional[str] = None
+    agent_id: Optional[str] = None
     agent_name: Optional[str] = None
+    agent_labels: dict[str, dict[str, str]] = Field(default_factory=dict)
     model: Optional[str] = None
     updated_at: Optional[datetime] = None
     event_count: Optional[int] = None  # v1 暂不填充(展开子会话时可知)

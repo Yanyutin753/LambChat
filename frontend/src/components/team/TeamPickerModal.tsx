@@ -199,7 +199,7 @@ export function TeamPickerModal({
               }}
               maxLength={100}
               placeholder={t("team.search", "搜索团队")}
-              className="w-full rounded-lg border bg-transparent py-2 pl-9 pr-3 text-14 outline-none"
+              className="w-full rounded-lg border bg-transparent py-2 pl-9 pr-3 text-14 outline-hidden"
               style={{
                 borderColor: "var(--theme-border)",
                 color: "var(--theme-text)",

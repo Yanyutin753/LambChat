@@ -44,6 +44,7 @@ test("PDF preview keeps a user-facing fallback when rendering fails", () => {
 });
 
 test("PDF preview uses a PDF.js worker version compatible with react-pdf", () => {
-  expect(frontendPackage.dependencies["react-pdf"]).toBe("^10.5.0");
-  expect(frontendPackage.dependencies["pdfjs-dist"]).toBe("^5.4.296");
+  expect(frontendPackage.dependencies["react-pdf"]).toBe("^11.0.0");
+  expect(frontendPackage.dependencies["pdfjs-dist"]).toBe("^6.4.299");
+  expect(frontendPackage.pnpm.overrides["react-pdf>pdfjs-dist"]).toBe("$pdfjs-dist");
 });

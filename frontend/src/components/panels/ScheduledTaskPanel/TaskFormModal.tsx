@@ -1,3 +1,6 @@
+import { AgentIcon } from "../../agent/AgentIcon";
+import { AgentAvatar } from "../../common/AgentAvatar";
+import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -276,9 +279,9 @@ export function TaskFormModal({
   const personaOrTeamIconLabel = isTeamAgent
     ? t("scheduledTask.team", "团队")
     : t("scheduledTask.persona", "角色");
-  const renderPersonaOrTeamOption = (label: string) => (
+  const renderPersonaOrTeamOption = (label: string, avatar?: string | null, seed?: string) => (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <PersonaOrTeamIcon size={14} className="shrink-0 opacity-70" />
+      {seed ? <AgentAvatar avatar={avatar} seed={seed} size={18} /> : <PersonaOrTeamIcon size={14} className="shrink-0 opacity-70" />}
       <span className="truncate">{label}</span>
     </span>
   );
@@ -360,9 +363,12 @@ export function TaskFormModal({
                 { value: "", label: t("scheduledTask.agentPlaceholder") },
                 ...agents.map((agent) => ({
                   value: agent.id,
-                  label:
-                    resolveAgentDisplayName(agent, i18n.language, t) ||
-                    agent.id,
+                  label: (
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <AgentIcon icon={agent.icon} seed={agent.id} size={18} />
+                      <span className="truncate">{resolveAgentDisplayName(agent, i18n.language, t) || agent.id}</span>
+                    </span>
+                  ),
                 })),
               ]}
             />
@@ -390,7 +396,7 @@ export function TaskFormModal({
                       },
                       ...teams.map((team) => ({
                         value: team.id,
-                        label: renderPersonaOrTeamOption(team.name),
+                        label: renderPersonaOrTeamOption(team.name, team.avatar ?? getTeamFallbackAvatar(team), team.name),
                       })),
                     ]
                   : [
@@ -402,7 +408,7 @@ export function TaskFormModal({
                       },
                       ...personaPresets.map((preset) => ({
                         value: preset.id,
-                        label: renderPersonaOrTeamOption(preset.name),
+                        label: renderPersonaOrTeamOption(preset.name, preset.avatar, preset.id),
                       })),
                     ]
               }

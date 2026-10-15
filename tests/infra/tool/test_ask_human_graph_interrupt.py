@@ -2,7 +2,7 @@
 
 用真实 deepagents 图 + 脚本化模型 + 内存 checkpointer 验证完整链路：
 1. 主代理调用 ask_human → interrupt() 挂起（工具零副作用）；
-2. 编排层（fast_agent_node 挂起后）从 interrupt payload 物化审批记录；
+2. 编排层（agent_node 挂起后）从 interrupt payload 物化审批记录；
 3. 子代理调用 ask_human → interrupt 跨子图传播并挂起整个运行；
 4. Command(resume=...) 恢复：断点续跑、审批不重复创建、
    工具拿到 resume 值并返回标准结果；
@@ -97,7 +97,7 @@ async def _run(graph: Any, graph_input: Any, config: dict) -> None:
 
 
 async def _materialize(graph: Any, config: dict, recorder: ApprovalRecorder) -> None:
-    """模拟 fast_agent_node 挂起后的编排层动作。"""
+    """模拟 agent_node 挂起后的编排层动作。"""
     snapshot = await graph.aget_state(config)
     await materialize_ask_human_approvals(
         snapshot, session_id="session-1", run_id="run-1", user_id="user-1"

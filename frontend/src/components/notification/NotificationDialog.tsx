@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { Info, CheckCircle, AlertTriangle, Wrench, Check } from "lucide-react";
 import { notificationApi } from "../../services/api/notification";
 import { surfaceAppAnnouncementNotifications } from "../../services/notifications/announcementNotifications";
@@ -51,7 +52,7 @@ export function NotificationDialog({
 }: NotificationDialogProps) {
   const { t, i18n } = useTranslation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState(false);
 
   const fetchNotifications = useCallback(() => {
     notificationApi.getActive().then((items) => {
@@ -67,16 +68,24 @@ export function NotificationDialog({
     fetchNotifications();
   }, [isOpen, fetchNotifications]);
 
-  const handleDismiss = async (id: string) => {
-    setDismissingId(id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const handleDismiss = async (ids: string[]) => {
+    if (dismissing) return;
+    setDismissing(true);
+    let failed = false;
     try {
-      await notificationApi.dismiss(id);
-    } catch {
-      // keep local state removal even if API fails
+      for (const id of ids) {
+        try {
+          await notificationApi.dismiss(id);
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        } catch {
+          failed = true;
+        }
+      }
+      if (failed) toast.error(t("sidebar.markAllReadFailed"));
+    } finally {
+      setDismissing(false);
+      onDismissed();
     }
-    setDismissingId(null);
-    onDismissed();
   };
 
   if (!isOpen) return null;
@@ -97,6 +106,17 @@ export function NotificationDialog({
           }
           title={<span className="font-serif">{t("nav.notifications")}</span>}
           onClose={onClose}
+          actions={notifications.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleDismiss(notifications.map((n) => n.id))}
+              disabled={dismissing}
+              className="flex min-h-11 sm:min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-12 text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+            >
+              <Check size={14} />
+              {t(dismissing ? "common.loading" : "sidebar.markAllRead")}
+            </button>
+          )}
         />
 
         {/* List */}
@@ -150,8 +170,8 @@ export function NotificationDialog({
                       </span>
                     </div>
                     <button
-                      onClick={() => handleDismiss(n.id)}
-                      disabled={dismissingId === n.id}
+                      onClick={() => handleDismiss([n.id])}
+                      disabled={dismissing}
                       className="flex items-center gap-1 shrink-0 min-h-11 sm:min-h-6 rounded-lg px-3 text-12 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
                       style={{ color: "var(--theme-text-secondary)" }}
                       onMouseEnter={(e) => {

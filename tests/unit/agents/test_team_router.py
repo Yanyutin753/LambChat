@@ -235,10 +235,10 @@ def test_no_team_fallback_uses_search_prompt_when_sandbox_is_active():
     assert prompt == SANDBOX_SYSTEM_PROMPT
 
 
-def test_no_team_fallback_uses_fast_prompt_without_sandbox():
-    from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
+def test_no_team_fallback_uses_persistent_prompt_without_sandbox():
+    from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
     from src.agents.team_agent import nodes
 
     prompt = nodes.build_no_team_fallback_system_prompt(sandbox_active=False)
 
-    assert prompt == FAST_SYSTEM_PROMPT
+    assert prompt == DEFAULT_SYSTEM_PROMPT

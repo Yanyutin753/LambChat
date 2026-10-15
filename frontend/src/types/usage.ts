@@ -7,6 +7,7 @@ export interface UsageLog {
   session_id: string;
   user_id: string;
   username: string;
+  agent_id?: string;
   agent_name: string;
   team_id: string;
   team_name: string;

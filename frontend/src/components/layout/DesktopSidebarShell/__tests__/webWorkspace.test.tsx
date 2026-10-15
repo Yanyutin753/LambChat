@@ -20,7 +20,7 @@ vi.mock("react-i18next", async (importOriginal) => ({
 }));
 afterEach(cleanup);
 
-test("notification badge displays the count, caps it at 99+, and hides when cleared", () => {
+test("notification badge displays the count, caps it at 99, and hides when cleared", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1200,
@@ -39,7 +39,8 @@ test("notification badge displays the count, caps it at 99+, and hides when clea
   for (const [count, label] of [
     [3, "3"],
     [12, "12"],
-    [100, "99+"],
+    [99, "99"],
+    [100, "99"],
   ] as const) {
     fireEvent(
       window,

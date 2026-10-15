@@ -1,5 +1,25 @@
 import { projectComposerSnapshot } from "../composerProjection";
 import type { ComposerSnapshot } from "../composerTypes";
+import { buildSubmitChatBody } from "../../../../services/api/session";
+
+test("sends both inline reference positions and ordered skill names to the Agent API", () => {
+  const projection = projectComposerSnapshot({
+    version: 1,
+    editorState: {
+      root: { type: "root", children: [{ type: "paragraph", children: [
+        { type: "text", text: "先 " },
+        { type: "skill-reference", skillName: "preview-budget-plan" },
+        { type: "text", text: " 制定预算，再 " },
+        { type: "skill-reference", skillName: "lambchat-coding" },
+        { type: "text", text: " 实现。" },
+      ] }] },
+    },
+  });
+  expect(buildSubmitChatBody({ message: projection.message, enabledSkills: projection.enabledSkills })).toMatchObject({
+    message: "先 [引用技能：preview-budget-plan] 制定预算，再 [引用技能：lambchat-coding] 实现。",
+    enabled_skills: ["preview-budget-plan", "lambchat-coding"],
+  });
+});
 
 test("projects text, file references, and unique skills in document order", () => {
   const snapshot = {
@@ -62,7 +82,7 @@ test("projects text, file references, and unique skills in document order", () =
   } satisfies ComposerSnapshot;
 
   expect(projectComposerSnapshot(snapshot)).toEqual({
-    message: "请总结 [引用文件：notes.txt] 并使用",
+    message: "请总结 [引用文件：notes.txt] 并使用 [引用技能：writer][引用技能：writer]",
     activeReferenceIds: ["ref-1"],
     enabledSkills: ["writer"],
     runModes: [],
@@ -128,7 +148,7 @@ test("treats a document containing only a skill as non-empty", () => {
   } satisfies ComposerSnapshot;
 
   expect(projectComposerSnapshot(snapshot)).toEqual({
-    message: "",
+    message: "[引用技能：writer]",
     activeReferenceIds: [],
     enabledSkills: ["writer"],
     runModes: [],

@@ -32,4 +32,13 @@ def test_deepagents_targets_supported_v0_7_line() -> None:
     dependencies = pyproject["project"]["dependencies"]
     deepagents = next(item for item in dependencies if item.startswith("deepagents"))
 
-    assert deepagents == "deepagents>=0.7.24,<0.8"
+    assert deepagents == "deepagents>=0.7.25,<0.8"
+
+
+def test_cubesandbox_targets_latest_supported_sdk() -> None:
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
+
+    dependencies = pyproject["project"]["dependencies"]
+    cubesandbox = next(item for item in dependencies if item.startswith("cubesandbox"))
+
+    assert cubesandbox == "cubesandbox>=0.7.3"

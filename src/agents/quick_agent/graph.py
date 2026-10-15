@@ -45,7 +45,7 @@ class QuickAgent(BaseGraphAgent):
         """初始化 Agent
 
         checkpointer 必须走 get_async_checkpointer()（按 CHECKPOINT_BACKEND
-        选 PG/Mongo），与 fast/search/team 的内层图共用同一存储与
+        选 PG/Mongo），与 search/team 的内层图共用同一存储与
         thread_id=session_id 命名空间——否则生产 PG 环境下 quick 的历史
         会写进 Mongo，跨 agent 切换互通静默失效。基类默认的 Mongo 工厂
         不感知 CHECKPOINT_BACKEND，故此处覆写。

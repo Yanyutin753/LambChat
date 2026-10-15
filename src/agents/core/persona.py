@@ -5,7 +5,7 @@
 让 persona 系统完全控制角色身份，不再冲突。
 
 最终 system message 结构：
-  [Block 0] SANDBOX/DEFAULT/FAST_SYSTEM_PROMPT + BEHAVIOR_GUIDE      ← 全局稳定
+  [Block 0] SANDBOX/DEFAULT_SYSTEM_PROMPT + BEHAVIOR_GUIDE      ← 全局稳定
   [Block 1+] Persona / Skills / Memory / dynamic middleware sections
 """
 

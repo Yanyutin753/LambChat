@@ -118,7 +118,7 @@ export async function promoteSteerFollowUps(
   const { sessionId } = deps;
   if (!sessionId) return { promoted: 0, skippedActive: 0 };
   if (deps.isSessionActive) {
-    let active = true;
+    let active: boolean;
     try {
       active = await deps.isSessionActive();
     } catch {

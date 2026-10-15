@@ -141,7 +141,7 @@ class SkillsStoreBackend(BackendProtocol):
         """检查 skill 是否在当前会话中可操作。
 
         仅通过 disabled_skills 黑名单过滤；enabled_skills 白名单仅用于
-        FastAgentContext / SearchAgentContext 的提示词注入，不在此处限制
+        TeamAgentContext / SearchAgentContext 的提示词注入，不在此处限制
         文件操作，以免 agent 无法读取或修改 skills 路径下的文件。
         """
         return skill_name not in self._get_disabled_skill_names()

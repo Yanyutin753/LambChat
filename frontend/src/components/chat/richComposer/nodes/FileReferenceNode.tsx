@@ -4,6 +4,7 @@ import {
   $createTextNode,
   DecoratorNode,
   type LexicalEditor,
+  type DOMExportOutput,
   type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
@@ -91,6 +92,12 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 
   getTextContent(): string {
     return `[引用文件：${this.getLatest().__fileName}]`;
+  }
+
+  exportDOM(): DOMExportOutput {
+    const element = document.createElement("span");
+    element.textContent = this.getTextContent();
+    return { element };
   }
 
   getDescriptor(): FileReferenceDescriptor {

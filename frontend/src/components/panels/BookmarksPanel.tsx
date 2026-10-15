@@ -126,7 +126,7 @@ export function BookmarksPanel() {
                     handleJump(bookmark);
                   }
                 }}
-                className="resource-detail-card glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
+                className="resource-detail-card glass-card group relative flex flex-col gap-2 rounded-xl p-3 cursor-pointer transition-all duration-200 animate-glass-enter"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 min-w-0 flex-1 text-left font-serif text-14 font-semibold leading-relaxed text-[var(--theme-text)] sm:text-16">
@@ -146,7 +146,7 @@ export function BookmarksPanel() {
                   </button>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <span className="glass-tag">
                     <MessageSquare size={12} />
                     <span className="max-w-44 truncate">

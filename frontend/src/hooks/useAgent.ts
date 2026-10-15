@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
+import { resolveAgentDisplayName } from "../components/agent/agentCatalog";
 import type { Message, ConnectionStatus, MessageAttachment } from "../types";
 import { sessionApi, type BackendSession } from "../services/api";
 import { feedbackApi } from "../services/api/feedback";
@@ -871,8 +872,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             seed: personaSnapshot?.preset_id || currentAgent,
             name:
               personaSnapshot?.name ||
-              selectedAgent?.name ||
-              `agents.${currentAgent}.name`,
+              (selectedAgent
+                ? resolveAgentDisplayName(selectedAgent, i18n.language, i18n.t)
+                : `agents.${currentAgent}.name`),
             avatar: personaSnapshot
               ? personaSnapshot.avatar || null
               : selectedAgent?.icon || null,

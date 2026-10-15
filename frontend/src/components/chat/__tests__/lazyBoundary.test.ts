@@ -58,3 +58,11 @@ test("project reveal items keep ProjectPreview behind a lazy wrapper", () => {
   // ProjectRevealItem delegates preview rendering to RevealPreviewHost,
   // which in turn uses LazyProjectPreview — verified in the test above.
 });
+
+test("chat and shared routes defer the entire reveal preview host", () => {
+  for (const file of ["../../layout/AppContent/ChatView.tsx", "../../share/SharedPage.tsx"]) {
+    const source = readSource(file);
+    expect(source).not.toMatch(/import\s+\{\s*RevealPreviewHost\s*\}/);
+    expect(source).toContain("<LazyRevealPreviewHost");
+  }
+});

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -191,11 +192,11 @@ async def test_create_team_preserves_member_agent_id(manager, mock_storage, monk
     monkeypatch.setattr(
         agent_base.AgentFactory,
         "list_agents",
-        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "search"}]),
+        classmethod(lambda cls, default_agent_id=None: [{"id": "quick"}, {"id": "search"}]),
     )
 
     async def fake_filtered_agents(**_kwargs):
-        return [{"id": "fast"}, {"id": "search"}]
+        return [{"id": "quick"}, {"id": "search"}]
 
     monkeypatch.setattr(
         agent_base.AgentFactory,
@@ -226,7 +227,7 @@ async def test_validate_member_agent_access_rejects_unknown_agent(manager, monke
     monkeypatch.setattr(
         agent_base.AgentFactory,
         "list_agents",
-        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}]),
+        classmethod(lambda cls, default_agent_id=None: [{"id": "quick"}]),
     )
 
     with pytest.raises(ValueError, match="team_member_agent_unavailable"):
@@ -246,7 +247,7 @@ async def test_validate_member_agent_access_rejects_team_agent(manager, monkeypa
     monkeypatch.setattr(
         agent_base.AgentFactory,
         "list_agents",
-        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "team"}]),
+        classmethod(lambda cls, default_agent_id=None: [{"id": "quick"}, {"id": "team"}]),
     )
 
     with pytest.raises(ValueError, match="team_member_agent_unavailable"):
@@ -266,11 +267,11 @@ async def test_validate_member_agent_access_rejects_role_disallowed_agent(manage
     monkeypatch.setattr(
         agent_base.AgentFactory,
         "list_agents",
-        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "search"}]),
+        classmethod(lambda cls, default_agent_id=None: [{"id": "quick"}, {"id": "search"}]),
     )
 
     async def fake_filtered_agents(**_kwargs):
-        return [{"id": "fast"}]
+        return [{"id": "quick"}]
 
     monkeypatch.setattr(
         agent_base.AgentFactory,
@@ -287,7 +288,7 @@ async def test_validate_member_agent_access_rejects_role_disallowed_agent(manage
 
     class _AgentConfigStorage:
         async def get_role_agents_by_ids(self, role_ids):
-            return {role_id: ["fast"] for role_id in role_ids}
+            return {role_id: ["quick"] for role_id in role_ids}
 
     import src.infra.agent.config_storage as config_storage
     import src.infra.role.manager as role_manager
@@ -798,3 +799,17 @@ async def test_validate_member_agent_access_batches_roles_without_truncating_per
         user_roles=["role-first", "role-last", "role-first"],
         role_agent_map={"role-first": None, "role-last": ["search"]},
     )
+
+
+@pytest.mark.asyncio
+async def test_validate_legacy_fast_member_uses_search_permissions(manager, monkeypatch):
+    from src.agents.core.base import AgentFactory
+
+    monkeypatch.setattr(AgentFactory, "list_agents", lambda: [{"id": "search"}])
+    monkeypatch.setattr(
+        AgentFactory, "get_filtered_agents", AsyncMock(return_value=[{"id": "search"}])
+    )
+    await manager._validate_member_agent_access([SimpleNamespace(agent_id="fast")])
+    monkeypatch.setattr(AgentFactory, "get_filtered_agents", AsyncMock(return_value=[]))
+    with pytest.raises(ValueError, match="team_member_agent_not_allowed"):
+        await manager._validate_member_agent_access([SimpleNamespace(agent_id="fast")])

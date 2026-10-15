@@ -291,6 +291,7 @@ function SessionItemComponent({
       <div
         role="group"
         aria-label={displayTitle}
+        data-selected={isSelected || (!selectionMode && isActive) || undefined}
         draggable={!selectionMode}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -304,11 +305,7 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
-          isSelected || (!selectionMode && isActive)
-            ? "bg-theme-bg-subtle dark:bg-stone-700/50"
-            : ""
-        } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
+        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
           selectionMode ? "pr-2" : ""
         }`}
       >
@@ -324,7 +321,7 @@ function SessionItemComponent({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveTitle}
               disabled={isSaving}
-              className="w-full text-13 bg-transparent text-theme-text dark:text-stone-200 border border-theme-border-hover dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-theme-ring"
+              className="w-full text-13 bg-transparent text-theme-text dark:text-stone-200 border border-theme-border-hover dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-theme-ring"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (

@@ -17,6 +17,7 @@ class UsageLog(BaseModel):
     session_id: str
     user_id: str
     username: str = ""
+    agent_id: str = ""
     agent_name: str = ""
     team_id: str = ""
     team_name: str = ""

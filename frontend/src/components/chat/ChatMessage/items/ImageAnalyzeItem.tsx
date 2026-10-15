@@ -96,7 +96,7 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
                 inline
                 className="w-full aspect-square object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
+              <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
                 <span className="absolute bottom-1.5 left-1.5 right-1.5 text-white/90 text-10 font-medium truncate drop-shadow-sm block">
                   {image.name}
                 </span>

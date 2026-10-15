@@ -1,7 +1,7 @@
 """
 共享工具过滤工具
 
-提取自 FastAgentContext 和 SearchAgentContext 的重复代码。
+提取自 TeamAgentContext 和 SearchAgentContext 的重复代码。
 提供统一的工具过滤逻辑，包括：
 - 内置工具保护（不可被禁用）
 - 精确名称匹配

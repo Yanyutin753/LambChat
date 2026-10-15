@@ -40,6 +40,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { formatDate } from "../../utils/datetime";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
+import { resolveAgentReferenceName } from "../agent/agentCatalog";
 import { computeProjectHasMore } from "./sharedProjectPageState";
 
 const ChatMessage = lazy(() =>
@@ -61,7 +62,7 @@ export function SharedProjectPage({
   initialManifest: SharedProjectContentResponse;
 }) {
   const { shareId } = useParams<{ shareId: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useSharedPageTheme();
 
   const [manifest, setManifest] = useState(initialManifest);
@@ -260,7 +261,7 @@ export function SharedProjectPage({
                           t("share.untitledSession", "未命名会话")}
                       </span>
                       <span className="block text-12 text-theme-text-secondary truncate">
-                        {session.agent_name}
+                        {resolveAgentReferenceName(session.agent_id, session.agent_name || "", [], i18n.language, t, session.agent_labels)}
                         {session.updated_at
                           ? ` · ${formatDate(session.updated_at)}`
                           : ""}
@@ -274,7 +275,7 @@ export function SharedProjectPage({
                       role="region"
                       aria-labelledby={titleId}
                       tabIndex={-1}
-                      className="border-t border-theme-border bg-theme-bg px-3 sm:px-6 py-4 outline-none"
+                      className="border-t border-theme-border bg-theme-bg px-3 sm:px-6 py-4 outline-hidden"
                     >
                       {content === "error" ? (
                         <div className="flex flex-col items-center gap-3 py-4 text-center">
@@ -317,7 +318,7 @@ export function SharedProjectPage({
             })}
           </ul>
 
-          <div ref={paginationRef} tabIndex={-1} className="outline-none">
+          <div ref={paginationRef} tabIndex={-1} className="outline-hidden">
             {hasMore && (
               <div className="flex flex-col items-center gap-3 pt-4">
                 {moreError && (

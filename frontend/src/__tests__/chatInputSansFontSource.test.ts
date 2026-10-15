@@ -16,10 +16,14 @@ test("chat input container opts into the sans stack, not the serif display font"
   expect(source).not.toMatch(/chat-input-container font-serif/);
 });
 
-test("editor chips keep sans while toolbar and mention entity names keep serif", () => {
+test("editor inherits sans while reference labels, toolbar and mention names retain serif", () => {
   const css = readRepoFile("src/styles/chat.css");
+  const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
+  const mentions = readRepoFile("src/components/chat/MentionPopup.tsx");
+  const fileChip = readRepoFile("src/components/chat/richComposer/FileReferenceChip.tsx");
 
-  expect(css).toMatch(
-    /\.chat-input-container\s+\.font-serif:not\(\s*\.mention-popup-name,\s*\.chat-input-toolbar,\s*\.chat-input-toolbar \*\s*\)\s*\{[^}]*font-family:\s*"Source Sans 3",\s*system-ui,\s*sans-serif/s,
-  );
+  expect(css).not.toMatch(/\.chat-input-container\s+\.font-serif:not/);
+  expect(toolbar).toContain("chat-input-toolbar font-serif");
+  expect(mentions).toContain("mention-popup-name font-serif");
+  expect(fileChip).toContain("composer-reference-chip__label font-serif");
 });

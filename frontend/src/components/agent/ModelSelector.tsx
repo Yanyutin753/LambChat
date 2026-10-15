@@ -451,9 +451,9 @@ const ModelSelector = memo(function ModelSelector({
     >
       <button
         onClick={toggleSelector}
-        className="flex items-center gap-1.5 text-stone-600 hover:opacity-70 dark:text-stone-300 transition-opacity"
+        className="flex items-center gap-1.5 rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text transition-colors"
       >
-        <span className="text-16 font-semibold font-serif !font-serif max-w-[200px] truncate">
+        <span className="text-14 leading-5 font-medium font-serif !font-serif max-w-[200px] truncate">
           {currentModelInfo?.label || currentModelId}
         </span>
         <ChevronDown
@@ -518,7 +518,7 @@ const ModelSelector = memo(function ModelSelector({
                   onValueChange={setModelSearch}
                   placeholder={t("profile.searchModels", "搜索模型")}
                   autoComplete="off"
-                  className="block h-5 min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-13 leading-5 text-theme-text outline-none placeholder:text-theme-text-tertiary dark:text-stone-100 dark:placeholder:text-stone-500"
+                  className="block h-5 min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-13 leading-5 text-theme-text outline-hidden placeholder:text-theme-text-tertiary dark:text-stone-100 dark:placeholder:text-stone-500"
                 />
               </div>
             </div>

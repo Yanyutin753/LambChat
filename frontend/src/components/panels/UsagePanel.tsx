@@ -47,6 +47,8 @@ import { usageApi } from "../../services/api/usage";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
+import { useAgentCatalog } from "../agent/useAgentCatalog";
+import { resolveAgentReferenceName } from "../agent/agentCatalog";
 import type {
   UsageDashboardResponse,
   UsageLog,
@@ -75,12 +77,29 @@ export function UsagePanel() {
     () => buildModelLabelMap(availableModels),
     [availableModels],
   );
+  const agents = useAgentCatalog();
   const isAdmin = hasPermission(Permission.USAGE_ADMIN);
 
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [dashboard, setDashboard] = useState<UsageDashboardResponse | null>(
     null,
+  );
+  const displayLogs = useMemo(
+    () => logs.map((log) => ({
+      ...log,
+      agent_name: resolveAgentReferenceName(
+        log.agent_id, log.agent_name, agents, i18n.language, t,
+      ),
+    })),
+    [logs, agents, i18n.language, t],
+  );
+  const agentRanking = useMemo(
+    () => (dashboard?.top_agents ?? []).map((item) => ({
+      ...item,
+      name: resolveAgentReferenceName(item.id, item.name, agents, i18n.language, t),
+    })),
+    [dashboard, agents, i18n.language, t],
   );
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -382,7 +401,7 @@ export function UsagePanel() {
                 items={
                   dashboard.top_personas.length
                     ? dashboard.top_personas
-                    : dashboard.top_agents
+                    : agentRanking
                 }
                 emptyLabel={t("usage.empty.persona")}
               />
@@ -402,7 +421,7 @@ export function UsagePanel() {
             <RankingList
               title={agentRankingTitle}
               icon={Bot}
-              items={dashboard.top_agents}
+              items={agentRanking}
               emptyLabel={t("usage.empty.agent")}
             />
             <RankingList
@@ -424,6 +443,7 @@ export function UsagePanel() {
               title={sourceDistributionTitle}
               icon={PieChart}
               items={dashboard.sources}
+              nameKeyPrefix="usage.sources"
               total={dashboard.summary.total_requests}
               emptyLabel={t("usage.empty.source")}
             />
@@ -437,6 +457,7 @@ export function UsagePanel() {
               title={t("usage.ranking.triggers")}
               icon={CalendarClock}
               items={dashboard.triggers}
+              nameKeyPrefix="usage.triggers"
               total={dashboard.summary.scheduled_runs}
               emptyLabel={t("usage.empty.triggers")}
             />
@@ -467,7 +488,7 @@ export function UsagePanel() {
         )}
         {(!loadError || logs.length > 0) && (
           <UsageLogsTable
-            logs={logs}
+            logs={displayLogs}
             total={total}
             page={page}
             pageSize={pageSize}

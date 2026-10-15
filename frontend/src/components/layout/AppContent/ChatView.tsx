@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { AttachmentPreviewHost } from "../../chat/AttachmentPreviewHost";
-import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
+import { LazyRevealPreviewHost } from "../../chat/ChatMessage/items/LazyRevealPreviewHost";
 import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImageGallery";
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
@@ -852,7 +852,7 @@ export function ChatView({
           )}
         </main>
 
-        <RevealPreviewHost
+        <LazyRevealPreviewHost
           preview={activePreview}
           automatic={activePreviewAutomatic}
           onClose={() => handleClosePreview(true)}

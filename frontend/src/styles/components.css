@@ -1,3 +1,5 @@
+@reference "./tailwind.css";
+
 /* Soften clipped sidebar rows without changing the list spacing. */
 [data-sidebar-scroll] {
   scroll-padding-block: 12px;
@@ -15,6 +17,28 @@
     #000 calc(100% - 12px),
     transparent
   );
+}
+
+/* Keep top-bar icons and labels on the same theme colors in every state. */
+.chat-header__identity > button,
+.chat-header__identity > .relative > button,
+.chat-header__actions > button,
+.chat-header__actions > .relative > button,
+[data-sidebar-brand] button {
+  color: var(--theme-text-secondary);
+}
+
+.chat-header__identity > button:is(:hover, [aria-expanded="true"]),
+.chat-header__identity > .relative > button:is(:hover, [aria-expanded="true"]),
+.chat-header__actions > button:is(:hover, [aria-expanded="true"]),
+.chat-header__actions > .relative > button:is(:hover, [aria-expanded="true"]),
+[data-sidebar-brand] button:hover {
+  color: var(--theme-text);
+  background-color: var(--theme-bg-subtle);
+}
+
+.chat-header__actions .composer-usage-amount {
+  color: inherit;
 }
 
 /* Header controls share a height; text triggers keep their content width. */
@@ -103,6 +127,11 @@
   );
   background-size: 200% 100%;
   animation: shimmer 2.4s linear infinite;
+}
+
+.scb__banner.skeleton-line::before,
+.scb__banner.skeleton-line::after {
+  content: none;
 }
 
 .json-schema-field--compact {
@@ -370,6 +399,7 @@
 
 .panel-header .panel-search,
 .panel-header .panel-filter-trigger,
+.panel-header .btn-secondary,
 .panel-header .ui-button--secondary {
   height: 2.5rem;
   border-color: var(--theme-border);
@@ -377,6 +407,7 @@
 }
 
 .panel-header .panel-filter-trigger:hover,
+.panel-header .btn-secondary:hover,
 .panel-header .ui-button--secondary:hover {
   border-color: var(--theme-border-hover);
   background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card));
@@ -1255,6 +1286,14 @@
 .dark .ui-button--primary,
 .dark .btn-primary {
   color: var(--theme-bg);
+}
+
+.panel-header,
+.panel-search,
+.panel-header-dropdown,
+.ui-select-trigger,
+.ui-select-dropdown {
+  @apply font-serif;
 }
 
 .ui-button--secondary,
@@ -4844,6 +4883,10 @@
    WKWebView can report hover:none on desktop; native chrome is still mouse UI. */
 .sidebar-action-reveal:where(:not(.opacity-100)) {
   opacity: 0;
+}
+
+.sidebar-session-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--theme-text) 10%, transparent);
 }
 
 .sidebar-action-row:hover > .sidebar-action-reveal,

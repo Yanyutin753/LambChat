@@ -38,7 +38,7 @@ function projectNode(
       accumulator.skillNameSet.add(node.skillName);
       accumulator.skillNames.push(node.skillName);
     }
-    return "";
+    return node.skillName ? `[引用技能：${node.skillName}]` : "";
   }
 
   if (node.type === "run-mode-reference") {

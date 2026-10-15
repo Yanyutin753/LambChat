@@ -8,9 +8,10 @@ import {
   render as renderBase,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { Header } from "../Header";
 import userEvent from "@testing-library/user-event";
 import { OPEN_NOTIFICATIONS_EVENT } from "../../DesktopSidebarShell/desktopShellPlatform";
@@ -62,7 +63,7 @@ vi.mock("../../../../hooks/useStickyDropdownPosition", () => ({
 vi.mock("../../../../hooks/useSessionTitle", () => ({
   useSessionTitle: () => "",
 }));
-vi.mock("../../../../services/api", () => ({
+vi.mock("../../../../services/api/auth", () => ({
   authApi: { updateMetadata: appearance.write },
 }));
 vi.mock("../../../../services/api/notification", () => ({
@@ -87,6 +88,30 @@ function renderHeader() {
     </MemoryRouter>,
   );
 }
+
+test("panel navigation groups the page title and actions and returns through history", async () => {
+  function Location() {
+    return <output data-testid="location">{useLocation().pathname}</output>;
+  }
+  render(
+    <MemoryRouter initialEntries={["/chat", "/mcp"]} initialIndex={1}>
+      <Header
+        activeTab="mcp"
+        setMobileSidebarOpen={vi.fn()}
+        onNewSession={vi.fn()}
+        onShowProfile={vi.fn()}
+        headerActions={<button>Create server</button>}
+      />
+      <Location />
+    </MemoryRouter>,
+  );
+  const navigation = within(screen.getByRole("navigation", { name: "nav.mcp" }));
+  expect(navigation.getByRole("heading", { name: "nav.mcp" })).toBeTruthy();
+  expect(navigation.getByRole("button", { name: "Create server" })).toBeTruthy();
+  expect(navigation.getByRole("button", { name: "common.menu" })).toBeTruthy();
+  await userEvent.click(navigation.getByRole("button", { name: "common.back" }));
+  expect(screen.getByTestId("location").textContent).toBe("/chat");
+});
 function openLanguages() {
   renderHeader();
   fireEvent.click(screen.getByRole("button", { name: "common.menu" }));

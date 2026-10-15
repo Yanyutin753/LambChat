@@ -208,7 +208,7 @@ test("acceptance leaves only the pending text, attachments, and skills for the n
   expect(screen.getByText("pending-notes.pdf")).toBeVisible();
 
   fireEvent.submit(editor.closest("form")!);
-  expect(onSend.mock.calls[1]?.[0]).toBe("pending edit");
+  expect(onSend.mock.calls[1]?.[0]).toBe("pending edit\n\n[引用技能：reviewer]");
   expect(onSend.mock.calls[1]?.[2]).toEqual([pendingAttachment]);
   expect(onSend.mock.calls[1]?.[3]).toEqual({ enabledSkills: ["reviewer"] });
 });

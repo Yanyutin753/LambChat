@@ -22,6 +22,8 @@
 - 原生工程目录（`frontend/android/`、`frontend/ios/App/`）的改动单独成 commit，不带 WebView 代码改动，便于回溯 Xcode/Gradle 层回归。
 - `frontend/src-tauri/binaries/`、`resources/python/` 产物不进 git（已有 .gitignore 覆盖），禁止「顺手提交一个能跑的 sidecar」。
 
+Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准；dev 安装包只作指定 tag 的手动测试，不进入稳定自动更新。运行时使用核心版本，测试时以 tag、构建号及 SHA 区分，正式版须提高平台构建号并重新构建。
+
 ## 2. 文档（§2）
 
 - 每个**新增** Tauri command 在 PR 描述列出：名称、入参出参、副作用、所需 capability；`daemon.rs` 现有 8 个 command 作为基线。
@@ -76,7 +78,9 @@
 
 ## 7. 桌面端（Tauri）专项
 
-- **原生通知**：桌面入口集中在 `src/commands/notification.rs`。macOS 弱链接 `UserNotifications` 并在运行时检查类可用性，保持 10.13 最低版本；可用时通过常驻 `UNUserNotificationCenter` 代理保存内部路由和账户归属，旧 macOS 与 Linux 保留 notification 插件发送。Windows 在 `windows_notification.rs` 使用应用 AUMID 发送，并保留通知及激活回调，支持横幅消失后的通知中心点击。Android 点击沿用 Capacitor。支持点击的平台均由前端 `appNotificationService` 校验当前账户与内部路由，再导航并显示桌面主窗口；不支持进程关闭后的冷启动点击。原生发送 API 成功仅说明系统受理，不能代替目标设备上实际送达与点击的观察证据。
+- **macOS 应用下限**：打包最低系统为 **macOS 11.0**，共享前端另需 **系统 WebKit / Safari 16.4+**。Big Sur 与 Monterey 用户须先升级系统 Safari/WebKit；原生通知模块对 10.13 的兼容处理不代表整个应用支持 10.13。Safari 16.4 支持的系统见 [Apple 发布说明](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes)。
+
+- **原生通知**：桌面入口集中在 `src/commands/notification.rs`。macOS 弱链接 `UserNotifications` 并在运行时检查类可用性，通知模块保留 10.13 的运行时兼容处理（应用整体下限见本节说明）；可用时通过常驻 `UNUserNotificationCenter` 代理保存内部路由和账户归属，旧 macOS 与 Linux 保留 notification 插件发送。Windows 在 `windows_notification.rs` 使用应用 AUMID 发送，并保留通知及激活回调，支持横幅消失后的通知中心点击。Android 点击沿用 Capacitor。支持点击的平台均由前端 `appNotificationService` 校验当前账户与内部路由，再导航并显示桌面主窗口；不支持进程关闭后的冷启动点击。原生发送 API 成功仅说明系统受理，不能代替目标设备上实际送达与点击的观察证据。
 
 - **Windows 安装升级**：NSIS 安装包检测到旧安装后直接显示升级进度并沿用原目录，首次安装保留完整向导；普通、静默、应用内更新与同版本重装统一在复制文件前按安装目录停止旧主程序/daemon，再以 `/S /UPDATE` 运行旧卸载器；不删除聊天、登录和工作区数据。64 位系统使用原生 PowerShell，停止或卸载失败必须中止。`scripts/test_windows_installer_hooks.ps1` 用真实 NSIS 安装/卸载夹具验证该流程，PR CI 与 Windows 出包均执行；Tauri CLI 或 NSIS 升级时同步验证 Modern UI 初始化钩子与卸载分流。
 
@@ -89,6 +93,8 @@
 - **Windows 凭证权限**：使用进程 token 的用户 SID 与原生 Win32 API 设置受保护的 owner-only DACL；目录授予该 SID 可继承的 FullControl。禁止为此启动 PowerShell / `Set-Acl`，避免域信任或域账户解析失败阻塞配对。权限设置失败必须停止写入，保留既有凭证。
 
 ## 8. 移动端（Capacitor）专项
+
+- **WebView 兼容下限**：共享前端使用 Tailwind CSS 4 与 Vite 8，iOS 最低版本为 **16.4**（WKWebView/Safari 16.4），Podfile 与所有 Xcode deployment target 保持一致。Android 最低 API 24 与 WebView 引擎版本是两个独立条件：实际运行需 Android System WebView / Chrome **111+**，旧设备须更新 WebView；提高 Android API 不能代替引擎版本检查。浏览器下限与依据见 [Tailwind 官方兼容说明](https://tailwindcss.com/docs/compatibility)。
 
 - **安装器图标**：Windows NSIS 安装/卸载程序显式使用桌面 ICO，NSIS 与 MSI 向导位图由 `pnpm brand:assets` 从 `resources/native-icon.png` 生成并提交；`pnpm brand:assets:check` 同时检测安装器素材是否过期。macOS app/DMG 与 Linux 桌面入口继续使用 Tauri 生成的 ICNS/PNG；Android/iOS 沿用移动端原图。
 

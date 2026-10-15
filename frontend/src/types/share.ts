@@ -1,3 +1,4 @@
+import type { AgentCatalogLocale } from "./agent";
 import type { SSEEventRecord } from "./session";
 
 // ============================================
@@ -76,6 +77,7 @@ export interface SharedContentResponse {
     name?: string;
     agent_id: string;
     agent_name?: string;
+    agent_labels?: Record<string, Pick<AgentCatalogLocale, "name">>;
     model?: string;
     created_at?: string;
     updated_at?: string;
@@ -100,8 +102,10 @@ export interface SharedContentResponse {
 
 export interface SharedProjectSessionItem {
   id: string;
+  agent_id?: string;
   name?: string;
   agent_name?: string;
+  agent_labels?: Record<string, Pick<AgentCatalogLocale, "name">>;
   model?: string;
   updated_at?: string;
   event_count?: number;

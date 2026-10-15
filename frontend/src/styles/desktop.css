@@ -130,7 +130,7 @@ html:has([data-titlebar], [data-workspace-ui]) .sidebar-session-row {
 }
 
 html:has([data-titlebar], [data-workspace-ui])
-  .sidebar-session-row[aria-current="page"] {
+  .sidebar-session-row[data-selected="true"] {
   background: var(--desktop-selected);
 }
 

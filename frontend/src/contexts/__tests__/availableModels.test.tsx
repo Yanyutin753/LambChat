@@ -11,7 +11,7 @@ vi.mock("../../hooks/useAuth", () => ({ useAuth: () => api.auth }));
 vi.mock("../../hooks/useSettings", () => ({
   useSettings: () => ({ getBooleanSetting: () => true, savingKeys: new Set() }),
 }));
-vi.mock("../../services/api", () => ({
+vi.mock("../../services/api/model", () => ({
   modelApi: {
     listAvailable: api.list,
     getPinnedModelIds: api.pinned,

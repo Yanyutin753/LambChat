@@ -319,8 +319,9 @@ class StreamEventMixin:
             self.total_input_tokens += input_tok
         if isinstance(output_tok, int):
             self.total_output_tokens += output_tok
-        if isinstance(total_tok, int):
-            self.total_tokens += total_tok
+        if not isinstance(total_tok, int):
+            total_tok = (input_tok or 0) + (output_tok or 0)
+        self.total_tokens += total_tok
 
         cache_creation = _first_cache_usage_int(
             usage_sources,

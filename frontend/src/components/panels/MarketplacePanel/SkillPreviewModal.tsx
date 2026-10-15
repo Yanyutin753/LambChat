@@ -230,7 +230,7 @@ export function SkillPreviewModal({
             <div
               ref={contentRef}
               tabIndex={-1}
-              className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
+              className="min-h-0 flex-1 overflow-hidden bg-[var(--theme-bg)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
             >
               {isPreviewLoading || previewFileErrors[previewFilePath] ? (
                 <SkillFileLoadState

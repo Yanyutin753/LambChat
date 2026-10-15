@@ -323,7 +323,7 @@ export function LocalSandboxSection({
         <div
           ref={sectionRef}
           tabIndex={-1}
-          className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-none"
+          className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-hidden"
         >
           {webBody}
         </div>
@@ -333,7 +333,7 @@ export function LocalSandboxSection({
       <div
         ref={sectionRef}
         tabIndex={-1}
-        className="local-sandbox-section profile-section outline-none"
+        className="local-sandbox-section profile-section outline-hidden"
       >
         {webBody}
       </div>
@@ -616,7 +616,7 @@ export function LocalSandboxSection({
             tabIndex={-1}
             aria-busy={busy}
             onSubmit={handlePair}
-            className="space-y-3 pt-3 outline-none"
+            className="space-y-3 pt-3 outline-hidden"
           >
             <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("profile.localSandbox.pairTitle")}
@@ -751,7 +751,7 @@ export function LocalSandboxSection({
       <div
         ref={sectionRef}
         tabIndex={-1}
-        className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-none"
+        className="local-sandbox-section mt-5 border-t border-theme-border pt-5 outline-hidden"
       >
         {body}
       </div>
@@ -761,7 +761,7 @@ export function LocalSandboxSection({
     <div
       ref={sectionRef}
       tabIndex={-1}
-      className="local-sandbox-section profile-section outline-none"
+      className="local-sandbox-section profile-section outline-hidden"
     >
       {body}
     </div>

@@ -56,7 +56,7 @@ class TeamAgent(BaseGraphAgent):
     _description = "自动搜索合适角色并分派子代理，支持追加任务和持续协作"
     _description_key = "agents.team.description"
     _version = "1.0.0"
-    _sort_order = 4  # 排序权重，数值越小越靠前（search=1, quick=2, fast=3, team=4）
+    _sort_order = 4  # 排序权重，数值越小越靠前（search=1, quick=2, team=4）
     _supports_sandbox = True
 
     _options = {

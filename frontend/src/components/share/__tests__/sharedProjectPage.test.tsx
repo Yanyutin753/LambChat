@@ -229,3 +229,20 @@ test.each(["offline", "changed-scope"])(
     expect(document.activeElement).not.toBe(document.body);
   },
 );
+
+test("shared project agent names follow the visitor language without signing in", async () => {
+  await i18n.changeLanguage("zh");
+  renderProject({ ...manifest, sessions: [{ id: "first", name: "First conversation", agent_name: "Search Agent" }] });
+  expect(screen.getByText(i18n.t("agents.search.name"))).toBeVisible();
+  expect(screen.queryByText("Search Agent")).toBeNull();
+});
+
+test("public agent labels match the configured names and react to language changes", async () => {
+  renderProject({ ...manifest, sessions: [{
+    id: "first", name: "First conversation", agent_id: "search", agent_name: "Search Agent",
+    agent_labels: { zh: { name: "研究助手" }, en: { name: "Research assistant" } },
+  }] });
+  expect(screen.getByText("Research assistant")).toBeVisible();
+  await act(() => i18n.changeLanguage("zh"));
+  expect(screen.getByText("研究助手")).toBeVisible();
+});

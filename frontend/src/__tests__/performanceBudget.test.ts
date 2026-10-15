@@ -300,3 +300,49 @@ test("selection actions load outside the eager application entry", () => {
   expect(source).toMatch(/const SelectionActionPopover = lazy\(/);
   expect(source).not.toMatch(/import \{ SelectionActionPopover \}/);
 });
+
+
+test("workspace styles load with workspace and shared routes, outside the public entry", () => {
+  const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+  const main = read("src/main.tsx");
+  for (const name of ["chat", "skill", "persona", "team", "approval", "syntax-highlight", "markdown", "panels", "legacy-panels"]) {
+    expect(main).not.toContain(`import "./styles/${name}.css"`);
+    expect(read("src/styles/app-content.css")).toContain(`@import "./${name}.css"`);
+  }
+  expect(read("src/components/layout/AppContent/index.tsx")).toContain('import "../../../styles/app-content.css"');
+  expect(read("src/components/share/SharedPage.tsx")).toContain('import "../../styles/app-content.css"');
+});
+
+
+test("authentication styles follow every authentication entry instead of the public shell", () => {
+  const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+  expect(read("src/main.tsx")).not.toContain('import "./styles/auth.css"');
+  for (const name of ["AuthLayout", "PasswordInput", "ForgotPassword"]) {
+    expect(read(`src/components/auth/${name}.tsx`)).toContain('import "../../styles/auth.css"');
+  }
+});
+
+
+test("eager route fallbacks do not pull the skeleton barrel into the entry graph", () => {
+  const app = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+  const guard = readFileSync(resolve(process.cwd(), "src/components/auth/ProtectedRoute.tsx"), "utf8");
+  expect(app).not.toMatch(/from "\.\/components\/skeletons"/);
+  expect(guard).not.toMatch(/from "\.\.\/skeletons"/);
+  expect(app).toContain('from "./components/skeletons/ChatSkeletons"');
+  expect(app).toContain('from "./components/skeletons/FilesSkeletons"');
+});
+
+
+test("startup providers import API leaves without loading the entire service barrel", () => {
+  for (const file of ["hooks/useAuth.tsx", "hooks/useLanguagePreference.ts", "hooks/useSettings.ts", "contexts/SettingsContext.tsx", "contexts/ThemeContext.tsx"]) {
+    const source = readFileSync(resolve(process.cwd(), "src", file), "utf8");
+    expect(source).not.toContain('from "../services/api"');
+  }
+});
+
+
+test("file skeleton search keeps its geometry before workspace styles load", () => {
+  const source = readFileSync(resolve(process.cwd(), "src/components/skeletons/FilesSkeletons.tsx"), "utf8");
+  expect(source).toContain("file-library-toolbar__search-group flex flex-1 justify-end min-w-0");
+  expect(source).toContain("file-library-toolbar__search skeleton-line w-full max-w-[17.5rem] min-w-24");
+});

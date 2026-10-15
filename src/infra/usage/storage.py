@@ -262,7 +262,7 @@ class UsageStorage:
                 metadata, session_metadata, "scheduled_task_trigger_type"
             )
             or _merge_metadata_value(metadata, session_metadata, "trigger_type"),
-            "model": usage_data.get("model", ""),
+            "model": usage_data.get("model") or metadata.get("model") or "",
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,

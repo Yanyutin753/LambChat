@@ -211,7 +211,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             inline
             className="size-5 rounded-full"
             errorFallback={
-              <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+              <div className="flex size-5 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
                 <span className="text-12 font-semibold text-white font-serif">
                   {user?.username?.charAt(0).toUpperCase() || "U"}
                 </span>
@@ -219,7 +219,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             }
           />
         ) : (
-          <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+          <div className="flex size-5 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
             <span className="text-12 font-semibold text-white font-serif">
               {user?.username?.charAt(0).toUpperCase() || "U"}
             </span>

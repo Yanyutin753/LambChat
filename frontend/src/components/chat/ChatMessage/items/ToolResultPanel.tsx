@@ -435,7 +435,7 @@ export function ToolResultPanel({
           className={`tool-console-chrome flex flex-col shrink-0 ${
             isFullscreen
               ? ""
-              : "bg-gradient-to-r from-theme-bg-subtle to-theme-bg-card"
+              : "bg-linear-to-r from-theme-bg-subtle to-theme-bg-card"
           }`}
         >
           {hasCustomHeader ? (

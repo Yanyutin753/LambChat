@@ -401,20 +401,59 @@ test("a file without a download URL keeps its preview and path copy available", 
   ).toBeEnabled();
 });
 
-test("folder and file names use the same fixed icon column", () => {
-  render(
-    <FileTreeView
-      files={{ "/delivery/report.md": "report" }}
-      binaryFiles={{}}
-      showHeader={false}
-    />,
-  );
-  const folder = screen.getByRole("button", { name: "delivery", exact: true });
-  fireEvent.click(folder);
-  const file = screen.getByRole("button", { name: "report.md", exact: true });
-  for (const button of [folder, file]) {
-    const iconColumn = button.firstElementChild;
-    expect(iconColumn).toHaveClass("size-9", "shrink-0");
-    expect(iconColumn?.querySelector("svg")).toHaveAttribute("width", "20");
-  }
-});
+test.each(["project", "summary"])(
+  "%s folder and file names use the same fixed icon column",
+  (kind) => {
+    if (kind === "project") {
+      render(
+        <FileTreeView
+          files={{ "/delivery/report.md": "report" }}
+          binaryFiles={{}}
+          showHeader={false}
+        />,
+      );
+    } else {
+      const view = render(
+        <RevealArtifactsSummary
+          parts={[
+            ...panelProjects,
+            {
+              type: "artifact",
+              success: true,
+              artifact: {
+                kind: "file",
+                id: "report",
+                name: "report.md",
+                path: "/delivery/report.md",
+                preview: {
+                  kind: "file",
+                  previewKey: "report",
+                  filePath: "/delivery/report.md",
+                },
+              },
+            },
+          ]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "chat.message.allFiles",
+          exact: true,
+        }),
+      );
+      const panel = mocks.panel.mock.calls.at(-1)?.[0] as {
+        children: ReactNode;
+      };
+      view.unmount();
+      render(<>{panel.children}</>);
+    }
+    const folder = screen.getByText("delivery").closest("button")!;
+    fireEvent.click(folder);
+    const file = screen.getByRole("button", { name: "report.md", exact: true });
+    for (const button of [folder, file]) {
+      const iconColumn = button.firstElementChild;
+      expect(iconColumn).toHaveClass("size-9", "shrink-0");
+      expect(iconColumn?.querySelector("svg")).toHaveAttribute("width", "20");
+    }
+  },
+);

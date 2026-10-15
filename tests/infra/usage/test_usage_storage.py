@@ -751,3 +751,111 @@ async def test_upsert_usage_log_from_trace_metadata_prefers_error_event_over_can
     assert doc["status"] == "cancelled"
     assert doc["error_message"] == "Task cancelled"
     assert doc["error_type"] == "CancelledError"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["cancelled", "error", "completed"])
+@pytest.mark.parametrize("usage_model", [None, "", "fallback-model"])
+async def test_usage_log_falls_back_to_run_model_without_usage_model(status, usage_model) -> None:
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    await storage.upsert_usage_log_from_trace_metadata(
+        {
+            "trace_id": "trace-model",
+            "status": status,
+            "metadata": {"model": "selected-model"},
+        },
+        {"model": usage_model} if usage_model is not None else {},
+    )
+
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["model"] == (usage_model or "selected-model")
+    assert doc["total_tokens"] == 0
+    assert doc["cost_available"] is False
+
+
+@pytest.mark.asyncio
+async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypatch) -> None:
+    from src.agents.core.node_utils import resolve_run_usage_carry
+    from src.infra.agent.events.processor import AgentEventProcessor
+    from src.infra.pricing.calculator import PriceRates, compute_cost
+    from src.infra.task.hitl import build_hitl_resume_payload
+    from src.infra.writer.present import Presenter
+
+    rates = PriceRates(input=1, output=2, cache_read=0.1)
+
+    async def price_usage(**kwargs):
+        cost = compute_cost(
+            input_tokens=kwargs["input_tokens"],
+            output_tokens=kwargs["output_tokens"],
+            cache_read_tokens=kwargs["cache_read_tokens"],
+            rates=rates,
+        )
+        return cost, rates, "test"
+
+    monkeypatch.setattr("src.infra.agent.events.processor.compute_usage_cost", price_usage)
+    events = []
+    presenter = Presenter()
+
+    async def capture(event):
+        events.append({"event_type": event["event"], "data": event["data"]})
+
+    monkeypatch.setattr(presenter, "emit", capture)
+    resume_payload = None
+    for index, (input_tokens, output_tokens, cache_tokens) in enumerate(
+        [(100, 10, 10), (200, 20, 20), (50, 5, 30)]
+    ):
+        processor = AgentEventProcessor(presenter)
+        started_at, prior = resolve_run_usage_carry(resume_payload, default_started_at=100.0)
+        processor.seed_usage(prior)
+        usage = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "input_token_details": {"cache_read": cache_tokens},
+        }
+        await processor.process_event(
+            {
+                "event": "on_chat_model_end",
+                "data": {
+                    "output": SimpleNamespace(
+                        usage_metadata=usage,
+                        response_metadata={"token_usage": dict(usage)},
+                    )
+                },
+            }
+        )
+        assert await processor.emit_token_usage(model="selected-model") is True
+        assert await processor.emit_token_usage(model="selected-model") is False
+        assert events[-1]["data"]["total_tokens"] == [110, 330, 385][index]
+        approval = SimpleNamespace(
+            id=f"approval-{index}",
+            message="confirm",
+            metadata={
+                "interrupt_id": f"interrupt-{index}",
+                "resume_context": {
+                    "run_started_at": started_at,
+                    "prior_usage": processor.usage_totals(),
+                },
+            },
+        )
+        resume_payload = build_hitl_resume_payload(approval, {"approved": True})
+
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    trace = {"trace_id": "same-trace", "status": "completed", "events": events}
+    await storage.upsert_usage_log(trace)
+    await storage.upsert_usage_log(trace)
+
+    for query, update, options in collection.update_calls:
+        assert query == {"trace_id": "same-trace"}
+        assert options["upsert"] is True
+        doc = update["$set"]
+        assert doc["input_tokens"] == 350
+        assert doc["output_tokens"] == 35
+        assert doc["total_tokens"] == 385
+        assert doc["cache_read_tokens"] == 60
+        assert doc["cost_usd"] == pytest.approx(0.000366)

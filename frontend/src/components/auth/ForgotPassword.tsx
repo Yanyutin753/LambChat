@@ -1,3 +1,4 @@
+import "../../styles/auth.css";
 import { SceneIllustration } from "../common/SceneIllustration";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";

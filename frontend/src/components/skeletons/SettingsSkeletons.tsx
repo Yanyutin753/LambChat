@@ -95,7 +95,7 @@ function ModelRowsSkeleton({ compact = false }: { compact?: boolean }) {
 
 export function AgentSectionSkeleton() {
   return (
-    <div className="panel-body panel-stack animate-glass-enter">
+    <div className="panel-body panel-stack">
       <PanelSegmentedTabsSkeleton
         activeWidth="w-16 sm:w-20"
         inactiveWidth="w-12 sm:w-16"
@@ -113,7 +113,7 @@ export function AgentSectionSkeleton() {
 
 export function ModelSectionSkeleton() {
   return (
-    <div className="panel-body panel-stack animate-glass-enter">
+    <div className="panel-body panel-stack">
       <PanelSegmentedTabsSkeleton
         activeWidth="w-14 sm:w-16"
         inactiveWidth="w-20 sm:w-28"
@@ -167,7 +167,7 @@ export function ModelSectionSkeleton() {
 
 export function AgentModelPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton
         hasSearch={false}
         hasSubtitle
@@ -196,7 +196,7 @@ export function AgentModelPanelSkeleton() {
 /** Agent panel: single divided container with tab switcher */
 export function AgentPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       {/* Tab bar — segmented control */}
       <PanelSegmentedTabsSkeleton
@@ -221,7 +221,7 @@ export function AgentPanelSkeleton() {
 /** Model panel: model config rows with tab switcher */
 export function ModelPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       {/* Tab bar — segmented control */}
       <PanelSegmentedTabsSkeleton

@@ -1,3 +1,5 @@
+@reference "./tailwind.css";
+
 .auth-shell {
   position: relative;
   isolation: isolate;

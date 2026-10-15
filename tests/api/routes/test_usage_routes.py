@@ -19,6 +19,7 @@ class _FakeUsageStorage:
                     "session_id": "session-1",
                     "user_id": kwargs.get("user_id") or "user-2",
                     "username": "Ada",
+                    "agent_id": "search",
                     "model": "openai/gpt-5",
                     "input_tokens": 10,
                     "output_tokens": 5,
@@ -151,6 +152,7 @@ async def test_list_usage_logs_restricts_non_admin_to_current_user(monkeypatch) 
     assert response.total == 1
     assert response.items[0].error_message == "Error code: 429 - rate limit exceeded"
     assert response.items[0].error_type == "RateLimitError"
+    assert response.items[0].model_dump()["agent_id"] == "search"
     assert storage.calls == [
         {
             "user_id": "user-1",

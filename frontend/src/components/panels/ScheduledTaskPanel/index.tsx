@@ -3,9 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../../i18n";
-import { resolveAgentDisplayName } from "../../agent/agentCatalog";
+import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import {
-  Bot,
   Clock,
   Cpu,
   History,
@@ -18,6 +17,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { SkillBaseCard } from "../../common/SkillBaseCard";
+import { AgentAvatar } from "../../common/AgentAvatar";
+import { AgentIcon } from "../../agent/AgentIcon";
+import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
 import { nameToGradient } from "../../common/cardUtils";
 import { PanelHeader } from "../../common/PanelHeader";
 import { EmptyState, PanelHeaderActions } from "../../common";
@@ -373,20 +375,6 @@ export function ScheduledTaskPanel({
     return model?.label || modelValue || modelId;
   };
 
-  const formatTaskContext = (task: ScheduledTask): string | null => {
-    if (task.agent_id === "team") {
-      const teamId = getScheduledTaskTeamId(task.input_payload);
-      if (!teamId) return null;
-      return teams.find((team) => team.id === teamId)?.name || teamId;
-    }
-    const personaPresetId = getScheduledTaskPersonaPresetId(task.input_payload);
-    if (!personaPresetId) return null;
-    return (
-      personaPresets.find((preset) => preset.id === personaPresetId)?.name ||
-      personaPresetId
-    );
-  };
-
   // Show skeleton during initial data loading — consistent with other panels
   if (isLoading && !hasLoaded && !taskId) {
     return <ScheduledTaskPanelSkeleton />;
@@ -456,9 +444,24 @@ export function ScheduledTaskPanel({
             ) : (
               <div className="grid auto-grid-cols gap-3">
                 {tasks.map((task) => {
-                  const agent = agents.find((a) => a.id === task.agent_id);
                   const modelName = formatTaskModel(task);
-                  const contextName = formatTaskContext(task);
+                  const agent = agents.find((item) => item.id === task.agent_id);
+                  const contextId = task.agent_id === "team"
+                    ? getScheduledTaskTeamId(task.input_payload)
+                    : getScheduledTaskPersonaPresetId(task.input_payload);
+                  const team = task.agent_id === "team"
+                    ? teams.find((item) => item.id === contextId)
+                    : undefined;
+                  const persona = task.agent_id !== "team"
+                    ? personaPresets.find((item) => item.id === contextId)
+                    : undefined;
+                  const contextName = team?.name || persona?.name || contextId;
+                  const contextAvatar = team
+                    ? team.avatar ?? getTeamFallbackAvatar(team)
+                    : persona?.avatar;
+                  const contextSeed = team?.name || contextId;
+                  const avatar = contextId ? contextAvatar : agent?.icon;
+                  const avatarSeed = contextId ? contextSeed : task.agent_id;
 
                   return (
                     <SkillBaseCard
@@ -466,11 +469,9 @@ export function ScheduledTaskPanel({
                       title={task.name}
                       gradient={nameToGradient(task.name)}
                       icon={
-                        <Clock
-                          size={20}
-                          className="text-theme-text-secondary"
-                        />
+                        <AgentAvatar avatar={avatar} seed={avatarSeed} size={36} />
                       }
+                      iconClassName=""
                       className="cursor-pointer"
                       description={task.description ?? undefined}
                       onClick={() => navigate(`/scheduled-tasks/${task.id}`)}
@@ -486,10 +487,8 @@ export function ScheduledTaskPanel({
                             {formatTriggerInfo(task)}
                           </span>
                           <span className="skill-meta-pill">
-                            <Bot size={12} />
-                            {agent
-                              ? resolveAgentDisplayName(agent, i18n.language, t)
-                              : task.agent_id}
+                            <AgentIcon icon={agent?.icon} seed={task.agent_id} size={14} />
+                            {resolveAgentReferenceName(task.agent_id, "", agents, i18n.language, t)}
                           </span>
                           {modelName && (
                             <span className="skill-meta-pill">
@@ -499,7 +498,7 @@ export function ScheduledTaskPanel({
                           )}
                           {contextName && (
                             <span className="skill-meta-pill">
-                              <Bot size={12} />
+                              <AgentAvatar avatar={contextAvatar} seed={contextSeed} size={14} />
                               {contextName}
                             </span>
                           )}

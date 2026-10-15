@@ -161,14 +161,14 @@ export function SkillBaseCard({
     >
       {(gradient || bannerLeadingOverlay || bannerOverlay) && (
         <div
-          className="scb__banner relative h-12 shrink-0"
+          className="scb__banner relative shrink-0"
           style={{
             background: gradient
               ? `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`
               : undefined,
           }}
         >
-          <div className="absolute inset-0 flex items-start justify-between px-2 py-2 z-[3]">
+          <div className="relative flex min-h-12 items-start justify-between gap-2 px-3 py-2 z-[3]">
             <div className="flex items-center gap-1.5">
               {bannerLeadingOverlay}
               {!bannerLeadingOverlay && selectionMode && onSelect && (
@@ -189,7 +189,7 @@ export function SkillBaseCard({
                 </div>
               )}
             </div>
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
               {bannerLeadingOverlay && selectionMode && onSelect && (
                 <div
                   className={`transition-all duration-200 ${
@@ -230,7 +230,7 @@ export function SkillBaseCard({
       )}
 
       <div
-        className={`scb__body flex flex-1 flex-col p-3 ${gradient ? "-mt-3 pt-4" : ""}`}
+        className={`scb__body flex flex-1 flex-col gap-2 p-3 ${gradient ? "-mt-3 pt-4" : ""}`}
       >
         <div className="scb__header flex items-center gap-2">
           {icon &&
@@ -265,23 +265,28 @@ export function SkillBaseCard({
 
         {description && (
           <p
-            className={`scb__description mt-2 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp}`}
+            className={`scb__description text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp}`}
           >
             {description}
           </p>
         )}
 
-        {tags && <div className="mt-2">{tags}</div>}
+        {tags && <div>{tags}</div>}
 
-        {extraContent && <div className="mt-2">{extraContent}</div>}
+        {extraContent && <div>{extraContent}</div>}
 
-        <div className="flex-1" />
-
-        {meta && <div className="mt-2">{meta}</div>}
-
-        {(footer || actions.length > 0) && (
+        {(meta || footer || actions.length > 0) && (
           <div className="scb__footer flex items-center gap-2">
-            {footer && <div className="min-w-0 flex-1">{footer}</div>}
+            {meta && (
+              <div className="min-w-0 flex-1 text-11 text-theme-text-secondary">
+                {meta}
+              </div>
+            )}
+            {footer && (
+              <div className={`min-w-0 ${meta ? "shrink-0" : "flex-1"}`}>
+                {footer}
+              </div>
+            )}
             {singleAction ? (
               <SingleAction
                 type={singleAction.href ? undefined : "button"}

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Check, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
-import { getCategoryIcon, nameToGradient } from "../common/cardUtils";
+import { AgentAvatar } from "../common/AgentAvatar";
 import { getAnchoredSlashDropdownPlacement } from "./slashDropdownPlacement";
 import type {
   SlashDropdownItem,
@@ -179,22 +179,10 @@ export function SlashDropdownMenu({
                   </>
                 ) : (
                   (() => {
-                    const SkillIcon = item.skill.tags[0]
-                      ? getCategoryIcon(item.skill.tags[0])
-                      : Sparkles;
-                    const gradient = nameToGradient(item.skill.name);
                     const isSelected = runSkillNameSet.has(item.skill.name);
                     return (
                       <>
-                        <div
-                          className="shrink-0 flex items-center justify-center size-6 rounded-md"
-                          style={{
-                            background: `linear-gradient(135deg, ${gradient[0]}66, ${gradient[1]}66)`,
-                            opacity: isSelected ? 1 : 0.5,
-                          }}
-                        >
-                          <SkillIcon size={12} className="text-white" />
-                        </div>
+                        <AgentAvatar seed={item.skill.name} size={24} />
                         <span className="min-w-0 flex-1 truncate font-serif">
                           {item.skill.name}
                         </span>
@@ -226,7 +214,7 @@ export function SlashDropdownMenu({
         ref={popupRef}
         role="listbox"
         aria-label="Slash commands"
-        className="slash-command-menu fixed bottom-20 left-2 z-[350] overflow-hidden rounded-xl border shadow-lg"
+        className="slash-command-menu font-serif fixed bottom-20 left-2 z-[350] overflow-hidden rounded-xl border shadow-lg"
         style={{
           backgroundColor: "var(--theme-bg-card)",
           borderColor: "var(--theme-border)",
@@ -249,7 +237,7 @@ export function SlashDropdownMenu({
       ref={popupRef}
       role="listbox"
       aria-label="Slash commands"
-      className="slash-command-menu fixed z-[350] overflow-hidden rounded-xl border shadow-lg"
+      className="slash-command-menu font-serif fixed z-[350] overflow-hidden rounded-xl border shadow-lg"
       style={{
         ...resolvedPlacement,
         backgroundColor: "var(--theme-bg-card)",

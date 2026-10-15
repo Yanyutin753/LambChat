@@ -9,7 +9,8 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { ChatPageSkeleton, FilesPageSkeleton } from "./components/skeletons";
+import { ChatPageSkeleton } from "./components/skeletons/ChatSkeletons";
+import { FilesPageSkeleton } from "./components/skeletons/FilesSkeletons";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 const SelectionActionPopover = lazy(() =>
@@ -39,22 +40,10 @@ const ServerSetupScreen = lazy(() =>
   })),
 );
 import { useAppViewport } from "./hooks/useAppViewport";
-import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
-// 更新对话框懒加载（M4 T8 PWA 预算）：移动端专属 UI（安装需用户确认），
-// 桌面端走标题栏指示器，不再弹模态框。
-const UpdateDialog = lazy(() =>
-  import("./components/update/UpdateDialog").then((m) => ({
-    default: m.UpdateDialog,
-  })),
-);
-
-// 桌面自绘标题栏框架懒加载：仅 Tauri 壳渲染，连带导航历史 Provider 一起
-// 拆出 eager 包，不占网页 PWA 的启动 JS 预算。
-const DesktopTitlebarFrame = lazy(() =>
-  import("./components/layout/TitleBar/DesktopTitlebarFrame").then((m) => ({
-    default: m.DesktopTitlebarFrame,
-  })),
+// Native update services and titlebar stay outside the web startup graph.
+const NativeUpdateShell = lazy(() =>
+  import("./components/update/NativeUpdateShell"),
 );
 
 const SharedEntry = lazy(() =>
@@ -372,14 +361,6 @@ function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Auto-update for desktop and mobile
-  const {
-    state: updateState,
-    showDialog: showUpdateDialog,
-    setShowDialog: setShowUpdateDialog,
-    startUpdate,
-    skipThisVersion,
-  } = useAutoUpdate();
   const updatePlatform = (() => {
     if (typeof window === "undefined") return "web";
     const win = window as unknown as Record<string, unknown>;
@@ -436,20 +417,6 @@ function App() {
           <AppToaster />
         </Suspense>
         <PwaStatusToasts />
-        {(updatePlatform === "android" || updatePlatform === "ios") &&
-          showUpdateDialog &&
-          updateState.available && (
-            <Suspense fallback={null}>
-              <UpdateDialog
-                state={updateState}
-                isOpen={showUpdateDialog}
-                onUpgrade={startUpdate}
-                onSkipVersion={skipThisVersion}
-                onDismiss={() => setShowUpdateDialog(false)}
-                platform={updatePlatform as "tauri" | "android" | "ios"}
-              />
-            </Suspense>
-          )}
         <Suspense fallback={null}>
           <SelectionActionPopover />
         </Suspense>
@@ -730,7 +697,6 @@ function App() {
           );
           return titlebarOs ? (
             <Suspense
-              // fallback 与框架同构（40px 占位 + 内容区），消除标题栏载入跳动
               fallback={
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="h-10 shrink-0" />
@@ -738,17 +704,19 @@ function App() {
                 </div>
               }
             >
-              <DesktopTitlebarFrame
-                os={titlebarOs}
-                updateState={updateState}
-                onInstallUpdate={startUpdate}
-                onSkipVersion={skipThisVersion}
-              >
+              <NativeUpdateShell platform="tauri" titlebarOs={titlebarOs}>
                 {appRoutes}
-              </DesktopTitlebarFrame>
+              </NativeUpdateShell>
             </Suspense>
           ) : (
-            appRoutes
+            <>
+              {updatePlatform !== "web" && (
+                <Suspense fallback={null}>
+                  <NativeUpdateShell platform={updatePlatform} titlebarOs={null} />
+                </Suspense>
+              )}
+              {appRoutes}
+            </>
           );
         })()}
       </ErrorBoundary>

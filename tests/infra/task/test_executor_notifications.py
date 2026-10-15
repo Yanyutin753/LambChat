@@ -57,6 +57,10 @@ class _FakeDualWriter:
         self.events: list[dict] = []
         self.completed: list[tuple[str, str, dict | None]] = []
         self.expired_streams: list[tuple[str, str, int]] = []
+        self.trace = self
+
+    async def get_last_trace_event(self, trace_id, event_types):
+        return None
 
     async def create_trace(self, **kwargs):
         return True

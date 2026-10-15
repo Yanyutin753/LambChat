@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-from src.agents.fast_agent import graph as fast_graph
 from src.agents.search_agent import graph as search_graph
 from src.agents.team_agent import graph as team_graph
 
@@ -100,7 +99,6 @@ async def _drain_stream_with_presenter(
 @pytest.mark.parametrize(
     ("module", "agent_cls", "context_name"),
     [
-        (fast_graph, fast_graph.FastAgent, "FastAgentContext"),
         (search_graph, search_graph.SearchAgent, "SearchAgentContext"),
         (team_graph, team_graph.TeamAgent, "TeamAgentContext"),
     ],
@@ -127,7 +125,6 @@ async def test_agent_stream_passes_active_goal_to_node_config(
 @pytest.mark.parametrize(
     ("module", "agent_cls", "context_name"),
     [
-        (fast_graph, fast_graph.FastAgent, "FastAgentContext"),
         (search_graph, search_graph.SearchAgent, "SearchAgentContext"),
         (team_graph, team_graph.TeamAgent, "TeamAgentContext"),
     ],
@@ -150,7 +147,6 @@ async def test_agent_stream_accepts_future_returned_by_graph_ainvoke(
 @pytest.mark.parametrize(
     ("module", "agent_cls", "context_name"),
     [
-        (fast_graph, fast_graph.FastAgent, "FastAgentContext"),
         (search_graph, search_graph.SearchAgent, "SearchAgentContext"),
         (team_graph, team_graph.TeamAgent, "TeamAgentContext"),
     ],

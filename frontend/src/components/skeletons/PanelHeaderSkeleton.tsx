@@ -54,7 +54,7 @@ export function PanelHeaderSkeleton({
             <div className="min-w-0">
               <div className="panel-header__title flex h-[1.5em] items-center text-16 lg:text-18">
                 <SkeletonLine
-                  width="w-28 sm:w-36 xl:w-48"
+                  width="w-24 sm:w-28 xl:w-32"
                   className="!h-4 lg:!h-[18px]"
                 />
               </div>

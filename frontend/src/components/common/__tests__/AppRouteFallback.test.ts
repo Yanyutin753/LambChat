@@ -7,7 +7,7 @@ test("App uses ChatPageSkeleton for the top-level route suspense fallback", () =
   );
 
   expect(appSource).toMatch(
-    /import\s+\{[^}]*ChatPageSkeleton[^}]*\}\s+from\s+"\.\/components\/skeletons";/,
+    /import\s+\{[^}]*ChatPageSkeleton[^}]*\}\s+from\s+"\.\/components\/skeletons\/ChatSkeletons";/,
   );
   expect(appSource).toMatch(/<Suspense fallback=\{<ChatPageSkeleton \/>\}>/);
   expect(appSource).not.toMatch(/RouteLoadingShell/);

@@ -187,13 +187,7 @@ def test_overlong_session_id_is_truncated() -> None:
 
 
 def test_base_graph_agent_binds_session_key_around_graph_execution() -> None:
-    # fast/search/team 各自重写 _stream，绑定必须放在未被重写的公共入口：
-    # stream() → _stream_with_cache_key() → self._stream(...)
-    # 热修（跨 context 安全）：每轮事件幂等 set（看门狗把每个 __anext__ 包成
-    # 独立 Task/context 副本，入口 set + finally reset 会跨 context 崩溃）。
     assert "return self._stream_with_cache_key(" in AGENTS_BASE_SOURCE
-    assert "set_responses_prompt_cache_key(session_id)" in AGENTS_BASE_SOURCE
-    assert "async for event in self._stream(message, session_id" in AGENTS_BASE_SOURCE
     assert "session_prompt_cache_key(session_id)" in AGENTS_BASE_SOURCE
 
 
@@ -309,3 +303,62 @@ def test_official_base_url_keeps_responses_cache_defaults() -> None:
     )
     assert model.include == ["reasoning.encrypted_content"]
     assert model.store is False
+
+
+async def test_agent_cache_key_survives_separate_stream_pull_tasks():
+    import asyncio
+
+    from src.agents.core.base import BaseGraphAgent
+
+    observed = []
+
+    class Agent(BaseGraphAgent):
+        def build_graph(self, builder):
+            pass
+
+        async def _stream(self, message, session_id, user_id=None, **kwargs):
+            for _ in range(2):
+                observed.append(current_responses_prompt_cache_key())
+                yield {"event": "chunk"}
+
+    stream = Agent().stream("hello", "cache-session")
+    try:
+        await asyncio.create_task(anext(stream))
+        await asyncio.create_task(anext(stream))
+    finally:
+        await asyncio.create_task(stream.aclose())
+    assert observed == ["cache-session", "cache-session"]
+    assert current_responses_prompt_cache_key() is None
+
+
+async def test_cancelled_agent_stream_cleans_up_with_key_and_restores_caller():
+    import asyncio
+
+    from src.agents.core.base import BaseGraphAgent
+
+    started = asyncio.Event()
+    observed = []
+
+    class Agent(BaseGraphAgent):
+        def build_graph(self, builder):
+            pass
+
+        async def _stream(self, message, session_id, user_id=None, **kwargs):
+            try:
+                observed.append(current_responses_prompt_cache_key())
+                started.set()
+                await asyncio.Event().wait()
+                yield {"event": "unreachable"}
+            finally:
+                observed.append(current_responses_prompt_cache_key())
+
+    with session_prompt_cache_key("caller"):
+        stream = Agent().stream("hello", "cache-session")
+        task = asyncio.create_task(anext(stream))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await stream.aclose()
+        assert current_responses_prompt_cache_key() == "caller"
+    assert observed == ["cache-session", "cache-session"]

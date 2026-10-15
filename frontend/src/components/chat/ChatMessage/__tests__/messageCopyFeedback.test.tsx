@@ -35,6 +35,23 @@ vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
 afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());
 
+test.each([
+  ["前文 [引用技能：writer] 中间 [引用技能：reviewer] 结尾", "前文 writer 中间 reviewer 结尾"],
+  ["旧消息正文", "writerreviewer旧消息正文"],
+])("user references keep display and copy order: %s", async (content, visibleText) => {
+  mocks.copy.mockResolvedValueOnce(undefined);
+  const view = render(<ChatMessage message={{
+    id: "ordered-skills", role: "user", content, timestamp: new Date(),
+    enabledSkills: ["writer", "reviewer"],
+  }} />);
+  expect(view.container.querySelector(".user-message-inline-markdown")).toHaveTextContent(visibleText);
+  expect(view.container.querySelectorAll(".skill-chip-node")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "chat.message.copy" }));
+  await waitFor(() => expect(mocks.copy).toHaveBeenCalledWith(
+    content.startsWith("前文") ? content : "[引用技能：writer] [引用技能：reviewer]\n旧消息正文",
+  ));
+});
+
 test.each(["user", "assistant"] as const)(
   "%s message copying waits for the clipboard and preserves retry after failure",
   async (role) => {

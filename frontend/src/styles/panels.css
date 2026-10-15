@@ -622,7 +622,9 @@
   [data-panel] .panel-list-view {
     gap: var(--panel-gap);
   }
-  [data-panel] .resource-detail-card {
-    padding: 0.75rem;
-  }
+}
+
+/* Detail cards use the same inset at every panel width. */
+[data-panel] .resource-detail-card {
+  padding: 0.75rem;
 }

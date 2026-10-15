@@ -17,10 +17,6 @@ vi.mock("../../../hooks/useFileUpload", () => ({
   }),
 }));
 
-vi.mock("../ChatInputToolbar", () => ({
-  ChatInputToolbar: () => null,
-}));
-
 vi.mock("../ChatInputSelectors", () => ({
   ChatInputSelectors: () => null,
 }));
@@ -116,7 +112,7 @@ test("expanded composer renders at body level outside the chat shell", async () 
   // (AppShell transform + relative z-0) cap its paint order below body-level
   // overlays such as the tool console (z-200) portal.
   expect(expandedContainer?.closest(".chat-input-shell")).toBeNull();
-  expect(expandedContainer?.closest("form")).toBeNull();
+  expect(expandedContainer?.closest("form")).not.toBeNull();
   expect(expandedContainer?.closest("body")).not.toBeNull();
 
   // The dim backdrop must also live at body level so body-level overlays
@@ -216,3 +212,43 @@ test("Escape closes the foreground modal and keeps the expanded draft in place",
       .inert,
   ).toBe(false);
 });
+
+test.each([false, true])("clicking Send submits the draft (expanded=%s)", async (expanded) => {
+  const onSend = vi.fn();
+  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={longDraft} />);
+  await screen.findByRole("textbox");
+  if (expanded) fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  const send = screen.getByRole("button", { name: /^(send message|发送|chat.send)$/i });
+  fireEvent.click(send);
+  expect(onSend).toHaveBeenCalledOnce();
+  expect(onSend.mock.calls[0][0]).toBe(longDraft.trim());
+});
+
+test("rejected expanded submission restores the complete multilingual draft", async () => {
+  const draft = "中文输入，emoji 🐑\n第二行 English <tag> & code";
+  const onSend = vi.fn();
+  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={draft} />);
+  const editor = await screen.findByRole("textbox");
+  fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+  expect(onSend.mock.calls[0][0]).toBe(draft);
+  await act(async () => onSend.mock.calls[0][4].onRejected());
+  expect(editor.textContent).toContain("中文输入，emoji 🐑");
+  expect(editor.textContent).toContain("第二行 English <tag> & code");
+  fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+  expect(onSend.mock.calls[1][0]).toBe(draft);
+});
+
+test.each([{ isComposing: true }, { keyCode: 229 }])(
+  "confirming IME text in expanded mode does not submit (%j)",
+  async (composition) => {
+    const onSend = vi.fn();
+    render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={longDraft} />);
+    const editor = await screen.findByRole("textbox");
+    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    editor.focus();
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true, ...composition });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(editor).toHaveTextContent(longDraft.trim());
+  },
+);

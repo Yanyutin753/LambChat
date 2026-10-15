@@ -41,7 +41,7 @@ interface ToolbarProps {
 const btnBase =
   "flex items-center h-9 gap-1.5 rounded-lg border transition-all duration-150 text-14";
 const btnDefault =
-  "border-theme-border text-theme-text-secondary hover:bg-theme-bg-subtle hover:border-theme-border-hover";
+  "border-theme-border bg-theme-bg-card text-theme-text hover:bg-theme-bg-subtle hover:border-theme-border-hover";
 const btnActive =
   "border-theme-border-hover bg-theme-bg-subtle text-theme-text";
 
@@ -213,10 +213,10 @@ export function Toolbar({
               onClick={onFavoritesToggle}
               aria-label={t("fileLibrary.favorites")}
               aria-pressed={favoritesOnly}
-              className={`${btnBase} w-9 h-9 p-0 flex items-center justify-center transition-all duration-150 ${
+              className={`${btnBase} w-9 @xl:w-auto @xl:px-2.5 shrink-0 whitespace-nowrap h-9 p-0 flex items-center justify-center transition-all duration-150 ${
                 favoritesOnly
                   ? "border-amber-300/80 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm shadow-amber-100"
-                  : "border-theme-border text-theme-text-secondary hover:bg-theme-bg-subtle hover:border-theme-border-hover"
+                  : btnDefault
               }`}
             >
               <Star
@@ -225,7 +225,7 @@ export function Toolbar({
                   favoritesOnly ? "fill-amber-400 dark:fill-amber-500" : ""
                 }
               />
-              <span className="hidden @sm:inline">
+              <span className="hidden @xl:inline">
                 {t("fileLibrary.favorites", "我的收藏")}
               </span>
             </button>
@@ -367,7 +367,7 @@ export function Toolbar({
           {/* ─── Right group: Search + View toggle ─── */}
           <div className="file-library-toolbar__search-group flex items-center gap-1.5 min-w-0">
             {/* Search */}
-            <div className="file-library-toolbar__search group flex items-center h-9 rounded-lg border border-theme-border bg-theme-bg-subtle/50 px-2 @sm:px-3 pl-9 relative focus-within:border-theme-border-hover focus-within:bg-theme-bg-elevated transition-all duration-150">
+            <div className="file-library-toolbar__search group flex items-center h-9 rounded-lg border border-theme-border bg-theme-bg-card pr-2 @sm:pr-3 pl-9 relative focus-within:border-theme-border-hover focus-within:bg-theme-bg-elevated transition-all duration-150">
               <Search
                 size={16}
                 className="absolute left-2 @sm:left-3 top-1/2 -translate-y-1/2 text-theme-text-tertiary pointer-events-none"
@@ -377,7 +377,7 @@ export function Toolbar({
                 value={search}
                 onValueChange={onSearchChange}
                 placeholder={t("fileLibrary.searchPlaceholder")}
-                className="h-full min-w-0 flex-1 bg-transparent text-14 text-theme-text placeholder:text-theme-text-tertiary focus:outline-none"
+                className="h-full min-w-0 flex-1 bg-transparent text-14 text-theme-text placeholder:text-theme-text-tertiary focus:outline-hidden"
               />
               {search && (
                 <button

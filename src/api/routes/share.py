@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 
 from src.agents.core.base import get_agent_class
 from src.api.deps import get_current_user_optional, get_current_user_required
+from src.infra.agent.config_storage import get_agent_config_storage
 from src.infra.folder.storage import get_project_storage
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer import get_dual_writer
@@ -24,6 +25,7 @@ from src.infra.team.storage import TeamStorage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import to_iso
 from src.kernel.errors import AppError, ErrorCode
+from src.kernel.schemas.agent import AgentCatalogConfig
 from src.kernel.schemas.share import (
     ProjectSnapshot,
     ShareCreate,
@@ -164,18 +166,27 @@ async def _attach_shared_team_metadata(
         logger.warning("Failed to load shared team metadata", exc_info=True)
 
 
-def _build_safe_session_info(session) -> dict:
-    """构建公开可见的会话信息（仅安全字段）。"""
-    agent_name = session.agent_id
+def _shared_agent_metadata(agent_id: str, catalog: AgentCatalogConfig | None = None) -> dict:
+    agent_name = agent_id
     try:
-        agent_cls = get_agent_class(session.agent_id)
+        agent_cls = get_agent_class(agent_id)
         agent_name = agent_cls._agent_name
     except (ValueError, AttributeError):
         pass
     except AppError as exc:
         if exc.error_code != ErrorCode.AGENT_NOT_REGISTERED:
             raise
+    return {
+        "agent_id": agent_id,
+        "agent_name": catalog.name if catalog else agent_name,
+        "agent_labels": {locale: {"name": label.name} for locale, label in catalog.labels.items()}
+        if catalog
+        else {},
+    }
 
+
+def _build_safe_session_info(session, catalog: AgentCatalogConfig | None = None) -> dict:
+    """构建公开可见的会话信息（仅安全字段）。"""
     metadata = session.metadata or {}
     model = metadata.get("agent_options", {}).get("model")
 
@@ -186,8 +197,7 @@ def _build_safe_session_info(session) -> dict:
     session_info = {
         "id": session.id,
         "name": session.name,
-        "agent_id": session.agent_id,
-        "agent_name": agent_name,
+        **_shared_agent_metadata(session.agent_id, catalog),
         "model": model,
         "created_at": to_iso(session.created_at),
         "updated_at": to_iso(session.updated_at),
@@ -206,24 +216,16 @@ def _build_safe_session_info(session) -> dict:
     return session_info
 
 
-def _build_project_session_item(session) -> SharedProjectSessionItem:
+def _build_project_session_item(
+    session, catalog: AgentCatalogConfig | None = None
+) -> SharedProjectSessionItem:
     """构建项目 manifest 中的子会话摘要。"""
-    agent_name = session.agent_id
-    try:
-        agent_cls = get_agent_class(session.agent_id)
-        agent_name = agent_cls._agent_name
-    except (ValueError, AttributeError):
-        pass
-    except AppError as exc:
-        if exc.error_code != ErrorCode.AGENT_NOT_REGISTERED:
-            raise
-
     model = (session.metadata or {}).get("agent_options", {}).get("model")
 
     return SharedProjectSessionItem(
         id=session.id,
         name=session.name,
-        agent_name=agent_name,
+        **_shared_agent_metadata(session.agent_id, catalog),
         model=model,
         updated_at=session.updated_at,
     )
@@ -273,7 +275,9 @@ async def _build_session_content(
         avatar_url=owner.avatar_url if owner else None,
     )
 
-    session_info = _build_safe_session_info(session)
+    catalog = await get_agent_config_storage().get_catalog_config()
+    agent_catalog = next((item for item in catalog if item.id == session.agent_id), None)
+    session_info = _build_safe_session_info(session, agent_catalog)
     await _attach_shared_team_metadata(session_info, session, share)
 
     return SharedContentResponse(
@@ -313,12 +317,17 @@ async def _build_project_manifest(
         )
     session_map = await SessionManager().get_sessions(page_ids) if page_ids else {}
 
+    catalog = (
+        {item.id: item for item in await get_agent_config_storage().get_catalog_config()}
+        if session_map
+        else {}
+    )
     items: list[SharedProjectSessionItem] = []
     for sid in page_ids:
         session = session_map.get(sid)
         if not session:
             continue
-        items.append(_build_project_session_item(session))
+        items.append(_build_project_session_item(session, catalog.get(session.agent_id)))
 
     owner = await UserStorage().get_by_id(share.owner_id)
     owner_info = SharedContentOwner(

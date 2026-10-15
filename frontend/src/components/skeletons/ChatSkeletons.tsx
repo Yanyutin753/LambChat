@@ -1,9 +1,10 @@
+import "../../styles/welcome.css";
 import {
   WELCOME_PERSONA_CLASS_NAME,
   getWelcomePersonaSkeletonClass,
+  getWelcomePersonaSkeletonCount,
 } from "../chat/welcomeLayout";
 import { SkeletonLine } from "./primitives";
-import { PANEL_CARD_SKELETON_COUNT } from "./PanelSkeletonHelpers";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 
 const appSafeAreaTop =
@@ -250,6 +251,42 @@ export function ChatSkeletonMessagesOnly({ count = 3 }: { count?: number }) {
   );
 }
 
+/** Uses the loaded welcome card's header so responsive spacing stays in sync. */
+export function WelcomePersonaCardSkeleton({
+  showTag = false,
+}: {
+  showTag?: boolean;
+}) {
+  return (
+    <div
+      className={getWelcomePersonaSkeletonClass()}
+      style={{
+        backgroundColor: "var(--theme-bg-card)",
+        borderColor: "var(--theme-border)",
+      }}
+      aria-hidden="true"
+    >
+      <span className="welcome-persona-header relative flex items-center gap-3">
+        <span className="welcome-persona-avatar welcome-skeleton-avatar size-11 rounded-xl shrink-0" />
+        <span className="welcome-persona-info min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <span className="welcome-persona-name-row relative flex flex-1 items-center gap-1.5 min-w-0">
+              <span className="welcome-skeleton-line welcome-skeleton-title !h-[13px] sm:!h-[15px]" />
+            </span>
+            {showTag && (
+              <span className="welcome-skeleton-line welcome-skeleton-tag shrink-0" />
+            )}
+          </span>
+          <span className="welcome-persona-description block mt-1 text-12 leading-[1.5]">
+            <span className="welcome-skeleton-line w-full !h-2.5 mt-1" />
+            <span className="welcome-skeleton-line welcome-skeleton-desc !h-2.5 mt-1.5" />
+          </span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /** Skeleton for the welcome page (greeting + input + persona cards) */
 export function WelcomeSkeleton() {
   return (
@@ -309,25 +346,8 @@ export function WelcomeSkeleton() {
         </div>
         {/* Persona card grid skeleton */}
         <div className="welcome-persona-gallery welcome-persona-gallery--loading relative pb-1 sm:pb-0">
-          {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className={getWelcomePersonaSkeletonClass()}
-              style={{
-                backgroundColor: "var(--theme-bg-card)",
-                borderColor: "var(--theme-border)",
-              }}
-              aria-hidden="true"
-            >
-              <span className="welcome-skeleton-avatar" />
-              <span className="welcome-skeleton-info">
-                <span className="welcome-skeleton-name-row">
-                  <span className="welcome-skeleton-line welcome-skeleton-title" />
-                  <span className="welcome-skeleton-line welcome-skeleton-tag" />
-                </span>
-                <span className="welcome-skeleton-line welcome-skeleton-desc" />
-              </span>
-            </div>
+          {Array.from({ length: getWelcomePersonaSkeletonCount(true) }).map((_, i) => (
+            <WelcomePersonaCardSkeleton key={i} />
           ))}
         </div>
       </div>

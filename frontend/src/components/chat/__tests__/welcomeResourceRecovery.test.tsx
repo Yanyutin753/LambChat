@@ -59,6 +59,7 @@ vi.mock("../../persona/PersonaAvatarWithLoading", () => ({
 vi.mock("../../team/TeamAvatar", () => ({ TeamAvatar: () => null }));
 vi.mock("../../skeletons/ChatSkeletons", () => ({
   WelcomeSkeleton: () => <div>Loading welcome</div>,
+  WelcomePersonaCardSkeleton: () => <div aria-hidden="true" />,
 }));
 
 const props = {

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import i18n from "i18next";
-import { settingsApi, getAccessToken } from "../services/api";
+import { settingsApi } from "../services/api/settings";
+import { getAccessToken } from "../services/api/token";
 import type { SettingsResponse } from "../types";
 
 export function useSettings() {

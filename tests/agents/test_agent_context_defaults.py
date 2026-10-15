@@ -1,5 +1,5 @@
-from src.agents.fast_agent.context import FastAgentContext
 from src.agents.search_agent.context import SearchAgentContext
+from src.agents.team_agent.context import TeamAgentContext
 
 
 class _CloseableSandbox:
@@ -10,9 +10,9 @@ class _CloseableSandbox:
         self.close_calls += 1
 
 
-def test_fast_agent_context_generates_fresh_default_session_id_per_instance() -> None:
-    first = FastAgentContext()
-    second = FastAgentContext()
+def test_team_agent_context_generates_fresh_default_session_id_per_instance() -> None:
+    first = TeamAgentContext()
+    second = TeamAgentContext()
 
     assert first.session_id != second.session_id
 
@@ -34,3 +34,19 @@ async def test_search_agent_context_closes_run_sandbox_once_and_clears_reference
 
     assert sandbox.close_calls == 1
     assert context.run_sandbox is None
+
+
+def test_search_initial_tools_keep_same_order_after_loader_reordering():
+    from types import SimpleNamespace
+
+    a = SimpleNamespace(name="alpha")
+    z = SimpleNamespace(name="zebra")
+    first = SearchAgentContext()
+    second = SearchAgentContext()
+    first._append_unique_tools([z, a])
+    second._append_unique_tools([a, z])
+    assert (
+        [tool.name for tool in first.tools]
+        == [tool.name for tool in second.tools]
+        == ["alpha", "zebra"]
+    )

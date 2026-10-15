@@ -201,7 +201,7 @@ function InfoTabCurrent() {
     <>
       {/* Avatar */}
       <div className="flex flex-col items-center mb-6">
-        <div className="size-16 sm:size-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-stone-100 dark:ring-stone-600">
+        <div className="size-16 sm:size-20 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-stone-100 dark:ring-stone-600">
           <span className="text-30 font-bold text-white font-serif">
             {username.charAt(0).toUpperCase() || "U"}
           </span>
@@ -340,7 +340,7 @@ function InfoTabA() {
   return (
     <>
       <div className="flex flex-col items-center mb-6">
-        <div className="size-16 sm:size-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card shadow-lg ring-2 ring-theme-border">
+        <div className="size-16 sm:size-20 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card shadow-lg ring-2 ring-theme-border">
           <span className="text-30 font-bold text-white font-serif">
             {username.charAt(0).toUpperCase() || "U"}
           </span>
@@ -473,7 +473,7 @@ function InfoTabB() {
   return (
     <>
       <div className="flex flex-col items-center mb-6">
-        <div className="size-16 sm:size-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card shadow-lg ring-2 ring-theme-border">
+        <div className="size-16 sm:size-20 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-theme-bg-card shadow-lg ring-2 ring-theme-border">
           <span className="text-30 font-bold text-white font-serif">
             {username.charAt(0).toUpperCase() || "U"}
           </span>
@@ -607,7 +607,7 @@ function InfoTabC() {
     <div className="space-y-5">
       {/* 头部：头像 + 身份摘要 */}
       <div className="flex items-center gap-4">
-        <div className="size-14 shrink-0 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-2 border-theme-bg-card shadow-md ring-2 ring-theme-border">
+        <div className="size-14 shrink-0 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center border-2 border-theme-bg-card shadow-md ring-2 ring-theme-border">
           <span className="text-20 font-bold text-white font-serif">
             {username.charAt(0).toUpperCase() || "U"}
           </span>

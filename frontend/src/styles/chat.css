@@ -70,10 +70,12 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
 .chat-input-container[data-composer-expanded] {
   position: fixed;
   z-index: 280;
-  inset: max(2rem, env(safe-area-inset-top)) 50% 2rem auto;
+  inset: max(2rem, env(safe-area-inset-top)) 1.5rem
+    max(2rem, env(safe-area-inset-bottom));
+  margin: auto;
   width: min(calc(100vw - 3rem), 64rem);
   height: min(calc(100dvh - 4rem), 46rem);
-  transform: translateX(50%);
+  transform: none;
   border-radius: 1.25rem;
   padding: 0.75rem;
   box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
@@ -101,6 +103,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
     inset: max(8dvh, env(safe-area-inset-top)) 0 0;
     width: 100%;
     height: auto;
+    margin: 0;
     transform: none;
     border-radius: 1.25rem 1.25rem 0 0;
     padding-bottom: 0.75rem;
@@ -117,16 +120,6 @@ html[data-mobile-keyboard="true"]
 /* Chat input textarea placeholder */
 .chat-input-container textarea::placeholder {
   color: var(--theme-text-secondary);
-}
-
-/* 编辑器内嵌 chip 沿用 sans；工具栏与 @ 提及实体名保留 font-serif。 */
-.chat-input-container
-  .font-serif:not(
-    .mention-popup-name,
-    .chat-input-toolbar,
-    .chat-input-toolbar *
-  ) {
-  font-family: "Source Sans 3", system-ui, sans-serif;
 }
 
 @media (max-width: 639px) {
@@ -220,6 +213,7 @@ html[data-mobile-keyboard="true"]
   white-space: nowrap;
   flex-shrink: 0;
   vertical-align: baseline;
+  font-size: inherit;
   line-height: inherit;
   cursor: default;
 }
@@ -286,6 +280,7 @@ html[data-mobile-keyboard="true"]
 .rich-chat-composer {
   position: relative;
   width: 100%;
+  font-size: var(--chat-font-size);
 }
 
 .rich-chat-composer__editor {
@@ -317,6 +312,12 @@ html[data-mobile-keyboard="true"]
   color: var(--theme-text-tertiary);
   pointer-events: none;
   user-select: none;
+}
+
+@container composer (max-width: 600px) {
+  .composer-placeholder-hint {
+    display: none;
+  }
 }
 
 .composer-reference-node {
@@ -401,6 +402,10 @@ html[data-mobile-keyboard="true"]
 
 .composer-skill-reference {
   user-select: none;
+}
+
+.user-message-inline-markdown {
+  font-size: var(--chat-font-size);
 }
 
 .user-message-inline-markdown .markdown-preview {
@@ -1105,9 +1110,22 @@ html[data-mobile-keyboard="true"]
 }
 
 /* Message actions share one surface, including CopyButton's UI primitive. */
+/* Align the icon edge with the message while retaining the full hit target. */
+.chat-assistant-actions {
+  margin-inline-start: -0.5rem;
+}
+
+.chat-user-actions {
+  margin-inline-end: -0.5rem;
+}
+
 .chat-message-actions button:not([aria-pressed="true"]) {
   color: var(--theme-text-tertiary);
   background: transparent;
+}
+
+.chat-message-actions .copy-button:disabled {
+  opacity: 1;
 }
 
 .chat-message-actions button:not([aria-pressed="true"]):enabled:hover {
@@ -1160,6 +1178,14 @@ html[data-mobile-keyboard="true"]
 }
 
 @media (max-width: 639px), (pointer: coarse) {
+  .chat-assistant-actions {
+    margin-inline-start: -0.625rem;
+  }
+
+  .chat-user-actions {
+    margin-inline-end: -0.625rem;
+  }
+
   .chat-message-actions button,
   .chat-message-feedback > .contents > span {
     min-width: 2.25rem;

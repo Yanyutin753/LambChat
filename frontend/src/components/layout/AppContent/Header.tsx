@@ -1,3 +1,4 @@
+import { PageNavigationBar } from "../../common/PageNavigationBar";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { useState, useRef, useEffect, useCallback, useId } from "react";
@@ -180,7 +181,7 @@ export function Header({
       label:
         t("nav.notifications") +
         (activeNotifCount > 0
-          ? ` (${activeNotifCount > 99 ? "99+" : activeNotifCount})`
+          ? ` (${Math.min(activeNotifCount, 99)})`
           : ""),
       icon: <Bell size={16} />,
       onClick: () => setNotifDialogOpen(true),
@@ -267,10 +268,55 @@ export function Header({
     }),
   ];
 
+  const actions = (
+    /* Right */
+    <div className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0">
+      {/* Overflow menu (unified for all screen sizes) */}
+      <div className="relative">
+        <button
+          ref={mobileMenuBtnRef}
+          type="button"
+          aria-label={t("common.menu")}
+          aria-haspopup="menu"
+          aria-expanded={!!menu}
+          aria-controls={menu ? `${menuId}-${menu.mode}` : undefined}
+          onClick={() => {
+            if (menu) closeMenu();
+            else openMenu("main");
+          }}
+          className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          title={t("common.menu")}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+        {menu && (
+          <ResourceCardMenu
+            id={`${menuId}-${menu.mode}`}
+            title={t(
+              menu.mode === "language" ? "common.language" : "common.menu",
+            )}
+            position={menu.position}
+            onClose={closeMenu}
+            actions={
+              menu.mode === "language" ? languageActions : mainActions
+            }
+            initialFocusIndex={
+              menu.returningFromLanguage ? mainActions.length - 1 : 0
+            }
+          />
+        )}
+      </div>
+
+      {headerActions}
+      <ComposerUsageChip />
+      <UserMenu onShowProfile={onShowProfile} />
+    </div>
+  );
+
   return (
     <>
       <header className="chat-header relative z-50 flex items-center px-3 sm:px-5 py-3 -mb-2 max-sm:h-12 max-sm:py-0 max-sm:mb-0 shrink-0 rounded-bl-xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-[linear-gradient(to_bottom,var(--theme-bg),transparent)]">
-        <div className="chat-header__identity flex min-w-0 items-center gap-2 flex-shrink">
+        <div className="chat-header__identity flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -280,11 +326,11 @@ export function Header({
                 setMobileSidebarOpen(true);
               }
             }}
-            className={`chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 sm:hidden transition-colors`}
+            className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >
-            <SidebarToggleIcon mobileFilled className="w-5 h-5" />
+            <SidebarToggleIcon className="size-4" />
           </button>
           {activeTab === "chat" ? (
             <>
@@ -317,77 +363,25 @@ export function Header({
                     onSelectModel={onSelectModel}
                   />
                 )}
-
             </>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => navigate(-1)}
-                className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-background-muted)] transition-colors"
-                title={t("common.back")}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <SceneIllustration
-                scene={`panel-${
-                  activeTab === "scheduled-tasks" ? "schedule" : activeTab
-                }`}
-                className="panel-nav-avatar"
-              />
-              <div className="flex flex-col justify-center">
-                <span className="text-16 font-bold text-[var(--color-text-primary)] font-serif leading-tight">
-                  {t(`nav.${activeTab}`, { defaultValue: activeTab })}
-                </span>
-              </div>
-            </div>
+            <PageNavigationBar
+              title={t(`nav.${activeTab}`, { defaultValue: activeTab })}
+              onBack={() => navigate(-1)}
+              icon={
+                <SceneIllustration
+                  scene={`panel-${
+                    activeTab === "scheduled-tasks" ? "schedule" : activeTab
+                  }`}
+                  className="panel-nav-avatar"
+                />
+              }
+              actions={actions}
+            />
           )}
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Right */}
-        <div className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0">
-          {/* Overflow menu (unified for all screen sizes) */}
-          <div className="relative">
-            <button
-              ref={mobileMenuBtnRef}
-              type="button"
-              aria-label={t("common.menu")}
-              aria-haspopup="menu"
-              aria-expanded={!!menu}
-              aria-controls={menu ? `${menuId}-${menu.mode}` : undefined}
-              onClick={() => {
-                if (menu) closeMenu();
-                else openMenu("main");
-              }}
-              className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
-              title={t("common.menu")}
-            >
-              <MoreHorizontal size={18} />
-            </button>
-            {menu && (
-              <ResourceCardMenu
-                id={`${menuId}-${menu.mode}`}
-                title={t(
-                  menu.mode === "language" ? "common.language" : "common.menu",
-                )}
-                position={menu.position}
-                onClose={closeMenu}
-                actions={
-                  menu.mode === "language" ? languageActions : mainActions
-                }
-                initialFocusIndex={
-                  menu.returningFromLanguage ? mainActions.length - 1 : 0
-                }
-              />
-            )}
-          </div>
-
-          {headerActions}
-          <ComposerUsageChip />
-          <UserMenu onShowProfile={onShowProfile} />
-        </div>
+        {activeTab === "chat" && actions}
       </header>
 
       {sessionId && (

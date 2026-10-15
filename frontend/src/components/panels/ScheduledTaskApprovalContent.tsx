@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
+import { AgentIcon } from "../agent/AgentIcon";
+import { useAgentCatalog } from "../agent/useAgentCatalog";
+import { resolveAgentReferenceName } from "../agent/agentCatalog";
 import { clsx } from "clsx";
-import { CalendarClock, TerminalSquare, Check, Minus, Bot } from "lucide-react";
+import { CalendarClock, TerminalSquare, Check, Minus } from "lucide-react";
 
 interface ScheduledTaskApprovalContentProps {
   preview: {
@@ -41,7 +44,9 @@ function MonoChip({ children }: { children: React.ReactNode }) {
 export function ScheduledTaskApprovalContent({
   preview,
 }: ScheduledTaskApprovalContentProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const agents = useAgentCatalog();
+  const agentName = resolveAgentReferenceName(preview.agent_id, "", agents, i18n.language, t);
 
   return (
     <div className="approval-st">
@@ -58,13 +63,13 @@ export function ScheduledTaskApprovalContent({
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.agent")}>
           <MonoChip>
-            <Bot
-              size={11}
-              strokeWidth={2}
-              aria-hidden="true"
+            <AgentIcon
+              icon={agents.find((agent) => agent.id === preview.agent_id)?.icon}
+              seed={preview.agent_id}
+              size={14}
               className="approval-st-chip-icon"
             />
-            {preview.agent_id}
+            {agentName}
           </MonoChip>
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.schedule")}>
@@ -104,7 +109,7 @@ export function ScheduledTaskApprovalContent({
 
       <p className="approval-st-effect">
         {t("approvals.scheduledTask.effect", {
-          agent: preview.agent_id,
+          agent: agentName,
           schedule: preview.schedule,
         })}
         {preview.run_on_start && t("approvals.scheduledTask.effectImmediate")}

@@ -172,7 +172,7 @@ export default function ProjectPreview({
         <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-3 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 shrink-0 gap-1 sm:gap-0">
           {/* 左侧：项目信息 */}
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
-            <div className="p-1 sm:p-2 rounded-md sm:rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white shrink-0">
+            <div className="p-1 sm:p-2 rounded-md sm:rounded-lg bg-linear-to-br from-blue-500 to-purple-500 text-white shrink-0">
               <Code2 size={14} className="sm:w-4 sm:h-4" />
             </div>
             <div className="min-w-0">
@@ -370,7 +370,7 @@ export function ProjectPreviewCompact({
         {/* 工具栏 */}
         <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-linear-to-br from-blue-500 to-purple-500 text-white shrink-0">
               <Code2 size={16} />
             </div>
             <div className="min-w-0">

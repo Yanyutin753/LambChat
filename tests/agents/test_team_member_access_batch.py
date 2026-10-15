@@ -10,10 +10,10 @@ from src.agents.team_agent.member_config import resolve_team_member_agent_id
 async def test_member_agent_permission_reads_are_batched_and_fail_closed(monkeypatch, allowed):
     roles = AsyncMock(return_value=[SimpleNamespace(id="r1"), SimpleNamespace(id="r2")])
     access = AsyncMock(return_value={"r1": ["fast"], "r2": None})
-    monkeypatch.setattr("src.agents.core.base.AgentFactory.list_agents", lambda: [{"id": "fast"}])
+    monkeypatch.setattr("src.agents.core.base.AgentFactory.list_agents", lambda: [{"id": "search"}])
     monkeypatch.setattr(
         "src.agents.core.base.AgentFactory.get_filtered_agents",
-        AsyncMock(return_value=[{"id": "fast"}] if allowed else []),
+        AsyncMock(return_value=[{"id": "search"}] if allowed else []),
     )
     monkeypatch.setattr(
         "src.infra.user.storage.UserStorage",
@@ -29,7 +29,7 @@ async def test_member_agent_permission_reads_are_batched_and_fail_closed(monkeyp
         lambda: SimpleNamespace(get_role_agents_by_ids=access),
     )
     if allowed:
-        assert await resolve_team_member_agent_id("fast", user_id="u") == "fast"
+        assert await resolve_team_member_agent_id("fast", user_id="u") == "search"
     else:
         with pytest.raises(ValueError, match="team_member_agent_not_allowed"):
             await resolve_team_member_agent_id("fast", user_id="u")

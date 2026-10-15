@@ -673,13 +673,14 @@ export const ChatMessage = memo(function ChatMessage({
   const getAssistantTextContent = (): string => {
     if (hasParts && message.parts) {
       // Extract all text content from parts
-      return message.parts
+      const text = message.parts
         .filter(
           (part): part is Extract<MessagePart, { type: "text" }> =>
             part.type === "text",
         )
         .map((part) => part.content)
         .join("\n");
+      if (text.trim()) return text;
     }
     return message.content || "";
   };
@@ -877,8 +878,10 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && !isWaitingForHuman && (
-          <div className="chat-message-actions flex items-center gap-1 pb-2">
-            <CopyButton text={getAssistantTextContent()} size={16} />
+          <div className="chat-message-actions chat-assistant-actions flex items-center gap-1 pb-2">
+            {getAssistantTextContent().trim() && (
+              <CopyButton text={getAssistantTextContent()} size={16} />
+            )}
             {isAuthenticated && sessionId && (
               <BookmarkButton
                 sessionId={sessionId}

@@ -34,5 +34,5 @@ test("chat-tool-btn 仅保留水平 padding，垂直居中交给固定高度", (
 });
 
 test("用量 chip 与名称标签共用 text-14 和 20px 行高", () => {
-  expect(usageChipSource).toMatch(/text-14 leading-5 font-semibold/);
+  expect(usageChipSource).toMatch(/text-14 leading-5 font-medium/);
 });

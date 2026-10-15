@@ -7,6 +7,16 @@ function readSource(relativePath: string): string {
 const emptySource = readSource("../components/EmptyState.tsx");
 const toolbarSource = readSource("../components/Toolbar.tsx");
 
+test("search icon inset survives container breakpoints", () => {
+  const searchClasses = toolbarSource.match(
+    /className="(file-library-toolbar__search\s[^"]+)"/,
+  )?.[1].split(/\s+/);
+  expect(searchClasses).toContain("pl-9");
+  expect(searchClasses).toContain("pr-2");
+  expect(searchClasses).toContain("@sm:pr-3");
+  expect(searchClasses?.some((name) => /(?:^|:)px-/.test(name))).toBe(false);
+});
+
 test("file library empty state offers a path into chat", () => {
   // 无文件(且无筛选)时给出"去开启对话"引导,而不是只留一句空态文案
   expect(emptySource).toMatch(/useNavigate/);

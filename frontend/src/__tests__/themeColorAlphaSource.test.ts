@@ -1,15 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-// theme-* 工具色若以裸 var() 字符串声明，Tailwind v3 无法为透明度修饰符
-// 注入 alpha：border-theme-border/60 这类 class 会静默不生成，边框色回落
-// preflight 默认 #e5e7eb，深色模式下呈现刺眼白边（web_search 来源胶囊即
-// 此 bug）。守护：theme 色板必须走 color-mix + <alpha-value> 模式，
-// 无修饰符时 100% 混合等于原色，视觉零回归。
-const tailwindConfig = readFileSync(
-  join(import.meta.dirname, "../../tailwind.config.js"),
-  "utf8",
-);
+import { fileURLToPath } from "node:url";
+import postcss from "postcss";
+import tailwindcss from "@tailwindcss/postcss";
 
 const THEME_COLORS: [name: string, cssVar: string][] = [
   ["text", "--theme-text"],
@@ -34,14 +25,21 @@ const THEME_COLORS: [name: string, cssVar: string][] = [
   ["info", "--theme-info"],
 ];
 
-test.each(THEME_COLORS)("theme 色 %s 支持透明度修饰符", (name, cssVar) => {
-  expect(
-    tailwindConfig,
-    `theme.${name} 需以 color-mix(in srgb, var(${cssVar}) calc(<alpha-value> * 100%), transparent) 声明，` +
-      `否则 /透明度 修饰符的 class 静默不生成（深色模式白边 bug）`,
-  ).toMatch(
-    new RegExp(
-      `"?${name}"?\\s*:\\s*"color-mix\\(in srgb, var\\(${cssVar}\\) calc\\(<alpha-value> \\* 100%\\), transparent\\)"`,
-    ),
-  );
+test("Tailwind v4 compiles opacity for every theme color and the neutral scale", async () => {
+  const source = [
+    '@reference "../styles/tailwind.css";',
+    ...THEME_COLORS.map(([name], index) => `.theme-probe-${index} { @apply text-theme-${name}/60; }`),
+    ".neutral-probe { @apply bg-stone-900/50; }",
+    ".opaque-probe { @apply text-theme-text; }",
+  ].join("\n");
+  const { css } = await postcss([tailwindcss()]).process(source, {
+    from: fileURLToPath(new URL("./theme-alpha-test.css", import.meta.url)),
+  });
+  for (const [, cssVar] of THEME_COLORS) {
+    expect(css).toContain(`var(${cssVar}) 60%`);
+  }
+  expect(css).toContain("var(--theme-neutral-900,");
+  expect(css).toContain("50%, transparent");
+  expect(css).toContain("color: var(--theme-text)");
+  expect(css).not.toContain("100%, transparent");
 });

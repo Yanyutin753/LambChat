@@ -473,7 +473,7 @@ export function NotificationPanel() {
                   className="glass-card overflow-hidden rounded-xl transition-colors hover:border-stone-300 dark:hover:border-stone-600"
                 >
                   <div className="flex flex-col">
-                    <div className="resource-detail-card notification-card-row flex items-start justify-between gap-3 p-4 sm:p-5">
+                    <div className="resource-detail-card notification-card-row flex items-start justify-between gap-2 p-3">
                       <div className="min-w-0 flex-1">
                         <div className="notification-card-heading flex flex-nowrap items-center gap-2 sm:gap-3">
                           <span
@@ -561,9 +561,7 @@ export function NotificationPanel() {
 
                     {hasContent && (
                       <div
-                        className={`px-4 sm:px-5 ${
-                          isExpanded ? "pb-4 pt-3 sm:pb-5 sm:pt-4" : ""
-                        }`}
+                        className={`px-3 ${isExpanded ? "pb-3 pt-2" : ""}`}
                       >
                         <div
                           aria-hidden={!isExpanded}

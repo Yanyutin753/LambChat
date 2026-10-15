@@ -30,7 +30,7 @@ def test_merge_never_sorts() -> None:
 
 
 def test_both_contexts_use_the_shared_merge_helper() -> None:
-    fast = Path("src/agents/fast_agent/context.py").read_text(encoding="utf-8")
+    fast = Path("src/agents/team_agent/context.py").read_text(encoding="utf-8")
     search = Path("src/agents/search_agent/context.py").read_text(encoding="utf-8")
     assert "merge_discovered_names(" in fast
     assert "merge_discovered_names(" in search

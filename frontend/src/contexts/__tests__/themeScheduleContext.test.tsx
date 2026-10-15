@@ -8,7 +8,7 @@ import {
   THEME_SCHEDULE_KEY,
 } from "../../utils/themeDom";
 
-vi.mock("../../services/api", () => ({
+vi.mock("../../services/api/auth", () => ({
   authApi: { updateMetadata: vi.fn().mockResolvedValue({}) },
 }));
 vi.mock("../../hooks/useAuth", () => ({

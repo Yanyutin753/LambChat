@@ -193,7 +193,7 @@ export function FeedbackDialog({
                       attachments.filter((item) => item.id !== attachment.id),
                     );
                   }}
-                  className="absolute right-0 top-0 flex size-11 items-center justify-center opacity-100 transition-opacity sm:size-7 sm:opacity-0 sm:group-hover/att:opacity-100 sm:focus-visible:opacity-100 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-ring disabled:opacity-50"
+                  className="absolute right-0 top-0 flex size-11 items-center justify-center opacity-100 transition-opacity sm:size-7 sm:opacity-0 sm:group-hover/att:opacity-100 sm:focus-visible:opacity-100 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-ring disabled:opacity-50"
                 >
                   <span className="flex size-5 items-center justify-center rounded-full bg-black/60 text-white">
                     <X size={12} />

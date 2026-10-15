@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
+from src.agents.core.base import normalize_agent_id
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
@@ -73,13 +74,9 @@ from src.api.routes.chat_session_config import (  # noqa: E402
 
 
 def resolve_default_agent_id(agent_id: str | None) -> str:
-    """Normalize the agent_id query param, falling back to DEFAULT_AGENT.
-
-    不能硬编码回落到 "search"：无沙箱场景（fast agent）会被静默切到
-    search agent 并触发沙箱初始化。
-    """
+    """Use the configured default and resolve legacy Fast Agent requests."""
     normalized = (agent_id or "").strip()
-    return normalized or settings.DEFAULT_AGENT
+    return normalize_agent_id(normalized or settings.DEFAULT_AGENT)
 
 
 def _model_profile_dict(model: ModelConfig) -> dict | None:
@@ -490,6 +487,8 @@ async def _submit_chat(
                     run_id=run_id,
                     trace_id=trace_id,
                     enable_storage=True,
+                    model=request.agent_options.get("model"),
+                    model_id=request.agent_options.get("model_id"),
                 )
             )
             await presenter._ensure_trace()

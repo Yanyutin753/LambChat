@@ -23,8 +23,6 @@ def test_lambchat_does_not_own_prompt_cache_middleware() -> None:
     ownership_sources = (
         "src/infra/agent/middleware/prompt_injection.py",
         "src/infra/agent/middleware/__init__.py",
-        "src/agents/fast_agent/nodes.py",
-        "src/agents/fast_agent/prompt.py",
         "src/agents/search_agent/nodes.py",
         "src/agents/search_agent/prompt.py",
         "src/agents/team_agent/nodes.py",

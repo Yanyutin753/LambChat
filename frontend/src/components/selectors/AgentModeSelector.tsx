@@ -81,7 +81,7 @@ export function AgentModeSelector({
         ref={contentRef}
         tabIndex={-1}
         aria-busy={isLoading}
-        className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5 outline-none"
+        className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5 outline-hidden"
       >
         <CatalogStatus
           focusTargetRef={contentRef}

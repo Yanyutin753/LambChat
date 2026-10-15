@@ -26,16 +26,17 @@ test("local sandbox section keeps a default export for React.lazy", () => {
   expect(sectionSource).toMatch(/export function LocalSandboxSection/);
 });
 
-test("app shell lazy-loads the update dialog", () => {
-  // PWA 预算（M4 T8）：更新对话框只在「有新版本且用户未跳过」时渲染
-  // （桌面/移动端专属 UI，含 UpdateProgressBar）——App 壳不得静态 import，
-  // 否则五个 locale JSON 的增量会把 eager JS 推过 512000 预算。
-  expect(appSource).not.toMatch(
-    /import \{ UpdateDialog \} from "\.\/components\/update\/UpdateDialog"/,
+test("web startup excludes the native updater and its dialog", () => {
+  const updateShell = readFileSync(
+    join(process.cwd(), "src/components/update/NativeUpdateShell.tsx"), "utf8",
   );
-  expect(appSource).toMatch(/import\("\.\/components\/update\/UpdateDialog"\)/);
-  // 懒组件必须包 Suspense（fallback null：对话框按需挂载）
-  expect(appSource).toMatch(
-    /<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/,
-  );
+  expect(appSource).not.toMatch(/import \{ useAutoUpdate \}/);
+  expect(appSource).toContain('import("./components/update/NativeUpdateShell")');
+  expect(appSource).toContain('updatePlatform !== "web"');
+  expect(updateShell).toContain('import("./UpdateDialog")');
+  expect(updateShell).toMatch(/<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/);
+});
+
+test("mobile updater loading does not gate route mounting", () => {
+  expect(appSource).toMatch(/<Suspense fallback=\{null\}>\s*<NativeUpdateShell platform=\{updatePlatform\} titlebarOs=\{null\} \/>\s*<\/Suspense>\s*\)\}\s*\{appRoutes\}/);
 });

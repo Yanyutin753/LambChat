@@ -251,7 +251,7 @@ export function SkillSelector({
             value={searchQuery}
             onValueChange={setSearchQuery}
             placeholder={t("skills.searchPlaceholder")}
-            className="w-full rounded-2xl border border-stone-200 bg-white py-2.5 pl-9 pr-3 text-14 text-stone-700 shadow-sm outline-none transition-colors placeholder:text-stone-400 focus:border-[var(--theme-primary)] focus:bg-white dark:border-stone-700 dark:bg-stone-950/60 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:bg-stone-950"
+            className="w-full rounded-2xl border border-stone-200 bg-white py-2.5 pl-9 pr-3 text-14 text-stone-700 shadow-sm outline-hidden transition-colors placeholder:text-stone-400 focus:border-[var(--theme-primary)] focus:bg-white dark:border-stone-700 dark:bg-stone-950/60 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:bg-stone-950"
           />
         </div>
         {availableTags.length > 0 && (

@@ -17,7 +17,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
     <footer className="safe-area-bottom blog-mesh-footer relative border-t border-stone-200/50 dark:border-stone-800/30 bg-stone-50/30 dark:bg-stone-900/15">
       {/* Top accent */}
       <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent dark:via-amber-500/30"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-linear-to-r from-transparent via-amber-400/60 to-transparent dark:via-amber-500/30"
         style={{ boxShadow: "0 0 12px rgba(251,191,36,0.15)" }}
       />
 

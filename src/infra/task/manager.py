@@ -134,6 +134,7 @@ class BackgroundTaskManager:
         schedule_search_index: bool = True,
         run_modes: Optional[List[str]] = None,
         assistant_identity: Optional[Dict[str, Any]] = None,
+        agent_options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
@@ -149,6 +150,8 @@ class BackgroundTaskManager:
                     run_id=run_id,
                     trace_id=trace_id,
                     enable_storage=True,
+                    model=(agent_options or {}).get("model"),
+                    model_id=(agent_options or {}).get("model_id"),
                 )
             )
             await presenter._ensure_trace()
@@ -370,6 +373,7 @@ class BackgroundTaskManager:
                     attachment_references_claimed=attachment_references_claimed,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
                     assistant_identity=assistant_identity,
+                    agent_options=agent_options,
                 )
                 user_message_written = True
 
@@ -510,6 +514,7 @@ class BackgroundTaskManager:
                     schedule_search_index=False,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
                     assistant_identity=assistant_identity,
+                    agent_options=agent_options,
                 )
                 user_message_written = True
 

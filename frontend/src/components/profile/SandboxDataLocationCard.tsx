@@ -179,7 +179,7 @@ export function SandboxDataLocationCard({
         restarting ||
         states.read === "saving"
       }
-      className="profile-data-location border-t border-theme-border pt-3 mt-3 outline-none"
+      className="profile-data-location border-t border-theme-border pt-3 mt-3 outline-hidden"
       data-sandbox-data-location
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-14 text-theme-text">

@@ -28,7 +28,9 @@ test("thinking picker uses a plain option list, not a stepped slider", () => {
 test("thinking level tiers exclude the retired off option", () => {
   // "off" 档已下线：兜底档位只有 low/medium/high/max，历史 off 值归一为 low
   expect(useAgentOptionsSource).not.toMatch(/"off", label_key/);
-  expect(useAgentOptionsSource).toMatch(
-    /\["off", "disabled", "disable", "none"\]/,
+  const thinkingLevelSource = readFileSync(
+    new URL("../../../utils/thinkingLevel.ts", import.meta.url),
+    "utf8",
   );
+  expect(thinkingLevelSource).toMatch(/\["off", "disabled", "disable", "none"\]/);
 });

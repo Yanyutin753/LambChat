@@ -1,4 +1,5 @@
-import { RefreshCw, ExternalLink, ArrowDownCircle, Github } from "lucide-react";
+import { GitHubIcon } from "../landing/components/Icons";
+import { RefreshCw, ExternalLink, ArrowDownCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
@@ -111,7 +112,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
             rel="noopener noreferrer"
             className={linkClass}
           >
-            <Github size={16} className="shrink-0" aria-hidden="true" />
+            <GitHubIcon className="h-4 w-4 shrink-0" />
             <span className="ui-button__label">{t("about.viewOnGitHub")}</span>
           </a>
         )}

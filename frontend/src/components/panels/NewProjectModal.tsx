@@ -47,7 +47,7 @@ export function NewProjectModal({
             value={icon}
             onChange={(e) => onIconChange(e.target.value)}
             placeholder={t("sidebar.projectName")}
-            className="w-8 text-14 bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
+            className="w-8 text-14 bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-hidden"
           />
           <div className="w-px h-5 bg-stone-300 dark:bg-stone-600" />
           <input
@@ -71,7 +71,7 @@ export function NewProjectModal({
               }
             }}
             placeholder={t("sidebar.projectName")}
-            className="flex-1 text-14 bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-none"
+            className="flex-1 text-14 bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-hidden"
           />
         </div>
         {onWorkspaceChange && (
