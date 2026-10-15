@@ -326,10 +326,7 @@ export function Header({
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >
-            <SidebarToggleIcon
-              mobileFilled
-              className="size-4 max-sm:dark:text-stone-300"
-            />
+            <SidebarToggleIcon className="size-4 max-sm:dark:text-stone-300" />
           </button>
           {activeTab === "chat" ? (
             <>

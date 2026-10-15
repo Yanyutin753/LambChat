@@ -316,10 +316,7 @@ export function SessionListContent({
               className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary dark:text-stone-400 transition-colors cursor-w-resize rtl:cursor-e-resize"
               aria-label={t("sidebar.collapseSidebar")}
             >
-              <SidebarToggleIcon
-                mobileFilled
-                className="size-4 text-theme-text-secondary dark:text-stone-300"
-              />
+              <SidebarToggleIcon className="size-4 text-theme-text-secondary dark:text-stone-300" />
             </button>
           </Tooltip>
         </div>
