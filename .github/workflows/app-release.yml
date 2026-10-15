@@ -912,6 +912,7 @@ jobs:
             echo "No release artifact directory was downloaded."
             exit 1
           fi
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then rm -f release-assets/latest*.json; fi
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
 

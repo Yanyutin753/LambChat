@@ -819,11 +819,13 @@ def test_dev_release_removes_cached_updater_manifests_before_any_upload(tmp_path
         next(step["run"] for step in workflow["jobs"][job]["steps"] if step.get("name") == name)
         for job, name in (
             ("desktop", "Collect updater manifest artifacts"),
+            ("release", "Ensure release has useful installable artifacts"),
             ("release", "Generate latest.json updater manifest"),
         )
     ]
     assets = tmp_path / "release-assets"
     assets.mkdir()
+    (assets / "lambchat-daemon-fixture").write_bytes(b"fixture")
     cached = tmp_path / "frontend/src-tauri/target/release/bundle"
     cached.mkdir(parents=True)
     (cached / "latest-cached.json").write_text("stale")
