@@ -441,6 +441,7 @@ jobs:
           set -euo pipefail
           find frontend/src-tauri/target -name "latest*.json" -exec cp {} release-assets/ \; 2>/dev/null || true
           find frontend/src-tauri/target -name "*.sig" -exec cp {} release-assets/ \; 2>/dev/null || true
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then rm -f release-assets/latest*.json; fi
           ls -la release-assets/ 2>/dev/null || true
 
       # 打包产物冒烟门禁：v2.9.0~v2.9.2 的三次生产事故（sidecar 路径、Windows
@@ -911,6 +912,7 @@ jobs:
             echo "No release artifact directory was downloaded."
             exit 1
           fi
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then rm -f release-assets/latest*.json; fi
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
 
@@ -938,6 +940,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$RELEASE_TAG" == *-dev.* ]]; then
+            rm -f release-assets/latest*.json
             echo "Pre-release: stable updater manifest is prohibited"
             exit 0
           fi
