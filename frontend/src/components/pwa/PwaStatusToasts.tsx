@@ -78,14 +78,14 @@ function PwaStatusToast({
 function showOfflineToast(titleKey: string, bodyKey: string) {
   toast.custom(
     (currentToast) =>
-      currentToast.visible && (
+      currentToast.visible ? (
         <PwaStatusToast
           titleKey={titleKey}
           bodyKey={bodyKey}
           tone="offline"
           onDismiss={() => toast.dismiss(currentToast.id)}
         />
-      ),
+      ) : null,
     {
       id: PWA_OFFLINE_TOAST_ID,
       duration: Infinity,
@@ -111,7 +111,7 @@ export function PwaStatusToasts() {
 
       toast.custom(
         (currentToast) =>
-          currentToast.visible && (
+          currentToast.visible ? (
             <PwaStatusToast
               titleKey="pwaStatus.updateReadyTitle"
               bodyKey="pwaStatus.updateReadyBody"
@@ -124,7 +124,7 @@ export function PwaStatusToasts() {
               }}
               onDismiss={() => toast.dismiss(currentToast.id)}
             />
-          ),
+          ) : null,
         {
           id: PWA_UPDATE_TOAST_ID,
           duration: Infinity,
