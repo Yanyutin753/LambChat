@@ -14,8 +14,8 @@ test("useFileUpload aborts pending uploads and clears abort handlers on unmount"
 test("useWebSocket suppresses refresh-triggered reconnects after unmount", () => {
   const source = readFileSync(resolve(hooksDir, "useWebSocket.ts"), "utf8");
 
-  expect(source).toMatch(/isMountedRef/);
   expect(source).toMatch(
-    /isMountedRef\.current && enabled && !wasManualDisconnect/,
+    /const isCurrent = \(\) =>\s*isMountedRef\.current &&\s*enabled &&\s*scopeRef\.current === scope &&\s*connectionVersionRef\.current === generation/,
   );
+  expect(source).toMatch(/isCurrent\(\) && !wasManualDisconnect/);
 });
