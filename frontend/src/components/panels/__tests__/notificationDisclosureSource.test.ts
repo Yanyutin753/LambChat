@@ -5,7 +5,7 @@ const source = readFileSync(
   "utf8",
 );
 test("collapsed notifications reserve no detail padding and hide content from assistive technology", () => {
-  expect(source).toContain('isExpanded ? "pb-4 pt-3 sm:pb-5 sm:pt-4" : ""');
+  expect(source).toContain('isExpanded ? "pb-3 pt-2" : ""');
   expect(source).toContain("aria-expanded={isExpanded}");
   expect(source).toContain("aria-hidden={!isExpanded}");
   expect(source).toContain("inert={!isExpanded}");

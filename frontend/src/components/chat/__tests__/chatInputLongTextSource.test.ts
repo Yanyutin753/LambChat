@@ -31,12 +31,12 @@ test("ChatInput wires file paste to the existing upload flow", () => {
   );
 });
 
-test("rich composer loads outside the eager app bundle without losing the draft", () => {
-  expect(chatInputSource).toMatch(/lazy\(async \(\) =>/);
-  expect(chatInputSource).toMatch(
-    /import\("\.\/richComposer\/RichChatComposer"\)/,
-  );
-  expect(chatInputSource).toMatch(/<Suspense/);
+test("rich composer loads with the lazy workspace and preserves the draft", () => {
+  const appSource = readSource("../../../App.tsx");
+  expect(appSource).toMatch(/const AppContent = lazy\(/);
+  expect(appSource).toContain('import("./components/layout/AppContent/index")');
+  expect(chatInputSource).toMatch(/from "\.\/richComposer\/RichChatComposer"/);
+  expect(chatInputSource).not.toMatch(/import\("\.\/richComposer\/RichChatComposer"\)/);
   expect(chatInputSource).toMatch(/initialPlainText=\{input\}/);
 });
 
