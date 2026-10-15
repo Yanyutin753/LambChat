@@ -841,3 +841,40 @@ def test_dev_release_removes_cached_updater_manifests_before_any_upload(tmp_path
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert not list(assets.glob("latest*.json"))
+
+
+def test_locked_onnxruntime_has_a_wheel_for_intel_macos_daemon() -> None:
+    import tomllib
+    from urllib.parse import unquote, urlparse
+
+    import yaml
+    from packaging.markers import Marker, default_environment
+    from packaging.tags import cpython_tags, mac_platforms
+    from packaging.utils import parse_wheel_filename
+
+    workflow = yaml.safe_load(_source(".github/workflows/app-release.yml"))
+    assert workflow["jobs"]["desktop"]["env"]["UV_PYTHON"] == "3.12"
+
+    environment = default_environment()
+    environment.update(
+        sys_platform="darwin",
+        platform_machine="x86_64",
+        python_version="3.12",
+        python_full_version="3.12.15",
+    )
+    packages = tomllib.loads(_source("uv.lock"))["package"]
+    selected = [
+        package
+        for package in packages
+        if package["name"] == "onnxruntime"
+        and any(
+            Marker(marker).evaluate(environment)
+            for marker in package.get("resolution-markers", ["python_version >= '3.12'"])
+        )
+    ]
+    assert len(selected) == 1
+    supported = set(cpython_tags((3, 12), platforms=mac_platforms((15, 0), "x86_64")))
+    assert any(
+        parse_wheel_filename(unquote(urlparse(wheel["url"]).path.rsplit("/", 1)[-1]))[3] & supported
+        for wheel in selected[0].get("wheels", [])
+    ), "The Intel macOS daemon needs an installable CPython 3.12 ONNX Runtime wheel"

@@ -251,7 +251,13 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                     <button
                       type="button"
                       aria-current={action.current ? "page" : undefined}
-                      className={`${menuItemClass} ${action.current ? "bg-theme-bg-subtle font-medium" : ""} ${action.danger ? "!text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : ""}`}
+                      className={`${menuItemClass} ${
+                        action.current ? "bg-theme-bg-subtle font-medium" : ""
+                      } ${
+                        action.danger
+                          ? "!text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]"
+                          : ""
+                      }`}
                       onClick={() => {
                         closeMenu();
                         action.onClick?.();

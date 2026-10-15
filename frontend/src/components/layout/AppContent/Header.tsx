@@ -180,9 +180,7 @@ export function Header({
     {
       label:
         t("nav.notifications") +
-        (activeNotifCount > 0
-          ? ` (${Math.min(activeNotifCount, 99)})`
-          : ""),
+        (activeNotifCount > 0 ? ` (${Math.min(activeNotifCount, 99)})` : ""),
       icon: <Bell size={16} />,
       onClick: () => setNotifDialogOpen(true),
     },
@@ -297,9 +295,7 @@ export function Header({
             )}
             position={menu.position}
             onClose={closeMenu}
-            actions={
-              menu.mode === "language" ? languageActions : mainActions
-            }
+            actions={menu.mode === "language" ? languageActions : mainActions}
             initialFocusIndex={
               menu.returningFromLanguage ? mainActions.length - 1 : 0
             }
@@ -330,15 +326,19 @@ export function Header({
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >
-            <SidebarToggleIcon className="size-4" />
+            <SidebarToggleIcon className="size-4 max-sm:dark:text-stone-300" />
           </button>
           {activeTab === "chat" ? (
             <>
               {onSelectModel && (modelsLoading || modelsError) && (
                 <ToolbarIconButton
                   disabled={modelsLoading}
-                  aria-label={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}${modelsLoading ? "" : ` · ${t("common.retry")}`}`}
-                  title={`${t("nav.models")} · ${t(modelsLoading ? "common.loading" : "common.loadFailed")}`}
+                  aria-label={`${t("nav.models")} · ${t(
+                    modelsLoading ? "common.loading" : "common.loadFailed",
+                  )}${modelsLoading ? "" : ` · ${t("common.retry")}`}`}
+                  title={`${t("nav.models")} · ${t(
+                    modelsLoading ? "common.loading" : "common.loadFailed",
+                  )}`}
                   onClick={() => {
                     mobileMenuBtnRef.current?.focus({ preventScroll: true });
                     reloadModels();

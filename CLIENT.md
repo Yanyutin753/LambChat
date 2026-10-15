@@ -79,6 +79,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 ## 7. 桌面端（Tauri）专项
 
 - **macOS 应用下限**：打包最低系统为 **macOS 11.0**，共享前端另需 **系统 WebKit / Safari 16.4+**。Big Sur 与 Monterey 用户须先升级系统 Safari/WebKit；原生通知模块对 10.13 的兼容处理不代表整个应用支持 10.13。Safari 16.4 支持的系统见 [Apple 发布说明](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes)。
+- **Intel macOS 构建依赖**：Intel macOS 的 Python 依赖只支持 3.12/3.13；原生构建固定使用 3.12。上游 ONNX Runtime 最新支持该平台的 wheel 为 1.23.2，其他兼容平台继续使用较新版本；uv 解析须验证 Intel 平台二进制包可安装性。
 
 - **原生通知**：桌面入口集中在 `src/commands/notification.rs`。macOS 弱链接 `UserNotifications` 并在运行时检查类可用性，通知模块保留 10.13 的运行时兼容处理（应用整体下限见本节说明）；可用时通过常驻 `UNUserNotificationCenter` 代理保存内部路由和账户归属，旧 macOS 与 Linux 保留 notification 插件发送。Windows 在 `windows_notification.rs` 使用应用 AUMID 发送，并保留通知及激活回调，支持横幅消失后的通知中心点击。Android 点击沿用 Capacitor。支持点击的平台均由前端 `appNotificationService` 校验当前账户与内部路由，再导航并显示桌面主窗口；不支持进程关闭后的冷启动点击。原生发送 API 成功仅说明系统受理，不能代替目标设备上实际送达与点击的观察证据。
 
@@ -100,7 +101,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 - **应用图标**：`frontend/resources/mobile-icon.png` 是 512×512 RGBA 原图，底板纯白且不透明；由 `pnpm brand:assets` 同步 Android launcher、`resources/icon.png` 与 1024×1024 RGB iOS AppIcon（无 alpha 通道），`pnpm brand:assets:check` 校验一致性。系统负责移动端外轮廓裁切，不在原图画圆角。桌面端独立使用 `resources/native-icon.png`，Web 图标继续沿用现有素材。
 - **流程**：改 WebView 代码后 `pnpm mobile:sync` 重新同步；`android/`、`ios/App/` 的 diff 必须人工过目后再提交，防止 sync 静默改坏原生配置。
-- **版本**：`versionCode` = 版本去点数字（2.10.1 → 2101），`versionName` 与六文件版本一致；禁止手改 `build.gradle` / `project.pbxproj` 版本号绕过统一 bump。
+- **版本**：`versionCode` 按 AGENTS.md 的核心版本加构建序号公式计算；`versionName` 使用统一核心版本，dev.N 使用构建序号 N，正式版使用 999，禁止绕过统一版本预检。
 - **安全红线**：`allowMixedContent: false` 不动摇，API 一律 https；敏感数据不进 WebView localStorage，走原生侧或后端会话。
 - **发布产物现状**：Android 出签名 APK（密钥在 CI secrets，降级 debug APK 需在 Release notes 标注）；iOS 当前为 unsigned xcarchive——签名链路上线前按 §11 推进。
 
