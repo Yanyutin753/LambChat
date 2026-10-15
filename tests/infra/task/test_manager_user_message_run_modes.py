@@ -123,3 +123,36 @@ async def test_submit_persists_goal_run_mode_on_initial_user_message(
             "assistant_identity": None,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_submit_persists_selected_model_before_worker_starts(monkeypatch) -> None:
+    from src.infra.writer.present import Presenter
+
+    metadata = []
+
+    async def capture_trace(self):
+        metadata.append(await self._build_trace_metadata())
+
+    async def ignore_message(self, *args, **kwargs):
+        pass
+
+    manager = BackgroundTaskManager()
+    monkeypatch.setattr(manager, "_executor", _FakeExecutor())
+    monkeypatch.setattr(Presenter, "_ensure_trace", capture_trace)
+    monkeypatch.setattr(Presenter, "emit_user_message", ignore_message)
+
+    await manager.submit(
+        session_id="session-model",
+        agent_id="search",
+        message="hello",
+        user_id="",
+        executor=_executor_fn,
+        run_id="run-model",
+        agent_options={"model": "selected-model", "model_id": "model-1"},
+        write_user_message_immediately=True,
+    )
+    await asyncio.sleep(0)
+
+    assert metadata[0]["model"] == "selected-model"
+    assert metadata[0]["model_id"] == "model-1"

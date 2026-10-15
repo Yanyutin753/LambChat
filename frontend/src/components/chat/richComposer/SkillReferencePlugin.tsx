@@ -30,11 +30,11 @@ export function SkillReferencePlugin() {
           existing.selectNext();
           return true;
         }
-        let selection = $getSelection();
+        const selection = $getSelection();
         if (!$isRangeSelection(selection)) {
           const root = $getRoot();
           if (root.getChildrenSize() === 0) root.append($createParagraphNode());
-          selection = root.selectEnd();
+          root.selectEnd();
         }
         $insertNodes([
           $createSkillReferenceNode(descriptor),

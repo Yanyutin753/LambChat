@@ -32,6 +32,8 @@ async def test_ensure_trace_includes_user_id_and_username_metadata(
             agent_id="search",
             agent_name="Search Agent",
             user_id="user-123",
+            model="selected-model",
+            model_id="model-1",
         )
     )
     writer = _FakeDualWriter()
@@ -50,6 +52,8 @@ async def test_ensure_trace_includes_user_id_and_username_metadata(
     assert len(writer.calls) == 1
     assert writer.calls[0]["metadata"]["user_id"] == "user-123"
     assert writer.calls[0]["metadata"]["username"] == "alice"
+    assert writer.calls[0]["metadata"]["model"] == "selected-model"
+    assert writer.calls[0]["metadata"]["model_id"] == "model-1"
 
 
 @pytest.mark.asyncio

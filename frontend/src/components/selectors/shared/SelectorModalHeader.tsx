@@ -12,6 +12,7 @@ interface SelectorModalHeaderProps {
   icon: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
+  actions?: ReactNode;
   onClose: () => void;
   className?: string;
   subtitleClassName?: string;
@@ -25,6 +26,7 @@ export function SelectorModalHeader({
   icon,
   title,
   subtitle,
+  actions,
   onClose,
   className,
   subtitleClassName = "text-12 sm:text-12 text-stone-500 dark:text-stone-400",
@@ -43,7 +45,10 @@ export function SelectorModalHeader({
           {subtitle && <p className={subtitleClassName}>{subtitle}</p>}
         </div>
       </div>
-      <DialogCloseButton onClick={onClose} />
+      <div className="flex shrink-0 items-center gap-1">
+        {actions}
+        <DialogCloseButton onClick={onClose} />
+      </div>
     </div>
   );
 }

@@ -7,13 +7,11 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[2] / "src"
 
 AGENT_NODES = [
-    "agents/fast_agent/nodes.py",
     "agents/search_agent/nodes.py",
     "agents/team_agent/nodes.py",
 ]
 
 AGENT_GRAPHS = [
-    "agents/fast_agent/graph.py",
     "agents/search_agent/graph.py",
     "agents/team_agent/graph.py",
 ]

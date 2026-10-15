@@ -5,8 +5,6 @@ import {
   ToggleRight,
   Edit3,
   Trash2,
-  ShoppingBag,
-  User,
   Archive,
   Sparkles,
   Upload,
@@ -36,11 +34,6 @@ interface SkillCardProps {
   onSelect?: (name: string) => void;
   selectionMode?: boolean;
 }
-
-const SOURCE_ICONS: Record<string, React.ReactNode> = {
-  marketplace: <ShoppingBag size={10} />,
-  manual: <User size={10} />,
-};
 
 export function SkillCard({
   skill,
@@ -131,7 +124,6 @@ export function SkillCard({
       }
       statusPills={
         <span className="skill-status-pill">
-          {SOURCE_ICONS[skill.source]}
           {sourceLabel}
         </span>
       }
@@ -141,7 +133,7 @@ export function SkillCard({
         ) : undefined
       }
       meta={
-        <div className="flex flex-wrap items-center gap-2 text-12 text-[var(--theme-text-secondary)]">
+        <div className="min-w-0 flex flex-1 flex-wrap items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
           <div className="skill-meta-pill">
             <FileText size={13} />
             <span>
@@ -249,37 +241,35 @@ export function SkillCard({
       ]}
       footer={
         onToggle ? (
-          <div className="flex items-center gap-1">
-            <Tooltip
-              content={
+          <Tooltip
+            content={
+              skill.enabled
+                ? t("skills.card.disable")
+                : t("skills.card.enable")
+            }
+          >
+            <button
+              aria-label={
                 skill.enabled
                   ? t("skills.card.disable")
                   : t("skills.card.enable")
               }
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(skill.name);
+              }}
+              className="scb__action-btn scb__action-btn--ghost"
             >
-              <button
-                aria-label={
-                  skill.enabled
-                    ? t("skills.card.disable")
-                    : t("skills.card.enable")
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle(skill.name);
-                }}
-                className="scb__action-btn scb__action-btn--ghost"
-              >
-                {skill.enabled ? (
-                  <ToggleRight
-                    size={15}
-                    className="text-theme-success dark:text-green-500"
-                  />
-                ) : (
-                  <ToggleLeft size={15} />
-                )}
-              </button>
-            </Tooltip>
-          </div>
+              {skill.enabled ? (
+                <ToggleRight
+                  size={16}
+                  className="text-theme-success dark:text-green-500"
+                />
+              ) : (
+                <ToggleLeft size={16} />
+              )}
+            </button>
+          </Tooltip>
         ) : undefined
       }
     />

@@ -108,9 +108,12 @@ async def test_mongo_checkpointer_accepts_string_channel_versions(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("saver_version", ["3.1.2", "3.2.0"])
 async def test_pg_checkpointer_initializes_once_under_concurrency(
     monkeypatch: pytest.MonkeyPatch,
+    saver_version: str,
 ) -> None:
+    monkeypatch.setattr("importlib.metadata.version", lambda _package: saver_version)
     monkeypatch.setattr(
         checkpoint_mod,
         "get_pg_checkpointer",

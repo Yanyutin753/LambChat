@@ -32,11 +32,20 @@ import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
 import { CopyButton } from "../../common/CopyButton";
 import { Button } from "../../common/ui/Button";
+import { SkillChip } from "../SkillChip";
+import { FileReferenceChip } from "../richComposer/FileReferenceChip";
+import type { MessageAttachment } from "../../../types";
+import { rehypeUserMessageReferences, type UserMessageReferences } from "./userMessageFileReferences";
+
+type MarkdownUserMessageReferences = UserMessageReferences & {
+  onOpenAttachment: (attachment: MessageAttachment) => void;
+};
 
 type MarkdownContextValue = {
   isStreaming?: boolean;
   headingAnchorContext?: { messageId: string; partIndex: number };
   openImage: (src: string) => void;
+  userMessageReferences?: MarkdownUserMessageReferences;
 };
 
 const MarkdownContext = createContext<MarkdownContextValue>({
@@ -336,6 +345,30 @@ function TableBlock({ children }: { children: React.ReactNode }) {
 
 // Stable node components preserve interactive state while Markdown grows.
 const markdownComponents: Components = {
+  span: function InlineReference({ node, children, ...props }) {
+    const { userMessageReferences } = useContext(MarkdownContext);
+    const skillName = node?.properties.dataSkillName;
+    if (userMessageReferences && typeof skillName === "string") {
+      return <SkillChip name={skillName} />;
+    }
+    const attachment = userMessageReferences?.attachments?.find(
+      file => file.id === node?.properties.dataFileId,
+    );
+    if (attachment && userMessageReferences) {
+      return (
+        <FileReferenceChip
+          referenceId={`sent-${attachment.id}`}
+          fileName={attachment.name}
+          referenceNumber={Number(node?.properties.dataReferenceNumber)}
+          category="document"
+          status="ready"
+          readOnly
+          onClick={() => userMessageReferences.onOpenAttachment(attachment)}
+        />
+      );
+    }
+    return <span {...props}>{children}</span>;
+  },
   // Headings with anchor links
   h1: function Heading1({ children }) {
     const { headingAnchorContext } = useContext(MarkdownContext);
@@ -598,10 +631,12 @@ export const MarkdownContent = memo(function MarkdownContent({
   content,
   isStreaming,
   headingAnchorContext,
+  userMessageReferences,
 }: {
   content: string;
   isStreaming?: boolean;
   headingAnchorContext?: { messageId: string; partIndex: number };
+  userMessageReferences?: MarkdownUserMessageReferences;
 }) {
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   return (
@@ -610,6 +645,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         isStreaming,
         headingAnchorContext,
         openImage: setImageViewerSrc,
+        userMessageReferences,
       }}
     >
       <span
@@ -619,7 +655,9 @@ export const MarkdownContent = memo(function MarkdownContent({
       >
         <ReactMarkdown
           remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
-          rehypePlugins={[rehypeKatex]}
+          rehypePlugins={userMessageReferences
+            ? [rehypeKatex, [rehypeUserMessageReferences, userMessageReferences]]
+            : [rehypeKatex]}
           components={markdownComponents}
         >
           {normalizeMarkdownCodeFences(content)}

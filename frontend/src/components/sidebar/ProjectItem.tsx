@@ -354,7 +354,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 onKeyDown={handleKeyDown}
                 onBlur={handleSaveName}
                 disabled={isSaving}
-                className="w-full text-14 bg-transparent text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                className="w-full text-14 bg-transparent text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-stone-400"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (

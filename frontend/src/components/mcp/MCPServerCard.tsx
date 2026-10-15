@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { MCPServerResponse } from "../../types";
 import { SkillBaseCard } from "../common/SkillBaseCard";
+import { Tooltip } from "../common/Tooltip";
 import { nameToGradient } from "../common/cardUtils";
 
 interface MCPServerCardProps {
@@ -21,13 +22,13 @@ interface MCPServerCardProps {
 }
 
 const TRANSPORT_COLORS: Record<string, string> = {
-  sse: "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success ring-1 ring-[color-mix(in_srgb,var(--theme-success)_25%,transparent)] dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-800/60",
+  sse: "text-theme-success dark:text-emerald-400",
   streamable_http:
-    "bg-violet-50 text-violet-600 ring-1 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:ring-violet-800/60",
+    "text-violet-600 dark:text-violet-400",
 };
 
 const DEFAULT_TRANSPORT_COLOR =
-  "bg-theme-bg-subtle text-theme-text-secondary ring-1 ring-theme-border dark:bg-stone-800 dark:text-stone-400 dark:ring-stone-700";
+  "text-theme-text-secondary";
 
 export function MCPServerCard({
   server,
@@ -60,7 +61,7 @@ export function MCPServerCard({
       statusPills={
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <span
-            className={`rounded-full px-2 py-0.5 text-11 font-medium tracking-wide ${transportColor}`}
+            className={`text-11 font-medium tracking-wide ${transportColor}`}
           >
             {transportLabel}
           </span>
@@ -102,15 +103,6 @@ export function MCPServerCard({
         )
       }
       actions={[
-        {
-          label: t(server.enabled ? "mcp.card.disable" : "mcp.card.enable"),
-          icon: server.enabled ? (
-            <ToggleRight size={16} />
-          ) : (
-            <ToggleLeft size={16} />
-          ),
-          onClick: () => onToggle(server.name),
-        },
         ...(server.can_edit && !server.is_internal && onEdit
           ? [
               {
@@ -132,30 +124,33 @@ export function MCPServerCard({
           : []),
       ]}
       footer={
-        <div className="flex items-center">
-          <button
-            role="switch"
-            aria-checked={server.enabled}
-            aria-label={
-              server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle(server.name);
-            }}
-            className={`pps-card__action ${
-              server.enabled
-                ? "pps-card__action--active"
-                : "pps-card__action--primary"
-            }`}
+        <div className="flex items-center justify-end gap-2">
+          <Tooltip
+            content={t(server.enabled ? "mcp.card.disable" : "mcp.card.enable")}
           >
-            {server.enabled ? (
-              <ToggleRight size={13} className="text-theme-success" />
-            ) : (
-              <ToggleLeft size={13} />
-            )}
-            {server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")}
-          </button>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={server.enabled}
+              aria-label={
+                server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(server.name);
+              }}
+              className="scb__action-btn scb__action-btn--ghost"
+            >
+              {server.enabled ? (
+                <ToggleRight
+                  size={16}
+                  className="text-theme-success dark:text-green-500"
+                />
+              ) : (
+                <ToggleLeft size={16} />
+              )}
+            </button>
+          </Tooltip>
         </div>
       }
     />

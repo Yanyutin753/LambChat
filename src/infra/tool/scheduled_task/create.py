@@ -229,7 +229,7 @@ async def scheduled_task_create(
             if agent_id and agent_id != "team"
             else session_agent_id
             if session_agent_id and session_agent_id != "team"
-            else "fast"
+            else "search"
         )
     elif agent_id == "team" or (team_id and (not agent_id or session_agent_id == "team")):
         effective_agent_id = "team"
@@ -239,10 +239,13 @@ async def scheduled_task_create(
             if agent_id and agent_id != "team"
             else session_agent_id
             if session_agent_id and session_agent_id != "team"
-            else "fast"
+            else "search"
         )
     else:
-        effective_agent_id = agent_id or session_agent_id or "fast"
+        effective_agent_id = agent_id or session_agent_id or "search"
+    from src.agents.core.base import normalize_agent_id
+
+    effective_agent_id = normalize_agent_id(effective_agent_id)
     effective_agent_options = dict(session_agent_options)
     if model_id:
         effective_agent_options["model_id"] = model_id

@@ -694,11 +694,11 @@ export function RolesPanel() {
             {paginatedRoles.map((role) => (
               <div
                 key={role.id}
-                className="resource-detail-card glass-card group relative flex flex-col rounded-xl p-4 sm:p-5 cursor-pointer transition-all duration-200 animate-glass-enter"
+                className="resource-detail-card glass-card group relative flex flex-col gap-2 rounded-xl p-3 cursor-pointer transition-all duration-200 animate-glass-enter"
                 onClick={() => setSelectedRole(role)}
               >
                 {/* Header badges */}
-                <div className="flex flex-wrap items-center gap-2 mb-2 text-11 leading-none">
+                <div className="flex flex-wrap items-center gap-2 text-11 leading-none">
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${
                       role.is_system
@@ -732,13 +732,13 @@ export function RolesPanel() {
                   </button>
                 </h4>
                 {role.description && (
-                  <p className="mt-1 text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
+                  <p className="text-14 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
                     {role.description}
                   </p>
                 )}
 
                 {/* Permissions preview */}
-                <div className="mt-2 mb-2 flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {role.permissions.slice(0, 3).map((perm) => (
                     <span
                       key={perm}
@@ -756,8 +756,7 @@ export function RolesPanel() {
 
                 {/* Footer actions */}
                 {canManage && (
-                  <div className="mt-auto flex items-center gap-2 pt-2 sm:pt-4">
-                    <div className="ml-auto" />
+                  <div className="mt-auto flex items-center justify-end gap-2">
                     <IconButton
                       aria-label={t("common.edit")}
                       icon={<Pencil size={14} />}

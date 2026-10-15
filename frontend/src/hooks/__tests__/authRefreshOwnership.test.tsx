@@ -15,24 +15,24 @@ const api = vi.hoisted(() => ({
   language: vi.fn(),
   login: vi.fn(),
 }));
-vi.mock("../../services/api", async () => {
-  const { decodeToken } = await import("../../services/api/token");
+vi.mock("../../services/api/auth", () => ({
+  authApi: {
+    getCurrentUser: api.current,
+    login: api.login,
+    logout: () => { api.token = ""; },
+  },
+  buildOAuthLoginUrl: () => "",
+}));
+vi.mock("../../services/api/token", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../services/api/token")>();
   return {
-    authApi: {
-      getCurrentUser: api.current,
-      login: api.login,
-      logout: () => {
-        api.token = "";
-      },
-    },
+    ...actual,
     getAccessToken: () => api.token || null,
     getRefreshToken: () => null,
     isAuthenticated: () => !!api.token,
     isTokenExpired: () => false,
     getRedirectPath: () => null,
     clearRedirectPath: () => {},
-    buildOAuthLoginUrl: () => "",
-    decodeToken,
   };
 });
 vi.mock("../../i18n", () => ({ default: { changeLanguage: api.language } }));

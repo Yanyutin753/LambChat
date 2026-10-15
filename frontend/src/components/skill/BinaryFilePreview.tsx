@@ -141,7 +141,7 @@ export function BinaryFilePreview({
       <div
         ref={contentRef}
         tabIndex={-1}
-        className="flex-1 min-h-0 overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
+        className="flex-1 min-h-0 overflow-auto focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--theme-primary)]/50"
       >
         {hasError ? (
           <SkillFileLoadState

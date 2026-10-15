@@ -121,7 +121,7 @@ def test_cancel_and_list_have_dedicated_callable_controls():
 
 
 def test_all_three_modes_use_shared_session_assembly_and_parent_cleanup():
-    for mode in ("fast_agent", "search_agent", "team_agent"):
+    for mode in ("search_agent", "team_agent"):
         source = Path(f"src/agents/{mode}/nodes.py").read_text()
         assert "assemble_subagent_sessions(" in source
         assert "await subagent_sessions.close(" in source

@@ -22,12 +22,12 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
           data-reveal
           className="flex items-center justify-center gap-2.5 sm:gap-3 mb-8 sm:mb-12"
         >
-          <span className="block w-6 sm:w-8 h-px bg-gradient-to-r from-transparent to-stone-300 dark:to-stone-600" />
+          <span className="block w-6 sm:w-8 h-px bg-linear-to-r from-transparent to-stone-300 dark:to-stone-600" />
           <span className="relative text-10 sm:text-12 font-semibold tracking-[0.16em] sm:tracking-[0.18em] uppercase text-theme-text-secondary dark:text-theme-text-secondary">
             {t("landing.badge")}
             <span className="blog-pulse-dot absolute -top-1.5 -right-2.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
           </span>
-          <span className="block w-6 sm:w-8 h-px bg-gradient-to-l from-transparent to-stone-300 dark:to-stone-600" />
+          <span className="block w-6 sm:w-8 h-px bg-linear-to-l from-transparent to-stone-300 dark:to-stone-600" />
         </div>
 
         {/* Title */}

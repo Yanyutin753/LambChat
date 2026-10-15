@@ -43,7 +43,9 @@ class DeltaDatabase:
             ("empty", b"") if empty else self.serde.dumps_typed(value)
         )
 
-    def add_write(self, cid, channel, value, *, task="task", idx=0, thread="thread", ns=""):
+    def add_write(
+        self, cid, channel, value, *, task="task", path="", idx=0, thread="thread", ns=""
+    ):
         kind, blob = self.serde.dumps_typed(value)
         self.writes.append(
             {
@@ -54,6 +56,7 @@ class DeltaDatabase:
                 "type": kind,
                 "blob": blob,
                 "task_id": task,
+                "task_path": path,
                 "idx": idx,
             }
         )
@@ -69,14 +72,15 @@ class DeltaDatabase:
             correlated = "EXISTS" in sql
             stride = 4 if correlated else 2
             channels = [params[index * stride] for index in range(count)]
-            thread, ns, before, _before, limit = params[count * stride :]
+            thread, ns, before, limit = params[count * stride :]
+            include_cursor = "checkpoint_id <= %s" in sql
             rows = sorted(
                 (
                     row
                     for row in self.checkpoints
                     if row["thread"] == thread
                     and row["ns"] == ns
-                    and (before is None or row["id"] < before)
+                    and (row["id"] <= before if include_cursor else row["id"] < before)
                 ),
                 key=lambda row: row["id"],
                 reverse=True,
@@ -312,6 +316,43 @@ async def test_delta_history_walks_all_pages_and_never_caches_fresh_writes(monke
     assert len(first["messages"]["writes"]) == 1100
     assert second["messages"]["writes"][-1] == ("zz", "messages", ["fresh write"])
     assert db.probes == 4  # Two pages, one distinct version each, on both requests.
+
+
+async def test_delta_history_starts_at_target_and_skips_newer_checkpoints(monkeypatch):
+    db = DeltaDatabase()
+    db.add_checkpoint("c0", None, {"messages": "seed"}, {"messages": "full seed"})
+    db.add_checkpoint("target", "c0")
+    for index in range(1100):
+        db.add_checkpoint(f"z{index:05}", None, {"messages": f"newer-{index}"})
+    expected = await upstream_saver(copy.deepcopy(db)).aget_delta_channel_history(
+        config=config(), channels=["messages"]
+    )
+    saver = await application_saver(monkeypatch, db)
+
+    actual = await saver.aget_delta_channel_history(config=config(), channels=["messages"])
+
+    assert actual == expected == {"messages": {"writes": [], "seed": "full seed"}}
+    assert db.probes == 1
+    assert sum("AS ver_0" in sql for sql, _params in db.queries) == 1
+    assert db.queries[0][1][-2] == "target"
+
+
+async def test_delta_history_replays_task_paths_before_task_ids(monkeypatch):
+    db = DeltaDatabase()
+    db.add_checkpoint("c0", None)
+    db.add_checkpoint("target", "c0")
+    db.add_write("c0", "messages", ["second"], task="a", path="2")
+    db.add_write("c0", "messages", ["first"], task="z", path="1")
+    expected = await upstream_saver(copy.deepcopy(db)).aget_delta_channel_history(
+        config=config(), channels=["messages"]
+    )
+    saver = await application_saver(monkeypatch, db)
+
+    actual = await saver.aget_delta_channel_history(config=config(), channels=["messages"])
+
+    assert actual == expected == {
+        "messages": {"writes": [("z", "messages", ["first"]), ("a", "messages", ["second"])]}
+    }
 
 
 async def test_delta_empty_channels_and_missing_latest_checkpoint_skip_queries(monkeypatch):

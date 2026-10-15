@@ -1,7 +1,7 @@
 import {
   DEFAULT_THINKING_LEVEL_STORAGE_KEY,
   normalizeThinkingOptionValue,
-} from "../components/layout/AppContent/useAgentOptions";
+} from "../utils/thinkingLevel";
 import { SEND_MODIFIER_STORAGE_KEY } from "./sendModifier";
 import {
   FONT_SCALE_EXTERNAL_CHANGE_EVENT,

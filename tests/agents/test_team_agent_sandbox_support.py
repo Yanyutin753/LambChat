@@ -237,7 +237,7 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("agent", ["team", "search", "fast"])
+@pytest.mark.parametrize("agent", ["team", "search"])
 async def test_delegating_agents_load_discovered_role_with_original_prompt(
     monkeypatch: pytest.MonkeyPatch,
     agent: str,
@@ -283,7 +283,7 @@ async def test_delegating_agents_load_discovered_role_with_original_prompt(
         }
     }
 
-    node_name = {"team": "team_router_node", "search": "agent_node", "fast": "fast_agent_node"}[
+    node_name = {"team": "team_router_node", "search": "agent_node"}[
         agent
     ]
     await getattr(team_nodes, node_name)(
@@ -361,6 +361,10 @@ async def test_delegating_agents_load_discovered_role_with_original_prompt(
     role_spec = dispatch.call_args.args[0]
     assert role_spec["name"] == "persona:p1"
     assert any("TRUSTED_ROLE_SOP" in getattr(m, "_prompt", "") for m in role_spec["middleware"])
+    role_prompt = "\n\n".join(getattr(m, "_prompt", "") for m in role_spec["middleware"])
+    assert "no sandbox or operating-system shell" in role_prompt
+    assert "/workflow/<session-id>" in role_prompt
+    assert "Sandbox local:" not in role_prompt
     assert (
         child_graph.builder.compile.call_args.kwargs["store"]
         is fake_graph.captured_create_kwargs["store"]

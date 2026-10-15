@@ -67,7 +67,7 @@ function FolderIcon({
 /*  Tree renderer                                                      */
 /* ------------------------------------------------------------------ */
 
-const FILE_ICON_SIZE = 24;
+const FILE_ICON_SIZE = 20;
 
 function formatSize(bytes?: number): string {
   if (bytes == null) return "";
@@ -195,7 +195,9 @@ function TreeFileRow({
               />
             </span>
           ) : (
-            getFileIcon(node.artifact.name)
+            <span className="flex size-9 shrink-0 items-center justify-center">
+              {getFileIcon(node.artifact.name)}
+            </span>
           )}
           <div className="flex-1 min-w-0 text-left">
             <div
@@ -287,7 +289,9 @@ function TreeDirRow({
           onClick={toggleExpanded}
           className="flex !min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
-          <FolderIcon size={36} className="shrink-0" />
+          <span className="flex size-9 shrink-0 items-center justify-center">
+            <FolderIcon size={20} className="shrink-0" />
+          </span>
           <div className="flex-1 min-w-0">
             <div className="text-14 font-medium text-stone-800 dark:text-stone-200 truncate">
               {node.name}
@@ -481,7 +485,7 @@ function SectionTitle({
       <span className="text-11 font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
         {children}
       </span>
-      <span className="h-px flex-1 bg-gradient-to-r from-[var(--theme-border)]/80 to-transparent" />
+      <span className="h-px flex-1 bg-linear-to-r from-[var(--theme-border)]/80 to-transparent" />
       <span className="flex min-w-[20px] items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 py-0.5 text-10 font-bold tabular-nums text-[var(--theme-primary)]">
         {count}
       </span>

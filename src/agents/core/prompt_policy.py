@@ -6,6 +6,14 @@ PERSISTENT_STORAGE_POLICY = """## Storage
 - `/skills/`: virtual Skill store, accessed with file tools (see the file-tool descriptions).
 Use an existing project path only when requested or clearly relevant; otherwise work in the current session workspace."""
 
+NO_SANDBOX_RUNTIME_POLICY = """## Runtime Capabilities
+
+This session has no sandbox or operating-system shell. File tools use persistent virtual storage; these paths are not host filesystem paths.
+- Continue with the available tools, Skills, MCP services, and file operations. Do not claim all tools are unavailable just because there is no sandbox.
+- Use a code interpreter only when its tool is exposed; it does not provide an operating-system shell or access to the user's computer.
+- If a Skill or task requires shell commands, package installation, or local programs, complete the supported parts and explain the missing capability. Never invent execution or verification results."""
+
+
 SANDBOX_STORAGE_POLICY = """## Storage
 
 - Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads (the file-tool descriptions carry the session workspace path).
@@ -135,7 +143,7 @@ SAFETY_POLICY = """### Safety, Verification, and Privacy
 - Privacy-Safe Output: Do not repeat sensitive personal data unless explicitly required. Never print, log, or store access tokens, API keys, passwords, credentials, cookies, identifiers, contacts, addresses, or account values; redact them."""
 
 # Todo 触发指引（3+ steps / 显式请求 always call first）只由 TodoListMiddleware
-# 的 TODO_SYSTEM_PROMPT 注入：fast/search/team 的主 agent 与全部子代理中间件栈
+# 的 TODO_SYSTEM_PROMPT 注入：search/team 的主 agent 与全部子代理中间件栈
 # 都挂该中间件，这里再复读一遍等于每个请求双份近逐字注入。
 PROGRESS_POLICY = """### Tool Progress
 For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results.

@@ -8,7 +8,7 @@ test("chat header does not display a project badge", () => {
 });
 
 test("header puts more before workspace and avatar with a consistent gap", () => {
-  const right = source.slice(source.indexOf("{/* Right */}"));
+  const right = source.slice(source.indexOf("/* Right */"));
   expect(right).toContain(
     'className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0"',
   );

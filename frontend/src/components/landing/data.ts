@@ -1,3 +1,4 @@
+import type { Theme } from "../../utils/themeDom";
 import type { IllustrationScene } from "../common/SceneIllustration";
 export interface FeatureItem {
   illustration: IllustrationScene;
@@ -101,7 +102,7 @@ export const TECH_STACK = [
 ];
 
 // Bump when replacing screenshots so browser caches pick up the new assets.
-export const SCREENSHOT_ASSET_VERSION = "20261005";
+export const SCREENSHOT_ASSET_VERSION = "20261015-theme";
 
 export function shotSrc(name: string): string {
   return `/images/best-practice/${name}.webp?v=${SCREENSHOT_ASSET_VERSION}`;
@@ -134,3 +135,10 @@ export const STATS = [
   { num: "3+", key: "oauthProviders" },
   { num: "SSE", key: "streamingOutput" },
 ];
+
+export function themedShots(shots: ScreenshotItem[], theme: Theme): ScreenshotItem[] {
+  return shots.map((shot) => ({
+    ...shot,
+    src: theme === "light" ? shot.src : shot.src.replace(".webp?", `-${theme}.webp?`),
+  }));
+}

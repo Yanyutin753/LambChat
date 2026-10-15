@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { MGMT_SHOTS } from "../data";
+import type { ScreenshotItem } from "../data";
 import { SectionHeading } from "./SectionHeading";
 import { ScreenshotCard } from "./ScreenshotCard";
 
 interface DashboardSectionProps {
+  shots: ScreenshotItem[];
   onOpenViewer: (src: string, alt: string) => void;
 }
 
-export function DashboardSection({ onOpenViewer }: DashboardSectionProps) {
+export function DashboardSection({ shots, onOpenViewer }: DashboardSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -22,7 +23,7 @@ export function DashboardSection({ onOpenViewer }: DashboardSectionProps) {
           description={t("landing.managementPanelsDesc")}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-          {MGMT_SHOTS.map((s) => (
+          {shots.map((s) => (
             <ScreenshotCard
               key={s.src}
               src={s.src}

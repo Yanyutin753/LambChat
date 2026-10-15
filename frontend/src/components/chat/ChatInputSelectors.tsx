@@ -269,7 +269,7 @@ export function ChatInputSelectors({
                   aria-pressed={active}
                   aria-disabled={row.disabled || undefined}
                   onClick={() => handleSelectMachineRow(row)}
-                  className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
+                  className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
                     row.disabled ? " opacity-50" : ""
                   }`}
                   style={{
@@ -341,7 +341,7 @@ export function ChatInputSelectors({
           <button
             type="button"
             onClick={() => retry(policyTarget)}
-            className="min-h-11 px-2 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
+            className="min-h-11 px-2 underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
           >
             {t("common.retry")}
           </button>

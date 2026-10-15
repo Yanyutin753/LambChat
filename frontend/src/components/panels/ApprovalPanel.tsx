@@ -66,7 +66,7 @@ function FormFieldRenderer({
 }) {
   const { t } = useTranslation();
   const cls =
-    "w-full rounded-lg pl-3 pr-3 py-2 text-14 transition-all duration-150 focus:outline-none disabled:opacity-50 approval-input";
+    "w-full rounded-lg pl-3 pr-3 py-2 text-14 transition-all duration-150 focus:outline-hidden disabled:opacity-50 approval-input";
 
   const interact = () => onInteract?.();
 

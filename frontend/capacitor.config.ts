@@ -4,7 +4,10 @@ const config: CapacitorConfig = {
   appId: "com.lambchat.app",
   appName: "LambChat",
   webDir: "dist",
-  bundledWebRuntime: false,
+  plugins: {
+    // MainActivity owns window insets and IME resizing.
+    SystemBars: { insetsHandling: "disable" },
+  },
   android: {
     allowMixedContent: false,
   },

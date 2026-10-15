@@ -62,7 +62,11 @@ export function RightPanelTabs({
 
   if (collapsed && activeId) {
     return createPortal(
-      <div className="right-panel-restore-group">
+      <div
+        className="right-panel-restore-group"
+        role="group"
+        aria-label={t("common.panelTabs")}
+      >
         <button
           ref={restoreRef}
           type="button"

@@ -234,7 +234,7 @@ test("folder rows retain the original illustrated folder icon", () => {
     .getByRole("button", { name: "workspace" })
     .querySelector("svg");
   expect(icon).toHaveAttribute("viewBox", "0 0 1024 1024");
-  expect(icon).toHaveAttribute("width", "36");
+  expect(icon).toHaveAttribute("width", "20");
   expect(icon?.querySelectorAll('path[fill="#FFE8A3"]')).toHaveLength(2);
   expect(icon?.querySelector('path[fill="#FFCF40"]')).not.toBeNull();
 });

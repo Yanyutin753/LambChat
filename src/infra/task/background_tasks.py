@@ -197,7 +197,7 @@ class BackgroundTaskService:
                 "session_id": str(uuid5(NAMESPACE_URL, f"background:{identity}")),
                 "run_id": str(uuid5(NAMESPACE_URL, f"background-run:{identity}")),
                 "description": description,
-                "agent_id": agent_id or metadata.get("agent_id") or "fast",
+                "agent_id": agent_id or metadata.get("agent_id") or "search",
                 "agent_options": options,
                 "config": config,
                 "language": metadata.get("language") or "en",

@@ -16,7 +16,7 @@ export function TaskNotificationToast({ visible, title, body, openLabel, dismiss
         <span className="mt-1 line-clamp-2 block text-12 leading-snug text-theme-text-secondary">{body}</span>
       </span>
       <button type="button" onClick={onOpen} aria-label={`${openLabel}: ${title}`}
-        className="min-h-11 max-w-full rounded-lg text-left text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary">
+        className="min-h-11 max-w-full rounded-lg text-left text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary">
         {openLabel}
       </button>
     </div>

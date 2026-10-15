@@ -135,12 +135,14 @@ export function DistributionList({
   items,
   total,
   emptyLabel,
+  nameKeyPrefix,
 }: {
   title: string;
   icon: LucideIcon;
   items: UsageRankingItem[];
   total: number;
   emptyLabel: string;
+  nameKeyPrefix?: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -171,7 +173,9 @@ export function DistributionList({
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-11 font-medium text-theme-text-secondary sm:text-12">
-                    {item.name || item.id || "-"}
+                    {nameKeyPrefix
+                      ? t(`${nameKeyPrefix}.${item.id}`, item.name || item.id || "-")
+                      : item.name || item.id || "-"}
                   </span>
                   <span className="shrink-0 text-11 font-bold tabular-nums text-theme-text sm:text-12">
                     {pct(share)}

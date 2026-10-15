@@ -29,6 +29,7 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "macOS": {
+      "minimumSystemVersion": "11.0",
       "signingIdentity": "-",
       "hardenedRuntime": false
     },

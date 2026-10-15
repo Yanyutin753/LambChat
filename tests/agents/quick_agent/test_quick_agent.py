@@ -267,7 +267,6 @@ def test_all_deepagents_agents_share_session_thread_checkpoint_namespace() -> No
 
     src_root = Path(__file__).resolve().parents[3] / "src"
     for rel in (
-        "agents/fast_agent/nodes.py",
         "agents/search_agent/nodes.py",
         "agents/team_agent/nodes.py",
     ):

@@ -200,7 +200,7 @@ class AskHumanTool(BaseTool):
         """interrupt 模式：通过 LangGraph interrupt() 挂起而非阻塞等待。
 
         对齐 deepagents 官方 HITL 语义：工具内零副作用、无超时，
-        interrupt payload 由编排层（fast_agent_node 挂起后）转为审批
+        interrupt payload 由编排层（agent_node 挂起后）转为审批
         记录与 SSE 通知，resume 值直接作为工具返回。
         """
         from langgraph.types import interrupt

@@ -744,3 +744,49 @@ async def test_full_project_manifest_reads_only_requested_live_page(monkeypatch)
     assert response.sessions_total == 10000
     assert response.has_more is True
     assert [session.id for session in response.sessions] == ["live-201", "live-202"]
+
+
+@pytest.fixture(autouse=True)
+def empty_agent_catalog(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        share_route,
+        "get_agent_config_storage",
+        lambda: SimpleNamespace(get_catalog_config=AsyncMock(return_value=[])),
+    )
+
+
+@pytest.mark.parametrize(
+    "build", [share_route._build_safe_session_info, share_route._build_project_session_item]
+)
+def test_shared_sessions_include_only_public_agent_display_metadata(monkeypatch, build):
+    from src.kernel.schemas.agent import AgentCatalogConfig, AgentCatalogLocale
+
+    monkeypatch.setattr(
+        share_route, "get_agent_class", lambda _: SimpleNamespace(_agent_name="Search Agent")
+    )
+    session = SimpleNamespace(
+        id="session",
+        name="Research",
+        agent_id="search",
+        metadata={},
+        created_at=None,
+        updated_at=None,
+        task_status=None,
+        task_error=None,
+        completed_at=None,
+    )
+    catalog = AgentCatalogConfig(
+        id="search",
+        name="Research Agent",
+        description="Internal description",
+        labels={
+            "zh": AgentCatalogLocale(name="研究助手", description="Internal localized description")
+        },
+    )
+    result = build(session, catalog)
+    data = result if isinstance(result, dict) else result.model_dump()
+    assert data["agent_id"] == "search"
+    assert data["agent_name"] == "Research Agent"
+    assert data["agent_labels"] == {"zh": {"name": "研究助手"}}

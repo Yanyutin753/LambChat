@@ -5,10 +5,10 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.tools import BaseTool
 
-from src.agents.fast_agent import context as fast_context
-from src.agents.fast_agent.context import FastAgentContext
 from src.agents.search_agent import context as search_context
 from src.agents.search_agent.context import SearchAgentContext
+from src.agents.team_agent import context as team_context
+from src.agents.team_agent.context import TeamAgentContext
 
 
 class _FakeTool(BaseTool):
@@ -24,7 +24,7 @@ class _FakeTool(BaseTool):
 
 @pytest.fixture
 def lean_settings(monkeypatch):
-    for module in (fast_context, search_context):
+    for module in (team_context, search_context):
         monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)
         monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
         monkeypatch.setattr(module.settings, "ENABLE_SANDBOX", False)
@@ -34,7 +34,7 @@ def lean_settings(monkeypatch):
 
 @pytest.mark.parametrize(
     ("module", "context_type"),
-    [(fast_context, FastAgentContext), (search_context, SearchAgentContext)],
+    [(team_context, TeamAgentContext), (search_context, SearchAgentContext)],
 )
 @pytest.mark.asyncio
 async def test_context_defers_system_tools_even_when_mcp_is_disabled(
@@ -63,7 +63,7 @@ async def test_context_defers_system_tools_even_when_mcp_is_disabled(
 
 @pytest.mark.parametrize(
     ("module", "context_type"),
-    [(fast_context, FastAgentContext), (search_context, SearchAgentContext)],
+    [(team_context, TeamAgentContext), (search_context, SearchAgentContext)],
 )
 @pytest.mark.asyncio
 async def test_memory_delete_is_deferred_while_retain_and_recall_stay_inline(
@@ -96,18 +96,18 @@ async def test_memory_delete_stays_inline_when_deferred_loading_disabled(
     monkeypatch,
     lean_settings,
 ) -> None:
-    monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(fast_context.settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
+    monkeypatch.setattr(team_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(team_context.settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
 
     async def no_internal(**_kwargs):
         return [], []
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         no_internal,
     )
-    context = FastAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1")
 
     await context.setup()
 
@@ -118,7 +118,7 @@ async def test_memory_delete_stays_inline_when_deferred_loading_disabled(
 
 @pytest.mark.parametrize(
     ("module", "context_type"),
-    [(fast_context, FastAgentContext), (search_context, SearchAgentContext)],
+    [(team_context, TeamAgentContext), (search_context, SearchAgentContext)],
 )
 @pytest.mark.asyncio
 async def test_memory_sop_search_tools_loads_memory_delete(
@@ -163,10 +163,9 @@ def test_agent_nodes_wire_search_tool_whenever_deferred_manager_exists() -> None
     """结构断言：主 Agent 节点在 deferred_manager 非空时注入 search_tools（SOP 入口）。"""
     from inspect import getsource
 
-    from src.agents.fast_agent import nodes as fast_nodes
     from src.agents.search_agent import nodes as search_nodes
 
-    for nodes in (fast_nodes, search_nodes):
+    for nodes in (search_nodes,):
         source = getsource(nodes)
         assert "context.deferred_manager is not None" in source
         assert "ToolSearchTool(" in source
@@ -184,12 +183,12 @@ async def test_compatibility_registration_does_not_reinline_deferred_env_tool(
         return [], [env_tool]
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         internal_tools,
     )
     monkeypatch.setattr("src.infra.tool.env_var_tool.get_env_var_tools", lambda: [env_tool])
-    context = FastAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1")
 
     await context.setup()
 
@@ -203,7 +202,7 @@ async def test_disabling_deferred_loading_inlines_all_authorized_system_tools(
     monkeypatch,
     lean_settings,
 ) -> None:
-    monkeypatch.setattr(fast_context.settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
+    monkeypatch.setattr(team_context.settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
     inline = _FakeTool(name="inline_system")
     normally_deferred = _FakeTool(name="normally_deferred")
 
@@ -211,11 +210,11 @@ async def test_disabling_deferred_loading_inlines_all_authorized_system_tools(
         return [inline], [normally_deferred]
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         internal_tools,
     )
-    context = FastAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1")
 
     await context.setup()
 
@@ -228,8 +227,8 @@ async def test_deferred_system_tools_do_not_force_small_mcp_set_to_defer(
     monkeypatch,
     lean_settings,
 ) -> None:
-    monkeypatch.setattr(fast_context.settings, "ENABLE_MCP", True)
-    monkeypatch.setattr(fast_context.settings, "DEFERRED_TOOL_THRESHOLD", 100)
+    monkeypatch.setattr(team_context.settings, "ENABLE_MCP", True)
+    monkeypatch.setattr(team_context.settings, "DEFERRED_TOOL_THRESHOLD", 100)
     system = _FakeTool(name="deferred_system")
     mcp = _FakeTool(name="github:create", description="Create issue")
     object.__setattr__(mcp, "server", "github")
@@ -244,13 +243,13 @@ async def test_deferred_system_tools_do_not_force_small_mcp_set_to_defer(
         return set()
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         internal_tools,
     )
-    monkeypatch.setattr(fast_context, "get_global_mcp_tools", global_tools)
-    monkeypatch.setattr(fast_context, "get_db_disabled_mcp_tool_names", no_disabled)
-    context = FastAgentContext(session_id="session-1", user_id="user-1")
+    monkeypatch.setattr(team_context, "get_global_mcp_tools", global_tools)
+    monkeypatch.setattr(team_context, "get_db_disabled_mcp_tool_names", no_disabled)
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
 
     await context.setup()
     await context.get_tools()
@@ -262,11 +261,11 @@ async def test_deferred_system_tools_do_not_force_small_mcp_set_to_defer(
 
 
 @pytest.mark.asyncio
-async def test_fast_context_registers_one_search_skills_after_filtering(
+async def test_team_context_registers_one_search_skills_after_filtering(
     monkeypatch,
     lean_settings,
 ) -> None:
-    monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", True)
+    monkeypatch.setattr(team_context.settings, "ENABLE_SKILLS", True)
 
     async def no_internal(**_kwargs):
         return [], []
@@ -282,12 +281,12 @@ async def test_fast_context_registers_one_search_skills_after_filtering(
             }
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         no_internal,
     )
-    monkeypatch.setattr(fast_context, "SkillManager", _SkillManager)
-    context = FastAgentContext(
+    monkeypatch.setattr(team_context, "SkillManager", _SkillManager)
+    context = TeamAgentContext(
         session_id="session-1",
         user_id="user-1",
         disabled_skills=["blocked"],
@@ -302,11 +301,11 @@ async def test_fast_context_registers_one_search_skills_after_filtering(
 
 
 @pytest.mark.asyncio
-async def test_fast_context_omits_search_skills_for_empty_inventory(
+async def test_team_context_omits_search_skills_for_empty_inventory(
     monkeypatch,
     lean_settings,
 ) -> None:
-    monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", True)
+    monkeypatch.setattr(team_context.settings, "ENABLE_SKILLS", True)
 
     async def no_internal(**_kwargs):
         return [], []
@@ -319,12 +318,12 @@ async def test_fast_context_omits_search_skills_for_empty_inventory(
             return {}
 
     monkeypatch.setattr(
-        fast_context,
+        team_context,
         "get_internal_tools_by_exposure_for_user",
         no_internal,
     )
-    monkeypatch.setattr(fast_context, "SkillManager", _SkillManager)
-    context = FastAgentContext(session_id="session-1", user_id="user-1")
+    monkeypatch.setattr(team_context, "SkillManager", _SkillManager)
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
 
     await context.setup()
 

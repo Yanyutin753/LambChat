@@ -36,7 +36,7 @@ export function DesktopMoreMenu({
     <button
       key={item.path}
       type="button"
-      className={`sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors ${
+      className={`sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors ${
         (item.matchPaths ?? [item.path]).includes(location.pathname)
           ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)] font-medium"
           : ""

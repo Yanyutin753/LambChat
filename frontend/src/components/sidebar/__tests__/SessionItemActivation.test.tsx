@@ -46,6 +46,7 @@ test("session title supports keyboard activation once and keeps the More action 
     exact: true,
   });
   expect(title).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute("data-selected", "true");
   await user.tab();
   expect(title).toHaveFocus();
   await user.keyboard("{Enter} ");
@@ -74,6 +75,7 @@ test("selection mode exposes a checkbox that toggles by pointer and keyboard wit
   expect(title).toHaveAttribute("aria-checked", "false");
   expect(screen.queryAllByRole("button")).toHaveLength(0);
   expect(title).not.toHaveAttribute("aria-current");
+  expect(screen.getByRole("group", { name: "Research plan" })).not.toHaveAttribute("data-selected");
   await user.click(title);
   expect(toggle).toHaveBeenCalledOnce();
   expect(select).not.toHaveBeenCalled();
@@ -87,6 +89,7 @@ test("selection mode exposes a checkbox that toggles by pointer and keyboard wit
     />,
   );
   expect(title).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute("data-selected", "true");
   await user.keyboard(" ");
   await user.click(screen.getByRole("group", { name: "Research plan" }));
   expect(toggle).toHaveBeenCalledTimes(3);

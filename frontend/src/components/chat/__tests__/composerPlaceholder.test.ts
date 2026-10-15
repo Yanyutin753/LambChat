@@ -1,41 +1,17 @@
 import { resolveComposerPlaceholder } from "../composerPlaceholder";
 
-test("returns no-permission copy when sending is not allowed", () => {
-  expect(
-    resolveComposerPlaceholder({
-      canSend: false,
-      mentionMode: "persona",
-      isLoading: false,
-    }),
-  ).toBe("chat.noPermission");
-});
+const idle = { canSend: true, mentionMode: "persona" as const, isLoading: false };
 
-test("returns default placeholder when idle", () => {
-  expect(
-    resolveComposerPlaceholder({
-      canSend: true,
-      mentionMode: "persona",
-      isLoading: false,
-    }),
-  ).toBe("chat.placeholder");
-});
-
-test("returns team placeholder while composing a team mention", () => {
-  expect(
-    resolveComposerPlaceholder({
-      canSend: true,
-      mentionMode: "team",
-      isLoading: true,
-    }),
-  ).toBe("chat.teamPlaceholder");
-});
-
-test("returns running-queue placeholder while the agent is running", () => {
-  expect(
-    resolveComposerPlaceholder({
-      canSend: true,
-      mentionMode: "persona",
-      isLoading: true,
-    }),
-  ).toBe("chat.runningPlaceholder");
+test.each([
+  [{}, "chat.placeholder"],
+  [{ sandbox: "cloud" }, "chat.cloudPlaceholder"],
+  [{ sandbox: "local" }, "chat.localPlaceholder"],
+  [{ sandbox: "unknown" }, "chat.placeholder"],
+  [{ mentionMode: "team" as const, sandbox: "local" }, "chat.teamPlaceholder"],
+  [{ isLoading: true, mentionMode: "team" as const }, "chat.runningPlaceholder"],
+  [{ isLoading: true, sandbox: "local" }, "chat.runningPlaceholder"],
+  [{ sendBlocked: true, isLoading: true }, "chat.replyRequiredPlaceholder"],
+  [{ canSend: false, sendBlocked: true, isLoading: true }, "chat.noPermission"],
+])("selects actionable copy for %j", (state, expected) => {
+  expect(resolveComposerPlaceholder({ ...idle, ...state })).toBe(expected);
 });

@@ -44,8 +44,8 @@ LambChat 是全栈 AI Agent 平台：
 src/
 ├── agents/            # Agent 图执行层
 │   ├── core/          # BaseGraphAgent 基类、@register_agent 注册、AgentFactory（base.py）
-│   ├── fast_agent/    # 快速 Agent
-│   ├── search_agent/  # 搜索 Agent
+│   ├── quick_agent/   # 快问快答 Agent
+│   ├── search_agent/  # 搜索和执行 Agent（无沙箱时使用持久化文件后端）
 │   └── team_agent/    # 团队 Agent
 ├── api/               # FastAPI 层
 │   ├── main.py        # 应用入口（路由注册、生命周期）

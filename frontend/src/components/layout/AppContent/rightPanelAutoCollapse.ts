@@ -6,9 +6,6 @@ import {
 
 export { notifyRightPanelWidthChanged, RIGHT_PANEL_WIDTH_CHANGED_EVENT };
 
-// Keep the default 264px navigation plus roughly 416px for chat.
-export const MINIMUM_WORKSPACE_WITH_NAVIGATION_PX = 680;
-
 export function shouldTemporarilyCollapseNavigation({
   layout,
   viewportWidth,
@@ -20,7 +17,7 @@ export function shouldTemporarilyCollapseNavigation({
   minimumWorkspaceWithNavigationPx: number;
   userOverrode: boolean;
 }): boolean {
-  if (userOverrode) return false;
+  if (viewportWidth < 640 || userOverrode) return false;
   if (viewportWidth < minimumWorkspaceWithNavigationPx) return true;
   if (!layout?.open || layout.presentation !== "docked") return false;
 

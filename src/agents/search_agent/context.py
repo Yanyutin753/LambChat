@@ -73,6 +73,7 @@ class SearchAgentContext:
         self.run_sandbox = sandbox
 
     def _append_unique_tools(self, tools: List[Any], *, reserved: set[str] | None = None) -> None:
+        tools = sorted(tools, key=lambda tool: getattr(tool, "name", "") or "")
         existing = {getattr(tool, "name", "") for tool in self.tools}
         blocked = reserved or set()
         for tool in tools:

@@ -86,10 +86,10 @@
   animation: select-glow 2s ease-in-out;
 }
 
-/* --- Gradient Banner --- */
+/* Keep the name-based color as a quiet backdrop for readable labels. */
 .scb__banner {
   position: relative;
-  height: 3.25rem;
+  min-height: 3rem;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -98,55 +98,30 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
-  z-index: 1;
-}
-
-.scb__banner::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.25) 45%,
-    rgba(255, 255, 255, 0.08) 55%,
-    transparent 70%
-  );
-  transform: translateX(-120%);
-  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 2;
-}
-
-.scb:hover .scb__banner::after {
-  transform: translateX(120%);
-}
-
-.dark .scb__banner::before {
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
-}
-
-.dark .scb__banner::after {
-  background: linear-gradient(
-    105deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.12) 45%,
-    rgba(255, 255, 255, 0.04) 55%,
-    transparent 70%
-  );
+  background: color-mix(in srgb, var(--theme-bg-card) 62%, transparent);
+  pointer-events: none;
 }
 
 /* Keep title/status spacing uniform across resource-card callers. */
 .scb__status {
   display: flex;
   align-items: center;
-  margin-top: 0.125rem;
+  margin-top: 0.375rem;
   font-size: 0.75rem;
   line-height: 1.25;
 }
 
 .scb__status > * {
   margin-top: 0;
+}
+
+/* Metadata stays quiet; category and state labels keep their own shape. */
+.scb .skill-meta-pill {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Card headers use compact icons; standalone avatar controls keep their size. */
@@ -215,76 +190,40 @@
   z-index: 0;
 }
 
-/* --- Status Pill (banner overlay) --- */
+/* --- Status labels --- */
 .scb__status-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  border-radius: 9999px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-}
-
-.dark .scb__status-pill {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
-}
-
-/* Green – Using, Internal, System, active states */
-.scb__status-pill--installed {
-  background: rgba(255, 255, 255, 0.9);
-  color: #16a34a;
-}
-
-.dark .scb__status-pill--installed {
-  background: var(--theme-bg-subtle);
-  color: #4ade80;
-}
-
-/* Gray – inactive / disconnected */
-.scb__status-pill--inactive {
-  background: rgba(255, 255, 255, 0.65);
-  color: #78716c;
-}
-
-.dark .scb__status-pill--inactive {
-  background: var(--theme-bg-subtle);
+  min-height: 1.5rem;
+  max-width: 100%;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: var(--theme-bg-card);
   color: var(--theme-text-secondary);
+  box-shadow: none;
 }
 
-/* Blue – published */
+.scb__status-pill--installed {
+  color: color-mix(in srgb, var(--theme-success) 65%, var(--theme-text));
+}
+
 .scb__status-pill--published {
-  background: rgba(255, 255, 255, 0.85);
-  color: #1d4ed8;
+  color: color-mix(in srgb, var(--theme-info) 70%, var(--theme-text));
 }
 
-.dark .scb__status-pill--published {
-  background: var(--theme-bg-subtle);
-  color: #93c5fd;
-}
-
-/* Red – disabled / error */
 .scb__status-pill--danger {
-  background: rgba(255, 255, 255, 0.9);
-  color: #ef4444;
+  color: color-mix(in srgb, var(--theme-error) 70%, var(--theme-text));
 }
 
-.dark .scb__status-pill--danger {
-  background: var(--theme-bg-subtle);
-  color: #f87171;
-}
-
-/* Gray – disabled (soft) */
+.scb__status-pill--inactive,
 .scb__status-pill--disabled {
-  background: rgba(255, 255, 255, 0.7);
-  color: #78716c;
-}
-
-.dark .scb__status-pill--disabled {
-  background: var(--theme-bg-subtle);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 /* --- Category Tag --- */
@@ -303,9 +242,10 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.2rem 0.55rem;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 400;
-  border-radius: 9999px;
+  line-height: 1.25;
+  border-radius: 0.375rem;
   border: 1px solid var(--theme-border);
   background: transparent;
   color: var(--theme-text-secondary);
@@ -313,11 +253,14 @@
     border-color 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease;
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.scb__mini-tag:hover {
+button.scb__mini-tag {
+  cursor: pointer;
+}
+
+button.scb__mini-tag:hover {
   border-color: color-mix(in srgb, var(--theme-text) 18%, var(--theme-border));
   color: var(--theme-text);
   background: var(--theme-bg-subtle);
@@ -342,8 +285,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  flex-shrink: 0;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
   background: transparent;
@@ -387,9 +333,6 @@
 .scb__action-btn--ghost {
   background: transparent;
   border-color: transparent;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 0.425rem;
 }
 
 .scb__action-btn--ghost:hover {
@@ -399,7 +342,6 @@
     var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
-  transform: scale(1.08);
 }
 
 .scb__action-btn--update {
@@ -438,8 +380,30 @@
 }
 
 /* --- Footer --- */
+/* A single gap owns the content rhythm, including loading placeholders. */
+.scb__body {
+  gap: 0.5rem;
+}
+
+.scb__body > :not(.scb__footer) {
+  margin-top: 0;
+}
+
 .scb__footer {
-  margin-top: 0.5rem;
+  margin-top: auto;
+}
+
+.scb__footer .pps-card__action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  padding-block: 0;
+}
+
+:is(.scb__action-btn, .mp-card__action-btn, .scb__footer .pps-card__action) > svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════
@@ -481,8 +445,7 @@
     0 4px 12px -4px rgb(0 0 0 / 0.25);
 }
 
-.mp-card__banner,
-.scb__banner {
+.mp-card__banner {
   position: relative;
   height: 3rem;
   flex-shrink: 0;
@@ -651,8 +614,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  flex-shrink: 0;
   border-radius: 0.5rem;
   border: 1px solid var(--theme-border);
   background: transparent;

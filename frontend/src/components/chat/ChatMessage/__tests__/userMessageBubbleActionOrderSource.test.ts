@@ -9,7 +9,7 @@ const source = readFileSync(
 // 让复制按钮（含 extraActions 注入的书签等）中位于最右侧，即渲染在最后。
 test("copy is the rightmost action in the user message action row", () => {
   const rowStart = source.indexOf(
-    'className="chat-message-actions flex justify-end mt-2 gap-1"',
+    'className="chat-message-actions chat-user-actions flex justify-end mt-2 gap-1"',
   );
   expect(rowStart).toBeGreaterThan(-1);
 

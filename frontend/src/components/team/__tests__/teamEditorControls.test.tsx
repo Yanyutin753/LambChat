@@ -780,7 +780,7 @@ test("catalog failure preserves member choices, disables only selectors and retr
   expect(mode).toBeDisabled();
   expect(model).toBeDisabled();
   expect(model).toHaveTextContent("keep");
-  expect(mode).toHaveTextContent("fast");
+  expect(mode).toHaveTextContent(i18n.t("agents.fast.name"));
   expect(screen.getByDisplayValue("Retain guidance")).toBeEnabled();
   fireEvent.click(
     screen.getByRole("button", {

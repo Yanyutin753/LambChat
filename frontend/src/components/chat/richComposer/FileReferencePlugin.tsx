@@ -48,11 +48,11 @@ export function FileReferencePlugin({
               (node) => node.getDescriptor().referenceNumber ?? 0,
             ),
           ) + 1;
-        let selection = $getSelection();
+        const selection = $getSelection();
         if (!$isRangeSelection(selection)) {
           const root = $getRoot();
           if (root.getChildrenSize() === 0) root.append($createParagraphNode());
-          selection = root.selectEnd();
+          root.selectEnd();
         }
         $insertNodes([
           $createFileReferenceNode({

@@ -1,6 +1,7 @@
 import {
   resolveAgentDescription,
   resolveAgentDisplayName,
+  resolveAgentReferenceName,
 } from "../agentCatalog";
 
 const translations: Record<string, string> = {
@@ -56,4 +57,16 @@ test("falls back to raw name when agent has no id and no labels", () => {
   const noIdAgent = { ...agent, id: undefined, labels: {} };
   // no id → t("Search Agent") without defaultValue → "i18n:Search Agent"
   expect(resolveAgentDisplayName(noIdAgent, "ru", t)).toBe("i18n:Search Agent");
+});
+
+test("recorded built-in names are localized without an authenticated catalog", () => {
+  expect(resolveAgentReferenceName(undefined, "Search Agent", [], "ru", t)).toBe("Агент поиска");
+  expect(resolveAgentReferenceName("search", "Old name", [], "ru", t)).toBe("Агент поиска");
+  expect(resolveAgentReferenceName(undefined, "Deleted custom agent", [], "ru", t)).toBe("Deleted custom agent");
+});
+
+test("legacy English rankings use the current catalog even after its fallback name was renamed", () => {
+  expect(resolveAgentReferenceName("Search Agent", "Search Agent", [
+    { ...agent, name: "Renamed", version: "1", labels: { ru: { name: "Исследователь", description: "" } } },
+  ], "ru", t)).toBe("Исследователь");
 });

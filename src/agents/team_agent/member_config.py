@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT
 from src.infra.logging import get_logger
@@ -77,6 +76,9 @@ async def resolve_team_member_agent_id(
     if not member_agent_id:
         return None
 
+    from src.agents.core.base import normalize_agent_id
+
+    member_agent_id = normalize_agent_id(member_agent_id)
     if member_agent_id == "team":
         raise ValueError("team_member_agent_unavailable")
 
@@ -132,8 +134,6 @@ def _build_member_agent_mode_sections(
     """Return mode-specific prompt sections for a team member subagent."""
     if not agent_id:
         return []
-    if agent_id == "fast":
-        return [FAST_SYSTEM_PROMPT]
-    if agent_id == "search":
+    if agent_id in {"search", "fast"}:
         return [SEARCH_SANDBOX_SYSTEM_PROMPT if sandbox_active else SEARCH_DEFAULT_SYSTEM_PROMPT]
     return []

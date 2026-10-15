@@ -7,14 +7,13 @@ openai/codex（codex-rs `core/src/client.rs`）对 Responses API 的缓存策略
 LambChat 的模型实例按 (模型, 参数) 全局 LRU 缓存、跨会话共享，无法在构造
 时固定会话级 key，因此用 ContextVar 在请求执行期传递：
 
-- `BaseGraphAgent` 在 graph 执行任务内 `set_responses_prompt_cache_key()`
+- `BaseGraphAgent` 在每次流式读取前通过 `session_prompt_cache_key()` 绑定
   （嵌套子图/子 agent 任务继承上下文，天然共享父会话 key，对齐 codex-rs
   的 `{source}:{parent_thread_id}` 语义）；
 - `LambChatOpenAIChatModel._get_request_payload` 在 responses 线格式下把
   当前 key 注入 payload。
 
-仅 async 执行路径生效（同步 `_generate`/`_stream` 在线程池中运行，上下文
-不跟随线程），LambChat 全部走 async 路径。
+绑定在每次流式读取返回前复位，跨 Task 的流式看门狗也不会丢失 key 或污染其他会话。
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ import i18n from "../../i18n";
 import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
-import { resolveAgentDisplayName } from "../agent/agentCatalog";
+import { resolveAgentDisplayName, resolveAgentReferenceName } from "../agent/agentCatalog";
 import { AgentAvatar } from "../common/AgentAvatar";
 import { Select, Textarea, IconButton } from "../common/ui";
 import type { SelectOption } from "../common/ui";
@@ -54,13 +54,8 @@ export function TeamMemberCard({
   const modelLabel = member.model_id
     ? selectedModel?.label || selectedModel?.value || member.model_id
     : t("team.followSessionModel", "跟随会话模型");
-  const selectedAgent = member.agent_id
-    ? availableAgents.find((agent) => agent.id === member.agent_id)
-    : null;
   const agentLabel = member.agent_id
-    ? selectedAgent
-      ? resolveAgentDisplayName(selectedAgent, i18n.language, t)
-      : member.agent_id
+    ? resolveAgentReferenceName(member.agent_id, "", availableAgents, i18n.language, t)
     : t("team.followTeamMode", "跟随团队模式");
 
   const agentOptions: SelectOption[] = [

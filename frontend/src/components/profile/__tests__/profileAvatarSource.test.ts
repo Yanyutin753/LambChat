@@ -6,7 +6,7 @@ test("profile fallback avatar uses the same yellow background and white text as 
   const fallback = css.match(/\.profile-avatar-fallback\s*\{([^}]+)\}/)?.[1];
 
   expect(fallback).toContain(
-    "@apply bg-gradient-to-br from-amber-400 to-orange-500 text-white;",
+    "@apply bg-linear-to-br from-amber-400 to-orange-500 text-white;",
   );
   expect(fallback).not.toMatch(/\b(?:background|color):/);
 });

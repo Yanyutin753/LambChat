@@ -54,7 +54,6 @@ export const i18nReady = i18n.use(localeBackend).use(initReactI18next).init({
   supportedLngs: SUPPORTED_LANGUAGES,
   lng: detectLanguage(),
   fallbackLng: "en",
-  showSupportNotice: false,
   interpolation: {
     escapeValue: false,
   },

@@ -72,6 +72,11 @@ class _FakeDualWriter:
     def __init__(self) -> None:
         self.events = []
         self.completed = []
+        self.trace = self
+        self.prior_usage = None
+
+    async def get_last_trace_event(self, trace_id, event_types):
+        return self.prior_usage
 
     async def create_trace(self, **kwargs):
         return True
@@ -84,7 +89,7 @@ class _FakeDualWriter:
         self.recommend_questions = kwargs
         return True
 
-    async def flush_mongo_buffer(self):
+    async def flush_mongo_buffer(self, **kwargs):
         return None
 
     async def complete_trace(self, trace_id: str, status: str, metadata=None):
@@ -284,3 +289,25 @@ async def test_save_event_offloads_legacy_string_data_parse(monkeypatch) -> None
 
     assert calls == [json.loads]
     assert writer.events[0]["data"] == {"text": "hello"}
+
+
+async def test_cancel_before_resumed_model_call_preserves_prior_usage(monkeypatch) -> None:
+    writer = _FakeDualWriter()
+    writer.prior_usage = {
+        "event_type": "token:usage",
+        "data": {"input_tokens": 100, "output_tokens": 10, "total_tokens": 110},
+    }
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+        model="selected-model",
+    )
+
+    await presenter.complete("cancelled")
+
+    assert not [event for event in writer.events if event["event_type"] == "token:usage"]
+    assert writer.completed[0][1] == "cancelled"

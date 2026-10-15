@@ -137,10 +137,11 @@ def _build_evidence_grader_response_type():
             ),
         ]
 
+    criteria_type = list[Annotated[EvidencePass | CriterionFail, Discriminator("passed")]]
     evidence_response = create_model(
         "EvidenceGraderResponse",
         __base__=GraderResponse,
-        criteria=(list[Annotated[EvidencePass | CriterionFail, Discriminator("passed")]], ...),
+        criteria=(criteria_type, ...),
     )
 
     # Local annotations need explicit resolution because this module uses future annotations.

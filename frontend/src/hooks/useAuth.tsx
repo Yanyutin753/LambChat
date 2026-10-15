@@ -13,9 +13,8 @@ import {
   useLayoutEffect,
   type ReactNode,
 } from "react";
+import { authApi, buildOAuthLoginUrl } from "../services/api/auth";
 import {
-  authApi,
-  buildOAuthLoginUrl,
   getAccessToken,
   getRefreshToken,
   isAuthenticated,
@@ -23,7 +22,7 @@ import {
   getRedirectPath,
   clearRedirectPath,
   decodeToken,
-} from "../services/api";
+} from "../services/api/token";
 import {
   applyUserMetadataPreferences,
   SIDEBAR_COLLAPSED_STORAGE_KEY,

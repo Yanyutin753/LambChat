@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { authApi } from "../services/api";
+import { authApi } from "../services/api/auth";
 import { useThemeShortcut } from "../hooks/useThemeShortcut";
 import { useAuth } from "../hooks/useAuth";
 import {

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../../i18n";
-import { resolveAgentDisplayName } from "../../agent/agentCatalog";
+import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
@@ -102,9 +102,9 @@ export function TaskSessionList({
           <div className="scheduled-task-list">
             {sessions.map((session) => {
               const agent = agents.find((a) => a.id === session.agent_id);
-              const agentName = agent
-                ? resolveAgentDisplayName(agent, i18n.language, t)
-                : session.agent_id;
+              const agentName = resolveAgentReferenceName(
+                session.agent_id, "", agents, i18n.language, t,
+              );
 
               return (
                 <button

@@ -38,6 +38,12 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+test("the message editor is available on the first render", () => {
+  render(<ChatInput onSend={vi.fn()} onStop={vi.fn()} isLoading={false} />);
+
+  expect(screen.getByRole("textbox")).toHaveAttribute("contenteditable", "true");
+});
+
 test.each([{ isComposing: true }, { keyCode: 229 }])(
   "confirming IME text does not select a mention or discard the draft (%j)",
   async (composition) => {
@@ -154,4 +160,45 @@ test("Shift+Enter sends after selecting the Shift shortcut", async () => {
   expect(onSend.mock.calls[0]?.[4]).toEqual(
     expect.objectContaining({ onAccepted: expect.any(Function) }),
   );
+});
+
+
+test("mention guidance appears only for a mounted, switchable selection", async () => {
+  const props = { onSend: vi.fn(), onStop: vi.fn(), isLoading: false,
+    onUsePersonaPreset: vi.fn(), onSelectTeam: vi.fn() };
+  const { container, rerender } = render(<ChatInput {...props} />);
+  await screen.findByRole("textbox");
+  const hint = () => container.querySelector(".composer-placeholder-hint");
+  expect(hint()).toBeNull();
+  rerender(<ChatInput {...props} selectedPersonaPresetId="ada" />);
+  expect(hint()).toHaveTextContent("@ to switch persona");
+  rerender(<ChatInput {...props} selectedPersonaPresetId="ada" onUsePersonaPreset={undefined} />);
+  expect(hint()).toBeNull();
+  rerender(<ChatInput {...props} selectedPersonaPresetId="ada" onMentionQueryChange={vi.fn()} />);
+  expect(hint()).toBeNull();
+  rerender(<ChatInput {...props} currentAgent="team" selectedPersonaPresetId="ada" />);
+  expect(hint()).toBeNull();
+  rerender(<ChatInput {...props} currentAgent="team" selectedTeamId="team-1" />);
+  expect(hint()).toHaveTextContent("@ to switch team");
+  rerender(<ChatInput {...props} currentAgent="team" selectedTeamId="team-1" isLoading />);
+  expect(hint()).toBeNull();
+  rerender(<ChatInput {...props} selectedPersonaPresetId="ada" sendBlocked />);
+  expect(hint()).toBeNull();
+  expect(container.querySelector(".rich-chat-composer__placeholder")).toHaveTextContent("Reply to the question above first");
+  rerender(<ChatInput {...props} selectedPersonaPresetId="ada" canSend={false} />);
+  expect(hint()).toBeNull();
+});
+
+
+test("environment copy follows the option default, switches, and ignores stale values", async () => {
+  const props = { onSend: vi.fn(), onStop: vi.fn(), isLoading: false };
+  const sandbox = { type: "string" as const, label: "Environment", default: "cloud" };
+  const { container, rerender } = render(<ChatInput {...props} agentOptions={{ sandbox }} />);
+  await screen.findByRole("textbox");
+  const placeholder = () => container.querySelector(".rich-chat-composer__placeholder");
+  expect(placeholder()).toHaveTextContent("Describe a task to complete in the cloud");
+  rerender(<ChatInput {...props} agentOptions={{ sandbox }} agentOptionValues={{ sandbox: "local" }} />);
+  expect(placeholder()).toHaveTextContent("What would you like to do on the selected computer?");
+  rerender(<ChatInput {...props} agentOptionValues={{ sandbox: "local" }} />);
+  expect(placeholder()).toHaveTextContent("Type a message or describe a task");
 });

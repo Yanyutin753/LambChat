@@ -640,7 +640,6 @@ async def test_section_prompt_middleware_appends_one_normalized_block() -> None:
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:
     from inspect import getsource
 
-    from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
 
@@ -652,7 +651,7 @@ def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -
     assert "append_turn_context_prompt(" in facing_source
     assert "request.auto_mode" in chat_source
 
-    for node in (fast_agent_node, agent_node, team_router_node):
+    for node in (agent_node, team_router_node):
         source = getsource(node)
         # Agents must NOT inject per-turn goal/auto content at request time:
         # request-time injection forks the prompt prefix between turns and

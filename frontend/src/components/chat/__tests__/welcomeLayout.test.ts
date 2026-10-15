@@ -26,6 +26,10 @@ const chatSkeletonsSource = readFileSync(
   "utf8",
 );
 
+test("loads welcome layout styles with the startup skeleton before lazy routes resolve", () => {
+  expect(chatSkeletonsSource).toContain('import "../../styles/welcome.css"');
+});
+
 test("keeps every welcome persona card reachable on mobile", () => {
   const className = getWelcomePersonaCardClass(3);
 
@@ -102,9 +106,9 @@ test("keeps the persona gallery wider than the composer without inner horizontal
   const personaWidths = [
     "sm:max-w-[52rem]",
     "md:max-w-[54rem]",
-    "lg:max-w-[56rem]",
-    "xl:max-w-[58rem]",
-    "2xl:max-w-[60rem]",
+    "lg:max-w-[60rem]",
+    "xl:max-w-[62rem]",
+    "2xl:max-w-[64rem]",
   ];
 
   const promptClass = getWelcomeSuggestionsContainerClass("prompts");
@@ -256,11 +260,13 @@ test("shows welcome choice skeletons only while the first page is loading", () =
   expect(getWelcomePersonaSkeletonCount(false, 0)).toBe(0);
 });
 
-test("renders welcome skeleton cards using PANEL_CARD_SKELETON_COUNT", () => {
-  expect(chatSkeletonsSource).toMatch(/PANEL_CARD_SKELETON_COUNT/);
-  expect(chatSkeletonsSource).toMatch(
-    /Array\.from\(\{\s*length:\s*PANEL_CARD_SKELETON_COUNT\s*\}\)/,
-  );
+test("startup and welcome loading states share the actual card header layout", () => {
+  expect(chatSkeletonsSource).toContain("export function WelcomePersonaCardSkeleton");
+  expect(chatSkeletonsSource).toContain('className="welcome-persona-header relative flex items-center gap-3"');
+  expect(chatSkeletonsSource).toContain("getWelcomePersonaSkeletonCount(true)");
+  expect(welcomePageSource).toContain('<WelcomePersonaCardSkeleton key={`team-skeleton-${i}`} showTag />');
+  expect(welcomePageSource).toContain('<WelcomePersonaCardSkeleton key={`persona-skeleton-${i}`} />');
+  expect(welcomeCss).not.toMatch(/\.welcome-persona-skeleton\s*\{[^}]*flex-direction:\s*row/);
 });
 
 test("expands welcome choice gallery while skeleton cards are loading", () => {

@@ -20,7 +20,6 @@ from src.agents.core.recommendations import (
     schedule_recommend_questions,
     schedule_recommend_questions_from_state,
 )
-from src.agents.fast_agent.graph import FastAgent
 from src.agents.search_agent.graph import SearchAgent
 from src.agents.team_agent.graph import TeamAgent
 
@@ -697,7 +696,7 @@ async def test_drain_recommend_background_tasks_cancels_pending_tasks(monkeypatc
 
 
 def test_langgraph_agents_do_not_block_on_recommendation_node() -> None:
-    for agent_cls in (SearchAgent, FastAgent, TeamAgent):
+    for agent_cls in (SearchAgent, TeamAgent):
         builder = _RecordingBuilder()
         agent_cls().build_graph(builder)
 

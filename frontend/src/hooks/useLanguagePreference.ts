@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { authApi } from "../services/api";
+import { authApi } from "../services/api/auth";
 import { useAuth } from "./useAuth";
 import {
   usePreferenceWrites,

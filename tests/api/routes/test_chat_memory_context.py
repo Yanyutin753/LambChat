@@ -29,6 +29,37 @@ class _FakePresenter:
 
 
 @pytest.mark.asyncio
+async def test_agent_receives_inline_skill_order_and_original_skill_paths(monkeypatch):
+    from src.api.routes import chat as chat_route
+
+    captured = {}
+    _fake_agent_factory(captured, monkeypatch)
+    raw = "前文 [引用技能：writer] 中段 [引用技能：reviewer] 结尾"
+    formatted, _ = await chat_route.assemble_first_turn_message(
+        raw_message=raw,
+        user_timezone=None,
+        enabled_skills=["writer", "reviewer"],
+        active_goal=None,
+        auto_mode=False,
+        user_id="u1",
+        include_timestamp=False,
+        last_tc_signature=None,
+    )
+    async for _ in chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message=formatted,
+        user_id="u1",
+        presenter=_FakePresenter(),
+        recommendation_input=raw,
+    ):
+        pass
+    assert captured["message"].startswith(raw + "\n\n")
+    assert "1. writer: /skills/writer/SKILL.md" in captured["message"]
+    assert "2. reviewer: /skills/reviewer/SKILL.md" in captured["message"]
+
+
+@pytest.mark.asyncio
 async def test_model_facing_message_never_contains_memory_blocks():
     message = await build_model_facing_message(
         raw_message="曼玲粥的皮蛋供应商是谁？",

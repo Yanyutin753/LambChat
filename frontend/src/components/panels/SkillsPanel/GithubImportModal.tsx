@@ -1,5 +1,6 @@
+import { GitHubIcon } from "../../landing/components/Icons";
 import { useTranslation } from "react-i18next";
-import { Github, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { EditorSidebar } from "../../common/EditorSidebar";
 import { Checkbox } from "../../common/Checkbox";
 import { Button, FormField, Input } from "../../common";
@@ -53,7 +54,7 @@ export function GithubImportModal({
       open={showGithubModal}
       onClose={() => setShowGithubModal(false)}
       title={t("skills.importFromGitHub")}
-      icon={<Github size={16} />}
+      icon={<GitHubIcon />}
       width="wide"
       footer={
         <div className="flex flex-wrap justify-end gap-1">

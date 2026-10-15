@@ -5,7 +5,7 @@ import { PANEL_CARD_SKELETON_COUNT } from "./PanelSkeletonHelpers";
 /** Channels page: card grid matching SkillBaseCard (.scb) structure */
 export function ChannelsGridSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch={false} hasSubtitle hasActions={false} />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-full">
@@ -17,22 +17,15 @@ export function ChannelsGridSkeleton() {
               >
                 {/* Banner */}
                 <div
-                  className="scb__banner h-12 w-full shrink-0 relative"
-                  style={{
-                    background: `linear-gradient(45deg, ${
-                      [
-                        "var(--theme-primary-light)",
-                        "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
-                        "var(--theme-bg-card)",
-                      ][i % 3]
-                    }, var(--theme-bg-card))`,
-                  }}
+                  className="scb__banner skeleton-line h-12 w-full shrink-0 relative"
                 />
                 {/* Card body */}
                 <div className="scb__body flex flex-1 flex-col -mt-3 pt-4 p-3">
                   {/* Icon + name */}
                   <div className="scb__header flex items-center gap-2">
-                    <div className="scb__icon-ring shrink-0 skeleton-line" />
+                    <div className="flex size-9 shrink-0 items-center justify-center">
+                      <SkeletonLine width="w-6" className="!h-6" />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <SkeletonLine
                         width={i % 2 === 0 ? "w-3/4" : "w-1/2"}
@@ -68,7 +61,7 @@ export function ChannelsGridSkeleton() {
                       className="!h-5 !rounded-lg"
                     />
                   </div>
-                  <div className="flex-1" />
+
                 </div>
               </div>
             ))}
@@ -82,7 +75,7 @@ export function ChannelsGridSkeleton() {
 /** Channels panel: form-based configuration (status card + config form) */
 export function ChannelConfigSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="space-y-4">

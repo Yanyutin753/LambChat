@@ -17,7 +17,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { usePreferenceWrites } from "../../../hooks/usePreferenceWrites";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
-import { resolveAgentDisplayName } from "../../agent/agentCatalog";
+import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import { CatalogStatus } from "../../common/CatalogStatus";
 import { SelectRow } from "../SelectRow";
 // 定时主题分区懒加载：仅启用定时切换的用户展开渲染，避免顶高 eager 预算
@@ -341,8 +341,7 @@ function PreferencesContent() {
   }));
 
   const renderAgentLabel = (key: string) => {
-    const agent = agents.find((a) => a.id === key);
-    return agent ? resolveAgentDisplayName(agent, i18n.language, t) : key;
+    return resolveAgentReferenceName(key, "", agents, i18n.language, t);
   };
 
   // Show ⌘ instead of Ctrl on Apple platforms for the ctrl send modifier
@@ -359,7 +358,7 @@ function PreferencesContent() {
   };
 
   return (
-    <div ref={contentRef} tabIndex={-1} className="space-y-4 outline-none">
+    <div ref={contentRef} tabIndex={-1} className="space-y-4 outline-hidden">
       <div className="profile-section">
         <div className="space-y-0">
           {enableMemory && (

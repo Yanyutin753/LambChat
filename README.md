@@ -189,9 +189,9 @@ One deployable system, no external SaaS required: a FastAPI backend with LangGra
 
 ### Prerequisites
 
-- Python 3.12+
+- Python >=3.12, <3.15
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
-- Node.js 18+
+- Node.js 22.22.2+
 - [pnpm](https://pnpm.io/) 10+
 - MongoDB
 - Redis

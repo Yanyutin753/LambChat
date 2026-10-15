@@ -20,7 +20,7 @@ const fileReferenceSource = readFileSync(
 test("user message skill chips and text share the same inline flow", () => {
   expect(source).toMatch(/className="inline leading-relaxed/);
   expect(source).toMatch(/className="skill-chip-row align-baseline/);
-  expect(source).toMatch(/FileReferenceChip/);
+  expect(source).toMatch(/userMessageReferences=/);
   expect(source).toMatch(/splitUserMessageFileReferences/);
   expect(source).not.toMatch(/className="skill-chip-row shrink-0"/);
   expect(source).not.toMatch(/flex-1/);

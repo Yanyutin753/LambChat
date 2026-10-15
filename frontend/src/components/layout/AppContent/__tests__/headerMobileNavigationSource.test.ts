@@ -13,9 +13,9 @@ test("mobile sidebar opener is available before the chat-only header content", (
 });
 
 test("panel history back button is hidden on mobile", () => {
-  const back = source.indexOf("onClick={() => navigate(-1)}");
-  expect(back).toBeGreaterThan(-1);
-  expect(source.slice(back, source.indexOf("</button>", back))).toMatch(
-    /className="hidden sm:flex /,
+  expect(source).toContain("onBack={() => navigate(-1)}");
+  const navigation = readFileSync(
+    new URL("../../../common/PageNavigationBar.tsx", import.meta.url), "utf8",
   );
+  expect(navigation).toContain('className="hidden sm:flex"');
 });

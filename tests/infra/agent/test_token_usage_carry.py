@@ -87,3 +87,25 @@ async def test_emit_token_usage_emits_with_seeded_usage_even_without_segment_llm
 
     assert ok is True
     assert emitted[0]["data"]["total_tokens"] == 505
+
+
+async def test_model_calls_with_and_without_total_tokens_are_all_counted():
+    from types import SimpleNamespace
+
+    emitted = []
+    processor = _make_processor(emitted)
+    for usage in [
+        {"input_tokens": 100, "output_tokens": 10, "total_tokens": 110},
+        {"input_tokens": 200, "output_tokens": 20},
+    ]:
+        await processor.process_event(
+            {
+                "event": "on_chat_model_end",
+                "data": {"output": SimpleNamespace(usage_metadata=usage)},
+            }
+        )
+    await processor.emit_token_usage()
+
+    assert emitted[-1]["data"]["input_tokens"] == 300
+    assert emitted[-1]["data"]["output_tokens"] == 30
+    assert emitted[-1]["data"]["total_tokens"] == 330

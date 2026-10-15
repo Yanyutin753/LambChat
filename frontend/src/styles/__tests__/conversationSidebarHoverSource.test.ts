@@ -24,6 +24,9 @@ test("conversation sidebar controls use foreground feedback without hover fills"
     for (const rule of rules) expect(rule).not.toMatch(/background/);
   }
   expect(read("components/sidebar/SessionItem.tsx")).toContain(
-    '"bg-theme-bg-subtle dark:bg-stone-700/50"',
+    'data-selected={isSelected || (!selectionMode && isActive) || undefined}',
+  );
+  expect(read("styles/desktop.css")).toMatch(
+    /\.sidebar-session-row\[data-selected="true"\]\s*\{\s*background: var\(--desktop-selected\)/,
   );
 });

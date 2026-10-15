@@ -9,8 +9,8 @@ import {
 /** MCP panel: card grid matching real MCPServerCard (pps-card) structure */
 export function MCPPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
-      <PanelHeaderSkeleton hasSubtitle hasSearchAccessory />
+    <div className="glass-shell flex h-full flex-col min-h-0">
+      <PanelHeaderSkeleton hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="grid auto-grid-cols gap-3">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
@@ -20,16 +20,7 @@ export function MCPPanelSkeleton() {
             >
               {/* Banner */}
               <div
-                className="pps-card__banner relative h-12 shrink-0"
-                style={{
-                  background: `linear-gradient(45deg, ${
-                    [
-                      "var(--theme-primary-light)",
-                      "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
-                      "var(--theme-bg-card)",
-                    ][i % 3]
-                  }, var(--theme-bg-card))`,
-                }}
+                className="pps-card__banner skeleton-line relative h-12 shrink-0"
               >
                 {/* Status badges on banner */}
                 <div className="absolute inset-0 flex items-center justify-end px-2 gap-1.5">
@@ -63,14 +54,11 @@ export function MCPPanelSkeleton() {
                 <div className="mt-2">
                   <SkeletonLine width="w-3/5" className="!h-3 !rounded-md" />
                 </div>
-                <div className="flex-1" />
+
                 {/* Footer */}
-                <div className="scb__footer flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-0.5">
-                    <div className="skeleton-line size-7 rounded-lg" />
-                    <div className="skeleton-line size-7 rounded-lg" />
-                  </div>
-                  <div className="skeleton-line w-10 sm:w-12 h-5 !rounded-full" />
+                <div className="scb__footer flex items-center justify-end gap-2">
+                  <div className="skeleton-line size-9 rounded-lg" />
+                  <div className="skeleton-line size-9 rounded-lg" />
                 </div>
               </div>
             </div>
@@ -152,7 +140,7 @@ export function FeedbackListSkeleton() {
 
 export function FeedbackPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full min-h-0 flex-col animate-fade-in">
+    <div className="glass-shell flex h-full min-h-0 flex-col">
       <PanelHeaderSkeleton
         hasSearch={false}
         hasSubtitle
@@ -171,72 +159,37 @@ export function FeedbackPanelSkeleton() {
 /** Scheduled task panel: header + grid of task cards matching real layout */
 export function ScheduledTaskPanelSkeleton() {
   return (
-    <div className="glass-shell scheduled-task-panel flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell scheduled-task-panel flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch hasSubtitle />
-
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="grid auto-grid-cols gap-3">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-4 sm:p-5 shadow-sm"
-            >
-              <div className="flex flex-col gap-2.5">
-                {/* Title + status badge */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <SkeletonLine
-                    width={i % 2 === 0 ? "w-40 sm:w-56" : "w-32 sm:w-44"}
-                    className="!h-[15px] sm:!h-[15px]"
-                  />
-                  <SkeletonLine
-                    width="w-14 sm:w-16"
-                    className="!h-5 !rounded-full shrink-0"
-                  />
+            <div key={i} className="scb flex h-full flex-col overflow-hidden bg-[var(--theme-bg-card)]">
+              <div className="scb__banner skeleton-line h-12 shrink-0" />
+              <div className="scb__body flex flex-1 flex-col p-3">
+                <div className="scb__header flex items-center gap-2">
+                  <div className="scb__icon-ring skeleton-line shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <SkeletonLine width={i % 2 === 0 ? "w-3/4" : "w-2/3"} className="!h-4" />
+                    <SkeletonLine width="w-12" className="!h-4 mt-1 !rounded-full" />
+                  </div>
                 </div>
-
-                {/* Description (2-line clamped in real card) */}
-                <div className="space-y-1">
-                  <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
-                  <SkeletonLine
-                    width={i % 2 === 0 ? "w-4/5" : "w-2/3"}
-                    className="!h-2.5 sm:!h-3"
-                  />
+                <div className="mt-2 space-y-2">
+                  <SkeletonLine width="w-full" />
+                  <SkeletonLine width={i % 2 === 0 ? "w-4/5" : "w-2/3"} />
                 </div>
-
-                {/* Meta pills */}
-                <div className="my-3 flex flex-wrap gap-1.5">
-                  {[0, 1, 2].map((j) => (
-                    <SkeletonLine
-                      key={j}
-                      width={
-                        j === 0
-                          ? "w-24 sm:w-32"
-                          : j === 1
-                            ? "w-20 sm:w-28"
-                            : "w-16 sm:w-24"
-                      }
-                      className="!h-[26px] !rounded-full"
-                    />
-                  ))}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <SkeletonLine width="w-24" className="!h-5 !rounded-full" />
+                  <SkeletonLine width="w-20" className="!h-5 !rounded-full" />
+                  <SkeletonLine width="w-16" className="!h-5 !rounded-full" />
                 </div>
-
-                {/* Subtle last-run info */}
-                <div className="flex items-center gap-2 text-11 mb-2">
-                  <SkeletonLine width="w-12 sm:w-14" className="!h-3" />
-                  <SkeletonLine width="w-20 sm:w-28" className="!h-3" />
-                  <SkeletonLine
-                    width="w-12 sm:w-14"
-                    className="!h-4 !rounded-full shrink-0"
-                  />
+                <div className="scb__footer flex items-center gap-2">
+                  <div className="min-w-0 flex flex-1 flex-wrap items-center gap-2">
+                    <SkeletonLine width="w-32" className="!h-3" />
+                    <SkeletonLine width="w-12" className="!h-3" />
+                  </div>
+                  <div className="skeleton-line size-9 shrink-0 rounded-lg" />
                 </div>
-              </div>
-
-              {/* Action buttons footer */}
-              <div className="mt-auto flex items-center gap-2 pt-3 mt-3.5">
-                <div className="ml-auto" />
-                {[0, 1, 2, 3].map((j) => (
-                  <div key={j} className="skeleton-line size-8 rounded-lg" />
-                ))}
               </div>
             </div>
           ))}
@@ -250,7 +203,7 @@ export function ScheduledTaskPanelSkeleton() {
 /** Task session list (drill-down from scheduled task panel): header with subtitle + back button + session cards */
 export function TaskSessionListSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSearch={false} hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="scheduled-task-list">

@@ -334,7 +334,7 @@ export function SessionListContent({
       >
         <button
           onClick={onNewSession}
-          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
+          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors group"
         >
           <SquarePen size={compactChrome ? 19 : 20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
@@ -346,7 +346,7 @@ export function SessionListContent({
         {!compactChrome && (
           <button
             onClick={onOpenSearch}
-            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors group"
           >
             <Search size={20} />
             <span className="flex-1 text-left">
@@ -364,7 +364,7 @@ export function SessionListContent({
         {!compactChrome && canReadScheduledTasks && (
           <button
             onClick={() => navigate("/scheduled-tasks")}
-            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
           >
             <CalendarClock size={20} />
             <span>{t("nav.scheduled-tasks")}</span>
@@ -374,7 +374,7 @@ export function SessionListContent({
         {!compactChrome && (
           <button
             onClick={() => navigate("/files")}
-            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
           >
             <FolderOpen size={20} />
             <span>{t("fileLibrary.title")}</span>
@@ -386,7 +386,7 @@ export function SessionListContent({
             <button
               ref={expandedMoreMenuBtnRef}
               onClick={onToggleMoreMenu}
-              className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+              className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
             >
               <MoreIcon size={20} />
               <span className="flex-1 text-left">{moreLabel}</span>

@@ -39,7 +39,6 @@ def test_persona_request_config_sets_whitelist_from_snapshot() -> None:
 
 def test_agent_graphs_pass_whitelist_into_contexts() -> None:
     for rel in (
-        "src/agents/fast_agent/graph.py",
         "src/agents/search_agent/graph.py",
         "src/agents/team_agent/graph.py",
     ):
@@ -50,7 +49,7 @@ def test_agent_graphs_pass_whitelist_into_contexts() -> None:
 
 def test_contexts_filter_mcp_tools_by_whitelist() -> None:
     for rel in (
-        "src/agents/fast_agent/context.py",
+        "src/agents/team_agent/context.py",
         "src/agents/search_agent/context.py",
     ):
         src = _read(rel)

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAuth } from "../hooks/useAuth";
-import { modelApi } from "../services/api";
+import { modelApi } from "../services/api/model";
 import type { SettingsResponse } from "../types";
 import type { ModelProfile } from "../services/api/model";
 

@@ -12,7 +12,6 @@ import { CopyButton } from "../../common/CopyButton";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { SkillChip } from "../SkillChip";
 import { RunModeChip } from "../richComposer/RunModeChip";
-import { FileReferenceChip } from "../richComposer/FileReferenceChip";
 import { splitUserMessageFileReferences } from "./userMessageFileReferences";
 import { cancelSteeredMessage } from "../steerCancelStore";
 
@@ -84,11 +83,22 @@ export function UserMessageBubble({
   };
 
   const hasAttachments = attachments && attachments.length > 0;
-  const hasContent = content && content.trim().length > 0;
+  const hasContent = Boolean(content?.trim() || enabledSkills?.length);
   const inlineSegments = splitUserMessageFileReferences(
     content ?? "",
     attachments,
+    enabledSkills,
   );
+  // shortcut: legacy messages lack skill positions; keep them leading until original snapshots are available.
+  const leadingSkills = (enabledSkills ?? []).filter(
+    (name) => !inlineSegments.some(
+      segment => segment.kind === "skill" && segment.skillName === name,
+    ),
+  );
+  const copyText = [
+    leadingSkills.map(name => `[引用技能：${name}]`).join(" "),
+    content ?? "",
+  ].filter(Boolean).join("\n");
 
   return (
     <div className="w-full px-4 sm:px-10 py-4 group">
@@ -143,7 +153,7 @@ export function UserMessageBubble({
           {hasContent && (
             <div className="user-message-bubble max-w-full px-5 py-2.5 border transition-shadow duration-200 hover:-translate-y-px">
               <div
-                className="user-message-inline-markdown leading-relaxed text-15 sm:text-16"
+                className="user-message-inline-markdown leading-relaxed"
                 style={{ color: "var(--theme-text)" }}
               >
                 {/* Run-mode chips - inline with content, ahead of skill chips */}
@@ -155,40 +165,29 @@ export function UserMessageBubble({
                   </span>
                 )}
                 {/* Skill chips - inline with content */}
-                {enabledSkills && enabledSkills.length > 0 && (
+                {leadingSkills.length > 0 && (
                   <span className="skill-chip-row align-baseline">
-                    {enabledSkills.map((skillName) => (
+                    {leadingSkills.map((skillName) => (
                       <SkillChip key={skillName} name={skillName} tags={[]} />
                     ))}
                   </span>
                 )}
                 <span className="inline leading-relaxed min-w-0">
-                  {inlineSegments.map((segment, index) =>
-                    segment.kind === "file" ? (
-                      <FileReferenceChip
-                        key={`file-${segment.attachment.id}-${index}`}
-                        referenceId={`sent-${segment.attachment.id}`}
-                        fileName={segment.fileName}
-                        referenceNumber={segment.referenceNumber}
-                        category="document"
-                        status="ready"
-                        readOnly
-                        onClick={() => handleOpenAttachment(segment.attachment)}
-                      />
-                    ) : segment.value ? (
-                      <MarkdownContent
-                        key={`text-${index}`}
-                        content={segment.value}
-                      />
-                    ) : null,
-                  )}
+                  <MarkdownContent
+                    content={content ?? ""}
+                    userMessageReferences={{
+                      attachments,
+                      enabledSkills,
+                      onOpenAttachment: handleOpenAttachment,
+                    }}
+                  />
                 </span>
               </div>
             </div>
           )}
 
           {/* Action buttons - show on hover */}
-          <div className="chat-message-actions flex justify-end mt-2 gap-1">
+          <div className="chat-message-actions chat-user-actions flex justify-end mt-2 gap-1">
             {onFork && (
               <button
                 onClick={onFork}
@@ -204,13 +203,15 @@ export function UserMessageBubble({
               </button>
             )}
             {extraActions}
-            <CopyButton
-              text={content ?? ""}
-              size={16}
-              className={getUserMessageActionButtonVisibilityClass(
-                isLastMessage,
-              )}
-            />
+            {copyText.trim() && (
+              <CopyButton
+                text={copyText}
+                size={16}
+                className={getUserMessageActionButtonVisibilityClass(
+                  isLastMessage,
+                )}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -23,6 +23,23 @@ import { PersonaPlazaSkeleton } from "../PersonaSkeletons";
 
 afterEach(cleanup);
 
+test.each([
+  ["memory", MemoryPanelSkeleton],
+  ["scheduled tasks", ScheduledTaskPanelSkeleton],
+] as const)(
+  "%s reserves the loaded resource card's banner and avatar",
+  (_name, Component) => {
+    const { container } = render(<Component />);
+    const cards = container.querySelectorAll(".panel-body .scb");
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card.querySelector(".scb__banner")).not.toBeNull();
+      expect(card.querySelector(".scb__icon-ring")).not.toBeNull();
+      expect(card.querySelector(".scb__body .scb__footer")).not.toBeNull();
+    }
+  },
+);
+
 test.each(
   [
     SkillsPanelSkeleton,
@@ -159,5 +176,25 @@ test.each([SkillsPanelSkeleton, PersonaPlazaSkeleton])(
   (Component) => {
     const { container } = render(<Component />);
     expect(container.querySelectorAll(".scb__banner")).toHaveLength(24);
+  },
+);
+
+
+test.each([
+  SkillsPanelSkeleton,
+  MarketplacePanelSkeleton,
+  MCPPanelSkeleton,
+  MemoryPanelSkeleton,
+  ScheduledTaskPanelSkeleton,
+  PersonaPlazaSkeleton,
+  TeamPanelSkeleton,
+].map((Component) => [Component.name, Component] as const))(
+  "%s keeps card placeholders in one content stack and one footer row",
+  (_name, Component) => {
+    const { container } = render(<Component />);
+    for (const body of container.querySelectorAll(".scb__body")) {
+      expect(body.querySelector(":scope > .flex-1")).toBeNull();
+      expect(body.querySelectorAll(":scope > .scb__footer")).toHaveLength(1);
+    }
   },
 );

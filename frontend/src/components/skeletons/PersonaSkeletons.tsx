@@ -7,12 +7,11 @@ import {
 
 export function PersonaPlazaSkeleton() {
   return (
-    <div className="glass-shell flex h-full min-w-0 flex-1 flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full min-w-0 flex-1 flex-col min-h-0">
       <PanelHeaderSkeleton
         hasSearch
         hasSubtitle
         hasSearchAccessory
-        hasSearchActions
       />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto skill-content-area">
         <div className="grid auto-grid-cols gap-4 sm:gap-5">
@@ -23,16 +22,7 @@ export function PersonaPlazaSkeleton() {
             >
               {/* Banner */}
               <div
-                className="scb__banner h-12 w-full shrink-0 relative"
-                style={{
-                  background: `linear-gradient(135deg, ${
-                    [
-                      "var(--theme-primary-light)",
-                      "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
-                      "var(--theme-bg-card)",
-                    ][i % 3]
-                  }, var(--theme-bg-card))`,
-                }}
+                className="scb__banner skeleton-line h-12 w-full shrink-0 relative"
               >
                 {/* Banner overlay — status pill + pin/favorite buttons */}
                 <div className="absolute top-2 right-2">
@@ -80,13 +70,11 @@ export function PersonaPlazaSkeleton() {
                 >
                   <SkeletonLine width="w-12" className="!h-3 !opacity-50" />
                   <div className="flex gap-1.5">
-                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
-                    <SkeletonLine width="w-7" className="!h-7 !rounded-lg" />
+                    <SkeletonLine width="w-9" className="!h-9 !rounded-lg" />
+                    <SkeletonLine width="w-9" className="!h-9 !rounded-lg" />
                   </div>
                 </div>
-                <div className="flex-1" />
+
               </div>
             </div>
           ))}
@@ -99,7 +87,7 @@ export function PersonaPlazaSkeleton() {
 
 export function PersonaPageSkeleton() {
   return (
-    <div className="flex h-full w-full min-w-0 animate-fade-in">
+    <div className="flex h-full w-full min-w-0">
       <PersonaPlazaSkeleton />
     </div>
   );

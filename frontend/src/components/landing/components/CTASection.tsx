@@ -24,9 +24,9 @@ export function CTASection({ onLogin }: CTASectionProps) {
           data-reveal
           className="flex items-center justify-center gap-3 mb-14 sm:mb-16"
         >
-          <div className="w-20 sm:w-28 h-px bg-gradient-to-r from-transparent via-amber-400/20 to-stone-300/50 dark:via-amber-500/15 dark:to-stone-600/30" />
+          <div className="w-20 sm:w-28 h-px bg-linear-to-r from-transparent via-amber-400/20 to-stone-300/50 dark:via-amber-500/15 dark:to-stone-600/30" />
           <div className="blog-ornament-diamond" />
-          <div className="w-20 sm:w-28 h-px bg-gradient-to-l from-transparent via-sky-400/15 to-stone-300/50 dark:via-sky-500/10 dark:to-stone-600/30" />
+          <div className="w-20 sm:w-28 h-px bg-linear-to-l from-transparent via-sky-400/15 to-stone-300/50 dark:via-sky-500/10 dark:to-stone-600/30" />
         </div>
 
         <h2

@@ -239,10 +239,6 @@
 }
 
 .welcome-persona-skeleton {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.75rem;
   pointer-events: none;
 }
 
@@ -270,20 +266,6 @@
 
 .welcome-skeleton-desc {
   width: 72%;
-}
-
-.welcome-skeleton-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.welcome-skeleton-name-row {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
 }
 
 @media (min-width: 640px) {
@@ -468,10 +450,6 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     margin-top: 0.25rem;
-  }
-
-  .welcome-persona-skeleton {
-    gap: 0.5rem !important;
   }
 
   .welcome-skeleton-avatar {
