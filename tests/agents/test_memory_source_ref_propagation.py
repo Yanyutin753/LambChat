@@ -15,7 +15,6 @@ import pytest
 @pytest.mark.parametrize(
     "node_path",
     [
-        "src/agents/fast_agent/nodes.py",
         "src/agents/search_agent/nodes.py",
         "src/agents/team_agent/nodes.py",
     ],
@@ -32,7 +31,6 @@ def test_agent_kicks_memory_extraction_after_run(node_path: str) -> None:
 @pytest.mark.parametrize(
     "node_path",
     [
-        "src/agents/fast_agent/nodes.py",
         "src/agents/search_agent/nodes.py",
         "src/agents/team_agent/nodes.py",
     ],

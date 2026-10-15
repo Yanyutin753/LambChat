@@ -4,6 +4,7 @@ import {
   $createTextNode,
   DecoratorNode,
   type LexicalNode,
+  type DOMExportOutput,
   type NodeKey,
   type SerializedLexicalNode,
   type Spread,
@@ -71,7 +72,13 @@ export class SkillReferenceNode extends DecoratorNode<ReactNode> {
   }
 
   getTextContent(): string {
-    return "";
+    return `[引用技能：${this.getLatest().__skillName}]`;
+  }
+
+  exportDOM(): DOMExportOutput {
+    const element = document.createElement("span");
+    element.textContent = this.getTextContent();
+    return { element };
   }
 
   getDescriptor(): SkillReferenceDescriptor {

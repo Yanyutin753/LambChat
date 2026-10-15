@@ -18,7 +18,7 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.FRONTEND,
         "subcategory": "display",
         "description": "settingDesc.DEFAULT_AGENT",
-        "default": "fast",
+        "default": "search",
         "frontend_visible": True,
     },
     "DEFAULT_MODEL_ID": {

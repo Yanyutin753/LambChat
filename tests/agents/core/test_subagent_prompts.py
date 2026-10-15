@@ -1,6 +1,7 @@
 from src.agents.core.prompt_policy import (
     ARTIFACT_POLICY,
     LAZY_SANDBOX_RUNTIME_POLICY,
+    NO_SANDBOX_RUNTIME_POLICY,
     PERSISTENT_STORAGE_POLICY,
     SANDBOX_RUNTIME_POLICY,
     SANDBOX_STORAGE_POLICY,
@@ -20,7 +21,6 @@ from src.agents.core.subagent_prompts import (
     WORKFLOW_SECTION,
     build_response_language_section,
 )
-from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT,
     SANDBOX_RUNTIME_SECTION,
@@ -76,10 +76,13 @@ def test_storage_and_subagent_policies_fit_compact_budgets() -> None:
 
 
 def test_main_prompts_compose_storage_and_canonical_workflow_once() -> None:
-    persistent_prompts = (FAST_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT)
+    persistent_prompts = (DEFAULT_SYSTEM_PROMPT,)
     sandbox_prompts = (SANDBOX_SYSTEM_PROMPT, TEAM_SANDBOX_SYSTEM_PROMPT)
 
-    assert all(prompt == PERSISTENT_STORAGE_POLICY for prompt in persistent_prompts)
+    assert all(
+        prompt == "\n\n".join((PERSISTENT_STORAGE_POLICY, NO_SANDBOX_RUNTIME_POLICY))
+        for prompt in persistent_prompts
+    )
     assert all(prompt == SANDBOX_STORAGE_POLICY for prompt in sandbox_prompts)
     for base in (*persistent_prompts, *sandbox_prompts):
         effective = "\n\n".join((base, *MAIN_AGENT_PROMPT_SECTIONS))
@@ -241,11 +244,10 @@ def test_fork_mode_context_worker_wired_into_all_main_agents() -> None:
     继承父对话历史与状态，承接依赖父上下文的委派。"""
     from inspect import getsource
 
-    from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
 
-    for node in (fast_agent_node, agent_node, team_router_node):
+    for node in (agent_node, team_router_node):
         source = getsource(node)
         assert '"name": "context-worker"' in source, (
             f"{node.__name__} must register the context-worker subagent"
@@ -367,11 +369,10 @@ def test_build_response_language_section_ignores_unknown_or_missing_locale() -> 
 def test_main_agent_nodes_wire_response_language_into_prompt_sections() -> None:
     from inspect import getsource
 
-    from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
 
-    for node in (fast_agent_node, agent_node, team_router_node):
+    for node in (agent_node, team_router_node):
         source = getsource(node)
         assert "build_response_language_section" in source, (
             f"{node.__name__} must inject the response language prompt section"

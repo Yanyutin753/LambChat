@@ -46,7 +46,7 @@ export function ServerSetupScreen() {
         tabIndex={-1}
         aria-label={t("serverSetup.title")}
         aria-busy={testing}
-        className="m-auto w-full max-w-md shrink-0 outline-none"
+        className="m-auto w-full max-w-md shrink-0 outline-hidden"
         onSubmit={(event) => {
           event.preventDefault();
           void connect(input);

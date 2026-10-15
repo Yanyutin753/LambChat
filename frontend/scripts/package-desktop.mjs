@@ -19,7 +19,7 @@ if (!normalizedAppUrl) {
     "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run server setup)",
   );
 }
-const tauriCliPackage = "@tauri-apps/cli@2.11.2";
+const tauriCliPackage = "@tauri-apps/cli@2.12.3";
 
 if (!hasCommand("rustc") || !hasCommand("cargo")) {
   console.error(

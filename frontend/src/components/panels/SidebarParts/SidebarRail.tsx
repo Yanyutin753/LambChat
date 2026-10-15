@@ -156,7 +156,7 @@ export function SidebarRail({
             <History size={20} />
             {unreadCount > 0 && (
               <span
-                className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-rose-500 text-9 font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
+                className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-linear-to-br from-red-400 to-rose-500 text-9 font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
                   unreadCount <= 9 ? "w-3.5 h-3.5" : "h-3.5 min-w-[18px] px-1"
                 }`}
               >
@@ -204,7 +204,7 @@ export function SidebarRail({
                   className="w-full h-full object-cover rounded-full"
                   style={{ borderRadius: "50%" }}
                   errorFallback={
-                    <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+                    <div className="flex w-full h-full items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
                       <span className="text-12 font-semibold text-white font-serif">
                         {user?.username?.charAt(0).toUpperCase() || "U"}
                       </span>
@@ -212,7 +212,7 @@ export function SidebarRail({
                   }
                 />
               ) : (
-                <div className="flex w-full h-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
+                <div className="flex w-full h-full items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
                   <span className="text-12 font-semibold text-white font-serif">
                     {user?.username?.charAt(0).toUpperCase() || "U"}
                   </span>

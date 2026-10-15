@@ -6,13 +6,16 @@ import { beforeEach, expect, test, vi } from "vitest";
 const listSettings = vi.fn();
 let accessToken: string | null = "token-one";
 
-vi.mock("../../services/api", () => ({
+vi.mock("../../services/api/settings", () => ({
   settingsApi: {
     list: (...args: unknown[]) => listSettings(...args),
     update: vi.fn(),
     reset: vi.fn(),
     resetAll: vi.fn(),
   },
+}));
+
+vi.mock("../../services/api/token", () => ({
   getAccessToken: () => accessToken,
 }));
 

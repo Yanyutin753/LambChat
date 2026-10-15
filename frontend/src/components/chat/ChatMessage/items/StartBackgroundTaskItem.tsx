@@ -15,7 +15,7 @@ function BackgroundConversationLink(props: ToolDetailProps) {
     (result?.status !== "queued" && result?.status !== "running") ||
     typeof result.session_id !== "string" || !result.session_id.trim()) return null;
   return <Link to={`/chat/${encodeURIComponent(result.session_id)}`}
-    className="inline-flex min-h-9 max-w-full items-center rounded px-1 text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary">
+    className="inline-flex min-h-9 max-w-full items-center rounded px-1 text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary">
     {t("chat.message.toolBackgroundTaskOpen")}
   </Link>;
 }

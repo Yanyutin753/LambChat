@@ -141,10 +141,13 @@ class TeamManager:
         user: TokenPayload | None = None,
     ) -> None:
         """Validate optional per-member agent mode overrides before persistence."""
+        from src.agents.core.base import normalize_agent_id
+
         agent_ids: list[str] = []
         seen: set[str] = set()
         for member in members:
             agent_id = getattr(member, "agent_id", None)
+            agent_id = normalize_agent_id(agent_id) if agent_id else None
             if not agent_id or agent_id in seen:
                 continue
             seen.add(agent_id)

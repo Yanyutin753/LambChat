@@ -153,7 +153,7 @@ export function MessageImageGallery({
                     className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 group-focus-visible/img:opacity-100 transition-opacity"
                     aria-hidden="true"
                   >
-                    <div className="px-2 py-1 bg-gradient-to-t from-black/60 to-transparent">
+                    <div className="px-2 py-1 bg-linear-to-t from-black/60 to-transparent">
                       <span className="text-11 text-white/90 truncate block">
                         {image.fileName}
                       </span>

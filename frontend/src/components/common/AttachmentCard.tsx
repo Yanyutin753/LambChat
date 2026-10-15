@@ -132,7 +132,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           "attachment-card-enter",
           "group relative flex items-center gap-2.5 px-3 py-2",
           "rounded-xl border border-stone-200/60 dark:border-stone-700/60",
-          "bg-gradient-to-br from-white to-stone-50/80 dark:from-stone-800 dark:to-stone-900",
+          "bg-linear-to-br from-white to-stone-50/80 dark:from-stone-800 dark:to-stone-900",
           "shadow-sm cursor-pointer select-none",
           "transition-all duration-200 ease-out",
           "hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40",
@@ -294,7 +294,7 @@ export const AttachmentCard = memo(function AttachmentCard({
       className={clsx(
         "group relative flex items-center overflow-hidden",
         "h-12 sm:h-14 min-w-[200px] max-w-[280px] sm:min-w-[240px] sm:max-w-[320px]",
-        "bg-gradient-to-br from-white to-stone-50/80",
+        "bg-linear-to-br from-white to-stone-50/80",
         "dark:from-stone-800 dark:to-stone-900",
         "rounded-2xl sm:rounded-xl",
         "border border-stone-200/60 dark:border-stone-700/60",
@@ -336,7 +336,7 @@ export const AttachmentCard = memo(function AttachmentCard({
               inline
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </>
         ) : isExcalidraw ? (
           <ExcalidrawThumbnail

@@ -17,7 +17,10 @@ def append_required_skills_prompt(message: str, enabled_skills: list[str] | None
     if not enabled_skills:
         return message
 
-    skill_paths = "\n".join(f"- {name}: /skills/{name}/SKILL.md" for name in enabled_skills if name)
+    skills = list(dict.fromkeys(name for name in enabled_skills if name))
+    skill_paths = "\n".join(
+        f"{index}. {name}: /skills/{name}/SKILL.md" for index, name in enumerate(skills, 1)
+    )
     if not skill_paths:
         return message
 
@@ -26,8 +29,14 @@ def append_required_skills_prompt(message: str, enabled_skills: list[str] | None
         "<required_skills>\n"
         "Required skills for this message:\n"
         f"{skill_paths}\n\n"
+        "The inline marker [引用技能：name] refers to a selected skill in this list. "
+        "Preserve its position and use the surrounding text to understand its task. "
         "You must read and follow the SKILL.md instructions for each required skill "
-        "before answering. Use these skills for this message unless the request is "
+        "in the listed order before answering. Read the original files with read_file; "
+        "/skills/ is virtual, so use file tools, not shell. "
+        "Skill names are workflow references, not tool names; invoke the available "
+        "tools required by their instructions. A marker not listed here does not "
+        "enable an additional skill. Use these skills for this message unless the request is "
         "impossible or unsafe, and clearly say so if you cannot use them.\n"
         "</required_skills>"
     )

@@ -138,7 +138,7 @@ function PersistentGoalStrip({ goal, onPause, onResume, onClear, disabled, embed
   const { t } = useTranslation();
   const canPause = goal.status === "active" || goal.status === "waiting_human";
   const canResume = goal.status === "paused" || goal.status === "blocked" || goal.status === "budget_limited";
-  const buttonClass = "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
+  const buttonClass = "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
   if (goal.status === "cleared") return null;
   return <div className={`flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-14 ${embedded ? "border-b border-theme-border" : "mx-auto w-full max-w-[52rem]"} ${className}`}>
     <Target className="size-4 shrink-0 text-theme-text-secondary" aria-hidden="true" />

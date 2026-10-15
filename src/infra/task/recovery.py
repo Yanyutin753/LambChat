@@ -93,16 +93,18 @@ def _registered_agent_ids() -> set[str]:
 
 
 def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -> str:
+    from src.agents.core.base import normalize_agent_id
+
     candidate = str(
         session_metadata.get("agent_id") or getattr(session, "agent_id", "") or ""
     ).strip()
+    candidate = normalize_agent_id(candidate)
     registered_ids = _registered_agent_ids()
     if candidate in registered_ids:
         return candidate
 
     fallback_candidates = [
-        str(getattr(settings, "DEFAULT_AGENT", "") or "").strip(),
-        "fast",
+        normalize_agent_id(str(getattr(settings, "DEFAULT_AGENT", "") or "").strip()),
         "search",
         "team",
         *sorted(registered_ids),

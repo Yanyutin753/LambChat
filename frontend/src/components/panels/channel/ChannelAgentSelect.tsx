@@ -3,6 +3,7 @@
  * Fetches user's available agents and renders a select dropdown.
  */
 import { useState, useEffect } from "react";
+import { AgentIcon } from "../../agent/AgentIcon";
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
@@ -59,7 +60,8 @@ export function ChannelAgentSelect({
         options={[{ value: "", label: t("channel.defaultAgent") }, ...agents.map((agent) => ({
           value: agent.id,
           label: (
-            <>
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <AgentIcon icon={agent.icon} seed={agent.id} size={18} />
               <span className="font-serif">
                 {resolveAgentDisplayName(agent, i18n.language, t)}
               </span>
@@ -67,7 +69,7 @@ export function ChannelAgentSelect({
                 {" — "}
                 {resolveAgentDescription(agent, i18n.language, t)}
               </span>
-            </>
+            </span>
           ),
         }))]}
       />

@@ -24,7 +24,7 @@ const api = vi.hoisted(() => ({
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ user: api.user }),
 }));
-vi.mock("../../../services/api", () => ({
+vi.mock("../../../services/api/auth", () => ({
   authApi: { updateMetadata: api.write },
 }));
 beforeEach(() => {

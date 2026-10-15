@@ -153,20 +153,18 @@ test("iOS release builds only the modern package line", () => {
   const infoPlist = readRepoFile("frontend/ios/App/App/Info.plist");
   const workflow = readRepoFile(".github/workflows/app-release.yml");
 
-  expect(packageJson.dependencies["@capacitor/core"]).toBe("7.6.5");
+  expect(packageJson.dependencies["@capacitor/core"]).toBe("8.5.3");
   expect(packageJson.dependencies["@capacitor/local-notifications"]).toBe(
-    "^7.0.7",
+    "8.3.1",
   );
-  expect(packageJson.devDependencies["@capacitor/cli"]).toBe("7.6.5");
-  expect(packageJson.devDependencies["@capacitor/ios"]).toBe("7.6.5");
-  expect(podfile).toMatch(/platform :ios, '14\.0'/);
-  expect(podfile).toMatch(/@capacitor\+ios@7\.6\.5_@capacitor\+core@7\.6\.5/);
-  expect(podfile).toMatch(
-    /@capacitor\+local-notifications@7\.0\.6_@capacitor\+core@7\.6\.5/,
-  );
+  expect(packageJson.devDependencies["@capacitor/cli"]).toBe("8.5.3");
+  expect(packageJson.devDependencies["@capacitor/ios"]).toBe("8.5.3");
+  expect(podfile).toMatch(/platform :ios, '16\.4'/);
+  expect(podfile).toContain("../../node_modules/@capacitor/ios");
+  expect(podfile).toContain("../../node_modules/@capacitor/local-notifications");
   expect(
     [...project.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);/g)].every(
-      ([, target]) => target === "14.0",
+      ([, target]) => target === "16.4",
     ),
   ).toBe(true);
   expect(infoPlist).toMatch(/<string>arm64<\/string>/);
@@ -194,7 +192,7 @@ test("desktop package script bundles the frontend before Tauri packaging", () =>
   expect(script).toMatch(/LAMBCHAT_APP_URL:\s*normalizedAppUrl/);
   expect(script).not.toMatch(/spawnSync\(pnpmCommand, \["build"\]/);
   expect(script).not.toMatch(/spawnSync\(pnpmCommand, \["packaged:build"\]/);
-  expect(script).toMatch(/tauriCliPackage = "@tauri-apps\/cli@2\.11\.2"/);
+  expect(script).toMatch(/tauriCliPackage = "@tauri-apps\/cli@2\.12\.3"/);
   expect(script).toMatch(/"icon", "resources\/native-icon\.png"/);
   expect(script).toMatch(/TAURI_TARGET/);
   expect(script).toMatch(/"--target", target/);
@@ -212,7 +210,8 @@ test("desktop package uses committed Tauri project and branded icons", () => {
   expect(config).toMatch(/"beforeBuildCommand": "pnpm packaged:build"/);
   expect(config).toMatch(/"icons\/icon\.ico"/);
   expect(config).toMatch(/"icons\/icon\.icns"/);
-  expect(cargo).toMatch(/tauri = \{ version = "2\.11\.2"/);
+  expect(config).toMatch(/"minimumSystemVersion": "11\.0"/);
+  expect(cargo).toMatch(/tauri = \{ version = "2\.12\.4"/);
   expect(readRepoFile(".gitignore")).toMatch(/frontend\/src-tauri\/icons\//);
 });
 

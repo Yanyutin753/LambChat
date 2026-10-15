@@ -1,3 +1,5 @@
+@reference "../../styles/tailwind.css";
+
 .profile-dialog {
   --profile-inset: 24px;
   position: relative;
@@ -336,7 +338,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  @apply bg-gradient-to-br from-amber-400 to-orange-500 text-white;
+  @apply bg-linear-to-br from-amber-400 to-orange-500 text-white;
 }
 .profile-footer {
   display: flex;

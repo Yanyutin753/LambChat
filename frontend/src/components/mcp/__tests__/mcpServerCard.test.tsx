@@ -10,6 +10,37 @@ vi.mock("react-i18next", async (importOriginal) => ({
 }));
 afterEach(cleanup);
 
+test.each([false, true])(
+  "server has only one toggle control (internal: %s)",
+  (isInternal) => {
+    const onToggle = vi.fn();
+    render(
+      <MCPServerCard
+        server={{
+          name: "Research",
+          transport: "sse",
+          enabled: true,
+          is_internal: isInternal,
+          is_system: isInternal,
+          can_edit: true,
+          allowed_roles: [],
+          role_quotas: {},
+        }}
+        onToggle={onToggle}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByRole("switch")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "mcp.card.disable" })).toBeNull();
+    expect(
+      Boolean(screen.queryByRole("button", { name: "common.moreOptions" })),
+    ).toBe(!isInternal);
+    fireEvent.click(screen.getByRole("switch"));
+    expect(onToggle).toHaveBeenCalledExactlyOnceWith("Research");
+  },
+);
+
 test("server switch exposes its state and toggles without opening the card", () => {
   const server: MCPServerResponse = {
     name: "Research",
@@ -26,6 +57,8 @@ test("server switch exposes its state and toggles without opening the card", () 
     <MCPServerCard server={server} onToggle={onToggle} onClick={onClick} />,
   );
   const toggle = screen.getByRole("switch", { name: "mcp.card.enable" });
+  expect(toggle.textContent).toBe("");
+  expect(toggle.classList.contains("scb__action-btn--ghost")).toBe(true);
   expect(toggle.getAttribute("aria-checked")).toBe("false");
   fireEvent.click(toggle);
   expect(onToggle).toHaveBeenCalledWith("Research");

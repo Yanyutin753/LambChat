@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
-import { ChatPageSkeleton } from "../skeletons";
+import { ChatPageSkeleton } from "../skeletons/ChatSkeletons";
 
 interface ProtectedRouteProps {
   children: ReactNode;

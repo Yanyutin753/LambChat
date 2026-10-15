@@ -9,7 +9,7 @@ def _source(relative_path: str) -> str:
 
 def test_agent_runtime_does_not_register_sandbox_mcp() -> None:
     paths = (
-        "src/agents/fast_agent/context.py",
+        "src/agents/team_agent/context.py",
         "src/agents/search_agent/context.py",
         "src/agents/search_agent/nodes.py",
         "src/agents/team_agent/nodes.py",

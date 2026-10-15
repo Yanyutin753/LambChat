@@ -152,7 +152,7 @@ function MiniTrendSkeleton() {
 /** Usage panel skeleton matching real UsagePanel layout */
 export function UsagePanelSkeleton() {
   return (
-    <div className="glass-shell usage-panel flex h-full min-h-0 flex-col overflow-y-auto animate-fade-in">
+    <div className="glass-shell usage-panel flex h-full min-h-0 flex-col overflow-y-auto">
       {/* 1. PanelHeader with search, subtitle */}
       <PanelHeaderSkeleton hasSearch hasSubtitle hasSearchAccessory hasSearchActions hasActions={false} />
 

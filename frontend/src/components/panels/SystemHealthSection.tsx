@@ -152,7 +152,7 @@ export function SystemHealthSection() {
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 to-cyan-50 text-blue-600 dark:from-blue-900/50 dark:to-cyan-900/30 dark:text-blue-400">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-100 to-cyan-50 text-blue-600 dark:from-blue-900/50 dark:to-cyan-900/30 dark:text-blue-400">
             <Activity size={16} />
           </div>
           <div>

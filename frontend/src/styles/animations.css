@@ -1,3 +1,5 @@
+@reference "./tailwind.css";
+
 /* Fade in animation */
 @keyframes fade-in {
   from {

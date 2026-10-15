@@ -61,14 +61,14 @@ afterEach(() => {
   resize(1000);
 });
 
-test("temporarily collapses below 680px and restores without saving the automatic change", () => {
+test("temporarily collapses below the minimum chat width and restores without saving the automatic change", () => {
   render(<AppContent activeTab="chat" />);
-  resize(680);
+  resize(792);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
     "true",
   );
-  resize(679);
+  resize(791);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
     "false",
@@ -81,12 +81,12 @@ test("temporarily collapses below 680px and restores without saving the automati
   );
 });
 
-test("collapses on a narrow initial mount while keeping the mobile drawer usable", () => {
+test("excludes mobile widths while keeping the mobile drawer usable", () => {
   resize(500);
   render(<AppContent activeTab="chat" />);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
-    "false",
+    "true",
   );
   fireEvent.click(screen.getByRole("button", { name: "Mobile drawer" }));
   expect(screen.getByRole("button", { name: "Mobile drawer" })).toHaveAttribute(
@@ -122,4 +122,38 @@ test("preserves the saved collapsed preference when the window grows", () => {
     "false",
   );
   expect(localStorage.getItem("sidebar_collapsed")).toBe("true");
+});
+
+
+test("accounts for a saved wide navigation before chat becomes cramped", () => {
+  localStorage.setItem("lambchat_desktop_sidebar_width", "480");
+  render(<AppContent activeTab="chat" />);
+  resize(1000);
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
+    "aria-expanded", "false",
+  );
+  resize(1100);
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
+    "aria-expanded", "true",
+  );
+});
+
+
+test("rechecks chat space as navigation and docked panel widths change", () => {
+  resize(1200);
+  render(<AppContent activeTab="chat" />);
+  act(() => {
+    window.dispatchEvent(new CustomEvent("right-panel-width-changed", {
+      detail: { open: true, kind: "content", presentation: "docked", widthPx: 350 },
+    }));
+  });
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "true");
+  act(() => {
+    window.dispatchEvent(new CustomEvent("navigation-width-changed", { detail: 400 }));
+  });
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "false");
+  act(() => {
+    window.dispatchEvent(new CustomEvent("right-panel-width-changed", { detail: null }));
+  });
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "true");
 });

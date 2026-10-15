@@ -3,10 +3,6 @@ const chatInputSource = readFileSync(
   new URL("../ChatInput.tsx", import.meta.url),
   "utf8",
 );
-const composerPlaceholderSource = readFileSync(
-  new URL("../composerPlaceholder.ts", import.meta.url),
-  "utf8",
-);
 
 test("team agent mention switches teams instead of persona presets", () => {
   expect(chatInputSource).toMatch(/useTeamMentionSearch/);
@@ -20,15 +16,6 @@ test("team agent mention switches teams instead of persona presets", () => {
   expect(chatInputSource).toMatch(/<TeamMentionPopup/);
   expect(chatInputSource).toMatch(/mentionMode === "team"/);
   expect(chatInputSource).toMatch(/mentionMode === "persona"/);
-});
-
-test("team agent placeholder says @ switches teams", () => {
-  // placeholder 决策已提取到纯函数（composerPlaceholder.ts），ChatInput 经其接线
-  expect(chatInputSource).toMatch(/resolveComposerPlaceholder/);
-  expect(composerPlaceholderSource).toMatch(/chat\.teamPlaceholder/);
-  expect(composerPlaceholderSource).toMatch(
-    /mentionMode === "team"[\s\S]*chat\.teamPlaceholder/,
-  );
 });
 
 test("team agent can submit without selecting an existing team", () => {

@@ -46,7 +46,7 @@ test("MCP more actions respect edit permission and internal servers", () => {
   expect(screen.queryByRole("button", { name: "mcp.card.edit" })).toBeNull();
   expect(screen.queryByRole("button", { name: "mcp.card.delete" })).toBeNull();
   expect(
-    screen.getAllByRole("button", { name: "mcp.card.disable" }),
+    screen.getAllByRole("switch", { name: "mcp.card.disable", checked: true }),
   ).toHaveLength(1);
 });
 test("skill export remains available in the more menu", () => {

@@ -1,3 +1,4 @@
+import "../../styles/auth.css";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";

@@ -391,10 +391,18 @@ class AgentConfigStorage:
         doc = await self._get_collection(_COLL_USER_PREFERENCES).find_one({"user_id": user_id})
         if not doc:
             return None
-        return UserAgentPreference(default_agent_id=doc.get("default_agent_id"))
+        from src.agents.core.base import normalize_agent_id
+
+        agent_id = doc.get("default_agent_id")
+        return UserAgentPreference(
+            default_agent_id=normalize_agent_id(agent_id) if agent_id else None
+        )
 
     async def set_user_preference(self, user_id: str, agent_id: str) -> UserAgentPreference:
         """设置用户的默认 Agent"""
+        from src.agents.core.base import normalize_agent_id
+
+        agent_id = normalize_agent_id(agent_id)
         now = utc_now()
         await self._get_collection(_COLL_USER_PREFERENCES).update_one(
             {"user_id": user_id},

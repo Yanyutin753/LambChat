@@ -9,7 +9,7 @@ import {
 /** Users panel: table rows (desktop) + cards (mobile) */
 export function UsersPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         {/* Desktop table */}
@@ -108,17 +108,17 @@ export function UsersPanelSkeleton() {
 /** Roles panel: card grid matching real RolesPanel layout (glass-card + auto-grid-cols) */
 export function RolesPanelSkeleton() {
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       <PanelHeaderSkeleton hasSubtitle />
       <div className="panel-body flex-1 min-h-0 overflow-y-auto">
         <div className="grid gap-3 auto-grid-cols">
           {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
               key={i}
-              className="glass-card relative flex flex-col rounded-xl p-4 sm:p-5"
+              className="resource-detail-card glass-card relative flex flex-col gap-2 rounded-xl p-3"
             >
               {/* Header badges — matches real ShieldCheck pill + permission count */}
-              <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <SkeletonLine
                   width="w-14 sm:w-16"
                   className="!h-[11px] !rounded-full"
@@ -133,7 +133,7 @@ export function RolesPanelSkeleton() {
               />
 
               {/* Description — 2-line clamp */}
-              <div className="mt-1 space-y-1">
+              <div className="space-y-1">
                 <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
                 <SkeletonLine
                   width={i % 2 === 0 ? "w-5/6" : "w-3/4"}
@@ -142,7 +142,7 @@ export function RolesPanelSkeleton() {
               </div>
 
               {/* Permission tags — matches real flex-wrap gap-1.5 chips */}
-              <div className="mt-3 mb-2 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {[0, 1, 2].map((j) => (
                   <SkeletonLine
                     key={j}

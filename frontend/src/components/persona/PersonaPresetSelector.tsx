@@ -212,7 +212,7 @@ export function PersonaPresetSelector({
                 onValueChange={setQuery}
                 placeholder={t("personaPresets.search", "搜索角色")}
                 maxLength={100}
-                className="h-10 w-full rounded-lg border bg-transparent pl-9 pr-3 text-14 outline-none"
+                className="h-10 w-full rounded-lg border bg-transparent pl-9 pr-3 text-14 outline-hidden"
                 style={{
                   borderColor: "var(--theme-border)",
                   color: "var(--theme-text)",

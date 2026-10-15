@@ -186,7 +186,7 @@ function RejectionCard({
   return (
     <div className="relative rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] overflow-hidden bg-theme-bg-card shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
       {/* Top accent bar */}
-      <div className="h-0.5 bg-gradient-to-r from-[var(--theme-primary)] via-[color-mix(in_srgb,var(--theme-primary)_38%,transparent)] to-transparent" />
+      <div className="h-0.5 bg-linear-to-r from-[var(--theme-primary)] via-[color-mix(in_srgb,var(--theme-primary)_38%,transparent)] to-transparent" />
 
       <div className="p-3 space-y-2">
         {/* Header row */}

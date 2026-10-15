@@ -288,6 +288,10 @@ class StoragePresenterMixin:
             "agent_name": self.config.agent_name,
         }
         metadata.update(await self._build_identity_metadata())
+        if self.config.model:
+            metadata["model"] = self.config.model
+        if self.config.model_id:
+            metadata["model_id"] = self.config.model_id
         return metadata
 
     async def build_langsmith_metadata(
@@ -447,6 +451,14 @@ class StoragePresenterMixin:
         if self._token_usage_recorded or not self.config.enable_storage:
             return
         if not self.config.session_id:
+            return
+
+        # 恢复后尚无新调用就取消时，不能用零值覆盖中断前的累计用量。
+        dual_writer = await self._get_dual_writer()
+        if dual_writer and await dual_writer.trace.get_last_trace_event(
+            self.trace_id, ["token:usage"]
+        ):
+            self._token_usage_recorded = True
             return
 
         await self.save_event(

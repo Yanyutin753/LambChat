@@ -330,18 +330,18 @@ export function DownloadPage() {
             data-reveal
             className="mb-8 flex items-center justify-center gap-2.5 sm:mb-12 sm:gap-3"
           >
-            <span className="block h-px w-6 bg-gradient-to-r from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
+            <span className="block h-px w-6 bg-linear-to-r from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
             <span className="relative text-11 font-semibold uppercase tracking-[0.16em] text-theme-text-secondary dark:text-theme-text-secondary sm:text-13 sm:tracking-[0.18em]">
               {t("download.tag")}
             </span>
-            <span className="block h-px w-6 bg-gradient-to-l from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
+            <span className="block h-px w-6 bg-linear-to-l from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
           </div>
 
           {/* Title */}
           <h1
             data-reveal
             data-reveal-delay="1"
-            className="mb-7 bg-gradient-to-b from-stone-900 via-stone-800 to-stone-600 bg-clip-text text-[2.35rem] font-extrabold leading-[1.15] tracking-[-0.025em] text-transparent dark:from-stone-50 dark:via-stone-200 dark:to-stone-400 sm:mb-10 sm:text-[3.1rem] lg:text-[3.4rem]"
+            className="mb-7 bg-linear-to-b from-stone-900 via-stone-800 to-stone-600 bg-clip-text text-[2.35rem] font-extrabold leading-[1.15] tracking-[-0.025em] text-transparent dark:from-stone-50 dark:via-stone-200 dark:to-stone-400 sm:mb-10 sm:text-[3.1rem] lg:text-[3.4rem]"
           >
             {t("download.title")}
           </h1>
@@ -504,7 +504,7 @@ export function DownloadPage() {
                     }`}
                   >
                     <div
-                      className={`absolute left-7 top-0 h-[2px] w-10 rounded-full bg-gradient-to-r opacity-60 transition-all duration-500 group-hover:w-16 sm:left-8 ${
+                      className={`absolute left-7 top-0 h-[2px] w-10 rounded-full bg-linear-to-r opacity-60 transition-all duration-500 group-hover:w-16 sm:left-8 ${
                         isDetected
                           ? "from-amber-300 to-orange-400"
                           : meta.gradient
@@ -513,7 +513,7 @@ export function DownloadPage() {
                     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-3.5">
                         <span
-                          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-20 text-white shadow-md transition-all duration-500  ${meta.gradient}`}
+                          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-20 text-white shadow-md transition-all duration-500  ${meta.gradient}`}
                         >
                           <Icon size={20} />
                         </span>
@@ -570,11 +570,11 @@ export function DownloadPage() {
                   className="blog-feature-card blog-glass-inner-glow group relative rounded-3xl border border-stone-100/80 bg-white/80 p-6 transition-all duration-500 hover:-translate-y-1.5 dark:border-stone-800/40 dark:bg-stone-900/40 sm:p-7"
                 >
                   <div
-                    className={`absolute left-6 top-0 h-[2px] w-8 rounded-full bg-gradient-to-r opacity-50 transition-all duration-500 group-hover:w-12 group-hover:opacity-90 sm:left-7 ${meta.gradient}`}
+                    className={`absolute left-6 top-0 h-[2px] w-8 rounded-full bg-linear-to-r opacity-50 transition-all duration-500 group-hover:w-12 group-hover:opacity-90 sm:left-7 ${meta.gradient}`}
                   />
                   <div className="mb-4 flex items-center gap-3">
                     <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-16 text-white shadow-sm transition-all duration-500  ${meta.gradient}`}
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br text-16 text-white shadow-sm transition-all duration-500  ${meta.gradient}`}
                     >
                       <Icon size={16} />
                     </span>
@@ -625,9 +625,9 @@ export function DownloadPage() {
               data-reveal
               className="blog-feature-card blog-glass-inner-glow group relative mx-auto max-w-xl rounded-3xl border border-stone-100/80 bg-white/80 p-6 transition-all duration-500 hover:-translate-y-1.5 dark:border-stone-800/40 dark:bg-stone-900/40 sm:p-7"
             >
-              <div className="absolute left-6 top-0 h-[2px] w-10 rounded-full bg-gradient-to-r from-emerald-400/80 to-teal-500/80 opacity-60 transition-all duration-500 group-hover:w-16 sm:left-7" />
+              <div className="absolute left-6 top-0 h-[2px] w-10 rounded-full bg-linear-to-r from-emerald-400/80 to-teal-500/80 opacity-60 transition-all duration-500 group-hover:w-16 sm:left-7" />
               <div className="mb-5 flex items-center gap-3.5">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/90 to-teal-500/90 text-20 text-white shadow-md transition-all duration-500 ">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400/90 to-teal-500/90 text-20 text-white shadow-md transition-all duration-500 ">
                   <Smartphone size={20} />
                 </span>
                 <div className="min-w-0">
@@ -739,7 +739,7 @@ export function DownloadPage() {
             {/* 竖向步骤时间线 */}
             <ol className="relative space-y-5">
               <div
-                className="absolute bottom-6 left-[1.4rem] top-6 w-px bg-gradient-to-b from-amber-300/50 via-stone-200 to-transparent dark:via-stone-700/60 sm:left-[1.55rem]"
+                className="absolute bottom-6 left-[1.4rem] top-6 w-px bg-linear-to-b from-amber-300/50 via-stone-200 to-transparent dark:via-stone-700/60 sm:left-[1.55rem]"
                 aria-hidden="true"
               />
               {(["step1", "step2", "step3"] as const).map((key, idx) => (
@@ -749,7 +749,7 @@ export function DownloadPage() {
                   data-reveal-delay={String(idx + 1)}
                   className="blog-feature-card group relative flex gap-4 rounded-2xl border border-stone-100/80 bg-white/80 p-5 transition-all duration-500 hover:-translate-y-1 hover:bg-white dark:border-stone-800/40 dark:bg-stone-900/40 dark:hover:bg-stone-900/60 sm:p-6"
                 >
-                  <span className="z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/90 to-orange-500/90 text-16 text-white shadow-md transition-all duration-500  sm:h-12 sm:w-12">
+                  <span className="z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-amber-400/90 to-orange-500/90 text-16 text-white shadow-md transition-all duration-500  sm:h-12 sm:w-12">
                     {idx === 0 ? (
                       <DownloadIcon size={18} />
                     ) : idx === 1 ? (
@@ -803,7 +803,7 @@ export function DownloadPage() {
 
                 {/* 本地沙箱行（在线高亮） */}
                 <div className="relative flex items-center gap-3 overflow-hidden rounded-xl border border-amber-200/90 bg-amber-50/70 px-4 py-3 dark:border-amber-500/25 dark:bg-amber-500/[0.07]">
-                  <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-amber-300 to-orange-400" />
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-linear-to-r from-amber-300 to-orange-400" />
                   <Monitor
                     size={15}
                     className="shrink-0 text-amber-600/90 dark:text-amber-400/90"
@@ -858,9 +858,9 @@ export function DownloadPage() {
               data-reveal
               className="mb-10 flex items-center justify-center gap-3 sm:mb-12"
             >
-              <div className="h-px w-20 bg-gradient-to-r from-transparent via-amber-400/20 to-stone-300/50 dark:via-amber-500/15 dark:to-stone-600/30 sm:w-28" />
+              <div className="h-px w-20 bg-linear-to-r from-transparent via-amber-400/20 to-stone-300/50 dark:via-amber-500/15 dark:to-stone-600/30 sm:w-28" />
               <div className="blog-ornament-diamond" />
-              <div className="h-px w-20 bg-gradient-to-l from-transparent via-sky-400/15 to-stone-300/50 dark:via-sky-500/10 dark:to-stone-600/30 sm:w-28" />
+              <div className="h-px w-20 bg-linear-to-l from-transparent via-sky-400/15 to-stone-300/50 dark:via-sky-500/10 dark:to-stone-600/30 sm:w-28" />
             </div>
             <a
               data-reveal

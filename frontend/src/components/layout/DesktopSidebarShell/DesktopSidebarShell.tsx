@@ -16,7 +16,6 @@ import { Bell, Search } from "lucide-react";
 import clsx from "clsx";
 import { BrandLogo } from "../../common/BrandLogo";
 import { BrandWordmark } from "../../common/BrandWordmark";
-import { formatUnreadCount } from "../../sidebar/unreadCounts";
 import { APP_NAME } from "../../../constants";
 import { DesktopActivityRail } from "./DesktopActivityRail";
 import { isEditableEventTarget } from "../../../utils/editableTarget";
@@ -29,33 +28,14 @@ import {
   isDesktopShell,
 } from "./desktopShellPlatform";
 
-const WIDTH_STORAGE_KEY = "lambchat_desktop_sidebar_width";
-const MIN_WIDTH = 260;
-const MAX_WIDTH_CAP = 480;
-const MAX_WIDTH_RATIO = 0.5;
-
-function clampWidth(value: number): number {
-  const cap = Math.min(
-    typeof window === "undefined"
-      ? MAX_WIDTH_CAP
-      : window.innerWidth * MAX_WIDTH_RATIO,
-    MAX_WIDTH_CAP,
-  );
-  return Math.round(Math.min(cap, Math.max(MIN_WIDTH, value)));
-}
-
-function readStoredWidth(): number {
-  const viewport = typeof window === "undefined" ? 1280 : window.innerWidth;
-  const defaultWidth = viewport >= 1280 ? 320 : viewport >= 1024 ? 288 : 260;
-  try {
-    const saved = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
-    return Number.isFinite(saved) && saved > 0
-      ? clampWidth(saved)
-      : clampWidth(defaultWidth);
-  } catch {
-    return clampWidth(defaultWidth);
-  }
-}
+import {
+  WIDTH_STORAGE_KEY,
+  MIN_WIDTH,
+  MAX_WIDTH_CAP,
+  clampWidth,
+  readStoredWidth,
+  NAVIGATION_WIDTH_CHANGED_EVENT,
+} from "./sidebarWidth";
 
 interface DesktopSidebarShellProps {
   collapsed: boolean;
@@ -132,6 +112,12 @@ export function DesktopSidebarShell({
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
   // pointerup 闭包可能拿到过期渲染的 width（同批连发事件），以 ref 为准持久化
   const widthRef = useRef(width);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(NAVIGATION_WIDTH_CHANGED_EVENT, { detail: width }),
+    );
+  }, [width]);
 
   useEffect(() => {
     const update = (event: Event) =>
@@ -292,10 +278,10 @@ export function DesktopSidebarShell({
                     <Bell size={16} />
                     {notificationCount > 0 && (
                       <span
-                        className="pointer-events-none absolute right-0 top-0 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-10 font-medium leading-none text-white"
+                        className="pointer-events-none absolute right-0 top-0 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium tabular-nums leading-none text-white"
                         aria-hidden="true"
                       >
-                        {formatUnreadCount(notificationCount)}
+                        {Math.min(notificationCount, 99)}
                       </span>
                     )}
                   </button>

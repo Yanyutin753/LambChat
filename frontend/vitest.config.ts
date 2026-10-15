@@ -30,25 +30,25 @@ export default defineConfig({
       {
         find: /^opentype\.js$/,
         replacement: path.resolve(
-          __dirname,
+          import.meta.dirname,
           "node_modules/opentype.js/dist/opentype.js",
         ),
       },
       {
         find: /^stream$/,
-        replacement: path.resolve(__dirname, "node_modules/stream-browserify"),
+        replacement: path.resolve(import.meta.dirname, "node_modules/stream-browserify"),
       },
       {
         find: /^events$/,
-        replacement: path.resolve(__dirname, "node_modules/events"),
+        replacement: path.resolve(import.meta.dirname, "node_modules/events"),
       },
       {
         find: /^util$/,
-        replacement: path.resolve(__dirname, "node_modules/util"),
+        replacement: path.resolve(import.meta.dirname, "node_modules/util"),
       },
       {
         find: /^process$/,
-        replacement: path.resolve(__dirname, "node_modules/process/browser"),
+        replacement: path.resolve(import.meta.dirname, "node_modules/process/browser"),
       },
     ],
   },

@@ -191,7 +191,7 @@ export function UpdateTitlebarIndicator({
             role="dialog"
             tabIndex={-1}
             aria-label={t("update.availableTitle", "发现新版本")}
-            className="fixed z-[302] w-96 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-var(--titlebar-inset,40px)-1rem)] overflow-y-auto rounded-xl border shadow-xl animate-scale-in motion-reduce:animate-none outline-none"
+            className="fixed z-[302] w-96 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-var(--titlebar-inset,40px)-1rem)] overflow-y-auto rounded-xl border shadow-xl animate-scale-in motion-reduce:animate-none outline-hidden"
             style={{
               ...menuPosition,
               backgroundColor: "var(--theme-bg-card)",

@@ -12,7 +12,14 @@ import {
   $getRoot,
   SKIP_SCROLL_INTO_VIEW_TAG,
 } from "lexical";
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { SkillResponse } from "../../../types";
 import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
 import type {
@@ -77,7 +84,7 @@ export interface RichChatComposerHandle {
 export interface RichChatComposerProps {
   ariaLabel: string;
   focusRequest?: number;
-  placeholder?: string;
+  placeholder?: ReactNode;
   initialPlainText?: string;
   className?: string;
   onChange?: (change: RichChatComposerChange) => void;

@@ -1,6 +1,5 @@
 import { memo } from "react";
-import { Sparkles } from "lucide-react";
-import { getCategoryIcon, nameToGradient } from "../common/cardUtils";
+import { AgentAvatar } from "../common/AgentAvatar";
 
 interface SkillChipProps {
   name: string;
@@ -10,12 +9,8 @@ interface SkillChipProps {
 
 export const SkillChip = memo(function SkillChip({
   name,
-  tags,
   onClick,
 }: SkillChipProps) {
-  const Icon = tags?.[0] ? getCategoryIcon(tags[0]) : Sparkles;
-  const [c1, c2] = nameToGradient(name);
-
   return (
     <span
       className="skill-chip-node"
@@ -34,14 +29,7 @@ export const SkillChip = memo(function SkillChip({
       }
       title={name}
     >
-      <span
-        className="skill-chip-node-avatar"
-        style={{
-          background: `linear-gradient(135deg, ${c1}, ${c2})`,
-        }}
-      >
-        <Icon size="0.82em" className="text-white" strokeWidth={2.5} />
-      </span>
+      <AgentAvatar seed={name} size="1em" className="skill-chip-node-avatar" />
       <span className="skill-chip-node-name font-serif">{name}</span>
     </span>
   );

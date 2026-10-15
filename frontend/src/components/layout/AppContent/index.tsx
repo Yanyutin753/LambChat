@@ -1,3 +1,4 @@
+import "../../../styles/app-content.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RightPanelLayoutSnapshot } from "../../../hooks/rightPanelLayout";
 import { getRightPanelLayoutSnapshot } from "../../../hooks/rightPanelWidthEvents";
@@ -11,10 +12,17 @@ import {
 } from "./appToastLayout";
 import type { TabType } from "./types";
 import {
-  MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
   shouldTemporarilyCollapseNavigation,
 } from "./rightPanelAutoCollapse";
+
+import {
+  NAVIGATION_WIDTH_CHANGED_EVENT,
+  readStoredWidth,
+} from "../DesktopSidebarShell/sidebarWidth";
+
+// Reserve 480px for chat plus the persistent 52px activity rail.
+const MINIMUM_CHAT_WITH_RAIL_PX = 532;
 
 interface AppContentProps {
   activeTab: TabType;
@@ -31,12 +39,15 @@ export function AppContent({ activeTab }: AppContentProps) {
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
 
+  const navigationWidthRef = useRef(readStoredWidth());
+
   // Automatic layout changes never overwrite the saved sidebar preference.
   const [tempAutoCollapsed, setTempAutoCollapsed] = useState(() =>
     shouldTemporarilyCollapseNavigation({
       layout: getRightPanelLayoutSnapshot(),
       viewportWidth: window.innerWidth,
-      minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+      minimumWorkspaceWithNavigationPx:
+        navigationWidthRef.current + MINIMUM_CHAT_WITH_RAIL_PX,
       userOverrode: false,
     }),
   );
@@ -56,7 +67,8 @@ export function AppContent({ activeTab }: AppContentProps) {
       const needsCollapse = shouldTemporarilyCollapseNavigation({
         layout,
         viewportWidth: window.innerWidth,
-        minimumWorkspaceWithNavigationPx: MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+        minimumWorkspaceWithNavigationPx:
+          navigationWidthRef.current + MINIMUM_CHAT_WITH_RAIL_PX,
         userOverrode: false,
       });
       if (!needsCollapse) userOverrodeRef.current = false;
@@ -81,7 +93,7 @@ export function AppContent({ activeTab }: AppContentProps) {
           layout: activeRightPanelLayoutRef.current,
           viewportWidth: window.innerWidth,
           minimumWorkspaceWithNavigationPx:
-            MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+            navigationWidthRef.current + MINIMUM_CHAT_WITH_RAIL_PX,
           userOverrode: false,
         });
         if (wouldAutoCollapse) userOverrodeRef.current = true;
@@ -103,8 +115,15 @@ export function AppContent({ activeTab }: AppContentProps) {
         (event as CustomEvent<RightPanelLayoutSnapshot | null>).detail,
       );
     };
-    const handleResize = () =>
+    const handleResize = () => {
+      navigationWidthRef.current = readStoredWidth();
       syncTempAutoCollapse(activeRightPanelLayoutRef.current);
+    };
+    const handleNavigationWidth = (event: Event) => {
+      navigationWidthRef.current = (event as CustomEvent<number>).detail;
+      syncTempAutoCollapse(activeRightPanelLayoutRef.current);
+    };
+    window.addEventListener(NAVIGATION_WIDTH_CHANGED_EVENT, handleNavigationWidth);
     window.addEventListener("resize", handleResize);
     window.addEventListener(
       RIGHT_PANEL_WIDTH_CHANGED_EVENT,
@@ -114,6 +133,7 @@ export function AppContent({ activeTab }: AppContentProps) {
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener(NAVIGATION_WIDTH_CHANGED_EVENT, handleNavigationWidth);
       window.removeEventListener(
         RIGHT_PANEL_WIDTH_CHANGED_EVENT,
         handleWidthChanged,

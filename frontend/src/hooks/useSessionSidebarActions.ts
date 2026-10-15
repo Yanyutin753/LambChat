@@ -576,7 +576,6 @@ export function useSessionSidebarActions({
     const sessionIds = batchDeleteConfirm.sessionIds;
     if (sessionIds.length === 0) return;
 
-    let deletedCount = 0;
     try {
       const results = await Promise.allSettled(
         sessionIds.map((sessionId) => sessionApi.delete(sessionId)),
@@ -584,7 +583,7 @@ export function useSessionSidebarActions({
       const deletedIds = sessionIds.filter(
         (_sessionId, index) => results[index]?.status === "fulfilled",
       );
-      deletedCount = deletedIds.length;
+      const deletedCount = deletedIds.length;
 
       for (const sessionId of deletedIds) {
         for (const [, handle] of projectRefs.current) {

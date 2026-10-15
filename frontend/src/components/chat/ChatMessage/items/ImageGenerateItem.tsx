@@ -305,7 +305,7 @@ function ImageGenerateDetail({
                   inline
                   className="w-full aspect-square object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity">
                   <div className="absolute bottom-2 left-2 right-2">
                     <span className="text-white/90 text-11 font-medium truncate block drop-shadow-sm">
                       {img.name}

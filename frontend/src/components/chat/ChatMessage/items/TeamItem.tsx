@@ -164,7 +164,7 @@ function TeamDetail({
                         backgroundImage: `radial-gradient(circle at 80% 20%, ${pGradient[2]}50 0%, transparent 60%)`,
                       }}
                     />
-                    <div className="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-theme-bg-card to-transparent" />
+                    <div className="absolute bottom-0 inset-x-0 h-4 bg-linear-to-t from-theme-bg-card to-transparent" />
                   </div>
                   {/* Card body */}
                   <div className="px-4 pt-4 pb-3.5 bg-theme-bg-card -mt-5 relative">
@@ -331,7 +331,7 @@ function TeamDetail({
                       }}
                     />
                     {/* Bottom fade into card */}
-                    <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-theme-bg-card to-transparent" />
+                    <div className="absolute bottom-0 inset-x-0 h-8 bg-linear-to-t from-theme-bg-card to-transparent" />
                   </div>
                 )}
                 <div

@@ -235,7 +235,7 @@ export function SearchDialog({
               onValueChange={setSearchQuery}
               onKeyDown={handleKeyDown}
               placeholder={t("sidebar.searchSessions") + "..."}
-              className="h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-16 text-theme-text placeholder:text-theme-text-tertiary outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
+              className="h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-16 text-theme-text placeholder:text-theme-text-tertiary outline-hidden focus:outline-hidden focus-visible:outline-hidden focus:ring-0"
             />
             {searchQuery && (
               <IconButton

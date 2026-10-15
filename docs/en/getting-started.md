@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- Python 3.12+
-- Node.js 18+ (for frontend build)
+- Python >=3.12, <3.15
+- Node.js 22.22.2+ (for frontend build)
 - MongoDB
 - Redis
 
@@ -79,7 +79,7 @@ LambChat
 |-----------|-----------|
 | Backend | Python 3.12, FastAPI, Uvicorn |
 | Agent Runtime | LangGraph |
-| Frontend | React 19, Vite 6, TypeScript, TailwindCSS |
+| Frontend | React 19, Vite 8, TypeScript 7, TailwindCSS 4 |
 | Database | MongoDB (primary), Redis (cache/pubsub) |
 | Optional DB | PostgreSQL (checkpoint store) |
 | Object Storage | S3-compatible (AWS, Aliyun, MinIO) |

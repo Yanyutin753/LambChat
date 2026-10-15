@@ -36,8 +36,8 @@ function FilesToolbarSkeleton() {
             <div className="skeleton-line h-9 w-20 sm:w-24 rounded-lg hidden @lg:block" />
             <div className="skeleton-line h-9 w-14 rounded-lg" />
           </div>
-          <div className="file-library-toolbar__search-group flex min-w-0 items-center gap-1.5 @sm:gap-2">
-            <div className="file-library-toolbar__search skeleton-line h-9 rounded-lg" />
+          <div className="file-library-toolbar__search-group flex flex-1 justify-end min-w-0 items-center gap-1.5 @sm:gap-2">
+            <div className="file-library-toolbar__search skeleton-line w-full max-w-[17.5rem] min-w-24 h-9 rounded-lg" />
             <div className="skeleton-line h-9 w-9 rounded-lg hidden @sm:block" />
           </div>
         </div>
@@ -49,7 +49,7 @@ function FilesToolbarSkeleton() {
 /** Session group list skeleton — content only, the real Toolbar stays mounted above it */
 export function FilesListSkeleton() {
   return (
-    <div className="panel-sections flex flex-col animate-fade-in">
+    <div className="panel-sections flex flex-col">
       {/* Session group 1 */}
       <div className="w-full flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 font-serif">
@@ -88,7 +88,7 @@ export function FilesListSkeleton() {
 /** Files content area skeleton (toolbar + grid cards, no sidebar/header) */
 export function FilesContentSkeleton() {
   return (
-    <div className="flex h-full min-h-0 flex-col @container animate-fade-in">
+    <div className="flex h-full min-h-0 flex-col @container">
       <FilesToolbarSkeleton />
       <div className="panel-body flex-1 overflow-y-auto min-h-0 relative z-[1]">
         <FilesListSkeleton />
@@ -131,7 +131,7 @@ export function FilesPageSkeleton() {
   return (
     <div
       data-workspace-ui=""
-      className="flex h-[100dvh] w-full overflow-hidden animate-fade-in"
+      className="flex h-[100dvh] w-full overflow-hidden"
       style={{
         backgroundColor: "var(--theme-bg)",
         boxSizing: "content-box",

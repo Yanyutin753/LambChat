@@ -1,0 +1,10 @@
+/* Load workspace styles with authenticated and shared conversation routes. */
+@import "./chat.css";
+@import "./skill.css";
+@import "./persona.css";
+@import "./team.css";
+@import "./approval.css";
+@import "./syntax-highlight.css";
+@import "./markdown.css";
+@import "./panels.css";
+@import "./legacy-panels.css";

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Langfuse tracer 客户端：门控、handler 构造与 LangChain metadata 增强。
 
-Langfuse v4 的 CallbackHandler 从 LangChain run metadata 中读取
+Langfuse 的 CallbackHandler 从 LangChain run metadata 中读取
 langfuse_session_id / langfuse_user_id / langfuse_trace_name 三个特殊键，
 其余 metadata 原样并入 trace，因此 LambChat 只需在既有 metadata 上追加
 这三个键即可完成会话/用户维度的关联。
@@ -72,6 +72,28 @@ def test_build_langfuse_metadata_adds_special_keys():
 def test_build_langfuse_metadata_skips_empty_values():
     enriched = build_langfuse_metadata({}, session_id=None, user_id="u-1", trace_name="")
     assert enriched == {"langfuse_user_id": "u-1"}
+
+
+def test_langfuse_sdk_maps_enriched_metadata_to_trace_attributes():
+    from langfuse.langchain import CallbackHandler
+
+    metadata = build_langfuse_metadata(
+        {"agent_name": "search"},
+        session_id="s-1",
+        user_id="u-1",
+        trace_name="search agent run",
+    )
+    # Exercise the installed SDK parser without initializing its telemetry client.
+    handler = CallbackHandler.__new__(CallbackHandler)
+    attributes = handler._parse_langfuse_trace_attributes(metadata=metadata, tags=None)
+
+    assert attributes == {
+        "session_id": "s-1",
+        "user_id": "u-1",
+        "trace_name": "search agent run",
+        "metadata": {"agent_name": "search"},
+    }
+    assert metadata["langfuse_session_id"] == "s-1"
 
 
 @pytest.mark.asyncio

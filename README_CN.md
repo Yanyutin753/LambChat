@@ -189,9 +189,9 @@
 
 ### 前置要求
 
-- Python 3.12+
+- Python >=3.12, <3.15
 - [uv](https://docs.astral.sh/uv/)（Python 包管理器）
-- Node.js 18+
+- Node.js 22.22.2+
 - [pnpm](https://pnpm.io/) 10+
 - MongoDB
 - Redis

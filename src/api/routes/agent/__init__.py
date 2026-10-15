@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
-from src.agents.core.base import AgentFactory
+from src.agents.core.base import AgentFactory, normalize_agent_id
 from src.api.deps import get_current_user_optional, get_current_user_required
 from src.api.routes.chat import validate_agent_model_access
 from src.infra.async_utils import run_blocking_io
@@ -281,7 +281,7 @@ async def list_agents(
         return {
             "agents": [],
             "count": 0,
-            "default_agent": settings.DEFAULT_AGENT,
+            "default_agent": normalize_agent_id(settings.DEFAULT_AGENT),
         }
 
     # 从数据库获取最新用户信息（包括角色）
@@ -302,7 +302,10 @@ async def list_agents(
 
     # 获取用户的默认 agent 设置
     user_preference = await storage.get_user_preference(optional_user.sub)
-    default_agent = user_preference.default_agent_id if user_preference else settings.DEFAULT_AGENT
+    default_agent = (
+        user_preference.default_agent_id if user_preference else None
+    ) or settings.DEFAULT_AGENT
+    default_agent = normalize_agent_id(default_agent)
 
     # 获取用户角色的可用 agents 映射（使用角色ID作为key）
     role_agent_map: dict[str, list[str] | None] = {}
@@ -444,6 +447,7 @@ async def list_tools(
     当传入 agent_id 时，根据该 Agent 是否支持沙箱来过滤沙箱类工具。
     """
     if agent_id:
+        agent_id = normalize_agent_id(agent_id)
         from src.agents.core.base import _AGENT_REGISTRY
 
         if agent_id not in _AGENT_REGISTRY:

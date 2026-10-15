@@ -34,7 +34,7 @@ export function SidebarMarkdownContent({
         <div className="max-h-[min(58vh,680px)] w-full overflow-auto whitespace-pre-wrap break-words px-3 pb-6 pt-2 text-[0.9375rem] leading-[1.75] text-theme-text-secondary sm:px-4">
           {previewContent}
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-theme-bg-card to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-theme-bg-card to-transparent" />
       </div>
       {expandable && (
         <button

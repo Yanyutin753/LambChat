@@ -16,7 +16,7 @@ export function ProfileModelsTab() {
     setExpanded((prev) => (prev === id ? null : id));
 
   return (
-    <div ref={contentRef} tabIndex={-1} className="space-y-3 outline-none">
+    <div ref={contentRef} tabIndex={-1} className="space-y-3 outline-hidden">
       <CatalogStatus
         focusTargetRef={contentRef}
         label={t("nav.models")}

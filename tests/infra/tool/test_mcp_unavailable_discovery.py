@@ -51,14 +51,14 @@ async def test_failed_mcp_catalog_retains_sanitized_status_and_recovery_clears_i
     assert manager.unavailable_server_names == ()
 
 
-@pytest.mark.parametrize("agent_name", ["fast", "search"])
+@pytest.mark.parametrize("agent_name", ["team", "search"])
 @pytest.mark.parametrize("deferred_enabled", [False, True])
 async def test_actual_agent_context_exposes_unavailable_servers_with_empty_catalog(
     monkeypatch, agent_name, deferred_enabled
 ):
     module = importlib.import_module(f"src.agents.{agent_name}_agent.context")
     context_type = getattr(
-        module, "FastAgentContext" if agent_name == "fast" else "SearchAgentContext"
+        module, "TeamAgentContext" if agent_name == "team" else "SearchAgentContext"
     )
     source = SimpleNamespace(
         unavailable_server_names=("down", "hidden", "outside"), _server_tool_policies={}

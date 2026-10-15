@@ -1,4 +1,4 @@
-"""Read optimization for the langgraph-checkpoint-postgres 3.1.2 delta protocol."""
+"""Batched delta reads for the explicitly supported PostgreSQL saver releases."""
 
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
@@ -31,7 +31,7 @@ class BatchedDeltaPostgresSaver(AsyncPostgresSaver):
         thread_id = config["configurable"]["thread_id"]
         checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
         checkpoint_id = get_checkpoint_id(config)
-        if checkpoint_id is None:
+        if not checkpoint_id:
             target = await self.aget_tuple(config)
             if target is None:
                 return {channel: {"writes": []} for channel in channels}
@@ -42,12 +42,10 @@ class BatchedDeltaPostgresSaver(AsyncPostgresSaver):
             f"checkpoint -> 'channel_values' -> %s AS inline_{index}"
             for index in range(len(channels))
         ]
-        stage1_sql = (
+        stage1_prefix = (
             "SELECT checkpoint_id, parent_checkpoint_id, "
             + ", ".join(columns)
             + " FROM checkpoints WHERE thread_id = %s AND checkpoint_ns = %s"
-            " AND (%s::text IS NULL OR checkpoint_id < %s)"
-            " ORDER BY checkpoint_id DESC LIMIT %s"
         )
         parent_of: dict[str, str | None] = {}
         versions: list[dict[str, str | None]] = [{} for _ in channels]
@@ -58,12 +56,17 @@ class BatchedDeltaPostgresSaver(AsyncPostgresSaver):
         seed_inline: dict[str, Any] = {}
         walk_cursors: dict[str, str | None] = {}
         seeded: set[str] = set()
-        cursor: str | None = None
+        cursor: str | None = checkpoint_id
+        include_cursor = True
 
         async with self._cursor() as cur:
             while True:
                 params: list[Any] = [value for channel in channels for value in (channel, channel)]
-                params.extend([thread_id, checkpoint_ns, cursor, cursor, _DELTA_PAGE_SIZE])
+                stage1_sql = (
+                    stage1_prefix + f" AND checkpoint_id {'<=' if include_cursor else '<'} %s"
+                    " ORDER BY checkpoint_id DESC LIMIT %s"
+                )
+                params.extend([thread_id, checkpoint_ns, cursor, _DELTA_PAGE_SIZE])
                 await cur.execute(stage1_sql, params)
                 page = await cur.fetchall()
                 if not page:
@@ -110,6 +113,7 @@ class BatchedDeltaPostgresSaver(AsyncPostgresSaver):
                 if len(seeded) == len(channels) or len(page) < _DELTA_PAGE_SIZE:
                     break
                 cursor = oldest
+                include_cursor = False
 
         channels_with_chain = [channel for channel in channels if chains[channel]]
         channels_with_seed = [channel for channel in channels if seed_versions[channel] is not None]

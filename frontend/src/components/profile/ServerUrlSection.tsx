@@ -91,7 +91,7 @@ export function ServerUrlSection() {
           tabIndex={-1}
           aria-label={t("serverSetup.title")}
           aria-busy={testing}
-          className="mt-3 space-y-2 outline-none"
+          className="mt-3 space-y-2 outline-hidden"
           onSubmit={(event) => {
             event.preventDefault();
             void connect(input);

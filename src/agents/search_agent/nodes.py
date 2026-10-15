@@ -280,6 +280,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         if _image_mw:
             mw.append(_image_mw)
         sections = subagent_prompt_sections if prompt_sections is None else prompt_sections
+        sections = [system_prompt, *[section for section in sections if section != system_prompt]]
         if sections:
             mw.append(SectionPromptMiddleware(sections=sections))
         if sandbox_backend:
@@ -778,7 +779,7 @@ async def _create_backend_and_prompt(
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
         backend = create_persistent_backend(
-            assistant_id,
+            assistant_id=assistant_id,
             user_id=user_id,
             session_id=state.get("session_id", str(uuid.uuid4())),
         )

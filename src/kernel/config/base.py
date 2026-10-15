@@ -374,7 +374,7 @@ class Settings(BaseSettings):
             "https://localhost",
         ]
     )
-    DEFAULT_AGENT: str = "fast"
+    DEFAULT_AGENT: str = "search"
     DEFAULT_MODEL_ID: str = ""
     WELCOME_SUGGESTIONS: list = Field(
         default_factory=lambda: [

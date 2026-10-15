@@ -1,7 +1,7 @@
 """
 Agent 节点共享工具函数
 
-从 search_agent/nodes.py 和 fast_agent/nodes.py 中提取的公共逻辑。
+从 search_agent/nodes.py 和 team_agent/nodes.py 中提取的公共逻辑。
 """
 
 from __future__ import annotations
@@ -100,7 +100,7 @@ async def resolve_fallback_model(
     Args:
         model_id: 当前模型的 DB ID（优先）
         selected_model: 当前模型的 value 字符串（备选）
-        log_prefix: 日志前缀，如 "[FastAgent]" 或 "[Agent]"
+        log_prefix: 日志前缀，如 "[Agent]" 或 "[Agent]"
 
     Returns:
         fallback model 的 value 字符串，或 None（无 fallback / 查询失败）

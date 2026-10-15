@@ -2,7 +2,7 @@
 Quick Agent 状态定义
 
 messages channel 继承 deepagents 的 DeepAgentState（DeltaChannel）：
-fast/search/team 的内层图同款格式，跨 agent 切换会话时历史双向互通
+search/team 的内层图同款格式，跨 agent 切换会话时历史双向互通
 （BinaryOperatorAggregate 形状的 messages 读不了 DeltaChannel 的
 增量 checkpoint，这是必须同款的原因）。
 """

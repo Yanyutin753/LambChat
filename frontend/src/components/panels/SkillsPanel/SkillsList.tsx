@@ -1,6 +1,7 @@
+import { GitHubIcon } from "../../landing/components/Icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Plus, Check, Github, Archive, X } from "lucide-react";
+import { FolderOpen, Plus, Check, Archive, X } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { SkillsListSkeleton, SkillsPanelSkeleton } from "../../skeletons";
 import { Pagination } from "../../common/Pagination";
@@ -147,7 +148,7 @@ export function SkillsList({
       {canWrite && (
         <>
           <Button variant="secondary" onClick={onGithubClick} className="h-10">
-            <Github size={16} />
+            <GitHubIcon />
             <span className="hidden sm:inline">{t("skills.github")}</span>
           </Button>
           <Button variant="secondary" onClick={onZipClick} className="h-10">

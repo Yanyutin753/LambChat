@@ -20,9 +20,9 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.responses_cache import (
     session_prompt_cache_key,
-    set_responses_prompt_cache_key,
 )
 from src.infra.logging import get_logger
+from src.infra.storage.checkpoint import _prune_memory_saver_storage
 from src.infra.tracing.langfuse_client import build_langfuse_metadata, langfuse_tracer
 from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
@@ -38,53 +38,9 @@ logger = get_logger(__name__)
 _AGENT_REGISTRY: Dict[str, Type[Any]] = {}
 
 
-def _coerce_checkpoint_time(ts_raw: Any, cutoff_time: datetime) -> datetime | None:
-    checkpoint_time = None
-    if isinstance(ts_raw, str):
-        try:
-            checkpoint_time = datetime.fromisoformat(ts_raw)
-        except (ValueError, TypeError):
-            return None
-    else:
-        try:
-            checkpoint_time = datetime.fromtimestamp(float(ts_raw))
-        except (TypeError, ValueError):
-            return None
-
-    if checkpoint_time.tzinfo is None and cutoff_time.tzinfo is not None:
-        checkpoint_time = checkpoint_time.replace(tzinfo=timezone.utc)
-    return checkpoint_time
-
-
-def _prune_memory_saver_storage(storage: Any, cutoff_time: datetime) -> int:
-    to_delete = []
-
-    for thread_id in list(storage.keys()):
-        try:
-            checkpoints = storage.get(thread_id, {})
-            if not checkpoints:
-                to_delete.append(thread_id)
-                continue
-
-            latest_checkpoint = max(checkpoints.values(), key=lambda x: getattr(x, "ts", 0))
-            checkpoint_time = _coerce_checkpoint_time(
-                getattr(latest_checkpoint, "ts", "0"),
-                cutoff_time,
-            )
-
-            if checkpoint_time is not None and checkpoint_time < cutoff_time:
-                to_delete.append(thread_id)
-        except Exception:
-            pass
-
-    deleted_count = 0
-    for thread_id in to_delete:
-        try:
-            del storage[thread_id]
-            deleted_count += 1
-        except Exception:
-            pass
-    return deleted_count
+def normalize_agent_id(agent_id: str) -> str:
+    """Old sessions and preferences use fast; execution now belongs to search."""
+    return "search" if agent_id == "fast" else agent_id
 
 
 def register_agent(agent_id: str):
@@ -329,17 +285,23 @@ class BaseGraphAgent(ABC):
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """绑定会话级 prompt_cache_key 后执行 _stream。
 
-        fast/search/team 各自重写 _stream，因此绑定放在这个未被重写的公共
+        search/team 各自重写 _stream，因此绑定放在这个未被重写的公共
         入口：graph 任务（ensure_future/create_task 复制当前上下文）与嵌套
         子 agent 都继承同一个 key，对齐 Codex 的会话级缓存路由语义。
         """
-        # 每轮事件重新绑定（而非入口 set + finally reset）：stall 看门狗会把
-        # 每个 __anext__ 包成独立 asyncio.Task（context 副本），入口 set 的值
-        # 无法跨副本可见，token 复位还会跨 context 报错。幂等 set 让每个副本
-        # 都拿到会话级 key；key 随副本消亡，无需复位。
-        async for event in self._stream(message, session_id, user_id=user_id, **kwargs):
-            set_responses_prompt_cache_key(session_id)
-            yield event
+        # Bind before each pull: stream watchdogs may execute each pull in a new Task.
+        stream = self._stream(message, session_id, user_id=user_id, **kwargs)
+        try:
+            while True:
+                try:
+                    with session_prompt_cache_key(session_id):
+                        event = await anext(stream)
+                except StopAsyncIteration:
+                    break
+                yield event
+        finally:
+            with session_prompt_cache_key(session_id):
+                await stream.aclose()
 
     async def _stream(
         self,
@@ -784,6 +746,7 @@ class AgentFactory:
     @classmethod
     async def get(cls, agent_id: str) -> BaseGraphAgent:
         """获取 Agent 实例（单例）"""
+        agent_id = normalize_agent_id(agent_id)
         if agent_id in cls._instances:
             return cls._instances[agent_id]
 
@@ -866,6 +829,7 @@ class AgentFactory:
         )
 
         # 获取所有注册 agents
+        default_agent_id = normalize_agent_id(default_agent_id) if default_agent_id else None
         all_agents = cls.list_agents(default_agent_id)
         all_agent_ids = {a["id"] for a in all_agents}
 
@@ -878,11 +842,21 @@ class AgentFactory:
         global_configs = [] if catalog_configs else await storage.get_global_config()
 
         if catalog_configs:
-            enabled_agent_ids = {a.id for a in catalog_configs if a.enabled}
+            configured_ids = {a.id for a in catalog_configs}
+            enabled_agent_ids = {
+                normalize_agent_id(a.id)
+                for a in catalog_configs
+                if a.enabled and not (a.id == "fast" and "search" in configured_ids)
+            }
             logger.info(f"[get_filtered_agents] catalog config exists, enabled={enabled_agent_ids}")
         elif global_configs:
             # 全局配置已保存过 → 以它为准（即使全部禁用也尊重）
-            enabled_agent_ids = {a.id for a in global_configs if a.enabled}
+            configured_ids = {a.id for a in global_configs}
+            enabled_agent_ids = {
+                normalize_agent_id(a.id)
+                for a in global_configs
+                if a.enabled and not (a.id == "fast" and "search" in configured_ids)
+            }
             logger.info(f"[get_filtered_agents] global config exists, enabled={enabled_agent_ids}")
         else:
             # 从未配置过全局设置 → 默认全部启用
@@ -897,7 +871,7 @@ class AgentFactory:
                 # 角色有配置（包括空列表）
                 if role_allowed is None:
                     role_allowed = set()
-                role_allowed.update(role_config)
+                role_allowed.update(normalize_agent_id(aid) for aid in role_config)
 
         if role_allowed is None:
             # 所有角色都未配置 → 使用全局配置
@@ -955,6 +929,7 @@ class AgentFactory:
 
 def get_agent_class(agent_id: str) -> Type[BaseGraphAgent]:
     """获取已注册的 Agent 类"""
+    agent_id = normalize_agent_id(agent_id)
     if agent_id not in _AGENT_REGISTRY:
         raise AppError(ErrorCode.AGENT_NOT_REGISTERED, args={"agent": agent_id})
     return _AGENT_REGISTRY[agent_id]
@@ -962,6 +937,7 @@ def get_agent_class(agent_id: str) -> Type[BaseGraphAgent]:
 
 def resolve_agent_name(agent_id: str) -> str:
     """Resolve a stable display name for trace and presenter metadata."""
+    agent_id = normalize_agent_id(agent_id)
     if agent_id not in _AGENT_REGISTRY:
         try:
             from src.agents import discover_agents

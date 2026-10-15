@@ -98,6 +98,12 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "create_retry_middleware", lambda **_kwargs: [])
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
+    monkeypatch.setattr(module.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(
+        getattr(module, "backend_setup", module),
+        "create_persistent_backend",
+        lambda **_kwargs: object(),
+    )
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)
@@ -124,15 +130,17 @@ def _patch_tool_search_middleware(monkeypatch: pytest.MonkeyPatch) -> list[objec
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_propagates_disabled_skills_to_inner_config(
+async def test_agent_node_propagates_disabled_skills_to_inner_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     presenter = object()
@@ -146,7 +154,7 @@ async def test_fast_agent_node_propagates_disabled_skills_to_inner_config(
         }
     }
 
-    await fast_nodes.fast_agent_node(
+    await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -156,19 +164,19 @@ async def test_fast_agent_node_propagates_disabled_skills_to_inner_config(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_passes_backend_instance_to_deepagents(
+async def test_agent_node_passes_backend_instance_to_deepagents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
 
     backend_instance = object()
 
     monkeypatch.setattr(
-        fast_nodes,
+        search_without_sandbox_nodes,
         "create_persistent_backend",
         lambda **_kwargs: backend_instance,
     )
@@ -183,7 +191,7 @@ async def test_fast_agent_node_passes_backend_instance_to_deepagents(
         }
     }
 
-    await fast_nodes.fast_agent_node(
+    await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -195,22 +203,30 @@ async def test_fast_agent_node_passes_backend_instance_to_deepagents(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_subagent_keeps_functional_middleware(
+async def test_search_without_sandbox_subagent_keeps_functional_middleware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     binary = object()
     artifact = object()
     activity = object()
-    monkeypatch.setattr(fast_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
-    monkeypatch.setattr(fast_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
-    monkeypatch.setattr(fast_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
-    monkeypatch.setattr(fast_nodes.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary
+    )
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact
+    )
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity
+    )
+    monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_MEMORY", True)
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     config = {
@@ -222,7 +238,7 @@ async def test_fast_agent_subagent_keeps_functional_middleware(
         }
     }
 
-    await fast_nodes.fast_agent_node(
+    await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -237,15 +253,17 @@ async def test_fast_agent_subagent_keeps_functional_middleware(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
+async def test_search_without_sandbox_subagent_tool_search_uses_isolated_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     captured_managers = _patch_tool_search_middleware(monkeypatch)
 
     deferred_manager = _FakeDeferredManager()
@@ -259,7 +277,7 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
         }
     }
 
-    await fast_nodes.fast_agent_node(
+    await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -273,15 +291,17 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_returns_output_text_before_final_processor_cleanup(
+async def test_agent_node_returns_output_text_before_final_processor_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     _FakeEventProcessor.next_output_text = "vision answer"
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -294,7 +314,7 @@ async def test_fast_agent_node_returns_output_text_before_final_processor_cleanu
         }
     }
 
-    result = await fast_nodes.fast_agent_node(
+    result = await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -303,17 +323,19 @@ async def test_fast_agent_node_returns_output_text_before_final_processor_cleanu
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_reads_existing_state_messages_for_recommendations(
+async def test_agent_node_reads_existing_state_messages_for_recommendations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
-    monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
+    monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
 
     import src.agents.core.recommendations as recommendations
 
@@ -333,7 +355,7 @@ async def test_fast_agent_node_reads_existing_state_messages_for_recommendations
         }
     }
 
-    result = await fast_nodes.fast_agent_node(
+    result = await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -344,17 +366,19 @@ async def test_fast_agent_node_reads_existing_state_messages_for_recommendations
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_schedules_recommendations_with_final_output(
+async def test_agent_node_schedules_recommendations_with_final_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
-    monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
+    monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
     calls = []
 
@@ -388,7 +412,7 @@ async def test_fast_agent_node_schedules_recommendations_with_final_output(
         }
     }
 
-    await fast_nodes.fast_agent_node(
+    await search_without_sandbox_nodes.agent_node(
         {
             "input": "[User message sent at: 2026-06-06 18:42:00 +00:00 UTC] hello",
             "session_id": "session-1",
@@ -404,16 +428,18 @@ async def test_fast_agent_node_schedules_recommendations_with_final_output(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_continues_when_recommendation_scheduling_fails(
+async def test_agent_node_continues_when_recommendation_scheduling_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
-    monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
+    _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
+    monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
 
     def fail_schedule(*_args, **_kwargs):
@@ -433,7 +459,7 @@ async def test_fast_agent_node_continues_when_recommendation_scheduling_fails(
         }
     }
 
-    result = await fast_nodes.fast_agent_node(
+    result = await search_without_sandbox_nodes.agent_node(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,
     )
@@ -936,18 +962,18 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_language_section_bytes_stable_across_turns(
+async def test_agent_node_language_section_bytes_stable_across_turns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """语言段是 agent_options 的纯函数：连续两轮字节一致，前缀缓存不失效。"""
     _reset_fake_event_processor()
-    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_without_sandbox_nodes
 
     async def run_turn(agent_options: dict) -> str:
         fake_graph = _FakeDeepAgent()
-        _patch_common(monkeypatch, fast_nodes, fake_graph)
+        _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
         context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
-        await fast_nodes.fast_agent_node(
+        await search_without_sandbox_nodes.agent_node(
             {"input": "hello", "session_id": "session-1", "attachments": []},
             {
                 "configurable": {
@@ -978,7 +1004,7 @@ async def test_fast_agent_node_language_section_bytes_stable_across_turns(
     )
 
 
-@pytest.mark.parametrize("agent", ["fast", "search", "team"])
+@pytest.mark.parametrize("agent", ["search", "team"])
 async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypatch, agent):
     import importlib
     from unittest.mock import AsyncMock
@@ -1030,7 +1056,7 @@ async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypa
         context = SimpleNamespace(user_id="user", skills=[], deferred_manager=None)
     node = getattr(
         module,
-        {"fast": "fast_agent_node", "search": "agent_node", "team": "team_router_node"}[agent],
+        {"search": "agent_node", "team": "team_router_node"}[agent],
     )
     with pytest.raises(AppError) as caught:
         await node(

@@ -337,7 +337,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                   #{index + 1}
                 </div>
                 {image.description && (
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-2 pb-1.5 pt-4 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/55 to-transparent px-2 pb-1.5 pt-4 opacity-0 group-hover/img:opacity-100 transition-opacity">
                     <span className="block text-white/90 text-10 leading-snug line-clamp-2 text-left drop-shadow-sm">
                       {truncate(image.description, 90)}
                     </span>

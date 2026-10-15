@@ -44,5 +44,5 @@ def test_settings_does_not_mark_explicit_secrets_as_generated() -> None:
 def test_default_agent_setting_points_to_registered_agent_id() -> None:
     settings = Settings(_env_file=None)
 
-    assert settings.DEFAULT_AGENT == "fast"
-    assert SETTING_DEFINITIONS["DEFAULT_AGENT"]["default"] == "fast"
+    assert settings.DEFAULT_AGENT == "search"
+    assert SETTING_DEFINITIONS["DEFAULT_AGENT"]["default"] == "search"

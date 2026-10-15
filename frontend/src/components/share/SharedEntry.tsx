@@ -80,7 +80,7 @@ function SharedContentLoader({ shareId }: { shareId: string | undefined }) {
   }, [error, data]);
 
   return (
-    <div ref={rootRef} tabIndex={-1} data-shared-entry className="outline-none">
+    <div ref={rootRef} tabIndex={-1} data-shared-entry className="outline-hidden">
       {loading || error ? (
         <main className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center px-4 py-8">
           {loading ? (

@@ -158,7 +158,7 @@ export function SkillCard({
                   <LoadingSpinner color="text-current" size={16} />
                 </button>
               ) : userSkillsLoading ? (
-                <span className="inline-flex items-center justify-center w-8 h-8">
+                <span className="inline-flex items-center justify-center w-9 h-9">
                   <LoadingSpinner
                     color="text-current"
                     size={16}

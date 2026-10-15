@@ -2,8 +2,8 @@
 
 ## 前置条件
 
-- Python 3.12+
-- Node.js 18+（用于前端构建）
+- Python >=3.12, <3.15
+- Node.js 22.22.2+（用于前端构建）
 - MongoDB
 - Redis
 
@@ -58,7 +58,7 @@ pnpm dev       # 启动前端开发服务器（端口 3001）
 |------|------|
 | 后端 | Python 3.12, FastAPI, Uvicorn |
 | Agent 运行时 | LangGraph |
-| 前端 | React 19, Vite 6, TypeScript, TailwindCSS |
+| 前端 | React 19, Vite 8, TypeScript 7, TailwindCSS 4 |
 | 数据库 | MongoDB（主数据库）, Redis（缓存/发布订阅） |
 | 可选数据库 | PostgreSQL（检查点存储） |
 | 对象存储 | S3 兼容（AWS、阿里云、MinIO） |

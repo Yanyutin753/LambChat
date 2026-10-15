@@ -165,7 +165,7 @@ export function SandboxMachinesCard() {
                       if (e.key === "Enter") void submitRename();
                       if (e.key === "Escape") setRenamingId(null);
                     }}
-                    className="min-w-0 flex-1 rounded-md border border-amber-300 dark:border-amber-500/60 bg-theme-bg-card dark:bg-stone-800 px-2 py-1 text-14 text-theme-text dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="min-w-0 flex-1 rounded-md border border-amber-300 dark:border-amber-500/60 bg-theme-bg-card dark:bg-stone-800 px-2 py-1 text-14 text-theme-text dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
                   />
                   <button
                     type="button"

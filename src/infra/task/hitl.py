@@ -3,7 +3,7 @@
 interrupt 模式下，ask_human 通过 LangGraph interrupt() 挂起并持久化
 checkpoint，进程重启后状态不丢。对齐 deepagents 官方 HITL 语义：
 无超时、无限期等待，用户响应（POST /human/{id}/respond）通过提交一个
-携带 hitl_resume 载荷的恢复尝试继续同一逻辑运行：重新进入 fast_agent_node，
+携带 hitl_resume 载荷的恢复尝试继续同一逻辑运行：重新进入 agent_node，
 以 Command(resume=...) 从断点继续执行。
 
 跨副本重复恢复由 Redis 分布式锁 + 审批状态原子流转双重防护。
@@ -555,7 +555,7 @@ async def submit_hitl_resume_run(
             dispatch_id = resume_attempt_id or f"hitl-resume:{approval.id}:{uuid.uuid4().hex}"
             run_id, _ = await manager.submit_arq(
                 session_id=session_id,
-                agent_id=str(metadata.get("agent_id") or "fast"),
+                agent_id=str(metadata.get("agent_id") or "search"),
                 message="",
                 user_id=str(session.user_id),
                 executor_key=executor_key,
@@ -578,7 +578,7 @@ async def submit_hitl_resume_run(
                 }
             run_id, _ = await manager.submit(
                 session_id,
-                str(metadata.get("agent_id") or "fast"),
+                str(metadata.get("agent_id") or "search"),
                 "",
                 str(session.user_id),
                 executor_fn,

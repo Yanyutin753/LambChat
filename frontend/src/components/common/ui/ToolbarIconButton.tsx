@@ -20,7 +20,7 @@ const variants: Record<ToolbarIconButtonVariant, string> = {
 };
 
 const shared =
-  "flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] sm:size-8 sm:min-h-0 sm:min-w-0 transition-all duration-200 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg-card)]";
+  "flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] sm:size-8 sm:min-h-0 sm:min-w-0 transition-all duration-200 active:scale-95 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg-card)]";
 
 export function ToolbarIconButton({
   icon,

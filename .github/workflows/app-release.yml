@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   PNPM_VERSION: '10.32.1'
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
   LAMBCHAT_APP_URL: ${{ inputs.app_url || vars.LAMBCHAT_APP_URL || secrets.LAMBCHAT_APP_URL }}
@@ -96,6 +96,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG#v}"
+          [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[1-9][0-9]*)?$ ]] || { echo "Invalid release tag"; exit 1; }
+          build=999
+          if [[ "$tag" == *-dev.* ]]; then build="${tag##*-dev.}"; fi
+          [ "$build" -le 999 ] || { echo "dev sequence must be below 999"; exit 1; }
+          if [[ "$tag" == *-dev.* ]]; then [ "$build" -lt 999 ] || exit 1; fi
+          tag="${tag%%-dev.*}"
           pkg="$(node -p 'require("./frontend/package.json").version')"
           tauri="$(node -p 'JSON.parse(require("fs").readFileSync("frontend/src-tauri/tauri.conf.json","utf8")).version')"
           gradle_name="$(grep -E '^\s+versionName' frontend/android/app/build.gradle | sed -E 's/.*versionName "([^"]+)".*/\1/')"
@@ -105,14 +111,19 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(printf '%s' "$tag" | tr -d '.')"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done
+          ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
+          if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"
@@ -443,6 +454,7 @@ jobs:
         run: |
           set -euo pipefail
           expected="${RELEASE_TAG#v}"
+          expected="${expected%%-dev.*}"
           run_daemon() {
             local bin="$1"
             echo "== smoke: $bin =="
@@ -484,6 +496,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
             if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -491,7 +505,7 @@ jobs:
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
-              --generate-notes >/dev/null 2>&1; then
+              --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
@@ -506,7 +520,7 @@ jobs:
       # DESKTOP_UPDATER_AUTO_PUBLISH 门控——v2.10.3 实测平台 job 无条件
       # 直传击穿烘焙态（汇总 job 的 rm 只挡自己那份），真机抽检防线失守。
       - name: Merge updater platform entry into latest.json
-        if: matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true'
+        if: matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true' && !contains(env.RELEASE_TAG, '-dev.')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -572,6 +586,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG#v}"
+          [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[1-9][0-9]*)?$ ]] || { echo "Invalid release tag"; exit 1; }
+          build=999
+          if [[ "$tag" == *-dev.* ]]; then build="${tag##*-dev.}"; fi
+          [ "$build" -le 999 ] || { echo "dev sequence must be below 999"; exit 1; }
+          if [[ "$tag" == *-dev.* ]]; then [ "$build" -lt 999 ] || exit 1; fi
+          tag="${tag%%-dev.*}"
           pkg="$(node -p 'require("./frontend/package.json").version')"
           tauri="$(node -p 'JSON.parse(require("fs").readFileSync("frontend/src-tauri/tauri.conf.json","utf8")).version')"
           gradle_name="$(grep -E '^\s+versionName' frontend/android/app/build.gradle | sed -E 's/.*versionName "([^"]+)".*/\1/')"
@@ -581,14 +601,19 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(printf '%s' "$tag" | tr -d '.')"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done
+          ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
+          if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"
@@ -628,7 +653,7 @@ jobs:
         # platform-tools 保持与 v3 行为对齐（runner 镜像未含它时兜底）
         uses: android-actions/setup-android@v4
         with:
-          packages: platform-tools
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -692,6 +717,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
             if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -699,7 +726,7 @@ jobs:
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
-              --generate-notes >/dev/null 2>&1; then
+              --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
@@ -708,7 +735,9 @@ jobs:
 
   ios:
     name: iOS
-    runs-on: macos-latest
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
 
     steps:
       - name: Checkout repository
@@ -720,6 +749,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG#v}"
+          [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[1-9][0-9]*)?$ ]] || { echo "Invalid release tag"; exit 1; }
+          build=999
+          if [[ "$tag" == *-dev.* ]]; then build="${tag##*-dev.}"; fi
+          [ "$build" -le 999 ] || { echo "dev sequence must be below 999"; exit 1; }
+          if [[ "$tag" == *-dev.* ]]; then [ "$build" -lt 999 ] || exit 1; fi
+          tag="${tag%%-dev.*}"
           pkg="$(node -p 'require("./frontend/package.json").version')"
           tauri="$(node -p 'JSON.parse(require("fs").readFileSync("frontend/src-tauri/tauri.conf.json","utf8")).version')"
           gradle_name="$(grep -E '^\s+versionName' frontend/android/app/build.gradle | sed -E 's/.*versionName "([^"]+)".*/\1/')"
@@ -729,14 +764,19 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(printf '%s' "$tag" | tr -d '.')"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
             if [ "$v" != "$tag" ]; then echo "✗ $k is $v, expected $tag"; fail=1; fi
           done
+          ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
+          if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"
@@ -822,6 +862,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
             if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -829,7 +871,7 @@ jobs:
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
-              --generate-notes >/dev/null 2>&1; then
+              --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
@@ -879,8 +921,8 @@ jobs:
         env:
           DEVICE_RELEASE_SIGNING_KEY: ${{ secrets.DEVICE_RELEASE_SIGNING_KEY }}
         run: |
-          uv run --no-project --python 3.12 --with cryptography==50.0.1 python scripts/sign_release_assets.py \
-            --directory release-assets --version "$RELEASE_TAG" --commit "$GITHUB_SHA"
+          uv run --no-project --python 3.12 --with cryptography==50.0.2 python scripts/sign_release_assets.py \
+            --directory release-assets --version "${RELEASE_TAG%%-dev.*}" --commit "$GITHUB_SHA"
 
       - name: Generate latest.json updater manifest
         # 公共生成器（scripts/generate_updater_manifest.py，与手动 publish
@@ -895,6 +937,10 @@ jobs:
           RELEASE_NOTES_FILE: release-notes.md
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_TAG" == *-dev.* ]]; then
+            echo "Pre-release: stable updater manifest is prohibited"
+            exit 0
+          fi
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RELEASE_NOTES_FILE"
           RELEASE_PUBLISHED_AT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt)"
           export RELEASE_PUBLISHED_AT
@@ -912,6 +958,8 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: LambChat ${{ env.RELEASE_TAG }}
+          prerelease: ${{ contains(env.RELEASE_TAG, '-dev.') }}
+          make_latest: ${{ contains(env.RELEASE_TAG, '-dev.') && 'false' || 'legacy' }}
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: true
@@ -937,7 +985,9 @@ jobs:
           <!-- macos-gatekeeper-note -->
           ### macOS 安装提示 / macOS install note
 
-          推荐终端一键安装（curl 下载无隔离标记，装完直接可用）：
+          预发布版本请从本页下载对应安装包；下方一键安装命令始终安装稳定版。
+
+          推荐稳定版终端一键安装（curl 下载无隔离标记，装完直接可用）：
           `curl -fsSL https://lambchat.com/install.sh | sh`
 
           浏览器下载 dmg 首次打开若提示「已损坏，无法打开」：将 LambChat 拖入

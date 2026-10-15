@@ -375,7 +375,7 @@ function FeedbackDetailModal({
             <div className="flex items-center gap-3">
               <div
                 className="flex h-9 w-9 items-center justify-center rounded-full
-                bg-gradient-to-br from-stone-200 to-stone-300 dark:from-stone-600 dark:to-stone-700
+                bg-linear-to-br from-stone-200 to-stone-300 dark:from-stone-600 dark:to-stone-700
                 text-stone-600 dark:text-stone-200 font-bold text-12"
               >
                 {feedback.username.charAt(0).toUpperCase()}

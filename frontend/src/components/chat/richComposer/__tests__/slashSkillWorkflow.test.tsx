@@ -43,7 +43,7 @@ describe("rich composer slash Skill workflow", () => {
       screen.queryByRole("listbox", { name: "Slash commands" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Skill writer" })).toBeVisible();
-    expect(latest?.projection.message).toBe("请使用");
+    expect(latest?.projection.message).toBe("请使用 [引用技能：writer]");
     expect(latest?.projection.enabledSkills).toEqual(["writer"]);
   });
 

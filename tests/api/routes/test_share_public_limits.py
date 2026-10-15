@@ -318,3 +318,14 @@ async def test_get_shared_content_returns_full_events_when_event_limit_omitted(
     assert len(response.events) == 7
     assert response.events_limited is False
     assert response.events_limit is None
+
+
+@pytest.fixture(autouse=True)
+def empty_agent_catalog(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        share_route,
+        "get_agent_config_storage",
+        lambda: SimpleNamespace(get_catalog_config=AsyncMock(return_value=[])),
+    )

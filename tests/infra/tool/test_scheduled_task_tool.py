@@ -625,7 +625,7 @@ async def test_create_non_team_task_stores_only_persona_id(
 
     assert result["success"] is True
     request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
-    assert request.agent_id == "fast"
+    assert request.agent_id == "search"
     assert request.input_payload == {
         "message": "Write a brief",
         "persona_preset_id": "persona-1",
@@ -711,7 +711,7 @@ async def test_create_task_searches_persona_by_role_query_and_uses_non_team_agen
         "query": "写作",
     }
     request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
-    assert request.agent_id == "fast"
+    assert request.agent_id == "search"
     assert request.input_payload == {
         "message": "Write a brief",
         "persona_preset_id": "persona-writer",

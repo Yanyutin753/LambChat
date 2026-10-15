@@ -137,7 +137,7 @@ describe("rich composer reference nodes", () => {
     });
 
     expect(projectComposerSnapshot(handle.current!.getSnapshot()).message).toBe(
-      "查看 [引用文件：notes.txt]",
+      "查看 [引用文件：notes.txt] [引用技能：writer]",
     );
   });
 

@@ -294,7 +294,6 @@ export function MemoryPanel() {
               </span>
             </Button>
             <Button
-              variant="primary"
               onClick={fetchMemories}
               aria-label={t("common.refresh")}
               disabled={isLoading}

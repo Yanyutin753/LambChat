@@ -51,6 +51,9 @@ vi.mock("react-hot-toast", () => ({
   toast: { success: api.toast, error: api.toast },
 }));
 vi.mock("../../LocalSandboxSection", () => ({ default: () => null }));
+vi.mock("../../../../services/api/auth", () => ({
+  authApi: { updateMetadata: api.metadata },
+}));
 vi.mock("../../../../services/api", () => ({
   authApi: { updateMetadata: api.metadata },
   agentApi: {

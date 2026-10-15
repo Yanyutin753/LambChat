@@ -235,7 +235,7 @@ export function SkillFormNormal(a: SkillFormActions) {
                     filePath={a.files[a.activeFileIndex]?.path}
                     readOnly
                   />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--theme-bg)] to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-linear-to-t from-[var(--theme-bg)] to-transparent" />
                   <Button
                     variant="primary"
                     onClick={() => a.toggleFullscreen(true)}

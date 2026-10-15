@@ -1,4 +1,4 @@
-"""Shared persistent-subagent assembly for fast, search and team agents."""
+"""Shared persistent-subagent assembly for search and team agents."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any, cast

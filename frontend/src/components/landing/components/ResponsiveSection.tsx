@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
-import { RESPONSIVE_SHOTS } from "../data";
+import type { ScreenshotItem } from "../data";
 import { SectionHeading } from "./SectionHeading";
 interface ResponsiveSectionProps {
+  shots: ScreenshotItem[];
   onOpenViewer: (src: string, alt: string) => void;
 }
 
-export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
+export function ResponsiveSection({ shots, onOpenViewer }: ResponsiveSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -19,14 +20,14 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
           title={t("landing.responsiveDesign")}
           description={t("landing.responsiveDesignDesc")}
         />
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-8">
-          {RESPONSIVE_SHOTS.map((s) => (
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)] items-stretch gap-5 sm:gap-6 max-w-4xl mx-auto">
+          {shots.map((s) => (
             <button
               type="button"
               aria-label={t(`landing.${s.altKey}`)}
               key={s.src}
               data-reveal-scale
-              className="public-preview blog-screenshot-card group relative rounded-2xl overflow-hidden cursor-pointer bg-theme-bg-card dark:bg-stone-900/50 p-3 sm:p-4 transition-all duration-500 hover:-translate-y-1.5"
+              className="public-preview blog-screenshot-card group relative overflow-hidden cursor-pointer p-4 sm:p-6"
               onClick={() => onOpenViewer(s.src, t(`landing.${s.altKey}`))}
             >
               <img
@@ -34,7 +35,7 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
                 alt={t(`landing.${s.altKey}`)}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                className="mx-auto w-auto max-w-full max-h-44 sm:max-h-72 lg:max-h-80 object-contain rounded-xl"
+                className="mx-auto w-auto max-w-full h-80 sm:h-[28rem] lg:h-[32rem] object-contain rounded-lg"
               />
             </button>
           ))}

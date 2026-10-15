@@ -73,7 +73,7 @@ describe("RichChatComposer", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Skill writer" })).toBeVisible();
     expect(latest?.projection).toMatchObject({
-      message: "请处理 [引用文件：notes.txt]",
+      message: "请处理 [引用文件：notes.txt] [引用技能：writer]",
       activeReferenceIds: ["ref-1"],
       enabledSkills: ["writer"],
       isEmpty: false,

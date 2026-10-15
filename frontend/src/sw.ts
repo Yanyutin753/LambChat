@@ -140,7 +140,7 @@ self.addEventListener("push", (event) => {
     icon?: string;
     badge?: string;
     url?: string;
-  } = {};
+  };
 
   try {
     payload = event.data ? event.data.json() : {};

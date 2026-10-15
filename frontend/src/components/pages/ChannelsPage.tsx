@@ -1,4 +1,3 @@
-import { AgentAvatar } from "../common/AgentAvatar";
 /**
  * Channels Page - Lists all available channels and their instances
  */
@@ -75,21 +74,21 @@ function ChannelCard({
     >
       {gradient && (
         <div
-          className="scb__banner relative h-12 shrink-0"
+          className="scb__banner relative shrink-0"
           style={{
             background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
           }}
         >
-          <div className="absolute inset-0 z-[3] flex items-start justify-end p-2">
+          <div className="relative z-[3] flex min-h-12 flex-wrap items-start justify-end gap-1.5 px-3 py-2">
             {bannerOverlay}
           </div>
         </div>
       )}
       <div className="scb__body flex flex-1 flex-col p-3 -mt-3 pt-4">
         <div className="scb__header flex items-center gap-2">
-          <AgentAvatar seed={title} size={36}>
+          <div className="flex size-9 shrink-0 items-center justify-center">
             {icon}
-          </AgentAvatar>
+          </div>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-16 font-semibold font-serif text-theme-text leading-tight">
               <button
@@ -386,7 +385,9 @@ export function ChannelsPage() {
                         title={ct.display_name}
                         description={ct.description}
                         gradient={gradient}
-                        icon={<ChannelIcon channelType={ct.channel_type} />}
+                        icon={
+                          <ChannelIcon channelType={ct.channel_type} size={24} />
+                        }
                         statusPills={
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {instanceCount > 0 && (

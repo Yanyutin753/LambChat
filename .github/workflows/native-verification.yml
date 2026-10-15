@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   PNPM_VERSION: '10.32.1'
   CARGO_BUILD_JOBS: '1'
   RAYON_NUM_THREADS: '1'
@@ -127,9 +127,9 @@ jobs:
         working-directory: frontend
         shell: pwsh
         run: |
-          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 icon resources/native-icon.png
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.11.2 build --ci --no-sign --bundles nsis --config src-tauri/verification.conf.json
+          python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.12.3 build --ci --no-sign --bundles nsis --config src-tauri/verification.conf.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }

@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
-  Bot,
   CalendarClock,
   Clock,
   History,
@@ -17,6 +16,9 @@ import {
 import { scheduledTaskApi } from "../../../services/api/scheduledTask";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types";
+import { AgentIcon } from "../../agent/AgentIcon";
+import { useAgentCatalog } from "../../agent/useAgentCatalog";
+import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import type { ScheduledTask } from "../../../types/scheduledTask";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import {
@@ -40,10 +42,11 @@ function SessionScheduledTaskPanelBody({
   refreshKey?: string | number;
   onMutate?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission(Permission.SCHEDULED_TASK_WRITE);
+  const agents = useAgentCatalog();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -147,8 +150,8 @@ function SessionScheduledTaskPanelBody({
                   <span className="truncate">{formatTaskTrigger(task, t)}</span>
                 </span>
                 <span className="scheduled-task-mini-card__pill">
-                  <Bot size={12} />
-                  <span className="truncate">{task.agent_id}</span>
+                  <AgentIcon icon={agents.find((agent) => agent.id === task.agent_id)?.icon} seed={task.agent_id} size={14} />
+                  <span className="truncate">{resolveAgentReferenceName(task.agent_id, "", agents, i18n.language, t)}</span>
                 </span>
                 {task.last_run_at ? (
                   <>

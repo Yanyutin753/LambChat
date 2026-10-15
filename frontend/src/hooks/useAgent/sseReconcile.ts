@@ -160,7 +160,7 @@ export async function reconcileOpenSession(
   const generation = ctx.sseGenerationRef.current;
   const localRunId = ctx.currentRunIdRef.current;
 
-  let sessionData: Awaited<ReturnType<typeof sessionApi.get>> | null = null;
+  let sessionData: Awaited<ReturnType<typeof sessionApi.get>> | null;
   try {
     sessionData = await sessionApi.get(currentSessId);
   } catch (err) {

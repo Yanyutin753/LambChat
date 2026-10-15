@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
-import type { AgentCatalogLabels } from "../../types";
+import type { AgentCatalogLocale, AgentInfo } from "../../types";
+import en from "../../i18n/locales/en.json";
 
 export const AGENT_CATALOG_LOCALES = [
   { code: "zh", label: "中文" },
@@ -13,7 +14,7 @@ type AgentDisplaySource = {
   id?: string;
   name: string;
   description: string;
-  labels?: AgentCatalogLabels;
+  labels?: Record<string, Partial<AgentCatalogLocale>>;
 };
 
 type Translate = TFunction;
@@ -57,4 +58,27 @@ export function resolveAgentDescription(
     agent.description,
     t,
   );
+}
+
+/** Resolve stored names and IDs, including public pages without a loaded catalog. */
+export function resolveAgentReferenceName(
+  id: string | undefined,
+  name: string,
+  agents: readonly AgentInfo[],
+  locale: string,
+  t: Translate,
+  labels?: AgentDisplaySource["labels"],
+): string {
+  const legacyId = Object.entries(en.agents).find(([key, value]) =>
+    name === value.name || name === key || name === `agents.${key}.name`,
+  )?.[0];
+  const agentId = legacyId && (!id || id === name) ? legacyId : id;
+  if (labels && Object.keys(labels).length) {
+    return resolveAgentDisplayName({ id: agentId, name, description: "", labels }, locale, t);
+  }
+  const agent = agents.find((item) => item.id === id || item.id === name)
+    ?? agents.find((item) => item.name === name)
+    ?? agents.find((item) => item.id === legacyId);
+  if (agent) return resolveAgentDisplayName(agent, locale, t);
+  return agentId ? t(`agents.${agentId}.name`, name || agentId) : name;
 }

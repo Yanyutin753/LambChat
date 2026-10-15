@@ -1,3 +1,5 @@
+@reference "./tailwind.css";
+
 /* Scroll-reveal animation for landing page */
 [data-reveal] {
   opacity: 0;

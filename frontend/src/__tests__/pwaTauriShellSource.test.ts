@@ -2,8 +2,7 @@ import { readFileSync } from "node:fs";
 
 /** 桌面壳内 PWA service worker 的接线纪律（源码结构断言）：
  *  - pwa.ts 必须：检测 Tauri 壳 → 不注册 SW → 回收历史已注册的 SW 与缓存
- *  - ChatInput 的 lazy 工厂必须在 module 为 undefined 时抛回 chunk 错误形态
- *    （vite:preloadError 被吞掉后动态 import resolve 成 undefined） */
+ *  - ChatInput 同步导入编辑器，避免编辑器内部新增动态 chunk 就绪竞态。 */
 
 function readSource(relativePath: string): string {
   const url = new URL(relativePath, import.meta.url);
@@ -20,9 +19,12 @@ test("registerLambChatPwa skips registration and cleans up inside the Tauri shel
   expect(source).toMatch(/caches\.keys/);
 });
 
-test("rich composer lazy factory surfaces undefined module as a chunk error", () => {
+test("rich composer has no nested dynamic chunk that can resolve undefined", () => {
   const source = readSource("../components/chat/ChatInput.tsx");
   expect(source).toMatch(
-    /if \(!module\)[\s\S]*?Failed to fetch dynamically imported module/,
+    /import\s*\{[\s\S]*?RichChatComposer[\s\S]*?\} from "\.\/richComposer\/RichChatComposer"/,
+  );
+  expect(source).not.toMatch(
+    /import\("\.\/richComposer\/RichChatComposer"\)/,
   );
 });

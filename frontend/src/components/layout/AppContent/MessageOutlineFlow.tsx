@@ -48,7 +48,7 @@ function UserAvatar({
   username: string;
 }) {
   const fallback = (
-    <div className="flex size-[26px] items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.18)]">
+    <div className="flex size-[26px] items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.18)]">
       <span className="text-11 font-bold text-white leading-none tracking-wide">
         {username.charAt(0).toUpperCase() || "U"}
       </span>

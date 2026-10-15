@@ -43,6 +43,9 @@ vi.mock("react-i18next", () => ({
 vi.mock("react-hot-toast", () => ({
   toast: { success: api.toast, error: api.toast },
 }));
+vi.mock("../../../../services/api/auth", () => ({
+  authApi: { updateUsername: api.username, getProfile: api.profile },
+}));
 vi.mock("../../../../services/api", () => ({
   authApi: { updateUsername: api.username, getProfile: api.profile },
   uploadApi: { uploadAvatar: api.upload, deleteAvatar: api.remove },
