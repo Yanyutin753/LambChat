@@ -4,10 +4,12 @@ const source = readFileSync(new URL("../Header.tsx", import.meta.url), "utf8");
 
 test("mobile sidebar expand toggle matches the sidebar collapse icon color", () => {
   expect(source).toMatch(
-    /className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"/,
+    /className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary max-sm:dark:text-stone-300 hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"/,
   );
-  expect(source).toContain('<SidebarToggleIcon className="size-4" />');
-  expect(source).toContain('<MoreHorizontal size={16} />');
+  expect(source).toContain(
+    '<SidebarToggleIcon mobileFilled className="size-5 sm:size-4" />',
+  );
+  expect(source).toContain("<MoreHorizontal size={16} />");
 });
 
 test("header overflow menu trigger uses theme colors and visible interaction states", () => {
