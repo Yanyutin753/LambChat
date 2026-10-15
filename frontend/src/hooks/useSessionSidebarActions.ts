@@ -87,12 +87,7 @@ export function useSessionSidebarActions({
   }, [readAccount]);
   const unreadRevisions = useRef(new Map<string, number>());
   const readLists = useRef<Array<SessionListHandle | undefined>>([]);
-  readLists.current = [
-    uncategorizedList,
-    pinnedList,
-    ...projectRefs.current.values(),
-    ...scheduledTaskRefs.current.values(),
-  ];
+  readLists.current = [uncategorizedList, pinnedList];
   const unreadEntries = useRef(unreadBySession);
   unreadEntries.current = unreadBySession;
 
@@ -433,6 +428,11 @@ export function useSessionSidebarActions({
   );
 
   useEffect(() => {
+    const getReadLists = () => [
+      ...readLists.current,
+      ...projectRefs.current.values(),
+      ...scheduledTaskRefs.current.values(),
+    ];
     const onRead = (event: Event) => {
       const scope = (event as CustomEvent<SessionReadScope>).detail;
       const matches = (
@@ -444,7 +444,7 @@ export function useSessionSidebarActions({
         (!scope.projectId || scope.projectId === projectId) &&
         (!scope.scheduledTaskId || scope.scheduledTaskId === scheduledTaskId);
       const ids = new Set(
-        readLists.current
+        getReadLists()
           .flatMap((list) => list?.sessions ?? [])
           .filter((session) =>
             matches(
@@ -471,7 +471,7 @@ export function useSessionSidebarActions({
               unreadRevisions.current.get(id) !== revision
             )
               return;
-            for (const list of readLists.current) {
+            for (const list of getReadLists()) {
               const current = list?.sessions.find((item) => item.id === id);
               if (
                 current &&

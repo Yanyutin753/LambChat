@@ -8,6 +8,7 @@ import {
 } from "../useSessionSidebarActions";
 import {
   SESSIONS_READ_EVENT,
+  SESSIONS_READ_INVALIDATED_EVENT,
   type BackendSession,
 } from "../../services/api/session";
 import type { UnreadBySession } from "../../components/sidebar/unreadCounts";
@@ -90,4 +91,74 @@ for (const scope of [
         unread_count: 0,
       });
   });
+}
+
+for (const kind of ["project", "scheduled"] as const) {
+  for (const replacement of ["before event", "during fetch"] as const) {
+    for (const eventName of [SESSIONS_READ_EVENT, SESSIONS_READ_INVALIDATED_EVENT]) {
+      test(`${kind} read reconciles the current child handle replaced ${replacement} (${eventName})`, async () => {
+        const session = {
+          id: "child-session",
+          unread_count: 2,
+          updated_at: "2026-10-15T00:02:00Z",
+          metadata: { project_id: "p1", scheduled_task_id: "t1" },
+        } as BackendSession;
+        const readSession = { ...session, unread_count: 0 };
+        const oldHandle = {
+          sessions: replacement === "before event" ? [] : [session],
+          updateSession: vi.fn(),
+          prependSession: vi.fn(),
+          removeSession: vi.fn(),
+          refresh: async () => {},
+          softRefresh: async () => {},
+        };
+        let visibleUnread = 2;
+        const currentHandle = {
+          ...oldHandle,
+          sessions: [session],
+          updateSession: (updated: BackendSession) => {
+            visibleUnread = updated.unread_count ?? 0;
+          },
+        };
+        const projectRefs = { current: new Map<string, typeof oldHandle>() };
+        const scheduledTaskRefs = { current: new Map<string, typeof oldHandle>() };
+        const childRefs = kind === "project" ? projectRefs : scheduledTaskRefs;
+        childRefs.current.set("child", oldHandle);
+        const emptyList = { ...oldHandle, sessions: [] };
+        let resolve!: (value: BackendSession) => void;
+        if (replacement === "during fetch") {
+          mocks.get.mockReturnValue(new Promise<BackendSession>((done) => {
+            resolve = done;
+          }));
+        } else {
+          mocks.get.mockResolvedValue(readSession);
+        }
+        renderHook(() => useSessionSidebarActions({
+          uncategorizedList: emptyList,
+          projectRefs,
+          scheduledTaskRefs,
+          projects: [],
+          currentSessionId: null,
+          unreadBySession: new Map(),
+          setUnreadBySession: vi.fn(),
+          onNewSession: vi.fn(),
+          onSelectSession: vi.fn(),
+          getProjectRef: () => null,
+        }));
+
+        // Child useImperativeHandle replaces this map entry without a parent render.
+        if (replacement === "before event") childRefs.current.set("child", currentHandle);
+        await act(async () => {
+          window.dispatchEvent(new CustomEvent(eventName, { detail: {} }));
+          if (replacement === "during fetch") {
+            childRefs.current.set("child", currentHandle);
+            resolve(readSession);
+          }
+        });
+
+        expect(visibleUnread).toBe(0);
+        expect(oldHandle.updateSession).not.toHaveBeenCalled();
+      });
+    }
+  }
 }
