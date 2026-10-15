@@ -149,7 +149,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm \
-            cpio \
+            libarchive-tools \
             python3-pyatspi \
             python3-gi \
             gir1.2-atspi-2.0 \
@@ -320,7 +320,7 @@ jobs:
             if [[ "$package" == *.deb ]]; then
               dpkg-deb -x "$package" "$unpack"
             else
-              rpm2cpio "$package" | (cd "$unpack" && cpio -idm --quiet)
+              bsdtar -xf "$package" -C "$unpack"
             fi
             icon="$(find "$unpack/usr/share/icons" -path '*/128x128/apps/*.png' -type f | head -1)"
             test -n "$icon"
