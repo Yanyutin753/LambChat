@@ -122,11 +122,7 @@ export function SkillCard({
           )}
         </>
       }
-      statusPills={
-        <span className="skill-status-pill">
-          {sourceLabel}
-        </span>
-      }
+      statusPills={<span>{sourceLabel}</span>}
       tags={
         skill.tags.length > 0 ? (
           <ResourceCardTags tags={skill.tags} />

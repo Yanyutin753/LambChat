@@ -73,7 +73,7 @@ test("resource cards center their icon beside a compact title and status", () =>
   expect(header?.classList.contains("gap-2")).toBe(true);
   expect(header?.querySelector(".scb__status")?.textContent).toBe("Published");
   const styles = readFileSync("src/styles/card-base.css", "utf8");
-  expect(styles).toMatch(/\.scb__status\s*\{[^}]*margin-top: 0\.375rem;/);
+  expect(styles).toMatch(/\.scb__status\s*\{[^}]*margin-top: 0\.25rem;/);
   expect(styles).toMatch(/\.scb__status > \*\s*\{\s*margin-top: 0;/);
   expect(styles).toMatch(
     /\.scb__status\s*\{[^}]*font-size: 0\.75rem;[^}]*line-height: 1\.25;/,

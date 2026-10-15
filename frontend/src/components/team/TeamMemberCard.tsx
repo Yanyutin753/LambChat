@@ -6,6 +6,7 @@ import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
 import { resolveAgentDisplayName, resolveAgentReferenceName } from "../agent/agentCatalog";
+import { AgentIcon } from "../agent/AgentIcon";
 import { AgentAvatar } from "../common/AgentAvatar";
 import { Select, Textarea, IconButton } from "../common/ui";
 import type { SelectOption } from "../common/ui";
@@ -63,7 +64,8 @@ export function TeamMemberCard({
     ...availableAgents.map((agent) => ({
       value: agent.id,
       label: (
-        <span className="font-serif">
+        <span className="inline-flex min-w-0 items-center gap-2 font-serif">
+          <AgentIcon icon={agent.icon} seed={agent.id} size={18} />
           {resolveAgentDisplayName(agent, i18n.language, t) || agent.id}
         </span>
       ),
@@ -123,7 +125,7 @@ export function TeamMemberCard({
               </span>
               <span className="team-member-card__meta-row">
                 <span className="team-member-card__model" title={agentLabel}>
-                  <Bot size={11} />
+                  <AgentIcon icon={availableAgents.find((agent) => agent.id === member.agent_id)?.icon} seed={member.agent_id || "team"} size={14} />
                   <span className="font-serif">{agentLabel}</span>
                 </span>
                 <span className="team-member-card__model" title={modelLabel}>

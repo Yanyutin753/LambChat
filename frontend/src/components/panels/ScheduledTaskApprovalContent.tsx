@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
+import { AgentIcon } from "../agent/AgentIcon";
 import { useAgentCatalog } from "../agent/useAgentCatalog";
 import { resolveAgentReferenceName } from "../agent/agentCatalog";
 import { clsx } from "clsx";
-import { CalendarClock, TerminalSquare, Check, Minus, Bot } from "lucide-react";
+import { CalendarClock, TerminalSquare, Check, Minus } from "lucide-react";
 
 interface ScheduledTaskApprovalContentProps {
   preview: {
@@ -62,10 +63,10 @@ export function ScheduledTaskApprovalContent({
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.agent")}>
           <MonoChip>
-            <Bot
-              size={11}
-              strokeWidth={2}
-              aria-hidden="true"
+            <AgentIcon
+              icon={agents.find((agent) => agent.id === preview.agent_id)?.icon}
+              seed={preview.agent_id}
+              size={14}
               className="approval-st-chip-icon"
             />
             {agentName}

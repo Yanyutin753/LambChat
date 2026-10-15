@@ -115,7 +115,7 @@ export function TaskSessionList({
                   {/* Left indicator: agent's real icon (emoji / lobe icon) */}
                   <AgentIcon
                     icon={agent?.icon}
-                    seed={agent?.id}
+                    seed={session.agent_id}
                     size={40}
                     className={`scheduled-task-session-card__indicator ${
                       session.is_active
