@@ -29,6 +29,8 @@ jobs:
     name: Desktop (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      UV_PYTHON: "3.12"
     strategy:
       fail-fast: false
       matrix:

@@ -5,10 +5,10 @@ import {
   ChevronRight,
   Copy,
   Minus,
-  PanelLeft,
   Square,
   X,
 } from "lucide-react";
+import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { useNavigationHistory } from "../../../hooks/useNavigationHistory";
 import {
   closeWindow,
@@ -216,7 +216,7 @@ export function TitleBar({
           window.dispatchEvent(new CustomEvent(DESKTOP_SIDEBAR_TOGGLE_EVENT))
         }
       >
-        <PanelLeft size={isMac ? 14 : 16} strokeWidth={2} aria-hidden="true" />
+        <SidebarToggleIcon />
       </TitleIconButton>
 
       {/* 拖拽区：flex 弹性占位（双击最大化由 Tauri 运行时处理） */}

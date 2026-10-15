@@ -19,6 +19,37 @@
   );
 }
 
+/* All header icons and labels share the same 16px content scale. */
+.chat-header,
+[data-sidebar-brand] {
+  --header-content-size: 1rem;
+}
+
+.chat-header__identity > button > svg,
+.chat-header__identity > .relative > button > svg,
+.chat-header__actions > button > svg,
+.chat-header__actions > button > span > svg,
+.chat-header__actions > .relative > button > svg,
+.chat-header nav > div > button > svg,
+[data-sidebar-brand] button > svg {
+  width: var(--header-content-size);
+  height: var(--header-content-size);
+  flex-shrink: 0;
+}
+
+.chat-header__identity > .relative > button > span,
+.chat-header__actions .composer-usage-amount,
+.chat-header nav h1 {
+  font-size: var(--header-content-size);
+  line-height: 1.25rem;
+}
+
+/* The wordmark uses a 62-unit viewBox with 41-unit text. */
+[data-sidebar-brand] [data-wordmark-style] {
+  height: calc(var(--header-content-size) * 62 / 41);
+  width: auto;
+}
+
 /* Keep top-bar icons and labels on the same theme colors in every state. */
 .chat-header__identity > button,
 .chat-header__identity > .relative > button,
@@ -45,14 +76,16 @@
 .chat-header__identity > button,
 .chat-header__identity > .relative > button,
 .chat-header__actions > button,
-.chat-header__actions > .relative > button {
+.chat-header__actions > .relative > button,
+[data-sidebar-brand] button {
   height: 2rem;
   min-height: 2rem;
 }
 
 .chat-header__identity > button,
 .chat-header__actions > button,
-.chat-header__actions > .relative > button {
+.chat-header__actions > .relative > button,
+[data-sidebar-brand] button {
   width: 2rem;
   min-width: 2rem;
   padding-inline: 0;
@@ -66,7 +99,8 @@
 
 @media (max-width: 639px) {
   .chat-header__actions > button,
-  .chat-header__actions > .relative > button {
+  .chat-header__actions > .relative > button,
+  [data-sidebar-brand] button {
     width: 2.25rem;
     height: 2.25rem;
     min-width: 2.25rem;
