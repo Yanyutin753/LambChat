@@ -178,7 +178,7 @@ function TreeFileRow({
                 inline
                 className={clsx(
                   inline ? "w-6 h-6" : "w-9 h-9",
-                  "rounded-lg object-cover shrink-0 bg-stone-100 dark:bg-stone-800",
+                  "rounded-lg object-cover shrink-0 bg-theme-bg-subtle dark:bg-stone-800",
                 )}
               />
             </span>

@@ -24,7 +24,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
       <nav
         style={{ top: "var(--titlebar-inset, 0px)" }}
-        className="fixed inset-x-0 z-50 bg-theme-bg-card border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300"
+        className="fixed inset-x-0 z-50 bg-theme-bg-card border-b border-theme-border/60 dark:border-stone-800/40 transition-shadow duration-300"
       >
         <div className="mx-auto flex h-14 max-w-full items-center justify-between px-4 sm:px-8">
           <Link to="/" className="flex items-center group  gap-1.5">

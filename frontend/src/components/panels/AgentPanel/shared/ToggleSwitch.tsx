@@ -26,11 +26,11 @@ export const ToggleSwitch = React.memo(function ToggleSwitch({
       <span
         aria-hidden="true"
         className={`relative h-7 w-12 rounded-full transition-colors duration-200 motion-reduce:transition-none ${
-          enabled ? "bg-amber-500" : "bg-stone-300 dark:bg-stone-600"
+          enabled ? "bg-amber-500" : "bg-theme-border-hover dark:bg-stone-600"
         }`}
       >
         <span
-          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow-lg transition-transform duration-200 motion-reduce:transition-none ${
+          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-theme-toggle-knob shadow-lg transition-transform duration-200 motion-reduce:transition-none ${
             enabled ? "translate-x-5" : "translate-x-0"
           }`}
         />

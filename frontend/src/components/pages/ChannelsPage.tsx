@@ -386,7 +386,7 @@ export function ChannelsPage() {
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {instanceCount > 0 && (
                               <span
-                                className={`rounded-full px-2 py-0.5 text-12 font-medium ${hasAnyConnected ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : allDisabled || statusUnavailable ? "bg-[var(--theme-primary-light)] text-theme-text-secondary" : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"}`}
+                                className={`rounded-full px-2 py-0.5 text-12 font-medium ${hasAnyConnected ? "bg-[color-mix(in_srgb,var(--theme-success)_14%,transparent)] text-theme-success dark:bg-green-900/50 dark:text-green-300" : allDisabled || statusUnavailable ? "bg-[var(--theme-primary-light)] text-theme-text-secondary" : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"}`}
                               >
                                 {t(summaryStatus)}
                               </span>
@@ -545,7 +545,7 @@ export function ChannelsPage() {
                       : "channel.disconnected";
                 const statusClass =
                   instance.enabled && status?.connected
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                    ? "bg-[color-mix(in_srgb,var(--theme-success)_14%,transparent)] text-theme-success dark:bg-green-900/50 dark:text-green-300"
                     : instance.enabled && status
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
                       : "bg-[var(--theme-primary-light)] text-theme-text-secondary";

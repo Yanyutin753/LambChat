@@ -120,8 +120,8 @@ export function FeedbackButtons({
             className={clsx(
               "flex items-center justify-center rounded-md p-1.5 transition-all",
               submittedFeedback === "up"
-                ? "text-stone-600 dark:text-stone-300"
-                : "text-stone-600 dark:text-stone-300",
+                ? "text-theme-text-secondary dark:text-stone-300"
+                : "text-theme-text-secondary dark:text-stone-300",
             )}
             aria-label={t("feedback.alreadySubmitted") || "Feedback submitted"}
           >
@@ -146,14 +146,14 @@ export function FeedbackButtons({
             aria-label={t("feedback.positive")}
             className={clsx(
               "flex items-center justify-center rounded-md p-1.5 transition-all",
-              "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
+              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-subtle dark:hover:bg-stone-700 hover:text-theme-text-secondary dark:hover:text-stone-300",
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
             <ThumbsUp
               size={16}
               className={clsx(
-                selectedRating === "up" && "text-stone-600 dark:text-stone-300",
+                selectedRating === "up" && "text-theme-text-secondary dark:text-stone-300",
               )}
             />
           </button>
@@ -165,14 +165,14 @@ export function FeedbackButtons({
             aria-label={t("feedback.negative")}
             className={clsx(
               "flex items-center justify-center rounded-md p-1.5 transition-all",
-              "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
+              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-subtle dark:hover:bg-stone-700 hover:text-theme-text-secondary dark:hover:text-stone-300",
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
             <ThumbsDown
               size={16}
               className={clsx(
-                selectedRating === "down" && "text-stone-600 dark:text-stone-300",
+                selectedRating === "down" && "text-theme-text-secondary dark:text-stone-300",
               )}
             />
           </button>

@@ -29,25 +29,28 @@ export interface CollapsiblePillProps {
   formatLabel?: boolean;
 }
 
-// Unified status-based colors — same status always gets the same color
+// Unified status-based colors — same status always gets the same color.
+// 状态底色走 theme 语义 token 的 color-mix 调和，sepia 随变量降饱和变暖；
+// loading 保留 amber 品牌强调（与开关 accent 同源，三主题恒 amber）。
 const statusStyles: Record<CollapsibleStatus, string> = {
-  idle: "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400",
+  idle: "bg-theme-bg-subtle text-theme-text-secondary",
   loading:
     "bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
   success:
-    "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-  error: "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300",
+    "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-emerald-950/30 dark:text-emerald-300",
+  error:
+    "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-950/30 dark:text-red-300",
   cancelled:
-    "bg-stone-200/60 dark:bg-stone-700/50 text-stone-500 dark:text-stone-400",
+    "bg-[color-mix(in_srgb,var(--theme-text-secondary)_10%,transparent)] text-theme-text-secondary dark:bg-stone-700/50 dark:text-stone-400",
 };
 
 // Status indicator icon/spinner colors
 const statusIconColors: Record<CollapsibleStatus, string> = {
   idle: "",
   loading: "text-amber-500 dark:text-amber-400",
-  success: "text-emerald-500 dark:text-emerald-400",
-  error: "text-red-500 dark:text-red-400",
-  cancelled: "text-stone-400 dark:text-stone-500",
+  success: "text-theme-success dark:text-emerald-400",
+  error: "text-theme-error dark:text-red-400",
+  cancelled: "text-theme-text-tertiary",
 };
 
 function StatusIndicator({ status }: { status: CollapsibleStatus }) {
@@ -170,7 +173,7 @@ export function CollapsiblePill({
             size={12}
             className={clsx(
               "shrink-0 transition-transform duration-200",
-              statusIconColors[status] || "text-stone-500 dark:text-stone-400",
+              statusIconColors[status] || "text-theme-text-secondary",
               isExpanded && "rotate-90",
             )}
           />

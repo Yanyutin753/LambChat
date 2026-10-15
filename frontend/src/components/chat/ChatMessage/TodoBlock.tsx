@@ -28,23 +28,23 @@ const statusConfig: Record<
 > = {
   pending: {
     icon: Circle,
-    colorClass: "text-stone-400 dark:text-stone-500",
-    textClass: "text-stone-500 dark:text-stone-400",
+    colorClass: "text-theme-text-tertiary",
+    textClass: "text-theme-text-secondary",
   },
   in_progress: {
     icon: LoadingSpinner,
     colorClass: "text-[var(--theme-primary)]",
-    textClass: "text-stone-700 dark:text-stone-200 font-medium",
+    textClass: "text-theme-text font-medium",
   },
   completed: {
     icon: CheckCircle2,
-    colorClass: "text-emerald-500 dark:text-emerald-400",
-    textClass: "text-stone-400 dark:text-stone-500 line-through",
+    colorClass: "text-theme-success",
+    textClass: "text-theme-text-tertiary line-through",
   },
   cancelled: {
     icon: XCircle,
-    colorClass: "text-stone-400 dark:text-stone-500",
-    textClass: "text-stone-400 dark:text-stone-500 line-through",
+    colorClass: "text-theme-text-tertiary",
+    textClass: "text-theme-text-tertiary line-through",
   },
 };
 
@@ -68,8 +68,8 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
     <div
       className={clsx(
         "my-1.5 rounded-xl ring-1",
-        "ring-stone-200 dark:ring-stone-700/80",
-        "bg-stone-50/80 dark:bg-stone-800/40",
+        "ring-theme-border",
+        "bg-theme-bg-card/80 dark:bg-theme-bg-card/40",
       )}
     >
       {/* Header（点击折叠/展开） */}
@@ -85,11 +85,11 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           className={clsx(
             "shrink-0",
             isAllDone
-              ? "text-emerald-500 dark:text-emerald-400"
-              : "text-stone-400 dark:text-stone-500",
+              ? "text-theme-success"
+              : "text-theme-text-tertiary",
           )}
         />
-        <span className="text-12 font-medium text-stone-500 dark:text-stone-400">
+        <span className="text-12 font-medium text-theme-text-secondary">
           {t("chat.todo.progress", {
             completed: completedCount,
             total: totalCount,
@@ -99,29 +99,29 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           <LoadingSpinner
             color="text-current"
             size={12}
-            className="shrink-0 text-stone-400 dark:text-stone-500"
+            className="shrink-0 text-theme-text-tertiary"
           />
         )}
         {/* Progress bar */}
         <div className="ml-auto flex items-center gap-2">
-          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-700">
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-theme-border">
             <div
               className={clsx(
                 "h-full rounded-full transition-all duration-500 ease-out",
                 isAllDone
-                  ? "bg-emerald-500 dark:bg-emerald-400"
-                  : "bg-stone-400 dark:bg-stone-500",
+                  ? "bg-theme-success"
+                  : "bg-theme-text-tertiary",
               )}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-11 tabular-nums text-stone-400 dark:text-stone-500">
+          <span className="text-11 tabular-nums text-theme-text-tertiary">
             {Math.round(progress)}%
           </span>
           <ChevronRight
             size={14}
             className={clsx(
-              "shrink-0 text-stone-400 opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
+              "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
               !collapsed && "rotate-90",
             )}
           />
@@ -130,7 +130,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
 
       {/* Task list */}
       {!collapsed && (
-        <div className="space-y-0.5 border-t border-stone-200/60 dark:border-stone-700/50 px-3.5 py-2 max-h-60 overflow-y-auto">
+        <div className="space-y-0.5 border-t border-theme-border/60 px-3.5 py-2 max-h-60 overflow-y-auto">
           {items.map((item, index) => (
             <TodoItemRow key={index} item={item} />
           ))}
@@ -154,8 +154,6 @@ export function TodoItemRow({ item, wrap = false }: { item: TodoItem; wrap?: boo
             "text-13 leading-snug",
             wrap ? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]" : "truncate",
             config.textClass,
-            item.status === "in_progress" &&
-              "text-stone-800 dark:text-stone-100",
           )}
           title={item.content}
         >

@@ -61,7 +61,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
       <div className="h-full w-full flex flex-col bg-white dark:bg-stone-900">
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner size="lg" className="text-blue-500" />
-          <span className="ml-2 text-stone-500 dark:text-stone-400">
+          <span className="ml-2 text-theme-text-secondary dark:text-stone-400">
             {t("documents.loadingFileContent")}
           </span>
         </div>
@@ -75,21 +75,21 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
       className="h-full w-full flex flex-col bg-white dark:bg-stone-900"
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-stone-50 dark:bg-stone-900 border-b border-stone-200 dark:border-stone-700 shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-theme-bg-subtle dark:bg-stone-900 border-b border-theme-border dark:border-stone-700 shrink-0">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
           <span
-            className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"
+            className="w-2.5 h-2.5 rounded-full bg-theme-success shrink-0"
             aria-hidden="true"
           />
-          <span className="truncate text-12 text-stone-500 dark:text-stone-400">
+          <span className="truncate text-12 text-theme-text-secondary dark:text-stone-400">
             {t("documents.htmlDocument")}
           </span>
-          <span className="hidden sm:inline text-11 text-stone-400 dark:text-stone-500 tabular-nums">
+          <span className="hidden sm:inline text-11 text-theme-text-tertiary dark:text-stone-500 tabular-nums">
             {content.length.toLocaleString()} chars
           </span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 bg-stone-100 dark:bg-stone-800 rounded-md p-0.5">
+        <div className="flex shrink-0 items-center gap-0.5 bg-theme-bg-subtle dark:bg-stone-800 rounded-md p-0.5">
           {showSource && (
             <ToolbarIconButton
               disabled={!searchReady}
