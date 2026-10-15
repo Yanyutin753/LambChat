@@ -31,9 +31,6 @@
 .chat-header__actions > button > span > svg,
 .chat-header__actions > .relative > button > svg,
 .chat-header nav > div > button > svg,
-.chat-header .header-control-avatar,
-.chat-header .scene-illustration.panel-nav-avatar,
-[data-sidebar-brand] img,
 [data-sidebar-brand] button > svg {
   width: var(--header-content-size);
   height: var(--header-content-size);
@@ -45,10 +42,6 @@
 .chat-header nav h1 {
   font-size: var(--header-content-size);
   line-height: 1.25rem;
-}
-
-.chat-header .scene-illustration.panel-nav-avatar {
-  padding: 0;
 }
 
 /* The wordmark uses a 62-unit viewBox with 41-unit text. */

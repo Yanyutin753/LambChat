@@ -209,9 +209,9 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             alt={user?.username || t("common.user")}
             skipUrlResolve
             inline
-            className="header-control-avatar size-4 rounded-full"
+            className="size-5 rounded-full"
             errorFallback={
-              <div className="header-control-avatar flex size-4 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
+              <div className="flex size-5 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
                 <span className="text-12 font-semibold text-white font-serif">
                   {user?.username?.charAt(0).toUpperCase() || "U"}
                 </span>
@@ -219,7 +219,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             }
           />
         ) : (
-          <div className="header-control-avatar flex size-4 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
+          <div className="flex size-5 items-center justify-center bg-linear-to-br from-amber-400 to-orange-500 rounded-full">
             <span className="text-12 font-semibold text-white font-serif">
               {user?.username?.charAt(0).toUpperCase() || "U"}
             </span>

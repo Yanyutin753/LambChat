@@ -88,6 +88,6 @@ test("header icons and text share the same 16px content scale", () => {
   expect(css).toContain("--header-content-size: 1rem");
   expect(css).toContain("width: var(--header-content-size)");
   expect(css).toContain("font-size: var(--header-content-size)");
-  expect(css).toContain(".chat-header .header-control-avatar");
+  expect(css).not.toContain(".header-control-avatar");
   expect(css).toContain("[data-sidebar-brand] [data-wordmark-style]");
 });

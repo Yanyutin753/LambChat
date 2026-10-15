@@ -298,7 +298,7 @@ export function SessionListContent({
           className="flex h-12 shrink-0 items-center justify-between px-3"
         >
           <div className="flex min-w-0 items-center gap-1.5">
-            <BrandLogo alt={APP_NAME} className="size-4 shrink-0" />
+            <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
             <a
               aria-label={APP_NAME}
               href={GITHUB_URL}
