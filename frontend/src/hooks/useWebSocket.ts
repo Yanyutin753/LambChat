@@ -184,7 +184,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     enabled = true,
     userId,
   } = options;
-  const scope = useMemo(() => ({}), [userId, enabled]);
+  const scope = useMemo(() => ({ userId, enabled }), [userId, enabled]);
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const connectionVersionRef = useRef(0);

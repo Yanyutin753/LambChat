@@ -465,6 +465,7 @@ export function useSessionSidebarActions({
           .then((session) => {
             // A newer completion or an account switch must win over an older HTTP snapshot.
             if (
+              !session ||
               !readAccount.active ||
               currentReadAccount.current !== readAccount ||
               unreadRevisions.current.get(id) !== revision

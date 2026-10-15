@@ -65,7 +65,7 @@ import { useHistoryTracePagination } from "./useAgent/historyTracePagination";
 import { extractSessionConfig } from "./useAgent/sessionConfig";
 import { getGoalControlScope } from "./useAgent/goalControlScope";
 import { selectPersistentGoal } from "./useAgent/persistentGoalState";
-import type { PersistentGoal } from "../services/api/session";
+import { usePersistentGoalRuntime } from "./useAgent/persistentGoalRuntime";
 import { useAutoModeSetting } from "./useAgent/autoModeSetting";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
@@ -165,19 +165,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
-  const persistentGoalRef = useRef<PersistentGoal | null>(null);
-  const persistentMutationEpochRef = useRef(0);
-  const setPersistentGoal = useCallback(
-    (updater: React.SetStateAction<PersistentGoal | null>) => {
-      const next =
-        typeof updater === "function"
-          ? updater(persistentGoalRef.current)
-          : updater;
-      persistentGoalRef.current = next;
-      setPersistentGoalState(next);
-    },
-    [setPersistentGoalState],
-  );
   const messagesRef = useRef<Message[]>([]);
   const historyMessagesSnapshotRef = useRef<{
     requestId: number;
@@ -236,6 +223,24 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const {
+    setPersistentGoal,
+    persistentMutationRef,
+    persistentMutationEpochRef,
+    controlPersistentGoal,
+  } = usePersistentGoalRuntime({
+    sessionId,
+    persistentGoal,
+    setPersistentGoalState,
+    setPersistentGoalBusy,
+    setError,
+    sessionIdRef,
+    currentRunIdRef,
+    isSendingRef,
+    isLoadingHistoryRef,
+    loadHistoryRef,
+  });
 
   // 历史回放查到已决的 scheduled-task 审批时，补收尾对应 ask_human pill（详见 historyLoader）
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 工厂仅依赖 useState 的稳定 setter
@@ -666,46 +671,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   // Send message
-  const persistentMutationRef = useRef(false);
-  const controlPersistentGoal = useCallback(
-    async (action: "pause" | "resume" | "clear") => {
-      const target = sessionIdRef.current;
-      if (!target || persistentMutationRef.current) return;
-      persistentMutationRef.current = true;
-      persistentMutationEpochRef.current += 1;
-      setPersistentGoalBusy(true);
-      try {
-        const response = await sessionApi.controlPersistentGoal(target, action);
-        if (sessionIdRef.current !== target) return;
-        if (response.goal && response.goal.session_id !== target)
-          throw new Error(i18n.t("chat.goalPersistent.noGoal"));
-        setPersistentGoal((previous) =>
-          selectPersistentGoal(previous, response.goal, target),
-        );
-        setError(null);
-      } catch (error) {
-        if (sessionIdRef.current === target) {
-          const apiError = error as Error & {
-            code?: string;
-            args?: Record<string, unknown>;
-          };
-          setError(
-            translateApiError(
-              apiError.code,
-              apiError.message,
-              apiError.args,
-              i18n.t,
-            ),
-          );
-        }
-      } finally {
-        persistentMutationRef.current = false;
-        setPersistentGoalBusy(false);
-      }
-    },
-    [setError, setPersistentGoal, setPersistentGoalBusy],
-  );
-
   const sendMessage = useCallback(
     async (
       content: string,
@@ -1433,90 +1398,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isLoadingHistoryRef,
     loadHistoryRef,
   });
-
-  const persistentGoalId = persistentGoal?.id;
-  const persistentGoalStatus = persistentGoal?.status;
-  useEffect(() => {
-    if (
-      !sessionId ||
-      !persistentGoalId ||
-      !persistentGoalStatus ||
-      !["active", "waiting_human"].includes(persistentGoalStatus)
-    )
-      return;
-    let cancelled = false;
-    let inFlight = false;
-    let failures = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const schedule = () => {
-      clearTimeout(timer);
-      if (!cancelled)
-        timer = setTimeout(
-          () => void refresh(),
-          Math.min(3000 * 2 ** failures, 60000),
-        );
-    };
-    const refresh = async () => {
-      if (cancelled || document.visibilityState === "hidden") return;
-      if (inFlight) return;
-      if (
-        persistentMutationRef.current ||
-        isSendingRef.current ||
-        isLoadingHistoryRef.current
-      ) {
-        schedule();
-        return;
-      }
-      inFlight = true;
-      const mutationEpoch = persistentMutationEpochRef.current;
-      try {
-        const response = await sessionApi.getPersistentGoal(sessionId);
-        failures = 0;
-        if (
-          cancelled ||
-          sessionIdRef.current !== sessionId ||
-          mutationEpoch !== persistentMutationEpochRef.current
-        )
-          return;
-        const selected = selectPersistentGoal(
-          persistentGoalRef.current,
-          response.goal,
-          sessionId,
-        );
-        if (selected !== response.goal) return;
-        setPersistentGoal(selected);
-        if (
-          response.goal?.current_run_id &&
-          response.goal.current_run_id !== currentRunIdRef.current
-        ) {
-          await loadHistoryRef.current?.(sessionId);
-        }
-      } catch (error) {
-        failures = Math.min(failures + 1, 5);
-        if (!cancelled && failures === 1)
-          console.warn("[Goal] Failed to refresh persistent goal", error);
-      } finally {
-        inFlight = false;
-        schedule();
-      }
-    };
-    const resume = () => {
-      clearTimeout(timer);
-      if (document.visibilityState !== "hidden") {
-        failures = 0;
-        void refresh();
-      }
-    };
-    document.addEventListener("visibilitychange", resume);
-    window.addEventListener("online", resume);
-    void refresh();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", resume);
-      window.removeEventListener("online", resume);
-    };
-  }, [sessionId, persistentGoalId, persistentGoalStatus, setPersistentGoal]);
 
   return {
     messages,
