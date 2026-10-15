@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.15.2-dev.2 (2026-10-16, Pre-release)
+
+- 修复 macOS Intel 的 ONNX Runtime 二进制依赖解析，保留其他架构的最新兼容版本。
+- dev.1 未通过 Intel 构建，不作为可用完整预发布；使用新标签及递增移动端构建号重新发布。
+
 ## v2.15.2-dev.1 (2026-10-15, Pre-release)
 
 - 升级 Python、前端及原生客户端依赖，迁移 Vite 8 与 Tailwind 4，修复样式引用兼容问题。

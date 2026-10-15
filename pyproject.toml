@@ -137,8 +137,15 @@ testpaths = ["tests"]
 pythonpath = [".", "client"]
 
 [tool.uv]
-# atomacos pins legacy input libraries on macOS; resolve other platforms independently.
-environments = ["sys_platform == 'darwin'", "sys_platform != 'darwin'"]
+# atomacos and binary-only ONNX Runtime need separate macOS architecture resolutions.
+# Intel macOS has no ONNX Runtime wheel for Python 3.14; native clients use Python 3.12.
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+    "sys_platform == 'darwin' and platform_machine != 'x86_64'",
+    "sys_platform != 'darwin'",
+]
+# The native Intel client builds with Python 3.12; reject binary-only dependencies without its wheel.
+required-environments = ["sys_platform == 'darwin' and platform_machine == 'x86_64'"]
 # 官方 PyPI：CI（GitHub 海外 runner）直连官方源。此前 uv.lock 历史遗留
 # 腾讯镜像 URL，国内镜像抖动会随机打断 CI（依赖下载超时）。本地如需镜像
 # 加速，用 UV_DEFAULT_INDEX 环境变量临时覆盖，但提交 lock 前保持官方源。
