@@ -297,8 +297,8 @@ export function SessionListContent({
           data-sidebar-brand=""
           className="flex h-12 shrink-0 items-center justify-between px-3"
         >
-          <div className="flex size-7 items-center gap-1.5">
-            <BrandLogo alt={APP_NAME} className="size-7 mb-1" />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <BrandLogo alt={APP_NAME} className="size-4 shrink-0" />
             <a
               aria-label={APP_NAME}
               href={GITHUB_URL}
@@ -318,7 +318,7 @@ export function SessionListContent({
             >
               <SidebarToggleIcon
                 mobileFilled
-                className="size-5 text-theme-text-secondary dark:text-stone-300"
+                className="size-4 text-theme-text-secondary dark:text-stone-300"
               />
             </button>
           </Tooltip>
@@ -467,7 +467,9 @@ export function SessionListContent({
                           }
                           currentProjectId={
                             (session.metadata?.project_id as
-                              string | null | undefined) ?? null
+                              | string
+                              | null
+                              | undefined) ?? null
                           }
                           onShare={() =>
                             sessionActions.onShareSession(session.id)
@@ -621,7 +623,11 @@ export function SessionListContent({
                   <button
                     type="button"
                     onClick={handleToggleAllVisible}
-                    aria-label={`${t("sidebar.recentChats")}: ${allVisibleSelected ? t("sidebar.clearVisibleSelection") : t("sidebar.selectVisible")}`}
+                    aria-label={`${t("sidebar.recentChats")}: ${
+                      allVisibleSelected
+                        ? t("sidebar.clearVisibleSelection")
+                        : t("sidebar.selectVisible")
+                    }`}
                     className="sidebar-nav-btn min-h-9 rounded-md px-2 text-12"
                   >
                     {allVisibleSelected

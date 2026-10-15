@@ -83,7 +83,7 @@ export function SidebarRail({
             aria-label={t("sidebar.expandSidebar")}
           >
             <BrandLogo alt={APP_NAME} className="size-7 group-hover:hidden" />
-            <SidebarToggleIcon className="size-5 hidden group-hover:block" />
+            <SidebarToggleIcon className="size-4 hidden group-hover:block" />
           </button>
         </Tooltip>
       </div>

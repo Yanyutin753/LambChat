@@ -243,8 +243,8 @@ test("the shared sidebar preserves the LambChat brand above the workspace tabs",
   );
   expect(screen.getByRole("img", { name: "LambChat" })).toBeVisible();
   expect(screen.getByRole("img", { name: "LambChat" })).toHaveClass(
-    "relative",
-    "-top-0.5",
+    "size-4",
+    "shrink-0",
   );
   expect(screen.getByRole("link", { name: "LambChat" })).toHaveAttribute(
     "href",

@@ -59,9 +59,15 @@ test("header controls share 32px height and square icon slots", () => {
     new URL("../../../../styles/components.css", import.meta.url),
     "utf8",
   );
-  expect(css).toMatch(/\.chat-header__actions > \.relative > button\s*\{[^}]*height:\s*2rem;[^}]*min-height:\s*2rem;/);
-  expect(css).toMatch(/\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*2rem;[^}]*min-width:\s*2rem;/);
-  expect(css).toMatch(/\.chat-header__actions > button:has\(\.composer-usage-amount\)\s*\{[^}]*width:\s*auto;/);
+  expect(css).toMatch(
+    /\.chat-header__actions > \.relative > button,\s*\[data-sidebar-brand\] button\s*\{[^}]*height:\s*2rem;[^}]*min-height:\s*2rem;/,
+  );
+  expect(css).toMatch(
+    /\.chat-header__actions > \.relative > button,\s*\[data-sidebar-brand\] button\s*\{[^}]*width:\s*2rem;[^}]*min-width:\s*2rem;/,
+  );
+  expect(css).toMatch(
+    /\.chat-header__actions > button:has\(\.composer-usage-amount\)\s*\{[^}]*width:\s*auto;/,
+  );
 });
 
 test("narrow header action slots share compact 36px touch targets", () => {
@@ -69,5 +75,19 @@ test("narrow header action slots share compact 36px touch targets", () => {
     new URL("../../../../styles/components.css", import.meta.url),
     "utf8",
   );
-  expect(css).toMatch(/@media \(max-width: 639px\)\s*\{\s*\.chat-header__actions > button,\s*\.chat-header__actions > \.relative > button\s*\{[^}]*width:\s*2\.25rem;[^}]*height:\s*2\.25rem;[^}]*min-width:\s*2\.25rem;[^}]*min-height:\s*2\.25rem;/);
+  expect(css).toMatch(
+    /@media \(max-width: 639px\)\s*\{\s*\.chat-header__actions > button,\s*\.chat-header__actions > \.relative > button,\s*\[data-sidebar-brand\] button\s*\{[^}]*width:\s*2\.25rem;[^}]*height:\s*2\.25rem;[^}]*min-width:\s*2\.25rem;[^}]*min-height:\s*2\.25rem;/,
+  );
+});
+
+test("header icons and text share the same 16px content scale", () => {
+  const css = readFileSync(
+    new URL("../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  expect(css).toContain("--header-content-size: 1rem");
+  expect(css).toContain("width: var(--header-content-size)");
+  expect(css).toContain("font-size: var(--header-content-size)");
+  expect(css).toContain(".chat-header .header-control-avatar");
+  expect(css).toContain("[data-sidebar-brand] [data-wordmark-style]");
 });

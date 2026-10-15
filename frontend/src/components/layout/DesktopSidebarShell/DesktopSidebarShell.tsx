@@ -243,11 +243,7 @@ export function DesktopSidebarShell({
                   aria-label={APP_NAME}
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2"
                 >
-                  {/* The image ink sits 2px below its box center at this size. */}
-                  <BrandLogo
-                    alt={APP_NAME}
-                    className="-mx-1 relative -top-0.5 size-7 shrink-0"
-                  />
+                  <BrandLogo alt={APP_NAME} className="size-4 shrink-0" />
                   <BrandWordmark decorative className="h-7 w-auto min-w-0" />
                 </Link>
                 <div className="ml-auto flex shrink-0 items-center">

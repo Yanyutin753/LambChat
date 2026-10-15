@@ -322,11 +322,14 @@ export function Header({
                 setMobileSidebarOpen(true);
               }
             }}
-            className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary max-sm:dark:text-stone-300 hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"
+            className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >
-            <SidebarToggleIcon mobileFilled className="size-5 sm:size-4" />
+            <SidebarToggleIcon
+              mobileFilled
+              className="size-4 max-sm:dark:text-stone-300"
+            />
           </button>
           {activeTab === "chat" ? (
             <>
