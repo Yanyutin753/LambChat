@@ -808,3 +808,34 @@ def test_dev_release_cannot_enter_stable_distribution():
     updater = _source(".github/workflows/desktop-updater-publish.yml")
     assert "Only stable tags may publish the updater" in updater
     assert '[ "$prerelease" = false ]' in updater
+
+
+def test_dev_release_removes_cached_updater_manifests_before_any_upload(tmp_path):
+    import os
+    import subprocess
+
+    workflow = _release_workflow()
+    scripts = [
+        next(step["run"] for step in workflow["jobs"][job]["steps"] if step.get("name") == name)
+        for job, name in (
+            ("desktop", "Collect updater manifest artifacts"),
+            ("release", "Generate latest.json updater manifest"),
+        )
+    ]
+    assets = tmp_path / "release-assets"
+    assets.mkdir()
+    cached = tmp_path / "frontend/src-tauri/target/release/bundle"
+    cached.mkdir(parents=True)
+    (cached / "latest-cached.json").write_text("stale")
+    for script in scripts:
+        for name in ("latest.json", "latest-cached.json"):
+            (assets / name).write_text("stale")
+        result = subprocess.run(
+            ["bash", "-c", script],
+            cwd=tmp_path,
+            env={**os.environ, "RELEASE_TAG": "v2.15.2-dev.1"},
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not list(assets.glob("latest*.json"))
