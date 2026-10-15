@@ -56,8 +56,7 @@
   font-size: 0.8rem;
 }
 
-.pwa-status-toast__action,
-.pwa-status-toast__dismiss {
+.pwa-status-toast__action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -89,22 +88,9 @@
   transform: translateY(-1px);
 }
 
-.pwa-status-toast__action:focus-visible,
-.pwa-status-toast__dismiss:focus-visible {
+.pwa-status-toast__action:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--theme-ring) 72%, transparent);
   outline-offset: 2px;
-}
-
-.pwa-status-toast__dismiss {
-  width: 32px;
-  height: 32px;
-  color: var(--theme-text-secondary);
-  background: transparent;
-}
-
-.pwa-status-toast__dismiss:hover {
-  color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
 }
 
 .dark .pwa-status-toast {
@@ -178,7 +164,5 @@
     grid-row: 1;
     align-self: center;
     justify-self: end;
-    width: 32px;
-    height: 32px;
   }
 }
