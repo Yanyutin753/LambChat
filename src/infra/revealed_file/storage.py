@@ -103,44 +103,54 @@ class RevealedFileStorage:
                 [{"$set": {"dedupe_key": {"$concat": ["key:", "$source", ":", "$file_key"]}}}],
             )
 
-            # Remove duplicates before creating the unique index.
-            # Keep the latest document per (user_id, dedupe_key, source) and
-            # delete the rest so the unique index can be built.
-            pipeline = [
-                {
-                    "$addFields": {
-                        "_effective_dedupe_key": {"$ifNull": ["$dedupe_key", "$file_key"]}
-                    }
-                },
-                {
-                    "$group": {
-                        "_id": {
-                            "user_id": "$user_id",
-                            "dedupe_key": "$_effective_dedupe_key",
-                            "source": "$source",
-                        },
-                        "keep_id": {"$max": "$_id"},
-                        "count": {"$sum": 1},
-                    }
-                },
-                {"$match": {"count": {"$gt": 1}}},
-            ]
-            async for group in await c.aggregate(pipeline):
-                duplicate_key = group["_id"]
-                result = await c.delete_many(
+            dedupe_index = existing_indexes.get("user_dedupe_source_unique_idx", {})
+            complete_unique_index = (
+                dedupe_index.get("key") == [("user_id", 1), ("dedupe_key", 1), ("source", 1)]
+                and dedupe_index.get("unique") is True
+                and not dedupe_index.get("sparse")
+                and "partialFilterExpression" not in dedupe_index
+                and "collation" not in dedupe_index
+            )
+            # A complete unique index already prevents duplicate keys after the legacy backfill.
+            if not complete_unique_index:
+                # Remove duplicates before creating the unique index.
+                # Keep the latest document per (user_id, dedupe_key, source) and
+                # delete the rest so the unique index can be built.
+                pipeline = [
                     {
-                        "user_id": duplicate_key["user_id"],
-                        "dedupe_key": duplicate_key["dedupe_key"],
-                        "source": duplicate_key["source"],
-                        "_id": {"$ne": group["keep_id"]},
-                    }
-                )
-                logger.info(
-                    f"Removed {result.deleted_count} duplicate(s) for "
-                    f"user_id={duplicate_key['user_id']}, "
-                    f"dedupe_key={duplicate_key['dedupe_key']}, "
-                    f"source={duplicate_key['source']}"
-                )
+                        "$addFields": {
+                            "_effective_dedupe_key": {"$ifNull": ["$dedupe_key", "$file_key"]}
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": {
+                                "user_id": "$user_id",
+                                "dedupe_key": "$_effective_dedupe_key",
+                                "source": "$source",
+                            },
+                            "keep_id": {"$max": "$_id"},
+                            "count": {"$sum": 1},
+                        }
+                    },
+                    {"$match": {"count": {"$gt": 1}}},
+                ]
+                async for group in await c.aggregate(pipeline):
+                    duplicate_key = group["_id"]
+                    result = await c.delete_many(
+                        {
+                            "user_id": duplicate_key["user_id"],
+                            "dedupe_key": duplicate_key["dedupe_key"],
+                            "source": duplicate_key["source"],
+                            "_id": {"$ne": group["keep_id"]},
+                        }
+                    )
+                    logger.info(
+                        f"Removed {result.deleted_count} duplicate(s) for "
+                        f"user_id={duplicate_key['user_id']}, "
+                        f"dedupe_key={duplicate_key['dedupe_key']}, "
+                        f"source={duplicate_key['source']}"
+                    )
 
             await c.create_index(
                 [("user_id", 1), ("dedupe_key", 1), ("source", 1)],

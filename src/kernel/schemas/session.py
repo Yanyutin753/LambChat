@@ -43,6 +43,7 @@ class Session(SessionBase):
     task_error: Optional[str] = None
     completed_at: Optional[datetime] = None
     unread_count: int = 0
+    last_read_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -13,7 +13,7 @@ export function ConfigPanelErrorCallout({
 }: ConfigPanelErrorCalloutProps) {
   return (
     <div
-      className={`glass-card flex items-start gap-2 rounded-xl p-3 text-14 text-red-600 !border-red-200/40 dark:text-red-400 dark:!border-red-800/30 focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${className}`}
+      className={`glass-card flex items-start gap-2 rounded-xl p-3 text-14 text-[color-mix(in_srgb,var(--theme-error)_50%,var(--theme-text))] !border-[color-mix(in_srgb,var(--theme-error)_25%,transparent)] dark:text-red-400 dark:!border-red-800/30 focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${className}`}
       role="alert"
       tabIndex={tabIndex}
     >

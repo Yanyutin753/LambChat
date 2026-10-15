@@ -62,3 +62,19 @@ test("dispose drops a pending trailing update", () => {
 
   expect(updates).toEqual([{ progress: 20, stage: "uploading" }]);
 });
+
+test("keeps measured server progress updating until disposal", () => {
+  const update = vi.fn();
+  const controller = createUploadProgressController(update);
+  controller.report(100);
+  controller.reportProcessing(23);
+  controller.reportProcessing(67);
+  expect(update).toHaveBeenLastCalledWith({
+    progress: 99,
+    stage: "processing",
+    processingProgress: 67,
+  });
+  controller.dispose();
+  controller.reportProcessing(90);
+  expect(update).toHaveBeenCalledTimes(3);
+});

@@ -25,6 +25,7 @@ interface SignedUrlItem {
 export interface UploadOptions {
   folder?: string;
   onProgress?: (progress: number, loaded: number, total: number) => void;
+  onProcessingProgress?: (progress: number) => void;
 }
 
 export interface UploadHandle {
@@ -97,7 +98,8 @@ function uploadViaBackend(
             await uploadOnce(true);
             return;
           } catch (error) {
-            if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
+            if ((error as Error & { status?: number })?.status === 401)
+              redirectToLogin();
             reject(error);
             return;
           }
@@ -131,9 +133,7 @@ function uploadViaBackend(
         reject(new Error("Upload was aborted"));
       });
 
-      const path = `/api/upload/file?folder=${encodeURIComponent(
-        folder,
-      )}`;
+      const path = `/api/upload/file?folder=${encodeURIComponent(folder)}`;
       xhr.open("POST", getFullUrl(path) || path);
       xhr.withCredentials = true;
 
@@ -161,9 +161,10 @@ export const uploadApi = {
     file: File,
     folderOrOptions: string | UploadOptions = "uploads",
   ): UploadHandle {
-    const options = typeof folderOrOptions === "string"
-      ? { folder: folderOrOptions }
-      : folderOrOptions;
+    const options =
+      typeof folderOrOptions === "string"
+        ? { folder: folderOrOptions }
+        : folderOrOptions;
     return uploadDirect(file, options, () => uploadViaBackend(file, options));
   },
 

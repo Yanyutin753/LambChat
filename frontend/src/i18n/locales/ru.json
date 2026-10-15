@@ -2600,6 +2600,8 @@
     "users": "Управление учётными записями и доступом"
   },
   "notification": {
+    "taskUpdates": "Новых обновлений задач: {{count}}",
+    "openLatestConversation": "Открыть последний диалог",
     "openConversation": "Открыть диалог",
     "active": "Активно",
     "cancel": "Отмена",

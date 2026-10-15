@@ -9,7 +9,11 @@ import {
 import { useAuth } from "../../../hooks/useAuth";
 import { useTaskCompletionJournal } from "./taskCompletionJournal";
 import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
-import { SESSIONS_READ_EVENT, type SessionReadScope } from "../../../services/api/session";
+import {
+  SESSIONS_READ_EVENT,
+  SESSIONS_READ_INVALIDATED_EVENT,
+  type SessionReadScope,
+} from "../../../services/api/session";
 import { sessionApi } from "../../../services/api";
 import { TODAY_USAGE_REFRESH_EVENT } from "../../../hooks/useTodayUsageCost";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
@@ -22,11 +26,37 @@ import {
   shouldAttemptBrowserNotification,
   shouldSurfaceTaskNotification,
 } from "./taskNotificationGuards";
-import { buildTaskNotificationCopy, buildTaskNotificationRoute } from "./taskNotificationContent";
+import {
+  buildTaskNotificationCopy,
+  buildTaskNotificationRoute,
+} from "./taskNotificationContent";
 import { hasTaskNotified, markTaskNotified } from "./taskNotificationDedupe";
 import { selectCatchUpCandidates, toCatchUpSnapshot } from "./taskCatchUp";
 import { TaskNotificationToast } from "./TaskNotificationToast";
 import { isMobileDevice } from "../../../utils/mobile";
+
+const TASK_TOAST_OPTIONS = {
+  position: "top-right" as const,
+  style: {
+    background: "transparent",
+    padding: 0,
+    boxShadow: "none",
+    border: "none",
+    borderRadius: 0,
+    overflow: "visible",
+  },
+};
+
+interface CatchUpToastEntry extends ReadableTask {
+  createdAt: number;
+  copy: ReturnType<typeof buildTaskNotificationCopy>;
+  onOpen: () => void;
+}
+
+interface ReadableTask extends SessionReadScope {
+  createdAt: number;
+  status: string;
+}
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
@@ -53,9 +83,11 @@ interface UseWebSocketNotificationsOptions {
 }
 
 function matchesReadScope(task: SessionReadScope, read: SessionReadScope) {
-  return (!read.sessionId || read.sessionId === task.sessionId)
-    && (!read.projectId || read.projectId === task.projectId)
-    && (!read.scheduledTaskId || read.scheduledTaskId === task.scheduledTaskId);
+  return (
+    (!read.sessionId || read.sessionId === task.sessionId) &&
+    (!read.projectId || read.projectId === task.projectId) &&
+    (!read.scheduledTaskId || read.scheduledTaskId === task.scheduledTaskId)
+  );
 }
 
 interface TaskCompleteDelivery {
@@ -72,6 +104,7 @@ interface TaskCompleteDelivery {
     dedupeKey?: string;
     dedupe_key?: string;
     id?: string;
+    created_at?: string;
     notification_kind?: string;
     goal_status?: string;
   };
@@ -89,39 +122,170 @@ export function useWebSocketNotifications({
   const { user } = useAuth();
   const notificationUserRef = useRef(user?.id);
   notificationUserRef.current = user?.id;
-  const ownedToastIds = useRef(new Map<string, SessionReadScope>());
-  const pendingNotifications = useRef(new Set<SessionReadScope & { read: boolean }>());
-  const notificationScope = useMemo(() => ({active:false, generation:0, userId:user?.id, enabled}), [user?.id, enabled]);
+  const ownedToastIds = useRef(new Map<string, ReadableTask>());
+  const notificationScope = useMemo(
+    () => ({
+      active: false,
+      generation: 0,
+      userId: user?.id,
+      enabled,
+      startedAt: Date.now(),
+    }),
+    [user?.id, enabled],
+  );
+  const catchUpToast = useRef({
+    entries: new Map<string, CatchUpToastEntry>(),
+    id: null as string | null,
+    updatedAt: 0,
+    expiresAt: 0,
+  });
+  const showCatchUpToast = useCallback(() => {
+    const summary = catchUpToast.current;
+    const generation = notificationScope.generation;
+    const isCurrent = () =>
+      notificationScope.active && notificationScope.generation === generation;
+    const entries = [...summary.entries.values()].sort(
+      (a, b) => a.createdAt - b.createdAt,
+    );
+    const latest = entries.at(-1);
+    if (!latest) {
+      if (summary.id) {
+        toast.remove(summary.id);
+        ownedToastIds.current.delete(summary.id);
+      }
+      summary.id = null;
+      return;
+    }
+    const duration = entries.every((entry) => entry.copy.isSuccess)
+      ? 5_000
+      : 10_000;
+    summary.expiresAt = Date.now() + duration;
+    summary.id = toast.custom(
+      (currentToast) => (
+        <TaskNotificationToast
+          visible={currentToast.visible}
+          title={
+            entries.length > 1
+              ? t("notification.taskUpdates", { count: entries.length })
+              : latest.copy.title
+          }
+          body={
+            entries.length > 1
+              ? `${latest.copy.title}: ${latest.copy.body}`
+              : latest.copy.body
+          }
+          openLabel={t(
+            entries.length > 1
+              ? "notification.openLatestConversation"
+              : "notification.openConversation",
+          )}
+          dismissLabel={t("common.dismiss", "关闭")}
+          onOpen={() => {
+            if (!isCurrent()) return;
+            latest.onOpen();
+            summary.entries.clear();
+            toast.dismiss(currentToast.id);
+          }}
+          onDismiss={() => {
+            if (!isCurrent()) return;
+            summary.entries.clear();
+            toast.dismiss(currentToast.id);
+          }}
+        />
+      ),
+      { ...TASK_TOAST_OPTIONS, id: `task-catch-up:${user?.id}`, duration },
+    );
+    ownedToastIds.current.set(summary.id, latest);
+  }, [t, user?.id, notificationScope]);
+  const pendingNotifications = useRef(
+    new Set<ReadableTask & { read: boolean }>(),
+  );
   useEffect(() => {
     notificationScope.generation += 1;
-    notificationScope.active = notificationScope.enabled && !!notificationScope.userId;
+    notificationScope.active =
+      notificationScope.enabled && !!notificationScope.userId;
     const toastIds = ownedToastIds.current;
+    const summary = catchUpToast.current;
     return () => {
       notificationScope.active = false;
       notificationScope.generation += 1;
       for (const id of toastIds.keys()) toast.remove(id);
       toastIds.clear();
+      summary.entries.clear();
+      summary.id = null;
     };
   }, [notificationScope]);
   const isNotificationScopeActive = useCallback(
-    () => notificationScope.active && notificationUserRef.current === notificationScope.userId,
+    () =>
+      notificationScope.active &&
+      notificationUserRef.current === notificationScope.userId,
     [notificationScope],
   );
   useEffect(() => {
-    const onRead = (event: Event) => {
+    const onRead = async (event: Event) => {
       const scope = (event as CustomEvent<SessionReadScope>).detail;
+      const generation = notificationScope.generation;
+      if (
+        catchUpToast.current.id &&
+        Date.now() >= catchUpToast.current.expiresAt
+      ) {
+        catchUpToast.current.entries.clear();
+        showCatchUpToast();
+      }
+      const tasks = [
+        ...ownedToastIds.current.values(),
+        ...catchUpToast.current.entries.values(),
+        ...pendingNotifications.current,
+      ].filter((task) => matchesReadScope(task, scope));
+      const snapshots = new Map(
+        await Promise.all(
+          [...new Set(tasks.map((task) => task.sessionId))].map(
+            async (id) =>
+              [
+                id,
+                id ? await sessionApi.get(id).catch(() => null) : null,
+              ] as const,
+          ),
+        ),
+      );
+      if (
+        !isNotificationScopeActive() ||
+        notificationScope.generation !== generation
+      )
+        return;
+      const read = (task: ReadableTask) => {
+        if (!tasks.includes(task)) return false;
+        const session = snapshots.get(task.sessionId);
+        if (!session) return false;
+        const readAt = Date.parse(session.last_read_at ?? "");
+        return (
+          task.createdAt <= readAt ||
+          (task.status !== "waiting_human" && session.unread_count === 0)
+        );
+      };
       for (const [id, task] of ownedToastIds.current) {
-        if (!matchesReadScope(task, scope)) continue;
+        if (id === catchUpToast.current.id || !read(task)) continue;
         toast.remove(id);
         ownedToastIds.current.delete(id);
       }
+      let summaryChanged = false;
+      for (const [key, task] of catchUpToast.current.entries) {
+        if (!read(task)) continue;
+        catchUpToast.current.entries.delete(key);
+        summaryChanged = true;
+      }
+      if (summaryChanged) showCatchUpToast();
       for (const task of pendingNotifications.current) {
-        if (matchesReadScope(task, scope)) task.read = true;
+        if (read(task)) task.read = true;
       }
     };
     window.addEventListener(SESSIONS_READ_EVENT, onRead);
-    return () => window.removeEventListener(SESSIONS_READ_EVENT, onRead);
-  }, []);
+    window.addEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    return () => {
+      window.removeEventListener(SESSIONS_READ_EVENT, onRead);
+      window.removeEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    };
+  }, [showCatchUpToast, notificationScope, isNotificationScopeActive]);
   const navigate = useNavigate();
   const { notify, isSupported, permission } = useBrowserNotification();
   const onSessionUnreadRef = useRef(onSessionUnread);
@@ -136,7 +300,9 @@ export function useWebSocketNotifications({
   const deliverTaskCompletion = useCallback(
     async (notification: TaskCompleteDelivery) => {
       const generation = notificationScope.generation;
-      const isCurrent = () => isNotificationScopeActive() && notificationScope.generation === generation;
+      const isCurrent = () =>
+        isNotificationScopeActive() &&
+        notificationScope.generation === generation;
       if (!isCurrent()) return;
       const {
         session_id,
@@ -151,7 +317,8 @@ export function useWebSocketNotifications({
 
       // 跨通道去重：websocket 即时通知与回前台补发共用同一 key 空间
       const dedupeKey =
-        notification.data.dedupe_key ?? notification.data.dedupeKey ??
+        notification.data.dedupe_key ??
+        notification.data.dedupeKey ??
         (run_id ? `task:${run_id}:${status}` : undefined);
       if (dedupeKey && hasTaskNotified(dedupeKey)) return;
 
@@ -193,7 +360,14 @@ export function useWebSocketNotifications({
         return;
       }
 
-      const pending = { sessionId: session_id, projectId: project_id, scheduledTaskId: scheduled_task_id, read: false };
+      const pending = {
+        sessionId: session_id,
+        projectId: project_id,
+        scheduledTaskId: scheduled_task_id,
+        read: false,
+        createdAt: Date.parse(notification.data.created_at ?? ""),
+        status,
+      };
       pendingNotifications.current.add(pending);
       const [sessionResult, eventsResult] = await Promise.all([
         sessionApi.get(session_id).catch((err) => {
@@ -201,6 +375,12 @@ export function useWebSocketNotifications({
             "[AppContent] Failed to fetch session name for notification:",
             err,
           );
+          const statusCode =
+            err && typeof err === "object" && "status" in err
+              ? err.status
+              : undefined;
+          if (notification.catchUp && statusCode !== 404 && statusCode !== 403)
+            throw err;
           return null;
         }),
         status === "completed"
@@ -212,19 +392,25 @@ export function useWebSocketNotifications({
               return null;
             })
           : Promise.resolve(null),
-      ]);
-
-      pendingNotifications.current.delete(pending);
+      ]).finally(() => pendingNotifications.current.delete(pending));
       if (!isCurrent()) return;
-      if (pending.read || (notification.catchUp && sessionResult?.unread_count === 0)) {
+      const readAt = Date.parse(sessionResult?.last_read_at ?? "");
+      const completedAt = Date.parse(notification.data.created_at ?? "");
+      if (
+        pending.read ||
+        completedAt <= readAt ||
+        (status !== "waiting_human" && sessionResult?.unread_count === 0) ||
+        (notification.catchUp && !sessionResult)
+      ) {
         if (dedupeKey) markTaskNotified(dedupeKey);
         return;
       }
       // 通知侧边栏更新 unread_count（仅非当前 session）
-      if (session_id !== sessionId && unread_count !== undefined) {
+      const currentUnreadCount = sessionResult?.unread_count ?? unread_count;
+      if (session_id !== sessionId && currentUnreadCount !== undefined) {
         onSessionUnreadRef.current?.(
           session_id,
-          unread_count,
+          currentUnreadCount,
           project_id,
           is_favorite,
           scheduled_task_id,
@@ -237,7 +423,12 @@ export function useWebSocketNotifications({
       }
       const notificationCopy = buildTaskNotificationCopy({
         sessionName: sessionResult?.name,
-        status: status === "waiting_human" ? "waiting_human" : status === "completed" ? "completed" : "failed",
+        status:
+          status === "waiting_human"
+            ? "waiting_human"
+            : status === "completed"
+              ? "completed"
+              : "failed",
         fallbackMessage: message,
         events: eventsResult?.events,
         successLabel: t("notification.taskCompleted"),
@@ -255,7 +446,7 @@ export function useWebSocketNotifications({
       };
       const isAppNotificationRuntime = appNotificationRuntime !== "unsupported";
 
-      if (shouldAttemptAppNotification) {
+      if (shouldAttemptAppNotification && !notification.catchUp) {
         void appNotificationService.notify({
           type: "task",
           ownerUserId: notificationScope.userId,
@@ -275,6 +466,7 @@ export function useWebSocketNotifications({
 
       // Show browser notification (if permitted)
       if (
+        !notification.catchUp &&
         !isAppNotificationRuntime &&
         shouldAttemptBrowserNotification({
           isSupported,
@@ -301,10 +493,39 @@ export function useWebSocketNotifications({
           ? 7_000
           : 10_000;
 
+      const readScope = {
+        sessionId: session_id,
+        projectId:
+          project_id ??
+          (sessionResult?.metadata?.project_id as string | undefined),
+        scheduledTaskId:
+          scheduled_task_id ??
+          (sessionResult?.metadata?.scheduled_task_id as string | undefined),
+      };
+      if (notification.catchUp) {
+        const summary = catchUpToast.current;
+        if (Date.now() - summary.updatedAt > 10_000) summary.entries.clear();
+        summary.updatedAt = Date.now();
+        summary.entries.set(
+          dedupeKey ?? session_id,
+          Object.assign(pending, {
+            ...readScope,
+            createdAt: Number.isFinite(completedAt) ? completedAt : Date.now(),
+            status,
+            copy: notificationCopy,
+            onOpen: navigateToSession,
+          }),
+        );
+        showCatchUpToast();
+        return;
+      }
+
       const toastId = toast.custom(
         (currentToast) => (
-          <TaskNotificationToast visible={currentToast.visible}
-            title={notificationCopy.title} body={notificationCopy.body}
+          <TaskNotificationToast
+            visible={currentToast.visible}
+            title={notificationCopy.title}
+            body={notificationCopy.body}
             openLabel={t("notification.openConversation")}
             dismissLabel={t("common.dismiss", "关闭")}
             onOpen={() => {
@@ -315,28 +536,27 @@ export function useWebSocketNotifications({
             onDismiss={() => {
               if (!isCurrent()) return;
               toast.dismiss(currentToast.id);
-            }} />
+            }}
+          />
         ),
         {
           duration: toastDuration,
-          position: "top-right",
-          style: {
-            background: "transparent",
-            padding: 0,
-            boxShadow: "none",
-            border: "none",
-            borderRadius: 0,
-            overflow: "visible",
-          },
+          ...TASK_TOAST_OPTIONS,
         },
       );
-      ownedToastIds.current.set(toastId, {
-        sessionId: session_id,
-        projectId: project_id ?? sessionResult?.metadata?.project_id as string | undefined,
-        scheduledTaskId: scheduled_task_id ?? sessionResult?.metadata?.scheduled_task_id as string | undefined,
-      });
+      ownedToastIds.current.set(toastId, Object.assign(pending, readScope));
     },
-    [sessionId, t, navigate, notify, isSupported, permission, notificationScope, isNotificationScopeActive],
+    [
+      sessionId,
+      t,
+      navigate,
+      notify,
+      isSupported,
+      permission,
+      notificationScope,
+      isNotificationScopeActive,
+      showCatchUpToast,
+    ],
   );
 
   const deliverTaskCompletionRef = useRef(deliverTaskCompletion);
@@ -350,7 +570,9 @@ export function useWebSocketNotifications({
   useEffect(() => {
     if (!enabled) return;
     const generation = notificationScope.generation;
-    const isCurrent = () => isNotificationScopeActive() && notificationScope.generation === generation;
+    const isCurrent = () =>
+      isNotificationScopeActive() &&
+      notificationScope.generation === generation;
 
     const hiddenAtRef: { current: number | null } = { current: null };
     let catchUpInFlight = false;
@@ -377,6 +599,7 @@ export function useWebSocketNotifications({
           const candidates = selectCatchUpCandidates({
             sessions: sessions.map(toCatchUpSnapshot),
             hiddenAt,
+            notBefore: notificationScope.startedAt,
             currentSessionId: sessionIdRef.current,
             hasNotified: hasTaskNotified,
           });
@@ -387,6 +610,7 @@ export function useWebSocketNotifications({
               data: {
                 session_id: candidate.session_id,
                 run_id: candidate.run_id,
+                created_at: candidate.created_at,
                 status: candidate.status,
                 unread_count: candidate.unreadCount,
                 dedupeKey: candidate.dedupeKey,
@@ -406,14 +630,25 @@ export function useWebSocketNotifications({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [enabled, notificationScope, isNotificationScopeActive]);
 
-  const restoreCompletions = useTaskCompletionJournal(user?.id, enabled, async (event) => {
-    await deliverTaskCompletionRef.current({data:event, catchUp:true});
-  });
+  const restoreCompletions = useTaskCompletionJournal(
+    user?.id,
+    enabled,
+    async (event) => {
+      await deliverTaskCompletionRef.current({ data: event, catchUp: true });
+    },
+  );
 
   // WebSocket for task completion notifications
   useWebSocket({
     enabled,
+    userId: user?.id,
     // daemon/机器 presence 推送直达 store（WS 健康时轮询降频为对账兜底）
+    onSessionsRead: (scope) => {
+      if (!isNotificationScopeActive()) return;
+      window.dispatchEvent(
+        new CustomEvent(SESSIONS_READ_INVALIDATED_EVENT, { detail: scope }),
+      );
+    },
     onSandboxPresence: (notification) => {
       if (!isNotificationScopeActive()) return;
       applySandboxPresence(notification.data);

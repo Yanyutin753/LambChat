@@ -307,7 +307,7 @@ export function useFileUpload({
           }
 
           const progressController = createUploadProgressController(
-            ({ progress, stage }) => {
+            ({ progress, stage, processingProgress }) => {
               if (!isMountedRef.current || controller.signal.aborted) return;
               onAttachmentsChange((prev) =>
                 prev.map((attachment) =>
@@ -316,6 +316,7 @@ export function useFileUpload({
                         ...attachment,
                         uploadProgress: progress,
                         uploadStage: stage,
+                        uploadProcessingProgress: processingProgress,
                         isUploading: true,
                       }
                     : attachment,
@@ -327,6 +328,7 @@ export function useFileUpload({
           disposeProgress = progressController.dispose;
           const handle = uploadApi.uploadFile(processedFile, {
             onProgress: progressController.report,
+            onProcessingProgress: progressController.reportProcessing,
           });
           xhrAbort = handle.abort;
           if (controller.signal.aborted) {
@@ -369,6 +371,7 @@ export function useFileUpload({
                         isUploading: false,
                         uploadProgress: undefined,
                         uploadStage: undefined,
+                        uploadProcessingProgress: undefined,
                         uploadError: message,
                       }
                     : attachment,

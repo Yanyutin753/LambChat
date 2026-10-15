@@ -39,12 +39,28 @@ test("supplementFollowUp defers only while the submit POST is in flight", () => 
   expect(source).toMatch(/const submitInFlightRef = useRef\(false\);/);
 });
 
-test("loadHistory restores its pre-clear snapshot when superseded with an empty list", () => {
-  // 「先 setMessages([]) 后被发送判 stale 早退」会留下空列表 + 卡 loading
-  expect(source).toMatch(/const messagesSnapshot = messagesRef\.current;/);
-  expect(source).toMatch(
-    /if \(messagesRef\.current\.length === 0\) setMessages\(messagesSnapshot\);/,
+test("only the send owner can restore a same-session history snapshot", () => {
+  expect(source).not.toContain("setMessages(messagesSnapshot)");
+  expect(source).toContain(
+    "historySnapshot?.requestId === loadHistoryRequestIdRef.current",
   );
+  expect(source).toContain(
+    "historySnapshot.sourceSessionId === sessionIdRef.current",
+  );
+  expect(source).toContain(
+    "historySnapshot.targetSessionId === sessionIdRef.current",
+  );
+  expect(source).toContain("messagesRef.current = historySnapshot.messages");
+  expect(source).toContain(
+    "historyMessagesSnapshotRef.current?.requestId === requestId",
+  );
+  expect(source).toContain(
+    "previousSnapshot?.requestId === loadHistoryRequestIdRef.current",
+  );
+  expect(source).toContain(
+    "previousSnapshot.sourceSessionId === sessionIdRef.current",
+  );
+  expect(source).toContain("messages: snapshotMessages");
 });
 
 test("sendMessage releases the history-loading flags it supersedes", () => {

@@ -22,8 +22,14 @@ export interface TaskCompletionPage {
   cursor: string | null;
   next_cursor: string | null;
 }
-export function getTaskCompletions(cursor: string | null): Promise<TaskCompletionPage> {
-  const query = new URLSearchParams({limit:"50"});
-  if (cursor) query.set("cursor",cursor);
-  return authFetch<TaskCompletionPage>(`${API_BASE}/api/task-completions?${query}`);
+export function getTaskCompletions(
+  cursor: string | null,
+  since?: string,
+): Promise<TaskCompletionPage> {
+  const query = new URLSearchParams({ limit: "50" });
+  if (cursor) query.set("cursor", cursor);
+  if (since) query.set("since", since);
+  return authFetch<TaskCompletionPage>(
+    `${API_BASE}/api/task-completions?${query}`,
+  );
 }

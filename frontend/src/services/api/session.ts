@@ -12,12 +12,20 @@ import { stripLocalAttachmentFields } from "../../components/chat/longTextConver
 import { filterSendableAttachments } from "../../components/chat/attachmentValidation";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { decodeToken, getAccessToken } from "./token";
 
 export const SESSIONS_READ_EVENT = "lambchat:sessions-read";
+export const SESSIONS_READ_INVALIDATED_EVENT =
+  "lambchat:sessions-read-invalidated";
 export interface SessionReadScope {
   sessionId?: string;
   projectId?: string | null;
   scheduledTaskId?: string | null;
+}
+
+function getReadNotificationOwner() {
+  const token = getAccessToken();
+  return token ? decodeToken(token)?.sub ?? token : null;
 }
 
 // Backend Session type (matches backend Session schema)
@@ -31,6 +39,7 @@ export interface BackendSession {
   name?: string;
   metadata: Record<string, unknown>;
   unread_count?: number;
+  last_read_at?: string | null;
   task_status?: string | null;
 }
 
@@ -70,7 +79,14 @@ export interface PersistentGoal {
   rubric: string;
   version: number;
   revision: number;
-  status: "active" | "paused" | "waiting_human" | "blocked" | "completed" | "budget_limited" | "cleared";
+  status:
+    | "active"
+    | "paused"
+    | "waiting_human"
+    | "blocked"
+    | "completed"
+    | "budget_limited"
+    | "cleared";
   limits: { max_turns: number; max_tokens: number; max_seconds: number };
   accounting: { turns: number; tokens: number | null };
   started_at: string | null;
@@ -248,17 +264,43 @@ export function buildSessionEventsUrl(
 }
 
 export const sessionApi = {
-  async create(data: { name?: string; metadata?: Record<string, unknown> }): Promise<BackendSession> {
-    return authFetch(`${API_BASE}/api/sessions`, { method: "POST", body: JSON.stringify(data) });
+  async create(data: {
+    name?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<BackendSession> {
+    return authFetch(`${API_BASE}/api/sessions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
-  async getPersistentGoal(sessionId: string, options?: { signal?: AbortSignal }): Promise<{ goal: PersistentGoal | null }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`, options);
+  async getPersistentGoal(
+    sessionId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`,
+      options,
+    );
   },
-  async putPersistentGoal(sessionId: string, data: PersistentGoalRequest): Promise<{ goal: PersistentGoal | null }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`, { method: "PUT", body: JSON.stringify(data) });
+  async putPersistentGoal(
+    sessionId: string,
+    data: PersistentGoalRequest,
+  ): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal`,
+      { method: "PUT", body: JSON.stringify(data) },
+    );
   },
-  async controlPersistentGoal(sessionId: string, action: "pause" | "resume" | "clear"): Promise<{ goal: PersistentGoal | null }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${encodeURIComponent(sessionId)}/goal/${action}`, { method: "POST" });
+  async controlPersistentGoal(
+    sessionId: string,
+    action: "pause" | "resume" | "clear",
+  ): Promise<{ goal: PersistentGoal | null }> {
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${encodeURIComponent(
+        sessionId,
+      )}/goal/${action}`,
+      { method: "POST" },
+    );
   },
   /**
    * List all sessions with pagination
@@ -466,7 +508,10 @@ export const sessionApi = {
     });
   },
 
-  async getPendingSteers(sessionId: string, options?: { signal?: AbortSignal }): Promise<{
+  async getPendingSteers(
+    sessionId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<{
     session_id: string;
     items: Array<{
       message_id: string;
@@ -480,7 +525,10 @@ export const sessionApi = {
       >;
     }>;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, options);
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/steer`,
+      options,
+    );
   },
 
   /**
@@ -583,10 +631,14 @@ export const sessionApi = {
    * Mark session as read (clear unread count)
    */
   async markRead(sessionId: string): Promise<void> {
+    const owner = getReadNotificationOwner();
     await authFetch(`${API_BASE}/api/sessions/${sessionId}/mark-read`, {
       method: "POST",
     });
-    window.dispatchEvent(new CustomEvent(SESSIONS_READ_EVENT, { detail: { sessionId } }));
+    if (getReadNotificationOwner() !== owner) return;
+    window.dispatchEvent(
+      new CustomEvent(SESSIONS_READ_EVENT, { detail: { sessionId } }),
+    );
   },
 
   /**
@@ -596,6 +648,7 @@ export const sessionApi = {
     projectId?: string;
     scheduledTaskId?: string;
   }): Promise<{ status: string; modified_count: number }> {
+    const owner = getReadNotificationOwner();
     const params = new URLSearchParams();
     if (opts?.projectId) params.set("project_id", opts.projectId);
     if (opts?.scheduledTaskId)
@@ -605,7 +658,11 @@ export const sessionApi = {
       `${API_BASE}/api/sessions/mark-all-read${qs ? `?${qs}` : ""}`,
       { method: "POST" },
     );
-    window.dispatchEvent(new CustomEvent(SESSIONS_READ_EVENT, { detail: opts ?? {} }));
+    if (getReadNotificationOwner() === owner) {
+      window.dispatchEvent(
+        new CustomEvent(SESSIONS_READ_EVENT, { detail: opts ?? {} }),
+      );
+    }
     return result;
   },
 

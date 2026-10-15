@@ -40,6 +40,15 @@ import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/i
  * Context passed to event handler
  */
 export interface EventHandlerContext {
+  /** Internal synchronous replay: setters are local and external effects are disabled. */
+  replayOnly?: boolean;
+  replayParts?: import("./historyReplayParts").HistoryPartReplay;
+  historyRunId?: string;
+  isHistoryOwnerCurrent?: () => boolean;
+  recordHistoryEvent?: (
+    event: import("./types").HistoryEvent,
+    messageId: string,
+  ) => boolean | "covered";
   options?: UseAgentOptions;
   sessionIdRef: React.MutableRefObject<string | null>;
   processedEventIdsRef: React.MutableRefObject<Set<string>>;
@@ -54,7 +63,11 @@ export interface EventHandlerContext {
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
-  setPersistentGoal?: React.Dispatch<React.SetStateAction<import("../../services/api/session").PersistentGoal | null>>;
+  setPersistentGoal?: React.Dispatch<
+    React.SetStateAction<
+      import("../../services/api/session").PersistentGoal | null
+    >
+  >;
   setActiveGoal: React.Dispatch<
     React.SetStateAction<import("./types").ActiveGoalSpec | null>
   >;
@@ -76,11 +89,13 @@ export function handleStreamEvent(
   eventTimestamp: string | undefined,
   ctx: EventHandlerContext,
 ): void {
-  console.log("[handleStreamEvent] Received event:", {
-    eventType: event.event,
-    messageId,
-    eventId,
-  });
+  if (ctx.isHistoryOwnerCurrent && !ctx.isHistoryOwnerCurrent()) return;
+  if (!ctx.replayOnly)
+    console.log("[handleStreamEvent] Received event:", {
+      eventType: event.event,
+      messageId,
+      eventId,
+    });
 
   // Skip if already processed by ID
   if (ctx.processedEventIdsRef.current.has(eventId)) {
@@ -146,14 +161,54 @@ export function handleStreamEvent(
     return;
   }
 
+  if (
+    (eventType === "agent:call" || eventType === "agent:result") &&
+    data.timestamp == null
+  ) {
+    data = { ...data, timestamp: eventTimestamp || new Date().toISOString() };
+  }
+
+  const historyAcceptance = ctx.recordHistoryEvent?.(
+    {
+      id: eventId,
+      event_type: eventType,
+      data,
+      timestamp: eventTimestamp || new Date().toISOString(),
+      run_id: data.run_id || ctx.historyRunId,
+      trace_id:
+        typeof data._source_trace_id === "string"
+          ? data._source_trace_id
+          : undefined,
+    },
+    messageId,
+  );
+  if (historyAcceptance === false) return;
+  const historyCovered = historyAcceptance === "covered";
+
   if (!data.depth && (data.assistant_identity || eventType === "metadata")) {
-    ctx.setMessages((previous) => previous.map((message) => {
-      if (message.role !== "assistant" ||
-        !(message.id === messageId || (data.run_id && message.runId === data.run_id))) return message;
-      const identity = data.assistant_identity || message.assistantIdentity ||
-        (data.agent_id ? { seed: data.agent_id, name: `agents.${data.agent_id}.name`, avatar: null } : undefined);
-      return identity ? { ...message, assistantIdentity: identity } : message;
-    }));
+    ctx.setMessages((previous) =>
+      previous.map((message) => {
+        if (
+          message.role !== "assistant" ||
+          !(
+            message.id === messageId ||
+            (data.run_id && message.runId === data.run_id)
+          )
+        )
+          return message;
+        const identity =
+          data.assistant_identity ||
+          message.assistantIdentity ||
+          (data.agent_id
+            ? {
+                seed: data.agent_id,
+                name: `agents.${data.agent_id}.name`,
+                avatar: null,
+              }
+            : undefined);
+        return identity ? { ...message, assistantIdentity: identity } : message;
+      }),
+    );
   }
 
   // Events handled entirely by side effects (no message transformation)
@@ -170,10 +225,16 @@ export function handleStreamEvent(
     }
 
     case "goal:updated": {
-      const goal = (data as unknown as { goal?: import("../../services/api/session").PersistentGoal | null }).goal;
+      const goal = (
+        data as unknown as {
+          goal?: import("../../services/api/session").PersistentGoal | null;
+        }
+      ).goal;
       if (goal === null) ctx.setPersistentGoal?.(null);
       else if (goal?.session_id === ctx.sessionIdRef.current) {
-        ctx.setPersistentGoal?.((previous) => selectPersistentGoal(previous, goal, ctx.sessionIdRef.current));
+        ctx.setPersistentGoal?.((previous) =>
+          selectPersistentGoal(previous, goal, ctx.sessionIdRef.current),
+        );
       }
       return;
     }
@@ -183,7 +244,10 @@ export function handleStreamEvent(
         const goal: import("./types").ActiveGoalSpec = {
           objective: data.goal?.objective ?? prev?.objective ?? "",
           rubric: data.goal?.rubric ?? prev?.rubric,
-          ...getGoalProjectionIdentity(data.goal, prev?.runId === data.run_id ? prev : null),
+          ...getGoalProjectionIdentity(
+            data.goal,
+            prev?.runId === data.run_id ? prev : null,
+          ),
           started_at: data.started_at ?? prev?.started_at,
         };
         if (data.run_id) goal.runId = data.run_id;
@@ -220,7 +284,10 @@ export function handleStreamEvent(
         const goal: import("./types").ActiveGoalSpec = {
           objective: data.goal?.objective ?? prev?.objective ?? "",
           rubric: data.goal?.rubric ?? prev?.rubric,
-          ...getGoalProjectionIdentity(data.goal, prev?.runId === data.run_id ? prev : null),
+          ...getGoalProjectionIdentity(
+            data.goal,
+            prev?.runId === data.run_id ? prev : null,
+          ),
           started_at: data.started_at ?? prev?.started_at,
           ended_at: data.ended_at,
         };
@@ -253,7 +320,7 @@ export function handleStreamEvent(
       }
       // Auto-dismiss the goal chip after a short delay so the user sees
       // the completed state briefly before it disappears.
-      setTimeout(() => ctx.setActiveGoal(null), 2000);
+      if (!ctx.replayOnly) setTimeout(() => ctx.setActiveGoal(null), 2000);
       return;
     }
 
@@ -273,65 +340,68 @@ export function handleStreamEvent(
       // 插话送达：先封存当前助手轮次，再把事件本身落入 messages。
       // 这样即使 SSE 重连时本地 optimistic 状态已丢失，消息仍会立即可见，
       // 并且后续历史回放与实时状态使用同一条数据源。
-      ctx.setMessages((prev) => {
-        const splitMessages = splitAssistantTurn(prev, messageId);
-        if (!steerContent) return splitMessages;
-        const hasOptimisticById = splitMessages.some(
-          (message) =>
-            message.id === deliveredSteerId &&
-            message.metadata?.queued === true,
-        );
-        const alreadyPresent = splitMessages.some((message) =>
-          typeof data.message_id === "string" && data.message_id.trim()
-            ? message.id === deliveredSteerId
-            : message.role === "user" &&
-              message.content === steerContent &&
+      if (!historyCovered)
+        ctx.setMessages((prev) => {
+          const splitMessages = splitAssistantTurn(prev, messageId);
+          if (!steerContent) return splitMessages;
+          const hasOptimisticById = splitMessages.some(
+            (message) =>
+              message.id === deliveredSteerId &&
+              message.metadata?.queued === true,
+          );
+          const alreadyPresent = splitMessages.some((message) =>
+            typeof data.message_id === "string" && data.message_id.trim()
+              ? message.id === deliveredSteerId
+              : message.role === "user" &&
+                message.content === steerContent &&
+                message.metadata?.steer === true &&
+                message.metadata?.queued !== true,
+          );
+          let removedOptimistic = false;
+          const withoutOptimistic = splitMessages.filter((message) => {
+            const isOptimistic =
+              message.role === "user" &&
               message.metadata?.steer === true &&
-              message.metadata?.queued !== true,
-        );
-        let removedOptimistic = false;
-        const withoutOptimistic = splitMessages.filter((message) => {
-          const isOptimistic =
-            message.role === "user" &&
-            message.metadata?.steer === true &&
-            message.metadata?.queued === true &&
-            (message.id === deliveredSteerId ||
-              (!hasOptimisticById && message.content === steerContent));
-          if (isOptimistic && !removedOptimistic) {
-            removedOptimistic = true;
-            return false;
-          }
-          return true;
+              message.metadata?.queued === true &&
+              (message.id === deliveredSteerId ||
+                (!hasOptimisticById && message.content === steerContent));
+            if (isOptimistic && !removedOptimistic) {
+              removedOptimistic = true;
+              return false;
+            }
+            return true;
+          });
+          if (alreadyPresent) return withoutOptimistic;
+          const delivered = {
+            id: deliveredSteerId,
+            role: "user" as const,
+            content: steerContent,
+            attachments: steerAttachments,
+            // created_at 是用户发送时刻；事件信封时间（注入时刻）只作回退
+            timestamp:
+              typeof data.created_at === "string"
+                ? parseDate(data.created_at)
+                : eventTimestamp
+                  ? parseDate(eventTimestamp)
+                  : new Date(),
+            runId: data.run_id,
+            metadata: { steer: true, queued: false },
+          };
+          // splitAssistantTurn leaves a fresh assistant placeholder for the
+          // response after this steer. Insert before it so the visual order is
+          // assistant turn → steer → next assistant turn.
+          const nextAssistantIndex = withoutOptimistic.findIndex(
+            (message) =>
+              message.id === messageId && message.role === "assistant",
+          );
+          if (nextAssistantIndex === -1)
+            return [...withoutOptimistic, delivered];
+          return [
+            ...withoutOptimistic.slice(0, nextAssistantIndex),
+            delivered,
+            ...withoutOptimistic.slice(nextAssistantIndex),
+          ];
         });
-        if (alreadyPresent) return withoutOptimistic;
-        const delivered = {
-          id: deliveredSteerId,
-          role: "user" as const,
-          content: steerContent,
-          attachments: steerAttachments,
-          // created_at 是用户发送时刻；事件信封时间（注入时刻）只作回退
-          timestamp:
-            typeof data.created_at === "string"
-              ? parseDate(data.created_at)
-              : eventTimestamp
-                ? parseDate(eventTimestamp)
-                : new Date(),
-          runId: data.run_id,
-          metadata: { steer: true, queued: false },
-        };
-        // splitAssistantTurn leaves a fresh assistant placeholder for the
-        // response after this steer. Insert before it so the visual order is
-        // assistant turn → steer → next assistant turn.
-        const nextAssistantIndex = withoutOptimistic.findIndex(
-          (message) => message.id === messageId && message.role === "assistant",
-        );
-        if (nextAssistantIndex === -1) return [...withoutOptimistic, delivered];
-        return [
-          ...withoutOptimistic.slice(0, nextAssistantIndex),
-          delivered,
-          ...withoutOptimistic.slice(nextAssistantIndex),
-        ];
-      });
       if (steerContent) {
         ctx.markSteerDelivered?.(steerContent, deliveredSteerId);
       }
@@ -383,7 +453,10 @@ export function handleStreamEvent(
           {
             id: messageId,
             role: "assistant" as const,
-            assistantIdentity: prev.find((message) => message.role === "assistant" && message.runId === data.run_id)?.assistantIdentity,
+            assistantIdentity: prev.find(
+              (message) =>
+                message.role === "assistant" && message.runId === data.run_id,
+            )?.assistantIdentity,
             timestamp: new Date(),
             runId: typeof data.run_id === "string" ? data.run_id : undefined,
             ...reset,
@@ -401,7 +474,7 @@ export function handleStreamEvent(
       ctx.setConnectionStatus("disconnected");
       // AI 回复完成，用户正在查看当前 session，立即标记为已读
       const activeSessionId = ctx.sessionIdRef.current;
-      if (activeSessionId) {
+      if (activeSessionId && !ctx.replayOnly) {
         sessionApi.markRead(activeSessionId).catch(() => {});
       }
       ctx.options?.onStreamDone?.();
@@ -409,7 +482,7 @@ export function handleStreamEvent(
     }
 
     case "queue_update": {
-      if (data.status === "processing") {
+      if (data.status === "processing" && !ctx.replayOnly) {
         import("react-hot-toast").then(({ default: toast }) => {
           toast.dismiss("chat-queue");
           toast.success(i18n.t("chat.queueStart"), { duration: 2000 });
@@ -503,46 +576,68 @@ export function handleStreamEvent(
     }
   }
 
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
+  if (!historyCovered)
+    ctx.setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
 
-      const result = processMessageEvent(
-        eventType,
-        data,
-        m.parts || [],
-        m.content,
-        m.toolCalls || [],
-        depth,
-        subagentStack,
-        true, // isStreaming
-        messageId,
-      );
+        if (ctx.replayOnly && ctx.replayParts) {
+          const privateMessage = { ...m };
+          let routeAgent: string | undefined;
+          if (depth) {
+            for (let index = subagentStack.length - 1; index >= 0; index--) {
+              const item = subagentStack[index];
+              if (
+                item.message_id === messageId &&
+                (item.depth === depth || item.depth === depth - 1)
+              ) {
+                routeAgent = item.agent_id;
+                break;
+              }
+            }
+          }
+          if (
+            ctx.replayParts.replay(privateMessage, eventType, data, routeAgent)
+          )
+            return privateMessage;
+          ctx.replayParts.flush(privateMessage);
+        }
+        const result = processMessageEvent(
+          eventType,
+          data,
+          m.parts || [],
+          m.content,
+          m.toolCalls || [],
+          depth,
+          subagentStack,
+          true, // isStreaming
+          messageId,
+        );
 
-      const updated = {
-        ...m,
-        parts: result.parts,
-        content: result.content,
-        toolCalls: result.toolCalls,
-      };
+        const updated = {
+          ...m,
+          parts: result.parts,
+          content: result.content,
+          toolCalls: result.toolCalls,
+        };
 
-      if (result.toolResult) {
-        updated.toolResults = [...(m.toolResults || []), result.toolResult];
-      }
-      if (result.tokenUsage) {
-        updated.tokenUsage = result.tokenUsage;
-      }
-      if (result.duration) {
-        updated.duration = result.duration;
-      }
-      if (result.cancelled) {
-        updated.isStreaming = false;
-        updated.cancelled = true;
-      }
+        if (result.toolResult) {
+          updated.toolResults = [...(m.toolResults || []), result.toolResult];
+        }
+        if (result.tokenUsage) {
+          updated.tokenUsage = result.tokenUsage;
+        }
+        if (result.duration) {
+          updated.duration = result.duration;
+        }
+        if (result.cancelled) {
+          updated.isStreaming = false;
+          updated.cancelled = true;
+        }
 
-      return updated;
-    }),
-  );
+        return updated;
+      }),
+    );
 
   // Pop subagent stack after agent:result
   if (eventType === "agent:result") {
@@ -555,7 +650,11 @@ export function handleStreamEvent(
     }
   }
 
-  if (eventType === "tool:result" && data.success !== false) {
+  if (
+    !ctx.replayOnly &&
+    eventType === "tool:result" &&
+    data.success !== false
+  ) {
     dispatchToolMutationRefresh(data.result);
   }
 

@@ -30,3 +30,24 @@ def test_server_timing_rejects_dynamic_or_secret_metric_names() -> None:
         assert serialize_server_timing() == ""
     finally:
         reset_server_timing_request(token)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "upload_storage",
+        "upload_verify",
+        "cloud_connect",
+        "cloud_io",
+        "chat_prepare",
+        "chat_context",
+        "chat_submit",
+    ],
+)
+def test_slow_path_metrics_have_fixed_allowlisted_names(name) -> None:
+    token = begin_server_timing_request()
+    try:
+        record_server_timing(name, 1.25)
+        assert serialize_server_timing() == f"{name};dur=1.25"
+    finally:
+        reset_server_timing_request(token)

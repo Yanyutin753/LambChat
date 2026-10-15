@@ -2600,6 +2600,8 @@
     "users": "Manage user accounts and access"
   },
   "notification": {
+    "taskUpdates": "{{count}} new task updates",
+    "openLatestConversation": "Open latest conversation",
     "openConversation": "Open conversation",
     "active": "Active",
     "cancel": "Cancel",

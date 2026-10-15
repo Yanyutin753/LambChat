@@ -28,7 +28,11 @@ import { ChannelModelSelect } from "./channel/ChannelModelSelect";
 import { ChannelPersonaSelect } from "./channel/ChannelPersonaSelect";
 import { ChannelTeamSelect } from "./channel/ChannelTeamSelect";
 import { ChannelRunConfigFields } from "./channel/ChannelRunConfigFields";
-import { defaultChannelRuntime, formatChannelEnv, parseChannelEnv } from "./channel/channelRuntimeConfig";
+import {
+  defaultChannelRuntime,
+  formatChannelEnv,
+  parseChannelEnv,
+} from "./channel/channelRuntimeConfig";
 import { channelApi } from "../../services/api/channel";
 import type {
   ChannelType,
@@ -89,17 +93,28 @@ export function ChannelPanel({
   const [projectId, setProjectId] = useState<string | null>(null);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [personaPresetId, setPersonaPresetId] = useState<string | null>(null);
-  const [runtimeConfig, setRuntimeConfig] = useState<ChannelRuntimeConfig>(defaultChannelRuntime);
+  const [runtimeConfig, setRuntimeConfig] = useState<ChannelRuntimeConfig>(
+    defaultChannelRuntime,
+  );
   const [envText, setEnvText] = useState("");
   const isChatCapable = metadata.capabilities.some((capability) =>
-    ["websocket", "webhook", "long_polling", "direct_message", "group_chat"].includes(capability));
+    [
+      "websocket",
+      "webhook",
+      "long_polling",
+      "direct_message",
+      "group_chat",
+    ].includes(capability),
+  );
 
   const applyRunConfiguration = (config?: ChannelConfigResponse) => {
     setAgentId(config?.agent_id || null);
     setModelId(config?.model_id || null);
     setProjectId(config?.project_id || null);
     setTeamId(config?.agent_id === "team" ? config.team_id || null : null);
-    setPersonaPresetId(config?.agent_id === "team" ? null : config?.persona_preset_id || null);
+    setPersonaPresetId(
+      config?.agent_id === "team" ? null : config?.persona_preset_id || null,
+    );
     setRuntimeConfig(config?.runtime_config || defaultChannelRuntime());
     setEnvText(formatChannelEnv(config?.runtime_config?.env_vars));
   };
@@ -211,12 +226,25 @@ export function ChannelPanel({
     let runSettings = {};
     if (isChatCapable) {
       try {
-        runSettings = { model_id: modelId, project_id: projectId,
+        runSettings = {
+          model_id: modelId,
+          project_id: projectId,
           team_id: agentId === "team" ? teamId : null,
           persona_preset_id: agentId === "team" ? null : personaPresetId,
-          runtime_config: { ...defaultChannelRuntime(), ...runtimeConfig, env_vars: parseChannelEnv(envText) } };
+          runtime_config: {
+            ...defaultChannelRuntime(),
+            ...runtimeConfig,
+            env_vars: parseChannelEnv(envText),
+          },
+        };
       } catch (error) {
-        setSaveError(t(error instanceof Error ? error.message : "channel.runtime.envInvalid"));
+        setSaveError(
+          t(
+            error instanceof Error
+              ? error.message
+              : "channel.runtime.envInvalid",
+          ),
+        );
         return;
       }
     }
@@ -368,11 +396,11 @@ export function ChannelPanel({
             className="flex items-center justify-between gap-3 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
           >
             <div>
-              <span className="text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+              <span className="text-14 font-medium font-serif text-theme-text dark:text-stone-200">
                 {field.title}
               </span>
               {field.description && (
-                <p className="text-12 text-stone-500 dark:text-stone-400">
+                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
                   {field.description}
                 </p>
               )}
@@ -388,7 +416,7 @@ export function ChannelPanel({
       case "select":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+            <label className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200">
               {field.title}
             </label>
             <Select
@@ -408,7 +436,7 @@ export function ChannelPanel({
           <div key={field.name}>
             <label
               htmlFor={`${formId}-${field.name}`}
-              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+              className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
             >
               {field.title}{" "}
               {field.required && !hasExistingConfig && (
@@ -447,7 +475,7 @@ export function ChannelPanel({
           <div key={field.name}>
             <label
               htmlFor={`${formId}-${field.name}`}
-              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+              className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
             >
               {field.title}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
@@ -540,7 +568,7 @@ export function ChannelPanel({
                 size={16}
                 className="flex-shrink-0 text-red-500 dark:text-red-400"
               />
-              <span className="min-w-0 [overflow-wrap:anywhere] text-14 text-red-700 dark:text-red-300">
+              <span className="min-w-0 [overflow-wrap:anywhere] text-14 text-[color-mix(in_srgb,var(--theme-error)_50%,var(--theme-text))] dark:text-red-300">
                 {status.error_message}
               </span>
             </div>
@@ -560,7 +588,7 @@ export function ChannelPanel({
             <div>
               <label
                 htmlFor={`${formId}-instanceName`}
-                className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+                className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
               >
                 {t("channel.instanceName", "Instance Name")}{" "}
                 <span className="text-red-500">*</span>
@@ -621,20 +649,40 @@ export function ChannelPanel({
           {metadata.config_fields.map(renderField)}
 
           {/* Agent Selector */}
-          <fieldset disabled={isSaving || !canWrite} className="min-w-0 space-y-4">
-            <ChannelAgentSelect value={agentId} onChange={(value) => {
-              setAgentId(value);
-              if (value === "team") setPersonaPresetId(null);
-              else setTeamId(null);
-            }} />
-            {isChatCapable && <>
-              <ChannelModelSelect value={modelId} onChange={setModelId} />
-              {agentId === "team" ? <ChannelTeamSelect value={teamId} onChange={setTeamId} />
-                : <ChannelPersonaSelect value={personaPresetId} onChange={setPersonaPresetId} />}
-              <ChannelRunConfigFields value={runtimeConfig} onChange={setRuntimeConfig}
-                projectId={projectId} onProjectChange={setProjectId}
-                envText={envText} onEnvTextChange={setEnvText} disabled={isSaving || !canWrite} />
-            </>}
+          <fieldset
+            disabled={isSaving || !canWrite}
+            className="min-w-0 space-y-4"
+          >
+            <ChannelAgentSelect
+              value={agentId}
+              onChange={(value) => {
+                setAgentId(value);
+                if (value === "team") setPersonaPresetId(null);
+                else setTeamId(null);
+              }}
+            />
+            {isChatCapable && (
+              <>
+                <ChannelModelSelect value={modelId} onChange={setModelId} />
+                {agentId === "team" ? (
+                  <ChannelTeamSelect value={teamId} onChange={setTeamId} />
+                ) : (
+                  <ChannelPersonaSelect
+                    value={personaPresetId}
+                    onChange={setPersonaPresetId}
+                  />
+                )}
+                <ChannelRunConfigFields
+                  value={runtimeConfig}
+                  onChange={setRuntimeConfig}
+                  projectId={projectId}
+                  onProjectChange={setProjectId}
+                  envText={envText}
+                  onEnvTextChange={setEnvText}
+                  disabled={isSaving || !canWrite}
+                />
+              </>
+            )}
           </fieldset>
         </div>
       </div>

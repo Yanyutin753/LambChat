@@ -71,7 +71,7 @@ export function RolesModelTab({
   }
 
   const currentRoleModels = selectedRole
-    ? (localRoleModels[selectedRole] ?? roleModelsMap[selectedRole] ?? [])
+    ? localRoleModels[selectedRole] ?? roleModelsMap[selectedRole] ?? []
     : [];
 
   const toggleModel = (modelId: string) => {
@@ -228,17 +228,21 @@ export function RolesModelTab({
                           <div className="line-clamp-2 text-14 font-medium font-serif text-theme-text [overflow-wrap:anywhere]">
                             {model.label}
                           </div>
-                          <div className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
+                          <div className="text-12 font-mono text-theme-text-tertiary dark:text-stone-500 truncate sm:hidden mt-0.5">
                             {model.value}
                           </div>
                         </div>
-                        <span className="text-12 font-mono text-stone-400 dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
+                        <span className="text-12 font-mono text-theme-text-tertiary dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
                           {model.value}
                         </span>
                       </label>
                       {hasDesc && (
                         <IconButton
-                          aria-label={`${t(expandedModel === model.id ? "common.collapse" : "common.expand")} ${model.label}`}
+                          aria-label={`${t(
+                            expandedModel === model.id
+                              ? "common.collapse"
+                              : "common.expand",
+                          )} ${model.label}`}
                           aria-expanded={expandedModel === model.id}
                           aria-controls={
                             expandedModel === model.id

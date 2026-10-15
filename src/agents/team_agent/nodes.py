@@ -270,12 +270,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             from src.infra.persona_preset.manager import get_persona_preset_manager
 
             preset_mgr = get_persona_preset_manager()
-            for member in team.active_members:
-                preset_snapshot = await preset_mgr.use_preset(
-                    member.persona_preset_id,
-                    user_id=context.user_id or "default",
-                    is_admin=False,
-                )
+            members = team.active_members
+            preset_snapshots = await preset_mgr.use_presets(
+                [member.persona_preset_id for member in members],
+                user_id=context.user_id or "default",
+                is_admin=False,
+            )
+            for member, preset_snapshot in zip(members, preset_snapshots, strict=True):
                 role_system_prompts[member.member_id] = preset_snapshot.system_prompt
                 role_skill_names = set(getattr(preset_snapshot, "skill_names", []) or [])
                 if role_skill_names:

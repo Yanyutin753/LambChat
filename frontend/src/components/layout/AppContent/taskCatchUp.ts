@@ -29,10 +29,12 @@ export interface CatchUpSessionSnapshot {
   updated_at: string;
   name?: string;
   unread_count?: number;
+  last_read_at?: string | null;
   metadata?: Record<string, unknown>;
 }
 
 export interface CatchUpCandidate {
+  created_at: string;
   session_id: string;
   run_id?: string;
   status: CatchUpStatus;
@@ -71,11 +73,13 @@ export function buildCatchUpDedupeKey(
 export function selectCatchUpCandidates({
   sessions,
   hiddenAt,
+  notBefore,
   currentSessionId,
   hasNotified,
 }: {
   sessions: CatchUpSessionSnapshot[];
   hiddenAt: number;
+  notBefore?: number;
   currentSessionId: string | null;
   hasNotified: (dedupeKey: string) => boolean;
 }): CatchUpCandidate[] {
@@ -83,11 +87,15 @@ export function selectCatchUpCandidates({
 
   for (const session of sessions) {
     if (!isNotifiableStatus(session.task_status)) continue;
+    if (session.unread_count === 0 && session.task_status !== "waiting_human")
+      continue;
     if (session.metadata?.persistent_goal_id) continue;
     if (session.id === currentSessionId) continue;
 
     const updatedAt = Date.parse(session.updated_at);
     if (!Number.isFinite(updatedAt)) continue;
+    if (notBefore !== undefined && updatedAt < notBefore) continue;
+    if (updatedAt <= Date.parse(session.last_read_at ?? "")) continue;
     if (updatedAt < hiddenAt - CATCH_UP_CLOCK_SKEW_MS) continue;
 
     const status = session.task_status;
@@ -95,6 +103,7 @@ export function selectCatchUpCandidates({
     if (hasNotified(dedupeKey)) continue;
 
     candidates.push({
+      created_at: session.updated_at,
       session_id: session.id,
       run_id: currentRunId(session.metadata),
       status,
@@ -117,6 +126,7 @@ export function toCatchUpSnapshot(
     updated_at: session.updated_at,
     name: session.name,
     unread_count: session.unread_count,
+    last_read_at: session.last_read_at,
     metadata: session.metadata,
   };
 }

@@ -280,10 +280,26 @@ async def _create_pg_checkpointer() -> BaseCheckpointSaver[Any] | None:
     global _pg_checkpointer, _pg_checkpointer_pool
 
     try:
+        from importlib.metadata import PackageNotFoundError, version
+
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         from psycopg import AsyncConnection
         from psycopg.rows import dict_row
         from psycopg_pool import AsyncConnectionPool
+
+        saver_class = AsyncPostgresSaver
+        try:
+            supported_delta_protocol = version("langgraph-checkpoint-postgres") == "3.1.2"
+        except PackageNotFoundError:
+            supported_delta_protocol = False
+        if supported_delta_protocol:
+            from src.infra.storage.checkpoint_postgres import BatchedDeltaPostgresSaver
+
+            saver_class = BatchedDeltaPostgresSaver
+        else:
+            logger.info(
+                "PostgreSQL delta reader uses upstream implementation for this package version"
+            )
 
         pool: AsyncConnectionPool[AsyncConnection[dict[str, Any]]] = AsyncConnectionPool(
             settings.checkpoint_postgres_url,
@@ -306,7 +322,7 @@ async def _create_pg_checkpointer() -> BaseCheckpointSaver[Any] | None:
             await pool.close()
             raise
 
-        cp = AsyncPostgresSaver(pool)
+        cp = saver_class(pool)
         try:
             await cp.setup()
             logger.info(

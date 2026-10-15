@@ -56,7 +56,8 @@ export type StreamReconcileContext = SSEConnectionContext & {
  * 复用最后一条助手消息，续跑事件落在同一气泡里）。
  */
 function resolveStreamingMessageId(ctx: StreamReconcileContext): string | null {
-  if (ctx.streamingMessageIdRef.current) return ctx.streamingMessageIdRef.current;
+  if (ctx.streamingMessageIdRef.current)
+    return ctx.streamingMessageIdRef.current;
   return (
     [...ctx.messagesRef.current]
       .reverse()
@@ -105,14 +106,19 @@ export async function reconcileActiveStream(
   }
 
   const status = opts.connectionStatus;
-  const stale = isStreamActivityStale(ctx.lastStreamActivityAtRef.current, Date.now());
+  const stale = isStreamActivityStale(
+    ctx.lastStreamActivityAtRef.current,
+    Date.now(),
+  );
   // connecting 视为在建中（发送路径刚发起），不打断；静默阈值兜底
   const healthy =
     (status === "connected" && !stale) || (status === "connecting" && !stale);
   if (healthy) return true;
 
   console.log(
-    `[SSE Reconcile] Live run but unhealthy transport (status=${status ?? "unknown"}, stale=${stale}); forcing reconnect`,
+    `[SSE Reconcile] Live run but unhealthy transport (status=${
+      status ?? "unknown"
+    }, stale=${stale}); forcing reconnect`,
   );
   clearReconnectTimeout(ctx.reconnectTimeoutRef);
   if (ctx.abortControllerRef.current) {
@@ -123,7 +129,12 @@ export async function reconcileActiveStream(
   ctx.setConnectionStatus("reconnecting");
   ctx.isReconnectFromHistoryRef.current = true;
   if (currentMsgId) {
-    await connectToSSE(currentSessId, currentRId, currentMsgId, ctx);
+    // SSE lives for the whole run; it must not hold the reconciliation lock.
+    void connectToSSE(currentSessId, currentRId, currentMsgId, ctx).catch(
+      (error) => {
+        console.warn("[SSE Reconcile] Failed to reconnect stream:", error);
+      },
+    );
   }
   return true;
 }
@@ -146,15 +157,26 @@ export async function reconcileOpenSession(
   if (!currentSessId) return;
   // 发送/加载在途时本地状态即将被新内容取代，跳过避免覆写
   if (opts.isSending || opts.isLoadingHistory) return;
+  const generation = ctx.sseGenerationRef.current;
+  const localRunId = ctx.currentRunIdRef.current;
 
   let sessionData: Awaited<ReturnType<typeof sessionApi.get>> | null = null;
   try {
     sessionData = await sessionApi.get(currentSessId);
   } catch (err) {
-    console.warn("[SSE Reconcile] Failed to fetch session for staleness check:", err);
+    console.warn(
+      "[SSE Reconcile] Failed to fetch session for staleness check:",
+      err,
+    );
     return;
   }
-  if (!sessionData) return;
+  if (
+    !sessionData ||
+    ctx.sessionIdRef.current !== currentSessId ||
+    ctx.currentRunIdRef.current !== localRunId ||
+    ctx.sseGenerationRef.current !== generation
+  )
+    return;
 
   const serverRunId =
     (sessionData.metadata?.current_run_id as string | undefined) || null;
@@ -287,20 +309,21 @@ export function useStreamReconcile(
     document.addEventListener("visibilitychange", maybeReconcile);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("online", handleOnline);
+    window.addEventListener("pageshow", maybeReconcile);
     window.addEventListener("offline", handleOffline);
     return () => {
       document.removeEventListener("visibilitychange", maybeReconcile);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("pageshow", maybeReconcile);
       window.removeEventListener("offline", handleOffline);
     };
   }, [setConnectionStatus]);
 
-  // 看门狗：页面可见、流声称在线但长时间无事件 → 对账（半开死连接自愈）
+  // 可见的活动流持续对账，也覆盖断开和重连中丢失恢复信号的情况。
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      if (connectionStatusRef.current !== "connected") return;
       if (!sessionIdRef.current || !currentRunIdRef.current) return;
       if (!streamingMessageIdRef.current) return;
       void reconcileRef.current();

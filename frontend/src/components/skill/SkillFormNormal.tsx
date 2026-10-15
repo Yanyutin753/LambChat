@@ -248,7 +248,9 @@ export function SkillFormNormal(a: SkillFormActions) {
               );
             })()}
             {a.errors.content && (
-              <p className="mt-2 text-12 text-red-500">{a.errors.content}</p>
+              <p className="mt-2 text-12 text-theme-error">
+                {a.errors.content}
+              </p>
             )}
           </div>
         </div>

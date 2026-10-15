@@ -19,7 +19,11 @@ vi.mock("../../../services/api", () => ({
     markRead: vi.fn().mockResolvedValue(undefined),
     submitChat,
     cancel,
-    get: vi.fn(async (id: string) => ({ id, name: "Other chat", metadata: {} })),
+    get: vi.fn(async (id: string) => ({
+      id,
+      name: "Other chat",
+      metadata: {},
+    })),
     getEvents: vi.fn().mockResolvedValue({ events: [] }),
     getPendingSteers: vi.fn().mockResolvedValue({ items: [] }),
     getPersistentGoal: vi.fn().mockResolvedValue({ goal: null }),
@@ -58,6 +62,11 @@ vi.mock("../sseConnection", async () => {
 });
 
 import { useAgent } from "../../useAgent";
+import { sessionApi } from "../../../services/api";
+import {
+  settleRemotelyTerminatedRun,
+  type SSEConnectionContext,
+} from "../sseConnection";
 
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -70,6 +79,17 @@ beforeEach(() => {
   });
   connectToSSE.mockReset();
   connectToSSE.mockResolvedValue(undefined);
+  vi.mocked(sessionApi.get)
+    .mockReset()
+    .mockImplementation(
+      async (id) =>
+        ({
+          id,
+          name: "Other chat",
+          metadata: {},
+        }) as Awaited<ReturnType<typeof sessionApi.get>>,
+    );
+  vi.mocked(sessionApi.getEvents).mockReset().mockResolvedValue({ events: [] });
   cancel.mockClear();
 });
 
@@ -274,57 +294,159 @@ test("background reconnect keeps the active bubble streaming after the old send 
     await sending;
   });
   expect(
-    result.current.messages.find((message) => message.role === "assistant")?.isStreaming,
+    result.current.messages.find((message) => message.role === "assistant")
+      ?.isStreaming,
   ).toBe(true);
+});
+
+test("a remotely finished send reloads its full answer before the old stream exits", async () => {
+  let streamContext!: SSEConnectionContext;
+  let releaseStream!: () => void;
+  connectToSSE.mockImplementationOnce((_session, _run, messageId, ctx) => {
+    streamContext = ctx;
+    ctx.sseGenerationRef.current += 1;
+    ctx.streamingMessageIdRef.current = messageId;
+    return new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+  });
+  vi.mocked(sessionApi.get).mockResolvedValueOnce({
+    id: "session-1",
+    agent_id: "default",
+    created_at: "2026-10-15T00:00:00Z",
+    updated_at: "2026-10-15T00:00:00Z",
+    is_active: true,
+    metadata: { current_run_id: "run-1" },
+  });
+  vi.mocked(sessionApi.getEvents).mockResolvedValueOnce({
+    events: [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        data: { content: "hello" },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        data: { content: "full answer from history" },
+      },
+      { event_type: "done", run_id: "run-1", data: {} },
+    ],
+  });
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+  let sending!: Promise<void>;
+  act(() => {
+    sending = result.current.sendMessage("hello");
+  });
+  await waitFor(() => expect(connectToSSE).toHaveBeenCalledOnce());
+  try {
+    await act(async () => {
+      settleRemotelyTerminatedRun(streamContext, "run-1", "run-1");
+    });
+    await waitFor(() =>
+      expect(
+        result.current.messages.some(
+          (message) => message.content === "full answer from history",
+        ),
+      ).toBe(true),
+    );
+  } finally {
+    await act(async () => {
+      releaseStream();
+      await sending;
+    });
+  }
 });
 
 function pendingSubmit() {
   let resolve!: (value: Record<string, unknown>) => void;
-  const promise = new Promise<Record<string, unknown>>((done) => { resolve = done; });
-  submitChat.mockReturnValueOnce(promise);
-  return (session = "detached-session", run = "detached-run") => resolve({
-    session_id: session, run_id: run, trace_id: `trace-${run}`, status: "started",
+  const promise = new Promise<Record<string, unknown>>((done) => {
+    resolve = done;
   });
+  submitChat.mockReturnValueOnce(promise);
+  return (session = "detached-session", run = "detached-run") =>
+    resolve({
+      session_id: session,
+      run_id: run,
+      trace_id: `trace-${run}`,
+      status: "started",
+    });
 }
 
-test.each([false, true])("leaving during POST preserves accepted work without reattaching (existing chat=%s)", async (existing) => {
-  const { result } = renderHook(() => useAgent());
-  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
-  if (existing) await act(async () => { await result.current.sendMessage("previous turn"); });
-  connectToSSE.mockClear();
-  const accept = pendingSubmit();
-  const onAccepted = vi.fn();
-  let sending!: Promise<void>;
-  act(() => { sending = result.current.sendMessage("continue working", undefined, undefined, undefined, { onAccepted }); });
-  act(() => result.current.clearMessages());
-  await act(async () => { accept(); await sending; });
-  expect(onAccepted).toHaveBeenCalledOnce();
-  expect(cancel).not.toHaveBeenCalled();
-  expect(connectToSSE).not.toHaveBeenCalled();
-  expect(result.current.sessionId).toBeNull();
-  expect(result.current.currentRunId).toBeNull();
-  expect(result.current.messages).toEqual([]);
-});
+test.each([false, true])(
+  "leaving during POST preserves accepted work without reattaching (existing chat=%s)",
+  async (existing) => {
+    const { result } = renderHook(() => useAgent());
+    await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+    if (existing)
+      await act(async () => {
+        await result.current.sendMessage("previous turn");
+      });
+    connectToSSE.mockClear();
+    const accept = pendingSubmit();
+    const onAccepted = vi.fn();
+    let sending!: Promise<void>;
+    act(() => {
+      sending = result.current.sendMessage(
+        "continue working",
+        undefined,
+        undefined,
+        undefined,
+        { onAccepted },
+      );
+    });
+    act(() => result.current.clearMessages());
+    await act(async () => {
+      accept();
+      await sending;
+    });
+    expect(onAccepted).toHaveBeenCalledOnce();
+    expect(cancel).not.toHaveBeenCalled();
+    expect(connectToSSE).not.toHaveBeenCalled();
+    expect(result.current.sessionId).toBeNull();
+    expect(result.current.currentRunId).toBeNull();
+    expect(result.current.messages).toEqual([]);
+  },
+);
 
 test("a detached POST cannot reset flags or connect over a newer pending send", async () => {
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
   const acceptOld = pendingSubmit();
   let oldSend!: Promise<void>;
-  act(() => { oldSend = result.current.sendMessage("old task"); });
+  act(() => {
+    oldSend = result.current.sendMessage("old task");
+  });
   act(() => result.current.clearMessages());
   const acceptNew = pendingSubmit();
   let newSend!: Promise<void>;
-  act(() => { newSend = result.current.sendMessage("new task"); });
-  await act(async () => { acceptOld(); await oldSend; });
+  act(() => {
+    newSend = result.current.sendMessage("new task");
+  });
+  await act(async () => {
+    acceptOld();
+    await oldSend;
+  });
   expect(result.current.isLoading).toBe(true);
   expect(result.current.sessionId).toBeNull();
   expect(connectToSSE).not.toHaveBeenCalled();
   const rejected = vi.fn();
-  await act(async () => { await result.current.sendMessage("duplicate", undefined, undefined, undefined, { onAccepted: vi.fn(), onRejected: rejected }); });
+  await act(async () => {
+    await result.current.sendMessage(
+      "duplicate",
+      undefined,
+      undefined,
+      undefined,
+      { onAccepted: vi.fn(), onRejected: rejected },
+    );
+  });
   expect(rejected).toHaveBeenCalledOnce();
   expect(submitChat).toHaveBeenCalledTimes(2);
-  await act(async () => { acceptNew("new-session", "new-run"); await newSend; });
+  await act(async () => {
+    acceptNew("new-session", "new-run");
+    await newSend;
+  });
   expect(result.current.sessionId).toBe("new-session");
   expect(result.current.currentRunId).toBe("new-run");
   expect(connectToSSE).toHaveBeenCalledOnce();
@@ -333,23 +455,37 @@ test("a detached POST cannot reset flags or connect over a newer pending send", 
 test("background readiness excludes a previous run until the current POST is admitted", async () => {
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
-  await act(async () => { await result.current.sendMessage("previous turn"); });
+  await act(async () => {
+    await result.current.sendMessage("previous turn");
+  });
   expect(result.current.currentRunId).toBe("run-1");
   expect(result.current.canContinueInBackground).toBe(false);
   const accept = pendingSubmit();
   let releaseStream!: () => void;
-  connectToSSE.mockImplementationOnce(() => new Promise<void>((resolve) => { releaseStream = resolve; }));
+  connectToSSE.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseStream = resolve;
+      }),
+  );
   let sending!: Promise<void>;
-  act(() => { sending = result.current.sendMessage("next turn"); });
+  act(() => {
+    sending = result.current.sendMessage("next turn");
+  });
   expect(result.current.isLoading).toBe(true);
   expect(result.current.currentRunId).toBeNull();
   expect(result.current.canContinueInBackground).toBe(false);
-  await act(async () => { accept("session-1", "run-2"); });
+  await act(async () => {
+    accept("session-1", "run-2");
+  });
   expect(result.current.canContinueInBackground).toBe(true);
   expect(result.current.currentRunId).toBe("run-2");
   act(() => result.current.clearMessages());
   expect(result.current.canContinueInBackground).toBe(false);
-  await act(async () => { releaseStream(); await sending; });
+  await act(async () => {
+    releaseStream();
+    await sending;
+  });
   expect(cancel).not.toHaveBeenCalled();
 });
 
@@ -358,9 +494,14 @@ test("unmount during POST cannot start a detached SSE subscription", async () =>
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
   const accept = pendingSubmit();
   let sending!: Promise<void>;
-  act(() => { sending = result.current.sendMessage("continue working"); });
+  act(() => {
+    sending = result.current.sendMessage("continue working");
+  });
   unmount();
-  await act(async () => { accept(); await sending; });
+  await act(async () => {
+    accept();
+    await sending;
+  });
   expect(connectToSSE).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
 });
@@ -370,9 +511,16 @@ test("loading another chat revokes a pending POST before its admission returns",
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
   const accept = pendingSubmit();
   let sending!: Promise<void>;
-  act(() => { sending = result.current.sendMessage("continue working"); });
-  await act(async () => { await result.current.loadHistory("other-session"); });
-  await act(async () => { accept(); await sending; });
+  act(() => {
+    sending = result.current.sendMessage("continue working");
+  });
+  await act(async () => {
+    await result.current.loadHistory("other-session");
+  });
+  await act(async () => {
+    accept();
+    await sending;
+  });
   expect(result.current.sessionId).toBe("other-session");
   expect(result.current.currentRunId).toBeNull();
   expect(connectToSSE).not.toHaveBeenCalled();

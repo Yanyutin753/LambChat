@@ -1,10 +1,12 @@
 export interface UploadProgressUpdate {
   progress: number;
   stage: "uploading" | "processing";
+  processingProgress?: number;
 }
 
 export interface UploadProgressController {
   report(progress: number): void;
+  reportProcessing(progress: number): void;
   dispose(): void;
 }
 
@@ -53,6 +55,18 @@ export function createUploadProgressController(
         return;
       }
       pending = progress;
+    },
+    reportProcessing(progress) {
+      if (disposed) return;
+      processing = true;
+      pending = null;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+      onUpdate({
+        progress: 99,
+        stage: "processing",
+        processingProgress: Math.max(0, Math.min(99, Math.floor(progress))),
+      });
     },
     dispose() {
       disposed = true;
