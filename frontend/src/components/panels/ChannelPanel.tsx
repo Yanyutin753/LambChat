@@ -368,11 +368,11 @@ export function ChannelPanel({
             className="flex items-center justify-between gap-3 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
           >
             <div>
-              <span className="text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+              <span className="text-14 font-medium font-serif text-theme-text dark:text-stone-200">
                 {field.title}
               </span>
               {field.description && (
-                <p className="text-12 text-stone-500 dark:text-stone-400">
+                <p className="text-12 text-theme-text-secondary dark:text-stone-400">
                   {field.description}
                 </p>
               )}
@@ -388,7 +388,7 @@ export function ChannelPanel({
       case "select":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200">
+            <label className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200">
               {field.title}
             </label>
             <Select
@@ -408,7 +408,7 @@ export function ChannelPanel({
           <div key={field.name}>
             <label
               htmlFor={`${formId}-${field.name}`}
-              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+              className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
             >
               {field.title}{" "}
               {field.required && !hasExistingConfig && (
@@ -447,7 +447,7 @@ export function ChannelPanel({
           <div key={field.name}>
             <label
               htmlFor={`${formId}-${field.name}`}
-              className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+              className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
             >
               {field.title}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
@@ -540,7 +540,7 @@ export function ChannelPanel({
                 size={16}
                 className="flex-shrink-0 text-red-500 dark:text-red-400"
               />
-              <span className="min-w-0 [overflow-wrap:anywhere] text-14 text-red-700 dark:text-red-300">
+              <span className="min-w-0 [overflow-wrap:anywhere] text-14 text-theme-error dark:text-red-300">
                 {status.error_message}
               </span>
             </div>
@@ -560,7 +560,7 @@ export function ChannelPanel({
             <div>
               <label
                 htmlFor={`${formId}-instanceName`}
-                className="mb-1 block text-14 font-medium font-serif text-stone-700 dark:text-stone-200"
+                className="mb-1 block text-14 font-medium font-serif text-theme-text dark:text-stone-200"
               >
                 {t("channel.instanceName", "Instance Name")}{" "}
                 <span className="text-red-500">*</span>

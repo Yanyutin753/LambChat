@@ -32,7 +32,7 @@ export function NewProjectModal({
     <ModalSurface open={true} onClose={onClose} dismissible={true}>
       <div className="relative bg-theme-bg-card rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="min-w-0 text-14 font-semibold font-sans text-stone-800 dark:text-stone-100">
+          <h3 className="min-w-0 text-14 font-semibold font-sans text-theme-text dark:text-stone-100">
             {t("sidebar.newProject")}
           </h3>
           <DialogCloseButton onClick={onClose} />

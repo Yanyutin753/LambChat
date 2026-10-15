@@ -514,7 +514,7 @@ const ModelSelector = memo(function ModelSelector({
                   onValueChange={setModelSearch}
                   placeholder={t("profile.searchModels", "搜索模型")}
                   autoComplete="off"
-                  className="block h-5 min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-13 leading-5 text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
+                  className="block h-5 min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-13 leading-5 text-theme-text outline-none placeholder:text-theme-text-tertiary dark:text-stone-100 dark:placeholder:text-stone-500"
                 />
               </div>
             </div>

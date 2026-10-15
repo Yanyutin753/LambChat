@@ -81,10 +81,10 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
         "transition-all duration-200 ease-out",
         "border",
         isUser
-          ? "bg-white/70 dark:bg-stone-800/50 border-stone-200/60 dark:border-stone-600/40"
-          : "bg-stone-50/80 dark:bg-stone-800/60 border-stone-200/50 dark:border-stone-600/30",
+          ? "bg-theme-bg-card/70 dark:bg-stone-800/50 border-theme-border/60 dark:border-stone-600/40"
+          : "bg-theme-bg-subtle/80 dark:bg-stone-800/60 border-theme-border/50 dark:border-stone-600/30",
         !data.isActive && "shadow-sm hover:shadow-md",
-        "hover:-translate-y-[1.5px] hover:border-stone-300/70 dark:hover:border-stone-500/60",
+        "hover:-translate-y-[1.5px] hover:border-theme-border-hover/70 dark:hover:border-stone-500/60",
         data.isActive &&
           "!border-[var(--theme-primary)] shadow-lg shadow-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)] -translate-y-[1.5px]",
       )}
@@ -96,7 +96,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
           "!w-[5px] !h-[5px] !border-none !-top-[2.5px] !rounded-full transition-colors duration-200",
           data.isActive
             ? "!bg-[var(--theme-primary)]"
-            : "!bg-stone-300 dark:!bg-stone-500",
+            : "!bg-theme-border-hover dark:!bg-stone-500",
         )}
       />
       <div className="flex items-start gap-2.5">
@@ -118,7 +118,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
               className={clsx(
                 "text-10.5 font-semibold leading-none tracking-wide",
                 isUser
-                  ? "text-stone-500 dark:text-stone-400"
+                  ? "text-theme-text-secondary dark:text-stone-400"
                   : "text-[var(--theme-primary)]",
               )}
             >
@@ -143,7 +143,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
           "!w-[5px] !h-[5px] !border-none !-bottom-[2.5px] !rounded-full transition-colors duration-200",
           data.isActive
             ? "!bg-[var(--theme-primary)]"
-            : "!bg-stone-300 dark:!bg-stone-500",
+            : "!bg-theme-border-hover dark:!bg-stone-500",
         )}
       />
     </div>

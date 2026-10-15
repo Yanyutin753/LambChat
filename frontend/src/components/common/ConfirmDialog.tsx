@@ -31,7 +31,7 @@ export function ConfirmDialog({
     "min-w-0 max-w-full flex-auto sm:flex-none !min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal";
   const iconColor =
     variant === "danger"
-      ? "text-red-600 dark:text-red-400"
+      ? "text-theme-error dark:text-red-400"
       : variant === "warning"
         ? "text-theme-warning"
         : "text-theme-primary";

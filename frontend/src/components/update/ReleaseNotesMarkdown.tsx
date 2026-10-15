@@ -59,7 +59,7 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
     );
   }
   return (
-    <div className="min-w-0 [overflow-wrap:anywhere] text-14 leading-relaxed text-theme-text-secondary [&_code]:rounded [&_code]:bg-stone-100 dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-stone-700 dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-stone-800 dark:[&_strong]:text-stone-200">
+    <div className="min-w-0 [overflow-wrap:anywhere] text-14 leading-relaxed text-theme-text-secondary [&_code]:rounded [&_code]:bg-theme-bg-subtle dark:[&_code]:bg-stone-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-theme-text dark:[&_code]:text-stone-200 [&_del]:line-through [&_strong]:font-semibold [&_strong]:text-theme-text dark:[&_strong]:text-stone-200">
       <ReactMarkdown
         allowedElements={[...ALLOWED_RELEASE_NOTES_ELEMENTS]}
         components={{
@@ -97,12 +97,12 @@ export function ReleaseNotesMarkdown({ content }: ReleaseNotesMarkdownProps) {
           ),
           hr: () => <hr className="my-2.5 border-theme-border" />,
           blockquote: ({ children }) => (
-            <blockquote className="my-1.5 border-l-2 border-stone-300 pl-3 text-theme-text-secondary dark:border-theme-border">
+            <blockquote className="my-1.5 border-l-2 border-theme-border pl-3 text-theme-text-secondary dark:border-theme-border">
               {children}
             </blockquote>
           ),
           table: ({ children }) => (
-            <table className="my-2 w-full table-fixed text-left text-12 [&_td]:border-t [&_td]:border-stone-200 [&_td]:py-1 [&_td]:pr-3 [&_th]:border-b [&_th]:border-stone-200 [&_th]:py-1 [&_th]:pr-3 dark:[&_td]:border-stone-700 dark:[&_th]:border-stone-700">
+            <table className="my-2 w-full table-fixed text-left text-12 [&_td]:border-t [&_td]:border-theme-border [&_td]:py-1 [&_td]:pr-3 [&_th]:border-b [&_th]:border-theme-border [&_th]:py-1 [&_th]:pr-3 dark:[&_td]:border-stone-700 dark:[&_th]:border-stone-700">
               {children}
             </table>
           ),

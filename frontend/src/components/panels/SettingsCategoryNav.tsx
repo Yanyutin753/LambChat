@@ -91,7 +91,7 @@ export function SettingsCategoryNav({
                     return next;
                   })
                 }
-                className="flex min-h-8 w-full items-center gap-2 rounded-lg px-[9px] py-1 text-left text-14 font-medium [@media(pointer:coarse)]:min-h-11 text-stone-500 hover:bg-[var(--glass-bg-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default dark:text-stone-400"
+                className="flex min-h-8 w-full items-center gap-2 rounded-lg px-[9px] py-1 text-left text-14 font-medium [@media(pointer:coarse)]:min-h-11 text-theme-text-secondary hover:bg-[var(--glass-bg-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default dark:text-stone-400"
               >
                 <span className="min-w-0 break-words">
                   {t(`settings.navigation.groups.${group.id}`)}
@@ -115,13 +115,13 @@ export function SettingsCategoryNav({
                     className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-14 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${
                       active
                         ? "bg-[var(--glass-bg)] font-semibold text-[var(--theme-primary)]"
-                        : "text-stone-600 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-400"
+                        : "text-theme-text-secondary hover:bg-[var(--glass-bg-subtle)] dark:text-stone-400"
                     }`}
                   >
                     <span className="min-w-0 break-words">
                       {labels[category]}
                     </span>
-                    <span className="text-12 tabular-nums text-stone-500 dark:text-stone-400">
+                    <span className="text-12 tabular-nums text-theme-text-secondary dark:text-stone-400">
                       {count}
                     </span>
                   </button>
