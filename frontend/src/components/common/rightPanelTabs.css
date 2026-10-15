@@ -306,6 +306,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+@media (min-width: 640px) and (pointer: fine) {
+  .right-panel-restore-group {
+    border-radius: var(--radius-lg);
+    font-size: 0.8125rem;
+  }
+  .right-panel-restore {
+    min-height: 2rem;
+    padding-inline: 0.5rem;
+    border-radius: var(--radius-md);
+  }
+  .right-panel-restore-group > button:last-child {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-md);
+  }
+}
+
 @media (pointer: coarse), (max-width: 639px) {
   .right-panel-restore {
     min-height: 2.75rem;
