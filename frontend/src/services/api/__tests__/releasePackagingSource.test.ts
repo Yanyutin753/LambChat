@@ -80,9 +80,7 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   expect(workflow).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.deb/);
   expect(workflow).toMatch(/LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.rpm/);
   // Windows：NSIS setup 为主推（updater 载体），MSI 企业部署保留
-  expect(workflow).toMatch(
-    /LambChat-\$env:RELEASE_TAG-Windows-x64-setup\.exe/,
-  );
+  expect(workflow).toMatch(/LambChat-\$env:RELEASE_TAG-Windows-x64-setup\.exe/);
   expect(workflow).toMatch(/LambChat-\$env:RELEASE_TAG-Windows\.msi/);
   expect(workflow).toMatch(/LambChat-\$env:RELEASE_TAG-Windows-Portable\.zip/);
   // macOS 资产名带架构段（asset_suffix 矩阵变量）：双架构产物不得同名互踩
@@ -217,3 +215,47 @@ test("desktop package uses committed Tauri project and branded icons", () => {
   expect(cargo).toMatch(/tauri = \{ version = "2\.11\.2"/);
   expect(readRepoFile(".gitignore")).toMatch(/frontend\/src-tauri\/icons\//);
 });
+
+test("Windows install and uninstall wizards explicitly use LambChat branding", () => {
+  const config = JSON.parse(
+    readRepoFile("frontend/src-tauri/tauri.windows.conf.json"),
+  );
+  expect(config.bundle.windows.nsis).toMatchObject({
+    installerIcon: "icons/icon.ico",
+    uninstallerIcon: "icons/icon.ico",
+    headerImage: "windows/installer/nsis-header.bmp",
+    uninstallerHeaderImage: "windows/installer/nsis-header.bmp",
+    sidebarImage: "windows/installer/nsis-sidebar.bmp",
+  });
+  expect(config.bundle.windows.wix).toMatchObject({
+    bannerPath: "windows/installer/wix-banner.bmp",
+    dialogImagePath: "windows/installer/wix-dialog.bmp",
+  });
+});
+
+test.each([
+  ["nsis-header.bmp", 150, 57],
+  ["nsis-sidebar.bmp", 164, 314],
+  ["wix-banner.bmp", 493, 58],
+  ["wix-dialog.bmp", 493, 312],
+])(
+  "%s is an opaque installer bitmap containing the brand artwork",
+  (name, width, height) => {
+    const bitmap = readFileSync(
+      new URL(
+        `../../../../../frontend/src-tauri/windows/installer/${name}`,
+        import.meta.url,
+      ),
+    );
+    expect(bitmap.toString("ascii", 0, 2)).toBe("BM");
+    expect(bitmap.readUInt32LE(2)).toBe(bitmap.length);
+    expect(bitmap.readUInt32LE(18)).toBe(width);
+    expect(bitmap.readUInt32LE(22)).toBe(height);
+    expect(bitmap.readUInt16LE(28)).toBe(24);
+    expect(bitmap.readUInt32LE(30)).toBe(0);
+    const pixels = bitmap.subarray(bitmap.readUInt32LE(10));
+    expect(
+      pixels.filter((channel) => channel > 0 && channel < 220).length,
+    ).toBeGreaterThan(100);
+  },
+);

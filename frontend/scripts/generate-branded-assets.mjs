@@ -7,6 +7,9 @@ const brandIconPath = resolve("public/icons/icon-512.png");
 const brandIcon = readFileSync(brandIconPath);
 // App icons use an opaque tile; splash images keep the existing web artwork.
 const mobileIcon = readFileSync(resolve("resources/mobile-icon.png"));
+const nativeIcon = decodeRgbaPng(
+  readFileSync(resolve("resources/native-icon.png")),
+);
 const IOS_APP_ICON_SIZE = 1024;
 const crcTable = createCrcTable();
 const iosAppIcon = scalePngNearest(mobileIcon, IOS_APP_ICON_SIZE / 512);
@@ -49,6 +52,22 @@ const mobileIconTargets = [
 ];
 
 const generatedTargets = new Map([
+  [
+    "src-tauri/windows/installer/nsis-header.bmp",
+    installerBitmap(150, 57, 48, 51, 4),
+  ],
+  [
+    "src-tauri/windows/installer/nsis-sidebar.bmp",
+    installerBitmap(164, 314, 128, 18, 93),
+  ],
+  [
+    "src-tauri/windows/installer/wix-banner.bmp",
+    installerBitmap(493, 58, 48, 435, 5),
+  ],
+  [
+    "src-tauri/windows/installer/wix-dialog.bmp",
+    installerBitmap(493, 312, 144, 10, 84),
+  ],
   ...mobileIconTargets.map((target) => [target, mobileIcon]),
   [
     "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
@@ -109,11 +128,7 @@ if (!checkOnly) {
   );
 }
 
-function scalePngNearest(source, factor) {
-  if (factor !== 2) {
-    throw new Error("Only 2x PNG scaling is supported.");
-  }
-
+function decodeRgbaPng(source) {
   const signature = Buffer.from([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
   ]);
@@ -126,8 +141,8 @@ function scalePngNearest(source, factor) {
   const bitDepth = source[24];
   const colorType = source[25];
 
-  if (width !== 512 || height !== 512 || bitDepth !== 8 || colorType !== 6) {
-    throw new Error("Brand icon must be a 512x512 8-bit RGBA PNG.");
+  if (bitDepth !== 8 || colorType !== 6 || source[28] !== 0) {
+    throw new Error("Brand icon must be a non-interlaced 8-bit RGBA PNG.");
   }
 
   const chunks = [];
@@ -152,6 +167,46 @@ function scalePngNearest(source, factor) {
     width,
     height,
   );
+  return { signature, width, height, chunks, raw };
+}
+
+function installerBitmap(width, height, size, left, top) {
+  const stride = Math.ceil((width * 3) / 4) * 4;
+  const bitmap = Buffer.alloc(54 + stride * height, 255);
+  bitmap.fill(0, 0, 54);
+  bitmap.write("BM");
+  bitmap.writeUInt32LE(bitmap.length, 2);
+  bitmap.writeUInt32LE(54, 10);
+  bitmap.writeUInt32LE(40, 14);
+  bitmap.writeUInt32LE(width, 18);
+  bitmap.writeUInt32LE(height, 22);
+  bitmap.writeUInt16LE(1, 26);
+  bitmap.writeUInt16LE(24, 28);
+  bitmap.writeUInt32LE(stride * height, 34);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const source =
+        Math.floor((y * nativeIcon.height) / size) *
+          (1 + nativeIcon.width * 4) +
+        1 +
+        Math.floor((x * nativeIcon.width) / size) * 4;
+      const target = 54 + (height - 1 - top - y) * stride + (left + x) * 3;
+      const alpha = nativeIcon.raw[source + 3] / 255;
+      for (let channel = 0; channel < 3; channel += 1) {
+        bitmap[target + channel] = Math.round(
+          nativeIcon.raw[source + 2 - channel] * alpha + 255 * (1 - alpha),
+        );
+      }
+    }
+  }
+  return bitmap;
+}
+
+function scalePngNearest(source, factor) {
+  if (factor !== 2) throw new Error("Only 2x PNG scaling is supported.");
+  const { signature, width, height, chunks, raw } = decodeRgbaPng(source);
+  if (width !== 512 || height !== 512)
+    throw new Error("Mobile icon must be 512x512.");
   const sourceStride = 1 + width * 4;
   const outputWidth = width * factor;
   const outputHeight = height * factor;

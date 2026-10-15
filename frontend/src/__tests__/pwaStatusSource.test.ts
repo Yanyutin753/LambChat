@@ -32,7 +32,7 @@ test("PWA status toast bridge uses i18n for user-facing text", () => {
   expect(componentSource).toMatch(/pwaStatus\.updateReadyTitle/);
   expect(componentSource).toMatch(/pwaStatus\.updateReadyBody/);
   expect(componentSource).toMatch(/pwaStatus\.backOnline/);
-  expect(componentSource).toMatch(/pwaStatus\.dismiss/);
+  expect(componentSource).toMatch(/common\.dismiss/);
   expect(componentSource).not.toMatch(/You are offline/);
   expect(componentSource).not.toMatch(/Chat, files, and sync will resume/);
   expect(componentSource).not.toMatch(/Update ready/);

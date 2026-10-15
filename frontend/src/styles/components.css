@@ -4975,7 +4975,11 @@
 }
 
 @media (max-width: 639px), (pointer: coarse) {
-  .app-toaster .ui-icon-button,
+  .app-toaster .app-toast-dismiss {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
   .tool-arg-expand {
     min-width: 2.25rem;
     min-height: 2.25rem;

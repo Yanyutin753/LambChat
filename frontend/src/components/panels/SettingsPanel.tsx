@@ -765,7 +765,7 @@ export function SettingsPanel() {
                           {/* Key and Type */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex flex-wrap items-baseline gap-2">
                                 {isSearching && (
                                   <button
                                     onClick={() => {
@@ -779,7 +779,7 @@ export function SettingsPanel() {
                                     {CATEGORY_LABELS[setting.category]}
                                   </button>
                                 )}
-                                <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-12 font-medium text-theme-text break-all dark:text-stone-100">
+                                <code className="min-w-0 py-0.5 text-12 font-medium text-theme-text break-all dark:text-stone-100">
                                   {setting.key}
                                 </code>
                                 {!setting.json_schema && (

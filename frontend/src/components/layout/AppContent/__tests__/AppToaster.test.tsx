@@ -11,7 +11,14 @@ import toast from "react-hot-toast";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AppToaster } from "../AppToaster";
 import { ModalSurface } from "../../../common/ModalSurface";
-vi.mock("react-i18next", () => ({
+import { PwaStatusToasts } from "../../../pwa/PwaStatusToasts";
+import { PWA_UPDATE_AVAILABLE_EVENT } from "../../../../pwaGuards";
+import { ChatInputDialogLayer } from "../../../chat/ChatInputDialogLayer";
+vi.mock("../../../../pwa", () => ({
+  activateWaitingLambChatPwaUpdate: () => true,
+}));
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 afterEach(() => {
@@ -21,6 +28,58 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 beforeEach(() => vi.stubGlobal("matchMedia", () => ({ matches: true })));
+
+test.each(["offline", "update"])(
+  "%s custom toast can be dismissed immediately",
+  async (kind) => {
+    render(
+      <>
+        <AppToaster />
+        <PwaStatusToasts />
+      </>,
+    );
+    act(() => {
+      window.dispatchEvent(
+        kind === "offline"
+          ? new Event("offline")
+          : new CustomEvent(PWA_UPDATE_AVAILABLE_EVENT, {
+              detail: { registration: {} },
+            }),
+      );
+    });
+    const title =
+      kind === "offline"
+        ? "pwaStatus.offlineTitle"
+        : "pwaStatus.updateReadyTitle";
+    expect(await screen.findByText(title)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common.dismiss" }));
+    expect(screen.queryByText(title)).toBeNull();
+  },
+);
+
+test("stopping a run shows cancellable feedback through the global toaster", async () => {
+  render(
+    <>
+      <AppToaster />
+      <ChatInputDialogLayer
+        stopConfirmOpen
+        onConfirmStop={() => {}}
+        onCancelStop={() => {}}
+        contactAdminOpen={false}
+        onCloseContactAdmin={() => {}}
+        imageViewerSrc={null}
+        onCloseImageViewer={() => {}}
+      />
+    </>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "chat.stop" }));
+  expect(await screen.findByText("chat.status.cancelled")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "common.dismiss" }));
+  await waitFor(
+    () => expect(screen.queryByText("chat.status.cancelled")).toBeNull(),
+    { timeout: 1500 },
+  );
+});
 
 test("copy feedback stays accessible outside the locked application background", async () => {
   const root = document.createElement("div");
