@@ -325,7 +325,8 @@ jobs:
             icon="$(find "$unpack/usr/share/icons" -path '*/128x128/apps/*.png' -type f | head -1)"
             test -n "$icon"
             cmp "$icon" frontend/src-tauri/icons/128x128.png
-            grep -R -q '^Icon=lambchat$' "$unpack/usr/share/applications"
+            icon_name="$(basename "$icon" .png)"
+            grep -R -F -x "Icon=$icon_name" "$unpack/usr/share/applications"
           done
           echo "PASS Linux deb/rpm contain LambChat desktop icons"
           # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
