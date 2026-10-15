@@ -37,9 +37,9 @@ const statusStyles: Record<CollapsibleStatus, string> = {
   loading:
     "bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
   success:
-    "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-theme-success dark:bg-emerald-950/30 dark:text-emerald-300",
+    "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-[color-mix(in_srgb,var(--theme-success)_50%,var(--theme-text))] dark:bg-emerald-950/30 dark:text-emerald-300",
   error:
-    "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-theme-error dark:bg-red-950/30 dark:text-red-300",
+    "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-[color-mix(in_srgb,var(--theme-error)_50%,var(--theme-text))] dark:bg-red-950/30 dark:text-red-300",
   cancelled:
     "bg-[color-mix(in_srgb,var(--theme-text-secondary)_10%,transparent)] text-theme-text-secondary dark:bg-stone-700/50 dark:text-stone-400",
 };
@@ -140,7 +140,8 @@ export function CollapsiblePill({
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-  const displayedLabel = formatLabel && _variant !== "tool" ? formattedLabel : label;
+  const displayedLabel =
+    formatLabel && _variant !== "tool" ? formattedLabel : label;
 
   return (
     <div className="my-1 min-w-0 max-w-full">

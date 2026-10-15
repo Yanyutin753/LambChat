@@ -1,5 +1,5 @@
 import type { SessionReadScope } from "../services/api/session";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import {
   getValidAccessToken,
   refreshAccessToken,
@@ -79,6 +79,7 @@ export interface WebSocketMessageHandlers {
 
 interface UseWebSocketOptions extends WebSocketMessageHandlers {
   enabled?: boolean;
+  userId?: string;
 }
 
 export function dispatchWebSocketMessage(
@@ -181,7 +182,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     onWsOpen,
     onWsClose,
     enabled = true,
+    userId,
   } = options;
+  const scope = useMemo(() => ({}), [userId, enabled]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const connectionVersionRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -237,12 +243,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, [onSessionTaskStatus]);
 
   const connect = useCallback(async () => {
+    const generation = connectionVersionRef.current;
+    const isCurrent = () =>
+      isMountedRef.current &&
+      enabled &&
+      scopeRef.current === scope &&
+      connectionVersionRef.current === generation;
     // Prevent multiple simultaneous connection attempts
-    if (
-      !isMountedRef.current ||
-      isConnectingRef.current ||
-      isDisconnectingRef.current
-    ) {
+    if (!isCurrent() || isConnectingRef.current || isDisconnectingRef.current) {
       console.log(
         "[WebSocket] Skipping connect - already connecting or disconnecting",
       );
@@ -280,7 +288,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       // Small delay to allow connection to close properly
       await new Promise((resolve) => setTimeout(resolve, 100));
-
+      if (!isCurrent()) return;
       isDisconnectingRef.current = false;
     }
 
@@ -288,7 +296,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       const token = await getValidAccessToken();
-      if (!isMountedRef.current) {
+      if (!isCurrent()) {
         return;
       }
       if (!token) {
@@ -305,12 +313,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       // Send authentication after connection is established
       ws.onopen = () => {
+        if (!isCurrent() || wsRef.current !== ws) return;
         console.log("[WebSocket] Connected, sending auth");
         ws.send(JSON.stringify({ type: "auth", token }));
         // Don't set isConnected yet — wait for auth:ok from server
       };
 
       ws.onmessage = (event) => {
+        if (!isCurrent() || wsRef.current !== ws) return;
         try {
           const message = JSON.parse(event.data);
 
@@ -341,6 +351,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = (event) => {
+        if (!isCurrent() || wsRef.current !== ws) return;
         console.log("[WebSocket] Disconnected:", event.code, event.reason);
         isConnectingRef.current = false;
         setIsConnected(false);
@@ -359,11 +370,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             void (async () => {
               try {
                 await refreshAccessToken();
+                if (!isCurrent()) return;
                 authFailureCountRef.current = 0;
-                if (isMountedRef.current && enabled && !wasManualDisconnect) {
+                if (isCurrent() && !wasManualDisconnect) {
                   connect();
                 }
               } catch {
+                if (!isCurrent()) return;
                 // Don't redirect here — let authFetch / useAuth handle it.
                 // A silent redirect from WebSocket background reconnection
                 // is jarring; the user will get redirected on their next
@@ -386,11 +399,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             );
             if (enabled && !wasManualDisconnect) {
               reconnectTimeoutRef.current = setTimeout(() => {
+                if (!isCurrent()) return;
                 reconnectTimeoutRef.current = null;
                 authFailureCountRef.current = 0; // Reset counter for the cooldown retry
-                if (!isMountedRef.current) {
-                  return;
-                }
                 connect();
               }, AUTH_FAILURE_COOLDOWN);
             }
@@ -424,29 +435,30 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {
+            if (!isCurrent()) return;
             console.log("[WebSocket] Reconnecting...");
             reconnectTimeoutRef.current = null;
-            if (!isMountedRef.current) {
-              return;
-            }
             connect();
           }, delay);
         }
       };
 
       ws.onerror = (error) => {
+        if (!isCurrent() || wsRef.current !== ws) return;
         console.error("[WebSocket] Error:", error);
         isConnectingRef.current = false;
       };
 
       wsRef.current = ws;
     } catch (e) {
+      if (!isCurrent()) return;
       console.error("[WebSocket] Connection failed:", e);
       isConnectingRef.current = false;
     }
-  }, [enabled]);
+  }, [enabled, scope]);
 
   const disconnect = useCallback(() => {
+    connectionVersionRef.current += 1;
     // Clear any pending reconnect
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -457,16 +469,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       const ws = wsRef.current;
       // Mark as disconnecting BEFORE closing to prevent reconnect attempts in onclose
       isDisconnectingRef.current = true;
-      ws.close();
       wsRef.current = null;
+      ws.close();
     }
     isConnectingRef.current = false;
     setIsConnected(false);
     // Reset reconnect attempt counter on manual disconnect
     reconnectAttemptRef.current = 0;
     authFailureCountRef.current = 0;
-    // NOTE: Don't reset isDisconnectingRef here - let the onclose handler do it
-    // This prevents race conditions where connect() is called before the socket finishes closing
+    // Old callbacks are invalidated, so their delayed close cannot reset a new socket.
+    isDisconnectingRef.current = false;
   }, []);
 
   // Store connect/disconnect in refs to avoid deps issues
@@ -487,7 +499,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       isMountedRef.current = false;
       disconnectRef.current();
     };
-  }, [enabled]);
+  }, [enabled, scope]);
 
   return {
     isConnected,

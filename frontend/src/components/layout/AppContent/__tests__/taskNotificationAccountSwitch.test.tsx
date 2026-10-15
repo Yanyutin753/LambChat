@@ -271,7 +271,8 @@ test("mark all read removes existing task toasts", async () => {
   await act(async () => {
     emitCompletion();
   });
-  act(() => markRead());
+  mocks.get.mockResolvedValue({ name: "Read task", unread_count: 0 });
+  await act(async () => markRead());
   expect(mocks.remove).toHaveBeenCalledWith("owned-task-toast");
 });
 
@@ -279,7 +280,8 @@ test("mark all read prevents an in-flight completion from showing a toast", asyn
   const resolve = delayedLookup();
   renderHook(() => useWebSocketNotifications({ sessionId: "other" }));
   act(emitCompletion);
-  act(() => markRead());
+  mocks.get.mockResolvedValue({ name: "Read task", unread_count: 0 });
+  await act(async () => markRead());
   await act(async () => {
     resolve();
   });
@@ -342,7 +344,8 @@ for (const scope of [
         },
       });
     });
-    act(() => markRead(scope));
+    mocks.get.mockResolvedValue({ name: "Read task", unread_count: 0 });
+    await act(async () => markRead(scope));
     expect(mocks.remove).toHaveBeenCalledWith("owned-task-toast");
   });
 }
@@ -376,12 +379,17 @@ test("a live delivery already read in another browser does not reappear", async 
 
 test("remote read clears a toast and publishes the scope to sidebar consumers", async () => {
   const listener = vi.fn();
-  window.addEventListener("lambchat:sessions-read", listener, { once: true });
+  window.addEventListener("lambchat:sessions-read-invalidated", listener, {
+    once: true,
+  });
   renderHook(() => useWebSocketNotifications({ sessionId: "other" }));
   await act(async () => {
     emitCompletion();
   });
-  act(() => mocks.handlers.onSessionsRead?.({ sessionId: "old-session" }));
+  mocks.get.mockResolvedValue({ name: "Read task", unread_count: 0 });
+  await act(
+    async () => mocks.handlers.onSessionsRead?.({ sessionId: "old-session" }),
+  );
   expect(mocks.remove).toHaveBeenCalledWith("owned-task-toast");
   expect(listener).toHaveBeenCalledOnce();
 });
@@ -423,7 +431,11 @@ test("background catch-up uses one summary toast for multiple conversations", as
   expect(calls[1][1].id).toBe(calls[0][1].id);
   const latest = calls[1][0]({ id: calls[1][1].id, visible: true });
   expect(latest.props.title).toBe("2 new task updates");
-  act(() => mocks.handlers.onSessionsRead?.({ sessionId: "batch-session-2" }));
+  mocks.get.mockResolvedValue({ name: "Read task", unread_count: 0 });
+  await act(
+    async () =>
+      mocks.handlers.onSessionsRead?.({ sessionId: "batch-session-2" }),
+  );
   const remaining = mocks.toast.mock.calls.at(-1)![0]({
     id: calls[1][1].id,
     visible: true,

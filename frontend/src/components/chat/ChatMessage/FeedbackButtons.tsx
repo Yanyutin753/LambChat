@@ -153,7 +153,8 @@ export function FeedbackButtons({
             <ThumbsUp
               size={16}
               className={clsx(
-                selectedRating === "up" && "text-theme-text-secondary dark:text-stone-300",
+                selectedRating === "up" &&
+                  "text-theme-text-secondary dark:text-stone-300",
               )}
             />
           </button>
@@ -172,7 +173,8 @@ export function FeedbackButtons({
             <ThumbsDown
               size={16}
               className={clsx(
-                selectedRating === "down" && "text-theme-text-secondary dark:text-stone-300",
+                selectedRating === "down" &&
+                  "text-theme-text-secondary dark:text-stone-300",
               )}
             />
           </button>

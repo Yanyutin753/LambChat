@@ -176,7 +176,9 @@ export function AgentSection() {
       ref={rootRef}
       tabIndex={-1}
       aria-busy={isLoading}
-      className={`${isLoading ? "" : "panel-body panel-stack"} focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]`}
+      className={`${
+        isLoading ? "" : "panel-body panel-stack"
+      } focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]`}
     >
       {error ? (
         <>

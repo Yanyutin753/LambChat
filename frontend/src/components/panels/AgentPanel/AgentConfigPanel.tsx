@@ -308,7 +308,11 @@ export function AgentConfigPanel() {
                         key={agent.id}
                         className="resource-detail-card flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
                       >
-                        <AgentIcon icon={agent.icon} seed={agent.id} size={44} />
+                        <AgentIcon
+                          icon={agent.icon}
+                          seed={agent.id}
+                          size={44}
+                        />
                         <div className="min-w-0 flex-1">
                           <h4 className="text-14 font-semibold text-theme-text dark:text-stone-100 truncate tracking-tight font-serif">
                             {displayName}

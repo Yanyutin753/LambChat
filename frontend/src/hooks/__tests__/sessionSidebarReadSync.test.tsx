@@ -12,6 +12,10 @@ import {
 } from "../../services/api/session";
 import type { UnreadBySession } from "../../components/sidebar/unreadCounts";
 
+const mocks = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock("../../services/api", () => ({ sessionApi: { get: mocks.get } }));
+vi.mock("../useAuth", () => ({ useAuth: () => ({ user: { id: "owner" } }) }));
+
 afterEach(cleanup);
 
 for (const scope of [
@@ -22,16 +26,26 @@ for (const scope of [
 ]) {
   test(`read scope clears matching sidebar rows and counts ${JSON.stringify(
     scope,
-  )}`, () => {
+  )}`, async () => {
     const sessions = [
       {
         id: "s1",
         unread_count: 2,
+        updated_at: "2026-10-15T00:02:00Z",
         metadata: { project_id: "p1", scheduled_task_id: "t1" },
       },
-      { id: "s2", unread_count: 1, metadata: { project_id: "p2" } },
+      {
+        id: "s2",
+        unread_count: 1,
+        updated_at: "2026-10-15T00:02:00Z",
+        metadata: { project_id: "p2" },
+      },
     ] as BackendSession[];
     const updateSession = vi.fn();
+    mocks.get.mockImplementation(async (id: string) => ({
+      ...sessions.find((session) => session.id === id),
+      unread_count: 0,
+    }));
     const list = {
       sessions,
       updateSession,
@@ -51,6 +65,7 @@ for (const scope of [
         scheduledTaskRefs: { current: new Map() },
         projects: [],
         currentSessionId: null,
+        unreadBySession: unread,
         setUnreadBySession,
         onNewSession: vi.fn(),
         onSelectSession: vi.fn(),
@@ -58,7 +73,7 @@ for (const scope of [
       });
       return unread;
     });
-    act(() =>
+    await act(async () =>
       window.dispatchEvent(
         new CustomEvent(SESSIONS_READ_EVENT, { detail: scope }),
       ),

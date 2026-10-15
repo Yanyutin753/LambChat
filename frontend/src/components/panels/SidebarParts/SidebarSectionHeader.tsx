@@ -37,7 +37,9 @@ export function SidebarSectionHeader({
         <ChevronDown
           size={14}
           aria-hidden="true"
-          className={`shrink-0 transition-transform motion-reduce:transition-none ${sectionRevealClass} ${collapsed ? "-rotate-90" : ""}`}
+          className={`shrink-0 transition-transform motion-reduce:transition-none ${sectionRevealClass} ${
+            collapsed ? "-rotate-90" : ""
+          }`}
         />
       </button>
       <div

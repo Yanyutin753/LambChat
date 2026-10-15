@@ -84,9 +84,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           size={14}
           className={clsx(
             "shrink-0",
-            isAllDone
-              ? "text-theme-success"
-              : "text-theme-text-tertiary",
+            isAllDone ? "text-theme-success" : "text-theme-text-tertiary",
           )}
         />
         <span className="text-12 font-medium text-theme-text-secondary">
@@ -108,9 +106,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
             <div
               className={clsx(
                 "h-full rounded-full transition-all duration-500 ease-out",
-                isAllDone
-                  ? "bg-theme-success"
-                  : "bg-theme-text-tertiary",
+                isAllDone ? "bg-theme-success" : "bg-theme-text-tertiary",
               )}
               style={{ width: `${progress}%` }}
             />
@@ -140,7 +136,13 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
   );
 }
 
-export function TodoItemRow({ item, wrap = false }: { item: TodoItem; wrap?: boolean }) {
+export function TodoItemRow({
+  item,
+  wrap = false,
+}: {
+  item: TodoItem;
+  wrap?: boolean;
+}) {
   const { t } = useTranslation();
   const config = statusConfig[item.status];
   const Icon = config.icon;
@@ -152,13 +154,18 @@ export function TodoItemRow({ item, wrap = false }: { item: TodoItem; wrap?: boo
         <p
           className={clsx(
             "text-13 leading-snug",
-            wrap ? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]" : "truncate",
+            wrap
+              ? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+              : "truncate",
             config.textClass,
           )}
           title={item.content}
         >
           {item.content}
-          <span className="sr-only left-0 top-0"> — {t(`chat.todo.${item.status}`)}</span>
+          <span className="sr-only left-0 top-0">
+            {" "}
+            — {t(`chat.todo.${item.status}`)}
+          </span>
         </p>
       </div>
     </div>

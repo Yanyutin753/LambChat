@@ -171,7 +171,6 @@ function buildFlowData(
   activeId: string | null,
   avatarUrl: string | undefined,
   username: string,
-
 ) {
   const flowItems = items.filter(
     (item) => item.kind === "user-message" || item.kind === "assistant-message",
@@ -189,8 +188,12 @@ function buildFlowData(
       isActive: activeId === item.anchorId,
       avatarUrl,
       username,
-      personaAvatar: item.kind === "assistant-message" ? item.assistantIdentity?.avatar : null,
-      personaSeed: item.kind === "assistant-message" ? item.assistantIdentity?.seed : null,
+      personaAvatar:
+        item.kind === "assistant-message"
+          ? item.assistantIdentity?.avatar
+          : null,
+      personaSeed:
+        item.kind === "assistant-message" ? item.assistantIdentity?.seed : null,
     },
   }));
 
@@ -238,8 +241,7 @@ function OutlineFlowInner({
   );
 
   const { nodes, edges } = useMemo(
-    () =>
-      buildFlowData(items, flowActiveId, avatarUrl, username),
+    () => buildFlowData(items, flowActiveId, avatarUrl, username),
     [items, flowActiveId, avatarUrl, username],
   );
 

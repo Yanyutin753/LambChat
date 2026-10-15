@@ -12,12 +12,20 @@ import { stripLocalAttachmentFields } from "../../components/chat/longTextConver
 import { filterSendableAttachments } from "../../components/chat/attachmentValidation";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { decodeToken, getAccessToken } from "./token";
 
 export const SESSIONS_READ_EVENT = "lambchat:sessions-read";
+export const SESSIONS_READ_INVALIDATED_EVENT =
+  "lambchat:sessions-read-invalidated";
 export interface SessionReadScope {
   sessionId?: string;
   projectId?: string | null;
   scheduledTaskId?: string | null;
+}
+
+function getReadNotificationOwner() {
+  const token = getAccessToken();
+  return token ? decodeToken(token)?.sub ?? token : null;
 }
 
 // Backend Session type (matches backend Session schema)
@@ -623,9 +631,11 @@ export const sessionApi = {
    * Mark session as read (clear unread count)
    */
   async markRead(sessionId: string): Promise<void> {
+    const owner = getReadNotificationOwner();
     await authFetch(`${API_BASE}/api/sessions/${sessionId}/mark-read`, {
       method: "POST",
     });
+    if (getReadNotificationOwner() !== owner) return;
     window.dispatchEvent(
       new CustomEvent(SESSIONS_READ_EVENT, { detail: { sessionId } }),
     );
@@ -638,6 +648,7 @@ export const sessionApi = {
     projectId?: string;
     scheduledTaskId?: string;
   }): Promise<{ status: string; modified_count: number }> {
+    const owner = getReadNotificationOwner();
     const params = new URLSearchParams();
     if (opts?.projectId) params.set("project_id", opts.projectId);
     if (opts?.scheduledTaskId)
@@ -647,9 +658,11 @@ export const sessionApi = {
       `${API_BASE}/api/sessions/mark-all-read${qs ? `?${qs}` : ""}`,
       { method: "POST" },
     );
-    window.dispatchEvent(
-      new CustomEvent(SESSIONS_READ_EVENT, { detail: opts ?? {} }),
-    );
+    if (getReadNotificationOwner() === owner) {
+      window.dispatchEvent(
+        new CustomEvent(SESSIONS_READ_EVENT, { detail: opts ?? {} }),
+      );
+    }
     return result;
   },
 

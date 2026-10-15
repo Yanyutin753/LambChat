@@ -71,7 +71,7 @@ export function RolesModelTab({
   }
 
   const currentRoleModels = selectedRole
-    ? (localRoleModels[selectedRole] ?? roleModelsMap[selectedRole] ?? [])
+    ? localRoleModels[selectedRole] ?? roleModelsMap[selectedRole] ?? []
     : [];
 
   const toggleModel = (modelId: string) => {
@@ -238,7 +238,11 @@ export function RolesModelTab({
                       </label>
                       {hasDesc && (
                         <IconButton
-                          aria-label={`${t(expandedModel === model.id ? "common.collapse" : "common.expand")} ${model.label}`}
+                          aria-label={`${t(
+                            expandedModel === model.id
+                              ? "common.collapse"
+                              : "common.expand",
+                          )} ${model.label}`}
                           aria-expanded={expandedModel === model.id}
                           aria-controls={
                             expandedModel === model.id

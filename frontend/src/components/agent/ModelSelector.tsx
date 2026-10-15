@@ -508,7 +508,11 @@ const ModelSelector = memo(function ModelSelector({
 
             <div className="border-t border-stone-100 dark:border-stone-700/70 px-3 py-2">
               <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
-                <Search size={14} strokeWidth={2.2} className="block shrink-0" />
+                <Search
+                  size={14}
+                  strokeWidth={2.2}
+                  className="block shrink-0"
+                />
                 <PanelSearchInput
                   value={modelSearch}
                   onValueChange={setModelSearch}

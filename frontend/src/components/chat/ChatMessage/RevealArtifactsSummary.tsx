@@ -169,7 +169,11 @@ function TreeFileRow({
         >
           {imageSrc ? (
             <span
-              className={inline ? "flex h-8 w-8 shrink-0 items-center justify-center" : "contents"}
+              className={
+                inline
+                  ? "flex h-8 w-8 shrink-0 items-center justify-center"
+                  : "contents"
+              }
             >
               <ImageWithSkeleton
                 src={imageSrc}
@@ -184,7 +188,11 @@ function TreeFileRow({
             </span>
           ) : inline ? (
             <span className="flex h-8 w-8 shrink-0 items-center justify-center text-theme-text-secondary">
-              <FileIcon size={24} strokeWidth={1.5} className={fileType.color} />
+              <FileIcon
+                size={24}
+                strokeWidth={1.5}
+                className={fileType.color}
+              />
             </span>
           ) : (
             getFileIcon(node.artifact.name)
@@ -646,7 +654,10 @@ export function RevealArtifactsSummary({
   }
 
   const useSidePanel = artifacts.length >= 4;
-  const collapsedNames = artifacts.slice(0, 2).map((artifact) => artifact.name).join(" · ");
+  const collapsedNames = artifacts
+    .slice(0, 2)
+    .map((artifact) => artifact.name)
+    .join(" · ");
 
   const handleOpenPanel = () => {
     openPersistentToolPanel({
@@ -723,39 +734,55 @@ export function RevealArtifactsSummary({
 
   return (
     <>
-      <section className="reveal-artifacts-summary my-2 w-full min-w-0 sm:my-3" aria-label={subtitle}>
+      <section
+        className="reveal-artifacts-summary my-2 w-full min-w-0 sm:my-3"
+        aria-label={subtitle}
+      >
         <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[var(--theme-border)] bg-theme-text/[0.02]">
           {artifacts.length > 1 && (
             <div className="relative">
               <button
                 type="button"
-                aria-label={useSidePanel ? t("chat.message.allFiles", "全部文件") : subtitle}
+                aria-label={
+                  useSidePanel
+                    ? t("chat.message.allFiles", "全部文件")
+                    : subtitle
+                }
                 aria-expanded={useSidePanel ? undefined : expanded}
                 aria-controls={useSidePanel ? undefined : disclosureId}
-                onClick={useSidePanel ? handleOpenPanel : () => setExpanded(!expanded)}
+                onClick={
+                  useSidePanel ? handleOpenPanel : () => setExpanded(!expanded)
+                }
                 className="reveal-artifacts-toggle flex min-h-[52px] w-full items-center gap-3 pl-3 pr-40 py-2 text-left hover:bg-theme-text/[0.04] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center">
                   <FolderIcon size={24} className="shrink-0" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-13 text-theme-text-secondary">{subtitle}</span>
+                  <span className="block truncate text-13 text-theme-text-secondary">
+                    {subtitle}
+                  </span>
                   {(useSidePanel || !expanded) && (
-                    <span className="mt-0.5 block truncate text-12 text-theme-text-tertiary">{collapsedNames}</span>
+                    <span className="mt-0.5 block truncate text-12 text-theme-text-tertiary">
+                      {collapsedNames}
+                    </span>
                   )}
                 </span>
                 <span className="absolute right-3 flex h-8 w-8 items-center justify-center">
-                {useSidePanel ? (
-                  <ChevronRight size={16} className="shrink-0 text-theme-text-tertiary" />
-                ) : (
-                  <ChevronDown
-                    size={16}
-                    className={clsx(
-                      "shrink-0 text-theme-text-tertiary transition-transform motion-reduce:transition-none",
-                      expanded && "rotate-180",
-                    )}
-                  />
-                )}
+                  {useSidePanel ? (
+                    <ChevronRight
+                      size={16}
+                      className="shrink-0 text-theme-text-tertiary"
+                    />
+                  ) : (
+                    <ChevronDown
+                      size={16}
+                      className={clsx(
+                        "shrink-0 text-theme-text-tertiary transition-transform motion-reduce:transition-none",
+                        expanded && "rotate-180",
+                      )}
+                    />
+                  )}
                 </span>
               </button>
               <div className="absolute right-12 top-1/2 -translate-y-1/2">
@@ -766,7 +793,10 @@ export function RevealArtifactsSummary({
           {!useSidePanel && (artifacts.length === 1 || expanded) && (
             <div
               id={disclosureId}
-              className={clsx("divide-y divide-[var(--theme-border)]", artifacts.length > 1 && "border-t border-[var(--theme-border)]")}
+              className={clsx(
+                "divide-y divide-[var(--theme-border)]",
+                artifacts.length > 1 && "border-t border-[var(--theme-border)]",
+              )}
             >
               {artifacts.map((artifact) =>
                 artifact.kind === "file" ? (

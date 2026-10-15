@@ -28,7 +28,9 @@ export function SettingsCategoryNav({
 }: Props) {
   const { t } = useTranslation();
   const navigationId = useId();
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(),
+  );
   const groups = buildSettingsNavigation(categories, navigation);
   if (mobile)
     return (

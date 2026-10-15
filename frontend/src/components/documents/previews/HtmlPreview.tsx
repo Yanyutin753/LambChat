@@ -153,7 +153,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
           </div>
         ) : (
           <iframe
-            src={nativePreview ? (nativeUrl ?? undefined) : undefined}
+            src={nativePreview ? nativeUrl ?? undefined : undefined}
             srcDoc={nativePreview ? undefined : previewContent}
             title={t("documents.htmlDocument")}
             className="w-full h-full border-0"

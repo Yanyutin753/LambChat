@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { sessionApi, type BackendSession } from "../services/api";
 import {
   SESSIONS_READ_EVENT,
+  SESSIONS_READ_INVALIDATED_EVENT,
   type SessionReadScope,
 } from "../services/api/session";
 import type { Project } from "../types";
@@ -28,6 +29,7 @@ import {
 } from "../components/sidebar/unreadCounts";
 import { isSessionFavorite } from "../components/sidebar/sessionFavorites";
 import { getSessionTitle } from "../components/panels/sessionHelpers";
+import { useAuth } from "./useAuth";
 
 /** Subset of useProjectSessionList return used by action handlers. */
 export interface SessionListHandle {
@@ -47,6 +49,7 @@ interface UseSessionSidebarActionsParams {
   scheduledTaskRefs: MutableRefObject<Map<string, ScheduledTaskItemHandle>>;
   projects: Project[];
   currentSessionId: string | null;
+  unreadBySession: UnreadBySession;
   setUnreadBySession: React.Dispatch<React.SetStateAction<UnreadBySession>>;
   onNewSession: () => void;
   onSelectSession: (sessionId: string) => void;
@@ -61,6 +64,7 @@ export function useSessionSidebarActions({
   scheduledTaskRefs,
   projects,
   currentSessionId,
+  unreadBySession,
   setUnreadBySession,
   onNewSession,
   onSelectSession,
@@ -68,6 +72,29 @@ export function useSessionSidebarActions({
   getProjectRef,
 }: UseSessionSidebarActionsParams) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const readAccount = useMemo(
+    () => ({ active: true, userId: user?.id }),
+    [user?.id],
+  );
+  const currentReadAccount = useRef(readAccount);
+  currentReadAccount.current = readAccount;
+  useEffect(() => {
+    readAccount.active = true;
+    return () => {
+      readAccount.active = false;
+    };
+  }, [readAccount]);
+  const unreadRevisions = useRef(new Map<string, number>());
+  const readLists = useRef<Array<SessionListHandle | undefined>>([]);
+  readLists.current = [
+    uncategorizedList,
+    pinnedList,
+    ...projectRefs.current.values(),
+    ...scheduledTaskRefs.current.values(),
+  ];
+  const unreadEntries = useRef(unreadBySession);
+  unreadEntries.current = unreadBySession;
 
   // ─── Share dialog state ───────────────────────────────────────────
 
@@ -106,15 +133,20 @@ export function useSessionSidebarActions({
       isFavorite?: boolean,
       scheduledTaskId?: string | null,
     ) => {
-      setUnreadBySession((prev) =>
-        mergeUnreadUpdate(prev, {
+      unreadRevisions.current.set(
+        sid,
+        (unreadRevisions.current.get(sid) ?? 0) + 1,
+      );
+      setUnreadBySession((prev) => {
+        unreadEntries.current = mergeUnreadUpdate(prev, {
           sessionId: sid,
           unreadCount: count,
           projectId,
           scheduledTaskId,
           isFavorite,
-        }),
-      );
+        });
+        return unreadEntries.current;
+      });
       const session = uncategorizedList.sessions.find((s) => s.id === sid);
       if (session) {
         uncategorizedList.updateSession({ ...session, unread_count: count });
@@ -411,45 +443,75 @@ export function useSessionSidebarActions({
         (!scope.sessionId || scope.sessionId === id) &&
         (!scope.projectId || scope.projectId === projectId) &&
         (!scope.scheduledTaskId || scope.scheduledTaskId === scheduledTaskId);
-      setUnreadBySession(
-        (previous) =>
-          new Map(
-            [...previous].filter(
-              ([id, entry]) =>
-                !matches(id, entry.projectId, entry.scheduledTaskId),
-            ),
-          ),
-      );
-      const lists = [
-        uncategorizedList,
-        pinnedList,
-        ...projectRefs.current.values(),
-        ...scheduledTaskRefs.current.values(),
-      ];
-      for (const list of lists) {
-        if (!list) continue;
-        for (const session of list.sessions) {
-          if (
-            (session.unread_count ?? 0) > 0 &&
+      const ids = new Set(
+        readLists.current
+          .flatMap((list) => list?.sessions ?? [])
+          .filter((session) =>
             matches(
               session.id,
               session.metadata?.project_id,
               session.metadata?.scheduled_task_id,
+            ),
+          )
+          .map((session) => session.id),
+      );
+      for (const [id, entry] of unreadEntries.current) {
+        if (matches(id, entry.projectId, entry.scheduledTaskId)) ids.add(id);
+      }
+      for (const id of ids) {
+        const revision = unreadRevisions.current.get(id);
+        void sessionApi
+          .get(id)
+          .then((session) => {
+            // A newer completion or an account switch must win over an older HTTP snapshot.
+            if (
+              !readAccount.active ||
+              currentReadAccount.current !== readAccount ||
+              unreadRevisions.current.get(id) !== revision
             )
-          ) {
-            list.updateSession({ ...session, unread_count: 0 });
-          }
-        }
+              return;
+            for (const list of readLists.current) {
+              const current = list?.sessions.find((item) => item.id === id);
+              if (
+                current &&
+                Date.parse(current.updated_at) <= Date.parse(session.updated_at)
+              ) {
+                list?.updateSession(session);
+              }
+            }
+            setUnreadBySession((previous) => {
+              unreadEntries.current = mergeUnreadUpdate(previous, {
+                sessionId: id,
+                unreadCount: session.unread_count ?? 0,
+                projectId: session.metadata?.project_id as
+                  | string
+                  | null
+                  | undefined,
+                scheduledTaskId: session.metadata?.scheduled_task_id as
+                  | string
+                  | null
+                  | undefined,
+                isFavorite: isSessionFavorite(session),
+              });
+              return unreadEntries.current;
+            });
+          })
+          .catch(() => {});
       }
     };
     window.addEventListener(SESSIONS_READ_EVENT, onRead);
-    return () => window.removeEventListener(SESSIONS_READ_EVENT, onRead);
+    window.addEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    return () => {
+      window.removeEventListener(SESSIONS_READ_EVENT, onRead);
+      window.removeEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    };
   }, [
     uncategorizedList,
     pinnedList,
     projectRefs,
     scheduledTaskRefs,
     setUnreadBySession,
+    readAccount,
   ]);
 
   // ─── Mark all read ────────────────────────────────────────────────
