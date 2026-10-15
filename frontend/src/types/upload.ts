@@ -19,6 +19,8 @@ export interface MessageAttachment {
   isUploading?: boolean;
   /** Client-only stage for an in-progress upload. */
   uploadStage?: UploadStage;
+  /** Server-verified bytes as a percentage, absent for unmeasurable processing. */
+  uploadProcessingProgress?: number;
   /**
    * Client-only: original text when this attachment was created from long-text conversion.
    * Must be stripped before API submit.

@@ -100,7 +100,7 @@ function SessionScheduledTaskPanelBody({
         <div className="flex flex-1 items-center justify-center">
           <LoadingSpinner
             color="text-current"
-            className="h-5 w-5 text-stone-400"
+            className="h-5 w-5 text-theme-text-tertiary"
           />
         </div>
       ) : tasks.length === 0 ? (

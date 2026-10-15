@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -402,7 +403,9 @@ async def test_e2b_cache_hit_runs_sync_sdk_calls_in_blocking_executor(
     adapter = _FakeE2BAdapter()
     manager = sandbox_module.SessionSandboxManager()
     manager._e2b_adapter = adapter
-    manager._cache = OrderedDict({"user-1": ("sandbox-1", object(), object())})
+    manager._cache = OrderedDict(
+        {"user-1": ("sandbox-1", SimpleNamespace(default=object()), object())}
+    )
 
     blocking_calls: list[str] = []
 
@@ -438,7 +441,9 @@ async def test_cubesandbox_cache_hit_uses_cube_adapter(
     manager = sandbox_module.SessionSandboxManager()
     manager._cube_adapter = adapter
     manager._e2b_adapter = None
-    manager._cache = OrderedDict({"user-1": ("sandbox-1", object(), object())})
+    manager._cache = OrderedDict(
+        {"user-1": ("sandbox-1", SimpleNamespace(default=object()), object())}
+    )
 
     blocking_calls: list[str] = []
 
@@ -637,8 +642,7 @@ async def test_ensure_work_dir_skips_already_ready_directory() -> None:
     await manager._ensure_work_dir(backend, "/home/user/sessions/session-1")
 
     assert commands == [
-        "mkdir -p /home/user/sessions/session-1",
-        "mkdir -p /home/user/shared",
+        "mkdir -p /home/user/sessions/session-1 /home/user/shared",
     ]
 
 

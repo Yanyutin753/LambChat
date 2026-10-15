@@ -17,7 +17,10 @@ def _source(name: str) -> str:
 
 def test_spool_hash_updates_run_in_blocking_pool() -> None:
     source = _source("upload.py")
-    assert "run_long_blocking_io(digest.update, chunk)" in source
+    assert "run_long_blocking_io(write_and_hash, chunk)" in source
+    assert "    def write_and_hash(chunk: bytes) -> None:" in source
+    assert "\n        digest.update(chunk)" in source
+    assert "\n        spooled.write(chunk)" in source
     # The bare per-chunk hash update must not run on the event loop
     assert "\n            digest.update(chunk)" not in source
 

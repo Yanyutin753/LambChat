@@ -9,6 +9,11 @@ from contextvars import ContextVar, Token
 from typing import AsyncIterator, Literal
 
 ServerTimingMetric = Literal[
+    "chat_context",
+    "chat_prepare",
+    "chat_submit",
+    "cloud_connect",
+    "cloud_io",
     "feedback",
     "history",
     "session_detail",
@@ -16,10 +21,17 @@ ServerTimingMetric = Literal[
     "session_mark_read",
     "settings",
     "teams",
+    "upload_storage",
+    "upload_verify",
 ]
 
 _ALLOWED_METRICS = frozenset(
     {
+        "chat_context",
+        "chat_prepare",
+        "chat_submit",
+        "cloud_connect",
+        "cloud_io",
         "feedback",
         "history",
         "session_detail",
@@ -27,6 +39,8 @@ _ALLOWED_METRICS = frozenset(
         "session_mark_read",
         "settings",
         "teams",
+        "upload_storage",
+        "upload_verify",
     }
 )
 _request_timings: ContextVar[dict[str, float] | None] = ContextVar(

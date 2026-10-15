@@ -82,7 +82,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   } = getAttachmentIconInfo(attachment.mimeType, attachment.name);
   const displayLabel = t(label, label);
   const attachmentUrl = attachment.url
-    ? (getFullUrl(attachment.url) ?? attachment.url)
+    ? getFullUrl(attachment.url) ?? attachment.url
     : "";
   const isImage =
     attachment.mimeType?.startsWith("image/") && Boolean(attachmentUrl);
@@ -104,11 +104,14 @@ export const AttachmentCard = memo(function AttachmentCard({
   const isThumbnail = isImage || isExcalidraw || Boolean(coverUrl);
   const isCompact = size === "compact";
   const isFailed = Boolean(attachment.uploadError);
+  const processingProgress = attachment.uploadProcessingProgress;
   const uploadStatusLabel =
     attachment.uploadStage === "preparing"
       ? t("fileUpload.preparing", "Preparing upload…")
       : attachment.uploadStage === "processing"
-        ? t("fileUpload.serverProcessing", "Processing on server…")
+        ? `${t("fileUpload.serverProcessing", "Processing on server…")}${
+            processingProgress === undefined ? "" : ` ${processingProgress}%`
+          }`
         : `${Math.min(99, attachment.uploadProgress ?? 0)}%`;
 
   const handleClick = () => {

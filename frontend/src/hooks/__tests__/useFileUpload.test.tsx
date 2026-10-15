@@ -195,6 +195,7 @@ test("moves an upload from preparing through throttled uploading and server proc
   await waitFor(() => expect(apiMocks.uploadFile).toHaveBeenCalledOnce());
   const options = apiMocks.uploadFile.mock.calls[0]?.[1] as {
     onProgress?: (progress: number) => void;
+    onProcessingProgress?: (progress: number) => void;
   };
 
   act(() => options.onProgress?.(35));
@@ -207,6 +208,12 @@ test("moves an upload from preparing through throttled uploading and server proc
   expect(result.current.attachments[0]).toMatchObject({
     uploadProgress: 99,
     uploadStage: "processing",
+  });
+
+  act(() => options.onProcessingProgress?.(63));
+  expect(result.current.attachments[0]).toMatchObject({
+    uploadStage: "processing",
+    uploadProcessingProgress: 63,
   });
 
   act(() =>
@@ -227,6 +234,9 @@ test("moves an upload from preparing through throttled uploading and server proc
   expect(result.current.attachments[0]).not.toHaveProperty("isUploading");
   expect(result.current.attachments[0]).not.toHaveProperty("uploadProgress");
   expect(result.current.attachments[0]).not.toHaveProperty("uploadStage");
+  expect(result.current.attachments[0]).not.toHaveProperty(
+    "uploadProcessingProgress",
+  );
 });
 
 test("shows preparing immediately and terminates image work when cancelled", async () => {

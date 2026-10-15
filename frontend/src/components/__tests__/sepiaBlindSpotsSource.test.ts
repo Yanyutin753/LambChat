@@ -20,6 +20,10 @@ const files = [
   "chat/ChatMessage/items/ExecuteItem.tsx",
   "chat/ChatMessage/items/ScheduledTaskItem.tsx",
   "chat/ChatMessage/items/WebFetchItem.tsx",
+  "chat/ChatMessage/TodoBlock.tsx",
+  "common/CollapsiblePill.tsx",
+  "layout/AppContent/MessageOutlineFlow.tsx",
+  "panels/channel/weixin/WeixinQrLogin.tsx",
   "auth/AuthPage.tsx",
   "auth/ForgotPassword.tsx",
   "auth/ResetPassword.tsx",
@@ -45,8 +49,7 @@ function effectiveLightPath(source: string): string {
 const BANNED_PATTERNS: { name: string; pattern: RegExp }[] = [
   {
     name: "stone/slate-*（冷灰中性色）",
-    pattern:
-      /(?:bg|text|border|ring|from|to|via)-(?:stone|slate)-[\d/]+/,
+    pattern: /(?:bg|text|border|ring|from|to|via)-(?:stone|slate)-[\d/]+/,
   },
   { name: "border-white", pattern: /\bborder-white\b/ },
   {
@@ -70,10 +73,7 @@ const INTENTIONAL_DARK_SUBSTRINGS = [
 ];
 
 test.each(files)("%s 浅色路径不依赖硬编码中性色/状态色", (file) => {
-  const source = readFileSync(
-    join(import.meta.dirname, "..", file),
-    "utf8",
-  );
+  const source = readFileSync(join(import.meta.dirname, "..", file), "utf8");
   let lightPath = effectiveLightPath(source);
   for (const substring of INTENTIONAL_DARK_SUBSTRINGS) {
     lightPath = lightPath.split(substring).join("");

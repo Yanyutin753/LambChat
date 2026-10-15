@@ -241,12 +241,12 @@ export function AgentConfigPanel() {
                 onClick={() => setActiveTab("global")}
                 className={`px-4 py-3.5 text-14 font-medium transition-all relative ${
                   activeTab === "global"
-                    ? "text-stone-900 dark:text-stone-100"
-                    : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+                    ? "text-theme-text dark:text-stone-100"
+                    : "text-theme-text-secondary hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-200"
                 }`}
               >
                 {activeTab === "global" && (
-                  <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-stone-600 dark:bg-stone-400" />
+                  <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-theme-text-secondary dark:bg-stone-400" />
                 )}
                 {t("agentConfig.globalTab")}
               </button>
@@ -254,12 +254,12 @@ export function AgentConfigPanel() {
                 onClick={() => setActiveTab("roles")}
                 className={`px-4 py-3.5 text-14 font-medium transition-all relative ${
                   activeTab === "roles"
-                    ? "text-stone-900 dark:text-stone-100"
-                    : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+                    ? "text-theme-text dark:text-stone-100"
+                    : "text-theme-text-secondary hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-200"
                 }`}
               >
                 {activeTab === "roles" && (
-                  <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-stone-600 dark:bg-stone-400" />
+                  <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-theme-text-secondary dark:bg-stone-400" />
                 )}
                 {t("agentConfig.rolesTab")}
               </button>
@@ -288,7 +288,7 @@ export function AgentConfigPanel() {
             ) : (
               // 非管理员只显示可用 agents
               <div className="space-y-5">
-                <p className="text-14 text-stone-500 dark:text-stone-400 px-1 leading-relaxed">
+                <p className="text-14 text-theme-text-secondary dark:text-stone-400 px-1 leading-relaxed">
                   {t("agentConfig.availableAgents")}
                 </p>
                 <div className="grid gap-3">
@@ -308,12 +308,16 @@ export function AgentConfigPanel() {
                         key={agent.id}
                         className="resource-detail-card flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
                       >
-                        <AgentIcon icon={agent.icon} seed={agent.id} size={44} />
+                        <AgentIcon
+                          icon={agent.icon}
+                          seed={agent.id}
+                          size={44}
+                        />
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-14 font-semibold text-stone-900 dark:text-stone-100 truncate tracking-tight font-serif">
+                          <h4 className="text-14 font-semibold text-theme-text dark:text-stone-100 truncate tracking-tight font-serif">
                             {displayName}
                           </h4>
-                          <p className="text-12 text-stone-500 dark:text-stone-400 truncate mt-0.5 hidden sm:block">
+                          <p className="text-12 text-theme-text-secondary dark:text-stone-400 truncate mt-0.5 hidden sm:block">
                             {displayDescription}
                           </p>
                         </div>

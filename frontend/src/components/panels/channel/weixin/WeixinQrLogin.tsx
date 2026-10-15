@@ -116,13 +116,13 @@ export function WeixinQrLogin({
           {t("channel.weixin.scanLogin")}
         </Button>
         {phase === "scanned" && (
-          <span className="text-12 text-theme-text-muted">
+          <span className="text-12 text-theme-text-tertiary">
             {t("channel.weixin.qrScanned")}
           </span>
         )}
         {(phase === "expired" || phase === "error") && (
           <span
-            className="text-12 text-red-500 dark:text-red-400"
+            className="text-12 text-theme-error dark:text-red-400"
             role="alert"
           >
             {phase === "expired"

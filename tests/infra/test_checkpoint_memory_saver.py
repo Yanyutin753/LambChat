@@ -149,7 +149,7 @@ async def test_pg_checkpointer_initializes_once_under_concurrency(
     monkeypatch.setattr(checkpoint_mod.settings, "CHECKPOINT_PG_POOL_MIN_SIZE", 1)
     monkeypatch.setattr(checkpoint_mod.settings, "CHECKPOINT_PG_POOL_MAX_SIZE", 3)
     monkeypatch.setattr(
-        "langgraph.checkpoint.postgres.aio.AsyncPostgresSaver",
+        "src.infra.storage.checkpoint_postgres.BatchedDeltaPostgresSaver",
         _FakeSaver,
     )
     monkeypatch.setattr("psycopg_pool.AsyncConnectionPool", _FakePool)

@@ -99,7 +99,7 @@ async def test_spool_upload_file_limited_offloads_spooled_file_writes(
 
     try:
         assert bytes(spooled.file.data) == b"abcdef"
-        assert calls == ["update", "write", "update", "write", "seek"]
+        assert calls == ["write_and_hash", "write_and_hash", "seek"]
     finally:
         spooled.close()
 
@@ -410,3 +410,32 @@ async def test_upload_limits_batch_roles_and_preserve_most_permissive_limits(mon
     assert limits["image"] == 456
     assert limits["video"] == upload.settings.FILE_UPLOAD_MAX_SIZE_VIDEO
     lookup.assert_awaited_once_with(["small", "large"])
+
+
+@pytest.mark.asyncio
+async def test_spool_hash_and_write_share_one_blocking_dispatch_per_chunk(monkeypatch) -> None:
+    calls = []
+
+    async def blocking(func, *args, **kwargs):
+        calls.append(func.__name__)
+        monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", True, raising=False)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            monkeypatch.setattr(upload_route, "_inside_fake_blocking_io", False)
+
+    monkeypatch.setattr(upload_route, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
+    monkeypatch.setattr(upload_route, "run_long_blocking_io", blocking)
+    chunks = [bytes([index]) * 10 for index in range(100)]
+    spooled = await _spool_upload_file_limited(
+        ChunkedUpload(chunks), max_size_bytes=1000, max_size_mb=1
+    )
+    try:
+        import hashlib
+
+        assert spooled.size == 1000
+        assert spooled.file.read() == b"".join(chunks)
+        assert spooled.sha256_hex == hashlib.sha256(b"".join(chunks)).hexdigest()
+        assert len(calls) <= len(chunks) + 1  # one executor hop per chunk, then rewind
+    finally:
+        spooled.close()

@@ -11,7 +11,7 @@ from src.api.routes import upload
 from src.api.routes import upload_direct as direct
 from src.api.routes.file_type import FileCategory
 from src.infra.utils.datetime import utc_now
-from src.kernel.errors import AppError
+from src.kernel.errors import AppError, ErrorCode
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def env(monkeypatch):
     )
     collection = SimpleNamespace(
         insert_one=AsyncMock(),
-        update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),
+        update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1, matched_count=1)),
         find_one=AsyncMock(),
         find_one_and_update=AsyncMock(),
         delete_one=AsyncMock(),
@@ -178,6 +178,26 @@ async def test_completion_hashes_storage_bytes_before_recording(env):
     assert env.records.create.call_args.kwargs["file_hash"] == hashlib.sha256(b"abc").hexdigest()
     env.adapter.complete.assert_awaited_once()
     assert env.collection.update_one.call_args.args[1]["$set"]["state"] == "completed"
+    assert any(
+        call.args[1].get("$set", {}).get("verified_bytes") == 3
+        for call in env.collection.update_one.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_status_reports_only_owned_verification_progress(env):
+    env.ticket.update(state="completing", verified_bytes=1)
+    assert await direct.upload_status("ticket", env.user) == {"state": "completing", "progress": 33}
+    assert env.collection.find_one.call_args.args[0] == {"_id": "ticket", "owner": "user"}
+    env.ticket.pop("verified_bytes")
+    assert (await direct.upload_status("ticket", env.user))["progress"] is None
+    env.ticket.update(state="committing", verified_bytes=3)
+    assert (await direct.upload_status("ticket", env.user))["progress"] == 99
+    env.ticket["state"] = "completed"
+    assert (await direct.upload_status("ticket", env.user))["progress"] == 100
+    env.collection.find_one.return_value = None
+    with pytest.raises(AppError):
+        await direct.upload_status("ticket", env.user)
 
 
 @pytest.mark.asyncio
@@ -202,11 +222,8 @@ async def test_invalid_parts_cannot_be_committed(env):
 
 
 @pytest.mark.asyncio
-async def test_cancel_during_hashing_prevents_record_and_deletes_object(env):
-    env.collection.find_one.side_effect = [
-        env.ticket,
-        {"state": "completing", "cancel_requested": True},
-    ]
+async def test_cancel_during_hashing_prevents_record_and_deletes_object(env, monkeypatch):
+    verification_stream(env, monkeypatch, [b"a", b"bc"], times=[0.0, 0.3], cancel_at=1)
     with pytest.raises(AppError):
         await direct.complete_upload("ticket", request(), env.user)
     env.records.create.assert_not_awaited()
@@ -266,3 +283,221 @@ async def test_expired_ticket_cleanup_is_claimed_atomically(env):
     env.adapter.abort.assert_awaited_once()
     query = env.collection.find_one_and_update.call_args_list[0].args[0]
     assert "expires_at" in query and query["storage"] == env.ticket["storage"]
+
+
+def verification_stream(env, monkeypatch, chunks, times=None, cancel_at=None, cancel_at_eof=False):
+    """A stateful cross-replica ticket: conditional writes observe the same cancellation as reads."""
+    payload = b"".join(chunks)
+    env.ticket["size"] = len(payload)
+    env.adapter.list_parts.return_value = [{"PartNumber": 1, "ETag": "etag", "Size": len(payload)}]
+    env.storage.get_size.return_value = len(payload)
+    env.records.create.return_value["size"] = len(payload)
+    monkeypatch.setattr(
+        upload,
+        "validate_upload_metadata",
+        AsyncMock(return_value=(FileCategory.DOCUMENT, len(payload))),
+    )
+    clock = SimpleNamespace(now=0.0, yielded=0)
+    current = dict(env.ticket)
+    monkeypatch.setattr(direct, "monotonic", lambda: clock.now, raising=False)
+
+    def matches(query):
+        for key in ("_id", "owner", "state"):
+            if key in query and current.get(key) != query[key]:
+                return False
+        if query.get("cancel_requested") == {"$ne": True} and current.get("cancel_requested"):
+            return False
+        return True
+
+    async def find_one(query, *args):
+        return dict(current) if matches(query) else None
+
+    async def claim(query, change, **kwargs):
+        if not matches({key: value for key, value in query.items() if key != "expires_at"}):
+            return None
+        current.update(change["$set"])
+        return dict(current)
+
+    async def update(query, change):
+        matched = matches(query)
+        if matched:
+            current.update(change["$set"])
+        return SimpleNamespace(matched_count=int(matched), modified_count=int(matched))
+
+    async def stream(key):
+        for index, chunk in enumerate(chunks):
+            clock.now = times[index] if times else 0.0
+            if index == cancel_at:
+                current["cancel_requested"] = True
+            clock.yielded += 1
+            yield chunk
+        if cancel_at_eof:
+            current["cancel_requested"] = True
+
+    env.collection.find_one.side_effect = find_one
+    env.collection.find_one_and_update.side_effect = claim
+    env.collection.update_one.side_effect = update
+    env.storage.download_stream = stream
+    return current, clock, payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chunk_count", [1, 1000])
+async def test_verification_database_work_is_independent_of_fast_stream_chunk_count(
+    env, monkeypatch, chunk_count
+):
+    chunks = [b"x" * (1000 // chunk_count)] * chunk_count
+    current, clock, payload = verification_stream(env, monkeypatch, chunks)
+    result = await direct.complete_upload("ticket", request(), env.user)
+    assert result["key"] == current["key"]
+    assert clock.yielded == chunk_count
+    assert env.records.create.call_args.kwargs["file_hash"] == hashlib.sha256(payload).hexdigest()
+    assert env.records.create.call_args.kwargs["size"] == len(payload)
+    assert (
+        env.collection.find_one.await_count == 1
+    )  # ownership read only; progress uses atomic writes
+    assert (
+        env.collection.update_one.await_count <= 4
+    )  # initial/final progress plus two commit transitions
+    samples = [
+        call
+        for call in env.collection.update_one.call_args_list
+        if "verified_bytes" in call.args[1].get("$set", {})
+    ]
+    assert samples[0].args[1]["$set"]["verified_bytes"] == 0
+    assert samples[-1].args[1]["$set"]["verified_bytes"] == len(payload)
+    for sample in samples:
+        assert sample.args[0]["owner"] == env.user.sub
+        assert sample.args[0]["state"] == "completing"
+        assert sample.args[0]["cancel_requested"] == {"$ne": True}
+        assert sample.args[1]["$set"]["expires_at"] > utc_now() + timedelta(minutes=59)
+    assert current["state"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_verification_checkpoints_use_elapsed_time_and_publish_final_progress(
+    env, monkeypatch
+):
+    verification_stream(env, monkeypatch, [b"a"] * 6, times=[0.0, 0.1, 0.249, 0.25, 0.4, 0.5])
+    await direct.complete_upload("ticket", request(), env.user)
+    progress = [
+        call.args[1]["$set"]["verified_bytes"]
+        for call in env.collection.update_one.call_args_list
+        if "verified_bytes" in call.args[1].get("$set", {})
+    ]
+    assert progress[0] == 0 and progress[-1] == 6
+    assert 4 in progress  # first interval has elapsed, even though the object is still streaming
+    assert len(progress) <= 4
+    assert progress == sorted(progress)
+    assert env.collection.find_one.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_verification_cancellation_is_observed_at_the_next_bounded_checkpoint(
+    env, monkeypatch
+):
+    current, clock, _ = verification_stream(
+        env, monkeypatch, [b"a"] * 10, times=[index / 10 for index in range(10)], cancel_at=1
+    )
+    with pytest.raises(AppError) as error:
+        await direct.complete_upload("ticket", request(), env.user)
+    assert error.value.error_code == ErrorCode.UPLOAD_CANCELED
+    assert 2 <= clock.yielded <= 4  # cancel after 100ms is observed by the first >=250ms chunk
+    env.records.create.assert_not_awaited()
+    env.storage.delete_file.assert_awaited_once_with(env.ticket["key"])
+    assert current["state"] == "cleanup"
+    assert env.collection.find_one.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_last_chunk_still_wins_before_record_commit(env, monkeypatch):
+    current, _, _ = verification_stream(env, monkeypatch, [b"a"] * 10, cancel_at_eof=True)
+    with pytest.raises(AppError) as error:
+        await direct.complete_upload("ticket", request(), env.user)
+    assert error.value.error_code == ErrorCode.UPLOAD_CANCELED
+    env.records.create.assert_not_awaited()
+    assert current["state"] == "cleanup"
+    env.storage.delete_file.assert_awaited_once_with(env.ticket["key"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mismatch", ["short", "oversized"])
+async def test_verification_still_rejects_stream_size_mismatch_before_record(
+    env, monkeypatch, mismatch
+):
+    _, _, _ = verification_stream(env, monkeypatch, [b"abc"])
+
+    async def stream(key):
+        yield b"ab" if mismatch == "short" else b"abcd"
+
+    env.storage.download_stream = stream
+    with pytest.raises(AppError):
+        await direct.complete_upload("ticket", request(), env.user)
+    env.records.create.assert_not_awaited()
+    env.storage.delete_file.assert_awaited_once_with(env.ticket["key"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ["start", "complete", "redirect", "proxy"])
+async def test_upload_phase_headers_are_bounded_and_never_include_ticket_or_file_data(
+    env, monkeypatch, route
+):
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+
+    from src.api.middleware.tracing import TracingMiddleware
+
+    app = FastAPI()
+    app.add_middleware(TracingMiddleware)
+    app.include_router(direct.router, prefix="/api/upload")
+    app.add_api_route("/api/upload/file/{key:path}", upload.get_file_proxy, methods=["GET"])
+    app.add_api_route("/api/upload/file", upload.upload_file, methods=["POST"])
+    app.dependency_overrides[direct.get_current_user_required] = lambda: env.user
+    app.dependency_overrides[upload.get_current_user] = lambda: env.user
+    if route == "complete":
+        verification_stream(env, monkeypatch, [b"abc"])
+    if route == "proxy":
+        monkeypatch.setattr(
+            upload,
+            "validate_upload_metadata",
+            AsyncMock(return_value=(FileCategory.DOCUMENT, 10000)),
+        )
+        env.storage.upload_stream_to_key = AsyncMock(
+            return_value=SimpleNamespace(key=env.ticket["key"])
+        )
+    if route == "redirect":
+        env.records.is_private_key = AsyncMock(return_value=False)
+        env.storage._config = SimpleNamespace(public_bucket=False)
+        env.storage.get_presigned_url = AsyncMock(
+            return_value="https://storage.example/private?secret=1"
+        )
+        monkeypatch.setattr(upload, "get_model_safe_file_response", AsyncMock(return_value=None))
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://app.example"
+    ) as client:
+        if route == "start":
+            response = await client.post(
+                "/api/upload/direct", json={"name": "private-name.txt", "size": 3}
+            )
+        elif route == "complete":
+            response = await client.post("/api/upload/direct/ticket/complete")
+        elif route == "proxy":
+            response = await client.post(
+                "/api/upload/file", files={"file": ("private-name.txt", b"abc", "text/plain")}
+            )
+        else:
+            response = await client.get("/api/upload/file/document/user/private-name.txt")
+    assert response.status_code == (302 if route == "redirect" else 200)
+    timing = response.headers.get("Server-Timing", "")
+    names = {metric.split(";", 1)[0].strip() for metric in timing.split(",") if metric}
+    assert "upload_storage" in names
+    assert names == (
+        {"upload_storage", "upload_verify"}
+        if route in ("complete", "proxy")
+        else {"upload_storage"}
+    )
+    assert all(";dur=" in metric for metric in timing.split(","))
+    for private in ("ticket", "user", "private-name", "secret", "storage.example"):
+        assert private not in timing
+    if route == "redirect":
+        env.storage.file_exists.assert_awaited_once_with("document/user/private-name.txt")

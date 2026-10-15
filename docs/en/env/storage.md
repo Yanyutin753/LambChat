@@ -86,6 +86,8 @@ Each part signature binds its authorized byte count. Browsers supply `Content-Le
 
 The backend checks the owner's permissions and role limits, lists the actual uploaded parts before merging, and streams the finished object to compute the trusted SHA-256 used for owner-scoped deduplication. This adds one object read during the processing stage. The browser never receives bucket credentials. Ticket state is stored in MongoDB for multiple API replicas; expired uploads are cleaned every five minutes.
 
+During direct-upload completion, attachment cards poll the owned ticket every 500 ms and display server processing progress from verified bytes. Merge operations without measurable progress retain the processing label. Progress stays below 100% until completion succeeds; polling stops on completion or cancellation. Backend fallback uploads retain the processing label without a measured percentage.
+
 The bucket endpoint must be reachable from the browser over HTTPS. Configure bucket CORS for each actual web, desktop, or mobile origin. An AWS S3 example (replace the origin):
 
 ```json

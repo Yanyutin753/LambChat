@@ -2600,6 +2600,8 @@
     "users": "管理用户账户和访问权限"
   },
   "notification": {
+    "taskUpdates": "有 {{count}} 条任务新动态",
+    "openLatestConversation": "查看最新会话",
     "openConversation": "打开会话",
     "active": "生效中",
     "cancel": "取消",

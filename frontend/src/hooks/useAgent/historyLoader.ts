@@ -7,7 +7,10 @@
  * user:message / user:cancel / approval_required which are history-specific.
  */
 
-import { anchorLegacySteerMessageEvents, normalizeEventRunIds } from "./historyEventOrdering";
+import {
+  anchorLegacySteerMessageEvents,
+  normalizeEventRunIds,
+} from "./historyEventOrdering";
 export { normalizeEventRunIds } from "./historyEventOrdering";
 import { HistoryPartReplay, HistoryReplayStack } from "./historyReplayParts";
 import { getGoalProjectionIdentity } from "./goalControlScope";
@@ -166,38 +169,54 @@ function processHistoryEvent(
     // identify the tool part by tool_call_id. Keep the tool part keyed by the
     // latter so historical approvals resolve exactly like live events.
     const toolCallId = approvalData.tool_call_id || approvalData.id;
-    if (
-      !isSandboxConfirmApprovalEvent(approvalData) &&
-      toolCallId &&
-      !currentAssistantMessage.parts?.some(
-        (part) => part.type === "tool" && part.id === toolCallId,
-      )
-    ) {
-      currentAssistantMessage = {
-        ...currentAssistantMessage,
-        parts: [
-          ...(currentAssistantMessage.parts || []),
-          createToolPart(
-            "ask_human",
-            {
-              message: approvalData.message || "",
-              fields: approvalData.fields || [],
-            },
-            eventData.depth || 0,
-            eventData.agent_id,
-            toolCallId,
-            event.timestamp,
-          ),
-        ],
-      };
+    if (!isSandboxConfirmApprovalEvent(approvalData) && toolCallId) {
+      const create = () =>
+        createToolPart(
+          "ask_human",
+          {
+            message: approvalData.message || "",
+            fields: approvalData.fields || [],
+          },
+          eventData.depth || 0,
+          eventData.agent_id,
+          toolCallId,
+          event.timestamp,
+        );
+      if (opts.partReplay)
+        opts.partReplay.ensureApproval(
+          currentAssistantMessage,
+          toolCallId,
+          create,
+        );
+      else if (
+        !currentAssistantMessage.parts?.some(
+          (part) => part.type === "tool" && part.id === toolCallId,
+        )
+      ) {
+        currentAssistantMessage = {
+          ...currentAssistantMessage,
+          parts: [...(currentAssistantMessage.parts || []), create()],
+        };
+      }
     }
-    const prefetched = approvalData.id && opts.approvalStatuses && Object.hasOwn(opts.approvalStatuses, approvalData.id)
-      ? opts.approvalStatuses[approvalData.id]
-      : undefined;
+    const prefetched =
+      approvalData.id &&
+      opts.approvalStatuses &&
+      Object.hasOwn(opts.approvalStatuses, approvalData.id)
+        ? opts.approvalStatuses[approvalData.id]
+        : undefined;
     if (prefetched && !opts.resolvedApprovalIds?.has(prefetched.id)) {
-      currentAssistantMessage = resolveLegacyScheduledTaskApproval(
-        [currentAssistantMessage], prefetched,
-      )[0];
+      if (opts.partReplay)
+        opts.partReplay.repairApproval(
+          currentAssistantMessage,
+          prefetched,
+          resolveLegacyScheduledTaskApproval,
+        );
+      else
+        currentAssistantMessage = resolveLegacyScheduledTaskApproval(
+          [currentAssistantMessage],
+          prefetched,
+        )[0];
     }
     if (
       approvalData.id &&
@@ -208,7 +227,9 @@ function processHistoryEvent(
       opts.queriedApprovalIds?.add(approvalData.id);
       const approvalLookup = prefetched
         ? Promise.resolve(prefetched)
-        : authFetch<SessionApprovalStatus>(buildApiUrl(`/human/${approvalData.id}`));
+        : authFetch<SessionApprovalStatus>(
+            buildApiUrl(`/human/${approvalData.id}`),
+          );
       approvalLookup
         .then((data) => data ?? null)
         .then((approval) => {
@@ -222,7 +243,10 @@ function processHistoryEvent(
               metadata: approval.metadata ?? null,
             });
           }
-          if (approval?.status === "pending" && (!opts.isCurrent || opts.isCurrent())) {
+          if (
+            approval?.status === "pending" &&
+            (!opts.isCurrent || opts.isCurrent())
+          ) {
             opts.options?.onApprovalRequired?.({
               id: approvalData.id!,
               message: approval.message || "",
@@ -266,12 +290,25 @@ function processHistoryEvent(
 
   // Materialize the ordered stack only when the shared fallback needs it.
   if (eventType === "agent:call") {
-    opts.replayStack?.add({ agent_id: agentId || "unknown", depth, message_id: msg.id });
+    opts.replayStack?.add({
+      agent_id: agentId || "unknown",
+      depth,
+      message_id: msg.id,
+    });
   }
-  if (opts.partReplay?.replay(msg, eventType, eventData as EventData)) {
-    if (eventType === "agent:result") opts.replayStack?.remove(agentId || "unknown", msg.id);
+  if (
+    opts.partReplay?.replay(
+      msg,
+      eventType,
+      eventData as EventData,
+      agentId || (depth ? opts.replayStack?.latest(msg.id, depth) : undefined),
+    )
+  ) {
+    if (eventType === "agent:result")
+      opts.replayStack?.remove(agentId || "unknown", msg.id);
     return msg;
   }
+  opts.partReplay?.flush(msg);
   opts.replayStack?.flush();
 
   // Use unified event processor
@@ -305,7 +342,8 @@ function processHistoryEvent(
     msg.cancelled = true;
   }
 
-  if (eventType === "agent:result") opts.replayStack?.remove(agentId || "unknown", msg.id);
+  if (eventType === "agent:result")
+    opts.replayStack?.remove(agentId || "unknown", msg.id);
 
   return msg;
 }
@@ -364,12 +402,16 @@ export function reconstructMessagesFromEvents(
     replayStack: new HistoryReplayStack(opts.activeSubagentStack),
   };
 
-  const identities = new Map<string, NonNullable<Message["assistantIdentity"]>>();
+  const identities = new Map<
+    string,
+    NonNullable<Message["assistantIdentity"]>
+  >();
   const reconstructedMessages: Message[] = [];
   // run 内每完成一个 assistant 轮次（入列）计数一次，替代循环内对
   // reconstructedMessages 的全量 filter（长会话 O(n²) 热点）
   const assistantTurnCountsByRunId = new Map<string, number>();
   const pushMessage = (message: Message) => {
+    replayOptions.partReplay?.flush(message);
     reconstructedMessages.push(message);
     if (message.role === "assistant" && message.runId) {
       assistantTurnCountsByRunId.set(
@@ -386,6 +428,13 @@ export function reconstructMessagesFromEvents(
   for (const event of anchoredEvents) {
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
+    if (
+      currentAssistantMessage &&
+      ["steer:message", "user:message", "user:cancel", "run:resumed"].includes(
+        eventType,
+      )
+    )
+      replayOptions.partReplay?.flush(currentAssistantMessage);
 
     if (event.run_id && !eventData.depth) {
       if (eventData.assistant_identity) {
@@ -482,7 +531,9 @@ export function reconstructMessagesFromEvents(
       pushMessage({
         id: userMessageId,
         role: "user",
-        ...(eventData.assistant_identity ? { assistantIdentity: eventData.assistant_identity } : {}),
+        ...(eventData.assistant_identity
+          ? { assistantIdentity: eventData.assistant_identity }
+          : {}),
         content: eventData.content || "",
         timestamp: parseEventTimestamp(event.timestamp, Date.now()),
         attachments: userAttachments,
@@ -610,6 +661,7 @@ export function reconstructMessagesFromEvents(
   }
   for (let index = 0; index < reconstructedMessages.length; index += 1) {
     const message = reconstructedMessages[index];
+    replayOptions.partReplay?.flush(message);
     if (
       message.role === "assistant" &&
       message.runId &&
@@ -637,14 +689,18 @@ export function reconstructMessagesFromEvents(
   // happens when an active-run snapshot synthesizes a recommend event next to
   // a withheld content stream).
   replayOptions.replayStack?.flush();
-  return reconstructedMessages.map((message) =>
-    message.role === "assistant" && message.runId && identities.has(message.runId)
-      ? { ...message, assistantIdentity: identities.get(message.runId) }
-      : message,
-  ).filter((message) => {
-    if (message.role !== "assistant") return true;
-    return assistantMessageHasContent(message);
-  });
+  return reconstructedMessages
+    .map((message) =>
+      message.role === "assistant" &&
+      message.runId &&
+      identities.has(message.runId)
+        ? { ...message, assistantIdentity: identities.get(message.runId) }
+        : message,
+    )
+    .filter((message) => {
+      if (message.role !== "assistant") return true;
+      return assistantMessageHasContent(message);
+    });
 }
 
 export interface RunningAssistantPreparationResult {
@@ -730,7 +786,9 @@ export function prepareMessagesForRunningRun(
       {
         id: streamingMessageId,
         role: "assistant",
-        assistantIdentity: messagesWithPendingUser.find(message => message.role === "user" && message.runId === runId)?.assistantIdentity,
+        assistantIdentity: messagesWithPendingUser.find(
+          (message) => message.role === "user" && message.runId === runId,
+        )?.assistantIdentity,
         content: "",
         timestamp: new Date(),
         parts: [],
@@ -783,7 +841,10 @@ export function extractGoalFromEvents(
     const next: ActiveGoalSpec = {
       objective: (goalData?.objective as string) ?? existing.objective ?? "",
       rubric: (goalData?.rubric as string) ?? existing.rubric,
-      ...getGoalProjectionIdentity(goalData, existing.runId === event.run_id ? existing : null),
+      ...getGoalProjectionIdentity(
+        goalData,
+        existing.runId === event.run_id ? existing : null,
+      ),
       started_at: (data.started_at as string) ?? existing.started_at,
     };
     if (event.run_id) next.runId = event.run_id;
@@ -827,7 +888,10 @@ export function extractGoalsByRunFromEvents(
     const next: ActiveGoalSpec = {
       objective: (goalData?.objective as string) ?? existing.objective ?? "",
       rubric: (goalData?.rubric as string) ?? existing.rubric,
-      ...getGoalProjectionIdentity(goalData, existing.runId === event.run_id ? existing : null),
+      ...getGoalProjectionIdentity(
+        goalData,
+        existing.runId === event.run_id ? existing : null,
+      ),
       runId: event.run_id,
       started_at: (data.started_at as string) ?? existing.started_at,
     };
@@ -929,13 +993,30 @@ export function createScheduledTaskApprovalLookup(
 }
 
 /** Persistent goal snapshots are separate from the run-level goal lifecycle. */
-export function extractPersistentGoalFromEvents(events: HistoryEvent[], sessionId: string): import("../../services/api/session").PersistentGoal | null {
-  let current: import("../../services/api/session").PersistentGoal | null = null;
+export function extractPersistentGoalFromEvents(
+  events: HistoryEvent[],
+  sessionId: string,
+): import("../../services/api/session").PersistentGoal | null {
+  let current: import("../../services/api/session").PersistentGoal | null =
+    null;
   for (const event of events) {
-    if (event.event_type !== "goal:updated" || !event.data || typeof event.data !== "object") continue;
-    const goal = (event.data as { goal?: import("../../services/api/session").PersistentGoal | null }).goal;
+    if (
+      event.event_type !== "goal:updated" ||
+      !event.data ||
+      typeof event.data !== "object"
+    )
+      continue;
+    const goal = (
+      event.data as {
+        goal?: import("../../services/api/session").PersistentGoal | null;
+      }
+    ).goal;
     if (goal === null) current = null;
-    else if (goal?.session_id === sessionId && (!current || goal.revision >= current.revision)) current = goal;
+    else if (
+      goal?.session_id === sessionId &&
+      (!current || goal.revision >= current.revision)
+    )
+      current = goal;
   }
   return current;
 }

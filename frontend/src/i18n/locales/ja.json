@@ -2600,6 +2600,8 @@
     "users": "ユーザーアカウントとアクセスの管理"
   },
   "notification": {
+    "taskUpdates": "タスクの新しい更新が {{count}} 件あります",
+    "openLatestConversation": "最新の会話を開く",
     "openConversation": "会話を開く",
     "active": "有効中",
     "cancel": "キャンセル",

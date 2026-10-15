@@ -253,6 +253,7 @@ export const SessionSidebar = forwardRef<
   // ─── Extracted hooks ─────────────────────────────────────────────
 
   const actions = useSessionSidebarActions({
+    unreadBySession,
     uncategorizedList,
     pinnedList,
     projectRefs,

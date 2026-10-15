@@ -844,7 +844,12 @@ async def _cloud_backend(user: TokenPayload, session_id: str):
     )
 
     try:
-        return await get_session_sandbox_manager().get_or_create(session_id, user.sub, create=False)
+        from src.api.server_timing import timed_server_phase
+
+        async with timed_server_phase("cloud_connect"):
+            return await get_session_sandbox_manager().get_or_create(
+                session_id, user.sub, create=False
+            )
     except SandboxPeekError as exc:
         if exc.reason == "not_created":
             raise AppError(ErrorCode.SANDBOX_CLOUD_NOT_CREATED) from exc
@@ -897,7 +902,10 @@ async def sandbox_fs_cloud_list(
     await touch_browse_lease(user.sub)
     schedule_browse_reaper(user.sub)
     rel = _cloud_rel(_sanitize_fs_path(path))
-    result = await backend.als(rel)
+    from src.api.server_timing import timed_server_phase
+
+    async with timed_server_phase("cloud_io"):
+        result = await backend.als(rel)
     if result.error:
         return {"error": result.error}
     entries = []
@@ -937,7 +945,10 @@ async def sandbox_fs_cloud_read(
     rel = _cloud_rel(_sanitize_fs_path(path))
 
     async def read(file_path: str, start: int, lines: int) -> dict[str, Any]:
-        result = await backend.aread(file_path, start, lines)
+        from src.api.server_timing import timed_server_phase
+
+        async with timed_server_phase("cloud_io"):
+            result = await backend.aread(file_path, start, lines)
         if result.error:
             return {"error": result.error}
         file_data = result.file_data or {}

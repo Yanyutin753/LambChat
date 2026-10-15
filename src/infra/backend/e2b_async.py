@@ -67,10 +67,12 @@ class E2BAsyncMixin:
         env_vars: dict[str, str]
         supports_async_sdk: bool
         _async_client: Any
-        _async_init_lock: asyncio.Lock
         _async_init_failures: int
         _async_disabled: bool
         _last_timeout_extend: float
+
+        @property
+        def _async_init_lock(self) -> asyncio.Lock: ...
 
         @property
         def id(self) -> str: ...

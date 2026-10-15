@@ -272,7 +272,7 @@ export function SkillCard({
                 {skill.enabled ? (
                   <ToggleRight
                     size={15}
-                    className="text-green-600 dark:text-green-500"
+                    className="text-theme-success dark:text-green-500"
                   />
                 ) : (
                   <ToggleLeft size={15} />

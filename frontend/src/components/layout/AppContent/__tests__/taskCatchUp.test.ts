@@ -153,7 +153,46 @@ test("caps the number of catch-up notifications to avoid spam", () => {
   expect(candidates.length).toBeLessThanOrEqual(5);
 });
 
-
 test("persistent goal completion is owned by its durable journal rather than each run snapshot", () => {
-  expect(selectCatchUpCandidates({ sessions: [snapshot({metadata: { persistent_goal_id: "goal", persistent_goal_status: "active" }})], hiddenAt: HIDDEN_AT, currentSessionId: "other", hasNotified: () => false })).toEqual([]);
+  expect(
+    selectCatchUpCandidates({
+      sessions: [
+        snapshot({
+          metadata: {
+            persistent_goal_id: "goal",
+            persistent_goal_status: "active",
+          },
+        }),
+      ],
+      hiddenAt: HIDDEN_AT,
+      currentSessionId: "other",
+      hasNotified: () => false,
+    }),
+  ).toEqual([]);
+});
+
+test("never selects sessions that have already been read elsewhere", () => {
+  expect(
+    selectCatchUpCandidates({
+      sessions: [snapshot({ unread_count: 0 })],
+      hiddenAt: HIDDEN_AT,
+      currentSessionId: "other",
+      hasNotified: () => false,
+    }),
+  ).toEqual([]);
+});
+
+test("clock skew tolerance cannot bring back a completion from before login", () => {
+  const mountedAt = HIDDEN_AT - 30_000;
+  expect(
+    selectCatchUpCandidates({
+      sessions: [
+        snapshot({ updated_at: new Date(mountedAt - 1000).toISOString() }),
+      ],
+      hiddenAt: HIDDEN_AT,
+      notBefore: mountedAt,
+      currentSessionId: "other",
+      hasNotified: () => false,
+    }),
+  ).toEqual([]);
 });

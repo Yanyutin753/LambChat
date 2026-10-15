@@ -4,6 +4,7 @@ import hashlib
 import re
 import uuid
 from datetime import timedelta
+from time import monotonic
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -11,6 +12,7 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from src.api.deps import get_current_user_required
+from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import needs_model_safe_transcode
 from src.infra.logging import get_logger
@@ -23,6 +25,7 @@ from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter(prefix="/direct")
 logger = get_logger(__name__)
+VERIFY_PROGRESS_INTERVAL_SECONDS = 0.25
 
 
 def tickets():
@@ -99,7 +102,8 @@ async def start_upload(body: StartUpload, user: TokenPayload = Depends(get_curre
     }
     await tickets().insert_one(ticket)
     try:
-        upload_id = await storage.direct_upload.create(key, body.mime_type)
+        async with timed_server_phase("upload_storage"):
+            upload_id = await storage.direct_upload.create(key, body.mime_type)
         ticket["upload_id"] = upload_id
         await tickets().update_one(
             {"_id": ticket_id}, {"$set": {"upload_id": upload_id, "state": "active"}}
@@ -147,6 +151,20 @@ async def sign_part(
     }
 
 
+@router.get("/{ticket_id}")
+async def upload_status(ticket_id: str, user: TokenPayload = Depends(get_current_user_required)):
+    from src.api.routes.upload import get_or_init_storage
+
+    storage = await get_or_init_storage()
+    ticket = await owned_ticket(ticket_id, user, storage)
+    progress = None
+    if ticket["state"] == "completed":
+        progress = 100
+    elif "verified_bytes" in ticket:
+        progress = min(99, ticket["verified_bytes"] * 100 // ticket["size"])
+    return {"state": ticket["state"], "progress": progress}
+
+
 @router.post("/{ticket_id}/complete")
 async def complete_upload(
     ticket_id: str, request: Request, user: TokenPayload = Depends(get_current_user_required)
@@ -180,33 +198,53 @@ async def complete_upload(
     if not ticket:
         raise AppError(ErrorCode.DIRECT_UPLOAD_INACTIVE)
     try:
-        parts = await storage.direct_upload.list_parts(ticket["key"], ticket["upload_id"])
-        try:
-            verified = validate_parts(parts, ticket["size"])
-        except ValueError as exc:
-            raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID) from exc
-        await storage.direct_upload.complete(ticket["key"], ticket["upload_id"], verified)
-        if await storage.get_size(ticket["key"]) != ticket["size"]:
-            raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
-
-        digest = hashlib.sha256()
-        size = 0
-        async for chunk in storage.download_stream(ticket["key"]):
-            size += len(chunk)
-            if size > ticket["size"]:
+        async with timed_server_phase("upload_storage"):
+            parts = await storage.direct_upload.list_parts(ticket["key"], ticket["upload_id"])
+            try:
+                verified = validate_parts(parts, ticket["size"])
+            except ValueError as exc:
+                raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID) from exc
+            await storage.direct_upload.complete(ticket["key"], ticket["upload_id"], verified)
+            if await storage.get_size(ticket["key"]) != ticket["size"]:
                 raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
-            await run_long_blocking_io(digest.update, chunk)
-            current = await tickets().find_one(
-                {"_id": ticket_id}, {"state": 1, "cancel_requested": 1}
-            )
-            if not current or current.get("cancel_requested") or current["state"] != "completing":
-                raise AppError(ErrorCode.UPLOAD_CANCELED)
-            await tickets().update_one(
-                {"_id": ticket_id, "state": "completing"},
-                {"$set": {"expires_at": utc_now() + timedelta(hours=1)}},
-            )
-        if size != ticket["size"]:
-            raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
+
+        async with timed_server_phase("upload_verify"):
+            digest = hashlib.sha256()
+            size = 0
+
+            async def checkpoint() -> None:
+                # One cross-replica CAS observes cancellation while publishing progress and renewing TTL.
+                updated = await tickets().update_one(
+                    {
+                        "_id": ticket_id,
+                        "owner": user.sub,
+                        "state": "completing",
+                        "cancel_requested": {"$ne": True},
+                    },
+                    {
+                        "$set": {
+                            "expires_at": utc_now() + timedelta(hours=1),
+                            "verified_bytes": size,
+                        }
+                    },
+                )
+                if not updated.matched_count:
+                    raise AppError(ErrorCode.UPLOAD_CANCELED)
+
+            await checkpoint()
+            last_checkpoint = monotonic()
+            async for chunk in storage.download_stream(ticket["key"]):
+                size += len(chunk)
+                if size > ticket["size"]:
+                    raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
+                await run_long_blocking_io(digest.update, chunk)
+                if monotonic() - last_checkpoint >= VERIFY_PROGRESS_INTERVAL_SECONDS:
+                    await checkpoint()
+                    last_checkpoint = monotonic()
+            if size != ticket["size"]:
+                raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
+            await checkpoint()
+
         # Cancellation and committing compete atomically, across replicas.
         claimed = await tickets().update_one(
             {"_id": ticket_id, "state": "completing", "cancel_requested": {"$ne": True}},

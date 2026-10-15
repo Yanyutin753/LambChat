@@ -4,6 +4,7 @@
  */
 
 import {
+  useEffect,
   useState,
   useCallback,
   useRef,
@@ -14,6 +15,11 @@ import { isSessionPinned } from "../components/sidebar/sessionPin";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { sessionApi, type BackendSession } from "../services/api";
+import {
+  SESSIONS_READ_EVENT,
+  SESSIONS_READ_INVALIDATED_EVENT,
+  type SessionReadScope,
+} from "../services/api/session";
 import type { Project } from "../types";
 import type { ProjectItemHandle } from "../components/sidebar/ProjectItem";
 import type { ScheduledTaskItemHandle } from "../components/sidebar/ScheduledTaskSidebarItem";
@@ -23,6 +29,7 @@ import {
 } from "../components/sidebar/unreadCounts";
 import { isSessionFavorite } from "../components/sidebar/sessionFavorites";
 import { getSessionTitle } from "../components/panels/sessionHelpers";
+import { useAuth } from "./useAuth";
 
 /** Subset of useProjectSessionList return used by action handlers. */
 export interface SessionListHandle {
@@ -42,6 +49,7 @@ interface UseSessionSidebarActionsParams {
   scheduledTaskRefs: MutableRefObject<Map<string, ScheduledTaskItemHandle>>;
   projects: Project[];
   currentSessionId: string | null;
+  unreadBySession: UnreadBySession;
   setUnreadBySession: React.Dispatch<React.SetStateAction<UnreadBySession>>;
   onNewSession: () => void;
   onSelectSession: (sessionId: string) => void;
@@ -56,6 +64,7 @@ export function useSessionSidebarActions({
   scheduledTaskRefs,
   projects,
   currentSessionId,
+  unreadBySession,
   setUnreadBySession,
   onNewSession,
   onSelectSession,
@@ -63,6 +72,24 @@ export function useSessionSidebarActions({
   getProjectRef,
 }: UseSessionSidebarActionsParams) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const readAccount = useMemo(
+    () => ({ active: true, userId: user?.id }),
+    [user?.id],
+  );
+  const currentReadAccount = useRef(readAccount);
+  currentReadAccount.current = readAccount;
+  useEffect(() => {
+    readAccount.active = true;
+    return () => {
+      readAccount.active = false;
+    };
+  }, [readAccount]);
+  const unreadRevisions = useRef(new Map<string, number>());
+  const readLists = useRef<Array<SessionListHandle | undefined>>([]);
+  readLists.current = [uncategorizedList, pinnedList];
+  const unreadEntries = useRef(unreadBySession);
+  unreadEntries.current = unreadBySession;
 
   // ─── Share dialog state ───────────────────────────────────────────
 
@@ -101,15 +128,20 @@ export function useSessionSidebarActions({
       isFavorite?: boolean,
       scheduledTaskId?: string | null,
     ) => {
-      setUnreadBySession((prev) =>
-        mergeUnreadUpdate(prev, {
+      unreadRevisions.current.set(
+        sid,
+        (unreadRevisions.current.get(sid) ?? 0) + 1,
+      );
+      setUnreadBySession((prev) => {
+        unreadEntries.current = mergeUnreadUpdate(prev, {
           sessionId: sid,
           unreadCount: count,
           projectId,
           scheduledTaskId,
           isFavorite,
-        }),
-      );
+        });
+        return unreadEntries.current;
+      });
       const session = uncategorizedList.sessions.find((s) => s.id === sid);
       if (session) {
         uncategorizedList.updateSession({ ...session, unread_count: count });
@@ -395,6 +427,94 @@ export function useSessionSidebarActions({
     [pinnedList, projectRefs, t, uncategorizedList],
   );
 
+  useEffect(() => {
+    const getReadLists = () => [
+      ...readLists.current,
+      ...projectRefs.current.values(),
+      ...scheduledTaskRefs.current.values(),
+    ];
+    const onRead = (event: Event) => {
+      const scope = (event as CustomEvent<SessionReadScope>).detail;
+      const matches = (
+        id: string,
+        projectId: unknown,
+        scheduledTaskId: unknown,
+      ) =>
+        (!scope.sessionId || scope.sessionId === id) &&
+        (!scope.projectId || scope.projectId === projectId) &&
+        (!scope.scheduledTaskId || scope.scheduledTaskId === scheduledTaskId);
+      const ids = new Set(
+        getReadLists()
+          .flatMap((list) => list?.sessions ?? [])
+          .filter((session) =>
+            matches(
+              session.id,
+              session.metadata?.project_id,
+              session.metadata?.scheduled_task_id,
+            ),
+          )
+          .map((session) => session.id),
+      );
+      for (const [id, entry] of unreadEntries.current) {
+        if (matches(id, entry.projectId, entry.scheduledTaskId)) ids.add(id);
+      }
+      for (const id of ids) {
+        const revision = unreadRevisions.current.get(id);
+        void sessionApi
+          .get(id)
+          .then((session) => {
+            // A newer completion or an account switch must win over an older HTTP snapshot.
+            if (
+              !session ||
+              !readAccount.active ||
+              currentReadAccount.current !== readAccount ||
+              unreadRevisions.current.get(id) !== revision
+            )
+              return;
+            for (const list of getReadLists()) {
+              const current = list?.sessions.find((item) => item.id === id);
+              if (
+                current &&
+                Date.parse(current.updated_at) <= Date.parse(session.updated_at)
+              ) {
+                list?.updateSession(session);
+              }
+            }
+            setUnreadBySession((previous) => {
+              unreadEntries.current = mergeUnreadUpdate(previous, {
+                sessionId: id,
+                unreadCount: session.unread_count ?? 0,
+                projectId: session.metadata?.project_id as
+                  | string
+                  | null
+                  | undefined,
+                scheduledTaskId: session.metadata?.scheduled_task_id as
+                  | string
+                  | null
+                  | undefined,
+                isFavorite: isSessionFavorite(session),
+              });
+              return unreadEntries.current;
+            });
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener(SESSIONS_READ_EVENT, onRead);
+    window.addEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    return () => {
+      window.removeEventListener(SESSIONS_READ_EVENT, onRead);
+      window.removeEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
+    };
+  }, [
+    uncategorizedList,
+    pinnedList,
+    projectRefs,
+    scheduledTaskRefs,
+    setUnreadBySession,
+    readAccount,
+  ]);
+
   // ─── Mark all read ────────────────────────────────────────────────
 
   const handleMarkAllRead = useCallback(
@@ -410,71 +530,6 @@ export function useSessionSidebarActions({
 
       try {
         await sessionApi.markAllRead(opts);
-
-        // Optimistic update: clear matching unread entries after API success
-        const clearSessionList = (
-          sessionList: SessionListHandle,
-          filterFn?: (s: BackendSession) => boolean,
-        ) => {
-          sessionList.sessions.forEach((s) => {
-            if (filterFn && !filterFn(s)) return;
-            if ((s.unread_count ?? 0) > 0) {
-              sessionList.updateSession({ ...s, unread_count: 0 });
-            }
-          });
-        };
-
-        const isUncategorized = !opts?.projectId && !opts?.scheduledTaskId;
-
-        if (isUncategorized) {
-          setUnreadBySession(() => new Map());
-          clearSessionList(uncategorizedList);
-          uncategorizedList.softRefresh();
-        } else if (opts!.projectId) {
-          setUnreadBySession((prev) => {
-            const next = new Map(prev);
-            for (const [sid, entry] of next) {
-              if (entry.projectId === opts!.projectId) {
-                next.delete(sid);
-              }
-            }
-            return next;
-          });
-          clearSessionList(
-            uncategorizedList,
-            (s) => s.metadata?.project_id === opts!.projectId,
-          );
-          const handle = getProjectRef(opts!.projectId);
-          if (handle) {
-            handle.sessions.forEach((s) => {
-              if ((s.unread_count ?? 0) > 0) {
-                handle.updateSession({ ...s, unread_count: 0 });
-              }
-            });
-            handle.softRefresh();
-          }
-        } else if (opts!.scheduledTaskId) {
-          setUnreadBySession((prev) => {
-            const next = new Map(prev);
-            for (const [sid, entry] of next) {
-              if (entry.scheduledTaskId === opts!.scheduledTaskId) {
-                next.delete(sid);
-              }
-            }
-            return next;
-          });
-          for (const [, handle] of scheduledTaskRefs.current) {
-            handle.sessions.forEach((s) => {
-              if (
-                (s.unread_count ?? 0) > 0 &&
-                s.metadata?.scheduled_task_id === opts!.scheduledTaskId
-              ) {
-                handle.updateSession({ ...s, unread_count: 0 });
-              }
-            });
-            handle.softRefresh();
-          }
-        }
       } catch (err) {
         console.error("Failed to mark all as read:", err);
         toast.error(t("sidebar.markAllReadFailed"));
@@ -482,13 +537,7 @@ export function useSessionSidebarActions({
         setMarkingReadId(null);
       }
     },
-    [
-      getProjectRef,
-      scheduledTaskRefs,
-      t,
-      uncategorizedList,
-      setUnreadBySession,
-    ],
+    [t],
   );
 
   const confirmDeleteSession = useCallback(async () => {

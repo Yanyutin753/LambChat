@@ -150,3 +150,37 @@ test("drops sandbox:presence with invalid payloads", () => {
   );
   expect(onSandboxPresence).not.toHaveBeenCalled();
 });
+
+test("dispatches account read scopes and rejects malformed scopes", () => {
+  const onSessionsRead = vi.fn();
+  for (const data of [
+    { session_id: "s1" },
+    { project_id: "p1" },
+    { scheduled_task_id: "t1" },
+    {},
+  ]) {
+    dispatchWebSocketMessage(
+      { type: "sessions:read", data },
+      { onSessionsRead },
+    );
+  }
+  expect(onSessionsRead.mock.calls.map(([scope]) => scope)).toEqual([
+    { sessionId: "s1" },
+    { projectId: "p1" },
+    { scheduledTaskId: "t1" },
+    {},
+  ]);
+  for (const data of [
+    null,
+    [],
+    { session_id: 42 },
+    { project_id: "" },
+    { unknown: "field" },
+  ]) {
+    dispatchWebSocketMessage(
+      { type: "sessions:read", data },
+      { onSessionsRead },
+    );
+  }
+  expect(onSessionsRead).toHaveBeenCalledTimes(4);
+});

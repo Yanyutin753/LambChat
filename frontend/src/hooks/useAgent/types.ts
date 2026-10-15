@@ -51,6 +51,10 @@ export interface StreamEvent {
 }
 
 export interface EventData {
+  _source_id?: string;
+  _source_ids?: string[];
+  _source_trace_id?: string | null;
+  _timestamp?: string;
   assistant_identity?: AssistantIdentity;
   session_id?: string;
   /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
@@ -220,6 +224,10 @@ export interface SubagentStackItem {
 
 // History event data structure
 export interface HistoryEventData {
+  _source_id?: string;
+  _source_ids?: string[];
+  _source_trace_id?: string | null;
+  _timestamp?: string;
   assistant_identity?: AssistantIdentity;
   content?: string;
   /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
@@ -276,6 +284,8 @@ export interface HistoryEventData {
 // History event from backend
 export interface HistoryEvent {
   id?: string | number;
+  trace_id?: string;
+  seq?: number;
   event_type: string;
   data: HistoryEventData | unknown;
   timestamp?: string;
@@ -308,7 +318,9 @@ export interface UseAgentReturn {
   newlyCreatedSession: BackendSession | null;
   persistentGoal: PersistentGoal | null;
   persistentGoalBusy: boolean;
-  controlPersistentGoal: (action: "pause" | "resume" | "clear") => Promise<void>;
+  controlPersistentGoal: (
+    action: "pause" | "resume" | "clear",
+  ) => Promise<void>;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   isInitializingSandbox: boolean;

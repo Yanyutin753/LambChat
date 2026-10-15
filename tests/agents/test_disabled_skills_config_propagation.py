@@ -722,6 +722,9 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
                 skill_names=["xiaohongshu-copy"],
             )
 
+        async def use_presets(self, ids, **kwargs):
+            return [await self.use_preset(preset_id, **kwargs) for preset_id in ids]
+
     import src.infra.persona_preset.manager as persona_manager
 
     monkeypatch.setattr(
@@ -887,6 +890,9 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     class _PresetManager:
         async def use_preset(self, *_args, **_kwargs):
             return SimpleNamespace(system_prompt="你是诗词卡片设计师。", skill_names=[])
+
+        async def use_presets(self, ids, **kwargs):
+            return [await self.use_preset(preset_id, **kwargs) for preset_id in ids]
 
     import src.infra.persona_preset.manager as persona_manager
 

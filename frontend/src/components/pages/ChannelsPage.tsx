@@ -87,7 +87,9 @@ function ChannelCard({
       )}
       <div className="scb__body flex flex-1 flex-col p-3 -mt-3 pt-4">
         <div className="scb__header flex items-center gap-2">
-          <AgentAvatar seed={title} size={36}>{icon}</AgentAvatar>
+          <AgentAvatar seed={title} size={36}>
+            {icon}
+          </AgentAvatar>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-16 font-semibold font-serif text-theme-text leading-tight">
               <button
@@ -366,8 +368,11 @@ export function ChannelsPage() {
                         : statusUnavailable
                           ? "channel.statusUnavailable"
                           : "channel.disconnected";
-                    const receivesMessages = ct.capabilities.some((capability) =>
-                      ["websocket", "webhook", "long_polling"].includes(capability),
+                    const receivesMessages = ct.capabilities.some(
+                      (capability) =>
+                        ["websocket", "webhook", "long_polling"].includes(
+                          capability,
+                        ),
                     );
                     const gradient = nameToGradient(
                       rawChannelTypes.find(
@@ -386,7 +391,13 @@ export function ChannelsPage() {
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {instanceCount > 0 && (
                               <span
-                                className={`rounded-full px-2 py-0.5 text-12 font-medium ${hasAnyConnected ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : allDisabled || statusUnavailable ? "bg-[var(--theme-primary-light)] text-theme-text-secondary" : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"}`}
+                                className={`rounded-full px-2 py-0.5 text-12 font-medium ${
+                                  hasAnyConnected
+                                    ? "bg-[color-mix(in_srgb,var(--theme-success)_14%,transparent)] text-[color-mix(in_srgb,var(--theme-success)_50%,var(--theme-text))] dark:bg-green-900/50 dark:text-green-300"
+                                    : allDisabled || statusUnavailable
+                                      ? "bg-[var(--theme-primary-light)] text-theme-text-secondary"
+                                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                                }`}
                               >
                                 {t(summaryStatus)}
                               </span>
@@ -545,7 +556,7 @@ export function ChannelsPage() {
                       : "channel.disconnected";
                 const statusClass =
                   instance.enabled && status?.connected
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                    ? "bg-[color-mix(in_srgb,var(--theme-success)_14%,transparent)] text-[color-mix(in_srgb,var(--theme-success)_50%,var(--theme-text))] dark:bg-green-900/50 dark:text-green-300"
                     : instance.enabled && status
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
                       : "bg-[var(--theme-primary-light)] text-theme-text-secondary";

@@ -549,7 +549,7 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
         await self.ensure_indexes_if_needed()
         result = await self.collection.update_one(
             {"session_id": session_id},
-            {"$set": {"unread_count": 0}},
+            {"$set": {"unread_count": 0, "last_read_at": utc_now()}},
         )
         return result.modified_count > 0
 
@@ -570,7 +570,7 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
             }
         result = await self.collection.update_one(
             {**identity_query, "user_id": user_id},
-            {"$set": {"unread_count": 0}},
+            {"$set": {"unread_count": 0, "last_read_at": utc_now()}},
         )
         return result.matched_count > 0
 
@@ -582,14 +582,17 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
     ) -> int:
         """批量将会话标记为已读（清除未读计数），支持按项目或定时任务过滤。"""
         await self.ensure_indexes_if_needed()
-        query: dict[str, Any] = {"user_id": user_id, "unread_count": {"$gt": 0}}
+        query: dict[str, Any] = {
+            "user_id": user_id,
+            "$or": [{"unread_count": {"$gt": 0}}, {"metadata.task_status": "waiting_human"}],
+        }
         if project_id:
             query["metadata.project_id"] = project_id
         if scheduled_task_id:
             query["metadata.scheduled_task_id"] = scheduled_task_id
         result = await self.collection.update_many(
             query,
-            {"$set": {"unread_count": 0}},
+            {"$set": {"unread_count": 0, "last_read_at": utc_now()}},
         )
         return result.modified_count
 

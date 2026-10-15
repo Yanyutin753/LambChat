@@ -85,6 +85,7 @@ class TracingMiddleware:
         # 首字节时间（响应头写出时刻）：成功日志的 duration 语义与基类中间件版
         # 基类中间件版一致（≈TTFB），不随流式 body 拖长
         ttfb_holder: list[float] = []
+        response_timings: list[str] = []
 
         async def send_with_headers(message) -> None:
             if message["type"] == "http.response.start":
@@ -97,6 +98,7 @@ class TracingMiddleware:
                 headers["X-Span-ID"] = span_id
                 headers["X-Process-Time"] = f"{process_time:.3f}s"
                 server_timing = serialize_server_timing()
+                response_timings.append(server_timing)
                 if server_timing:
                     headers["Server-Timing"] = server_timing
             await send(message)
@@ -122,12 +124,13 @@ class TracingMiddleware:
             client_host = request.client.host if request.client else "-"
 
             logger.info(
-                "http_request_completed method=%s path=%s status_code=%s duration_ms=%.2f client=%s",
+                "http_request_completed method=%s path=%s status_code=%s duration_ms=%.2f client=%s server_timing=%s",
                 request.method,
                 request.url.path,
                 status_code,
                 process_time * 1000,
                 client_host,
+                response_timings[0] if response_timings else "",
                 extra=_current_log_context(request),
             )
         finally:

@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+from bson import ObjectId
+
 from src.infra.mcp.storage import MCPStorage
 from src.infra.persona_preset.storage import PersonaPresetStorage
 from src.infra.skill.storage import SkillStorage
@@ -283,13 +285,7 @@ class PersonaPresetManager:
         """
         preset = await self.get_preset(preset_id, user_id=user_id, is_admin=is_admin)
 
-        if preset.skill_names:
-            available = await self._get_available_skill_names(user_id)
-            skill_names = [name for name in preset.skill_names if name in available]
-            missing = [name for name in preset.skill_names if name not in available]
-        else:
-            skill_names = []
-            missing = []
+        available = await self._get_available_skill_names(user_id) if preset.skill_names else set()
 
         # MCP 可见性校验：快照只保留当前用户可见的服务（全缺时不设白名单→放行全部，
         # 与技能语义一致）；不可见的记录进 missing 供前端提示。
@@ -304,20 +300,84 @@ class PersonaPresetManager:
                 )
             except Exception:
                 pass
-        mcp_server_names = [name for name in preset.mcp_server_names if name in visible_mcp]
-        missing_mcp = [name for name in preset.mcp_server_names if name not in visible_mcp]
-
         await self.storage.increment_usage(preset_id)
         await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
+        return self._build_runtime_snapshot(preset, available, visible_mcp)
+
+    async def use_presets(
+        self,
+        preset_ids: list[str],
+        *,
+        user_id: str,
+        is_admin: bool,
+        user_roles: list[str] | None = None,
+    ) -> list[PersonaPresetSnapshot]:
+        """Resolve one startup request with shared reads and ordered per-use side effects."""
+        unique_ids = list(dict.fromkeys(preset_ids))
+        docs: dict[str, dict] = {}
+        read_errors: dict[str, Exception] = {}
+        for start in range(0, len(unique_ids), 100):
+            batch = unique_ids[start : start + 100]
+            try:
+                docs.update(await self.storage.get_by_ids(batch))
+            except Exception as exc:
+                read_errors.update(dict.fromkeys(batch, exc))
+
+        prefix: list[tuple[str, PersonaPreset]] = []
+        failure: Exception | None = None
+        for preset_id in preset_ids:
+            try:
+                if preset_id in read_errors:
+                    raise read_errors[preset_id]
+                lookup_id = str(ObjectId(preset_id)) if ObjectId.is_valid(preset_id) else preset_id
+                doc = docs.get(lookup_id)
+                if not doc or not self._can_view(doc, user_id=user_id, is_admin=is_admin):
+                    raise NotFoundError("persona_preset_not_found")
+                prefix.append((preset_id, PersonaPreset(**doc)))
+            except Exception as exc:
+                failure = exc
+                break
+
+        mcp_names = list(
+            dict.fromkeys(name for _, preset in prefix for name in preset.mcp_server_names)
+        )
+        available: set[str] | None = None
+        visible_mcp: set[str] | None = None
+        snapshots = []
+        for preset_id, preset in prefix:
+            if preset.skill_names and available is None:
+                available = await self._get_available_skill_names(user_id)
+            if preset.mcp_server_names and visible_mcp is None:
+                try:
+                    visible_mcp = await self.mcp_storage.get_visible_server_names(
+                        mcp_names, user_id=user_id, user_roles=user_roles, is_admin=is_admin
+                    )
+                except Exception:
+                    visible_mcp = set()
+            await self.storage.increment_usage(preset_id)
+            await self.storage.touch_user_preference(user_id=user_id, preset_id=preset_id)
+            snapshots.append(
+                self._build_runtime_snapshot(preset, available or set(), visible_mcp or set())
+            )
+        if failure is not None:
+            raise failure
+        return snapshots
+
+    @staticmethod
+    def _build_runtime_snapshot(
+        preset: PersonaPreset, available: set[str], visible_mcp: set[str]
+    ) -> PersonaPresetSnapshot:
         return PersonaPresetSnapshot(
             preset_id=preset.id,
             name=preset.name,
             system_prompt=preset.system_prompt,
             starter_prompts=preset.starter_prompts,
-            skill_names=skill_names,
-            missing_skill_names=missing,
-            mcp_server_names=mcp_server_names,
-            missing_mcp_server_names=missing_mcp,
+            skill_names=[name for name in preset.skill_names if name in available],
+            missing_skill_names=[name for name in preset.skill_names if name not in available],
+            mcp_server_names=[name for name in preset.mcp_server_names if name in visible_mcp],
+            missing_mcp_server_names=[
+                name for name in preset.mcp_server_names if name not in visible_mcp
+            ],
             version=preset.version,
             avatar=preset.avatar,
         )
