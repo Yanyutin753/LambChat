@@ -33,6 +33,7 @@ from src.api.routes.chat_stream_terminal import (
 )
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
+from src.api.server_timing import timed_server_phase
 from src.infra.chat.memory_context import append_memory_context, build_memory_query
 from src.infra.chat.session_baseline import (
     _time_report_due,
@@ -238,7 +239,8 @@ async def chat_stream(
         status: 任务状态 (pending / queued)
         queue_position: 排队位置（仅排队时返回）
     """
-    return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
+    async with timed_server_phase("chat_submit"):
+        return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
 
 
 async def _submit_chat(
@@ -266,11 +268,12 @@ async def _submit_chat(
         return existing_session.metadata or {}
 
     try:
-        existing_metadata, _, _ = await asyncio.gather(
-            _fetch_session(),
-            resolve_persona_request(request, user),
-            validate_agent_model_access(request.agent_options, user),
-        )
+        async with timed_server_phase("chat_prepare"):
+            existing_metadata, _, _ = await asyncio.gather(
+                _fetch_session(),
+                resolve_persona_request(request, user),
+                validate_agent_model_access(request.agent_options, user),
+            )
     except NotFoundError:
         raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND) from None
     except AppError:
@@ -300,9 +303,6 @@ async def _submit_chat(
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
-    assistant_identity = await build_assistant_identity(
-        agent_id, request, user.sub, preferred_language
-    )
     # 界面 locale 固定回复语言；随 agent_options 全链路透传（task_context /
     # submit / submit_arq / scheduler 均携带 agent_options）
     apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
@@ -311,26 +311,39 @@ async def _submit_chat(
     time_due = _time_report_due(existing_metadata)
     tc_signature = _turn_context_signature(active_goal, request.auto_mode)
 
-    formatted_message, inject_turn_context = await assemble_first_turn_message(
-        raw_message=agent_message,
-        user_timezone=request.user_timezone,
-        enabled_skills=request.enabled_skills,
-        active_goal=active_goal,
-        auto_mode=request.auto_mode,
-        user_id=user.sub,
-        include_timestamp=time_due,
-        last_tc_signature=(existing_metadata or {}).get("prompt_turn_context_signature"),
-    )
-    # Existing sessions resolve project scope from persisted metadata; only a
-    # brand-new session may use the request's project assignment.
-    memory_project_id = request.project_id if not request.session_id else None
-    formatted_message = await append_memory_context(
-        formatted_message,
-        user.sub,
-        raw_query=build_memory_query(request.message, active_goal),
-        project_id=memory_project_id,
-        session_id=session_id,
-    )
+    async def _prepare_context() -> tuple[str, bool]:
+        formatted, inject = await assemble_first_turn_message(
+            raw_message=agent_message,
+            user_timezone=request.user_timezone,
+            enabled_skills=request.enabled_skills,
+            active_goal=active_goal,
+            auto_mode=request.auto_mode,
+            user_id=user.sub,
+            include_timestamp=time_due,
+            last_tc_signature=(existing_metadata or {}).get("prompt_turn_context_signature"),
+        )
+        # Existing sessions resolve project scope from persisted metadata.
+        memory_project_id = request.project_id if not request.session_id else None
+        formatted = await append_memory_context(
+            formatted,
+            user.sub,
+            raw_query=build_memory_query(request.message, active_goal),
+            project_id=memory_project_id,
+            session_id=session_id,
+        )
+        return formatted, inject
+
+    async with timed_server_phase("chat_context"):
+        context_task = asyncio.create_task(_prepare_context())
+        try:
+            assistant_identity = await build_assistant_identity(
+                agent_id, request, user.sub, preferred_language
+            )
+            formatted_message, inject_turn_context = await context_task
+        finally:
+            if not context_task.done():
+                context_task.cancel()
+            await asyncio.gather(context_task, return_exceptions=True)
 
     # 本轮注入状态写回会话元数据（供后续轮次判定）
     prompt_state = {"prompt_turn_context_signature": tc_signature}

@@ -13,6 +13,13 @@ import i18n from "../../i18n";
 import type { ActiveGoalSpec, HistoryEvent, UseAgentOptions } from "./types";
 import { applyFeedbackToMessages } from "./historyLoadState";
 import {
+  historyCoverage,
+  historySourceIds,
+  mergeHistoryTraceViews,
+  replayHistoryJournal,
+  type HistoryJournalEntry,
+} from "./historyLiveReplay";
+import {
   extractGoalsByRunFromEvents,
   prepareMessagesForRunningRun,
   reconstructMessagesFromEvents,
@@ -20,7 +27,6 @@ import {
 import {
   HISTORY_TRACE_PAGE_SIZE,
   canLoadOlderHistory,
-  mergeOlderHistoryEvents,
   resolveHistoryTraceWindow,
   type HistoryTraceWindow,
 } from "./historyPagination";
@@ -69,15 +75,24 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
   const historyEventsRef = useRef<HistoryEvent[]>([]);
   const historyTraceWindowRef = useRef<HistoryTraceWindow | null>(null);
   const historyFeedbackRef = useRef<Feedback[]>([]);
-  const historyApprovalStatusesRef = useRef<Record<string, SessionApprovalStatus>>({});
+  const historyApprovalStatusesRef = useRef<
+    Record<string, SessionApprovalStatus>
+  >({});
   const hasMoreHistoryTracesRef = useRef(false);
   const isLoadingOlderHistoryRef = useRef(false);
   const historyEpochRef = useRef(0);
+  const journalRef = useRef<HistoryJournalEntry[]>([]);
+  const optimisticUsersRef = useRef(new Map<string, Message>());
+  const coveredSourcesRef = useRef(new Set<string>());
+  const acceptedSourcesRef = useRef(new Set<string>());
   const olderAbortControllerRef = useRef<AbortController | null>(null);
-  useEffect(() => () => {
-    historyEpochRef.current += 1;
-    olderAbortControllerRef.current?.abort();
-  }, []);
+  useEffect(
+    () => () => {
+      historyEpochRef.current += 1;
+      olderAbortControllerRef.current?.abort();
+    },
+    [],
+  );
 
   /** 首屏加载后记录事件快照与游标窗口 */
   const recordFirstWindow = useCallback(
@@ -88,6 +103,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       >,
     ) => {
       historyEventsRef.current = (eventsData.events || []) as HistoryEvent[];
+      coveredSourcesRef.current = historyCoverage(historyEventsRef.current);
       historyApprovalStatusesRef.current = eventsData.approval_statuses || {};
       const firstWindowState = resolveHistoryTraceWindow(eventsData);
       historyTraceWindowRef.current = firstWindowState.traceWindow;
@@ -106,6 +122,10 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     olderAbortControllerRef.current?.abort();
     olderAbortControllerRef.current = null;
     historyEventsRef.current = [];
+    journalRef.current = [];
+    optimisticUsersRef.current = new Map();
+    coveredSourcesRef.current = new Set();
+    acceptedSourcesRef.current = new Set();
     historyTraceWindowRef.current = null;
     historyFeedbackRef.current = [];
     historyApprovalStatusesRef.current = {};
@@ -115,56 +135,160 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     setIsLoadingOlderHistory(false);
   }, []);
 
+  const createHistoryReplayContext = useCallback((runId?: string) => {
+    const epoch = historyEpochRef.current;
+    const isCurrent = () => epoch === historyEpochRef.current;
+    return {
+      historyRunId: runId,
+      isHistoryOwnerCurrent: isCurrent,
+      recordHistoryEvent: (
+        event: HistoryEvent,
+        messageId: string,
+      ): boolean | "covered" => {
+        if (!isCurrent()) return false;
+        const sources = historySourceIds(event);
+        if (
+          sources.length &&
+          sources.every((source) => acceptedSourcesRef.current.has(source))
+        )
+          return false;
+        const covered =
+          sources.length > 0 &&
+          sources.every((source) => coveredSourcesRef.current.has(source));
+        for (const source of sources) acceptedSourcesRef.current.add(source);
+        journalRef.current.push({ event, messageId });
+        return covered ? "covered" : true;
+      },
+    };
+  }, []);
+  const recordOptimisticUser = useCallback((runId: string, user: Message) => {
+    optimisticUsersRef.current.set(runId, user);
+  }, []);
+
+  const mergeStoredEvents = useCallback(
+    (
+      incoming: HistoryEvent[],
+      response: { history_mode?: string; stream_run_id?: string | null },
+    ) => {
+      const partial = new Set<string>();
+      if (response.history_mode === "active_user_only") {
+        const full = new Set(
+          incoming
+            .filter((event) => event.event_type !== "user:message")
+            .map((event) => event.trace_id),
+        );
+        for (const event of incoming)
+          if (
+            event.trace_id &&
+            event.run_id === response.stream_run_id &&
+            !full.has(event.trace_id)
+          )
+            partial.add(event.trace_id);
+      }
+      historyEventsRef.current = mergeHistoryTraceViews(
+        historyEventsRef.current,
+        incoming,
+        partial,
+      );
+      coveredSourcesRef.current = historyCoverage(historyEventsRef.current);
+      return historyEventsRef.current;
+    },
+    [],
+  );
+
   // A notification can point outside the contiguous paged window. Read only
   // that run and preserve the current messages/SSE owner and window cursor.
-  const loadTargetHistory = useCallback(async (targetSessionId: string, runId: string) => {
-    if (messagesRef.current.some(message => message.runId === runId)) return null;
-    const requestId = ++loadHistoryRequestIdRef.current;
-    historyAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    historyAbortControllerRef.current = controller;
-    const isCurrent = () => !controller.signal.aborted && requestId === loadHistoryRequestIdRef.current && sessionIdRef.current === targetSessionId;
-    const epoch = historyEpochRef.current;
-    isLoadingHistoryRef.current = true;
-    setIsLoadingHistory(true);
-    try {
-      const response = await sessionApi.getEvents(targetSessionId, {
-        run_id: runId,
-        include_active_user_message: true,
-        compact_message_chunks: true,
-        include_approval_statuses: true,
-        signal: controller.signal,
-      });
-      if (!isCurrent() || epoch !== historyEpochRef.current) return null;
-      const targetEvents = (response.events || []) as HistoryEvent[];
-      historyApprovalStatusesRef.current = {
-        ...historyApprovalStatusesRef.current, ...response.approval_statuses,
-      };
-      historyEventsRef.current = mergeOlderHistoryEvents(targetEvents, historyEventsRef.current);
-      const targetMessages = reconstructMessagesFromEvents(targetEvents, processedEventIdsRef.current, { options, activeSubagentStack: [], onApprovalLookup, approvalStatuses: response.approval_statuses, isCurrent: () => isCurrent() && epoch === historyEpochRef.current });
-      setMessages(previous => {
-        if (!isCurrent() || epoch !== historyEpochRef.current) return previous;
-        const existingRuns = new Set(previous.map(message => message.runId).filter(Boolean));
-        const additions = targetMessages.filter(message => !existingRuns.has(message.runId));
-        return [...additions, ...previous].sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
-      });
-      setGoalsByRunId(previous => isCurrent() && epoch === historyEpochRef.current
-        ? { ...previous, ...extractGoalsByRunFromEvents(targetEvents) }
-        : previous);
-    } catch (error) {
-      if (isCurrent()) {
-        console.warn("[loadHistory] Failed to load notification run:", error);
-        setError(i18n.t("chat.requestFailed"));
+  const loadTargetHistory = useCallback(
+    async (targetSessionId: string, runId: string) => {
+      if (messagesRef.current.some((message) => message.runId === runId))
+        return null;
+      const requestId = ++loadHistoryRequestIdRef.current;
+      historyAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortControllerRef.current = controller;
+      const isCurrent = () =>
+        !controller.signal.aborted &&
+        requestId === loadHistoryRequestIdRef.current &&
+        sessionIdRef.current === targetSessionId;
+      const epoch = historyEpochRef.current;
+      isLoadingHistoryRef.current = true;
+      setIsLoadingHistory(true);
+      try {
+        const response = await sessionApi.getEvents(targetSessionId, {
+          run_id: runId,
+          include_active_user_message: true,
+          compact_message_chunks: true,
+          include_approval_statuses: true,
+          signal: controller.signal,
+        });
+        if (!isCurrent() || epoch !== historyEpochRef.current) return null;
+        const targetEvents = (response.events || []) as HistoryEvent[];
+        historyApprovalStatusesRef.current = {
+          ...historyApprovalStatusesRef.current,
+          ...response.approval_statuses,
+        };
+        mergeStoredEvents(targetEvents, response);
+        const targetMessages = reconstructMessagesFromEvents(
+          targetEvents,
+          processedEventIdsRef.current,
+          {
+            options,
+            activeSubagentStack: [],
+            onApprovalLookup,
+            approvalStatuses: response.approval_statuses,
+            isCurrent: () => isCurrent() && epoch === historyEpochRef.current,
+          },
+        );
+        setMessages((previous) => {
+          if (!isCurrent() || epoch !== historyEpochRef.current)
+            return previous;
+          const existingRuns = new Set(
+            previous.map((message) => message.runId).filter(Boolean),
+          );
+          const additions = targetMessages.filter(
+            (message) => !existingRuns.has(message.runId),
+          );
+          return [...additions, ...previous].sort(
+            (left, right) =>
+              left.timestamp.getTime() - right.timestamp.getTime(),
+          );
+        });
+        setGoalsByRunId((previous) =>
+          isCurrent() && epoch === historyEpochRef.current
+            ? { ...previous, ...extractGoalsByRunFromEvents(targetEvents) }
+            : previous,
+        );
+      } catch (error) {
+        if (isCurrent()) {
+          console.warn("[loadHistory] Failed to load notification run:", error);
+          setError(i18n.t("chat.requestFailed"));
+        }
+      } finally {
+        if (historyAbortControllerRef.current === controller)
+          historyAbortControllerRef.current = null;
+        if (isCurrent()) {
+          isLoadingHistoryRef.current = false;
+          setIsLoadingHistory(false);
+        }
       }
-    } finally {
-      if (historyAbortControllerRef.current === controller) historyAbortControllerRef.current = null;
-      if (isCurrent()) {
-        isLoadingHistoryRef.current = false;
-        setIsLoadingHistory(false);
-      }
-    }
-    return null;
-  }, [messagesRef, sessionIdRef, processedEventIdsRef, options, onApprovalLookup, setMessages, setGoalsByRunId, loadHistoryRequestIdRef, historyAbortControllerRef, isLoadingHistoryRef, setIsLoadingHistory, setError]);
+      return null;
+    },
+    [
+      messagesRef,
+      sessionIdRef,
+      processedEventIdsRef,
+      options,
+      onApprovalLookup,
+      setMessages,
+      setGoalsByRunId,
+      mergeStoredEvents,
+      loadHistoryRequestIdRef,
+      historyAbortControllerRef,
+      isLoadingHistoryRef,
+      setIsLoadingHistory,
+      setError,
+    ],
+  );
 
   // Load one more page of older runs and prepend the rebuilt messages.
   // Runs mid-stream are tolerated: the streaming run's assistant message is
@@ -187,7 +311,10 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     const epoch = historyEpochRef.current;
     const controller = new AbortController();
     olderAbortControllerRef.current = controller;
-    const isCurrent = () => !controller.signal.aborted && epoch === historyEpochRef.current && sessionIdRef.current === targetSessionId;
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      epoch === historyEpochRef.current &&
+      sessionIdRef.current === targetSessionId;
     isLoadingOlderHistoryRef.current = true;
     setIsLoadingOlderHistory(true);
     try {
@@ -214,13 +341,10 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       // shortcut: replay the complete loaded window so retry traces, runless boundary
       // events and legacy steer IDs keep their original ordering. Incremental run replay
       // needs stable event anchors and retry-run ownership before it can be equivalent.
-      const mergedEvents = mergeOlderHistoryEvents(
-        olderEvents,
-        historyEventsRef.current,
-      );
-      historyEventsRef.current = mergedEvents;
+      const mergedEvents = mergeStoredEvents(olderEvents, olderData);
       historyApprovalStatusesRef.current = {
-        ...historyApprovalStatusesRef.current, ...olderData.approval_statuses,
+        ...historyApprovalStatusesRef.current,
+        ...olderData.approval_statuses,
       };
       const windowState = resolveHistoryTraceWindow(olderData);
       historyTraceWindowRef.current = windowState.traceWindow;
@@ -229,10 +353,17 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
 
       // 全量重建（而非仅重建旧页）：同一 run 可能跨多条 trace（重试回放），
       // 按页独立重建会产生重复消息 id。重建使用全新的 subagent 栈。
+      const activeSubagentStack: import("./types").SubagentStackItem[] = [];
       let reconstructedMessages = reconstructMessagesFromEvents(
         mergedEvents,
         processedEventIdsRef.current,
-        { options, activeSubagentStack: [], onApprovalLookup, approvalStatuses: historyApprovalStatusesRef.current, isCurrent },
+        {
+          options,
+          activeSubagentStack,
+          onApprovalLookup,
+          approvalStatuses: historyApprovalStatusesRef.current,
+          isCurrent,
+        },
       );
       const streamingRunId =
         messagesRef.current.find(
@@ -241,7 +372,13 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
             message.isStreaming &&
             message.runId,
         )?.runId ?? null;
-      if (streamingRunId) {
+      if (
+        streamingRunId &&
+        reconstructedMessages.some(
+          (message) =>
+            message.role === "assistant" && message.runId === streamingRunId,
+        )
+      ) {
         const prepared = prepareMessagesForRunningRun(
           reconstructedMessages,
           streamingRunId,
@@ -257,12 +394,31 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
           historyFeedbackRef.current,
         );
       }
-      setGoalsByRunId(extractGoalsByRunFromEvents(mergedEvents));
-      setMessages(reconstructedMessages);
+      const replayed = replayHistoryJournal({
+        messages: reconstructedMessages,
+        goals: extractGoalsByRunFromEvents(mergedEvents),
+        events: journalRef.current,
+        covered: coveredSourcesRef.current,
+        optimisticUsers: optimisticUsersRef.current,
+        currentMessages: messagesRef.current,
+        activeSubagentStack,
+      });
+      if (!isCurrent()) return;
+      const streaming = replayed.messages.find(
+        (message) =>
+          message.role === "assistant" && message.isStreaming && message.runId,
+      );
+      if (streaming) streamingMessageIdRef.current = streaming.id;
+      setGoalsByRunId((current) =>
+        isCurrent() ? { ...current, ...replayed.goals } : current,
+      );
+      setMessages((current) => (isCurrent() ? replayed.messages : current));
     } catch (err) {
-      if (isCurrent()) console.warn("[loadOlderHistory] Failed to load older history:", err);
+      if (isCurrent())
+        console.warn("[loadOlderHistory] Failed to load older history:", err);
     } finally {
-      if (olderAbortControllerRef.current === controller) olderAbortControllerRef.current = null;
+      if (olderAbortControllerRef.current === controller)
+        olderAbortControllerRef.current = null;
       if (isCurrent()) {
         isLoadingOlderHistoryRef.current = false;
         setIsLoadingOlderHistory(false);
@@ -278,12 +434,15 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     setMessages,
     setGoalsByRunId,
     onApprovalLookup,
+    mergeStoredEvents,
   ]);
 
   return {
     hasMoreHistoryTraces,
     isLoadingOlderHistory,
     recordFirstWindow,
+    createHistoryReplayContext,
+    recordOptimisticUser,
     recordFeedback,
     loadOlderHistory,
     loadTargetHistory,

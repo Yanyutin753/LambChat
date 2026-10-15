@@ -289,15 +289,20 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         sandbox_backend = cast(SandboxBackendProtocol, backend.default)
         sandbox_id = str(getattr(sandbox_backend, "id", "unknown"))
         shared_dir = provider_shared_work_dir(work_dir)
+        pending = []
         for target in (work_dir, shared_dir):
             cache_key = f"{sandbox_id}:{target}"
             if cache_key in self._ready_work_dirs:
                 self._ready_work_dirs.move_to_end(cache_key)
                 continue
-            result = await sandbox_backend.aexecute(f"mkdir -p {shlex.quote(target)}")
+            pending.append((cache_key, target))
+        if pending:
+            command = "mkdir -p " + " ".join(shlex.quote(target) for _, target in pending)
+            result = await sandbox_backend.aexecute(command)
             if getattr(result, "exit_code", 0) != 0:
-                raise RuntimeError(f"Failed to create sandbox directory {target}: {result.output}")
-            self._ready_work_dirs[cache_key] = None
+                raise RuntimeError(f"Failed to create sandbox directories: {result.output}")
+            for cache_key, _ in pending:
+                self._ready_work_dirs[cache_key] = None
         while len(self._ready_work_dirs) > _MAX_READY_WORK_DIRS:
             self._ready_work_dirs.popitem(last=False)
 
@@ -331,8 +336,10 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     ) -> CompositeBackend:
         from src.infra.backend.e2b import E2BBackend
 
+        scoped = E2BBackend(sandbox=cast("E2BSandbox", provider_obj), work_dir=work_dir)
+        self._share_async_connection(scoped, user_id, provider_obj)
         return CompositeBackend(
-            default=E2BBackend(sandbox=cast("E2BSandbox", provider_obj), work_dir=work_dir),
+            default=scoped,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )
 
@@ -344,13 +351,22 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     ) -> CompositeBackend:
         from src.infra.backend.cubesandbox import CubeSandboxBackend
 
+        scoped = CubeSandboxBackend(sandbox=cast("CubeSandbox", provider_obj), work_dir=work_dir)
+        self._share_async_connection(scoped, user_id, provider_obj)
         return CompositeBackend(
-            default=CubeSandboxBackend(
-                sandbox=cast("CubeSandbox", provider_obj),
-                work_dir=work_dir,
-            ),
+            default=scoped,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )
+
+    def _share_async_connection(self, scoped, user_id: str, provider_obj: object) -> None:
+        from src.infra.backend.e2b import E2BBackend
+
+        cached = self._cache.get(user_id)
+        if cached and cached[2] is provider_obj:
+            owner = cached[1].default
+            if isinstance(owner, E2BBackend) and type(owner) is type(scoped):
+                # SDK transport is sandbox-scoped; paths and run environments stay private.
+                scoped._async_connection = owner._async_connection
 
     # ── Binding persistence ─────────────────────────────────────────
 

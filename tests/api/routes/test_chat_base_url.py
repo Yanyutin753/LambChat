@@ -129,6 +129,7 @@ async def _invoke_chat(
     memory_append=None,
     session_id: str | None = None,
     project_id: str | None = None,
+    identity_build=None,
 ) -> _TaskManager:
     limiter = _Limiter(limiter_result)
     task_manager = _TaskManager()
@@ -140,7 +141,7 @@ async def _invoke_chat(
         return None
 
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
-    monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
+    monkeypatch.setattr(chat, "build_assistant_identity", identity_build or _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", _noop)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
@@ -163,6 +164,83 @@ async def _invoke_chat(
         user=SimpleNamespace(sub="owner-1", roles=["member"]),
     )
     return task_manager
+
+
+async def test_chat_prepares_identity_and_model_context_concurrently_without_changing_payload(
+    monkeypatch,
+):
+    import asyncio
+
+    recalled = asyncio.Event()
+    identity = {"seed": "persona", "name": "Persona", "avatar": None}
+
+    async def build_identity(*args, **kwargs):
+        await asyncio.sleep(0)
+        assert recalled.is_set(), "identity lookup must overlap independent context recall"
+        return identity
+
+    async def recall(message, *args, **kwargs):
+        recalled.set()
+        return message + "\ncomplete memory hints"
+
+    manager = await _invoke_chat(
+        monkeypatch,
+        limiter_result=ConcurrencyResult.STARTED,
+        memory_append=recall,
+        identity_build=build_identity,
+    )
+    submitted = manager.submit_calls[0]
+    assert submitted["assistant_identity"] == identity
+    assert submitted["message"].endswith("\ncomplete memory hints")
+    assert submitted["display_message"] == "hello"
+
+
+async def test_identity_error_keeps_priority_over_independent_context_error(monkeypatch):
+    async def identity(*args, **kwargs):
+        raise RuntimeError("identity unavailable")
+
+    async def context(*args, **kwargs):
+        raise ValueError("context unavailable")
+
+    with pytest.raises(RuntimeError, match="identity unavailable"):
+        await _invoke_chat(
+            monkeypatch,
+            limiter_result=ConcurrencyResult.STARTED,
+            memory_append=context,
+            identity_build=identity,
+        )
+
+
+async def test_identity_failure_does_not_wait_for_slow_context_and_leaves_no_recall_task(
+    monkeypatch,
+):
+    import asyncio
+
+    active = set()
+
+    async def identity(*args, **kwargs):
+        await asyncio.sleep(0)
+        raise RuntimeError("identity unavailable")
+
+    async def context(*args, **kwargs):
+        task = asyncio.current_task()
+        active.add(task)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            active.discard(task)
+
+    with pytest.raises(RuntimeError, match="identity unavailable"):
+        await asyncio.wait_for(
+            _invoke_chat(
+                monkeypatch,
+                limiter_result=ConcurrencyResult.STARTED,
+                memory_append=context,
+                identity_build=identity,
+            ),
+            timeout=0.2,
+        )
+    assert not active
 
 
 async def test_chat_stream_appends_memory_to_model_message_only(

@@ -40,6 +40,7 @@ from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
 from src.api.routes.upload_thumb import get_file_thumb_response, get_private_file_thumb_response
+from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
@@ -289,6 +290,10 @@ async def _spool_upload_file_limited(
     total_size = 0
     spooled = SpooledTemporaryFile(max_size=UPLOAD_SPOOL_MEMORY_LIMIT, mode="w+b")
 
+    def write_and_hash(chunk: bytes) -> None:
+        digest.update(chunk)
+        spooled.write(chunk)
+
     try:
         while True:
             chunk = await file.read(chunk_size)
@@ -298,8 +303,7 @@ async def _spool_upload_file_limited(
             total_size += len(chunk)
             if total_size > max_size_bytes:
                 raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
-            await run_long_blocking_io(digest.update, chunk)
-            await run_long_blocking_io(spooled.write, chunk)
+            await run_long_blocking_io(write_and_hash, chunk)
 
         if total_size == 0:
             raise AppError(ErrorCode.EMPTY_FILE)
@@ -553,11 +557,12 @@ async def upload_file(
     effective_content_type = file.content_type
     did_transcode = False
     try:
-        spooled_upload = await _spool_upload_file_limited(
-            file,
-            max_size_bytes=max_size_bytes,
-            max_size_mb=max_size_mb,
-        )
+        async with timed_server_phase("upload_verify"):
+            spooled_upload = await _spool_upload_file_limited(
+                file,
+                max_size_bytes=max_size_bytes,
+                max_size_mb=max_size_mb,
+            )
 
         # Vision providers reject TIFF/BMP/ICO (GLM: 1210) and browsers cannot
         # decode TIFF in canvas, so the frontend passes them through untouched —
@@ -597,16 +602,16 @@ async def upload_file(
             if ext
             else f"{category.value}/{current_user.sub}/{short_id}"
         )
-        upload_result = await storage.upload_stream_to_key(
-            file=spooled_upload.file,
-            key=storage_key,
-            content_type=effective_content_type,
-            metadata={"uploaded_by": current_user.sub, "content_hash": file_hash},
-            skip_size_limit=True,
-        )
+        async with timed_server_phase("upload_storage"):
+            upload_result = await storage.upload_stream_to_key(
+                file=spooled_upload.file,
+                key=storage_key,
+                content_type=effective_content_type,
+                metadata={"uploaded_by": current_user.sub, "content_hash": file_hash},
+                skip_size_limit=True,
+            )
         storage_key = upload_result.key
 
-        # Write file record
         await _file_record_storage.create(
             file_hash=file_hash,
             key=storage_key,
@@ -950,9 +955,9 @@ async def get_file_proxy(
             logger.error(f"Failed to serve local file {key}: {e}")
             raise AppError(ErrorCode.FILE_READ_FAILED)
 
-    # S3 storage: redirect to presigned URL
     try:
-        exists = await storage.file_exists(key)
+        async with timed_server_phase("upload_storage"):
+            exists = await storage.file_exists(key)
         if not exists:
             raise AppError(ErrorCode.FILE_NOT_FOUND)
     except AppError:
@@ -973,10 +978,11 @@ async def get_file_proxy(
         )
 
     try:
-        if storage._config.public_bucket:
-            url = await storage.get_file_url(key)
-        else:
-            url = await storage.get_presigned_url(key)
+        async with timed_server_phase("upload_storage"):
+            if storage._config.public_bucket:
+                url = await storage.get_file_url(key)
+            else:
+                url = await storage.get_presigned_url(key)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {key}: {e}")
         raise AppError(ErrorCode.FILE_URL_FAILED)

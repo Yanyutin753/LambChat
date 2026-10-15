@@ -1,3 +1,4 @@
+import type { SessionReadScope } from "../services/api/session";
 import { useEffect, useRef, useCallback, useState } from "react";
 import {
   getValidAccessToken,
@@ -13,6 +14,7 @@ export interface TaskCompleteNotification {
     run_id: string;
     status: "completed" | "failed" | "waiting_human";
     id?: string;
+    created_at?: string;
     dedupe_key?: string;
     notification_kind?: string;
     parent_session_id?: string;
@@ -60,6 +62,7 @@ export interface SandboxPresenceNotification {
 }
 
 export interface WebSocketMessageHandlers {
+  onSessionsRead?: (scope: SessionReadScope) => void;
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
   onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
   onUsageUpdated?: (notification: UsageUpdatedNotification) => void;
@@ -84,7 +87,30 @@ export function dispatchWebSocketMessage(
 ): void {
   if (!message || typeof message !== "object" || !("type" in message)) return;
   const typedMessage = message as { type?: unknown };
-  if (typedMessage.type === "task:complete") {
+  if (typedMessage.type === "sessions:read") {
+    const data = (message as { data?: unknown }).data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return;
+    const payload = data as Record<string, unknown>;
+    const fields = ["session_id", "project_id", "scheduled_task_id"];
+    if (
+      Object.entries(payload).some(
+        ([key, value]) =>
+          !fields.includes(key) || typeof value !== "string" || !value,
+      )
+    )
+      return;
+    handlers.onSessionsRead?.({
+      ...(payload.session_id
+        ? { sessionId: payload.session_id as string }
+        : {}),
+      ...(payload.project_id
+        ? { projectId: payload.project_id as string }
+        : {}),
+      ...(payload.scheduled_task_id
+        ? { scheduledTaskId: payload.scheduled_task_id as string }
+        : {}),
+    });
+  } else if (typedMessage.type === "task:complete") {
     handlers.onTaskComplete?.(message as TaskCompleteNotification);
   } else if (typedMessage.type === "recommend:questions") {
     const data = (message as { data?: unknown }).data;
@@ -147,6 +173,7 @@ const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max fai
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     onTaskComplete,
+    onSessionsRead,
     onRecommendQuestions,
     onUsageUpdated,
     onSandboxPresence,
@@ -159,6 +186,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const onSessionsReadRef = useRef(onSessionsRead);
+  onSessionsReadRef.current = onSessionsRead;
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onRecommendQuestionsRef = useRef(onRecommendQuestions);
   const onUsageUpdatedRef = useRef(onUsageUpdated);
@@ -299,6 +328,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           console.log("[WebSocket] Received:", message);
 
           dispatchWebSocketMessage(message, {
+            onSessionsRead: onSessionsReadRef.current,
             onTaskComplete: onTaskCompleteRef.current,
             onRecommendQuestions: onRecommendQuestionsRef.current,
             onUsageUpdated: onUsageUpdatedRef.current,

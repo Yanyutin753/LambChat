@@ -1,4 +1,7 @@
-import { beforeEach, vi } from "vitest";
+/** @vitest-environment jsdom */
+
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, vi } from "vitest";
 import type { Message } from "../../../types";
 
 const mocks = vi.hoisted(() => ({
@@ -31,17 +34,20 @@ import {
   reconcileActiveStream,
   reconcileOpenSession,
   shouldReloadOpenSession,
+  useStreamReconcile,
   type StreamReconcileContext,
 } from "../sseReconcile.ts";
-import {
-  connectToSSE,
-  type SSEConnectionContext,
-} from "../sseConnection.ts";
+import { connectToSSE, type SSEConnectionContext } from "../sseConnection.ts";
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getValidAccessToken.mockResolvedValue("token-a");
   mocks.fetchEventSource.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
 });
 
 test("stream activity goes stale only after the heartbeat window passes", () => {
@@ -284,7 +290,11 @@ test("connectToSSE records stream activity for every event including ping", asyn
       _url: string,
       config: {
         onopen?: (response: { status: number; ok: boolean }) => void;
-        onmessage: (event: { event: string; data?: string; id?: string }) => void;
+        onmessage: (event: {
+          event: string;
+          data?: string;
+          id?: string;
+        }) => void;
       },
     ) => {
       config.onopen?.({ status: 200, ok: true });
@@ -331,4 +341,113 @@ test("a delayed terminal probe cannot settle a replacement stream", async () => 
   resolveStatus({ status: "completed" });
   await probe;
   expect(readMessages()[1].isStreaming).toBe(true);
+});
+
+function mountReconcile(
+  ctx: StreamReconcileContext,
+  connectionStatus: "connected" | "reconnecting" | "disconnected",
+) {
+  return renderHook(() =>
+    useStreamReconcile({
+      createSSEContext: () => ctx,
+      sessionIdRef: ctx.sessionIdRef,
+      currentRunIdRef: ctx.currentRunIdRef,
+      isReconnectFromHistoryRef: ctx.isReconnectFromHistoryRef,
+      streamingMessageIdRef: ctx.streamingMessageIdRef,
+      connectionStatus,
+      setConnectionStatus: ctx.setConnectionStatus,
+      isSendingRef: { current: false },
+      isLoadingHistoryRef: { current: false },
+      loadHistoryRef: { current: vi.fn().mockResolvedValue(null) },
+    }),
+  );
+}
+
+test("foreground recovery can settle a run while its replacement SSE remains open", async () => {
+  vi.useFakeTimers();
+  mocks.getStatus
+    .mockResolvedValueOnce({ status: "running" })
+    .mockResolvedValue({ status: "completed" });
+  mocks.fetchEventSource.mockImplementation(
+    (_url, config) =>
+      new Promise<void>((resolve) => {
+        config.signal.addEventListener("abort", () => resolve());
+      }),
+  );
+  const { ctx, readMessages, onStaleRunStateDetected } =
+    createReconcileContext(streamingBubble());
+  const { result } = mountReconcile(ctx, "disconnected");
+
+  await act(async () => {
+    void result.current();
+  });
+  expect(mocks.fetchEventSource).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3_001);
+  });
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+
+  expect(ctx.streamingMessageIdRef.current).toBeNull();
+  expect(readMessages().every((message) => !message.isStreaming)).toBe(true);
+  expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
+});
+
+test.each(["reconnecting", "disconnected"] as const)(
+  "watchdog recovers a %s stream without another foreground event",
+  async (status) => {
+    vi.useFakeTimers();
+    mocks.getStatus.mockResolvedValue({ status: "completed" });
+    const { ctx, onStaleRunStateDetected } =
+      createReconcileContext(streamingBubble());
+    mountReconcile(ctx, status);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(ctx.streamingMessageIdRef.current).toBeNull();
+    expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
+  },
+);
+
+test("restoring a cached page reconciles the current run", async () => {
+  mocks.getStatus.mockResolvedValue({ status: "completed" });
+  const { ctx, onStaleRunStateDetected } =
+    createReconcileContext(streamingBubble());
+  mountReconcile(ctx, "connected");
+
+  await act(async () => {
+    window.dispatchEvent(new Event("pageshow"));
+  });
+
+  expect(ctx.streamingMessageIdRef.current).toBeNull();
+  expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
+});
+
+test("a delayed open-session probe cannot navigate back after switching conversations", async () => {
+  let resolveSession!: (value: unknown) => void;
+  mocks.get.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveSession = resolve;
+    }),
+  );
+  const { ctx } = createReconcileContext([]);
+  const loadHistory = vi.fn();
+  const pending = reconcileOpenSession(ctx, {
+    loadHistory,
+    isSending: false,
+    isLoadingHistory: false,
+  });
+  ctx.sessionIdRef.current = "session-b";
+  ctx.currentRunIdRef.current = "run-b";
+  ctx.sseGenerationRef.current += 1;
+  resolveSession({
+    id: "session-a",
+    metadata: { current_run_id: "new-run-a" },
+  });
+  await pending;
+
+  expect(loadHistory).not.toHaveBeenCalled();
 });

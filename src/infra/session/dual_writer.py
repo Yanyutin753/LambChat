@@ -17,6 +17,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
+from uuid import uuid4
 
 from pymongo.errors import BulkWriteError
 
@@ -224,6 +225,10 @@ class DualEventWriter:
         # 外部工具输出可能携带 MongoDB pipeline 写不进去的字段名（含 '.'、
         # '$' 前缀、空键），先归一化避免事件永远写不进 traces/chunks
         data = _sanitize_event_data_for_mongo(data)
+        # One identity across both stores survives history compaction and SSE replay.
+        if isinstance(data, dict):
+            data = {**data, "_source_id": uuid4().hex, "_source_trace_id": trace_id}
+            data.pop("_source_ids", None)
 
         # ---- Redis 写入（立即，无锁） ----
         stream_key = self._stream_key(session_id, run_id)

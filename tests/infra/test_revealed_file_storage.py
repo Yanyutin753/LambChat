@@ -788,3 +788,151 @@ async def test_close_revealed_file_storage_does_not_create_singleton_when_unused
     await close_revealed_file_storage()
 
     assert storage_module._revealed_file_storage is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("rows", [1, 1000])
+@pytest.mark.parametrize("extra_options", [{}, {"sparse": False}, {"hidden": True}])
+async def test_existing_complete_unique_index_skips_dedupe_scan_but_keeps_backfill_and_indexes(
+    rows, extra_options
+) -> None:
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        docs=[
+            {
+                "_id": str(index),
+                "user_id": f"owner-{index}",
+                "file_key": "legacy.txt",
+                "source": "reveal_file",
+            }
+            for index in range(rows)
+        ],
+        indexes={
+            "user_dedupe_source_unique_idx": {
+                "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+                "unique": True,
+                **extra_options,
+            },
+            "user_name_source_unique_idx": {
+                "key": [("user_id", 1), ("file_name", 1), ("source", 1)]
+            },
+            "user_key_source_unique_idx": {"key": [("user_id", 1), ("file_key", 1), ("source", 1)]},
+        },
+    )
+
+    await storage._ensure_indexes()
+
+    assert storage.collection.aggregate_pipelines == []
+    assert storage.collection.delete_many_calls == []
+    assert storage.collection.update_many_calls == [
+        (
+            {"dedupe_key": {"$exists": False}},
+            [{"$set": {"dedupe_key": {"$concat": ["key:", "$source", ":", "$file_key"]}}}],
+        )
+    ]
+    assert set(storage.collection.dropped_indexes) == {
+        "user_name_source_unique_idx",
+        "user_key_source_unique_idx",
+    }
+    created = {kwargs["name"] for _keys, kwargs in storage.collection.created_indexes}
+    assert {
+        "user_created_at_idx",
+        "user_file_type_idx",
+        "session_id_idx",
+        "user_session_created_at_idx",
+        "user_project_idx",
+    } <= created
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        {"key": [("user_id", 1), ("source", 1), ("dedupe_key", 1)], "unique": True},
+        {"key": [("user_id", 1), ("dedupe_key", -1), ("source", 1)], "unique": True},
+        {"key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)]},
+        {"key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)], "unique": False},
+        {"key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)], "unique": 1},
+        {
+            "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+            "unique": True,
+            "partialFilterExpression": {"active": True},
+        },
+        {
+            "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+            "unique": True,
+            "partialFilterExpression": {},
+        },
+        {"key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)], "unique": True, "sparse": True},
+        {
+            "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+            "unique": True,
+            "collation": {"locale": "en", "strength": 2},
+        },
+        {
+            "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+            "unique": True,
+            "collation": {"locale": "simple"},
+        },
+    ],
+)
+async def test_missing_or_different_unique_index_keeps_original_dedupe_migration(metadata) -> None:
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        indexes={"user_dedupe_source_unique_idx": metadata} if metadata is not None else {},
+        session_results=[
+            {
+                "_id": {
+                    "user_id": "user-1",
+                    "dedupe_key": "key:reveal_file:legacy.txt",
+                    "source": "reveal_file",
+                },
+                "keep_id": "newest",
+                "count": 2,
+            }
+        ],
+    )
+
+    await storage._ensure_indexes()
+
+    assert len(storage.collection.update_many_calls) == 1
+    assert len(storage.collection.aggregate_pipelines) == 1
+    assert storage.collection.delete_many_calls == [
+        {
+            "user_id": "user-1",
+            "dedupe_key": "key:reveal_file:legacy.txt",
+            "source": "reveal_file",
+            "_id": {"$ne": "newest"},
+        }
+    ]
+    assert any(
+        kwargs.get("name") == "user_dedupe_source_unique_idx" and kwargs.get("unique") is True
+        for _keys, kwargs in storage.collection.created_indexes
+    )
+
+
+@pytest.mark.asyncio
+async def test_complete_unique_index_does_not_bypass_a_conflicting_missing_key_backfill() -> None:
+    from unittest.mock import AsyncMock
+
+    from pymongo.errors import DuplicateKeyError
+
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        indexes={
+            "user_dedupe_source_unique_idx": {
+                "key": [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+                "unique": True,
+            }
+        }
+    )
+    storage.collection.update_many = AsyncMock(
+        side_effect=DuplicateKeyError("conflicting legacy key")
+    )
+
+    await storage._ensure_indexes()
+
+    storage.collection.update_many.assert_awaited_once()
+    assert storage.collection.aggregate_pipelines == []
+    assert storage.collection.delete_many_calls == []

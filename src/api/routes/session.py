@@ -23,6 +23,7 @@ from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.infra.session.favorites import is_session_favorite, normalize_session_metadata
 from src.infra.session.manager import SessionManager
+from src.infra.session.read_notifications import broadcast_read
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import parse_iso, to_iso
 from src.kernel.config import settings
@@ -190,6 +191,7 @@ async def mark_all_sessions_read(
     """批量将会话标记为已读，支持按项目或定时任务过滤。"""
     manager = SessionManager()
     modified_count = await manager.mark_all_read(user.sub, project_id, scheduled_task_id)
+    await broadcast_read(user.sub, project_id=project_id, scheduled_task_id=scheduled_task_id)
     return {"status": "ok", "modified_count": modified_count}
 
 
@@ -280,6 +282,7 @@ async def mark_session_read(
     manager = SessionManager()
     async with timed_server_phase("session_mark_read"):
         if await manager.mark_read_for_user(session_id, user.sub):
+            await broadcast_read(user.sub, session_id=session_id)
             return {"status": "ok"}
 
         # Keep the previous 404/403 distinction on the uncommon miss path.
@@ -288,6 +291,7 @@ async def mark_session_read(
             raise AppError(ErrorCode.SESSION_NOT_FOUND)
         verify_session_ownership(session, user)
         await manager.mark_read(session_id)
+    await broadcast_read(user.sub, session_id=session_id)
     return {"status": "ok"}
 
 

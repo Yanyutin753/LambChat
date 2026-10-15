@@ -19,6 +19,7 @@ import threading
 import time
 from collections.abc import AsyncGenerator
 from contextlib import aclosing
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
 from deepagents.backends.sandbox import BaseSandbox
@@ -66,6 +67,15 @@ logger = get_logger(__name__)
 _T = TypeVar("_T")
 
 
+@dataclass
+class _AsyncSandboxConnection:
+    client: Any = None
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    failures: int = 0
+    disabled: bool = False
+    last_timeout_extend: float = float("-inf")
+
+
 # 默认超时 30 分钟（秒）
 _DEFAULT_TIMEOUT = 30 * 60
 SANDBOX_GLOB_MAX_MATCHES = 1000
@@ -108,16 +118,48 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
             timeout or settings.E2B_TIMEOUT or int(os.environ.get("E2B_TIMEOUT", _DEFAULT_TIMEOUT))
         )
         self._heal = SandboxHeal(wake=self._wake_sandbox, sandbox_id=lambda: self.id)
-        self._last_timeout_extend = float("-inf")
+        self._async_connection = _AsyncSandboxConnection()
         # 沙箱被平台回收后 manager 重建新沙箱时挂载的一次性提示，
         # 由 aexecute 消费并前缀到首个命令输出，让模型知道旧文件已丢失。
         self.sandbox_startup_notice: str | None = None
         # e2b 官方 async 客户端（懒连接）：异步路径零线程占用。
         # Cube 等 e2b 兼容平台共用；不兼容时 aexecute 自动回落线程慢道。
-        self._async_client: Any = None
-        self._async_init_lock = asyncio.Lock()
-        self._async_init_failures = 0
-        self._async_disabled = False
+
+    @property
+    def _async_client(self) -> Any:
+        return self._async_connection.client
+
+    @_async_client.setter
+    def _async_client(self, value: Any) -> None:
+        self._async_connection.client = value
+
+    @property
+    def _async_init_lock(self) -> asyncio.Lock:
+        return self._async_connection.lock
+
+    @property
+    def _async_init_failures(self) -> int:
+        return self._async_connection.failures
+
+    @_async_init_failures.setter
+    def _async_init_failures(self, value: int) -> None:
+        self._async_connection.failures = value
+
+    @property
+    def _async_disabled(self) -> bool:
+        return self._async_connection.disabled
+
+    @_async_disabled.setter
+    def _async_disabled(self, value: bool) -> None:
+        self._async_connection.disabled = value
+
+    @property
+    def _last_timeout_extend(self) -> float:
+        return self._async_connection.last_timeout_extend
+
+    @_last_timeout_extend.setter
+    def _last_timeout_extend(self, value: float) -> None:
+        self._async_connection.last_timeout_extend = value
 
     @property
     def id(self) -> str:

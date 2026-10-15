@@ -28,10 +28,44 @@ from typing import Any
 # 写入端随流更新的易变字段（各条增量各不相同），不属于块身份；
 # 参与身份比较会让相邻合并对所有真实数据空转。
 _STREAM_VOLATILE_DATA_KEYS = frozenset(
-    {"timestamp", "started_at", "ended_at", "merged", "merged_count"}
+    {
+        "timestamp",
+        "started_at",
+        "ended_at",
+        "merged",
+        "merged_count",
+        "_source_id",
+        "_source_ids",
+        "_source_trace_id",
+    }
 )
 
 _MERGEABLE_EVENT_TYPES = frozenset({"message:chunk", "thinking", "tool:args:chunk"})
+
+
+def _event_source_ids(event: dict[str, Any]) -> list[str]:
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return []
+    sources = data.get("_source_ids")
+    if isinstance(sources, list):
+        return [source for source in sources if isinstance(source, str) and source]
+    source = data.get("_source_id")
+    return [source] if isinstance(source, str) and source else []
+
+
+def _collect_sources(
+    sources: dict[int, list[str]], index: int, target: dict[str, Any], delta: dict[str, Any]
+) -> None:
+    if index not in sources:
+        sources[index] = _event_source_ids(target)
+    sources[index].extend(_event_source_ids(delta))
+
+
+def _apply_sources(compacted: list[dict[str, Any]], sources: dict[int, list[str]]) -> None:
+    for index, identities in sources.items():
+        if identities:
+            compacted[index]["data"]["_source_ids"] = list(dict.fromkeys(identities))
 
 
 def _data_identity(data: Any) -> dict[str, Any] | None:
@@ -71,11 +105,13 @@ def compact_consecutive_message_chunks(events: list[dict[str, Any]]) -> list[dic
     """Merge only adjacent semantically compatible assistant text chunks."""
     compacted: list[dict[str, Any]] = []
     content_parts: dict[int, list[str]] = {}
+    sources: dict[int, list[str]] = {}
     for source_event in events:
         event = dict(source_event)
         event["data"] = dict(event.get("data") or {})
         if compacted and _compatible_message_chunks(compacted[-1], event):
             previous = compacted[-1]
+            _collect_sources(sources, len(compacted) - 1, previous, event)
             merged = event
             content_parts.setdefault(len(compacted) - 1, [previous["data"]["content"]]).append(
                 event["data"]["content"]
@@ -85,6 +121,7 @@ def compact_consecutive_message_chunks(events: list[dict[str, Any]]) -> list[dic
             compacted.append(event)
     for index, parts in content_parts.items():
         compacted[index]["data"]["content"] = "".join(parts)
+    _apply_sources(compacted, sources)
     return compacted
 
 
@@ -101,6 +138,8 @@ def _block_group_key(event: dict[str, Any]) -> tuple[Any, ...] | None:
     - thinking：depth 0 的前端按 thinking_id 在顶层 parts 反向查找（无视
       agent）；depth > 0 经 addPartToDepth 按 agent 路由进子代理块后再按
       thinking_id 块内合并，故嵌套时 agent 参与键。
+
+    传输压缩保留 trace 边界，分页才能用完整 trace 快照替换旧版本。
     """
     event_type = event.get("event_type")
     data = event.get("data")
@@ -114,6 +153,7 @@ def _block_group_key(event: dict[str, Any]) -> tuple[Any, ...] | None:
         depth = data.get("depth") or 0
         return (
             event.get("run_id"),
+            event.get("trace_id"),
             event_type,
             depth,
             data.get("agent_id") if depth else None,
@@ -124,7 +164,7 @@ def _block_group_key(event: dict[str, Any]) -> tuple[Any, ...] | None:
         block_id = data.get("tool_call_id")
         if not (isinstance(block_id, str) and block_id.strip()):
             return None
-        return (event.get("run_id"), event_type, block_id)
+        return (event.get("run_id"), event.get("trace_id"), event_type, block_id)
 
     return None
 
@@ -178,10 +218,12 @@ def compact_history_events(
 
     mark_merges=True 时在归并目标上叠加 merged/merged_count/
     started_at/ended_at 标记（后台存量合并落库用）。
+    新事件的 _source_ids 同步归并，供前端精确排除已持久化的 SSE 增量。
     """
     compacted: list[dict[str, Any]] = []
     group_target_index: dict[tuple[Any, ...], int] = {}
     content_parts: dict[int, list[str]] = {}
+    sources: dict[int, list[str]] = {}
 
     for source_event in events:
         event_type = source_event.get("event_type")
@@ -207,6 +249,7 @@ def compact_history_events(
                 content_parts.setdefault(
                     group_target_index[group_key], [target_data["content"]]
                 ).append(delta)
+                _collect_sources(sources, group_target_index[group_key], target, event)
                 if mark_merges:
                     _apply_merge_markers(target, event)
                 continue
@@ -218,6 +261,7 @@ def compact_history_events(
             group_target_index[group_key] = len(compacted)
         elif mergeable and compacted and _compatible_adjacent_stream_events(compacted[-1], event):
             previous = compacted[-1]
+            _collect_sources(sources, len(compacted) - 1, previous, event)
             content_parts.setdefault(len(compacted) - 1, [previous["data"]["content"]]).append(
                 event["data"]["content"]
             )
@@ -229,4 +273,5 @@ def compact_history_events(
 
     for index, parts in content_parts.items():
         compacted[index]["data"]["content"] = "".join(parts)
+    _apply_sources(compacted, sources)
     return compacted

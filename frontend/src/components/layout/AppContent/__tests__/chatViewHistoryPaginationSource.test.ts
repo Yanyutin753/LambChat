@@ -87,7 +87,9 @@ test("useAgent loads the first history page bounded and pages older runs by curs
   expect(paginationSource).toMatch(
     /before_trace_id: traceWindow\.oldest_trace_id/,
   );
-  expect(paginationSource).toMatch(/mergeOlderHistoryEvents/);
+  expect(paginationSource).toMatch(
+    /mergeStoredEvents\(olderEvents, olderData\)/,
+  );
   expect(paginationSource).toMatch(
     /reconstructMessagesFromEvents\(\s*mergedEvents/,
   );

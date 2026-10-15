@@ -95,3 +95,21 @@ test("uses generic preparing copy for non-image attachments", () => {
   expect(screen.getByText("Preparing upload…")).toBeInTheDocument();
   expect(screen.queryByText("Preparing image…")).not.toBeInTheDocument();
 });
+
+test("shows measured server-processing percentage and keeps cancel available", () => {
+  render(
+    <AttachmentCard
+      attachment={{
+        ...baseAttachment,
+        uploadStage: "processing",
+        uploadProcessingProgress: 46,
+      }}
+      size="compact"
+      variant="editable"
+      isUploading
+      onCancel={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("Processing on server… 46%")).toBeInTheDocument();
+  expect(screen.getByTitle("Cancel upload")).toBeInTheDocument();
+});

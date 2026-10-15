@@ -9,6 +9,8 @@ import {
 import { vi } from "vitest";
 import * as historyFetch from "../../../services/api/fetch";
 import * as historyProcessor from "../eventProcessor";
+import { historyReplayKey } from "../historyReplayKey";
+import { HistoryPartReplay } from "../historyReplayParts";
 import { clearAllLoadingStates } from "../messageParts";
 import * as sharedParts from "../messageParts";
 import * as suspendedParts from "../suspendedToolParts";
@@ -70,7 +72,10 @@ test("history replay keeps one pending execution and one stack entry for repeate
     { activeSubagentStack: completedStack },
   );
   expect(completedStack).toEqual([]);
-  expect(completed[1].parts?.[0]).toMatchObject({ isPending: false, result: "done" });
+  expect(completed[1].parts?.[0]).toMatchObject({
+    isPending: false,
+    result: "done",
+  });
 });
 
 test("reconstructMessagesFromEvents preserves backend user message ids", () => {
@@ -2114,43 +2119,84 @@ test("completed runs discard tool drafts in turns sealed by steer messages", () 
   ]);
 });
 
-
 test("history preserves persistent projection ID without leaking it into ordinary runs", () => {
-  const events: HistoryEvent[] = [{ event_type: "goal:start", run_id: "r1", data: { goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" } } }];
+  const events: HistoryEvent[] = [
+    {
+      event_type: "goal:start",
+      run_id: "r1",
+      data: {
+        goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" },
+      },
+    },
+  ];
   expect(extractGoalFromEvents(events)).toMatchObject({ _persistent_id: "g1" });
-  expect(extractGoalsByRunFromEvents(events).r1).toMatchObject({ _persistent_id: "g1" });
-  events.push({ event_type: "goal:start", run_id: "r2", data: { goal: { objective: "docs", rubric: "verified" } } });
+  expect(extractGoalsByRunFromEvents(events).r1).toMatchObject({
+    _persistent_id: "g1",
+  });
+  events.push({
+    event_type: "goal:start",
+    run_id: "r2",
+    data: { goal: { objective: "docs", rubric: "verified" } },
+  });
   expect(extractGoalFromEvents(events)?._persistent_id).toBeUndefined();
   expect(extractGoalsByRunFromEvents(events).r2._persistent_id).toBeUndefined();
 });
 
+test.each([100, 1000])(
+  "legacy steer replay reads event kinds linearly while keeping all %i turns",
+  (count) => {
+    let eventKindReads = 0;
+    const events: HistoryEvent[] = [
+      {
+        event_type: "user:message",
+        run_id: "legacy-scale",
+        data: { content: "task" },
+      },
+      {
+        event_type: "thinking",
+        run_id: "legacy-scale",
+        data: { content: "reply" },
+      },
+    ];
+    for (let index = 0; index < count; index++) {
+      events.push(
+        {
+          event_type: "message:chunk",
+          run_id: "legacy-scale",
+          data: { content: `${index},` },
+        },
+        {
+          event_type: "steer:message",
+          run_id: "legacy-scale",
+          data: { content: `steer ${index}`, message_id: `steer-${index}` },
+        },
+      );
+    }
+    for (const event of events) {
+      const kind = event.event_type;
+      Object.defineProperty(event, "event_type", {
+        get() {
+          eventKindReads++;
+          return kind;
+        },
+      });
+    }
 
-test.each([100, 1000])("legacy steer replay reads event kinds linearly while keeping all %i turns", (count) => {
-  let eventKindReads = 0;
-  const events: HistoryEvent[] = [
-    { event_type: "user:message", run_id: "legacy-scale", data: { content: "task" } },
-    { event_type: "thinking", run_id: "legacy-scale", data: { content: "reply" } },
-  ];
-  for (let index = 0; index < count; index++) {
-    events.push(
-      { event_type: "message:chunk", run_id: "legacy-scale", data: { content: `${index},` } },
-      { event_type: "steer:message", run_id: "legacy-scale", data: { content: `steer ${index}`, message_id: `steer-${index}` } },
-    );
-  }
-  for (const event of events) {
-    const kind = event.event_type;
-    Object.defineProperty(event, "event_type", {
-      get() { eventKindReads++; return kind; },
+    const messages = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
     });
-  }
 
-  const messages = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] });
-
-  expect(messages.filter(message => message.metadata?.steer).map(message => message.content))
-    .toEqual(Array.from({ length: count }, (_, index) => `steer ${index}`));
-  expect(messages.at(-1)?.content).toBe(Array.from({ length: count }, (_, index) => `${index},`).join(""));
-  expect(eventKindReads).toBeLessThan(events.length * 20);
-});
+    expect(
+      messages
+        .filter((message) => message.metadata?.steer)
+        .map((message) => message.content),
+    ).toEqual(Array.from({ length: count }, (_, index) => `steer ${index}`));
+    expect(messages.at(-1)?.content).toBe(
+      Array.from({ length: count }, (_, index) => `${index},`).join(""),
+    );
+    expect(eventKindReads).toBeLessThan(events.length * 20);
+  },
+);
 
 test("durably resolved history approvals keep their complete tool results without status requests", () => {
   const lookup = vi.spyOn(historyFetch, "authFetch").mockResolvedValue(null);
@@ -2158,19 +2204,45 @@ test("durably resolved history approvals keep their complete tool results withou
     const events: HistoryEvent[] = [];
     for (let index = 0; index < 100; index++) {
       events.push(
-        { event_type: "user:message", run_id: `run-${index}`, data: { content: `ask ${index}` } },
-        { event_type: "approval_required", run_id: `run-${index}`, data: { id: `approval-${index}`, tool_call_id: `call-${index}`, message: `confirm ${index}` } },
-        { event_type: "approval_resolved", run_id: `run-${index}`, data: { id: `approval-${index}`, tool_call_id: `call-${index}`, success: true, result: { status: "success", values: { answer: index } } } },
+        {
+          event_type: "user:message",
+          run_id: `run-${index}`,
+          data: { content: `ask ${index}` },
+        },
+        {
+          event_type: "approval_required",
+          run_id: `run-${index}`,
+          data: {
+            id: `approval-${index}`,
+            tool_call_id: `call-${index}`,
+            message: `confirm ${index}`,
+          },
+        },
+        {
+          event_type: "approval_resolved",
+          run_id: `run-${index}`,
+          data: {
+            id: `approval-${index}`,
+            tool_call_id: `call-${index}`,
+            success: true,
+            result: { status: "success", values: { answer: index } },
+          },
+        },
       );
     }
     const messages = reconstructMessagesFromEvents(events, new Set(), {
-      activeSubagentStack: [], onApprovalLookup: vi.fn(),
+      activeSubagentStack: [],
+      onApprovalLookup: vi.fn(),
     });
-    const assistants = messages.filter(message => message.role === "assistant");
+    const assistants = messages.filter(
+      (message) => message.role === "assistant",
+    );
     expect(assistants).toHaveLength(100);
     for (let index = 0; index < assistants.length; index++) {
       expect(assistants[index].parts?.[0]).toMatchObject({
-        id: `call-${index}`, isPending: false, success: true,
+        id: `call-${index}`,
+        isPending: false,
+        success: true,
         result: { status: "success", values: { answer: index } },
       });
     }
@@ -2182,94 +2254,189 @@ test("durably resolved history approvals keep their complete tool results withou
 
 test("repeated unresolved history approval checks status once and keeps pending interaction", async () => {
   const lookup = vi.spyOn(historyFetch, "authFetch").mockResolvedValue({
-    id: "approval-repeat", status: "pending", message: "confirm", type: "form", fields: [],
+    id: "approval-repeat",
+    status: "pending",
+    message: "confirm",
+    type: "form",
+    fields: [],
   });
   const onApprovalRequired = vi.fn();
   const onApprovalLookup = vi.fn();
   try {
     const events: HistoryEvent[] = Array.from({ length: 100 }, () => ({
-      event_type: "approval_required", run_id: "approval-run",
-      data: { id: "approval-repeat", tool_call_id: "call-repeat", message: "confirm" },
+      event_type: "approval_required",
+      run_id: "approval-run",
+      data: {
+        id: "approval-repeat",
+        tool_call_id: "call-repeat",
+        message: "confirm",
+      },
     }));
     const messages = reconstructMessagesFromEvents(events, new Set(), {
-      activeSubagentStack: [], options: { onApprovalRequired }, onApprovalLookup,
+      activeSubagentStack: [],
+      options: { onApprovalRequired },
+      onApprovalLookup,
     });
     await vi.waitFor(() => expect(onApprovalRequired).toHaveBeenCalledOnce());
     expect(lookup).toHaveBeenCalledOnce();
     expect(onApprovalLookup).toHaveBeenCalledOnce();
     expect(messages[0].parts).toHaveLength(1);
-    expect(messages[0].parts?.[0]).toMatchObject({ id: "call-repeat", isPending: true });
+    expect(messages[0].parts?.[0]).toMatchObject({
+      id: "call-repeat",
+      isPending: true,
+    });
   } finally {
     lookup.mockRestore();
   }
 });
 
-
 test("anonymous steer ids keep original sorted positions without repeated full-array searches", () => {
   const events: HistoryEvent[] = Array.from({ length: 1000 }, (_, index) => ({
-    event_type: "steer:message", run_id: "anonymous-steers",
+    event_type: "steer:message",
+    run_id: "anonymous-steers",
     data: { content: `steer ${index}`, created_at: "2026-10-15T00:00:00Z" },
   }));
   const originalIndexOf = Array.prototype.indexOf;
   let eventSearchWork = 0;
-  const search = vi.spyOn(Array.prototype, "indexOf").mockImplementation(function(this: unknown[], value: unknown, fromIndex?: number) {
-    if (value && typeof value === "object" && "event_type" in value) eventSearchWork += this.length;
-    return originalIndexOf.call(this, value, fromIndex);
-  });
+  const search = vi
+    .spyOn(Array.prototype, "indexOf")
+    .mockImplementation(function (
+      this: unknown[],
+      value: unknown,
+      fromIndex?: number,
+    ) {
+      if (value && typeof value === "object" && "event_type" in value)
+        eventSearchWork += this.length;
+      return originalIndexOf.call(this, value, fromIndex);
+    });
   try {
-    const messages = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] });
-    expect(messages.map(message => message.id)).toEqual(events.map((_, index) => `steer-h-${index}`));
+    const messages = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    });
+    expect(messages.map((message) => message.id)).toEqual(
+      events.map((_, index) => `steer-h-${index}`),
+    );
     expect(eventSearchWork).toBeLessThanOrEqual(events.length * 2);
   } finally {
     search.mockRestore();
   }
 });
 
-
 test("prefetched legacy approvals preserve pending fields and repair completed scheduled task cards without requests", async () => {
   const lookup = vi.spyOn(historyFetch, "authFetch").mockResolvedValue(null);
   const onApprovalRequired = vi.fn();
   const onApprovalLookup = vi.fn();
   try {
-    const messages = reconstructMessagesFromEvents([
-      { event_type: "approval_required", run_id: "completed", data: { id: "legacy-completed", message: "confirm" } },
-      { event_type: "user:message", run_id: "pending", data: { content: "ask" } },
-      { event_type: "approval_required", run_id: "pending", data: { id: "legacy-pending", message: "question" } },
-    ], new Set(), {
-      activeSubagentStack: [], options: { onApprovalRequired }, onApprovalLookup,
-      approvalStatuses: {
-        "legacy-completed": { id: "legacy-completed", status: "approved", metadata: { approval_type: "scheduled_task_create" } },
-        "legacy-pending": { id: "legacy-pending", status: "pending", message: "full question", type: "form", fields: [{ name: "answer", type: "text", label: "Answer" }], metadata: { run_id: "pending", detail: "retained" } },
+    const messages = reconstructMessagesFromEvents(
+      [
+        {
+          event_type: "approval_required",
+          run_id: "completed",
+          data: { id: "legacy-completed", message: "confirm" },
+        },
+        {
+          event_type: "user:message",
+          run_id: "pending",
+          data: { content: "ask" },
+        },
+        {
+          event_type: "approval_required",
+          run_id: "pending",
+          data: { id: "legacy-pending", message: "question" },
+        },
+      ],
+      new Set(),
+      {
+        activeSubagentStack: [],
+        options: { onApprovalRequired },
+        onApprovalLookup,
+        approvalStatuses: {
+          "legacy-completed": {
+            id: "legacy-completed",
+            status: "approved",
+            metadata: { approval_type: "scheduled_task_create" },
+          },
+          "legacy-pending": {
+            id: "legacy-pending",
+            status: "pending",
+            message: "full question",
+            type: "form",
+            fields: [{ name: "answer", type: "text", label: "Answer" }],
+            metadata: { run_id: "pending", detail: "retained" },
+          },
+        },
       },
+    );
+    expect(messages[0].parts?.[0]).toMatchObject({
+      isPending: false,
+      success: true,
     });
-    expect(messages[0].parts?.[0]).toMatchObject({ isPending: false, success: true });
     await vi.waitFor(() => expect(onApprovalRequired).toHaveBeenCalledOnce());
-    expect(onApprovalRequired).toHaveBeenCalledWith({ id: "legacy-pending", message: "full question", type: "form", fields: [{ name: "answer", type: "text", label: "Answer" }], metadata: { run_id: "pending", detail: "retained" } });
+    expect(onApprovalRequired).toHaveBeenCalledWith({
+      id: "legacy-pending",
+      message: "full question",
+      type: "form",
+      fields: [{ name: "answer", type: "text", label: "Answer" }],
+      metadata: { run_id: "pending", detail: "retained" },
+    });
     expect(onApprovalLookup).toHaveBeenCalledTimes(2);
     expect(lookup).not.toHaveBeenCalled();
-  } finally { lookup.mockRestore(); }
+  } finally {
+    lookup.mockRestore();
+  }
 });
 
 test("missing prefetched approval status falls back to the existing lookup", async () => {
-  const lookup = vi.spyOn(historyFetch, "authFetch").mockResolvedValue({ id: "fallback", status: "not_found" });
+  const lookup = vi
+    .spyOn(historyFetch, "authFetch")
+    .mockResolvedValue({ id: "fallback", status: "not_found" });
   const onApprovalLookup = vi.fn();
   try {
-    reconstructMessagesFromEvents([{ event_type: "approval_required", run_id: "run", data: { id: "fallback" } }], new Set(), { activeSubagentStack: [], approvalStatuses: {}, onApprovalLookup });
+    reconstructMessagesFromEvents(
+      [
+        {
+          event_type: "approval_required",
+          run_id: "run",
+          data: { id: "fallback" },
+        },
+      ],
+      new Set(),
+      { activeSubagentStack: [], approvalStatuses: {}, onApprovalLookup },
+    );
     await vi.waitFor(() => expect(onApprovalLookup).toHaveBeenCalledOnce());
     expect(lookup).toHaveBeenCalledOnce();
-  } finally { lookup.mockRestore(); }
+  } finally {
+    lookup.mockRestore();
+  }
 });
-
 
 test("prefetched approval callbacks do not update a session after its history becomes stale", async () => {
   let current = true;
   const onApprovalLookup = vi.fn();
   const onApprovalRequired = vi.fn();
-  reconstructMessagesFromEvents([{ event_type: "approval_required", run_id: "old", data: { id: "old-approval" } }], new Set(), {
-    activeSubagentStack: [], onApprovalLookup, options: { onApprovalRequired },
-    approvalStatuses: { "old-approval": { id: "old-approval", status: "pending", message: "old question" } },
-    isCurrent: () => current,
-  });
+  reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "approval_required",
+        run_id: "old",
+        data: { id: "old-approval" },
+      },
+    ],
+    new Set(),
+    {
+      activeSubagentStack: [],
+      onApprovalLookup,
+      options: { onApprovalRequired },
+      approvalStatuses: {
+        "old-approval": {
+          id: "old-approval",
+          status: "pending",
+          message: "old question",
+        },
+      },
+      isCurrent: () => current,
+    },
+  );
   current = false;
   await Promise.resolve();
   await Promise.resolve();
@@ -2278,41 +2445,104 @@ test("prefetched approval callbacks do not update a session after its history be
   expect(onApprovalRequired).not.toHaveBeenCalled();
 });
 
-
 function plainToolHistory(count: number): HistoryEvent[] {
   const events: HistoryEvent[] = [];
   for (let index = 0; index < count; index++) {
     events.push(
-      { event_type: "tool:start", run_id: "tool-run", data: { tool: "read_file", tool_call_id: `tool-${index}`, args: { path: `/file-${index}` }, timestamp: "2026-10-15T00:00:00Z" } },
-      { event_type: "tool:result", run_id: "tool-run", data: { tool: "read_file", tool_call_id: `tool-${index}`, result: { content: `file ${index}`, attachments: [{ key: `asset-${index}` }] }, success: index % 2 === 0, error: index % 2 ? "fixture failure" : undefined, timestamp: "2026-10-15T00:00:01Z" } },
+      {
+        event_type: "tool:start",
+        run_id: "tool-run",
+        data: {
+          tool: "read_file",
+          tool_call_id: `tool-${index}`,
+          args: { path: `/file-${index}` },
+          timestamp: "2026-10-15T00:00:00Z",
+        },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "tool-run",
+        data: {
+          tool: "read_file",
+          tool_call_id: `tool-${index}`,
+          result: {
+            content: `file ${index}`,
+            attachments: [{ key: `asset-${index}` }],
+          },
+          success: index % 2 === 0,
+          error: index % 2 ? "fixture failure" : undefined,
+          timestamp: "2026-10-15T00:00:01Z",
+        },
+      },
     );
   }
   return events;
 }
 
-test.each([1, 1000])("ordinary history keeps the shared processor output for all %i tools without repeated full scans", (count) => {
-  const events = plainToolHistory(count);
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "tool-run",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const processor = vi.spyOn(historyProcessor, "processMessageEvent");
-  try {
-    const messages = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] });
-    expect(messages).toHaveLength(1);
-    expect(messages[0].parts).toEqual(expected.parts);
-    expect(messages[0].toolCalls).toEqual(expected.toolCalls);
-    expect(messages[0].content).toBe(expected.content);
-    expect(messages[0].toolResults).toBeUndefined();
-    expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
-});
+test.each([1, 1000])(
+  "ordinary history keeps the shared processor output for all %i tools without repeated full scans",
+  (count) => {
+    const events = plainToolHistory(count);
+    const expected = events.reduce(
+      (state, event) =>
+        historyProcessor.processMessageEvent(
+          event.event_type,
+          event.data as EventData,
+          state.parts,
+          state.content,
+          state.toolCalls,
+          0,
+          [],
+          false,
+          "tool-run",
+        ),
+      {
+        parts: [] as NonNullable<Message["parts"]>,
+        content: "",
+        toolCalls: [] as NonNullable<Message["toolCalls"]>,
+      },
+    );
+    const processor = vi.spyOn(historyProcessor, "processMessageEvent");
+    try {
+      const messages = reconstructMessagesFromEvents(events, new Set(), {
+        activeSubagentStack: [],
+      });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].parts).toEqual(expected.parts);
+      expect(messages[0].toolCalls).toEqual(expected.toolCalls);
+      expect(messages[0].content).toBe(expected.content);
+      expect(messages[0].toolResults).toBeUndefined();
+      expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      processor.mockRestore();
+    }
+  },
+);
 
 test("history tool replay keeps duplicate starts and repeated results identical to the shared processor", () => {
   const events = [...plainToolHistory(1), ...plainToolHistory(1)];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "tool-run",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "tool-run",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
+  const message = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  })[0];
   expect(message.parts).toEqual(expected.parts);
   expect(message.toolCalls).toEqual(expected.toolCalls);
 });
@@ -2321,187 +2551,552 @@ test("history tool replay preserves streamed aliases and interrupted pending tak
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
     const events: HistoryEvent[] = [
-      { event_type: "tool:args:chunk", run_id: "args-run", data: { tool: "shell", tool_call_id: "draft", content: '{"command":' } },
-      { event_type: "tool:start", run_id: "args-run", data: { tool: "shell", tool_call_id: "call", args: { command: "ls" } } },
+      {
+        event_type: "tool:args:chunk",
+        run_id: "args-run",
+        data: { tool: "shell", tool_call_id: "draft", content: '{"command":' },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "args-run",
+        data: { tool: "shell", tool_call_id: "call", args: { command: "ls" } },
+      },
       { event_type: "hitl:suspended", run_id: "args-run", data: {} },
-      { event_type: "tool:start", run_id: "args-run", data: { tool: "shell", tool_call_id: "resumed", args: { command: "ls" } } },
-      { event_type: "tool:result", run_id: "args-run", data: { tool: "shell", tool_call_id: "resumed", result: "all files", success: true } },
+      {
+        event_type: "tool:start",
+        run_id: "args-run",
+        data: {
+          tool: "shell",
+          tool_call_id: "resumed",
+          args: { command: "ls" },
+        },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "args-run",
+        data: {
+          tool: "shell",
+          tool_call_id: "resumed",
+          result: "all files",
+          success: true,
+        },
+      },
     ];
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toHaveLength(1);
-    expect(message.parts?.[0]).toMatchObject({ id: "resumed", args: { command: "ls" }, result: "all files", isPending: false });
-    expect(message.toolCalls?.map(tool => tool.id)).toEqual(["call", "resumed"]);
+    expect(message.parts?.[0]).toMatchObject({
+      id: "resumed",
+      args: { command: "ls" },
+      result: "all files",
+      isPending: false,
+    });
+    expect(message.toolCalls?.map((tool) => tool.id)).toEqual([
+      "call",
+      "resumed",
+    ]);
     expect(processor).not.toHaveBeenCalled();
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
 
 test("history tool replay keeps nested results and legacy ask-human interrupt semantics", () => {
   const events: HistoryEvent[] = [
-    { event_type: "agent:call", run_id: "complex", data: { agent_id: "child", agent_name: "Child", depth: 1 } },
-    { event_type: "tool:start", run_id: "complex", data: { agent_id: "child", depth: 1, tool: "read_file", tool_call_id: "child-call", args: { path: "nested" } } },
-    { event_type: "tool:result", run_id: "complex", data: { agent_id: "child", depth: 1, tool: "read_file", tool_call_id: "child-call", result: "nested content" } },
-    { event_type: "agent:result", run_id: "complex", data: { agent_id: "child", depth: 1, result: "child done" } },
-    { event_type: "tool:start", run_id: "complex", data: { tool: "ask_human", tool_call_id: "human", args: { message: "confirm" } } },
-    { event_type: "tool:result", run_id: "complex", data: { tool: "ask_human", tool_call_id: "human", result: "GraphInterrupt", success: false } },
+    {
+      event_type: "agent:call",
+      run_id: "complex",
+      data: { agent_id: "child", agent_name: "Child", depth: 1 },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "complex",
+      data: {
+        agent_id: "child",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "child-call",
+        args: { path: "nested" },
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "complex",
+      data: {
+        agent_id: "child",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "child-call",
+        result: "nested content",
+      },
+    },
+    {
+      event_type: "agent:result",
+      run_id: "complex",
+      data: { agent_id: "child", depth: 1, result: "child done" },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "complex",
+      data: {
+        tool: "ask_human",
+        tool_call_id: "human",
+        args: { message: "confirm" },
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "complex",
+      data: {
+        tool: "ask_human",
+        tool_call_id: "human",
+        result: "GraphInterrupt",
+        success: false,
+      },
+    },
   ];
-  const parts = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0].parts;
-  expect(parts?.[0]).toMatchObject({ type: "subagent", result: "child done", parts: [{ id: "child-call", result: "nested content", isPending: false }] });
-  expect(parts?.[1]).toMatchObject({ id: "human", name: "ask_human", isPending: true });
+  const parts = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  })[0].parts;
+  expect(parts?.[0]).toMatchObject({
+    type: "subagent",
+    result: "child done",
+    parts: [{ id: "child-call", result: "nested content", isPending: false }],
+  });
+  expect(parts?.[1]).toMatchObject({
+    id: "human",
+    name: "ask_human",
+    isPending: true,
+  });
 });
-
 
 test("parallel history keeps all 1000 distinct tool calls and results with linear signature work", () => {
   const interleaved = plainToolHistory(1000);
   const events = [
-    ...interleaved.filter(event => event.event_type === "tool:start"),
-    ...interleaved.filter(event => event.event_type === "tool:result"),
+    ...interleaved.filter((event) => event.event_type === "tool:start"),
+    ...interleaved.filter((event) => event.event_type === "tool:result"),
   ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "tool-run",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "tool-run",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   const serialization = vi.spyOn(JSON, "stringify");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.parts).toHaveLength(1000);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(message.toolResults).toBeUndefined();
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-    expect(serialization.mock.calls.length).toBeLessThanOrEqual(events.length * 3);
-  } finally { serialization.mockRestore(); processor.mockRestore(); }
+    expect(serialization.mock.calls.length).toBeLessThanOrEqual(
+      events.length * 3,
+    );
+  } finally {
+    serialization.mockRestore();
+    processor.mockRestore();
+  }
 });
 
 test("same-name same-args parallel starts retain indexed dangling takeover", () => {
   const events: HistoryEvent[] = [
-    { event_type: "tool:start", run_id: "takeover", data: { tool: "read_file", tool_call_id: "first", args: { path: "same" } } },
-    { event_type: "tool:start", run_id: "takeover", data: { tool: "read_file", tool_call_id: "second", args: { path: "same" } } },
-    { event_type: "tool:result", run_id: "takeover", data: { tool: "read_file", tool_call_id: "second", result: "complete file" } },
+    {
+      event_type: "tool:start",
+      run_id: "takeover",
+      data: {
+        tool: "read_file",
+        tool_call_id: "first",
+        args: { path: "same" },
+      },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "takeover",
+      data: {
+        tool: "read_file",
+        tool_call_id: "second",
+        args: { path: "same" },
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "takeover",
+      data: {
+        tool: "read_file",
+        tool_call_id: "second",
+        result: "complete file",
+      },
+    },
   ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "takeover",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "takeover",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.parts).toHaveLength(1);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor).not.toHaveBeenCalled();
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
-
 
 test("pending tool signatures preserve args property order and are removed by completed results", () => {
   const events: HistoryEvent[] = [
-    { event_type: "tool:start", run_id: "ordered", data: { tool: "read_file", tool_call_id: "first", args: { a: 1, b: 2 } } },
-    { event_type: "tool:start", run_id: "ordered", data: { tool: "read_file", tool_call_id: "different-order", args: { b: 2, a: 1 } } },
-    { event_type: "tool:result", run_id: "ordered", data: { tool: "read_file", tool_call_id: "first", result: "first complete" } },
-    { event_type: "tool:start", run_id: "ordered", data: { tool: "read_file", tool_call_id: "after-completion", args: { a: 1, b: 2 } } },
-    { event_type: "tool:result", run_id: "ordered", data: { tool: "read_file", tool_call_id: "different-order", result: "second complete" } },
-    { event_type: "tool:result", run_id: "ordered", data: { tool: "read_file", tool_call_id: "after-completion", result: "third complete" } },
+    {
+      event_type: "tool:start",
+      run_id: "ordered",
+      data: { tool: "read_file", tool_call_id: "first", args: { a: 1, b: 2 } },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "ordered",
+      data: {
+        tool: "read_file",
+        tool_call_id: "different-order",
+        args: { b: 2, a: 1 },
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "ordered",
+      data: {
+        tool: "read_file",
+        tool_call_id: "first",
+        result: "first complete",
+      },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "ordered",
+      data: {
+        tool: "read_file",
+        tool_call_id: "after-completion",
+        args: { a: 1, b: 2 },
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "ordered",
+      data: {
+        tool: "read_file",
+        tool_call_id: "different-order",
+        result: "second complete",
+      },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "ordered",
+      data: {
+        tool: "read_file",
+        tool_call_id: "after-completion",
+        result: "third complete",
+      },
+    },
   ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "ordered",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "ordered",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.parts).toHaveLength(3);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor).not.toHaveBeenCalled();
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
-
 
 test("ordinary tools alternating with text and thinking keep golden output with linear replay work", () => {
   const events: HistoryEvent[] = [];
   for (let index = 0; index < 1000; index++) {
-    const pair = plainToolHistory(1).map(event => ({ ...event, data: { ...(event.data as EventData), tool_call_id: `alternating-${index}` } }));
-    events.push(...pair,
-      { event_type: "message:chunk", run_id: "tool-run", data: { content: `text-${index};` } },
-      { event_type: "thinking", run_id: "tool-run", data: { thinking_id: `thinking-${index % 3}`, content: `thought-${index};` } },
+    const pair = plainToolHistory(1).map((event) => ({
+      ...event,
+      data: {
+        ...(event.data as EventData),
+        tool_call_id: `alternating-${index}`,
+      },
+    }));
+    events.push(
+      ...pair,
+      {
+        event_type: "message:chunk",
+        run_id: "tool-run",
+        data: { content: `text-${index};` },
+      },
+      {
+        event_type: "thinking",
+        run_id: "tool-run",
+        data: {
+          thinking_id: `thinking-${index % 3}`,
+          content: `thought-${index};`,
+        },
+      },
     );
   }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "tool-run",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "tool-run",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   const serialization = vi.spyOn(JSON, "stringify");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.content).toBe(expected.content);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-    expect(serialization.mock.calls.length).toBeLessThanOrEqual(events.length * 3);
-  } finally { serialization.mockRestore(); processor.mockRestore(); }
+    expect(serialization.mock.calls.length).toBeLessThanOrEqual(
+      events.length * 3,
+    );
+  } finally {
+    serialization.mockRestore();
+    processor.mockRestore();
+  }
 });
-
 
 test("one nested execution replays 1000 tools and interleaved text with linear processor work", () => {
   const stamp = "2026-10-15T00:00:00Z";
-  const events: HistoryEvent[] = [{ event_type: "agent:call", run_id: "nested", data: {
-    agent_id: "worker", depth: 1, input: "all files", timestamp: stamp,
-  } }];
+  const events: HistoryEvent[] = [
+    {
+      event_type: "agent:call",
+      run_id: "nested",
+      data: {
+        agent_id: "worker",
+        depth: 1,
+        input: "all files",
+        timestamp: stamp,
+      },
+    },
+  ];
   for (let index = 0; index < 1000; index++) {
-    events.push(...plainToolHistory(1).map(event => ({ ...event, run_id: "nested", data: {
-      ...(event.data as EventData), agent_id: "worker", depth: 1, tool_call_id: `nested-${index}`,
-    } })),
-    { event_type: "message:chunk", run_id: "nested", data: { agent_id: "worker", depth: 1, content: `${index};` } },
-    { event_type: "thinking", run_id: "nested", data: { agent_id: "worker", depth: 1, thinking_id: "thought", content: `${index};` } });
+    events.push(
+      ...plainToolHistory(1).map((event) => ({
+        ...event,
+        run_id: "nested",
+        data: {
+          ...(event.data as EventData),
+          agent_id: "worker",
+          depth: 1,
+          tool_call_id: `nested-${index}`,
+        },
+      })),
+      {
+        event_type: "message:chunk",
+        run_id: "nested",
+        data: { agent_id: "worker", depth: 1, content: `${index};` },
+      },
+      {
+        event_type: "thinking",
+        run_id: "nested",
+        data: {
+          agent_id: "worker",
+          depth: 1,
+          thinking_id: "thought",
+          content: `${index};`,
+        },
+      },
+    );
   }
-  events.push({ event_type: "agent:result", run_id: "nested", data: { agent_id: "worker", depth: 1, result: "all files", timestamp: stamp } });
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "nested",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  events.push({
+    event_type: "agent:result",
+    run_id: "nested",
+    data: {
+      agent_id: "worker",
+      depth: 1,
+      result: "all files",
+      timestamp: stamp,
+    },
+  });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "nested",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     // History also settles runs without a run-level terminal event after the shared reducer.
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, {
-      preserveAskHuman: true, discardToolDrafts: false,
-    }));
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.content).toEqual(expected.content);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(3);
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
-
 
 test("1000 uniquely routed short child executions preserve settlement with linear processor work", () => {
   const stamp = "2026-10-15T00:00:00Z";
   const events: HistoryEvent[] = [];
   for (let index = 0; index < 1000; index++) {
     const agent_id = `child-${index}`;
-    events.push({ event_type: "agent:call", run_id: "children", data: { agent_id, depth: 1, input: `${index}`, timestamp: stamp } },
-      ...plainToolHistory(1).map(event => ({ ...event, run_id: "children", data: {
-        ...(event.data as EventData), agent_id, depth: 1, tool_call_id: `child-tool-${index}`,
-      } })),
-      { event_type: "agent:result", run_id: "children", data: { agent_id, depth: 1, result: `${index}`, timestamp: stamp,
-        success: index % 2 === 0, error: index % 2 ? "failed" : undefined } });
+    events.push(
+      {
+        event_type: "agent:call",
+        run_id: "children",
+        data: { agent_id, depth: 1, input: `${index}`, timestamp: stamp },
+      },
+      ...plainToolHistory(1).map((event) => ({
+        ...event,
+        run_id: "children",
+        data: {
+          ...(event.data as EventData),
+          agent_id,
+          depth: 1,
+          tool_call_id: `child-tool-${index}`,
+        },
+      })),
+      {
+        event_type: "agent:result",
+        run_id: "children",
+        data: {
+          agent_id,
+          depth: 1,
+          result: `${index}`,
+          timestamp: stamp,
+          success: index % 2 === 0,
+          error: index % 2 ? "failed" : undefined,
+        },
+      },
+    );
   }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "children",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "children",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   const stack: SubagentStackItem[] = [];
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: stack })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: stack,
+    })[0];
     // History also settles runs without a run-level terminal event after the shared reducer.
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, {
-      preserveAskHuman: true, discardToolDrafts: false,
-    }));
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.parts).toHaveLength(1000);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(stack).toEqual([]);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
-
 
 test("1000 parallel explicitly routed child lifecycles avoid stack scans and retain every result", () => {
   const stamp = "2026-10-15T00:00:00Z";
@@ -2510,253 +3105,887 @@ test("1000 parallel explicitly routed child lifecycles avoid stack scans and ret
   const results: HistoryEvent[] = [];
   for (let index = 0; index < 1000; index++) {
     const agent_id = `parallel-child-${index}`;
-    calls.push({ event_type: "agent:call", run_id: "parallel-children", data: { agent_id, depth: 1, input: `${index}`, timestamp: stamp } });
-    tools.push(...plainToolHistory(1).map(event => ({ ...event, run_id: "parallel-children", data: {
-      ...(event.data as EventData), agent_id, depth: 1, tool_call_id: `parallel-child-tool-${index}`, args: { path: `${index}` },
-    } })));
-    results.push({ event_type: "agent:result", run_id: "parallel-children", data: { agent_id, depth: 1, result: `${index}`, timestamp: stamp } });
+    calls.push({
+      event_type: "agent:call",
+      run_id: "parallel-children",
+      data: { agent_id, depth: 1, input: `${index}`, timestamp: stamp },
+    });
+    tools.push(
+      ...plainToolHistory(1).map((event) => ({
+        ...event,
+        run_id: "parallel-children",
+        data: {
+          ...(event.data as EventData),
+          agent_id,
+          depth: 1,
+          tool_call_id: `parallel-child-tool-${index}`,
+          args: { path: `${index}` },
+        },
+      })),
+    );
+    results.push({
+      event_type: "agent:result",
+      run_id: "parallel-children",
+      data: { agent_id, depth: 1, result: `${index}`, timestamp: stamp },
+    });
   }
   const events = [...calls, ...tools, ...results];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "parallel-children",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "parallel-children",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const stack: SubagentStackItem[] = [];
   const scan = vi.spyOn(stack, "findIndex");
   const some = vi.spyOn(stack, "some");
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: stack })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: stack,
+    })[0];
     // History also settles runs without a run-level terminal event after the shared reducer.
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, {
-      preserveAskHuman: true, discardToolDrafts: false,
-    }));
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.parts).toHaveLength(1000);
     expect(stack).toEqual([]);
     expect(scan).not.toHaveBeenCalled();
     expect(some).not.toHaveBeenCalled();
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); scan.mockRestore(); some.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+    scan.mockRestore();
+    some.mockRestore();
+  }
 });
-
 
 test("1000 explicit-ID args streams upgrade without growing history scans or ghost parts", () => {
   const events: HistoryEvent[] = [];
   for (let index = 0; index < 1000; index++) {
     const id = `args-${index}`;
-    events.push({ event_type: "tool:args:chunk", run_id: "args", data: { tool: "read_file", tool_call_id: id, content: '{"path":' } },
-      { event_type: "tool:args:chunk", run_id: "args", data: { tool: "read_file", tool_call_id: id, content: `"${index}"}` } },
-      { event_type: "tool:start", run_id: "args", data: { tool: "read_file", tool_call_id: id, args: { path: `${index}` }, timestamp: "2026-10-15T00:00:00Z" } },
-      { event_type: "tool:args:chunk", run_id: "args", data: { tool: "read_file", tool_call_id: id, content: "late ignored" } },
-      { event_type: "tool:result", run_id: "args", data: { tool: "read_file", tool_call_id: id, result: `${index}` } });
+    events.push(
+      {
+        event_type: "tool:args:chunk",
+        run_id: "args",
+        data: { tool: "read_file", tool_call_id: id, content: '{"path":' },
+      },
+      {
+        event_type: "tool:args:chunk",
+        run_id: "args",
+        data: { tool: "read_file", tool_call_id: id, content: `"${index}"}` },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "args",
+        data: {
+          tool: "read_file",
+          tool_call_id: id,
+          args: { path: `${index}` },
+          timestamp: "2026-10-15T00:00:00Z",
+        },
+      },
+      {
+        event_type: "tool:args:chunk",
+        run_id: "args",
+        data: { tool: "read_file", tool_call_id: id, content: "late ignored" },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "args",
+        data: { tool: "read_file", tool_call_id: id, result: `${index}` },
+      },
+    );
   }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "args",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "args",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.parts).toHaveLength(1000);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
 
 test("1000 indexed dangling replacements retain shared last-signature takeover semantics", () => {
   const events: HistoryEvent[] = [];
   for (let index = 0; index < 1000; index++) {
-    events.push({ event_type: "tool:start", run_id: "takeover-scale", data: {
-      tool: "read_file", tool_call_id: `dangling-${index}`, args: { path: "same" }, timestamp: "2026-10-15T00:00:00Z",
-    } });
+    events.push({
+      event_type: "tool:start",
+      run_id: "takeover-scale",
+      data: {
+        tool: "read_file",
+        tool_call_id: `dangling-${index}`,
+        args: { path: "same" },
+        timestamp: "2026-10-15T00:00:00Z",
+      },
+    });
   }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "takeover-scale",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "takeover-scale",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-    expect(message.parts?.[0]).toMatchObject({ id: "dangling-999", args: { path: "same" } });
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
+    expect(message.parts?.[0]).toMatchObject({
+      id: "dangling-999",
+      args: { path: "same" },
+    });
     expect(message.parts).toHaveLength(1);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
-
 
 test("mixed root tools and depth-1/depth-2 child tools preserve full output without repeated scans", () => {
   const events: HistoryEvent[] = [];
   const stamp = "2026-10-15T00:00:00Z";
   for (let index = 0; index < 1000; index++) {
-    events.push(...plainToolHistory(1).map(event => ({ ...event, data: {
-      ...(event.data as EventData), tool_call_id: `root-mixed-${index}`,
-    } })));
-    const depth = index % 2 + 1;
+    events.push(
+      ...plainToolHistory(1).map((event) => ({
+        ...event,
+        data: {
+          ...(event.data as EventData),
+          tool_call_id: `root-mixed-${index}`,
+        },
+      })),
+    );
+    const depth = (index % 2) + 1;
     const agent_id = `mixed-${index}`;
-    events.push({ event_type: "agent:call", run_id: "tool-run", data: { agent_id, depth, input: `${index}`, timestamp: stamp } },
-      { event_type: "message:chunk", run_id: "tool-run", data: { agent_id, depth, content: `${index};` } },
-      ...plainToolHistory(1).map(event => ({ ...event, data: {
-        ...(event.data as EventData), agent_id, depth, tool_call_id: `nested-mixed-${index}`,
-      } })),
-      { event_type: "agent:result", run_id: "tool-run", data: { agent_id, depth, result: `${index}`, timestamp: stamp } });
+    events.push(
+      {
+        event_type: "agent:call",
+        run_id: "tool-run",
+        data: { agent_id, depth, input: `${index}`, timestamp: stamp },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "tool-run",
+        data: { agent_id, depth, content: `${index};` },
+      },
+      ...plainToolHistory(1).map((event) => ({
+        ...event,
+        data: {
+          ...(event.data as EventData),
+          agent_id,
+          depth,
+          tool_call_id: `nested-mixed-${index}`,
+        },
+      })),
+      {
+        event_type: "agent:result",
+        run_id: "tool-run",
+        data: { agent_id, depth, result: `${index}`, timestamp: stamp },
+      },
+    );
   }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "tool-run",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "tool-run",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     // History also settles runs without a run-level terminal event after the shared reducer.
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, {
-      preserveAskHuman: true, discardToolDrafts: false,
-    }));
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.content).toEqual(expected.content);
     expect(message.toolCalls).toEqual(expected.toolCalls);
     expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
+  } finally {
+    processor.mockRestore();
+  }
 });
 
-test.each(["renamed-draft", "draft-text", "late-child", "depth2-draft", "waiting-human"])("complex %s boundary keeps shared output", (scenario) => {
+test.each([
+  "renamed-draft",
+  "draft-text",
+  "late-child",
+  "depth2-draft",
+  "waiting-human",
+])("complex %s boundary keeps shared output", (scenario) => {
   const stamp = "2026-10-15T00:00:00Z";
-  const data = (value: EventData): EventData => ({ timestamp: stamp, ...value });
-  const records: Array<[string, EventData]> = scenario === "renamed-draft" ? [
-    ["tool:args:chunk", data({ tool: "read_file", tool_call_id: "draft", content: "{" })],
-    ["tool:start", data({ tool: "read_file", tool_call_id: "final", args: { path: "file" } })],
-    ["tool:args:chunk", data({ tool: "read_file", tool_call_id: "draft", content: "late ignored" })],
-    ["tool:start", data({ tool: "read_file", tool_call_id: "resumed", args: { path: "file" } })],
-    ["tool:args:chunk", data({ tool: "read_file", tool_call_id: "draft", content: "new draft after takeover dropped alias" })],
-    ["tool:result", data({ tool: "read_file", tool_call_id: "resumed", result: "file" })],
-  ] : scenario === "draft-text" ? [
-    ["tool:args:chunk", data({ tool: "read_file", tool_call_id: "draft", content: "{" })],
-    ["message:chunk", data({ content: "before draft" })],
-    ["tool:start", data({ tool: "read_file", tool_call_id: "draft", args: { path: "file" } })],
-    ["tool:result", data({ tool: "read_file", tool_call_id: "draft", result: "file" })],
-  ] : scenario === "depth2-draft" ? [
-    ["agent:call", data({ agent_id: "worker", depth: 2 })],
-    ["tool:args:chunk", data({ agent_id: "worker", depth: 2, tool: "read_file", tool_call_id: "draft", content: "{" })],
-    ["tool:start", data({ agent_id: "worker", depth: 2, tool: "read_file", tool_call_id: "draft", args: { path: "file" } })],
-    ["tool:result", data({ agent_id: "worker", depth: 2, tool: "read_file", tool_call_id: "draft", result: "file" })],
-    ["agent:result", data({ agent_id: "worker", depth: 2, result: "done" })],
-  ] : [
-    ["agent:call", data({ agent_id: "worker", depth: 1, status: "queued" })],
-    ["agent:call", data({ agent_id: "worker", depth: 1, status: "running" })],
-    ["tool:start", data({ agent_id: "worker", depth: 1, tool: "read_file", tool_call_id: "first", args: { path: "file" } })],
-    ["agent:result", data({ agent_id: "worker", depth: 1, result: "waiting", status: scenario === "waiting-human" ? "waiting_human" : "complete" })],
-    ["tool:result", data({ agent_id: "worker", depth: 1, tool: "read_file", tool_call_id: "first", result: "late file" })],
-    ["message:chunk", data({ agent_id: "worker", depth: 1, content: "late body" })],
-    ["agent:result", data({ agent_id: "worker", depth: 1, result: "done" })],
-  ];
-  const events: HistoryEvent[] = records.map(([event_type, value]) => ({ event_type, run_id: "boundary", data: value }));
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "boundary",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-  expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
+  const data = (value: EventData): EventData => ({
+    timestamp: stamp,
+    ...value,
+  });
+  const records: Array<[string, EventData]> =
+    scenario === "renamed-draft"
+      ? [
+          [
+            "tool:args:chunk",
+            data({ tool: "read_file", tool_call_id: "draft", content: "{" }),
+          ],
+          [
+            "tool:start",
+            data({
+              tool: "read_file",
+              tool_call_id: "final",
+              args: { path: "file" },
+            }),
+          ],
+          [
+            "tool:args:chunk",
+            data({
+              tool: "read_file",
+              tool_call_id: "draft",
+              content: "late ignored",
+            }),
+          ],
+          [
+            "tool:start",
+            data({
+              tool: "read_file",
+              tool_call_id: "resumed",
+              args: { path: "file" },
+            }),
+          ],
+          [
+            "tool:args:chunk",
+            data({
+              tool: "read_file",
+              tool_call_id: "draft",
+              content: "new draft after takeover dropped alias",
+            }),
+          ],
+          [
+            "tool:result",
+            data({
+              tool: "read_file",
+              tool_call_id: "resumed",
+              result: "file",
+            }),
+          ],
+        ]
+      : scenario === "draft-text"
+        ? [
+            [
+              "tool:args:chunk",
+              data({ tool: "read_file", tool_call_id: "draft", content: "{" }),
+            ],
+            ["message:chunk", data({ content: "before draft" })],
+            [
+              "tool:start",
+              data({
+                tool: "read_file",
+                tool_call_id: "draft",
+                args: { path: "file" },
+              }),
+            ],
+            [
+              "tool:result",
+              data({
+                tool: "read_file",
+                tool_call_id: "draft",
+                result: "file",
+              }),
+            ],
+          ]
+        : scenario === "depth2-draft"
+          ? [
+              ["agent:call", data({ agent_id: "worker", depth: 2 })],
+              [
+                "tool:args:chunk",
+                data({
+                  agent_id: "worker",
+                  depth: 2,
+                  tool: "read_file",
+                  tool_call_id: "draft",
+                  content: "{",
+                }),
+              ],
+              [
+                "tool:start",
+                data({
+                  agent_id: "worker",
+                  depth: 2,
+                  tool: "read_file",
+                  tool_call_id: "draft",
+                  args: { path: "file" },
+                }),
+              ],
+              [
+                "tool:result",
+                data({
+                  agent_id: "worker",
+                  depth: 2,
+                  tool: "read_file",
+                  tool_call_id: "draft",
+                  result: "file",
+                }),
+              ],
+              [
+                "agent:result",
+                data({ agent_id: "worker", depth: 2, result: "done" }),
+              ],
+            ]
+          : [
+              [
+                "agent:call",
+                data({ agent_id: "worker", depth: 1, status: "queued" }),
+              ],
+              [
+                "agent:call",
+                data({ agent_id: "worker", depth: 1, status: "running" }),
+              ],
+              [
+                "tool:start",
+                data({
+                  agent_id: "worker",
+                  depth: 1,
+                  tool: "read_file",
+                  tool_call_id: "first",
+                  args: { path: "file" },
+                }),
+              ],
+              [
+                "agent:result",
+                data({
+                  agent_id: "worker",
+                  depth: 1,
+                  result: "waiting",
+                  status:
+                    scenario === "waiting-human" ? "waiting_human" : "complete",
+                }),
+              ],
+              [
+                "tool:result",
+                data({
+                  agent_id: "worker",
+                  depth: 1,
+                  tool: "read_file",
+                  tool_call_id: "first",
+                  result: "late file",
+                }),
+              ],
+              [
+                "message:chunk",
+                data({ agent_id: "worker", depth: 1, content: "late body" }),
+              ],
+              [
+                "agent:result",
+                data({ agent_id: "worker", depth: 1, result: "done" }),
+              ],
+            ];
+  const events: HistoryEvent[] = records.map(([event_type, value]) => ({
+    event_type,
+    run_id: "boundary",
+    data: value,
+  }));
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "boundary",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
+  const message = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  })[0];
+  expect(message.parts).toEqual(
+    clearAllLoadingStates(expected.parts, {
+      preserveAskHuman: true,
+      discardToolDrafts: false,
+    }),
+  );
   expect(message.content).toEqual(expected.content);
   expect(message.toolCalls).toEqual(expected.toolCalls);
 });
 
-
-test.each([false, true])("1000 single-tail drafts keep late text and thinking with linear work (renamed=%s)", (renamed) => {
-  const events: HistoryEvent[] = [];
-  for (let index = 0; index < 1000; index++) {
-    const draft = `text-draft-${index}`;
-    const final = renamed ? `text-final-${index}` : draft;
-    events.push(
-      { event_type: "thinking", run_id: "draft-text-scale", data: { thinking_id: `thought-${index % 3}`, content: `before-${index};` } },
-      { event_type: "tool:args:chunk", run_id: "draft-text-scale", data: { tool: "read_file", tool_call_id: draft, content: '{"path":' } },
-      { event_type: "message:chunk", run_id: "draft-text-scale", data: { content: `first-${index};` } },
-      { event_type: "message:chunk", run_id: "draft-text-scale", data: { content: `second-${index};` } },
-      { event_type: "tool:args:chunk", run_id: "draft-text-scale", data: { tool: "read_file", tool_call_id: draft, content: `"${index}"}` } },
-      { event_type: "thinking", run_id: "draft-text-scale", data: { thinking_id: `thought-${index % 3}`, content: `after-${index};` } },
-      { event_type: "tool:start", run_id: "draft-text-scale", data: { tool: "read_file", tool_call_id: final, args: { path: `${index}` }, timestamp: "2026-10-15T00:00:00Z" } },
-      { event_type: "tool:args:chunk", run_id: "draft-text-scale", data: { tool: "read_file", tool_call_id: draft, content: "ignored after upgrade" } },
-      { event_type: "tool:result", run_id: "draft-text-scale", data: { tool: "read_file", tool_call_id: final, result: { content: `${index}`, attachments: [{ key: `file-${index}` }] } } },
+test.each([false, true])(
+  "1000 single-tail drafts keep late text and thinking with linear work (renamed=%s)",
+  (renamed) => {
+    const events: HistoryEvent[] = [];
+    for (let index = 0; index < 1000; index++) {
+      const draft = `text-draft-${index}`;
+      const final = renamed ? `text-final-${index}` : draft;
+      events.push(
+        {
+          event_type: "thinking",
+          run_id: "draft-text-scale",
+          data: {
+            thinking_id: `thought-${index % 3}`,
+            content: `before-${index};`,
+          },
+        },
+        {
+          event_type: "tool:args:chunk",
+          run_id: "draft-text-scale",
+          data: { tool: "read_file", tool_call_id: draft, content: '{"path":' },
+        },
+        {
+          event_type: "message:chunk",
+          run_id: "draft-text-scale",
+          data: { content: `first-${index};` },
+        },
+        {
+          event_type: "message:chunk",
+          run_id: "draft-text-scale",
+          data: { content: `second-${index};` },
+        },
+        {
+          event_type: "tool:args:chunk",
+          run_id: "draft-text-scale",
+          data: {
+            tool: "read_file",
+            tool_call_id: draft,
+            content: `"${index}"}`,
+          },
+        },
+        {
+          event_type: "thinking",
+          run_id: "draft-text-scale",
+          data: {
+            thinking_id: `thought-${index % 3}`,
+            content: `after-${index};`,
+          },
+        },
+        {
+          event_type: "tool:start",
+          run_id: "draft-text-scale",
+          data: {
+            tool: "read_file",
+            tool_call_id: final,
+            args: { path: `${index}` },
+            timestamp: "2026-10-15T00:00:00Z",
+          },
+        },
+        {
+          event_type: "tool:args:chunk",
+          run_id: "draft-text-scale",
+          data: {
+            tool: "read_file",
+            tool_call_id: draft,
+            content: "ignored after upgrade",
+          },
+        },
+        {
+          event_type: "tool:result",
+          run_id: "draft-text-scale",
+          data: {
+            tool: "read_file",
+            tool_call_id: final,
+            result: {
+              content: `${index}`,
+              attachments: [{ key: `file-${index}` }],
+            },
+          },
+        },
+      );
+    }
+    const expected = events.reduce(
+      (state, event) =>
+        historyProcessor.processMessageEvent(
+          event.event_type,
+          event.data as EventData,
+          state.parts,
+          state.content,
+          state.toolCalls,
+          0,
+          [],
+          false,
+          "draft-text-scale",
+        ),
+      {
+        parts: [] as NonNullable<Message["parts"]>,
+        content: "",
+        toolCalls: [] as NonNullable<Message["toolCalls"]>,
+      },
     );
-  }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "draft-text-scale",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const processor = vi.spyOn(historyProcessor, "processMessageEvent");
-  try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
-    expect(message.content).toEqual(expected.content);
+    const processor = vi.spyOn(historyProcessor, "processMessageEvent");
+    try {
+      const message = reconstructMessagesFromEvents(events, new Set(), {
+        activeSubagentStack: [],
+      })[0];
+      expect(message.parts).toEqual(
+        clearAllLoadingStates(expected.parts, {
+          preserveAskHuman: true,
+          discardToolDrafts: false,
+        }),
+      );
+      expect(message.content).toEqual(expected.content);
+      expect(message.toolCalls).toEqual(expected.toolCalls);
+      expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      processor.mockRestore();
+    }
+  },
+);
+
+test.each(["todo_write", "write_todos"])(
+  "%s with an existing tool ID retains checklist dispatch precedence",
+  (tool) => {
+    const events: HistoryEvent[] = [
+      {
+        event_type: "tool:start",
+        run_id: "todo-collision",
+        data: {
+          tool: "read_file",
+          tool_call_id: "same",
+          args: { path: "file" },
+          timestamp: "2026-10-15T00:00:00Z",
+        },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "todo-collision",
+        data: { tool: "read_file", tool_call_id: "same", result: "file" },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "todo-collision",
+        data: {
+          tool,
+          tool_call_id: "same",
+          args: {
+            todos: [
+              { content: "preserve this checklist", status: "completed" },
+            ],
+          },
+        },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "todo-collision",
+        data: {
+          tool,
+          tool_call_id: "same",
+          result: "ignored checklist result",
+        },
+      },
+    ];
+    const expected = events.reduce(
+      (state, event) =>
+        historyProcessor.processMessageEvent(
+          event.event_type,
+          event.data as EventData,
+          state.parts,
+          state.content,
+          state.toolCalls,
+          0,
+          [],
+          false,
+          "todo-collision",
+        ),
+      {
+        parts: [] as NonNullable<Message["parts"]>,
+        content: "",
+        toolCalls: [] as NonNullable<Message["toolCalls"]>,
+      },
+    );
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.toolCalls).toEqual(expected.toolCalls);
-    expect(processor.mock.calls.length).toBeLessThanOrEqual(2);
-  } finally { processor.mockRestore(); }
-});
+    expect(message.parts?.some((part) => part.type === "todo")).toBe(true);
+  },
+);
 
-
-test.each(["todo_write", "write_todos"])("%s with an existing tool ID retains checklist dispatch precedence", (tool) => {
-  const events: HistoryEvent[] = [
-    { event_type: "tool:start", run_id: "todo-collision", data: { tool: "read_file", tool_call_id: "same", args: { path: "file" }, timestamp: "2026-10-15T00:00:00Z" } },
-    { event_type: "tool:result", run_id: "todo-collision", data: { tool: "read_file", tool_call_id: "same", result: "file" } },
-    { event_type: "tool:start", run_id: "todo-collision", data: { tool, tool_call_id: "same", args: { todos: [{ content: "preserve this checklist", status: "completed" }] } } },
-    { event_type: "tool:result", run_id: "todo-collision", data: { tool, tool_call_id: "same", result: "ignored checklist result" } },
-  ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "todo-collision",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-  expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
-  expect(message.toolCalls).toEqual(expected.toolCalls);
-  expect(message.parts?.some(part => part.type === "todo")).toBe(true);
-});
-
-
-test.each(["todo_write", "write_todos"])("1000 %s updates alternate with tools without growing reducer work", (tool) => {
-  const events: HistoryEvent[] = [];
-  for (let index = 0; index < 1000; index++) {
-    const id = `todo-alternating-${index}`;
-    events.push(...plainToolHistory(1).map(event => ({ ...event, run_id: "todo-scale", data: {
-      ...(event.data as EventData), tool_call_id: id,
-    } })),
-    { event_type: "tool:start", run_id: "todo-scale", data: { tool, tool_call_id: id, args: { todos: [
-      { id: `done-${index}`, content: `complete-${index}`, status: "completed", activeForm: `completed-${index}`, metadata: { step: index } },
-      { id: `cancelled-${index}`, content: `cancel-${index}`, status: "cancelled", activeForm: `cancelled-${index}` },
-      { id: `pending-${index}`, content: `pending-${index}`, status: "in_progress", activeForm: `working-${index}` },
-    ] } } },
-    { event_type: "tool:args:chunk", run_id: "todo-scale", data: { tool, tool_call_id: id, content: "ignored todo draft" } },
-    { event_type: "tool:result", run_id: "todo-scale", data: { tool, tool_call_id: id, result: "ignored todo result" } });
-  }
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "todo-scale",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const processor = vi.spyOn(historyProcessor, "processMessageEvent");
-  try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
-    expect(message.toolCalls).toEqual(expected.toolCalls);
-    expect(message.parts?.filter(part => part.type === "todo")).toHaveLength(1);
-    // Reuse the authoritative todo conversion on an empty parts array; no growing-history scans.
-    expect(processor.mock.calls.reduce((work, call) => work + call[2].length, 0)).toBeLessThanOrEqual(2);
-    expect(processor.mock.calls.length).toBeLessThanOrEqual(1002);
-  } finally { processor.mockRestore(); }
-});
+test.each(["todo_write", "write_todos"])(
+  "1000 %s updates alternate with tools without growing reducer work",
+  (tool) => {
+    const events: HistoryEvent[] = [];
+    for (let index = 0; index < 1000; index++) {
+      const id = `todo-alternating-${index}`;
+      events.push(
+        ...plainToolHistory(1).map((event) => ({
+          ...event,
+          run_id: "todo-scale",
+          data: {
+            ...(event.data as EventData),
+            tool_call_id: id,
+          },
+        })),
+        {
+          event_type: "tool:start",
+          run_id: "todo-scale",
+          data: {
+            tool,
+            tool_call_id: id,
+            args: {
+              todos: [
+                {
+                  id: `done-${index}`,
+                  content: `complete-${index}`,
+                  status: "completed",
+                  activeForm: `completed-${index}`,
+                  metadata: { step: index },
+                },
+                {
+                  id: `cancelled-${index}`,
+                  content: `cancel-${index}`,
+                  status: "cancelled",
+                  activeForm: `cancelled-${index}`,
+                },
+                {
+                  id: `pending-${index}`,
+                  content: `pending-${index}`,
+                  status: "in_progress",
+                  activeForm: `working-${index}`,
+                },
+              ],
+            },
+          },
+        },
+        {
+          event_type: "tool:args:chunk",
+          run_id: "todo-scale",
+          data: { tool, tool_call_id: id, content: "ignored todo draft" },
+        },
+        {
+          event_type: "tool:result",
+          run_id: "todo-scale",
+          data: { tool, tool_call_id: id, result: "ignored todo result" },
+        },
+      );
+    }
+    const expected = events.reduce(
+      (state, event) =>
+        historyProcessor.processMessageEvent(
+          event.event_type,
+          event.data as EventData,
+          state.parts,
+          state.content,
+          state.toolCalls,
+          0,
+          [],
+          false,
+          "todo-scale",
+        ),
+      {
+        parts: [] as NonNullable<Message["parts"]>,
+        content: "",
+        toolCalls: [] as NonNullable<Message["toolCalls"]>,
+      },
+    );
+    const processor = vi.spyOn(historyProcessor, "processMessageEvent");
+    try {
+      const message = reconstructMessagesFromEvents(events, new Set(), {
+        activeSubagentStack: [],
+      })[0];
+      expect(message.parts).toEqual(
+        clearAllLoadingStates(expected.parts, {
+          preserveAskHuman: true,
+          discardToolDrafts: false,
+        }),
+      );
+      expect(message.toolCalls).toEqual(expected.toolCalls);
+      expect(
+        message.parts?.filter((part) => part.type === "todo"),
+      ).toHaveLength(1);
+      // Reuse the authoritative todo conversion on an empty parts array; no growing-history scans.
+      expect(
+        processor.mock.calls.reduce((work, call) => work + call[2].length, 0),
+      ).toBeLessThanOrEqual(2);
+      expect(processor.mock.calls.length).toBeLessThanOrEqual(1002);
+    } finally {
+      processor.mockRestore();
+    }
+  },
+);
 
 test("nested todo updates and empty updates retain complete shared metadata and routing", () => {
   const stamp = "2026-10-15T00:00:00Z";
   const events: HistoryEvent[] = [
-    { event_type: "agent:call", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, timestamp: stamp } },
-    { event_type: "todo:updated", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, todos: [{ content: "first", status: "pending", activeForm: "doing first" }] } },
-    { event_type: "tool:start", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, tool: "read_file", tool_call_id: "same", args: {}, timestamp: stamp } },
-    { event_type: "tool:start", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, tool: "write_todos", tool_call_id: "same", args: { todos: [{ id: "stable", content: "replacement", status: "cancelled", activeForm: "cancelled form", metadata: { stable: true } }] } } },
-    { event_type: "todo:updated", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, todos: [] } },
-    { event_type: "tool:result", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, tool: "read_file", tool_call_id: "same", result: "file" } },
-    { event_type: "agent:result", run_id: "nested-todo", data: { agent_id: "worker", depth: 1, result: "done", timestamp: stamp } },
+    {
+      event_type: "agent:call",
+      run_id: "nested-todo",
+      data: { agent_id: "worker", depth: 1, timestamp: stamp },
+    },
+    {
+      event_type: "todo:updated",
+      run_id: "nested-todo",
+      data: {
+        agent_id: "worker",
+        depth: 1,
+        todos: [
+          { content: "first", status: "pending", activeForm: "doing first" },
+        ],
+      },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "nested-todo",
+      data: {
+        agent_id: "worker",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "same",
+        args: {},
+        timestamp: stamp,
+      },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "nested-todo",
+      data: {
+        agent_id: "worker",
+        depth: 1,
+        tool: "write_todos",
+        tool_call_id: "same",
+        args: {
+          todos: [
+            {
+              id: "stable",
+              content: "replacement",
+              status: "cancelled",
+              activeForm: "cancelled form",
+              metadata: { stable: true },
+            },
+          ],
+        },
+      },
+    },
+    {
+      event_type: "todo:updated",
+      run_id: "nested-todo",
+      data: { agent_id: "worker", depth: 1, todos: [] },
+    },
+    {
+      event_type: "tool:result",
+      run_id: "nested-todo",
+      data: {
+        agent_id: "worker",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "same",
+        result: "file",
+      },
+    },
+    {
+      event_type: "agent:result",
+      run_id: "nested-todo",
+      data: { agent_id: "worker", depth: 1, result: "done", timestamp: stamp },
+    },
   ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "nested-todo",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-  expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "nested-todo",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
+  const message = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  })[0];
+  expect(message.parts).toEqual(
+    clearAllLoadingStates(expected.parts, {
+      preserveAskHuman: true,
+      discardToolDrafts: false,
+    }),
+  );
   expect(message.toolCalls).toEqual(expected.toolCalls);
 });
-
 
 test("1000 tool approvals alternate without growing parts scans and keep sandbox receipts", () => {
   const stamp = "2026-10-15T00:00:00Z";
@@ -2764,28 +3993,108 @@ test("1000 tool approvals alternate without growing parts scans and keep sandbox
   for (let index = 0; index < 1000; index++) {
     const id = `approved-tool-${index}`;
     events.push(
-      { event_type: "tool:start", run_id: "approval-scale", data: { tool: "read_file", tool_call_id: id, args: { path: `${index}` }, timestamp: stamp } },
+      {
+        event_type: "tool:start",
+        run_id: "approval-scale",
+        data: {
+          tool: "read_file",
+          tool_call_id: id,
+          args: { path: `${index}` },
+          timestamp: stamp,
+        },
+      },
       { event_type: "hitl:suspended", run_id: "approval-scale", data: {} },
-      { event_type: "approval_required", run_id: "approval-scale", data: { id: `approval-${index}`, tool_call_id: id, origin: "sandbox_confirm", message: `${index}` } },
-      { event_type: "human_resume_started", run_id: "approval-scale", data: {} },
-      { event_type: "approval_resolved", run_id: "approval-scale", data: { id: `approval-${index}`, tool_call_id: id, result: { status: "success", metadata: { sequence: index } }, timestamp: stamp } },
-      { event_type: "tool:result", run_id: "approval-scale", data: { tool: "read_file", tool_call_id: id, result: { content: `${index}`, attachments: [{ key: `approved-file-${index}` }] }, success: index % 2 === 0, error: index % 2 ? "failure" : undefined, timestamp: stamp } },
+      {
+        event_type: "approval_required",
+        run_id: "approval-scale",
+        data: {
+          id: `approval-${index}`,
+          tool_call_id: id,
+          origin: "sandbox_confirm",
+          message: `${index}`,
+        },
+      },
+      {
+        event_type: "human_resume_started",
+        run_id: "approval-scale",
+        data: {},
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "approval-scale",
+        data: {
+          id: `approval-${index}`,
+          tool_call_id: id,
+          result: { status: "success", metadata: { sequence: index } },
+          timestamp: stamp,
+        },
+      },
+      {
+        event_type: "tool:result",
+        run_id: "approval-scale",
+        data: {
+          tool: "read_file",
+          tool_call_id: id,
+          result: {
+            content: `${index}`,
+            attachments: [{ key: `approved-file-${index}` }],
+          },
+          success: index % 2 === 0,
+          error: index % 2 ? "failure" : undefined,
+          timestamp: stamp,
+        },
+      },
     );
   }
-  const expected = events.filter(event => event.event_type !== "approval_required").reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "approval-scale",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events
+    .filter((event) => event.event_type !== "approval_required")
+    .reduce(
+      (state, event) =>
+        historyProcessor.processMessageEvent(
+          event.event_type,
+          event.data as EventData,
+          state.parts,
+          state.content,
+          state.toolCalls,
+          0,
+          [],
+          false,
+          "approval-scale",
+        ),
+      {
+        parts: [] as NonNullable<Message["parts"]>,
+        content: "",
+        toolCalls: [] as NonNullable<Message["toolCalls"]>,
+      },
+    );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   const awaiting = vi.spyOn(suspendedParts, "markPendingToolsAwaiting");
   const results = vi.spyOn(sharedParts, "updateToolResultInDepth");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-    expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
+    expect(message.parts).toEqual(
+      clearAllLoadingStates(expected.parts, {
+        preserveAskHuman: true,
+        discardToolDrafts: false,
+      }),
+    );
     expect(message.toolCalls).toEqual(expected.toolCalls);
-    expect(processor.mock.calls.reduce((work, call) => work + call[2].length, 0)).toBeLessThanOrEqual(2);
-    expect(awaiting.mock.calls.reduce((work, call) => work + call[0].length, 0)).toBeLessThanOrEqual(2000);
-    expect(results.mock.calls.reduce((work, call) => work + call[0].length, 0)).toBeLessThanOrEqual(2000);
-  } finally { processor.mockRestore(); awaiting.mockRestore(); results.mockRestore(); }
+    expect(
+      processor.mock.calls.reduce((work, call) => work + call[2].length, 0),
+    ).toBeLessThanOrEqual(2);
+    expect(
+      awaiting.mock.calls.reduce((work, call) => work + call[0].length, 0),
+    ).toBeLessThanOrEqual(2000);
+    expect(
+      results.mock.calls.reduce((work, call) => work + call[0].length, 0),
+    ).toBeLessThanOrEqual(2000);
+  } finally {
+    processor.mockRestore();
+    awaiting.mockRestore();
+    results.mockRestore();
+  }
 });
 
 test("one 1000-ID approval batch keeps complete receipts with linear addressed-slot work", () => {
@@ -2794,60 +4103,1522 @@ test("one 1000-ID approval batch keeps complete receipts with linear addressed-s
   for (let index = 0; index < 1000; index++) {
     const id = `batch-tool-${index}`;
     ids.push(id);
-    events.push({ event_type: "tool:start", run_id: "batch-approval", data: { tool: "read_file", tool_call_id: id, args: { path: `${index}` }, timestamp: "2026-10-15T00:00:00Z" } });
+    events.push({
+      event_type: "tool:start",
+      run_id: "batch-approval",
+      data: {
+        tool: "read_file",
+        tool_call_id: id,
+        args: { path: `${index}` },
+        timestamp: "2026-10-15T00:00:00Z",
+      },
+    });
   }
   events.push(
     { event_type: "hitl:suspended", run_id: "batch-approval", data: {} },
-    { event_type: "approval_resolved", run_id: "batch-approval", data: { tool_call_ids: ids, result: { status: "rejected", detail: { all: true } }, success: false, error: "user rejected", timestamp: "2026-10-15T00:00:01Z" } },
+    {
+      event_type: "approval_resolved",
+      run_id: "batch-approval",
+      data: {
+        tool_call_ids: ids,
+        result: { status: "rejected", detail: { all: true } },
+        success: false,
+        error: "user rejected",
+        timestamp: "2026-10-15T00:00:01Z",
+      },
+    },
   );
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls, 0, [], false, "batch-approval",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        0,
+        [],
+        false,
+        "batch-approval",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
   const processor = vi.spyOn(historyProcessor, "processMessageEvent");
   const results = vi.spyOn(sharedParts, "updateToolResultInDepth");
   try {
-    const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
+    const message = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    })[0];
     expect(message.parts).toEqual(expected.parts);
     expect(message.parts).toHaveLength(1000);
     expect(message.toolCalls).toEqual(expected.toolCalls);
-    expect(processor.mock.calls.reduce((work, call) => work + call[2].length, 0)).toBeLessThanOrEqual(2);
-    expect(results.mock.calls.reduce((work, call) => work + call[0].length, 0)).toBeLessThanOrEqual(1000);
-  } finally { processor.mockRestore(); results.mockRestore(); }
+    expect(
+      processor.mock.calls.reduce((work, call) => work + call[2].length, 0),
+    ).toBeLessThanOrEqual(2);
+    expect(
+      results.mock.calls.reduce((work, call) => work + call[0].length, 0),
+    ).toBeLessThanOrEqual(1000);
+  } finally {
+    processor.mockRestore();
+    results.mockRestore();
+  }
 });
 
 test("approval broadcast reaches parallel pending children and receipts clear draft/cancel flags", () => {
   const stamp = "2026-10-15T00:00:00Z";
   const events: HistoryEvent[] = [
-    { event_type: "agent:call", run_id: "child-approval", data: { agent_id: "first", depth: 1, status: "queued", timestamp: stamp } },
-    { event_type: "agent:call", run_id: "child-approval", data: { agent_id: "second", depth: 2, timestamp: stamp } },
-    { event_type: "tool:args:chunk", run_id: "child-approval", data: { agent_id: "first", depth: 1, tool: "read_file", tool_call_id: "draft", content: "{" } },
-    { event_type: "tool:start", run_id: "child-approval", data: { agent_id: "second", depth: 2, tool: "read_file", tool_call_id: "cancelled", args: {}, timestamp: stamp } },
+    {
+      event_type: "agent:call",
+      run_id: "child-approval",
+      data: { agent_id: "first", depth: 1, status: "queued", timestamp: stamp },
+    },
+    {
+      event_type: "agent:call",
+      run_id: "child-approval",
+      data: { agent_id: "second", depth: 2, timestamp: stamp },
+    },
+    {
+      event_type: "tool:args:chunk",
+      run_id: "child-approval",
+      data: {
+        agent_id: "first",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "draft",
+        content: "{",
+      },
+    },
+    {
+      event_type: "tool:start",
+      run_id: "child-approval",
+      data: {
+        agent_id: "second",
+        depth: 2,
+        tool: "read_file",
+        tool_call_id: "cancelled",
+        args: {},
+        timestamp: stamp,
+      },
+    },
     { event_type: "hitl:suspended", run_id: "child-approval", data: {} },
     { event_type: "human_resume_started", run_id: "child-approval", data: {} },
-    { event_type: "agent:result", run_id: "child-approval", data: { agent_id: "second", depth: 2, result: "cancelled", status: "cancelled", timestamp: stamp } },
-    { event_type: "approval_resolved", run_id: "child-approval", data: { tool_call_ids: ["draft", "cancelled"], result: { status: "success", full: { nested: true } }, timestamp: stamp } },
-    { event_type: "agent:result", run_id: "child-approval", data: { agent_id: "first", depth: 1, result: "done", timestamp: stamp } },
+    {
+      event_type: "agent:result",
+      run_id: "child-approval",
+      data: {
+        agent_id: "second",
+        depth: 2,
+        result: "cancelled",
+        status: "cancelled",
+        timestamp: stamp,
+      },
+    },
+    {
+      event_type: "approval_resolved",
+      run_id: "child-approval",
+      data: {
+        tool_call_ids: ["draft", "cancelled"],
+        result: { status: "success", full: { nested: true } },
+        timestamp: stamp,
+      },
+    },
+    {
+      event_type: "agent:result",
+      run_id: "child-approval",
+      data: { agent_id: "first", depth: 1, result: "done", timestamp: stamp },
+    },
   ];
-  const expected = events.reduce((state, event) => historyProcessor.processMessageEvent(
-    event.event_type, event.data as EventData, state.parts, state.content, state.toolCalls,
-    (event.data as EventData).depth || 0, [], false, "child-approval",
-  ), { parts: [] as NonNullable<Message["parts"]>, content: "", toolCalls: [] as NonNullable<Message["toolCalls"]> });
-  const message = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] })[0];
-  expect(message.parts).toEqual(clearAllLoadingStates(expected.parts, { preserveAskHuman: true, discardToolDrafts: false }));
+  const expected = events.reduce(
+    (state, event) =>
+      historyProcessor.processMessageEvent(
+        event.event_type,
+        event.data as EventData,
+        state.parts,
+        state.content,
+        state.toolCalls,
+        (event.data as EventData).depth || 0,
+        [],
+        false,
+        "child-approval",
+      ),
+    {
+      parts: [] as NonNullable<Message["parts"]>,
+      content: "",
+      toolCalls: [] as NonNullable<Message["toolCalls"]>,
+    },
+  );
+  const message = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  })[0];
+  expect(message.parts).toEqual(
+    clearAllLoadingStates(expected.parts, {
+      preserveAskHuman: true,
+      discardToolDrafts: false,
+    }),
+  );
   expect(message.toolCalls).toEqual(expected.toolCalls);
 });
 
 test("late tool start cannot revive a canceled partial history draft", () => {
   const events: HistoryEvent[] = [
-    { event_type: "tool:args:chunk", run_id: "cancelled-run", data: { tool: "read_file", tool_call_id: "draft", content: "{" } },
+    {
+      event_type: "tool:args:chunk",
+      run_id: "cancelled-run",
+      data: { tool: "read_file", tool_call_id: "draft", content: "{" },
+    },
     { event_type: "user:cancel", run_id: "cancelled-run", data: {} },
-    { event_type: "tool:start", run_id: "cancelled-run", data: { tool: "read_file", tool_call_id: "draft", args: {} } },
+    {
+      event_type: "tool:start",
+      run_id: "cancelled-run",
+      data: { tool: "read_file", tool_call_id: "draft", args: {} },
+    },
   ];
-  const messages = reconstructMessagesFromEvents(events, new Set(), { activeSubagentStack: [] });
-  const tool = messages.flatMap(message => message.parts ?? []).find(part => part.type === "tool" && part.id === "draft");
+  const messages = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  });
+  const tool = messages
+    .flatMap((message) => message.parts ?? [])
+    .find((part) => part.type === "tool" && part.id === "draft");
   expect(tool?.type).toBe("tool");
   if (tool?.type !== "tool") throw new Error("History tool missing");
   expect(tool.result).toBeTruthy();
   expect(tool.cancelled).toBe(true);
   expect(tool.isPending).toBe(false);
+});
+
+const indexedScaleRun = "indexed-scale";
+const indexedScaleStamp = "2026-10-15T00:00:00.000Z";
+const indexedScaleNow = Date.parse(indexedScaleStamp);
+function indexedEvent(event_type: string, data: EventData = {}): HistoryEvent {
+  return {
+    event_type,
+    run_id: indexedScaleRun,
+    timestamp: indexedScaleStamp,
+    data: { timestamp: indexedScaleStamp, ...data },
+  };
+}
+
+/** Independent shared-reducer reference, including the existing history-only approval and final settlement. */
+function sharedIndexedReference(
+  events: HistoryEvent[],
+  approvals: Record<
+    string,
+    { id: string; status: string; metadata?: Record<string, unknown> | null }
+  > = {},
+) {
+  let message: Message = {
+    id: indexedScaleRun,
+    role: "assistant",
+    content: "",
+    timestamp: new Date(indexedScaleStamp),
+    runId: indexedScaleRun,
+    parts: [],
+    isStreaming: false,
+  };
+  const stack: SubagentStackItem[] = [];
+  const resolved = new Set(
+    events
+      .filter((event) => event.event_type === "approval_resolved")
+      .map((event) => (event.data as EventData).id),
+  );
+  for (const event of events) {
+    const data = event.data as EventData;
+    if (event.event_type === "approval_required") {
+      const id = data.tool_call_id || data.id;
+      if (
+        (data as { origin?: string }).origin !== "sandbox_confirm" &&
+        id &&
+        !message.parts?.some((part) => part.type === "tool" && part.id === id)
+      ) {
+        message.parts = [
+          ...(message.parts || []),
+          sharedParts.createToolPart(
+            "ask_human",
+            { message: data.message || "", fields: data.fields || [] },
+            data.depth || 0,
+            data.agent_id,
+            id,
+            event.timestamp,
+          ),
+        ];
+      }
+      const prefetched =
+        typeof data.id === "string" ? approvals[data.id] : undefined;
+      if (prefetched && !resolved.has(prefetched.id))
+        message = resolveLegacyScheduledTaskApproval([message], prefetched)[0];
+      continue;
+    }
+    if (
+      event.event_type === "agent:call" &&
+      !stack.some(
+        (item) =>
+          item.agent_id === (data.agent_id || "unknown") &&
+          item.depth === (data.depth || 0) &&
+          item.message_id === message.id,
+      )
+    ) {
+      stack.push({
+        agent_id: data.agent_id || "unknown",
+        depth: data.depth || 0,
+        message_id: message.id,
+      });
+    }
+    const result = historyProcessor.processMessageEvent(
+      event.event_type,
+      data,
+      message.parts || [],
+      message.content,
+      message.toolCalls || [],
+      data.depth || 0,
+      stack,
+      false,
+      message.id,
+    );
+    message.parts = result.parts;
+    message.content = result.content;
+    message.toolCalls = result.toolCalls;
+    if (result.toolResult) (message.toolResults ??= []).push(result.toolResult);
+    if (result.tokenUsage) message.tokenUsage = result.tokenUsage;
+    if (result.duration) message.duration = result.duration;
+    if (result.cancelled) message.cancelled = true;
+    if (event.event_type === "agent:result") {
+      const index = stack.findIndex(
+        (item) =>
+          item.agent_id === (data.agent_id || "unknown") &&
+          item.message_id === message.id,
+      );
+      if (index >= 0) stack.splice(index, 1);
+    }
+  }
+  message.parts = clearAllLoadingStates(message.parts || [], {
+    preserveAskHuman: true,
+    discardToolDrafts: events.some(
+      (event) => event.event_type === "done" || event.event_type === "complete",
+    ),
+  });
+  return { message, stack };
+}
+
+/** Count actual part reads, callback visits and copied/shifted array elements, including cache rebuild loops. */
+function countIndexedReplayWork() {
+  const counts = { reads: 0, visits: 0, moves: 0 };
+  let enabled = true;
+  const partTypes = new Set([
+    "tool",
+    "text",
+    "thinking",
+    "subagent",
+    "todo",
+    "summary",
+    "artifact",
+    "memoryStatus",
+    "sandbox",
+    "token_usage",
+    "recommend_questions",
+    "cancelled",
+  ]);
+  const keys = new Set<PropertyKey>([
+    "type",
+    "id",
+    "name",
+    "depth",
+    "agent_id",
+    "parts",
+    "result",
+    "isPending",
+    "argsPartial",
+    "alias_id",
+  ]);
+  const wrapped = new WeakMap<object, object>();
+  const isPart = (
+    value: unknown,
+  ): value is NonNullable<Message["parts"]>[number] =>
+    Boolean(
+      value &&
+        typeof value === "object" &&
+        partTypes.has((value as { type?: string }).type || ""),
+    );
+  const wrap = <T extends NonNullable<Message["parts"]>[number]>(
+    part: T,
+  ): T => {
+    const prior = wrapped.get(part);
+    if (prior) return prior as T;
+    const proxy = new Proxy(part, {
+      get(target, key, receiver) {
+        if (enabled && keys.has(key)) counts.reads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    wrapped.set(part, proxy);
+    wrapped.set(proxy, proxy);
+    return proxy;
+  };
+  const restorers: Array<() => void> = [];
+  const patchArray = (
+    key: string | symbol,
+    replacement: (
+      original: (...args: unknown[]) => unknown,
+    ) => (...args: unknown[]) => unknown,
+  ) => {
+    const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, key)!;
+    Object.defineProperty(Array.prototype, key, {
+      ...descriptor,
+      value: replacement(descriptor.value),
+    });
+    restorers.push(() =>
+      Object.defineProperty(Array.prototype, key, descriptor),
+    );
+  };
+  for (const name of [
+    "some",
+    "find",
+    "findIndex",
+    "findLast",
+    "findLastIndex",
+    "map",
+    "filter",
+    "forEach",
+    "reduce",
+    "reduceRight",
+  ]) {
+    patchArray(
+      name,
+      (original) =>
+        function (this: unknown[], ...args: unknown[]) {
+          const callback = args[0] as (
+            this: unknown,
+            ...values: unknown[]
+          ) => unknown;
+          args[0] = function (this: unknown, ...values: unknown[]) {
+            const value =
+              values[name === "reduce" || name === "reduceRight" ? 1 : 0];
+            if (enabled && isPart(value)) counts.visits++;
+            return callback.apply(this, values);
+          };
+          return original.apply(this, args);
+        },
+    );
+  }
+  patchArray(
+    Symbol.iterator,
+    (original) =>
+      function (this: unknown[]) {
+        const iterator = original.call(this) as IterableIterator<unknown>;
+        return {
+          next() {
+            const item = iterator.next();
+            if (enabled && !item.done && isPart(item.value)) counts.moves++;
+            return item;
+          },
+          [Symbol.iterator]() {
+            return this;
+          },
+        };
+      },
+  );
+  patchArray(
+    "slice",
+    (original) =>
+      function (this: unknown[], ...args: unknown[]) {
+        const output = original.apply(this, args) as unknown[];
+        for (let index = 0; enabled && index < output.length; index++)
+          if (isPart(output[index])) counts.moves++;
+        return output;
+      },
+  );
+  patchArray(
+    "splice",
+    (original) =>
+      function (this: unknown[], ...args: unknown[]) {
+        const raw = Number(args[0] || 0);
+        const start =
+          raw < 0 ? Math.max(0, this.length + raw) : Math.min(this.length, raw);
+        const deleted =
+          args.length === 1
+            ? this.length - start
+            : Math.max(0, Math.min(this.length - start, Number(args[1]) || 0));
+        if (args.length - 2 !== deleted)
+          for (
+            let index = start + deleted;
+            enabled && index < this.length;
+            index++
+          )
+            if (isPart(this[index])) counts.moves++;
+        return original.apply(this, args);
+      },
+  );
+  const createTool = sharedParts.createToolPart;
+  const tool = vi
+    .spyOn(sharedParts, "createToolPart")
+    .mockImplementation((...args) => wrap(createTool(...args)));
+  const createDraft = sharedParts.createGeneratingToolPart;
+  const draft = vi
+    .spyOn(sharedParts, "createGeneratingToolPart")
+    .mockImplementation((...args) => wrap(createDraft(...args)));
+  const createAgent = sharedParts.createSubagentPart;
+  const agent = vi
+    .spyOn(sharedParts, "createSubagentPart")
+    .mockImplementation((...args) => wrap(createAgent(...args)));
+  const updateTool = sharedParts.updateToolResultInDepth;
+  const toolResult = vi
+    .spyOn(sharedParts, "updateToolResultInDepth")
+    .mockImplementation((...args) => {
+      const result = updateTool(...args);
+      return result === args[0] ? result : result.map(wrap);
+    });
+  const updateAgent = sharedParts.updateSubagentResult;
+  const agentResult = vi
+    .spyOn(sharedParts, "updateSubagentResult")
+    .mockImplementation((...args) => {
+      const result = updateAgent(...args);
+      return result === args[0] ? result : result.map(wrap);
+    });
+  return {
+    stop() {
+      enabled = false;
+      tool.mockRestore();
+      draft.mockRestore();
+      agent.mockRestore();
+      toolResult.mockRestore();
+      agentResult.mockRestore();
+      for (let index = restorers.length - 1; index >= 0; index--)
+        restorers[index]();
+      return { ...counts, total: counts.reads + counts.visits + counts.moves };
+    },
+  };
+}
+
+function expectIndexedScaleOutput(
+  events: HistoryEvent[],
+  approvals: Record<
+    string,
+    { id: string; status: string; metadata?: Record<string, unknown> | null }
+  > = {},
+) {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(indexedScaleNow);
+  const expected = sharedIndexedReference(events, approvals);
+  const counter = countIndexedReplayWork();
+  const stack: SubagentStackItem[] = [];
+  let actual: Message[];
+  let work: ReturnType<typeof counter.stop>;
+  try {
+    actual = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: stack,
+      approvalStatuses: approvals,
+    });
+  } finally {
+    work = counter.stop();
+    clock.mockRestore();
+  }
+  expect(actual!).toHaveLength(1);
+  for (const key of [
+    "parts",
+    "content",
+    "toolCalls",
+    "toolResults",
+    "tokenUsage",
+    "duration",
+    "cancelled",
+  ] as const)
+    expect(actual![0][key], key).toEqual(expected.message[key]);
+  expect(stack).toEqual(expected.stack);
+  expect(work!.total).toBeGreaterThan(0);
+  expect(work!.total, JSON.stringify(work!)).toBeLessThanOrEqual(
+    events.length * 80 + 8000,
+  );
+  return actual![0];
+}
+
+test("indexed replay keeps 1000 legacy approval cards, duplicate creation and ID-less receipts linear", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++) {
+    const approval = {
+      id: `legacy-${index}`,
+      tool_call_id: `legacy-${index}`,
+      message: `confirm-${index}`,
+      fields: [
+        {
+          name: "reason",
+          label: `Reason ${index}`,
+          type: "text" as const,
+          required: true,
+        },
+      ],
+    };
+    events.push(
+      indexedEvent("approval_required", approval),
+      indexedEvent("approval_required", approval),
+      indexedEvent("approval_resolved", {
+        result: {
+          status: index % 2 ? "rejected" : "success",
+          values: { reason: `${index}` },
+          metadata: { index },
+        },
+        success: index % 2 === 0,
+      }),
+    );
+  }
+  const message = expectIndexedScaleOutput(events);
+  expect(message.parts).toHaveLength(1000);
+});
+
+test("indexed replay repairs 1000 prefetched scheduled approvals without scanning previous cards", async () => {
+  const events: HistoryEvent[] = [];
+  const approvals: Record<
+    string,
+    { id: string; status: string; metadata: Record<string, unknown> }
+  > = {};
+  for (let index = 0; index < 1000; index++) {
+    const id = `prefetched-scheduled-${index}`;
+    approvals[id] = {
+      id,
+      status: index % 2 ? "expired" : "approved",
+      metadata: {
+        approval_type: "scheduled_task_create",
+        task: { name: `scheduled-${index}`, cron: "0 8 * * *" },
+        original: { fields: [index, { all: true }] },
+      },
+    };
+    events.push(
+      indexedEvent("approval_required", {
+        id,
+        message: `schedule-${index}`,
+        fields: [{ name: "time", label: "Time", type: "text", required: true }],
+      }),
+    );
+  }
+  expectIndexedScaleOutput(events, approvals);
+  const lookup = vi.fn();
+  reconstructMessagesFromEvents(events.slice(0, 3), new Set(), {
+    activeSubagentStack: [],
+    approvalStatuses: approvals,
+    onApprovalLookup: lookup,
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(lookup.mock.calls.map((call) => call[0])).toEqual(
+    events.slice(0, 3).map((event) => approvals[(event.data as EventData).id!]),
+  );
+});
+
+test("indexed replay keeps root-only legacy approval identity when a child tool has the same ID", () => {
+  const events = [
+    indexedEvent("agent:call", { agent_id: "child", depth: 1 }),
+    indexedEvent("tool:start", {
+      agent_id: "child",
+      depth: 1,
+      tool: "read_file",
+      tool_call_id: "collision",
+      args: {},
+    }),
+    indexedEvent("approval_required", {
+      id: "collision",
+      message: "root approval",
+    }),
+    indexedEvent("approval_resolved", {
+      tool_call_id: "collision",
+      result: { status: "success", keep: { all: true } },
+    }),
+    indexedEvent("agent:result", {
+      agent_id: "child",
+      depth: 1,
+      result: "done",
+    }),
+  ];
+  const message = expectIndexedScaleOutput(events);
+  expect(
+    message.parts?.filter(
+      (part) => part.type === "tool" && part.id === "collision",
+    ),
+  ).toHaveLength(1);
+});
+
+test("indexed replay resolves 1000 duplicate tool IDs by original agent scope and ignores unnamed misses", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("agent:call", {
+        agent_id: `duplicate-worker-${index}`,
+        depth: 1,
+      }),
+      indexedEvent("tool:start", {
+        agent_id: `duplicate-worker-${index}`,
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "same-id",
+        args: { path: `${index}` },
+      }),
+    );
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:result", {
+        agent_id: `duplicate-worker-${index}`,
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: "same-id",
+        result: { content: `${index}`, attachments: [{ id: index }] },
+      }),
+      indexedEvent("tool:result", {
+        tool_call_id: `missing-unnamed-${index}`,
+        result: "must remain a no-op",
+      }),
+      indexedEvent("approval_resolved", {
+        agent_id: `duplicate-worker-${index}`,
+        depth: 1,
+        tool_call_ids: ["same-id", "same-id", `unknown-${index}`],
+        result: { status: "success", index },
+      }),
+    );
+  expectIndexedScaleOutput(events);
+});
+
+test("indexed replay recovers all 1000 named missing starts rather than dropping their tool results", () => {
+  const events = Array.from({ length: 1000 }, (_, index) =>
+    indexedEvent("tool:result", {
+      tool: "read_file",
+      tool_call_id: `recovered-${index}`,
+      args: { path: `${index}` },
+      result: { content: `${index}`, uploads: [{ key: `result-${index}` }] },
+      success: index % 2 === 0,
+      error: index % 2 ? "failed" : undefined,
+    }),
+  );
+  const message = expectIndexedScaleOutput(events);
+  expect(message.parts).toHaveLength(1000);
+  expect(message.toolResults).toBeUndefined();
+});
+
+test("indexed replay upgrades 1000 anonymous drafts and retains explicit aliases without full scans", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:args:chunk", {
+        tool: index % 2 ? "shell" : "read_file",
+        content: "{",
+      }),
+      indexedEvent("tool:args:chunk", {
+        tool: index % 2 ? "shell" : "read_file",
+        content: `"index":${index}}`,
+      }),
+      indexedEvent("message:chunk", { content: `before anonymous-${index};` }),
+      indexedEvent("tool:start", {
+        tool: index % 2 ? "shell" : "read_file",
+        tool_call_id: `anonymous-final-${index}`,
+        args: { index },
+      }),
+      indexedEvent("tool:args:chunk", {
+        tool: "read_file",
+        tool_call_id: `anonymous-final-${index}`,
+        content: "ignored after upgrade",
+      }),
+      indexedEvent("tool:result", {
+        tool: index % 2 ? "shell" : "read_file",
+        tool_call_id: `anonymous-final-${index}`,
+        result: { index, complete: true },
+      }),
+    );
+  expectIndexedScaleOutput(events);
+});
+
+test("indexed multi-draft selection keeps exact ID then last name then last draft precedence", () => {
+  const events = [
+    indexedEvent("tool:args:chunk", {
+      tool: "alpha",
+      tool_call_id: "first-alpha",
+      content: "first",
+    }),
+    indexedEvent("tool:args:chunk", {
+      tool: "beta",
+      tool_call_id: "middle-beta",
+      content: "middle",
+    }),
+    indexedEvent("tool:args:chunk", {
+      tool: "alpha",
+      tool_call_id: "last-alpha",
+      content: "last",
+    }),
+    indexedEvent("tool:start", {
+      tool: "alpha",
+      tool_call_id: "renamed-alpha",
+      args: { selected: "last-alpha" },
+    }),
+    indexedEvent("tool:result", {
+      tool: "alpha",
+      tool_call_id: "renamed-alpha",
+      result: "last",
+    }),
+    indexedEvent("tool:args:chunk", {
+      tool: "alpha",
+      tool_call_id: "last-alpha",
+      content: "ignored alias delta",
+    }),
+    indexedEvent("tool:start", {
+      tool: "gamma",
+      tool_call_id: "renamed-any",
+      args: { selected: "middle-beta" },
+    }),
+    indexedEvent("tool:result", {
+      tool: "gamma",
+      tool_call_id: "renamed-any",
+      result: "middle",
+    }),
+    indexedEvent("tool:start", {
+      tool: "gamma",
+      tool_call_id: "first-alpha",
+      args: { selected: "exact-id" },
+    }),
+    indexedEvent("tool:result", {
+      tool: "gamma",
+      tool_call_id: "first-alpha",
+      result: "first",
+    }),
+  ];
+  expectIndexedScaleOutput(events);
+});
+
+test("indexed replay does not repeatedly move a 1000-draft tail while forward upgrades insert text", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:args:chunk", {
+        tool: "read_file",
+        tool_call_id: `parallel-draft-${index}`,
+        content: `{"index":${index}}`,
+      }),
+    );
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:start", {
+        tool: "read_file",
+        tool_call_id: `parallel-draft-${index}`,
+        args: { index },
+      }),
+      indexedEvent("message:chunk", { content: `after-${index};` }),
+      indexedEvent("thinking", {
+        thinking_id: `parallel-thought-${index % 3}`,
+        content: `thinking-${index};`,
+      }),
+      indexedEvent("tool:result", {
+        tool: "read_file",
+        tool_call_id: `parallel-draft-${index}`,
+        result: { complete: index },
+      }),
+    );
+  expectIndexedScaleOutput(events);
+});
+
+test("indexed replay keeps 1000 completed-child late results, new parts and repeated queued recoveries", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++) {
+    const agent_id = `late-worker-${index}`;
+    events.push(
+      indexedEvent("agent:call", {
+        agent_id,
+        depth: 1,
+        input: `work-${index}`,
+      }),
+      indexedEvent("tool:start", {
+        agent_id,
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: `late-first-${index}`,
+        args: { index },
+      }),
+      indexedEvent("agent:result", {
+        agent_id,
+        depth: 1,
+        result: "complete before callback",
+      }),
+      indexedEvent("tool:result", {
+        agent_id,
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: `late-first-${index}`,
+        result: { content: index },
+        success: index % 2 === 0,
+      }),
+      indexedEvent("tool:start", {
+        agent_id,
+        depth: 1,
+        tool: "shell",
+        tool_call_id: `late-new-${index}`,
+        args: { command: `${index}` },
+      }),
+      indexedEvent("message:chunk", {
+        agent_id,
+        depth: 1,
+        content: `late-${index};`,
+      }),
+      indexedEvent("agent:call", {
+        agent_id,
+        depth: 1,
+        status: "queued",
+        input: "new execution",
+      }),
+      indexedEvent("agent:call", {
+        agent_id,
+        depth: 1,
+        status: "running",
+        input: "must not replace original input",
+      }),
+      indexedEvent("agent:result", {
+        agent_id,
+        depth: 1,
+        status: "waiting_human",
+        result: "waiting",
+      }),
+      indexedEvent("agent:call", {
+        agent_id,
+        depth: 1,
+        status: "running",
+        input: "resume original card",
+      }),
+      indexedEvent("agent:result", {
+        agent_id,
+        depth: 1,
+        result: "done",
+        success: index % 2 === 0,
+        error: index % 2 ? "error detail" : undefined,
+      }),
+    );
+  }
+  expectIndexedScaleOutput(events);
+});
+
+test.each([1, 2, 3])(
+  "indexed depth-%i drafts preserve recursive selector behavior and root execution-card topology",
+  (depth) => {
+    const events = [
+      indexedEvent("agent:call", {
+        agent_id: "outer",
+        depth: 1,
+        input: "outer",
+      }),
+      indexedEvent("agent:call", {
+        agent_id: "worker",
+        depth,
+        input: "worker",
+      }),
+      indexedEvent("tool:args:chunk", {
+        agent_id: "worker",
+        depth,
+        tool: "read_file",
+        tool_call_id: "depth-draft",
+        content: "{",
+      }),
+      indexedEvent("tool:start", {
+        agent_id: "worker",
+        depth,
+        tool: "read_file",
+        tool_call_id: "depth-draft",
+        args: { preserve: depth },
+      }),
+      indexedEvent("tool:result", {
+        agent_id: "worker",
+        depth,
+        tool: "read_file",
+        tool_call_id: "depth-draft",
+        result: "result",
+      }),
+      indexedEvent("tool:start", {
+        agent_id: "worker",
+        depth,
+        tool: "shell",
+        tool_call_id: "pending-old",
+        args: { command: "same" },
+      }),
+      indexedEvent("tool:start", {
+        agent_id: "worker",
+        depth,
+        tool: "shell",
+        tool_call_id: "pending-new",
+        args: { command: "same" },
+      }),
+      indexedEvent("agent:result", {
+        agent_id: "worker",
+        depth,
+        result: "done",
+      }),
+      indexedEvent("agent:result", {
+        agent_id: "outer",
+        depth: 1,
+        result: "outer done",
+      }),
+    ];
+    const message = expectIndexedScaleOutput(events);
+    expect(
+      message.parts?.filter((part) => part.type === "subagent"),
+    ).toHaveLength(2);
+    for (const part of message.parts || [])
+      if (part.type === "subagent")
+        expect(part.parts?.some((child) => child.type === "subagent")).toBe(
+          false,
+        );
+  },
+);
+
+test.each([
+  "artifact",
+  "memory",
+  "sandbox",
+  "token",
+  "summary",
+  "recommend",
+  "followup",
+  "unknown",
+  "status-noop",
+])(
+  "indexed replay keeps 1000 %s/tool alternations complete without rebuilding the growing history",
+  (kind) => {
+    const events: HistoryEvent[] = [];
+    for (let index = 0; index < 1000; index++) {
+      events.push(
+        indexedEvent("tool:start", {
+          tool: "read_file",
+          tool_call_id: `mixed-event-tool-${index}`,
+          args: { path: `${index}` },
+        }),
+        indexedEvent("tool:result", {
+          tool: "read_file",
+          tool_call_id: `mixed-event-tool-${index}`,
+          result: { content: `${index}`, files: [{ path: `${index}.txt` }] },
+        }),
+      );
+      if (kind === "artifact")
+        events.push(
+          indexedEvent("artifact:result", {
+            artifact: {
+              kind: "file",
+              id: `artifact-${index}`,
+              name: "same.txt",
+              path: "/workspace/same.txt",
+              description: `${index}`,
+              fileSize: index,
+              preview: {
+                kind: "file",
+                previewKey: `version-${index}`,
+                filePath: "/workspace/same.txt",
+                s3Key: `stored-${index}`,
+                signedUrl: `https://example.invalid/${index}`,
+              },
+            },
+            success: index % 2 === 0,
+            error: index % 2 ? "artifact error" : undefined,
+          }),
+        );
+      else if (kind === "memory")
+        events.push(
+          indexedEvent("status", { stage: "memory" }),
+          indexedEvent("status", { stage: "memory_done" }),
+        );
+      else if (kind === "sandbox")
+        events.push(
+          indexedEvent("sandbox:starting"),
+          indexedEvent("sandbox:ready", {
+            sandbox_id: `sandbox-${index}`,
+            work_dir: `/workspace/${index}`,
+          }),
+          indexedEvent("sandbox:error", { error: `sandbox-${index}` }),
+        );
+      else if (kind === "token")
+        events.push(
+          indexedEvent("token:usage", {
+            input_tokens: index,
+            output_tokens: index + 1,
+            total_tokens: index * 2 + 1,
+            cache_creation_tokens: 3,
+            cache_read_tokens: 4,
+            duration: index + 0.25,
+            model_id: "model-id",
+            model: "model-name",
+            cost_usd: index / 100,
+            cost_breakdown: {
+              input: 1,
+              output: 2,
+              cache_read: 3,
+              cache_write: 4,
+              total: 10,
+            },
+            cost_rates: {
+              input: 1,
+              output: 2,
+              cache_read: null,
+              cache_write: 4,
+            },
+          }),
+        );
+      else if (kind === "summary")
+        events.push(
+          indexedEvent("summary", {
+            summary_id: "same-summary",
+            content: `summary-${index};`,
+          }),
+          indexedEvent("summary", {
+            summary_id: "same-summary",
+            freed_tokens: index,
+          }),
+        );
+      else if (kind === "recommend" || kind === "followup")
+        events.push(
+          indexedEvent(
+            kind === "recommend" ? "recommend:questions" : "followup:questions",
+            {
+              questions: [
+                ` question-${index} `,
+                {
+                  title: `title-${index}`,
+                  data_upload: {
+                    id: `upload-${index}`,
+                    keep: { nested: true },
+                  },
+                },
+                { text: `text-${index}`, upload: { path: `${index}` } },
+              ],
+            },
+          ),
+        );
+      else if (kind === "status-noop")
+        events.push(
+          indexedEvent("status", {
+            stage: "unknown-future-stage",
+            queue_position: index,
+          }),
+        );
+      else
+        events.push(
+          indexedEvent("future:telemetry", {
+            metadata: { index, preserve: true },
+          }),
+        );
+    }
+    expectIndexedScaleOutput(events);
+  },
+);
+
+test("indexed approval slots stay current across batch receipts, suspension and legacy receipts", () => {
+  expectIndexedScaleOutput([
+    indexedEvent("approval_required", { id: "A", message: "first" }),
+    indexedEvent("approval_required", { id: "B", message: "second" }),
+    indexedEvent("hitl:suspended", {}),
+    indexedEvent("approval_resolved", {
+      tool_call_ids: ["B"],
+      result: { status: "success", keep: "B" },
+    }),
+    indexedEvent("human_resume_started", {}),
+    indexedEvent("approval_resolved", {
+      result: { status: "rejected", keep: "A" },
+      success: false,
+    }),
+  ]);
+});
+
+test.each(Array.from({ length: 20 }, (_, index) => index))(
+  "indexed mixed selectors preserve shared output (matrix %i)",
+  (index) => {
+    const depth = (index % 3) + 1;
+    const agent_id = `matrix-worker-${index}`;
+    const events = [
+      indexedEvent("agent:call", {
+        agent_id,
+        depth,
+        status: "queued",
+        input: "original",
+      }),
+      indexedEvent("agent:call", {
+        agent_id,
+        depth,
+        status: "running",
+        input: "ignored",
+      }),
+      indexedEvent("tool:args:chunk", {
+        tool: "read_file",
+        content: "anonymous",
+      }),
+      indexedEvent("message:chunk", { content: "before draft" }),
+      indexedEvent("tool:start", {
+        tool: "shell",
+        tool_call_id: "collision",
+        args: { index },
+      }),
+      indexedEvent("tool:args:chunk", {
+        agent_id,
+        depth,
+        tool: "read_file",
+        tool_call_id: "draft",
+        content: "partial",
+      }),
+      indexedEvent("tool:start", {
+        agent_id,
+        depth,
+        tool: "read_file",
+        tool_call_id: "collision",
+        args: { index, child: true },
+      }),
+      indexedEvent("approval_required", { id: "approval-A", message: "A" }),
+      indexedEvent("approval_required", { id: "approval-B", message: "B" }),
+      indexedEvent("hitl:suspended", {}),
+      indexedEvent("approval_resolved", {
+        tool_call_ids: ["approval-B", "unknown"],
+        result: { status: "success", index },
+      }),
+      indexedEvent("human_resume_started", {}),
+      indexedEvent("approval_resolved", {
+        result: { status: "success", index },
+      }),
+      indexedEvent("summary", { content: "summary", summary_id: "summary" }),
+      indexedEvent("unknown:event", { metadata: { index } }),
+      indexedEvent("tool:result", {
+        agent_id,
+        depth,
+        tool_call_id: "collision",
+        result: { index, scope: "child" },
+      }),
+      indexedEvent("agent:result", { agent_id, depth, result: "complete" }),
+      indexedEvent("tool:result", {
+        agent_id,
+        depth,
+        tool: "shell",
+        tool_call_id: "late",
+        result: "recovered",
+      }),
+      indexedEvent("message:chunk", {
+        agent_id,
+        depth,
+        content: "late child text",
+      }),
+      indexedEvent("agent:call", {
+        agent_id,
+        depth,
+        status: "queued",
+        input: "next execution",
+      }),
+      indexedEvent("agent:result", {
+        agent_id,
+        depth,
+        status: "waiting_human",
+        result: "waiting",
+      }),
+      indexedEvent("agent:call", { agent_id, depth, status: "running" }),
+      indexedEvent("agent:result", { agent_id, depth, result: "done" }),
+    ];
+    expectIndexedScaleOutput(events);
+  },
+);
+
+test("indexed anonymous child receipts choose the original first eligible child tool", () => {
+  expectIndexedScaleOutput([
+    indexedEvent("agent:call", { agent_id: "legacy", depth: 1 }),
+    indexedEvent("tool:start", {
+      agent_id: "legacy",
+      depth: 1,
+      tool: "read_file",
+      args: { first: true },
+    }),
+    indexedEvent("tool:start", {
+      agent_id: "legacy",
+      depth: 1,
+      tool: "shell",
+      tool_call_id: "",
+      args: { second: true },
+    }),
+    indexedEvent("tool:result", {
+      agent_id: "legacy",
+      depth: 1,
+      tool: "read_file",
+      result: "first receipt",
+    }),
+    indexedEvent("tool:result", {
+      agent_id: "legacy",
+      depth: 1,
+      tool: "shell",
+      result: "second receipt",
+    }),
+    indexedEvent("agent:result", {
+      agent_id: "legacy",
+      depth: 1,
+      result: "done",
+    }),
+  ]);
+});
+
+test("indexed replay preserves 1000 front draft upgrades with text inserted before the remaining tail", () => {
+  const events: HistoryEvent[] = [];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:args:chunk", {
+        tool: "read_file",
+        tool_call_id: `gap-draft-${index}`,
+        content: `{"index":${index}}`,
+      }),
+    );
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:start", {
+        tool: "read_file",
+        tool_call_id: `gap-draft-${index}`,
+        args: { index },
+      }),
+      indexedEvent("message:chunk", { content: `between-${index};` }),
+      indexedEvent("tool:result", {
+        tool: "read_file",
+        tool_call_id: `gap-draft-${index}`,
+        result: { complete: index },
+      }),
+    );
+  expectIndexedScaleOutput(events);
+});
+
+test("indexed replay repeatedly settles one growing child without revisiting completed tools", () => {
+  const events: HistoryEvent[] = [
+    indexedEvent("agent:call", { agent_id: "repeated", depth: 1 }),
+  ];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:start", {
+        agent_id: "repeated",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: `settled-${index}`,
+        args: { index },
+      }),
+      indexedEvent("tool:result", {
+        agent_id: "repeated",
+        depth: 1,
+        tool_call_id: `settled-${index}`,
+        result: { index },
+      }),
+      indexedEvent("agent:result", {
+        agent_id: "repeated",
+        depth: 1,
+        result: `done-${index}`,
+      }),
+    );
+  expectIndexedScaleOutput(events);
+});
+
+test("history tuple keys distinguish primitive types and boundaries without JSON serialization", () => {
+  const tuples: unknown[][] = [
+    [],
+    [undefined],
+    [null],
+    ["undefined"],
+    ["null"],
+    [1],
+    ["1"],
+    [true],
+    ["true"],
+    ["a", "b"],
+    ["a:string:1:b"],
+    ["", "a"],
+    ["a", ""],
+    ["number:1:1", undefined],
+  ];
+  const serialization = vi.spyOn(JSON, "stringify");
+  try {
+    const encoded = tuples.map((tuple) => historyReplayKey(...tuple));
+    expect(new Set(encoded).size).toBe(tuples.length);
+    expect(historyReplayKey("tool", undefined)).toBe(
+      historyReplayKey("tool", undefined),
+    );
+    expect(serialization).not.toHaveBeenCalled();
+  } finally {
+    serialization.mockRestore();
+  }
+  expect(historyReplayKey("args", { a: 1, b: 2 })).not.toBe(
+    historyReplayKey("args", { b: 2, a: 1 }),
+  );
+});
+
+test.each(["hitl:suspended", "human_resume_started"])(
+  "indexed repeated %s broadcasts visit only tools whose awaiting state changes",
+  (eventType) => {
+    const events: HistoryEvent[] = [];
+    for (let index = 0; index < 1000; index++)
+      events.push(
+        indexedEvent("tool:start", {
+          tool: "read_file",
+          tool_call_id: `unchanged-awaiting-${index}`,
+          args: { path: `${index}` },
+        }),
+      );
+    if (eventType === "human_resume_started")
+      events.push(indexedEvent("hitl:suspended"));
+    // One broadcast changes every pending tool; the following 1000 are semantic no-ops.
+    events.push(indexedEvent(eventType));
+    for (let index = 0; index < 1000; index++)
+      events.push(indexedEvent(eventType));
+    const message = expectIndexedScaleOutput(events);
+    expect(message.parts).toHaveLength(1000);
+  },
+);
+
+function expectPrivateStreamingReplay(
+  events: HistoryEvent[],
+  cloneMetadata = false,
+) {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(indexedScaleNow);
+  const initial = (): Message => ({
+    id: "private-journal",
+    role: "assistant",
+    content: "",
+    timestamp: new Date(indexedScaleNow),
+    parts: [],
+    toolCalls: [],
+    isStreaming: true,
+  });
+  const expected = initial();
+  for (const event of events) {
+    const data = event.data as EventData;
+    const result = historyProcessor.processMessageEvent(
+      event.event_type,
+      data,
+      expected.parts || [],
+      expected.content,
+      expected.toolCalls || [],
+      data.depth || 0,
+      [],
+      true,
+      expected.id,
+    );
+    expected.parts = result.parts;
+    expected.content = result.content;
+    expected.toolCalls = result.toolCalls;
+    if (result.toolResult)
+      (expected.toolResults ??= []).push(result.toolResult);
+    if (result.tokenUsage) expected.tokenUsage = result.tokenUsage;
+    if (result.duration) expected.duration = result.duration;
+  }
+  const counter = countIndexedReplayWork();
+  const replay = new HistoryPartReplay(true);
+  let actual = initial();
+  let work: ReturnType<typeof counter.stop>;
+  try {
+    for (const event of events) {
+      if (cloneMetadata)
+        actual = { ...actual, isStreaming: true, runId: "journal-run" };
+      expect(
+        replay.replay(actual, event.event_type, event.data as EventData),
+      ).toBe(true);
+    }
+    replay.flush(actual);
+  } finally {
+    work = counter.stop();
+    clock.mockRestore();
+  }
+  for (const key of [
+    "parts",
+    "content",
+    "toolCalls",
+    "toolResults",
+    "tokenUsage",
+    "duration",
+  ] as const)
+    expect(actual[key], key).toEqual(expected[key]);
+  expect(work!.total, JSON.stringify(work!)).toBeLessThanOrEqual(
+    events.length * 80 + 8000,
+  );
+  return actual;
+}
+
+test("private streaming replay keeps root thinking and todo streaming fields without history settlement", () => {
+  const message = expectPrivateStreamingReplay([
+    indexedEvent("thinking", { thinking_id: "live-thought", content: "first" }),
+    indexedEvent("tool:args:chunk", {
+      tool: "read_file",
+      tool_call_id: "draft",
+      content: "{",
+    }),
+    indexedEvent("message:chunk", { content: "before tool" }),
+    indexedEvent("thinking", {
+      thinking_id: "live-thought",
+      content: " second",
+    }),
+    indexedEvent("tool:start", {
+      tool: "read_file",
+      tool_call_id: "draft",
+      args: { path: "file" },
+    }),
+    indexedEvent("todo:updated", {
+      todos: [
+        {
+          id: "todo",
+          content: "pending",
+          status: "in_progress",
+          activeForm: "working",
+        },
+      ],
+    }),
+    indexedEvent("tool:result", {
+      tool_call_id: "draft",
+      result: { content: "complete" },
+    }),
+  ]);
+  expect(message.parts?.find((part) => part.type === "thinking")).toMatchObject(
+    { isStreaming: true },
+  );
+  expect(message.parts?.find((part) => part.type === "todo")).toMatchObject({
+    isStreaming: true,
+  });
+});
+
+test("private streaming replay reuses parts indexes across metadata clones for 1000 child tools", () => {
+  const events: HistoryEvent[] = [
+    indexedEvent("agent:call", {
+      agent_id: "stream-child",
+      depth: 1,
+      input: "all files",
+    }),
+  ];
+  for (let index = 0; index < 1000; index++)
+    events.push(
+      indexedEvent("tool:start", {
+        agent_id: "stream-child",
+        depth: 1,
+        tool: "read_file",
+        tool_call_id: `streaming-${index}`,
+        args: { path: `${index}` },
+      }),
+      indexedEvent("thinking", {
+        agent_id: "stream-child",
+        depth: 1,
+        thinking_id: "child-thought",
+        content: `thought-${index};`,
+      }),
+      indexedEvent("todo:updated", {
+        agent_id: "stream-child",
+        depth: 1,
+        todos: [
+          {
+            id: `todo-${index}`,
+            content: `pending-${index}`,
+            status: "in_progress",
+            activeForm: `working-${index}`,
+          },
+        ],
+      }),
+      indexedEvent("tool:result", {
+        agent_id: "stream-child",
+        depth: 1,
+        tool_call_id: `streaming-${index}`,
+        result: { content: `${index}`, attachments: [{ id: `file-${index}` }] },
+      }),
+    );
+  const message = expectPrivateStreamingReplay(events, true);
+  const child = message.parts?.[0];
+  expect(child).toMatchObject({ type: "subagent", isPending: true });
+  if (child?.type === "subagent") {
+    expect(child.parts?.filter((part) => part.type === "tool")).toHaveLength(
+      1000,
+    );
+    expect(child.parts?.find((part) => part.type === "thinking")).toMatchObject(
+      { isStreaming: true },
+    );
+    expect(child.parts?.find((part) => part.type === "todo")).toMatchObject({
+      isStreaming: true,
+    });
+  }
 });

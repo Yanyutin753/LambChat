@@ -131,7 +131,13 @@ async def test_write_event_buffers_sanitized_data(monkeypatch: pytest.MonkeyPatc
     )
 
     buffered = writer._mongo_buffer[0]
-    assert buffered[2] == {"tool": "search", "result": {"structured": {"author_name": "x"}}}
+    assert buffered[2] == {
+        "tool": "search",
+        "result": {"structured": {"author_name": "x"}},
+        "_source_id": buffered[2]["_source_id"],
+        "_source_trace_id": "trace-1",
+    }
+    assert buffered[2]["_source_id"]
     # 原始入参对象不被就地修改
     assert original["result"]["structured"] == {"author.name": "x"}
 
