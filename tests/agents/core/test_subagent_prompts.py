@@ -79,7 +79,10 @@ def test_main_prompts_compose_storage_and_canonical_workflow_once() -> None:
     persistent_prompts = (DEFAULT_SYSTEM_PROMPT,)
     sandbox_prompts = (SANDBOX_SYSTEM_PROMPT, TEAM_SANDBOX_SYSTEM_PROMPT)
 
-    assert all(prompt == "\n\n".join((PERSISTENT_STORAGE_POLICY, NO_SANDBOX_RUNTIME_POLICY)) for prompt in persistent_prompts)
+    assert all(
+        prompt == "\n\n".join((PERSISTENT_STORAGE_POLICY, NO_SANDBOX_RUNTIME_POLICY))
+        for prompt in persistent_prompts
+    )
     assert all(prompt == SANDBOX_STORAGE_POLICY for prompt in sandbox_prompts)
     for base in (*persistent_prompts, *sandbox_prompts):
         effective = "\n\n".join((base, *MAIN_AGENT_PROMPT_SECTIONS))

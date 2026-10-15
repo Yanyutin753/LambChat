@@ -283,9 +283,7 @@ async def test_delegating_agents_load_discovered_role_with_original_prompt(
         }
     }
 
-    node_name = {"team": "team_router_node", "search": "agent_node"}[
-        agent
-    ]
+    node_name = {"team": "team_router_node", "search": "agent_node"}[agent]
     await getattr(team_nodes, node_name)(
         {"input": "hello", "session_id": "session-1", "attachments": []},
         config,

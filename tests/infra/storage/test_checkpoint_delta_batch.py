@@ -350,9 +350,11 @@ async def test_delta_history_replays_task_paths_before_task_ids(monkeypatch):
 
     actual = await saver.aget_delta_channel_history(config=config(), channels=["messages"])
 
-    assert actual == expected == {
-        "messages": {"writes": [("z", "messages", ["first"]), ("a", "messages", ["second"])]}
-    }
+    assert (
+        actual
+        == expected
+        == {"messages": {"writes": [("z", "messages", ["first"]), ("a", "messages", ["second"])]}}
+    )
 
 
 async def test_delta_empty_channels_and_missing_latest_checkpoint_skip_queries(monkeypatch):

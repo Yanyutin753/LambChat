@@ -63,8 +63,7 @@ class BatchedDeltaPostgresSaver(AsyncPostgresSaver):
             while True:
                 params: list[Any] = [value for channel in channels for value in (channel, channel)]
                 stage1_sql = (
-                    stage1_prefix
-                    + f" AND checkpoint_id {'<=' if include_cursor else '<'} %s"
+                    stage1_prefix + f" AND checkpoint_id {'<=' if include_cursor else '<'} %s"
                     " ORDER BY checkpoint_id DESC LIMIT %s"
                 )
                 params.extend([thread_id, checkpoint_ns, cursor, _DELTA_PAGE_SIZE])

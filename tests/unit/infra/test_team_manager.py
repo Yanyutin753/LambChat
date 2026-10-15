@@ -806,7 +806,9 @@ async def test_validate_legacy_fast_member_uses_search_permissions(manager, monk
     from src.agents.core.base import AgentFactory
 
     monkeypatch.setattr(AgentFactory, "list_agents", lambda: [{"id": "search"}])
-    monkeypatch.setattr(AgentFactory, "get_filtered_agents", AsyncMock(return_value=[{"id": "search"}]))
+    monkeypatch.setattr(
+        AgentFactory, "get_filtered_agents", AsyncMock(return_value=[{"id": "search"}])
+    )
     await manager._validate_member_agent_access([SimpleNamespace(agent_id="fast")])
     monkeypatch.setattr(AgentFactory, "get_filtered_agents", AsyncMock(return_value=[]))
     with pytest.raises(ValueError, match="team_member_agent_not_allowed"):

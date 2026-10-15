@@ -291,6 +291,7 @@ def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
     # （v2.10.3 实测泄漏，#539 修复）
     assert merge_step["if"] == (
         "matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true'"
+        " && !contains(env.RELEASE_TAG, '-dev.')"
     )
     # node 合并（三平台镜像都有 Node；Windows 无 python3）
     assert "node -e" in merge_step["run"]
@@ -715,3 +716,95 @@ def test_network_smoke_rejects_request_without_daemon_connection(tmp_path):
     )
     assert result.returncode != 0
     assert "PACKAGED_ASYNC_NETWORK_PASS" not in result.stdout
+
+
+def test_dev_release_preflight_checks_real_platform_versions_and_rejects_bad_tags(tmp_path):
+    import json
+    import os
+    import re
+    import subprocess
+
+    version = json.loads(Path("frontend/package.json").read_text())["version"]
+    for name in (
+        "frontend/package.json",
+        "frontend/src-tauri/tauri.conf.json",
+        "frontend/src-tauri/Cargo.toml",
+        "frontend/android/app/build.gradle",
+        "frontend/ios/App/App.xcodeproj/project.pbxproj",
+        "pyproject.toml",
+        "client/lambchat_sandbox/__init__.py",
+    ):
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        text = Path(name).read_text().replace(version, "2.15.2")
+        text = re.sub(r"versionCode \d+", "versionCode 2152001", text)
+        text = re.sub(r"CURRENT_PROJECT_VERSION = \d+;", "CURRENT_PROJECT_VERSION = 1;", text)
+        target.write_text(text)
+    workflow = _release_workflow()
+    for job in ("desktop", "android", "ios"):
+        script = next(
+            step["run"]
+            for step in workflow["jobs"][job]["steps"]
+            if step.get("name") == "Preflight version consistency"
+        )
+        for tag, valid in (
+            ("v2.15.2-dev.1", True),
+            ("v2.15.2-dev.2", False),
+            ("v2.15.2-dev.999", False),
+            ("v2.15.2-evil.1", False),
+            ("v2.15.2-dev.01", False),
+            ("v2.15.2", False),
+        ):
+            result = subprocess.run(
+                ["bash", "-c", script],
+                env={**os.environ, "RELEASE_TAG": tag},
+                cwd=tmp_path,
+                capture_output=True,
+                text=True,
+            )
+            assert (result.returncode == 0) is valid, (job, tag, result.stdout, result.stderr)
+        android = tmp_path / "frontend/android/app/build.gradle"
+        ios = tmp_path / "frontend/ios/App/App.xcodeproj/project.pbxproj"
+        android.write_text(android.read_text().replace("2152001", "2152999"))
+        ios.write_text(
+            ios.read_text().replace(
+                "CURRENT_PROJECT_VERSION = 1;", "CURRENT_PROJECT_VERSION = 999;"
+            )
+        )
+        result = subprocess.run(
+            ["bash", "-c", script],
+            cwd=tmp_path,
+            env={**os.environ, "RELEASE_TAG": "v2.15.2"},
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        android.write_text(android.read_text().replace("2152999", "2152001"))
+        ios.write_text(
+            ios.read_text().replace(
+                "CURRENT_PROJECT_VERSION = 999;", "CURRENT_PROJECT_VERSION = 1;"
+            )
+        )
+
+
+def test_dev_release_cannot_enter_stable_distribution():
+    workflow = _release_workflow()
+    for job in ("desktop", "android", "ios"):
+        publish = next(
+            step
+            for step in workflow["jobs"][job]["steps"]
+            if "gh release create" in step.get("run", "")
+        )
+        assert "--prerelease --latest=false" in publish["run"]
+        assert '"${release_flags[@]}"' in publish["run"]
+    steps = {step.get("name"): step for step in workflow["jobs"]["release"]["steps"]}
+    publish = steps["Publish release"]["with"]
+    assert "contains(env.RELEASE_TAG, '-dev.')" in publish["prerelease"]
+    assert "'false'" in publish["make_latest"]
+    script = steps["Generate latest.json updater manifest"]["run"]
+    assert script.index('if [[ "$RELEASE_TAG" == *-dev.* ]]') < script.index(
+        "scripts/generate_updater_manifest.py"
+    )
+    updater = _source(".github/workflows/desktop-updater-publish.yml")
+    assert "Only stable tags may publish the updater" in updater
+    assert '[ "$prerelease" = false ]' in updater

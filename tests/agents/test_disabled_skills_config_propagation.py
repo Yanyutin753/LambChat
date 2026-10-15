@@ -99,7 +99,11 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(getattr(module, "backend_setup", module), "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        getattr(module, "backend_setup", module),
+        "create_persistent_backend",
+        lambda **_kwargs: object(),
+    )
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)
@@ -134,7 +138,9 @@ async def test_agent_node_propagates_disabled_skills_to_inner_config(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     presenter = object()
@@ -205,13 +211,21 @@ async def test_search_without_sandbox_subagent_keeps_functional_middleware(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     binary = object()
     artifact = object()
     activity = object()
-    monkeypatch.setattr(search_without_sandbox_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
-    monkeypatch.setattr(search_without_sandbox_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
-    monkeypatch.setattr(search_without_sandbox_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary
+    )
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact
+    )
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity
+    )
     monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_MEMORY", True)
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -247,7 +261,9 @@ async def test_search_without_sandbox_subagent_tool_search_uses_isolated_manager
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     captured_managers = _patch_tool_search_middleware(monkeypatch)
 
     deferred_manager = _FakeDeferredManager()
@@ -283,7 +299,9 @@ async def test_agent_node_returns_output_text_before_final_processor_cleanup(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     _FakeEventProcessor.next_output_text = "vision answer"
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -314,7 +332,9 @@ async def test_agent_node_reads_existing_state_messages_for_recommendations(
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
 
     import src.agents.core.recommendations as recommendations
@@ -355,7 +375,9 @@ async def test_agent_node_schedules_recommendations_with_final_output(
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
     calls = []
@@ -414,7 +436,9 @@ async def test_agent_node_continues_when_recommendation_scheduling_fails(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_without_sandbox_nodes, fake_graph)
-    monkeypatch.setattr(search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
+    )
     monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
 

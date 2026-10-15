@@ -369,8 +369,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         _image_mw = image_url_middleware_for_mode(member_image_url_mode)
         if _image_mw:
             mw.append(_image_mw)
-        mode_prompt = build_no_team_fallback_system_prompt(sandbox_active=sandbox_backend is not None)
-        sections = [mode_prompt, *[section for section in (prompt_sections or []) if section != mode_prompt]]
+        mode_prompt = build_no_team_fallback_system_prompt(
+            sandbox_active=sandbox_backend is not None
+        )
+        sections = [
+            mode_prompt,
+            *[section for section in (prompt_sections or []) if section != mode_prompt],
+        ]
         mw.append(SectionPromptMiddleware(sections=sections))
         if sandbox_backend:
             mw.append(

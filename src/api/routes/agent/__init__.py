@@ -302,7 +302,9 @@ async def list_agents(
 
     # 获取用户的默认 agent 设置
     user_preference = await storage.get_user_preference(optional_user.sub)
-    default_agent = (user_preference.default_agent_id if user_preference else None) or settings.DEFAULT_AGENT
+    default_agent = (
+        user_preference.default_agent_id if user_preference else None
+    ) or settings.DEFAULT_AGENT
     default_agent = normalize_agent_id(default_agent)
 
     # 获取用户角色的可用 agents 映射（使用角色ID作为key）

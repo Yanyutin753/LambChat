@@ -844,7 +844,8 @@ class AgentFactory:
         if catalog_configs:
             configured_ids = {a.id for a in catalog_configs}
             enabled_agent_ids = {
-                normalize_agent_id(a.id) for a in catalog_configs
+                normalize_agent_id(a.id)
+                for a in catalog_configs
                 if a.enabled and not (a.id == "fast" and "search" in configured_ids)
             }
             logger.info(f"[get_filtered_agents] catalog config exists, enabled={enabled_agent_ids}")
@@ -852,7 +853,8 @@ class AgentFactory:
             # 全局配置已保存过 → 以它为准（即使全部禁用也尊重）
             configured_ids = {a.id for a in global_configs}
             enabled_agent_ids = {
-                normalize_agent_id(a.id) for a in global_configs
+                normalize_agent_id(a.id)
+                for a in global_configs
                 if a.enabled and not (a.id == "fast" and "search" in configured_ids)
             }
             logger.info(f"[get_filtered_agents] global config exists, enabled={enabled_agent_ids}")

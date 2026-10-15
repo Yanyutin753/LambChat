@@ -45,4 +45,8 @@ def test_search_initial_tools_keep_same_order_after_loader_reordering():
     second = SearchAgentContext()
     first._append_unique_tools([z, a])
     second._append_unique_tools([a, z])
-    assert [tool.name for tool in first.tools] == [tool.name for tool in second.tools] == ["alpha", "zebra"]
+    assert (
+        [tool.name for tool in first.tools]
+        == [tool.name for tool in second.tools]
+        == ["alpha", "zebra"]
+    )

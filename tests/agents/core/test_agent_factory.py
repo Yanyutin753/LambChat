@@ -140,12 +140,18 @@ async def test_legacy_fast_catalog_and_role_allow_search(monkeypatch):
     from src.agents.core import base as base_module
 
     monkeypatch.setattr(base_module, "_AGENT_REGISTRY", {"search": _SearchAgentClass})
-    storage = SimpleNamespace(get_catalog_config=AsyncMock(return_value=[
-        AgentCatalogConfig(id="fast", name="Fast", description="Legacy", enabled=True),
-    ]))
+    storage = SimpleNamespace(
+        get_catalog_config=AsyncMock(
+            return_value=[
+                AgentCatalogConfig(id="fast", name="Fast", description="Legacy", enabled=True),
+            ]
+        )
+    )
     monkeypatch.setattr("src.infra.agent.config_storage.get_agent_config_storage", lambda: storage)
     agents = await AgentFactory.get_filtered_agents(
-        user_roles=["member"], role_agent_map={"member": ["fast"]}, default_agent_id="fast",
+        user_roles=["member"],
+        role_agent_map={"member": ["fast"]},
+        default_agent_id="fast",
     )
     assert [agent["id"] for agent in agents] == ["search"]
     assert agents[0]["name"] == "agents.search.name"
@@ -156,12 +162,18 @@ async def test_disabled_search_is_not_enabled_by_legacy_fast_catalog(monkeypatch
     from src.agents.core import base as base_module
 
     monkeypatch.setattr(base_module, "_AGENT_REGISTRY", {"search": _SearchAgentClass})
+
     class Storage(_CatalogStorage):
         async def get_catalog_config(self):
             configs = await super().get_catalog_config()
-            return [*configs, AgentCatalogConfig(id="fast", name="Fast", description="Legacy", enabled=True)]
+            return [
+                *configs,
+                AgentCatalogConfig(id="fast", name="Fast", description="Legacy", enabled=True),
+            ]
 
-    monkeypatch.setattr("src.infra.agent.config_storage.get_agent_config_storage", lambda: Storage())
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage", lambda: Storage()
+    )
     assert await AgentFactory.get_filtered_agents(user_roles=[], role_agent_map={}) == []
 
 

@@ -394,7 +394,9 @@ class AgentConfigStorage:
         from src.agents.core.base import normalize_agent_id
 
         agent_id = doc.get("default_agent_id")
-        return UserAgentPreference(default_agent_id=normalize_agent_id(agent_id) if agent_id else None)
+        return UserAgentPreference(
+            default_agent_id=normalize_agent_id(agent_id) if agent_id else None
+        )
 
     async def set_user_preference(self, user_id: str, agent_id: str) -> UserAgentPreference:
         """设置用户的默认 Agent"""

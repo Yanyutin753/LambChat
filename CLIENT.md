@@ -22,6 +22,8 @@
 - 原生工程目录（`frontend/android/`、`frontend/ios/App/`）的改动单独成 commit，不带 WebView 代码改动，便于回溯 Xcode/Gradle 层回归。
 - `frontend/src-tauri/binaries/`、`resources/python/` 产物不进 git（已有 .gitignore 覆盖），禁止「顺手提交一个能跑的 sidecar」。
 
+Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准；dev 安装包只作指定 tag 的手动测试，不进入稳定自动更新。运行时使用核心版本，测试时以 tag、构建号及 SHA 区分，正式版须提高平台构建号并重新构建。
+
 ## 2. 文档（§2）
 
 - 每个**新增** Tauri command 在 PR 描述列出：名称、入参出参、副作用、所需 capability；`daemon.rs` 现有 8 个 command 作为基线。
