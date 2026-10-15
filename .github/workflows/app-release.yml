@@ -149,6 +149,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm \
+            cpio \
             python3-pyatspi \
             python3-gi \
             gir1.2-atspi-2.0 \
@@ -310,6 +311,23 @@ jobs:
             echo "No Linux desktop artifacts found"
             exit 1
           fi
+          icon_root="$(mktemp -d)"
+          trap 'rm -rf "$icon_root"' EXIT
+          for package in "$deb" "$rpm"; do
+            [ -n "$package" ] || continue
+            unpack="$icon_root/$(basename "$package")"
+            mkdir -p "$unpack"
+            if [[ "$package" == *.deb ]]; then
+              dpkg-deb -x "$package" "$unpack"
+            else
+              rpm2cpio "$package" | (cd "$unpack" && cpio -idm --quiet)
+            fi
+            icon="$(find "$unpack/usr/share/icons" -path '*/128x128/apps/*.png' -type f | head -1)"
+            test -n "$icon"
+            cmp "$icon" frontend/src-tauri/icons/128x128.png
+            grep -R -q '^Icon=lambchat$' "$unpack/usr/share/applications"
+          done
+          echo "PASS Linux deb/rpm contain LambChat desktop icons"
           # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
           cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
@@ -341,6 +359,7 @@ jobs:
           if ($null -eq $exePath) {
             throw 'No Windows portable exe found'
           }
+          ./scripts/verify_windows_package_icons.ps1 -Setup $setup.FullName -App $exePath
           $portableDir = 'release-assets/LambChat-Portable'
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
           Copy-Item $exePath $portableDir
@@ -376,6 +395,17 @@ jobs:
           else
             echo "No macOS .app bundle found; uploading DMG only."
           fi
+          icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app_path/Contents/Info.plist")"
+          [[ "$icon_name" == *.icns ]] || icon_name="$icon_name.icns"
+          cmp "$app_path/Contents/Resources/$icon_name" frontend/src-tauri/icons/icon.icns
+          icon_mount="$(mktemp -d)"
+          trap 'hdiutil detach "$icon_mount" >/dev/null 2>&1 || true; rmdir "$icon_mount" 2>/dev/null || true' EXIT
+          hdiutil attach "$dmg_path" -readonly -nobrowse -mountpoint "$icon_mount"
+          cmp "$icon_mount/.VolumeIcon.icns" frontend/src-tauri/icons/icon.icns
+          hdiutil detach "$icon_mount"
+          rmdir "$icon_mount"
+          trap - EXIT
+          echo "PASS macOS app and mounted installer volume use LambChat icons"
           cp "$dmg_path" "release-assets/LambChat-${RELEASE_TAG}-${{ matrix.asset_suffix }}.dmg"
           # Tauri updater 的 macOS 产物（createUpdaterArtifacts + 签名密钥）。
           # 缺失会让本架构 darwin 条目被静默略过、mac 永远收不到更新，
