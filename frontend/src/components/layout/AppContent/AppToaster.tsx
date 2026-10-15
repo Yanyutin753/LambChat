@@ -1,10 +1,8 @@
 import { Toaster, ToastBar, toast } from "react-hot-toast";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_TOASTER_CLASS_NAME } from "./appToastLayout";
-import { IconButton } from "../../common/ui/IconButton";
-import { topmostVisibleModalDialog } from "../../../utils/modalDialog";
+import { ToastDismissButton } from "../../common/ToastDismissButton";
 
 export function AppToaster() {
   const { t } = useTranslation();
@@ -53,20 +51,9 @@ export function AppToaster() {
                 <div className="app-toast-message min-w-0 flex-1 text-14 leading-snug">
                   {message}
                 </div>
-                <IconButton
-                  size="sm"
-                  icon={<X size={14} aria-hidden="true" />}
-                  className="shrink-0"
-                  aria-label={t("common.dismiss", "关闭")}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (document.activeElement === event.currentTarget)
-                      topmostVisibleModalDialog()?.focus({
-                        preventScroll: true,
-                      });
-                    toast.dismiss(currentToast.id);
-                  }}
+                <ToastDismissButton
+                  label={t("common.dismiss", "关闭")}
+                  onDismiss={() => toast.dismiss(currentToast.id)}
                 />
               </div>
             )}

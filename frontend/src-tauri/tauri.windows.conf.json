@@ -17,7 +17,16 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "installerHooks": "windows/hooks.nsh"
+        "installerHooks": "windows/hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "windows/installer/nsis-header.bmp",
+        "uninstallerHeaderImage": "windows/installer/nsis-header.bmp",
+        "sidebarImage": "windows/installer/nsis-sidebar.bmp"
+      },
+      "wix": {
+        "bannerPath": "windows/installer/wix-banner.bmp",
+        "dialogImagePath": "windows/installer/wix-dialog.bmp"
       }
     }
   }
