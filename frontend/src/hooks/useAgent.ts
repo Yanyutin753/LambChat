@@ -1195,6 +1195,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       selectedTeamId,
       goalModeEnabled,
       persistentGoal,
+      persistentMutationEpochRef,
+      persistentMutationRef,
       activeGoal,
       setPersistentGoal,
       setPersistentGoalBusy,
