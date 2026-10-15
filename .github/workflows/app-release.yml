@@ -111,7 +111,10 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(( $(printf '%s' "$tag" | tr -d '.') * 1000 + build ))"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
@@ -120,7 +123,7 @@ jobs:
           ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"
@@ -598,7 +601,10 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(( $(printf '%s' "$tag" | tr -d '.') * 1000 + build ))"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
@@ -607,7 +613,7 @@ jobs:
           ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"
@@ -758,7 +764,10 @@ jobs:
           daemon="$(grep -m1 '^__version__ = ' client/lambchat_sandbox/__init__.py | sed -E 's/__version__ = "([^"]+)"/\1/')"
           # Cargo.toml 的包版本编译期进 CARGO_PKG_VERSION，须与桌面运行时版本一致
           cargo_toml="$(grep -m1 '^version = ' frontend/src-tauri/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
-          want_code="$(( $(printf '%s' "$tag" | tr -d '.') * 1000 + build ))"
+          IFS=. read -r major minor patch <<< "$tag"
+          [ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] || { echo "Native version components must be below 100"; exit 1; }
+          want_code="$(( (major * 10000 + minor * 100 + patch) * 1000 + build ))"
+          [ "$want_code" -le 2100000000 ] || { echo "Android versionCode limit exceeded"; exit 1; }
           fail=0
           for entry in "frontend/package.json=$pkg" "tauri.conf.json=$tauri" "src-tauri Cargo.toml=$cargo_toml" "android versionName=$gradle_name" "iOS MARKETING_VERSION=$ios" "pyproject.toml=$pyproject" "daemon __version__=$daemon"; do
             k="${entry%%=*}"; v="${entry#*=}"
@@ -767,7 +776,7 @@ jobs:
           ios_build="$(grep -m1 'CURRENT_PROJECT_VERSION' frontend/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);.*/\1/')"
           if [ "$ios_build" != "$build" ]; then echo "iOS build is $ios_build, expected $build"; fail=1; fi
           if [ "$gradle_code" != "$want_code" ]; then
-            echo "✗ android versionCode is $gradle_code, expected $want_code (digits of $tag)"; fail=1
+            echo "✗ android versionCode is $gradle_code, expected $want_code (native build mapping for $tag)"; fail=1
           fi
           if [ "$fail" != 0 ]; then
             echo "Version drift detected: bump ALL platform version files before tagging $RELEASE_TAG"

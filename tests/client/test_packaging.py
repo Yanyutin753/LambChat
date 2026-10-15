@@ -737,7 +737,7 @@ def test_dev_release_preflight_checks_real_platform_versions_and_rejects_bad_tag
         target = tmp_path / name
         target.parent.mkdir(parents=True, exist_ok=True)
         text = Path(name).read_text().replace(version, "2.15.2")
-        text = re.sub(r"versionCode \d+", "versionCode 2152001", text)
+        text = re.sub(r"versionCode \d+", "versionCode 21502001", text)
         text = re.sub(r"CURRENT_PROJECT_VERSION = \d+;", "CURRENT_PROJECT_VERSION = 1;", text)
         target.write_text(text)
     workflow = _release_workflow()
@@ -765,7 +765,7 @@ def test_dev_release_preflight_checks_real_platform_versions_and_rejects_bad_tag
             assert (result.returncode == 0) is valid, (job, tag, result.stdout, result.stderr)
         android = tmp_path / "frontend/android/app/build.gradle"
         ios = tmp_path / "frontend/ios/App/App.xcodeproj/project.pbxproj"
-        android.write_text(android.read_text().replace("2152001", "2152999"))
+        android.write_text(android.read_text().replace("21502001", "21502999"))
         ios.write_text(
             ios.read_text().replace(
                 "CURRENT_PROJECT_VERSION = 1;", "CURRENT_PROJECT_VERSION = 999;"
@@ -779,7 +779,7 @@ def test_dev_release_preflight_checks_real_platform_versions_and_rejects_bad_tag
             text=True,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        android.write_text(android.read_text().replace("2152999", "2152001"))
+        android.write_text(android.read_text().replace("21502999", "21502001"))
         ios.write_text(
             ios.read_text().replace(
                 "CURRENT_PROJECT_VERSION = 999;", "CURRENT_PROJECT_VERSION = 1;"

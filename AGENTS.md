@@ -175,7 +175,7 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 - 预发布 tag 使用 `vX.Y.Z-dev.N`（如 `v2.15.2-dev.1`），`X.Y.Z` 是下一正式版，`N` 从 1 递增，最大 998。不得覆盖既有 tag 或复用同一编号。
 - GitHub 必须标记 **Pre-release** 且 `make_latest=false`；稳定版 Latest、安装脚本、下载页和默认版本查询继续指向最近正式版。dev 版只能通过指定 tag 的 Release 页面手动下载。
 - 当前各端与服务端运行时版本统一使用数字核心 `X.Y.Z`；dev 标识由 Release tag、构建资产名和源码 SHA 标识，不将该包称为正式版。签名清单的版本使用核心版本，commit 必须对应 tag 的源码。当前不支持 dev 通道自动升级，也不能依赖运行时版本区分同核心的 dev 构建；安装前核对 tag 和 SHA，使用测试设备。dev 与同核心正式版的运行时版本相同，版本比较不会自动升级；测试人员转正式版时必须手动重装客户端及独立 daemon，不能只等待自动更新。
-- Android `versionCode` = 核心版本去点后的整数 × 1000 + 构建序号：dev 使用 N，正式版使用 999。例如 `2.15.2-dev.1` 为 2152001，正式版为 2152999；iOS `MARKETING_VERSION` 使用核心版本，`CURRENT_PROJECT_VERSION` 使用对应构建序号。每次替换同核心包都须增加平台构建号。
+- Android `versionCode` = `(major × 10000 + minor × 100 + patch) × 1000 + 构建序号`（minor、patch 均须小于 100，结果不超过 Android 的 2100000000 上限）：dev 使用 N，正式版使用 999。例如 `2.15.2-dev.1` 为 21502001，正式版为 21502999；iOS `MARKETING_VERSION` 使用核心版本，`CURRENT_PROJECT_VERSION` 使用对应构建序号。每次替换同核心包都须增加平台构建号。
 - dev 包仍须通过完整 CI、各端打包及产物冒烟，失败的预发布不得宣传为可用版本。标签遵守下文 main 合并提交规则；Web/服务端经 staging 验证后可独立部署生产，客户端 dev 发布不自动晋升稳定通道。
 - dev 版无论 `DESKTOP_UPDATER_AUTO_PUBLISH` 配置如何，都禁止上传稳定 `latest.json`；手动 Desktop Updater Publish 也必须拒绝 dev tag 和 GitHub Pre-release。
 - 验证完成后以新 `vX.Y.Z` tag 重新构建正式版，并重新签名、核验版本与升级路径；不得直接编辑 dev Release 将其改成正式版。正式发布仍遵守每天一个正式版与真机抽检要求，dev 预发布不占当天正式版名额。
