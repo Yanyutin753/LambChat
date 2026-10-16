@@ -13,6 +13,8 @@ test.each([
   [18, "1.125rem"],
   [undefined, "1.5rem"],
   ["0.875rem", "0.875rem"],
+  ["1em", "1em"],
+  ["0.82em", "0.82em"],
 ])("animated icon size %s follows root font size", (size, expected) => {
   const { container } = render(
     <button aria-label="Add">
