@@ -134,7 +134,7 @@ function useDemoTabs() {
 
 function DemoCloseButton() {
   return (
-    <button className="p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-stone-700/60 transition-all">
+    <button className="p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-hover dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-theme-bg-hover transition-all">
       <X size={18} />
     </button>
   );
@@ -207,7 +207,7 @@ function InfoTabCurrent() {
           </span>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <label className="cursor-pointer rounded-lg bg-stone-100 dark:bg-stone-700 px-3 py-1.5 text-12 font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-600 transition-colors">
+          <label className="cursor-pointer rounded-lg bg-stone-100 dark:bg-stone-700 px-3 py-1.5 text-12 font-medium text-stone-600 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors">
             {t("profile.changeAvatar")}
           </label>
           <Button variant="danger" size="sm">
@@ -747,7 +747,7 @@ function navPillClass(variant: VariantKey, active: boolean): string {
     // a/b/c：反色胶囊 token 化（sepia 下暖深底 + 米黄字）
     return `${base} bg-theme-text text-theme-bg-card`;
   }
-  return `${base} text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-stone-700/50`;
+  return `${base} text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover`;
 }
 
 function logoutPillClass(variant: VariantKey): string {
@@ -841,7 +841,7 @@ function DemoModal({ variant }: { variant: VariantKey }) {
                   className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-12 font-medium transition-all ${
                     isActive
                       ? "bg-theme-bg-card dark:bg-stone-800 text-theme-text dark:text-stone-100 shadow-sm border border-theme-border dark:border-stone-700/60"
-                      : "text-theme-text-secondary dark:text-stone-400 hover:text-theme-text dark:hover:text-stone-200 hover:bg-theme-bg-card dark:hover:bg-stone-800/60 border border-transparent"
+                      : "text-theme-text-secondary dark:text-stone-400 hover:text-theme-text dark:hover:text-stone-200 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover border border-transparent"
                   }`}
                 >
                   {Icon && (

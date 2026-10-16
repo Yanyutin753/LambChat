@@ -95,7 +95,7 @@ export function ModelBrandPicker({
     ) : (
       <span
         aria-hidden="true"
-        className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--theme-bg-subtle)] text-10 text-theme-text-muted"
+        className="flex size-[1.125rem] shrink-0 items-center justify-center rounded-full bg-[var(--theme-bg-subtle)] text-10 text-theme-text-muted"
       >
         ?
       </span>
@@ -207,7 +207,9 @@ export function ModelBrandPicker({
                     type="button"
                     role="option"
                     aria-selected={value === slug}
-                    className={`ui-select-option min-h-11 sm:min-h-9 ${value === slug ? "ui-select-option--active" : ""}`}
+                    className={`ui-select-option min-h-11 sm:min-h-9 ${
+                      value === slug ? "ui-select-option--active" : ""
+                    }`}
                     onClick={() => select(slug)}
                   >
                     {icon(slug)}

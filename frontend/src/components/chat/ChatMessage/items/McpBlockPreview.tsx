@@ -103,7 +103,7 @@ function BlockPreviewTab({
           href={preview.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-theme-bg-subtle text-14 text-theme-text-secondary hover:bg-theme-bg-elevated transition-colors border border-theme-border"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-theme-bg-subtle text-14 text-theme-text-secondary hover:bg-theme-bg-hover transition-colors border border-theme-border"
         >
           <InteractiveIcon>
             <ExternalLink size={14} />
@@ -184,7 +184,7 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
     return (
       <button
         onClick={() => openBlockPreview({ type: "file", url, fileName })}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-secondary hover:bg-theme-bg-elevated transition-colors border border-theme-border cursor-pointer"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-secondary hover:bg-theme-bg-hover transition-colors border border-theme-border cursor-pointer"
       >
         <InteractiveIcon>
           <File size={12} />
@@ -261,7 +261,7 @@ function GeneratedImageResults({ images }: { images: GeneratedImageResult[] }) {
                 href={image.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-md p-1 text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
+                className="shrink-0 rounded-md p-1 text-theme-text-tertiary transition-colors hover:bg-theme-bg-hover hover:text-theme-text"
                 aria-label={t("chat.message.openImage", "Open image")}
               >
                 <InteractiveIcon>

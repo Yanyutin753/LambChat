@@ -3,6 +3,7 @@ import {
   isValidElement,
   useEffect,
   useRef,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import type { LucideProps } from "lucide-react";
@@ -449,7 +450,15 @@ function AnimatedActionIcon({
     <span
       ref={host}
       className="contents interactive-action-icon"
-      style={{ strokeWidth: props.strokeWidth ?? 2 }}
+      style={
+        {
+          strokeWidth: props.strokeWidth ?? 2,
+          "--interactive-icon-size":
+            typeof props.size === "number"
+              ? `${props.size / 16}rem`
+              : props.size ?? "1.5rem",
+        } as CSSProperties
+      }
       aria-hidden="true"
       data-interactive-icon=""
     >

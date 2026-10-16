@@ -44,7 +44,7 @@ export function ShareButton({ sessionId, runId, className }: ShareButtonProps) {
           aria-label={t("share.title")}
           className={clsx(
             "flex items-center justify-center rounded-md p-1.5 transition-all",
-            "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
+            "text-stone-400 dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover hover:text-stone-600 dark:hover:text-stone-300",
             className,
           )}
         >

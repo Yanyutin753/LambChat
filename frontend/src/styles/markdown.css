@@ -182,7 +182,7 @@
 
 .ai-data-table__action:hover {
   color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: var(--theme-bg-hover);
 }
 
 .ai-data-table__action:focus-visible {
@@ -809,5 +809,11 @@
   }
   .ai-data-table__actions {
     gap: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .ai-data-table__action .ui-button__label {
+    display: none;
   }
 }

@@ -37,7 +37,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       aria-description={failed ? t("profile.preferenceSyncFailed") : undefined}
       className={
         className ??
-        "flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+        "flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-theme-bg-hover dark:text-stone-300 dark:hover:bg-theme-bg-hover transition-colors"
       }
       title={label}
     >

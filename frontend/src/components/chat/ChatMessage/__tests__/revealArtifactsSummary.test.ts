@@ -8,9 +8,9 @@ test("inline artifact thumbnails and glyphs share the same size and text alignme
     /<span\s+className=\{\s*inline\s*\? "flex h-10 w-10 shrink-0 items-center justify-center"\s*:\s*"contents"\s*\}\s*>\s*<ImageWithSkeleton/,
   );
   expect(source).toMatch(/inline \? "w-10 h-10" : "w-9 h-9"/);
-  expect(source).toMatch(/<FileIcon\s+size=\{24\}/);
+  expect(source).toMatch(/<FileIcon\s[^>]*iconSize=\{16\}/);
   expect(source).toMatch(/<Icon\s+size=\{24\}/);
-  expect(source).toMatch(/<FolderIcon\s+size=\{24\}/);
+  expect(source).toMatch(/<FolderStateIcon\s+size=\{16\}/);
 });
 
 test("reveal artifacts summary mirrors the file tree view row details", () => {

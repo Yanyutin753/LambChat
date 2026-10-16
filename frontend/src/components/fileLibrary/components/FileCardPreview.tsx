@@ -1,3 +1,4 @@
+import { FileIcon } from "../../common/FileIcon";
 import { useState } from "react";
 import { clsx } from "clsx";
 import { Play } from "lucide-react";
@@ -452,9 +453,13 @@ function CompactCover({
       alt={preview.title}
       className="h-full w-full object-cover"
       fallback={
-        <div className="flex h-full w-full items-center justify-center bg-theme-bg-subtle">
-          <Icon size={16} strokeWidth={1.8} className={tint} />
-        </div>
+        <FileIcon
+          icon={Icon}
+          bg="bg-theme-bg-subtle"
+          color={tint}
+          iconSize={16}
+          strokeWidth={1.8}
+        />
       }
     />
   );

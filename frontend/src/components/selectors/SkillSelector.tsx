@@ -177,7 +177,7 @@ export function SkillSelector({
         icon={
           <Sparkles
             size={16}
-            className="text-stone-500 dark:text-amber-400 sm:w-[18px] sm:h-[18px]"
+            className="text-stone-500 dark:text-amber-400 sm:w-[1.125rem] sm:h-[1.125rem]"
           />
         }
         title={t("skillSelector.title")}
@@ -315,7 +315,7 @@ export function SkillSelector({
               >
                 {/* Category Header */}
                 <div
-                  className="flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/70 active:bg-stone-100 dark:active:bg-stone-800 transition-all duration-200"
+                  className="flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-3 cursor-pointer hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100 dark:active:bg-stone-800 transition-all duration-200"
                   onClick={() => toggleCategoryExpand(cat)}
                   role="button"
                   tabIndex={0}
@@ -339,7 +339,7 @@ export function SkillSelector({
                     <InteractiveIcon>
                       <Icon
                         size={13}
-                        className={`${sourceColors[cat]} sm:w-[14px] sm:h-[14px]`}
+                        className={`${sourceColors[cat]} sm:w-[0.875rem] sm:h-[0.875rem]`}
                       />
                     </InteractiveIcon>
                   </div>
@@ -393,7 +393,7 @@ export function SkillSelector({
                             disabled={personaControlled || isMutating}
                             className={`flex w-full items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed ${
                               skill.enabled
-                                ? "hover:bg-stone-50 dark:hover:bg-stone-800/70 active:bg-stone-100/80 dark:active:bg-stone-800"
+                                ? "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100/80 dark:active:bg-stone-800"
                                 : "bg-[var(--theme-primary)]/[0.07] ring-1 ring-[var(--theme-primary)]/10 dark:bg-[var(--theme-primary)]/[0.10] hover:bg-[var(--theme-primary)]/[0.12] dark:hover:bg-[var(--theme-primary)]/[0.14] active:bg-[var(--theme-primary)]/[0.18] dark:active:bg-[var(--theme-primary)]/[0.20]"
                             } ${
                               pendingSet.has(skill.name) ||

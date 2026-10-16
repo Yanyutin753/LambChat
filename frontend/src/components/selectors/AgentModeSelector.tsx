@@ -67,7 +67,7 @@ export function AgentModeSelector({
         icon={
           <Bot
             size={16}
-            className="text-stone-500 dark:text-amber-400 sm:w-[18px] sm:h-[18px]"
+            className="text-stone-500 dark:text-amber-400 sm:w-[1.125rem] sm:h-[1.125rem]"
           />
         }
         title={t("agent.selectMode", "选择模式")}
@@ -112,7 +112,7 @@ export function AgentModeSelector({
               className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-colors duration-200 disabled:opacity-50 ${
                 isActive
                   ? "bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15"
-                  : "hover:bg-stone-50 dark:hover:bg-stone-700/30 active:bg-stone-100/80 dark:active:bg-stone-600/40"
+                  : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100/80 dark:active:bg-stone-600/40"
               }`}
               onClick={() => {
                 onSelectAgent(agent.id);
@@ -140,8 +140,8 @@ export function AgentModeSelector({
                 <div className="w-5 h-5 rounded-full bg-amber-500 dark:bg-amber-500 flex items-center justify-center shrink-0">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
+                    width="0.75rem"
+                    height="0.75rem"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="white"

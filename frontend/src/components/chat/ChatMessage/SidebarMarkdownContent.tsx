@@ -47,7 +47,7 @@ export function SidebarMarkdownContent({
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="sidebar-reasoning-preview__expand inline-flex shrink-0 self-start min-h-8 items-center gap-1.5 rounded-md border border-theme-border bg-theme-bg-card px-2.5 text-12 font-medium text-theme-text-secondary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
+          className="sidebar-reasoning-preview__expand inline-flex shrink-0 self-start min-h-8 items-center gap-1.5 rounded-md border border-theme-border bg-theme-bg-card px-2.5 text-12 font-medium text-theme-text-secondary transition-colors hover:bg-theme-bg-hover hover:text-theme-text"
         >
           <InteractiveIcon>
             <Maximize2 size={12} />

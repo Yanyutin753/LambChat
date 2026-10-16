@@ -318,7 +318,7 @@ export function ProjectRevealItem({
                 event.stopPropagation();
                 exportProjectZip(loadedFiles, projectName, binaryFiles);
               }}
-              className="flex items-center justify-center size-8 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-colors"
+              className="flex items-center justify-center size-8 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-hover transition-colors"
               title={t("project.exportZip")}
             >
               <InteractiveIcon>
@@ -331,7 +331,7 @@ export function ProjectRevealItem({
               event.stopPropagation();
               openPreview();
             }}
-            className="px-3 py-1.5 rounded-lg text-12 font-medium bg-theme-bg-subtle text-theme-text-secondary hover:bg-theme-bg-elevated transition-colors"
+            className="px-3 py-1.5 rounded-lg text-12 font-medium bg-theme-bg-subtle text-theme-text-secondary hover:bg-theme-bg-hover transition-colors"
           >
             {t("project.preview", "预览")}
           </button>

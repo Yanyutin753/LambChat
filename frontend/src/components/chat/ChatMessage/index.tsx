@@ -202,7 +202,7 @@ function TokenDetailsButton({
           aria-label={t("chat.message.tokenUsage")}
           className={clsx(
             "p-1.5 rounded-md transition-colors",
-            "hover:bg-stone-200 dark:hover:bg-stone-700",
+            "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
             "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
           )}
         >
@@ -475,7 +475,7 @@ function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
           aria-label={t("chat.goal.active")}
           className={clsx(
             "p-1.5 rounded-md transition-colors",
-            "hover:bg-stone-200 dark:hover:bg-stone-700",
+            "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
             "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
           )}
         >
@@ -771,9 +771,9 @@ export const ChatMessage = memo(function ChatMessage({
         !isFirst && "pt-2",
       )}
     >
-      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-10">
+      <div className="mx-auto flex flex-col gap-3 max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-10">
         {/* Content */}
-        <div className="min-w-0 min-h-0 py-1 sm:py-2">
+        <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="chat-assistant-heading mb-3 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
@@ -825,7 +825,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
 
           {hasParts ? (
-            <div className="space-y-3 my-2">
+            <div className="flex flex-col gap-3">
               {(runHeadGroups.length > 0 || message.isStreaming) && (
                 <RunStepsCollapse
                   steps={countRunSteps(message.parts!)}
@@ -838,7 +838,7 @@ export const ChatMessage = memo(function ChatMessage({
                 />
               )}
               {runTailGroups.length > 0 && (
-                <div className="chat-message-answer min-w-0">
+                <div className="chat-message-answer relative min-w-0">
                   {renderPartGroups(runTailGroups)}
                 </div>
               )}
@@ -916,7 +916,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && !isWaitingForHuman && (
-          <div className="chat-message-actions chat-assistant-actions flex items-center gap-1 pb-2">
+          <div className="chat-message-actions chat-assistant-actions flex items-center gap-1">
             {getAssistantTextContent().trim() && (
               <CopyButton text={getAssistantTextContent()} size={16} />
             )}
@@ -944,7 +944,7 @@ export const ChatMessage = memo(function ChatMessage({
                   aria-label={t("chat.message.fork")}
                   className={clsx(
                     "p-1.5 rounded-md transition-colors",
-                    "hover:bg-stone-200 dark:hover:bg-stone-700",
+                    "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
                     "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
                     isForking && "opacity-60 cursor-wait",
                   )}
@@ -999,7 +999,7 @@ export const ChatMessage = memo(function ChatMessage({
           !isWaitingForHuman &&
           isLastMessage &&
           message.parts?.some((p) => p.type === "recommend_questions") && (
-            <div className="space-y-3 my-2">
+            <div className="flex flex-col gap-3">
               {message
                 .parts!.filter((p) => p.type === "recommend_questions")
                 .map((part, index) => (

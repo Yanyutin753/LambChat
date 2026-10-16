@@ -10,6 +10,7 @@ const THEME_COLORS: [name: string, cssVar: string][] = [
   ["bg-card", "--theme-bg-card"],
   ["bg-elevated", "--theme-bg-elevated"],
   ["bg-subtle", "--theme-bg-subtle"],
+  ["bg-hover", "--theme-bg-hover"],
   ["bg-code", "--theme-bg-code"],
   ["border", "--theme-border"],
   ["border-hover", "--theme-border-hover"],
@@ -28,7 +29,10 @@ const THEME_COLORS: [name: string, cssVar: string][] = [
 test("Tailwind v4 compiles opacity for every theme color and the neutral scale", async () => {
   const source = [
     '@reference "../styles/tailwind.css";',
-    ...THEME_COLORS.map(([name], index) => `.theme-probe-${index} { @apply text-theme-${name}/60; }`),
+    ...THEME_COLORS.map(
+      ([name], index) =>
+        `.theme-probe-${index} { @apply text-theme-${name}/60; }`,
+    ),
     ".neutral-probe { @apply bg-stone-900/50; }",
     ".opaque-probe { @apply text-theme-text; }",
   ].join("\n");

@@ -65,7 +65,7 @@ export function ContactAdminDialog({
       : "contactAdmin.noPermissionDesc",
   );
   const linkClass =
-    "flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-14 text-theme-text transition-colors hover:bg-theme-bg-subtle focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
+    "flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-14 text-theme-text transition-colors hover:bg-theme-bg-hover focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
   return (
     <Dialog

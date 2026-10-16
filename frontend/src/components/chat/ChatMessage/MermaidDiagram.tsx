@@ -393,7 +393,7 @@ export function MermaidDiagram({
                       : { x: rect.right - 224, y: rect.bottom + 4 },
                   );
                 }}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-theme-bg-hover min-h-[32px] min-w-[32px] touch-manipulation"
                 title={t("documents.download")}
               >
                 <InteractiveIcon>
@@ -423,7 +423,7 @@ export function MermaidDiagram({
                 setShowCode(true);
                 setIsFullscreen(true);
               }}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-theme-bg-hover min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("mermaidViewer.showCode")}
             >
               <InteractiveIcon>
@@ -440,7 +440,7 @@ export function MermaidDiagram({
             <button
               type="button"
               onClick={() => setIsFullscreen(true)}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-theme-bg-hover min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("imageViewer.fullscreen", "Fullscreen")}
             >
               <InteractiveIcon>

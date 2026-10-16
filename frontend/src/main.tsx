@@ -45,14 +45,16 @@ registerLambChatPwa();
 // 开发时临时禁用 StrictMode 避免 SSE 双重连接问题
 // 生产环境可以重新启用
 // Wait for the selected locale; i18next still resolves with English on load failure.
-void i18nReady.then(() => createRoot(document.getElementById("root")!).render(
-  <BrowserRouter>
-    <AuthProvider>
-      <LanguagePreferenceProvider>
-        <SettingsProvider>
-          <App />
-        </SettingsProvider>
-      </LanguagePreferenceProvider>
-    </AuthProvider>
-  </BrowserRouter>,
-));
+void i18nReady.then(() =>
+  createRoot(document.getElementById("root")!).render(
+    <BrowserRouter>
+      <AuthProvider>
+        <LanguagePreferenceProvider>
+          <SettingsProvider>
+            <App />
+          </SettingsProvider>
+        </LanguagePreferenceProvider>
+      </AuthProvider>
+    </BrowserRouter>,
+  ),
+);

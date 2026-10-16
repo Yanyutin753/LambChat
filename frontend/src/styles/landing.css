@@ -54,7 +54,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   [data-reveal],
   [data-reveal-scale] {
     opacity: 1;
@@ -75,39 +74,59 @@
 
 /* ── Hero ── */
 .blog-hero {
-  background:
-    linear-gradient(180deg,
+  background: linear-gradient(
+      180deg,
       rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.4) 100%),
-    radial-gradient(ellipse 90% 55% at 65% 10%,
+      rgba(255, 255, 255, 0.4) 100%
+    ),
+    radial-gradient(
+      ellipse 90% 55% at 65% 10%,
       rgba(251, 191, 36, 0.08) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 70% 45% at 20% 60%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at 20% 60%,
       rgba(56, 189, 248, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 55% 55% at 85% 75%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 55% 55% at 85% 75%,
       rgba(232, 121, 249, 0.05) 0%,
-      transparent 45%),
-    radial-gradient(ellipse 40% 30% at 50% 45%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse 40% 30% at 50% 45%,
       rgba(20, 184, 166, 0.035) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 html.dark .blog-hero {
-  background:
-    linear-gradient(180deg, rgba(12, 10, 9, 0) 0%, rgba(12, 10, 9, 0.3) 100%),
-    radial-gradient(ellipse 90% 55% at 65% 10%,
+  background: linear-gradient(
+      180deg,
+      rgba(12, 10, 9, 0) 0%,
+      rgba(12, 10, 9, 0.3) 100%
+    ),
+    radial-gradient(
+      ellipse 90% 55% at 65% 10%,
       rgba(251, 191, 36, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 70% 45% at 20% 60%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at 20% 60%,
       rgba(56, 189, 248, 0.045) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 55% 55% at 85% 75%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 55% 55% at 85% 75%,
       rgba(232, 121, 249, 0.04) 0%,
-      transparent 45%),
-    radial-gradient(ellipse 40% 30% at 50% 45%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse 40% 30% at 50% 45%,
       rgba(20, 184, 166, 0.025) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 .blog-crosshatch {
@@ -116,17 +135,21 @@ html.dark .blog-hero {
 }
 
 html.dark .blog-crosshatch {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+  background-image: linear-gradient(
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px
+    ),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
 }
 
 .blog-float-line {
   width: 1px;
   height: 80px;
-  background: linear-gradient(to bottom,
-      rgba(120, 113, 108, 0.25),
-      transparent);
+  background: linear-gradient(
+    to bottom,
+    rgba(120, 113, 108, 0.25),
+    transparent
+  );
   animation: blog-float-gentle 6s ease-in-out infinite;
 }
 
@@ -142,9 +165,11 @@ html.dark .blog-float-line {
 }
 
 html.dark .blog-float-line-short {
-  background: linear-gradient(to bottom,
-      rgba(168, 162, 158, 0.15),
-      transparent);
+  background: linear-gradient(
+    to bottom,
+    rgba(168, 162, 158, 0.15),
+    transparent
+  );
 }
 
 .blog-float-dot {
@@ -162,7 +187,6 @@ html.dark .blog-float-dot {
 }
 
 @keyframes blog-float-gentle {
-
   0%,
   100% {
     transform: translateY(0) rotate(0deg);
@@ -176,7 +200,6 @@ html.dark .blog-float-dot {
 }
 
 @keyframes blog-float-pulse {
-
   0%,
   100% {
     transform: scale(1);
@@ -203,24 +226,28 @@ html.dark .blog-float-dot {
   width: min(46vw, 18rem);
   height: 1.5px;
   transform: translateX(-50%);
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(217, 119, 6, 0.4),
-      rgba(56, 189, 248, 0.32),
-      rgba(232, 121, 249, 0.24),
-      transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(217, 119, 6, 0.4),
+    rgba(56, 189, 248, 0.32),
+    rgba(232, 121, 249, 0.24),
+    transparent
+  );
   box-shadow:
     0 0 12px rgba(251, 191, 36, 0.15),
     0 0 24px rgba(56, 189, 248, 0.08);
 }
 
 html.dark .blog-hero-title::after {
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(251, 191, 36, 0.35),
-      rgba(56, 189, 248, 0.28),
-      rgba(232, 121, 249, 0.2),
-      transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(251, 191, 36, 0.35),
+    rgba(56, 189, 248, 0.28),
+    rgba(232, 121, 249, 0.2),
+    transparent
+  );
   box-shadow:
     0 0 16px rgba(251, 191, 36, 0.2),
     0 0 32px rgba(56, 189, 248, 0.12);
@@ -275,7 +302,6 @@ html.dark .blog-hero-title::after {
 }
 
 @keyframes blog-pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -347,10 +373,12 @@ html.dark .landing-nav-pill.active {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: linear-gradient(135deg,
-      rgba(251, 191, 36, 0.3),
-      transparent 50%,
-      rgba(56, 189, 248, 0.2));
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.3),
+    transparent 50%,
+    rgba(56, 189, 248, 0.2)
+  );
   opacity: 0;
   transition: opacity 0.4s ease;
   z-index: -1;
@@ -367,10 +395,12 @@ html.dark .landing-nav-pill.active {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(255, 255, 255, 0.12),
-      transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.12),
+    transparent
+  );
   transition: left 0.6s ease;
 }
 
@@ -392,10 +422,12 @@ html.dark .blog-btn-primary {
 }
 
 html.dark .blog-btn-primary::after {
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(255, 255, 255, 0.06),
-      transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
 }
 
 html.dark .blog-btn-primary:hover {
@@ -458,7 +490,9 @@ html.dark .blog-feature-card:hover {
   border: 1px solid var(--theme-border-subtle);
   background: var(--theme-bg-card);
   text-align: left;
-  transition: border-color 180ms, transform 180ms;
+  transition:
+    border-color 180ms,
+    transform 180ms;
 }
 
 .blog-screenshot-card:hover {
@@ -466,7 +500,7 @@ html.dark .blog-feature-card:hover {
   transform: translateY(-2px);
 }
 
-.blog-screenshot-card>div:last-child {
+.blog-screenshot-card > div:last-child {
   background: var(--theme-bg-card);
 }
 
@@ -539,31 +573,39 @@ html.dark .blog-stat-card:hover {
 }
 
 .blog-section-divider::before {
-  background: linear-gradient(to right,
-      transparent,
-      rgba(168, 162, 158, 0.25),
-      rgba(217, 119, 6, 0.12));
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(168, 162, 158, 0.25),
+    rgba(217, 119, 6, 0.12)
+  );
 }
 
 .blog-section-divider::after {
-  background: linear-gradient(to left,
-      transparent,
-      rgba(168, 162, 158, 0.25),
-      rgba(56, 189, 248, 0.1));
+  background: linear-gradient(
+    to left,
+    transparent,
+    rgba(168, 162, 158, 0.25),
+    rgba(56, 189, 248, 0.1)
+  );
 }
 
 html.dark .blog-section-divider::before {
-  background: linear-gradient(to right,
-      transparent,
-      rgba(168, 162, 158, 0.1),
-      rgba(217, 119, 6, 0.08));
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(168, 162, 158, 0.1),
+    rgba(217, 119, 6, 0.08)
+  );
 }
 
 html.dark .blog-section-divider::after {
-  background: linear-gradient(to left,
-      transparent,
-      rgba(168, 162, 158, 0.1),
-      rgba(56, 189, 248, 0.06));
+  background: linear-gradient(
+    to left,
+    transparent,
+    rgba(168, 162, 158, 0.1),
+    rgba(56, 189, 248, 0.06)
+  );
 }
 
 /* ── Feature Number Badge ── */
@@ -600,11 +642,13 @@ html.dark .blog-feature-card:hover .blog-feature-number {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg,
-      transparent 0%,
-      transparent 40%,
-      rgba(251, 191, 36, 0.15) 70%,
-      rgba(56, 189, 248, 0.1) 100%);
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(251, 191, 36, 0.15) 70%,
+    rgba(56, 189, 248, 0.1) 100%
+  );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -622,11 +666,13 @@ html.dark .blog-feature-card:hover .blog-feature-number {
 }
 
 html.dark .blog-feature-card::before {
-  background: linear-gradient(135deg,
-      transparent 0%,
-      transparent 40%,
-      rgba(251, 191, 36, 0.12) 70%,
-      rgba(56, 189, 248, 0.08) 100%);
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(251, 191, 36, 0.12) 70%,
+    rgba(56, 189, 248, 0.08) 100%
+  );
 }
 
 /* ── Arch Card Frame ── */
@@ -707,14 +753,16 @@ html.dark .blog-nav-scrolled {
   top: 0;
   left: 0;
   height: 2.5px;
-  background: linear-gradient(90deg,
-      #d97706,
-      #f59e0b,
-      #fbbf24,
-      #38bdf8,
-      #e879f9,
-      #f59e0b,
-      #d97706);
+  background: linear-gradient(
+    90deg,
+    #d97706,
+    #f59e0b,
+    #fbbf24,
+    #38bdf8,
+    #e879f9,
+    #f59e0b,
+    #d97706
+  );
   background-size: 500% 100%;
   animation: progress-shimmer 10s ease infinite;
   z-index: 100;
@@ -782,7 +830,6 @@ html.dark .landing-scroll-btn:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .landing-mobile-menu,
   .blog-pulse-dot,
   .blog-hero-glow-main,
@@ -821,185 +868,251 @@ html.dark .blog-landing-container::after {
 
 /* ── Interface Section: Warm Amber & Sky ── */
 .blog-mesh-interface {
-  background-image:
-    radial-gradient(ellipse 80% 60% at 10% 25%,
+  background-image: radial-gradient(
+      ellipse 80% 60% at 10% 25%,
       rgba(251, 191, 36, 0.07) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 60% 80% at 90% 75%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 90% 75%,
       rgba(56, 189, 248, 0.05) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 70% 40% at 50% 100%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 70% 40% at 50% 100%,
       rgba(251, 146, 60, 0.035) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 html.dark .blog-mesh-interface {
-  background-image:
-    radial-gradient(ellipse 80% 60% at 10% 25%,
+  background-image: radial-gradient(
+      ellipse 80% 60% at 10% 25%,
       rgba(251, 191, 36, 0.05) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 60% 80% at 90% 75%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 90% 75%,
       rgba(56, 189, 248, 0.04) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 70% 40% at 50% 100%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 70% 40% at 50% 100%,
       rgba(251, 146, 60, 0.025) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 /* ── Features Section: Cool Indigo & Slate ── */
 .blog-mesh-features {
-  background-image:
-    radial-gradient(ellipse 60% 50% at 50% 10%,
+  background-image: radial-gradient(
+      ellipse 60% 50% at 50% 10%,
       rgba(99, 102, 241, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 70% at 10% 80%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 10% 80%,
       rgba(100, 116, 139, 0.05) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 40% 60% at 90% 50%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 40% 60% at 90% 50%,
       rgba(20, 184, 166, 0.04) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 html.dark .blog-mesh-features {
-  background-image:
-    radial-gradient(ellipse 60% 50% at 50% 10%,
+  background-image: radial-gradient(
+      ellipse 60% 50% at 50% 10%,
       rgba(99, 102, 241, 0.045) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 70% at 10% 80%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 10% 80%,
       rgba(100, 116, 139, 0.035) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 40% 60% at 90% 50%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 40% 60% at 90% 50%,
       rgba(20, 184, 166, 0.03) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 /* ── Architecture Section: Copper & Amber ── */
 .blog-mesh-architecture {
-  background-image:
-    radial-gradient(ellipse 70% 60% at 40% 40%,
+  background-image: radial-gradient(
+      ellipse 70% 60% at 40% 40%,
       rgba(251, 191, 36, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 50% at 85% 20%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 85% 20%,
       rgba(217, 119, 6, 0.05) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 60% 40% at 15% 80%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 15% 80%,
       rgba(251, 146, 60, 0.04) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 html.dark .blog-mesh-architecture {
-  background-image:
-    radial-gradient(ellipse 70% 60% at 40% 40%,
+  background-image: radial-gradient(
+      ellipse 70% 60% at 40% 40%,
       rgba(251, 191, 36, 0.045) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 50% at 85% 20%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 85% 20%,
       rgba(217, 119, 6, 0.035) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 60% 40% at 15% 80%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 15% 80%,
       rgba(251, 146, 60, 0.025) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 /* ── Dashboard Section: Violet & Lavender ── */
 .blog-mesh-dashboard {
-  background-image:
-    radial-gradient(ellipse 60% 70% at 85% 15%,
+  background-image: radial-gradient(
+      ellipse 60% 70% at 85% 15%,
       rgba(139, 92, 246, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 10% 70%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 10% 70%,
       rgba(196, 181, 253, 0.05) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 40% 50% at 50% 50%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 40% 50% at 50% 50%,
       rgba(244, 114, 182, 0.03) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 html.dark .blog-mesh-dashboard {
-  background-image:
-    radial-gradient(ellipse 60% 70% at 85% 15%,
+  background-image: radial-gradient(
+      ellipse 60% 70% at 85% 15%,
       rgba(139, 92, 246, 0.045) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 10% 70%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 10% 70%,
       rgba(196, 181, 253, 0.035) 0%,
-      transparent 65%),
-    radial-gradient(ellipse 40% 50% at 50% 50%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 40% 50% at 50% 50%,
       rgba(244, 114, 182, 0.02) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 /* ── Responsive Section: Rose & Peach ── */
 .blog-mesh-responsive {
-  background-image:
-    radial-gradient(ellipse 70% 50% at 50% 90%,
+  background-image: radial-gradient(
+      ellipse 70% 50% at 50% 90%,
       rgba(251, 113, 133, 0.06) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 15% 20%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 15% 20%,
       rgba(253, 186, 116, 0.05) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 40% 40% at 85% 40%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 85% 40%,
       rgba(251, 191, 36, 0.035) 0%,
-      transparent 45%);
+      transparent 45%
+    );
 }
 
 html.dark .blog-mesh-responsive {
-  background-image:
-    radial-gradient(ellipse 70% 50% at 50% 90%,
+  background-image: radial-gradient(
+      ellipse 70% 50% at 50% 90%,
       rgba(251, 113, 133, 0.04) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 15% 20%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 15% 20%,
       rgba(253, 186, 116, 0.035) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 40% 40% at 85% 40%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 85% 40%,
       rgba(251, 191, 36, 0.025) 0%,
-      transparent 45%);
+      transparent 45%
+    );
 }
 
 /* ── CTA Section: Enhanced Amber & Fuchsia ── */
 .blog-mesh-cta {
-  background-image:
-    radial-gradient(ellipse 60% 50% at 30% 30%,
+  background-image: radial-gradient(
+      ellipse 60% 50% at 30% 30%,
       rgba(251, 191, 36, 0.05) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 75% 70%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 75% 70%,
       rgba(232, 121, 249, 0.04) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 40% 40% at 50% 50%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 50% 50%,
       rgba(56, 189, 248, 0.025) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 html.dark .blog-mesh-cta {
-  background-image:
-    radial-gradient(ellipse 60% 50% at 30% 30%,
+  background-image: radial-gradient(
+      ellipse 60% 50% at 30% 30%,
       rgba(251, 191, 36, 0.04) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 50% 60% at 75% 70%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 75% 70%,
       rgba(232, 121, 249, 0.03) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 40% 40% at 50% 50%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 50% 50%,
       rgba(56, 189, 248, 0.02) 0%,
-      transparent 50%);
+      transparent 50%
+    );
 }
 
 /* ── Footer: Warm Stone ── */
 .blog-mesh-footer {
-  background-image:
-    radial-gradient(ellipse 80% 40% at 30% 0%,
+  background-image: radial-gradient(
+      ellipse 80% 40% at 30% 0%,
       rgba(251, 191, 36, 0.03) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 60% 40% at 80% 100%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
       rgba(120, 113, 108, 0.02) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 html.dark .blog-mesh-footer {
-  background-image:
-    radial-gradient(ellipse 80% 40% at 30% 0%,
+  background-image: radial-gradient(
+      ellipse 80% 40% at 30% 0%,
       rgba(251, 191, 36, 0.02) 0%,
-      transparent 55%),
-    radial-gradient(ellipse 60% 40% at 80% 100%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
       rgba(120, 113, 108, 0.015) 0%,
-      transparent 55%);
+      transparent 55%
+    );
 }
 
 /* ═══════════════════════════════════════════
@@ -1026,7 +1139,6 @@ html.dark .blog-mesh-footer {
 }
 
 @keyframes aurora-drift {
-
   0%,
   100% {
     transform: translate(0, 0) scale(1);
@@ -1055,7 +1167,6 @@ html.dark .blog-mesh-footer {
 }
 
 @keyframes blog-pulse-enhanced {
-
   0%,
   100% {
     opacity: 1;
@@ -1082,9 +1193,11 @@ html.dark .blog-mesh-footer {
 .blog-light-orb-amber {
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle,
-      rgba(251, 191, 36, 0.12),
-      transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(251, 191, 36, 0.12),
+    transparent 70%
+  );
 }
 
 .blog-light-orb-blue {
@@ -1098,15 +1211,16 @@ html.dark .blog-mesh-footer {
 .blog-light-orb-violet {
   width: 200px;
   height: 200px;
-  background: radial-gradient(circle,
-      rgba(232, 121, 249, 0.08),
-      transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(232, 121, 249, 0.08),
+    transparent 70%
+  );
   animation-delay: -10s;
   animation-duration: 22s;
 }
 
 @keyframes orb-float {
-
   0%,
   100% {
     transform: translate(0, 0);
@@ -1140,9 +1254,11 @@ html.dark .blog-mesh-footer {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(ellipse 60% 40% at 30% 20%,
-      rgba(251, 191, 36, 0.04),
-      transparent 60%);
+  background: radial-gradient(
+    ellipse 60% 40% at 30% 20%,
+    rgba(251, 191, 36, 0.04),
+    transparent 60%
+  );
   opacity: 0;
   transition: opacity 0.5s ease;
 }
@@ -1210,40 +1326,47 @@ html.dark .blog-arch-frame:hover::after {
 
 /* ── Dot Pattern Enhanced ── */
 .blog-dot-pattern {
-  background-image: radial-gradient(circle,
-      rgba(0, 0, 0, 0.035) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(0, 0, 0, 0.035) 1px,
+    transparent 1px
+  );
   background-size: 24px 24px;
   border-radius: 1.25rem;
   position: relative;
 }
 
 html.dark .blog-dot-pattern {
-  background-image: radial-gradient(circle,
-      rgba(255, 255, 255, 0.03) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px
+  );
 }
 
 /* ── CTA Ambient Enhanced ── */
 .blog-cta-ambient::before {
-  background: radial-gradient(ellipse,
-      rgba(251, 191, 36, 0.08) 0%,
-      rgba(232, 121, 249, 0.04) 30%,
-      transparent 65%);
+  background: radial-gradient(
+    ellipse,
+    rgba(251, 191, 36, 0.08) 0%,
+    rgba(232, 121, 249, 0.04) 30%,
+    transparent 65%
+  );
   animation: cta-pulse 8s ease-in-out infinite;
   will-change: transform, opacity;
   contain: paint;
 }
 
 html.dark .blog-cta-ambient::before {
-  background: radial-gradient(ellipse,
-      rgba(251, 191, 36, 0.06) 0%,
-      rgba(232, 121, 249, 0.03) 30%,
-      transparent 65%);
+  background: radial-gradient(
+    ellipse,
+    rgba(251, 191, 36, 0.06) 0%,
+    rgba(232, 121, 249, 0.03) 30%,
+    transparent 65%
+  );
 }
 
 @keyframes cta-pulse {
-
   0%,
   100% {
     transform: translateX(-50%) scale(1);
@@ -1267,7 +1390,6 @@ html.dark .blog-landing-container::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .blog-hero-glow-main,
   .blog-hero-glow-blue,
   .blog-hero-glow-violet,
@@ -1339,14 +1461,14 @@ html.dark .blog-landing-container::after {
   background: none;
 }
 
-.public-brand-hero>div {
+.public-brand-hero > div {
   min-width: 0;
   max-width: 560px;
 }
 
-.public-brand-hero>div>div,
-.public-brand-hero>div>h1,
-.public-brand-hero>div>div>div {
+.public-brand-hero > div > div,
+.public-brand-hero > div > h1,
+.public-brand-hero > div > div > div {
   justify-content: flex-start;
 }
 
@@ -1377,11 +1499,11 @@ html.dark .blog-landing-container::after {
   display: none;
 }
 
-.public-brand-hero>div>div:first-child {
+.public-brand-hero > div > div:first-child {
   margin-bottom: 28px;
 }
 
-.public-brand-hero>div>div:last-child {
+.public-brand-hero > div > div:last-child {
   margin-top: 36px;
 }
 
@@ -1428,7 +1550,7 @@ html.dark .blog-landing-container::after {
     min-height: auto;
   }
 
-  .public-brand-hero>div {
+  .public-brand-hero > div {
     max-width: 100%;
   }
 
@@ -1436,7 +1558,7 @@ html.dark .blog-landing-container::after {
     font-size: 16px;
   }
 
-  .public-brand-hero>div>div {
+  .public-brand-hero > div > div {
     margin-left: 0;
     max-width: 100%;
   }
@@ -1514,14 +1636,13 @@ html.dark .public-brand-hero {
   }
 }
 
-
 /* Shared public-page rhythm: expressive titles, calm content, clear controls. */
 .blog-landing-container nav {
   background: var(--theme-bg);
   border-color: var(--theme-border-subtle);
 }
 
-.blog-landing-container nav>div {
+.blog-landing-container nav > div {
   max-width: 1400px;
   padding-inline: clamp(20px, 3vw, 48px);
   height: 72px;
@@ -1543,7 +1664,7 @@ html.dark .public-brand-hero {
   transform: none;
 }
 
-.public-nav-actions>button {
+.public-nav-actions > button {
   width: 44px;
   height: 44px;
 }
@@ -1566,22 +1687,24 @@ html.dark .public-brand-hero {
 
 .landing-mobile-menu {
   top: calc(72px + var(--app-safe-area-top, 0px) + var(--titlebar-inset, 0px));
-  max-height: calc(100dvh - 72px - var(--app-safe-area-top, 0px) - var(--titlebar-inset, 0px));
+  max-height: calc(
+    100dvh - 72px - var(--app-safe-area-top, 0px) - var(--titlebar-inset, 0px)
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.blog-landing-container .landing-mobile-menu>div {
+.blog-landing-container .landing-mobile-menu > div {
   height: auto;
 }
 
-.blog-landing-container>section[id] {
+.blog-landing-container > section[id] {
   padding-block: clamp(64px, 8vw, 112px);
   scroll-margin-top: 88px;
   background: none;
 }
 
-.blog-landing-container>section[id]>div {
+.blog-landing-container > section[id] > div {
   max-width: 1248px;
   padding-inline: 24px;
 }
@@ -1617,7 +1740,7 @@ html.dark .public-brand-hero {
   text-wrap: balance;
 }
 
-.public-section-heading>p {
+.public-section-heading > p {
   max-width: 500px;
   font-size: 16px;
   line-height: 1.9;
@@ -1658,7 +1781,7 @@ html.dark .public-brand-hero {
   transform: none;
 }
 
-.blog-landing-container .blog-stat-card>div:first-child {
+.blog-landing-container .blog-stat-card > div:first-child {
   background: none;
   color: var(--theme-text);
   -webkit-text-fill-color: currentColor;
@@ -1671,7 +1794,10 @@ html.dark .public-brand-hero {
 }
 
 .public-action {
-  transition: background-color 160ms, color 160ms, border-color 160ms;
+  transition:
+    background-color 160ms,
+    color 160ms,
+    border-color 160ms;
 }
 
 .public-action-primary:hover {
@@ -1679,7 +1805,7 @@ html.dark .public-brand-hero {
 }
 
 .public-action-secondary:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
@@ -1693,7 +1819,7 @@ html.dark .public-brand-hero {
   border-color: var(--theme-border-subtle);
 }
 
-.public-download>section:not(.public-brand-hero) {
+.public-download > section:not(.public-brand-hero) {
   padding-block: clamp(64px, 8vw, 112px);
 }
 
@@ -1710,7 +1836,7 @@ html.dark .public-brand-hero {
     margin-bottom: 32px;
   }
 
-  .public-section-heading>p {
+  .public-section-heading > p {
     font-size: 15px;
   }
 
@@ -1722,7 +1848,7 @@ html.dark .public-brand-hero {
     height: 320px;
   }
 
-  .blog-landing-container nav>div {
+  .blog-landing-container nav > div {
     padding-inline: 16px;
   }
 
@@ -1742,7 +1868,6 @@ html.dark .public-brand-hero {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .blog-landing-container *,
   .blog-landing-container *::before,
   .blog-landing-container *::after {
@@ -1758,7 +1883,7 @@ html.dark .public-brand-hero {
   }
 }
 
-html.dark .blog-landing-container>nav,
+html.dark .blog-landing-container > nav,
 .blog-landing-container .landing-mobile-menu {
   background: var(--theme-bg);
 }

@@ -309,8 +309,8 @@ const ExcelPreview = memo(function ExcelPreview({
           className="p-1 text-theme-text-muted hover:text-theme-text disabled:opacity-30 disabled:cursor-default transition-colors"
         >
           <svg
-            width="14"
-            height="14"
+            width="0.875rem"
+            height="0.875rem"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -331,7 +331,7 @@ const ExcelPreview = memo(function ExcelPreview({
               className={`px-3 py-0.5 text-11 font-medium rounded-sm whitespace-nowrap transition-all ${
                 activeSheet === index
                   ? "bg-theme-bg-card text-theme-text shadow-sm border border-theme-border"
-                  : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-subtle"
+                  : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover"
               }`}
             >
               {sheet.name}
@@ -348,8 +348,8 @@ const ExcelPreview = memo(function ExcelPreview({
           className="p-1 text-theme-text-muted hover:text-theme-text disabled:opacity-30 disabled:cursor-default transition-colors"
         >
           <svg
-            width="14"
-            height="14"
+            width="0.875rem"
+            height="0.875rem"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"

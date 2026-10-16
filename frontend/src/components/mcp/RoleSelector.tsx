@@ -159,7 +159,7 @@ export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
                 filteredRoles.map((role) => (
                   <label
                     key={role.name}
-                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-[var(--theme-bg-subtle)]"
+                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-theme-bg-hover"
                   >
                     <Checkbox
                       size="sm"

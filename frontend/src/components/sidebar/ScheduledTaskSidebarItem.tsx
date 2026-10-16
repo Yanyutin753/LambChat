@@ -277,13 +277,18 @@ export const ScheduledTaskSidebarItem = forwardRef<
         className={`group relative flex h-10 cursor-pointer items-center gap-3 rounded-[10px] px-[9px] transition-colors ${
           isExpanded
             ? "bg-stone-100/60 dark:bg-stone-800/40"
-            : "hover:bg-stone-100 dark:hover:bg-stone-800/30"
+            : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
         }`}
         title={task.name}
       >
         <span
           className="shrink-0 inline-flex items-center justify-center overflow-hidden text-20"
-          style={{ width: 20, height: 20, fontSize: 20, lineHeight: 1 }}
+          style={{
+            width: "1.25rem",
+            height: "1.25rem",
+            fontSize: "1.25rem",
+            lineHeight: 1,
+          }}
         >
           {task.status === "active" ? "⏰" : "🕐"}
         </span>

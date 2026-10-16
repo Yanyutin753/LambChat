@@ -31,7 +31,7 @@ export function FileTreeItem({
           type="button"
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
-          className="w-full flex items-center gap-1.5 py-[4px] text-13 text-left text-stone-500 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors duration-100 select-none"
+          className="w-full flex items-center gap-1.5 py-[4px] text-13 text-left text-stone-500 dark:text-stone-400 hover:bg-theme-bg-hover dark:hover:bg-white/5 transition-colors duration-100 select-none"
           style={{ paddingLeft: `${indent}px`, paddingRight: "8px" }}
         >
           <InteractiveIcon>
@@ -72,7 +72,7 @@ export function FileTreeItem({
       className={`skill-file-tree-row w-full flex items-center gap-2 text-13 text-left group transition-colors duration-100 ${
         isActive
           ? "bg-[var(--theme-primary)]/10 text-[var(--theme-text)] font-medium"
-          : "text-stone-600 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5"
+          : "text-stone-600 dark:text-stone-400 hover:bg-theme-bg-hover dark:hover:bg-white/5"
       }`}
       style={
         isActive
@@ -109,7 +109,7 @@ export function FileTreeItem({
               onRemove(node.fileIndex);
             }
           }}
-          className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
           <InteractiveIcon>
             <X size={10} />

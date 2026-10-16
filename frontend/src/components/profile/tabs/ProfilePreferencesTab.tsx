@@ -589,7 +589,7 @@ function PreferencesContent() {
               onClick={() => {
                 window.dispatchEvent(new Event("lambchat:check-update"));
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-theme-border dark:border-stone-600/60 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-bg-card dark:hover:bg-black/20 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-theme-border dark:border-stone-600/60 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-black/20 transition-colors"
             >
               <InteractiveIcon>
                 <RefreshCw size={12} />

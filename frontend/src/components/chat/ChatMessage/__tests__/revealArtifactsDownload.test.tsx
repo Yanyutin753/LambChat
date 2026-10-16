@@ -235,7 +235,7 @@ test("folder rows use the shared monochrome folder icon", () => {
     .getByRole("button", { name: "workspace" })
     .querySelector("svg");
   expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
-  expect(icon).toHaveAttribute("width", "20");
+  expect(icon).toHaveAttribute("width", "16");
   expect(icon).toHaveClass("lucide-folder");
   expect(icon).toHaveAttribute("fill", "none");
 });
@@ -561,4 +561,22 @@ test("multiple delivered files expand downward and collapse without opening a pa
   expect(
     screen.queryByRole("button", { name: "first.md", exact: true }),
   ).not.toBeInTheDocument();
+});
+
+test("collection folder icon follows its expanded state", () => {
+  const parts = [
+    filePart({ id: "file:a", name: "a.md", path: "/a.md" }),
+    filePart({ id: "file:b", name: "b.md", path: "/b.md" }),
+  ];
+  const view = render(<RevealArtifactsSummary parts={parts} />);
+  const toggle = view.container.querySelector<HTMLButtonElement>(
+    "button[aria-controls]",
+  )!;
+  expect(toggle.querySelector(".lucide-folder-open")).toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(toggle.querySelector(".lucide-folder-open")).not.toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle.querySelector(".lucide-folder-open")).toBeNull();
 });

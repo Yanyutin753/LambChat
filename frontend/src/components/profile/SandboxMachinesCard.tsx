@@ -144,7 +144,7 @@ export function SandboxMachinesCard() {
           return (
             <div
               key={machine.machine_id}
-              className={`flex items-center gap-2 rounded-lg px-1.5 py-2 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/40 ${
+              className={`flex items-center gap-2 rounded-lg px-1.5 py-2 transition-colors hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover ${
                 machineOnline ? "" : "opacity-60"
               }`}
               data-sandbox-machine={machine.machine_id}
@@ -271,7 +271,7 @@ export function SandboxMachinesCard() {
                     type="button"
                     onClick={() => startRename(machine)}
                     disabled={busy}
-                    className="shrink-0 rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/60 hover:text-theme-text dark:hover:text-stone-200 disabled:opacity-50"
+                    className="shrink-0 rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover hover:text-theme-text dark:hover:text-stone-200 disabled:opacity-50"
                     title={t("profile.localSandbox.rename")}
                   >
                     <InteractiveIcon>

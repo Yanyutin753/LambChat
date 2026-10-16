@@ -1,3 +1,4 @@
+@import "./icon-scale.css";
 @reference "./tailwind.css";
 
 .chat-input-help-menu .ui-icon-button.ui-button--sm {

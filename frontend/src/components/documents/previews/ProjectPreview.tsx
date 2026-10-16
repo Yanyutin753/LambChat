@@ -257,7 +257,7 @@ export default function ProjectPreview({
                   "flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl transition-all duration-200 active:scale-95",
                   showExplorer
                     ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                    : "text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800",
+                    : "text-stone-400 dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
                 )}
                 title={t("project.toggleExplorer", "切换文件浏览器")}
               >
@@ -270,7 +270,7 @@ export default function ProjectPreview({
             {isFullscreen && (
               <button
                 onClick={() => exportProjectZip(files, name)}
-                className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 text-12 font-medium transition-all duration-200 active:scale-95"
+                className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-stone-600 dark:text-stone-300 text-12 font-medium transition-all duration-200 active:scale-95"
               >
                 <InteractiveIcon>
                   <Download size={14} />
@@ -284,7 +284,7 @@ export default function ProjectPreview({
             {onClose && (
               <button
                 onClick={onClose}
-                className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+                className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl text-stone-400 dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-all duration-200 active:scale-95"
                 title={t("common.close")}
               >
                 <InteractiveIcon>
@@ -296,7 +296,7 @@ export default function ProjectPreview({
             {onToggleSidebar && (
               <button
                 onClick={onToggleSidebar}
-                className="hidden sm:flex items-center justify-center size-8 rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+                className="hidden sm:flex items-center justify-center size-8 rounded-xl text-stone-400 dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-all duration-200 active:scale-95"
                 title={t("documents.sidebarView", "侧边栏")}
               >
                 <InteractiveIcon>

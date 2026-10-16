@@ -63,7 +63,7 @@ export function BookmarkButton({
         disabled={busy}
         className={clsx(
           "p-1.5 rounded-md transition-colors",
-          "hover:bg-stone-200 dark:hover:bg-stone-700",
+          "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
           active
             ? "text-amber-500 dark:text-amber-400"
             : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",

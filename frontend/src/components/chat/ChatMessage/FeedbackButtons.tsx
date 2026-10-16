@@ -147,7 +147,7 @@ export function FeedbackButtons({
             aria-label={t("feedback.positive")}
             className={clsx(
               "flex items-center justify-center rounded-md p-1.5 transition-all",
-              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-subtle dark:hover:bg-stone-700 hover:text-theme-text-secondary dark:hover:text-stone-300",
+              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover hover:text-theme-text-secondary dark:hover:text-stone-300",
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
@@ -169,7 +169,7 @@ export function FeedbackButtons({
             aria-label={t("feedback.negative")}
             className={clsx(
               "flex items-center justify-center rounded-md p-1.5 transition-all",
-              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-subtle dark:hover:bg-stone-700 hover:text-theme-text-secondary dark:hover:text-stone-300",
+              "text-theme-text-tertiary dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover hover:text-theme-text-secondary dark:hover:text-stone-300",
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >

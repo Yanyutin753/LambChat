@@ -13,7 +13,7 @@ type CheckboxProps = {
 };
 
 const sizeClasses = {
-  sm: "h-[18px] w-[18px]",
+  sm: "h-[1.125rem] w-[1.125rem]",
   md: "h-5 w-5",
   lg: "h-6 w-6",
 } as const;

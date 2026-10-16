@@ -2,13 +2,15 @@ import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import {
   Terminal,
+  MonitorCog,
+  SquareTerminal,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Ban,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill } from "../../../common";
+import { CollapsiblePill, CopyButton } from "../../../common";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { deriveExecuteStatus, parseExecuteResult } from "./executeResult";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
@@ -93,40 +95,50 @@ function ExecuteDetail({
 
   return (
     <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
-      <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-subtle text-14 font-mono flex items-center gap-2.5 border border-theme-border-subtle transition-colors duration-200">
-        <Terminal size={13} className="shrink-0 text-theme-text-tertiary" />
-        <span className="shrink-0 text-theme-text-secondary font-semibold">
-          $
-        </span>
-        <span className="text-theme-text break-words [overflow-wrap:anywhere] min-w-0 flex-1">
-          {command}
-        </span>
-        {timeout && (
-          <span className="shrink-0 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 ring-1 ring-theme-border/50">
-            {t("chat.message.toolTimeSeconds", { count: timeout })}
+      <div className="tool-surface">
+        <div className="tool-surface__header">
+          <MonitorCog size={16} aria-hidden="true" />
+          <span className="tool-surface__title">
+            {t("chat.message.toolExecute")}
           </span>
-        )}
+          <div className="ml-auto flex items-center gap-2">
+            {timeout && (
+              <span className="text-12 text-theme-text-secondary tabular-nums">
+                {t("chat.message.toolTimeSeconds", { count: timeout })}
+              </span>
+            )}
+            <CopyButton text={command} size={14} />
+          </div>
+        </div>
+        <div className="tool-surface__body flex items-baseline gap-2.5 min-w-0 font-mono">
+          <span
+            className="shrink-0 text-theme-text-secondary"
+            aria-hidden="true"
+          >
+            $
+          </span>
+          <span className="text-theme-text whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0">
+            {command}
+          </span>
+        </div>
       </div>
 
       {parsed.output && (
-        <div className="relative group tool-panel-output">
+        <div className="tool-surface tool-panel-output flex min-h-0 flex-col">
+          <div className="tool-surface__header">
+            <SquareTerminal size={16} aria-hidden="true" />
+            <span className="tool-surface__title">
+              {t("chat.message.toolOutput")}
+            </span>
+            <CopyButton text={parsed.output} size={14} className="ml-auto" />
+          </div>
           <pre
             tabIndex={0}
             aria-label={t("chat.message.toolOutput")}
-            className={clsx(
-              "text-14 rounded-xl p-4 min-w-0 h-full tool-code-block",
-              "bg-theme-bg border border-theme-border",
-              "text-theme-text-secondary whitespace-pre-wrap break-words font-mono",
-            )}
+            className="tool-surface__body tool-code-block flex-1 min-h-0 text-theme-text-secondary whitespace-pre-wrap break-words font-mono"
           >
             {parsed.output}
           </pre>
-          <ToolHoverCopyButton
-            text={parsed.output}
-            size={14}
-            position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-lg !border !border-theme-border"
-          />
         </div>
       )}
 
@@ -219,7 +231,7 @@ const ExecuteItem = memo(function ExecuteItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <div className="group/args relative px-2 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-tertiary font-mono flex items-baseline gap-2">
+            <div className="group/args relative px-2 py-1.5 rounded-md bg-theme-bg-subtle border border-theme-border text-12 text-theme-text-secondary font-mono flex items-baseline gap-2">
               <span className="shrink-0 text-theme-text">$</span>
               <span className="text-theme-text-secondary break-all min-w-0 flex-1">
                 {command}

@@ -320,7 +320,7 @@ export function SearchDialog({
                     className={`w-full min-h-11 flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75 motion-reduce:transition-none ${
                       isActive
                         ? "bg-theme-bg-subtle"
-                        : "hover:bg-theme-bg-subtle"
+                        : "hover:bg-theme-bg-hover"
                     }`}
                   >
                     <span className="flex-1 min-w-0">
@@ -371,7 +371,7 @@ export function SearchDialog({
                       inputRef.current?.focus();
                       void fetchSessions(retryResetRef.current);
                     }}
-                    className="min-h-11 rounded-lg px-4 text-14 text-theme-text hover:bg-theme-bg-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+                    className="min-h-11 rounded-lg px-4 text-14 text-theme-text hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
                   >
                     {t("sidebar.retry")}
                   </button>

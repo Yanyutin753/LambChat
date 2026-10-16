@@ -88,7 +88,7 @@ function AssetRow({
       <a
         href={url}
         download
-        className="group inline-flex w-full items-center gap-3 rounded-2xl bg-stone-900 px-5 py-3.5 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:text-15"
+        className="group inline-flex w-full items-center gap-3 rounded-2xl bg-stone-900 px-5 py-3.5 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:text-15"
       >
         {badge}
         <span className="min-w-0 flex-1 break-all font-mono text-12 leading-relaxed sm:text-13">
@@ -417,7 +417,7 @@ export function DownloadPage() {
                   href={apk.url}
                   download
                   data-hero-direct-download
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
                   <InteractiveIcon>
                     <DownloadIcon
@@ -432,7 +432,7 @@ export function DownloadPage() {
                   href={recommended.url}
                   download
                   data-hero-direct-download
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
                   <InteractiveIcon>
                     <DownloadIcon
@@ -447,7 +447,7 @@ export function DownloadPage() {
               ) : (
                 <a
                   href="#desktop"
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/12 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/12 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
                   <InteractiveIcon>
                     <DownloadIcon size={15} />
@@ -787,7 +787,7 @@ export function DownloadPage() {
                   key={key}
                   data-reveal
                   data-reveal-delay={String(idx + 1)}
-                  className="blog-feature-card group relative flex gap-4 rounded-2xl border border-stone-100/80 bg-white/80 p-5 transition-all duration-500 hover:-translate-y-1 hover:bg-white dark:border-stone-800/40 dark:bg-stone-900/40 dark:hover:bg-stone-900/60 sm:p-6"
+                  className="blog-feature-card group relative flex gap-4 rounded-2xl border border-stone-100/80 bg-white/80 p-5 transition-all duration-500 hover:-translate-y-1 hover:bg-white dark:border-stone-800/40 dark:bg-stone-900/40 dark:hover:bg-theme-bg-hover sm:p-6"
                 >
                   <span className="z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-amber-400/90 to-orange-500/90 text-16 text-white shadow-md transition-all duration-500  sm:h-12 sm:w-12">
                     {idx === 0 ? (
