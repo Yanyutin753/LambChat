@@ -3,5 +3,9 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         println!("cargo:rustc-link-arg=-Wl,-weak_framework,UserNotifications");
     }
+    println!("cargo:rerun-if-env-changed=RELEASE_TAG");
+    if let Ok(tag) = std::env::var("RELEASE_TAG") {
+        println!("cargo:rustc-env=LAMBCHAT_RELEASE_VERSION={}", tag.trim_start_matches('v'));
+    }
     tauri_build::build()
 }

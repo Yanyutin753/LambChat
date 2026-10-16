@@ -17,12 +17,12 @@
 
 ## 1. Git（对应 project-guidelines §1）
 
-- 通用规则遵循 `AGENTS.md`（feat/* → develop，Conventional Commits + 中文摘要）。
+- 通用规则遵循 `AGENTS.md`（feat/\* → develop，Conventional Commits + 中文摘要）。
 - **规矩：涉及 daemon 协议的改动（`client/lambchat_sandbox/` 的 `transport.py` / `frames.py` / `auth.py`），PR 描述必须注明是「向后兼容」还是「需壳+daemon 同版发版」**——daemon 自更新按版本比较拉新，协议破坏性变更必须跨至少一个版本双向兼容。
 - 原生工程目录（`frontend/android/`、`frontend/ios/App/`）的改动单独成 commit，不带 WebView 代码改动，便于回溯 Xcode/Gradle 层回归。
 - `frontend/src-tauri/binaries/`、`resources/python/` 产物不进 git（已有 .gitignore 覆盖），禁止「顺手提交一个能跑的 sidecar」。
 
-Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准；dev 安装包只作指定 tag 的手动测试，不进入稳定自动更新。运行时使用核心版本，测试时以 tag、构建号及 SHA 区分，正式版须提高平台构建号并重新构建。
+Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准。默认正式版通道；用户在偏好或下载页主动选择测试版后，可获取已完成 CI、原生打包和签名校验的 dev 更新。选择仅保存在当前设备；下载或安装期间禁止切换。CI 将完整 tag 注入前端与桌面更新比较，平台安装版本仍使用核心版本和构建号。旧 dev.2 及更早版本需手动安装一次支持通道的新包。测试通道允许晋升同核心正式版；切回正式通道不自动降级。iOS 沿用发布页下载，不承诺自动安装。
 
 ## 2. 文档（§2）
 
@@ -38,7 +38,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 ## 4. 依赖（§4）
 
-- **daemon 保持 stdlib + httpx 的极简依赖面**，新增依赖必须在 PR 说明理由（PyInstaller onefile 体积与冷启动对此敏感）。既有例外：computer-use 的 `cua` 依赖组（`uv sync --group cua`，平台标记互斥）——macOS atomacos（带 PyObjC+pyautogui）、Windows pywinauto+pyautogui、Linux pyautogui+python-xlib（AT-SPI 走系统包 python3-pyatspi）；未同步该组的构建里 cua_* op 报 `unsupported_platform`，其余链路不受影响。
+- **daemon 保持 stdlib + httpx 的极简依赖面**，新增依赖必须在 PR 说明理由（PyInstaller onefile 体积与冷启动对此敏感）。既有例外：computer-use 的 `cua` 依赖组（`uv sync --group cua`，平台标记互斥）——macOS atomacos（带 PyObjC+pyautogui）、Windows pywinauto+pyautogui、Linux pyautogui+python-xlib（AT-SPI 走系统包 python3-pyatspi）；未同步该组的构建里 cua\_\* op 报 `unsupported_platform`，其余链路不受影响。
 - CUA 必须显式选择在线机器；代码沙箱可为本地或云端，桌面选机与代码沙箱平台独立。工具参数不能覆盖会话选机，未选择、离线或审批后改机均拒绝，不回退到账户默认机器。审批绑定机器和具体操作，按该机器确认策略执行。观察索引仅在当前会话有效。
 - 远程服务器地址必须使用 HTTPS，HTTP 仅允许回环开发地址。PAT 绑定签发服务器 origin，改连服务器不复用旧凭据，未绑定的旧凭据须重新配对；服务器反向代理子路径仍保留。凭据文件原子写入，并在写入内容前设置仅本用户可访问的权限。
 - 上述传输与账户隔离不等同于服务器失陷后的端到端控制隔离：当前电脑指令仍由服务端 Agent 生成。可信设备执行与端到端配对方案须独立实现、验证后才能声明服务器无控制权。
@@ -74,7 +74,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 | `frontend/android/`、`frontend/ios/App/` | 原生工程 | 只放壳与配置，禁止塞业务逻辑 |
 | `client/lambchat_sandbox/` | daemon 本体 | 协议层（frames/transport/auth）改动走 §1 规矩 |
 
-命名沿用现状：Tauri command 用 snake_case 并带领域前缀（`daemon_*` / `read_*`）；Rust 模块名单数名词。
+命名沿用现状：Tauri command 用 snake*case 并带领域前缀（`daemon*\_`/`read\_\_`）；Rust 模块名单数名词。
 
 ## 7. 桌面端（Tauri）专项
 
@@ -110,7 +110,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - 六文件 bump 规则以 `AGENTS.md` 为准；`versionCode`（第七处）随 `versionName` 联动。
 - **cargo `Cargo.toml` crate 版本当前已漂移（2.8.6 vs `tauri.conf.json` 2.10.1）且 preflight 不校验**——二选一，团队拍板：纳入 preflight 一并 bump（推荐），或在 `Cargo.toml` 注释明确「crate 版本不参与发版」并写明理由。悬空不管是最差选项。
 - 建议 bump 脚本化（`scripts/bump_version.py`：一次改齐全部版本文件 + 校验 versionCode 规则），替代手工六处编辑；出 tag 的 preflight 继续兜底。
-- 发版完成判据不变：latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel）（含 `darwin-x86_64`）+ mac/windows 真机抽检通过。
+- 正式版发版完成判据不变：latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel）（含 `darwin-x86_64`）+ mac/windows 真机抽检通过。
 
 ### 模型调用与跨端一致性
 

@@ -373,7 +373,9 @@ test("catalog distinguishes outbound push, polling chat and callback chat in eve
       expect(polling.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
       expect(polling.getByText(i18n.t("channel.longPolling"))).toBeVisible();
       expect(callback.getByText(i18n.t("channel.twoWayChat"))).toBeVisible();
-      expect(callback.getByText(i18n.t("channel.websocketShort"))).toBeVisible();
+      expect(
+        callback.getByText(i18n.t("channel.websocketShort")),
+      ).toBeVisible();
       expect(callback.getByText(i18n.t("channel.webhookShort"))).toBeVisible();
     }
     expect(channelApi.getTypes).toHaveBeenCalledTimes(1);
@@ -381,3 +383,21 @@ test("catalog distinguishes outbound push, polling chat and callback chat in eve
     await act(() => i18n.changeLanguage("en"));
   }
 });
+
+test.each(["/channels", "/channels/slack"])(
+  "loading at %s keeps one header and one panel inset",
+  (path) => {
+    vi.mocked(channelApi.getTypes).mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const { container } = mount(path);
+    expect(container.querySelectorAll(".panel-header")).toHaveLength(1);
+    expect(container.querySelectorAll(".panel-body")).toHaveLength(1);
+    if (path.endsWith("/slack")) {
+      expect(container.querySelector(".auto-grid-cols")).toBeNull();
+      expect(container.querySelectorAll(".panel-card").length).toBeGreaterThan(
+        0,
+      );
+    }
+  },
+);

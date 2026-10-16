@@ -277,3 +277,45 @@ def test_download_release_asset_upstream_failure_returns_502(client):
         assert resp.json()["detail"]["code"] == "release_asset_fetch_failed"
         assert resp.json()["detail"]["args"]["status"] == 403
         assert stream.closed is True
+
+
+@pytest.mark.parametrize(
+    "current,expected", [("2.15.2-dev.9", True), ("2.15.2-dev.10", False), ("2.15.2", False)]
+)
+def test_dev_version_query_uses_full_build_identity(client, current, expected):
+    with patch.object(
+        GitHubClient,
+        "get_channel_release",
+        create=True,
+        new_callable=AsyncMock,
+        return_value=make_mock_release(tag_name="v2.15.2-dev.10"),
+    ):
+        resp = client.get("/api/version", params={"channel": "dev", "client_version": current})
+        assert resp.json()["latest_version"] == "2.15.2-dev.10"
+        assert resp.json()["has_update"] is expected
+
+
+def test_invalid_channel_rejected(client):
+    assert client.get("/api/version?channel=nightly").status_code == 422
+
+
+def test_dev_updater_header_selects_isolated_manifest(client):
+    release = make_mock_release(
+        tag_name="v2.15.2-dev.3",
+        assets=[{"name": "dev-latest.json", "url": "https://example.com/dev-manifest"}],
+    )
+    stream = FakeAssetStream([b'{"version":"2.15.2-dev.3"}'])
+    with (
+        patch.object(
+            GitHubClient, "get_channel_release", new_callable=AsyncMock, return_value=release
+        ),
+        patch.object(
+            GitHubClient, "open_asset_stream", new_callable=AsyncMock, return_value=stream
+        ) as opened,
+    ):
+        response = client.get(
+            "/api/version/assets/latest.json/download", headers={"X-LambChat-Update-Channel": "dev"}
+        )
+        assert response.json()["version"] == "2.15.2-dev.3"
+        assert response.headers["vary"] == "X-LambChat-Update-Channel"
+        opened.assert_awaited_once_with("https://example.com/dev-manifest")

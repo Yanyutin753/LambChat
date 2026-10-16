@@ -160,3 +160,5 @@ tickets/
 .v2c/
 
 .video_agent/
+
+!/scripts/check_release_mutability.py

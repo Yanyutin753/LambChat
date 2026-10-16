@@ -1,3 +1,5 @@
+import { UpdateChannelSelect } from "../update/UpdateChannelSelect";
+import { useUpdateChannel } from "../../utils/updateChannel";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -38,8 +40,6 @@ import { LanguageToggle } from "../common/LanguageToggle";
 import { BrandLogo } from "../common/BrandLogo";
 import { BrandWordmark } from "../common/BrandWordmark";
 import type { VersionInfo } from "../../types";
-
-const RELEASES_FALLBACK_URL = `${GITHUB_URL}/releases/latest`;
 
 /** 平台分区的展示顺序：检测到的平台置顶并高亮。 */
 const PLATFORM_ORDER: DesktopPlatform[] = ["windows", "macos", "linux"];
@@ -90,7 +90,9 @@ function AssetRow({
         className="group inline-flex w-full items-center gap-3 rounded-2xl bg-stone-900 px-5 py-3.5 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:text-15"
       >
         {badge}
-        <span className="min-w-0 flex-1 break-all font-mono text-12 leading-relaxed sm:text-13">{name}</span>
+        <span className="min-w-0 flex-1 break-all font-mono text-12 leading-relaxed sm:text-13">
+          {name}
+        </span>
         {size != null && (
           <span className="ml-auto shrink-0 tabular-nums text-11 opacity-60">
             {formatAssetSize(size)}
@@ -212,6 +214,10 @@ export function DownloadPage() {
   const { theme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const [info, setInfo] = useState<VersionInfo | null>(null);
+  const { channel } = useUpdateChannel();
+  const releasesFallbackUrl = `${GITHUB_URL}/releases${
+    channel === "dev" ? "" : "/latest"
+  }`;
   const [failed, setFailed] = useState(false);
   // 重扫依赖：资产数据到达后条件渲染的分区（daemon 终端/二进制、失败兜底卡）
   // 才会挂载，必须重跑 observer 否则永远停在 reveal 隐藏态
@@ -238,11 +244,21 @@ export function DownloadPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    setInfo(null);
+    setFailed(false);
     versionApi
-      .get()
-      .then((res) => setInfo(res))
-      .catch(() => setFailed(true));
-  }, []);
+      .get(undefined, channel)
+      .then((res) => {
+        if (active) setInfo(res);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [channel]);
 
   // 下载链接一律走自托管反代：/api/version 返回的 browser_download_url 是
   // GitHub 直链，国内用户直连下载不稳；反代按资产名在最新 release 中查找
@@ -251,7 +267,11 @@ export function DownloadPage() {
     () =>
       (info?.release_assets ?? []).map((a) => ({
         ...a,
-        url: buildReleaseAssetDownloadUrl(a.name),
+        url: buildReleaseAssetDownloadUrl(
+          a.name,
+          undefined,
+          info?.latest_version ?? undefined,
+        ),
       })),
     [info],
   );
@@ -325,6 +345,7 @@ export function DownloadPage() {
       {/* Hero */}
       <section className="public-brand-hero blog-hero relative flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-[calc(5rem+var(--app-safe-area-top,0px))] text-center sm:px-6 sm:pt-28">
         <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-4xl lg:max-w-5xl">
+          <UpdateChannelSelect />
           {/* Editorial tag */}
           <div
             data-reveal
@@ -366,7 +387,7 @@ export function DownloadPage() {
                 {t("download.loadFailed")}
               </p>
               <a
-                href={RELEASES_FALLBACK_URL}
+                href={releasesFallbackUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-15 font-semibold text-amber-600 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
@@ -446,7 +467,7 @@ export function DownloadPage() {
                   </span>
                 )}
                 <a
-                  href={RELEASES_FALLBACK_URL}
+                  href={releasesFallbackUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 text-11 font-semibold uppercase tracking-[0.14em] text-theme-text-secondary transition-colors hover:text-theme-text-secondary dark:text-theme-text-secondary dark:hover:text-theme-text-tertiary sm:text-13"
@@ -865,7 +886,7 @@ export function DownloadPage() {
             <a
               data-reveal
               data-reveal-delay="1"
-              href={RELEASES_FALLBACK_URL}
+              href={releasesFallbackUrl}
               target="_blank"
               rel="noreferrer"
               className="blog-btn-ghost group inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full border border-stone-200/80 bg-white/50 px-8 py-4 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 active:translate-y-0 dark:border-stone-700/50 dark:bg-stone-800/30 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:px-9"

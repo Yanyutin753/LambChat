@@ -17,7 +17,7 @@ function readRepoFile(path: string): string {
 test("version service reports the bundled client version on update checks", () => {
   const service = readRepoFile("frontend/src/services/api/version.ts");
   expect(service).toMatch(/client_version/);
-  expect(service).toMatch(/checkForUpdates\(clientVersion/);
+  expect(service).toMatch(/checkForUpdates\(\s*clientVersion/);
 
   // 客户端版本来自构建期打包的 package.json（与 versionName 同源）
   const appVersion = readRepoFile("frontend/src/utils/appVersion.ts");
@@ -28,7 +28,9 @@ test("version service reports the bundled client version on update checks", () =
 test("useAutoUpdate checks updates with the client version and installs via native installer", () => {
   const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
   // 上报客户端版本而非依赖服务端版本
-  expect(hook).toMatch(/checkForUpdates\(APP_VERSION\)/);
+  expect(hook).toMatch(
+    /checkForUpdates\(\s*APP_VERSION,\s*getUpdateChannel\(\),?\s*\)/,
+  );
   // 安装走原生 ApkInstaller，不再用 Share（ACTION_SEND 只开分享面板）
   expect(hook).not.toMatch(/@capacitor\/share/);
   expect(hook).toMatch(/ApkInstaller/);
@@ -138,12 +140,12 @@ test("UpdateDownloaderPlugin downloads to app-private external dir via DownloadM
   expect(plugin).toMatch(/Long\.parseLong/);
 });
 
-test("tauri updater keeps proxy fallback endpoint for manifest fetch", () => {
+test("tauri updater does not silently fall back from dev to a stable-only endpoint", () => {
   // 桌面更新器清单拉取：GitHub 直连不稳（国内）时回退自托管同源代理。
   // 端点按序尝试是 tauri-plugin-updater 的内建语义。
   const conf = readRepoFile("frontend/src-tauri/tauri.conf.json");
   const endpoints = /"endpoints":\s*\[([\s\S]*?)\]/.exec(conf)?.[1] ?? "";
-  expect(endpoints).toMatch(
+  expect(endpoints).not.toMatch(
     /github\.com\/Yanyutin753\/LambChat\/releases\/latest\/download\/latest\.json/,
   );
   expect(endpoints).toMatch(
@@ -219,7 +221,7 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   expect(hook).toMatch(/const downloadInFlightRef = useRef\(false\)/);
   const guards =
     hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
-  expect(guards.length).toBe(3); // desktop, Linux package, Android APK
+  expect(guards.length).toBe(4); // desktop, pending install, Linux package, Android APK
   // 后台下载卫兵 = pending(已完成) + inFlight(进行中) 双查——单查完成标志
   // 会在下载中放行第二条下载（多进度条/并发下载根因）
   expect(hook).toMatch(

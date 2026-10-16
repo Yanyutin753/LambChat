@@ -1,3 +1,9 @@
+import {
+  getUpdateChannel,
+  getUpdateRevision,
+  setUpdateBusy,
+  UPDATE_CHANNEL_CHANGED,
+} from "../utils/updateChannel";
 import { useState, useEffect, useCallback, useRef } from "react";
 import i18n from "i18next";
 import { versionApi, buildReleaseAssetDownloadUrl } from "../services/api";
@@ -193,8 +199,9 @@ async function notifyUpdateAvailable(
   backgroundDownload: boolean,
 ): Promise<void> {
   try {
-    const { appNotificationService } =
-      await import("../services/notifications/appNotificationService");
+    const { appNotificationService } = await import(
+      "../services/notifications/appNotificationService"
+    );
     await appNotificationService.notify({
       type: "message",
       title: i18n.t("update.notificationTitle", "发现新版本"),
@@ -227,6 +234,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** 已后台下载完成的 Tauri 更新对象（待用户确认安装重启） */
   const pendingUpdateRef = useRef<{
     install: () => Promise<void>;
+    close?: () => Promise<void>;
   } | null>(null);
   /** Linux 安装来源（Rust 检测；null=非 Linux 桌面或检测未完成） */
   const linuxSourceRef = useRef<LinuxInstallSource | null>(null);
@@ -365,6 +373,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     // 写 progress 表现为进度条跳变/多进度（v2.10.3 实测并发下载）
     if (pendingUpdateRef.current || downloadInFlightRef.current) return;
     downloadInFlightRef.current = true;
+    setUpdateBusy(true);
     setState((prev) =>
       prev.available ? { ...prev, downloading: true, error: null } : prev,
     );
@@ -389,8 +398,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             break;
         }
       });
-      pendingUpdateRef.current = { install: () => update.install() };
+      pendingUpdateRef.current = {
+        install: () => update.install(),
+        close: () => update.close(),
+      };
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
       setState((prev) => ({
         ...prev,
         downloading: false,
@@ -400,6 +413,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       // 后台下载失败不弹错：用户点「立即升级」时走前台 downloadAndInstall 兜底
       pendingUpdateRef.current = null;
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
       setState((prev) => ({ ...prev, downloading: false }));
     }
   }, []);
@@ -410,7 +424,15 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     async (background = false, manual = false): Promise<UpdateCheckResult> => {
       try {
         const { check } = await import("@tauri-apps/plugin-updater");
-        const update = await check();
+        const revision = getUpdateRevision();
+        const channel = getUpdateChannel();
+        const update = await check({
+          headers: { "X-LambChat-Update-Channel": channel },
+        });
+        if (revision !== getUpdateRevision()) {
+          await update?.close?.();
+          return { ok: false, version: null };
+        }
         if (downloadInFlightRef.current || pendingUpdateRef.current) {
           await update?.close?.();
           return {
@@ -471,7 +493,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       manual = false,
     ): Promise<UpdateCheckResult> => {
       try {
-        const info = await versionApi.checkForUpdates(APP_VERSION);
+        const revision = getUpdateRevision();
+        const info = await versionApi.checkForUpdates(
+          APP_VERSION,
+          getUpdateChannel(),
+        );
+        if (revision !== getUpdateRevision())
+          return { ok: false, version: null };
         if (!info.latest_version) return { ok: false, version: null };
         if (downloadInFlightRef.current || linuxDownloadedRef.current) {
           return { ok: true, version: updateVersionRef.current };
@@ -536,7 +564,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }
         return {
           ok: true,
-          version: info.has_update ? (info.latest_version ?? null) : null,
+          version: info.has_update ? info.latest_version ?? null : null,
         };
       } catch (error) {
         console.warn("[Update] Backend check failed", error);
@@ -559,6 +587,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       return;
     }
     downloadInFlightRef.current = true;
+    setUpdateBusy(true);
     setState((prev) =>
       prev.available
         ? { ...prev, downloading: true, error: null, progress: 0 }
@@ -568,6 +597,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       await downloadLinuxPackage(target.url, target.name);
       linuxDownloadedRef.current = target.name;
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
       setState((prev) => ({
         ...prev,
         downloading: false,
@@ -577,6 +607,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     } catch {
       // 后台下载失败不弹错：用户点「下载并安装」时前台重试兜底
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
       setState((prev) => ({ ...prev, downloading: false }));
     }
   }, []);
@@ -586,7 +617,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const checkBackendUpdate = useCallback(
     async (background = false, manual = false): Promise<UpdateCheckResult> => {
       try {
-        const info = await versionApi.checkForUpdates(APP_VERSION);
+        const revision = getUpdateRevision();
+        const info = await versionApi.checkForUpdates(
+          APP_VERSION,
+          getUpdateChannel(),
+        );
+        if (revision !== getUpdateRevision())
+          return { ok: false, version: null };
         if (!info.latest_version) return { ok: false, version: null };
         // 检查可以发现新版本，但不能替换正在下载的 APK 及其进度。
         if (
@@ -641,7 +678,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         }
         return {
           ok: true,
-          version: info.has_update ? (info.latest_version ?? null) : null,
+          version: info.has_update ? info.latest_version ?? null : null,
         };
       } catch (error) {
         console.warn("[Update] Backend check failed", error);
@@ -659,8 +696,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       try {
         const apkAsset = findApkAsset(assets);
         if (!apkAsset) return;
-        const { UpdateDownloader } =
-          await import("../services/capacitor/updateDownloader");
+        const { UpdateDownloader } = await import(
+          "../services/capacitor/updateDownloader"
+        );
         const status = await UpdateDownloader.status({
           fileName: apkAsset.name,
         });
@@ -702,12 +740,17 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       }
       const pending = pendingUpdateRef.current;
       if (pending) {
+        if (downloadInFlightRef.current) return;
+        downloadInFlightRef.current = true;
+        setUpdateBusy(true);
         // 后台已下载完成：直接安装 + 重启
         try {
           await pending.install();
           const { relaunch } = await import("@tauri-apps/plugin-process");
           await relaunch();
         } catch (err) {
+          downloadInFlightRef.current = false;
+          setUpdateBusy(false);
           setState((prev) => ({
             ...prev,
             error: formatUpdateError(err, platform),
@@ -739,6 +782,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         return;
       }
       downloadInFlightRef.current = true;
+      setUpdateBusy(true);
       setState((prev) => ({
         ...prev,
         downloading: true,
@@ -757,6 +801,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         await relaunch();
       } catch (err) {
         downloadInFlightRef.current = false;
+        setUpdateBusy(false);
         setState((prev) => ({
           ...prev,
           downloading: false,
@@ -777,6 +822,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const installTauriUpdate = useCallback(async () => {
     if (downloadInFlightRef.current) return; // 与后台下载/另一前台安装互斥
     downloadInFlightRef.current = true;
+    setUpdateBusy(true);
     setState((prev) => ({
       ...prev,
       downloading: true,
@@ -786,7 +832,9 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const { relaunch } = await import("@tauri-apps/plugin-process");
-      const update = await check();
+      const update = await check({
+        headers: { "X-LambChat-Update-Channel": getUpdateChannel() },
+      });
       if (!update) throw new Error("No update found");
 
       let downloaded = 0;
@@ -819,6 +867,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       await relaunch();
     } catch (err) {
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
       setState((prev) => ({
         ...prev,
         downloading: false,
@@ -831,6 +880,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const installAndroidUpdate = useCallback(async () => {
     if (downloadInFlightRef.current) return;
     downloadInFlightRef.current = true;
+    setUpdateBusy(true);
     setState((prev) => ({
       ...prev,
       downloading: true,
@@ -865,43 +915,39 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       }));
     } finally {
       downloadInFlightRef.current = false;
+      setUpdateBusy(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.releaseAssets]);
 
   /** 拉起系统安装器的公共收尾（授权提示 + 态收口） */
-  const launchAndroidInstaller = useCallback(
-    async (path: string) => {
-      const { ApkInstaller } = await import(
-        "../services/capacitor/apkInstaller"
+  const launchAndroidInstaller = useCallback(async (path: string) => {
+    const { ApkInstaller } = await import("../services/capacitor/apkInstaller");
+    const res = await ApkInstaller.installApk({ path });
+    if (res.status === "settings") {
+      const { toast } = await import("react-hot-toast");
+      toast(
+        i18n.t("update.installPermissionHint", {
+          defaultValue: "请先允许 LambChat 安装未知应用，授权后重新点击升级",
+        }),
       );
-      const res = await ApkInstaller.installApk({ path });
-      if (res.status === "settings") {
-        const { toast } = await import("react-hot-toast");
-        toast(
-          i18n.t("update.installPermissionHint", {
-            defaultValue:
-              "请先允许 LambChat 安装未知应用，授权后重新点击升级",
-          }),
-        );
-      }
-      setState((prev) => ({
-        ...prev,
-        downloading: false,
-        progress: 100,
-        readyToInstall: true,
-      }));
-    },
-    [],
-  );
+    }
+    setState((prev) => ({
+      ...prev,
+      downloading: false,
+      progress: 100,
+      readyToInstall: true,
+    }));
+  }, []);
 
   /** 原生 DownloadManager 下载 + 拉起安装器（progress 轮询驱动进度条）。
    *  主流缓存语义：该版本 APK 已完整下载（应用专属目录 + 大小吻合）时
    *  直接安装，绝不重复下载；新下载完成后清掉旧版本残留包。 */
   const installAndroidUpdateViaNative = useCallback(
     async (assetName: string, expectedSize?: number) => {
-      const { UpdateDownloader } =
-        await import("../services/capacitor/updateDownloader");
+      const { UpdateDownloader } = await import(
+        "../services/capacitor/updateDownloader"
+      );
 
       // 已完整缓存：直接安装（跳过下载——重复弹窗/复检不重复扣流量）
       try {
@@ -918,7 +964,11 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       const { downloadId } = await UpdateDownloader.start({
         // 同一自托管代理 URL：原生无 CORS 约束，但保住「服务端可达 GitHub」
         // 的转发语义（国内直连 GitHub release 不稳）
-        url: buildReleaseAssetDownloadUrl(assetName),
+        url: buildReleaseAssetDownloadUrl(
+          assetName,
+          undefined,
+          stateRef.current.version ?? undefined,
+        ),
         fileName: assetName,
       });
 
@@ -981,7 +1031,13 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
 
       // 直连 GitHub browser_download_url 会被 WebView CORS 拦截
       // （Failed to fetch）：走自托管后端同源代理流式下载。
-      const response = await fetch(buildReleaseAssetDownloadUrl(assetName));
+      const response = await fetch(
+        buildReleaseAssetDownloadUrl(
+          assetName,
+          undefined,
+          stateRef.current.version ?? undefined,
+        ),
+      );
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const contentLength = Number(response.headers.get("content-length") ?? 0);
       const reader = response.body?.getReader();
@@ -1064,6 +1120,25 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   // 最新 state 供 checkNow 读取（避免闭包旧值）
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  useEffect(() => {
+    const onChannelChange = () => {
+      void pendingUpdateRef.current?.close?.().catch(() => {});
+      pendingUpdateRef.current = null;
+      updateVersionRef.current = null;
+      linuxTargetAssetRef.current = null;
+      linuxDownloadedRef.current = null;
+      notifiedVersionRef.current = null;
+      setShowDialog(false);
+      setState(INITIAL_STATE);
+      void checkForUpdate();
+    };
+    window.addEventListener(UPDATE_CHANNEL_CHANGED, onChannelChange);
+    return () => {
+      window.removeEventListener(UPDATE_CHANNEL_CHANGED, onChannelChange);
+      setUpdateBusy(false);
+    };
+  }, [checkForUpdate]);
 
   // Auto-check on mount with delay
   useEffect(() => {

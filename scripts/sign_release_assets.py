@@ -21,7 +21,7 @@ def sign_release(directory: Path, version: str, commit: str, private_key: bytes)
         raise ValueError("An Ed25519 release key is required")
     assets = {}
     for path in sorted(directory.iterdir()):
-        if path.name in {MANIFEST_NAME, SIGNATURE_NAME, "latest.json"}:
+        if path.name in {MANIFEST_NAME, SIGNATURE_NAME, "latest.json", "dev-latest.json"}:
             continue
         if path.is_symlink() or not path.is_file():
             raise ValueError("Release assets must be regular files")

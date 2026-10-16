@@ -29,6 +29,7 @@ export {
   ScheduledTaskPanelSkeleton,
   TaskSessionListSkeleton,
   ChannelsGridSkeleton,
+  ChannelInstancesSkeleton,
   ChannelConfigSkeleton,
   AgentModelPanelSkeleton,
   AgentPanelSkeleton,
@@ -40,8 +41,18 @@ export {
 } from "./PanelSkeletons";
 
 export { SkillsHubSkeleton } from "./SkillSkeletons";
-export { BookmarksListSkeleton, BookmarksPanelSkeleton, NotificationsListSkeleton, NotificationsPanelSkeleton, TeamListSkeleton, TeamPanelSkeleton } from "./ResourceSkeletons";
-export { SettingsPanelSkeleton, SettingsListSkeleton } from "./SettingsSkeletons";
+export {
+  BookmarksListSkeleton,
+  BookmarksPanelSkeleton,
+  NotificationsListSkeleton,
+  NotificationsPanelSkeleton,
+  TeamListSkeleton,
+  TeamPanelSkeleton,
+} from "./ResourceSkeletons";
+export {
+  SettingsPanelSkeleton,
+  SettingsListSkeleton,
+} from "./SettingsSkeletons";
 export {
   FeedbackListSkeleton,
   FeedbackSummarySkeleton,

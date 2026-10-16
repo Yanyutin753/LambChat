@@ -4488,7 +4488,11 @@
     "readyHint": "다시 시작하면 새 버전을 사용할 수 있습니다.",
     "notesUnavailable": "이 버전의 자세한 업데이트 내용은 아직 제공되지 않았습니다. 전체 변경 기록을 확인하세요.",
     "readyToast": "v{{version}} 설치 준비가 완료되었습니다",
-    "downloadingToast": "v{{version}} 다운로드 중입니다. 완료 후 설치할 수 있습니다"
+    "downloadingToast": "v{{version}} 다운로드 중입니다. 완료 후 설치할 수 있습니다",
+    "channel": "업데이트 채널",
+    "channelStable": "안정 버전 (기본값)",
+    "channelDev": "테스트 버전",
+    "channelDevHint": "테스트 버전에는 해결되지 않은 문제가 있을 수 있습니다. dev.2 이전 버전은 새 버전을 한 번 수동 설치한 후 채널 업데이트를 사용할 수 있습니다."
   },
   "download": {
     "title": "로컬 샌드박스 다운로드",

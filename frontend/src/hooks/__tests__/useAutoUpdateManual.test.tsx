@@ -327,3 +327,35 @@ test("a ready native target is known even before the next React render", async (
     expect.anything(),
   );
 });
+
+test("channel switch discards a stale native check before it can download", async () => {
+  const { setUpdateChannel } = await import("../../utils/updateChannel");
+  let resolve!: (value: unknown) => void;
+  mocks.check.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      }),
+  );
+  mocks.check.mockResolvedValue(null);
+  const download = vi.fn();
+  const close = vi.fn();
+  const { result } = renderHook(() => useAutoUpdate());
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.checkNow();
+  });
+  await act(async () => {
+    setUpdateChannel("dev");
+  });
+  await act(async () => {
+    resolve({ available: true, version: "9.0.0", download, close });
+    await pending;
+  });
+  expect(download).not.toHaveBeenCalled();
+  expect(result.current.state.available).toBe(false);
+  expect(close).toHaveBeenCalled();
+  act(() => {
+    setUpdateChannel("stable");
+  });
+});

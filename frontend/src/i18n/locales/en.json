@@ -4488,7 +4488,11 @@
     "readyHint": "Restart to use the new version.",
     "notesUnavailable": "Detailed release notes are not provided for this version. View the full changelog for more information.",
     "readyToast": "v{{version}} is ready to install",
-    "downloadingToast": "Downloading v{{version}}; install when it finishes"
+    "downloadingToast": "Downloading v{{version}}; install when it finishes",
+    "channel": "Update channel",
+    "channelStable": "Stable (default)",
+    "channelDev": "Preview",
+    "channelDevHint": "Preview builds may contain unresolved issues. dev.2 and earlier require one manual reinstall before channel updates are supported."
   },
   "download": {
     "title": "Download Local Sandbox",
