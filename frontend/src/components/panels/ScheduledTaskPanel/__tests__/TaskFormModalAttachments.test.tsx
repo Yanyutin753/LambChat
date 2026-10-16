@@ -110,7 +110,11 @@ test("scheduled-task uploaded attachment removal is local and omitted on save", 
   const card = await screen.findByText("scheduled.pdf");
   const cardRoot = card.closest(".attachment-card-enter");
   expect(cardRoot).not.toBeNull();
-  fireEvent.click(within(cardRoot as HTMLElement).getByRole("button"));
+  fireEvent.click(
+    within(cardRoot as HTMLElement).getByRole("button", {
+      name: i18n.t("common.remove"),
+    }),
+  );
 
   expect(screen.queryByText("scheduled.pdf")).not.toBeInTheDocument();
   expect(cancelUpload).not.toHaveBeenCalled();

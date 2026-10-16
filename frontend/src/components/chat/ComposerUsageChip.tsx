@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -103,7 +104,9 @@ export function ComposerUsageChip() {
         title={label}
       >
         <span className="flex items-center gap-2">
-          <Activity size={16} className="shrink-0" />
+          <InteractiveIcon>
+            <Activity size={16} className="shrink-0" />
+          </InteractiveIcon>
           <span className="composer-usage-amount hidden sm:inline max-w-40 sm:max-w-52 truncate text-14 leading-5 font-medium text-theme-text-secondary font-serif tabular-nums">
             {snapshot.amount}
           </span>
@@ -156,7 +159,10 @@ export function ComposerUsageChip() {
               </div>
               <div className="mt-2 flex flex-col gap-1">
                 {snapshot.shares.map((s) => (
-                  <div key={s.key} className="grid grid-cols-[0.375rem_minmax(0,1fr)_auto_2.25rem] items-center gap-2 text-12">
+                  <div
+                    key={s.key}
+                    className="grid grid-cols-[0.375rem_minmax(0,1fr)_auto_2.25rem] items-center gap-2 text-12"
+                  >
                     <span
                       className={`size-1.5 shrink-0 rounded-full ${
                         SEGMENT_STYLE[s.key].color
@@ -190,7 +196,10 @@ export function ComposerUsageChip() {
               className="flex items-center justify-between gap-2 border-t px-3 py-2 text-12"
               style={{ borderColor: "var(--theme-border)" }}
             >
-              <span className="inline-flex items-baseline gap-1.5" style={{ color: "var(--theme-text-secondary)" }}>
+              <span
+                className="inline-flex items-baseline gap-1.5"
+                style={{ color: "var(--theme-text-secondary)" }}
+              >
                 {t("usage.requestsCount")}
                 <span
                   className="font-medium tabular-nums"
@@ -199,7 +208,10 @@ export function ComposerUsageChip() {
                   {snapshot.requests}
                 </span>
               </span>
-              <span className="inline-flex items-baseline gap-1.5" style={{ color: "var(--theme-text-secondary)" }}>
+              <span
+                className="inline-flex items-baseline gap-1.5"
+                style={{ color: "var(--theme-text-secondary)" }}
+              >
                 {t("usage.cacheHitRate")}
                 <span
                   className="font-medium tabular-nums"
@@ -226,7 +238,9 @@ export function ComposerUsageChip() {
               }}
             >
               {t("usage.viewDetails")}
-              <ChevronRight size={14} />
+              <InteractiveIcon>
+                <ChevronRight size={14} />
+              </InteractiveIcon>
             </button>
           </div>,
           document.body,

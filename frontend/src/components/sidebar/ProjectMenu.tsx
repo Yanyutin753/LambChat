@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
@@ -138,9 +139,11 @@ export function ProjectMenu({
                   onNewSessionInProject(_project.id);
                   onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
               >
-                <SquarePen size={16} />
+                <InteractiveIcon>
+                  <SquarePen size={16} />
+                </InteractiveIcon>
                 <span>{t("sidebar.newChat")}</span>
               </button>
             )}
@@ -151,9 +154,11 @@ export function ProjectMenu({
                 onRename();
                 onClose();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
             >
-              <Edit2 size={16} />
+              <InteractiveIcon>
+                <Edit2 size={16} />
+              </InteractiveIcon>
               <span>{t("sidebar.rename")}</span>
             </button>
 
@@ -164,9 +169,11 @@ export function ProjectMenu({
                   onShare();
                   onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
               >
-                <Share2 size={16} />
+                <InteractiveIcon>
+                  <Share2 size={16} />
+                </InteractiveIcon>
                 <span>{t("sidebar.shareProject", "分享项目")}</span>
               </button>
             )}
@@ -180,9 +187,11 @@ export function ProjectMenu({
                 onDelete();
                 onClose();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="ui-menu-item text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             >
-              <Trash2 size={16} />
+              <InteractiveIcon>
+                <Trash2 size={16} />
+              </InteractiveIcon>
               <span>{t("common.delete")}</span>
             </button>
           </div>
@@ -193,11 +202,7 @@ export function ProjectMenu({
 
   // Desktop: dropdown menu
   return createPortal(
-    <div
-      ref={menuRef}
-      style={menuStyle}
-      className="w-48 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
-    >
+    <div ref={menuRef} style={menuStyle} className="ui-menu-surface w-48">
       {onWorkspaceChange && (
         <ProjectWorkspaceField
           value={_project.workspace}
@@ -210,9 +215,11 @@ export function ProjectMenu({
           onRename();
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-14 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+        className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
       >
-        <Edit2 size={14} />
+        <InteractiveIcon>
+          <Edit2 size={14} />
+        </InteractiveIcon>
         <span>{t("sidebar.rename")}</span>
       </button>
 
@@ -223,9 +230,11 @@ export function ProjectMenu({
             onShare();
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-14 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
         >
-          <Share2 size={14} />
+          <InteractiveIcon>
+            <Share2 size={14} />
+          </InteractiveIcon>
           <span>{t("sidebar.shareProject", "分享项目")}</span>
         </button>
       )}
@@ -237,9 +246,11 @@ export function ProjectMenu({
             onNewSessionInProject(_project.id);
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-14 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
         >
-          <SquarePen size={14} />
+          <InteractiveIcon>
+            <SquarePen size={14} />
+          </InteractiveIcon>
           <span>{t("sidebar.newChat")}</span>
         </button>
       )}
@@ -253,9 +264,11 @@ export function ProjectMenu({
           onDelete();
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-14 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        className="ui-menu-item text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
       >
-        <Trash2 size={14} />
+        <InteractiveIcon>
+          <Trash2 size={14} />
+        </InteractiveIcon>
         <span>{t("common.delete")}</span>
       </button>
     </div>,

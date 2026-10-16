@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { SceneIllustration } from "./SceneIllustration";
 import { Component, ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
@@ -73,7 +74,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 "hover:brightness-110 dark:hover:brightness-90",
               )}
             >
-              <RotateCcw className="w-4 h-4" />
+              <InteractiveIcon>
+                <RotateCcw className="w-4 h-4" />
+              </InteractiveIcon>
               {t("errorBoundary.reloadPage")}
             </button>
           </div>

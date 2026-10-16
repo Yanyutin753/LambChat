@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { EmptyState } from "../common/EmptyState";
 /**
  * 书签面板 - 列出当前用户收藏的消息（大纲/总结等），
@@ -78,7 +79,9 @@ export function BookmarksPanel() {
             title={t("bookmarks.refresh")}
             aria-label={t("bookmarks.refresh")}
           >
-            <RefreshCw size={16} />
+            <InteractiveIcon>
+              <RefreshCw size={16} />
+            </InteractiveIcon>
           </button>
         }
       />
@@ -98,7 +101,9 @@ export function BookmarksPanel() {
               onClick={handleRefresh}
               className="glass-tag cursor-pointer"
             >
-              <RefreshCw size={12} />
+              <InteractiveIcon>
+                <RefreshCw size={12} />
+              </InteractiveIcon>
               {t("bookmarks.refresh")}
             </button>
           </div>
@@ -142,7 +147,9 @@ export function BookmarksPanel() {
                     title={t("bookmarks.remove")}
                     aria-label={t("bookmarks.remove")}
                   >
-                    <Trash2 size={14} />
+                    <InteractiveIcon>
+                      <Trash2 size={14} />
+                    </InteractiveIcon>
                   </button>
                 </div>
 

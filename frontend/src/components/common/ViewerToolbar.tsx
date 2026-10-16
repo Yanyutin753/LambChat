@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ZoomIn, ZoomOut, RotateCcw, RotateCw, Shrink } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -17,10 +18,8 @@ interface ViewerToolbarProps {
   className?: string;
 }
 
-interface ViewerToolbarButtonProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  "children"
-> {
+interface ViewerToolbarButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   icon: ReactNode;
 }
 
@@ -39,7 +38,7 @@ function ViewerToolbarButton({
       )}
       {...props}
     >
-      {icon}
+      <InteractiveIcon>{icon}</InteractiveIcon>
     </button>
   );
 }

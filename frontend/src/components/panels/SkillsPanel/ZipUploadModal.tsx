@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { Archive, UploadCloud, FileArchive, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
@@ -126,7 +127,15 @@ export function ZipUploadModal({
                 : "bg-[var(--theme-primary-light)] text-[var(--theme-primary)] group-hover:scale-105"
             }`}
           >
-            {isDragging ? <FileArchive size={24} /> : <UploadCloud size={24} />}
+            {isDragging ? (
+              <InteractiveIcon>
+                <FileArchive size={24} />
+              </InteractiveIcon>
+            ) : (
+              <InteractiveIcon>
+                <UploadCloud size={24} />
+              </InteractiveIcon>
+            )}
           </div>
           <div className="text-center">
             <p className="text-14 font-medium text-[var(--theme-text)]">
@@ -140,10 +149,12 @@ export function ZipUploadModal({
           </div>
           {zipFile && (
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-lg bg-theme-primary-light px-3 py-1.5">
-              <Archive
-                size={14}
-                className="text-[var(--theme-primary)] shrink-0"
-              />
+              <InteractiveIcon>
+                <Archive
+                  size={14}
+                  className="text-[var(--theme-primary)] shrink-0"
+                />
+              </InteractiveIcon>
               <span className="text-12 font-medium text-[var(--theme-text)] truncate max-w-[200px]">
                 {zipFile.name}
               </span>

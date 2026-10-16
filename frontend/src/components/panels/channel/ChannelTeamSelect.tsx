@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 /**
  * Team selector for channel configuration.
  * Used when a channel is bound to the team agent.
@@ -119,11 +120,13 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
             />
           )}
           <span className="truncate font-serif">{displayText}</span>
-          <ChevronDown
-            size={15}
-            className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
-            style={{ transform: open ? "rotate(180deg)" : undefined }}
-          />
+          <InteractiveIcon>
+            <ChevronDown
+              size={15}
+              className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
+              style={{ transform: open ? "rotate(180deg)" : undefined }}
+            />
+          </InteractiveIcon>
         </button>
       </div>
 
@@ -143,7 +146,9 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
               className={`glass-select-option ${!value ? "active" : ""}`}
             >
               {!value && (
-                <Check size={14} className="glass-select-option-check" />
+                <InteractiveIcon>
+                  <Check size={14} className="glass-select-option-check" />
+                </InteractiveIcon>
               )}
               <span className="glass-select-option-label">
                 {t("channel.defaultTeam", "不指定团队")}
@@ -163,7 +168,9 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
                   className={`glass-select-option ${active ? "active" : ""}`}
                 >
                   {active && (
-                    <Check size={14} className="glass-select-option-check" />
+                    <InteractiveIcon>
+                      <Check size={14} className="glass-select-option-check" />
+                    </InteractiveIcon>
                   )}
                   <span className="flex min-w-0 items-center gap-2">
                     <TeamAvatar

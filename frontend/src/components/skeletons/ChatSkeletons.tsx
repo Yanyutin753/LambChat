@@ -153,7 +153,7 @@ function ChatInputSkeleton({
 function ChatInputShellSkeleton() {
   return (
     <div
-      className="chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300"
+      className="chat-input-container flex flex-col relative w-full rounded-2xl px-1 border"
       style={{
         backgroundColor: "var(--theme-bg-card)",
       }}
@@ -173,8 +173,8 @@ function ChatInputShellSkeleton() {
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
       <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
         <div className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5">
-          {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-full) */}
-          <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
+          {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-lg) */}
+          <div className="skeleton-line h-9 w-9 rounded-lg shrink-0" />
           {/* Agent chip (chat-tool-btn + avatar 18px + text-14 label) */}
           <div className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none">
             <div className="flex flex-row items-center gap-2 min-w-0">
@@ -187,9 +187,9 @@ function ChatInputShellSkeleton() {
         </div>
         <div className="flex shrink-0 items-center gap-1.5 self-center">
           {/* Settings / Run Mode button (chat-tool-btn) */}
-          <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
-          {/* Send button (h-9 w-9 rounded-full) */}
-          <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
+          <div className="skeleton-line h-9 w-9 rounded-lg shrink-0" />
+          {/* Send button (h-9 w-9 rounded-lg) */}
+          <div className="skeleton-line h-9 w-9 rounded-lg shrink-0" />
         </div>
       </div>
     </div>
@@ -346,9 +346,11 @@ export function WelcomeSkeleton() {
         </div>
         {/* Persona card grid skeleton */}
         <div className="welcome-persona-gallery welcome-persona-gallery--loading relative pb-1 sm:pb-0">
-          {Array.from({ length: getWelcomePersonaSkeletonCount(true) }).map((_, i) => (
-            <WelcomePersonaCardSkeleton key={i} />
-          ))}
+          {Array.from({ length: getWelcomePersonaSkeletonCount(true) }).map(
+            (_, i) => (
+              <WelcomePersonaCardSkeleton key={i} />
+            ),
+          )}
         </div>
       </div>
     </div>

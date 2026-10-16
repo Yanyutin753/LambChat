@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
@@ -85,7 +86,9 @@ export function GridCard({
             }}
             className="shrink-0 flex items-center justify-center size-11 sm:size-7 rounded-md hover:bg-theme-bg-subtle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
           >
-            <MoreHorizontal size={15} className="text-theme-text-tertiary" />
+            <InteractiveIcon>
+              <MoreHorizontal size={15} className="text-theme-text-tertiary" />
+            </InteractiveIcon>
           </button>
         </div>
 

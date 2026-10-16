@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import { Target, X, Pause, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -124,34 +125,130 @@ function EmbeddedGoalBar({
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--theme-bg-hover,rgba(128,128,128,0.08))] disabled:cursor-not-allowed disabled:opacity-20"
           style={{ opacity: 0.4 }}
         >
-          <X className="h-3.5 w-3.5" />
+          <InteractiveIcon>
+            <X className="h-3.5 w-3.5" />
+          </InteractiveIcon>
         </button>
       )}
     </div>
   );
 }
 
-function PersistentGoalStrip({ goal, onPause, onResume, onClear, disabled, embedded, className }: {
-  goal: PersistentGoal; onPause?: () => void; onResume?: () => void; onClear?: () => void;
-  disabled: boolean; embedded: boolean; className: string;
+function PersistentGoalStrip({
+  goal,
+  onPause,
+  onResume,
+  onClear,
+  disabled,
+  embedded,
+  className,
+}: {
+  goal: PersistentGoal;
+  onPause?: () => void;
+  onResume?: () => void;
+  onClear?: () => void;
+  disabled: boolean;
+  embedded: boolean;
+  className: string;
 }) {
   const { t } = useTranslation();
   const canPause = goal.status === "active" || goal.status === "waiting_human";
-  const canResume = goal.status === "paused" || goal.status === "blocked" || goal.status === "budget_limited";
-  const buttonClass = "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
+  const canResume =
+    goal.status === "paused" ||
+    goal.status === "blocked" ||
+    goal.status === "budget_limited";
+  const buttonClass =
+    "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
   if (goal.status === "cleared") return null;
-  return <div className={`flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-14 ${embedded ? "border-b border-theme-border" : "mx-auto w-full max-w-[52rem]"} ${className}`}>
-    <Target className="size-4 shrink-0 text-theme-text-secondary" aria-hidden="true" />
-    <div className="min-w-0 flex-1 basis-40">
-      <p className="truncate text-theme-text-secondary" title={goal.objective}>{goal.objective}</p>
-      <p className="text-12 text-theme-text-tertiary" role="status" aria-live="polite">
-        {t(`chat.goalPersistent.status.${goal.status}`, goal.status)} · {t("chat.goalPersistent.turns", { count: goal.accounting.turns, max: goal.limits.max_turns, defaultValue: "{{count}} / {{max}} turns" })} · {goal.accounting.tokens === null ? t("chat.goalPersistent.tokensUnknown", "Token usage unknown") : t("chat.goalPersistent.tokens", { count: goal.accounting.tokens, max: goal.limits.max_tokens, defaultValue: "{{count}} / {{max}} tokens" })} · {t("chat.goalPersistent.timeLimit", { minutes: Math.ceil(goal.limits.max_seconds / 60), defaultValue: "{{minutes}} min limit" })}
-      </p>
+  return (
+    <div
+      className={`flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-14 ${
+        embedded
+          ? "border-b border-theme-border"
+          : "mx-auto w-full max-w-[52rem]"
+      } ${className}`}
+    >
+      <Target
+        className="size-4 shrink-0 text-theme-text-secondary"
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1 basis-40">
+        <p
+          className="truncate text-theme-text-secondary"
+          title={goal.objective}
+        >
+          {goal.objective}
+        </p>
+        <p
+          className="text-12 text-theme-text-tertiary"
+          role="status"
+          aria-live="polite"
+        >
+          {t(`chat.goalPersistent.status.${goal.status}`, goal.status)} ·{" "}
+          {t("chat.goalPersistent.turns", {
+            count: goal.accounting.turns,
+            max: goal.limits.max_turns,
+            defaultValue: "{{count}} / {{max}} turns",
+          })}{" "}
+          ·{" "}
+          {goal.accounting.tokens === null
+            ? t("chat.goalPersistent.tokensUnknown", "Token usage unknown")
+            : t("chat.goalPersistent.tokens", {
+                count: goal.accounting.tokens,
+                max: goal.limits.max_tokens,
+                defaultValue: "{{count}} / {{max}} tokens",
+              })}{" "}
+          ·{" "}
+          {t("chat.goalPersistent.timeLimit", {
+            minutes: Math.ceil(goal.limits.max_seconds / 60),
+            defaultValue: "{{minutes}} min limit",
+          })}
+        </p>
+      </div>
+      {canPause && onPause && (
+        <button
+          type="button"
+          onClick={onPause}
+          disabled={disabled}
+          aria-label={t("chat.goalPersistent.pause", "Pause goal")}
+          title={t("chat.goalPersistent.pause", "Pause goal")}
+          className={buttonClass}
+        >
+          <InteractiveIcon>
+            <Pause className="size-4" aria-hidden="true" />
+          </InteractiveIcon>
+        </button>
+      )}
+      {canResume && onResume && (
+        <button
+          type="button"
+          onClick={onResume}
+          disabled={disabled}
+          aria-label={t("chat.goalPersistent.resume", "Resume goal")}
+          title={t("chat.goalPersistent.resume", "Resume goal")}
+          className={buttonClass}
+        >
+          <InteractiveIcon>
+            <Play className="size-4" aria-hidden="true" />
+          </InteractiveIcon>
+        </button>
+      )}
+      {onClear && (
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={disabled}
+          aria-label={t("chat.goalPersistent.clear", "Clear goal")}
+          title={t("chat.goalPersistent.clear", "Clear goal")}
+          className={buttonClass}
+        >
+          <InteractiveIcon>
+            <X className="size-4" aria-hidden="true" />
+          </InteractiveIcon>
+        </button>
+      )}
     </div>
-    {canPause && onPause && <button type="button" onClick={onPause} disabled={disabled} aria-label={t("chat.goalPersistent.pause", "Pause goal")} title={t("chat.goalPersistent.pause", "Pause goal")} className={buttonClass}><Pause className="size-4" aria-hidden="true" /></button>}
-    {canResume && onResume && <button type="button" onClick={onResume} disabled={disabled} aria-label={t("chat.goalPersistent.resume", "Resume goal")} title={t("chat.goalPersistent.resume", "Resume goal")} className={buttonClass}><Play className="size-4" aria-hidden="true" /></button>}
-    {onClear && <button type="button" onClick={onClear} disabled={disabled} aria-label={t("chat.goalPersistent.clear", "Clear goal")} title={t("chat.goalPersistent.clear", "Clear goal")} className={buttonClass}><X className="size-4" aria-hidden="true" /></button>}
-  </div>;
+  );
 }
 
 function OrdinaryGoalBar({
@@ -227,23 +324,43 @@ function OrdinaryGoalBar({
           aria-label={clearLabel}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--theme-bg-hover,rgba(128,128,128,0.08))] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <X className="h-4 w-4" />
+          <InteractiveIcon>
+            <X className="h-4 w-4" />
+          </InteractiveIcon>
         </button>
       )}
     </div>
   );
 }
 
-
 export function ActiveGoalBar(props: ActiveGoalBarProps) {
-  const { goal, persistentGoal, disabled = false, embedded = false, className = "" } = props;
+  const {
+    goal,
+    persistentGoal,
+    disabled = false,
+    embedded = false,
+    className = "",
+  } = props;
   const scope = getGoalControlScope(goal, persistentGoal);
-  return <>
-    {persistentGoal && persistentGoal.status !== "cleared" && <PersistentGoalStrip
-      goal={persistentGoal} onPause={props.onPause} onResume={props.onResume}
-      onClear={props.onClearPersistentGoal ?? (scope === "persistent" ? props.onClear : undefined)}
-      disabled={props.persistentDisabled ?? disabled} embedded={embedded} className={className}
-    />}
-    {scope === "ordinary" && <OrdinaryGoalBar {...props} goal={goal ?? null} />}
-  </>;
+  return (
+    <>
+      {persistentGoal && persistentGoal.status !== "cleared" && (
+        <PersistentGoalStrip
+          goal={persistentGoal}
+          onPause={props.onPause}
+          onResume={props.onResume}
+          onClear={
+            props.onClearPersistentGoal ??
+            (scope === "persistent" ? props.onClear : undefined)
+          }
+          disabled={props.persistentDisabled ?? disabled}
+          embedded={embedded}
+          className={className}
+        />
+      )}
+      {scope === "ordinary" && (
+        <OrdinaryGoalBar {...props} goal={goal ?? null} />
+      )}
+    </>
+  );
 }

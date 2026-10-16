@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { AlertCircle, Paperclip, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -77,7 +78,9 @@ export function FileReferenceChip({
             onRetry();
           }}
         >
-          <RotateCcw size={12} aria-hidden="true" />
+          <InteractiveIcon>
+            <RotateCcw size={12} aria-hidden="true" />
+          </InteractiveIcon>
           <span>{t("fileUpload.composerRetry", "Retry")}</span>
         </button>
       ) : null}

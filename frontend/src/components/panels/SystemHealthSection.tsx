@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useCallback } from "react";
 import type { TFunction } from "i18next";
 import {
@@ -182,7 +183,12 @@ export function SystemHealthSection() {
             disabled={isLoading}
             className="rounded-lg p-1.5 text-stone-400 transition-colors hover:bg-[var(--glass-bg)] hover:text-stone-600 disabled:opacity-50 dark:text-stone-500 dark:hover:text-stone-300"
           >
-            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            <InteractiveIcon>
+              <RefreshCw
+                size={14}
+                className={isLoading ? "animate-spin" : ""}
+              />
+            </InteractiveIcon>
           </button>
           {expanded ? (
             <ChevronUp size={16} className="text-stone-400" />

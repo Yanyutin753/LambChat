@@ -1,7 +1,9 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import clsx from "clsx";
 
-export interface ViewerTopBarButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ViewerTopBarButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon: ReactNode;
   iconOnly?: boolean;
   ref?: Ref<HTMLButtonElement>;
@@ -28,8 +30,8 @@ export function ViewerTopBarButton({
       )}
       {...props}
     >
-      {icon}
-      {children}
+      <InteractiveIcon>{icon}</InteractiveIcon>
+      <InteractiveIcon>{children}</InteractiveIcon>
     </button>
   );
 }

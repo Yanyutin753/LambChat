@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import {
   useCallback,
   useContext,
@@ -180,7 +181,9 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
           aria-label={t("common.scrollToBottom")}
           className="absolute bottom-3 left-1/2 z-10 inline-flex min-h-9 w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-1.5 rounded-full border border-theme-border bg-theme-bg-card/95 px-3 text-12 font-medium text-theme-text-secondary shadow-lg transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
         >
-          <ArrowDown size={13} />
+          <InteractiveIcon>
+            <ArrowDown size={13} />
+          </InteractiveIcon>
           {t("common.scrollToBottom")}
         </button>
       )}

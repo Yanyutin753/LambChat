@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useId, type ReactNode } from "react";
 import { Button } from "../../../common";
 import { ToggleSwitch } from "../../AgentPanel/shared";
@@ -226,28 +227,34 @@ export function FeishuPanelForm({
             id={`${formId}-platform`}
             value={platform}
             disabled={!canWrite || isRegistering}
-            onChange={(event) => setPlatform(event.target.value as "feishu" | "lark")}
+            onChange={(event) =>
+              setPlatform(event.target.value as "feishu" | "lark")
+            }
             className="glass-input es-input"
           >
             <option value="feishu">{t("feishu.platformFeishu")}</option>
             <option value="lark">{t("feishu.platformLark")}</option>
           </select>
-          {platform === "lark" && <p className="es-hint">{t("feishu.larkManualHint")}</p>}
+          {platform === "lark" && (
+            <p className="es-hint">{t("feishu.larkManualHint")}</p>
+          )}
         </div>
 
-        {platform === "feishu" && <div className="mb-4 grid grid-cols-2 rounded-lg border border-[var(--theme-border)] bg-[var(--glass-bg-subtle)] p-1">
-          {(["scan", "manual"] as const).map((mode) => (
-            <Button
-              key={mode}
-              variant={activeCredentialMode === mode ? "secondary" : "ghost"}
-              aria-pressed={activeCredentialMode === mode}
-              className="feishu-mode-button"
-              onClick={() => setCredentialMode(mode)}
-            >
-              {t(mode === "scan" ? "feishu.scanCreate" : "feishu.manualFill")}
-            </Button>
-          ))}
-        </div>}
+        {platform === "feishu" && (
+          <div className="mb-4 grid grid-cols-2 rounded-lg border border-[var(--theme-border)] bg-[var(--glass-bg-subtle)] p-1">
+            {(["scan", "manual"] as const).map((mode) => (
+              <Button
+                key={mode}
+                variant={activeCredentialMode === mode ? "secondary" : "ghost"}
+                aria-pressed={activeCredentialMode === mode}
+                className="feishu-mode-button"
+                onClick={() => setCredentialMode(mode)}
+              >
+                {t(mode === "scan" ? "feishu.scanCreate" : "feishu.manualFill")}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {activeCredentialMode === "scan" && (
           <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-6 text-center">
@@ -315,7 +322,9 @@ export function FeishuPanelForm({
                     rel="noreferrer"
                     className="mt-2 inline-flex min-h-11 items-center gap-1 text-12 text-[var(--theme-primary)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
                   >
-                    <ExternalLink size={12} />
+                    <InteractiveIcon>
+                      <ExternalLink size={12} />
+                    </InteractiveIcon>
                     {t("feishu.openRegistration", "Open in browser")}
                   </a>
                 )}

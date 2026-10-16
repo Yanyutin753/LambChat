@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { PageNavigationBar } from "../../common/PageNavigationBar";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { SceneIllustration } from "../../common/SceneIllustration";
@@ -285,7 +286,9 @@ export function Header({
           className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
           title={t("common.menu")}
         >
-          <MoreHorizontal size={16} />
+          <InteractiveIcon>
+            <MoreHorizontal size={16} />
+          </InteractiveIcon>
         </button>
         {menu && (
           <ResourceCardMenu

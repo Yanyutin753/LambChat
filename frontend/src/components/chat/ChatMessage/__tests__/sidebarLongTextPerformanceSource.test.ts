@@ -18,7 +18,7 @@ test("thinking sidebars keep their long-text preview while subagents reuse the m
   expect(sidebarSource).toMatch(/SIDEBAR_MARKDOWN_PREVIEW_LIMIT/);
   expect(sidebarSource).toMatch(/SUBAGENT_PARTS_PREVIEW_LIMIT/);
   expect(sidebarSource).toMatch(/const shouldUsePreview =/);
-  expect(sidebarSource).toMatch(/w-full overflow-auto whitespace-pre-wrap/);
+  expect(sidebarSource).toMatch(/w-full overflow-auto break-words/);
   expect(sidebarSource).toMatch(/from-theme-bg-card/);
   expect(sidebarSource).not.toMatch(/<pre className=/);
 

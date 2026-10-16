@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { PanelHeader } from "../common/PanelHeader";
 import { useEffect } from "react";
 import { Package, PackageX, ShoppingBag } from "lucide-react";
@@ -114,7 +115,9 @@ export function SkillsHubPanel() {
                         isActive ? "skills-hub-tabs__item--active" : ""
                       }`}
                     >
-                      <Icon size={16} />
+                      <InteractiveIcon>
+                        <Icon size={16} />
+                      </InteractiveIcon>
                       <span>{label}</span>
                     </button>
                   );

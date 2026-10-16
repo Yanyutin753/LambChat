@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useId, useRef, useState } from "react";
 import { Bot, ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -5,7 +6,10 @@ import i18n from "../../i18n";
 import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
 import type { AgentInfo } from "../../types/agent";
-import { resolveAgentDisplayName, resolveAgentReferenceName } from "../agent/agentCatalog";
+import {
+  resolveAgentDisplayName,
+  resolveAgentReferenceName,
+} from "../agent/agentCatalog";
 import { AgentIcon } from "../agent/AgentIcon";
 import { AgentAvatar } from "../common/AgentAvatar";
 import { Select, Textarea, IconButton } from "../common/ui";
@@ -56,7 +60,13 @@ export function TeamMemberCard({
     ? selectedModel?.label || selectedModel?.value || member.model_id
     : t("team.followSessionModel", "跟随会话模型");
   const agentLabel = member.agent_id
-    ? resolveAgentReferenceName(member.agent_id, "", availableAgents, i18n.language, t)
+    ? resolveAgentReferenceName(
+        member.agent_id,
+        "",
+        availableAgents,
+        i18n.language,
+        t,
+      )
     : t("team.followTeamMode", "跟随团队模式");
 
   const agentOptions: SelectOption[] = [
@@ -94,7 +104,9 @@ export function TeamMemberCard({
             type="button"
             disabled={disabled}
             className="team-member-card__summary"
-            aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${roleName}`}
+            aria-label={`${t(
+              expanded ? "common.collapse" : "common.expand",
+            )} ${roleName}`}
             aria-expanded={expanded}
             aria-controls={settingsId}
             onClick={() => setExpanded(!expanded)}
@@ -125,20 +137,34 @@ export function TeamMemberCard({
               </span>
               <span className="team-member-card__meta-row">
                 <span className="team-member-card__model" title={agentLabel}>
-                  <AgentIcon icon={availableAgents.find((agent) => agent.id === member.agent_id)?.icon} seed={member.agent_id || "team"} size={14} />
+                  <AgentIcon
+                    icon={
+                      availableAgents.find(
+                        (agent) => agent.id === member.agent_id,
+                      )?.icon
+                    }
+                    seed={member.agent_id || "team"}
+                    size={14}
+                  />
                   <span className="font-serif">{agentLabel}</span>
                 </span>
                 <span className="team-member-card__model" title={modelLabel}>
-                  <Cpu size={11} />
+                  <InteractiveIcon>
+                    <Cpu size={11} />
+                  </InteractiveIcon>
                   <span className="font-serif">{modelLabel}</span>
                 </span>
               </span>
             </span>
-            <ChevronDown
-              size={14}
-              aria-hidden="true"
-              className={`team-member-card__expand-icon ${expanded ? "team-member-card__expand-icon--open" : ""}`}
-            />
+            <InteractiveIcon>
+              <ChevronDown
+                size={14}
+                aria-hidden="true"
+                className={`team-member-card__expand-icon ${
+                  expanded ? "team-member-card__expand-icon--open" : ""
+                }`}
+              />
+            </InteractiveIcon>
           </button>
 
           {/* Inline actions */}
@@ -148,7 +174,9 @@ export function TeamMemberCard({
             >
               <IconButton
                 disabled={disabled}
-                aria-label={`${t(isDefault ? "team.defaultRole" : "team.setDefault")} ${roleName}`}
+                aria-label={`${t(
+                  isDefault ? "team.defaultRole" : "team.setDefault",
+                )} ${roleName}`}
                 aria-pressed={isDefault}
                 onClick={onSetDefault}
                 icon={
@@ -179,7 +207,9 @@ export function TeamMemberCard({
               disabled={disabled}
               onClick={onToggleEnabled}
               className="team-member-card__toggle-button flex size-11 shrink-0 items-center justify-center rounded-md sm:h-5 sm:w-9"
-              aria-label={`${t(member.enabled ? "team.disableRole" : "team.enableRole")} ${roleName}`}
+              aria-label={`${t(
+                member.enabled ? "team.disableRole" : "team.enableRole",
+              )} ${roleName}`}
               title={
                 member.enabled ? t("team.disableRole") : t("team.enableRole")
               }
@@ -189,7 +219,9 @@ export function TeamMemberCard({
             >
               <span
                 aria-hidden="true"
-                className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
+                className={`team-toggle ${
+                  member.enabled ? "team-toggle--on" : ""
+                }`}
               />
             </button>
           </div>

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
@@ -10,7 +11,7 @@ import {
 import { useUiExpansionState } from "./uiExpansionStore";
 
 /**
- * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、行下淡分隔线）。
+ * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、展开后按行展示完整过程）。
  * 流式过程中状态行只读（工作中不显示展开收起控件），直接展示完整过程详情；
  * 完成后自动收起成一行，点击可展开/收起。展开状态按 stateKey 存入会话级
  * store，虚拟列表滚动卸载后滚回不丢。
@@ -91,7 +92,7 @@ export function RunStepsCollapse({
         ? t("chat.message.runStepsSummary", { duration: durationLabel })
         : t("chat.message.runStepsCount", { count: steps });
   const statusClass =
-    "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-16 text-theme-text-secondary";
+    "min-w-0 truncate leading-6 text-14 text-theme-text-secondary";
 
   if (active) {
     return (
@@ -100,11 +101,11 @@ export function RunStepsCollapse({
           role="status"
           aria-label={t("chat.message.runStepsWorkingNoTimer")}
           aria-live="off"
-          className="flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5"
+          className="flex w-full items-baseline gap-1.5 py-1"
         >
           <span className={statusClass}>{statusText}</span>
         </div>
-        <div className="space-y-3 pt-2">{renderExpanded()}</div>
+        <div className="chat-process-detail space-y-2">{renderExpanded()}</div>
       </div>
     );
   }
@@ -117,21 +118,25 @@ export function RunStepsCollapse({
         aria-label={t("chat.message.runStepsToggle")}
         onClick={toggleExpanded}
         className={clsx(
-          "group/steps flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5 text-left",
+          "group/steps flex w-full items-baseline gap-1.5 py-1 text-left",
           "cursor-pointer",
         )}
       >
         <span className={statusClass}>{statusText}</span>
-        <ChevronRight
-          size={16}
-          strokeWidth={2}
-          className={clsx(
-            "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
-            expanded && "rotate-90",
-          )}
-        />
+        <InteractiveIcon>
+          <ChevronRight
+            size={16}
+            strokeWidth={2}
+            className={clsx(
+              "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
+              expanded && "rotate-90",
+            )}
+          />
+        </InteractiveIcon>
       </button>
-      {expanded && <div className="space-y-3 pt-2">{renderExpanded()}</div>}
+      {expanded && (
+        <div className="chat-process-detail space-y-2">{renderExpanded()}</div>
+      )}
     </div>
   );
 }

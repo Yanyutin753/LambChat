@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { Ban, CheckCircle, XCircle, ChevronRight } from "lucide-react";
@@ -148,6 +149,7 @@ export function CollapsiblePill({
       <button
         type="button"
         data-variant={_variant}
+        data-status={status}
         onClick={handleToggle}
         className={clsx(
           "pill-btn",
@@ -159,7 +161,7 @@ export function CollapsiblePill({
         )}
       >
         {status === "loading" && <StatusIndicator status={status} />}
-        {icon}
+        <InteractiveIcon>{icon}</InteractiveIcon>
         <span
           className={clsx(
             "min-w-0 truncate overflow-hidden",
@@ -170,14 +172,16 @@ export function CollapsiblePill({
         </span>
         {suffix}
         {canExpand && (
-          <ChevronRight
-            size={12}
-            className={clsx(
-              "shrink-0 transition-transform duration-200",
-              statusIconColors[status] || "text-theme-text-secondary",
-              isExpanded && "rotate-90",
-            )}
-          />
+          <InteractiveIcon>
+            <ChevronRight
+              size={12}
+              className={clsx(
+                "shrink-0 transition-transform duration-200",
+                statusIconColors[status] || "text-theme-text-secondary",
+                isExpanded && "rotate-90",
+              )}
+            />
+          </InteractiveIcon>
         )}
       </button>
 

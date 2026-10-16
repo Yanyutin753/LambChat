@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Check } from "lucide-react";
@@ -402,7 +403,9 @@ function ProfileInfoContent() {
                 className="flex items-center justify-between py-3.5 gap-3 group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
-                  <ExternalLink size={14} />
+                  <InteractiveIcon>
+                    <ExternalLink size={14} />
+                  </InteractiveIcon>
                   {t("about.contactSupport", "Support")}
                 </span>
                 <span className="text-14 font-medium text-theme-text-tertiary dark:text-stone-500 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">

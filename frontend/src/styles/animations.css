@@ -364,3 +364,64 @@
     animation: none !important;
   }
 }
+
+/* Completed process summaries use neutral ink; errors and active work retain status colors. */
+.pill-btn:is(
+    [data-variant="tool"],
+    [data-variant="thinking"],
+    [data-variant="summary"]
+  ) {
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  min-height: 2rem;
+  padding-inline: 0.5rem;
+  text-align: start;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.pill-btn:is(
+    [data-variant="tool"],
+    [data-variant="thinking"],
+    [data-variant="summary"]
+  ):is([data-status="success"], [data-status="idle"]) {
+  color: var(--theme-text-secondary);
+  background: transparent;
+  border-color: transparent;
+  animation: none;
+}
+.pill-btn:is(
+    [data-variant="tool"],
+    [data-variant="thinking"],
+    [data-variant="summary"]
+  ):hover:not(:disabled) {
+  background: var(--theme-bg-subtle);
+  box-shadow: none;
+  filter: none;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .pill-btn:is(
+      [data-variant="tool"],
+      [data-variant="thinking"],
+      [data-variant="summary"]
+    ) {
+    min-height: 2.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-btn:is(
+      [data-variant="tool"],
+      [data-variant="thinking"],
+      [data-variant="summary"]
+    ) {
+    transition: none;
+  }
+}
+
+.pill-btn:is(
+    [data-variant="tool"],
+    [data-variant="thinking"],
+    [data-variant="summary"]
+  )[data-status="success"]
+  > svg:last-child {
+  color: var(--theme-text-tertiary);
+}

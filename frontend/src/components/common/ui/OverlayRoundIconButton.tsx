@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export interface OverlayRoundIconButtonProps
@@ -24,7 +25,7 @@ export function OverlayRoundIconButton({
       )}
       {...props}
     >
-      {icon}
+      <InteractiveIcon>{icon}</InteractiveIcon>
     </button>
   );
 }

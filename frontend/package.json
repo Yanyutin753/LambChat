@@ -31,6 +31,7 @@
     "typecheck": "node ../scripts/run-validation.mjs node node_modules/typescript-compiler/bin/tsc -b --noEmit"
   },
   "dependencies": {
+    "@animateicons/react": "0.12.0",
     "@capacitor/core": "8.5.3",
     "@capacitor/filesystem": "8.1.5",
     "@capacitor/local-notifications": "8.3.1",

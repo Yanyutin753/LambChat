@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * Channels Page - Lists all available channels and their instances
  */
@@ -386,7 +387,10 @@ export function ChannelsPage() {
                         description={ct.description}
                         gradient={gradient}
                         icon={
-                          <ChannelIcon channelType={ct.channel_type} size={24} />
+                          <ChannelIcon
+                            channelType={ct.channel_type}
+                            size={24}
+                          />
                         }
                         statusPills={
                           <div className="mt-1 flex flex-wrap gap-1.5">
@@ -487,7 +491,9 @@ export function ChannelsPage() {
                 onClick={() => navigate(`/channels/${selectedChannel}/new`)}
                 className="btn-primary btn-sm"
               >
-                <Plus size={16} />
+                <InteractiveIcon>
+                  <Plus size={16} />
+                </InteractiveIcon>
                 <span>{t("channel.addInstance", "Add Instance")}</span>
               </button>
             )

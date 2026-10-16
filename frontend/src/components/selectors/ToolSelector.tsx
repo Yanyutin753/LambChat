@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -261,12 +262,14 @@ export function ToolSelector({
                                 }`}
                               >
                                 {hasParams ? (
-                                  <ChevronRight
-                                    size={14}
-                                    className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ease-out ${
-                                      isToolExpanded ? "rotate-90" : ""
-                                    }`}
-                                  />
+                                  <InteractiveIcon>
+                                    <ChevronRight
+                                      size={14}
+                                      className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ease-out ${
+                                        isToolExpanded ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                  </InteractiveIcon>
                                 ) : (
                                   <div className="w-[14px] h-[14px]" />
                                 )}
@@ -437,7 +440,9 @@ export function ToolSelector({
         className="chat-tool-btn"
         title={`${enabledCount}/${totalCount} ${t("tools.toolsEnabled")}`}
       >
-        <Wrench size={18} />
+        <InteractiveIcon>
+          <Wrench size={18} />
+        </InteractiveIcon>
       </button>
 
       {/* Modal */}

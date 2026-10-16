@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { useState, memo, type ReactNode } from "react";
 import { ModalSurface } from "../common/ModalSurface";
@@ -44,24 +45,36 @@ function AgentOptionRow({
         option.disabled ? " opacity-60" : ""
       }`}
       style={{
-        background: isActive
-          ? "var(--theme-bg-subtle)"
-          : "transparent",
+        background: isActive ? "var(--theme-bg-subtle)" : "transparent",
         color: "var(--theme-text)",
-        border: sandbox ? `1px solid var(${isActive ? "--theme-border" : "--theme-border-faint"})` : undefined,
+        border: sandbox
+          ? `1px solid var(${
+              isActive ? "--theme-border" : "--theme-border-faint"
+            })`
+          : undefined,
       }}
     >
       {sandbox ? (
-        <LocationIcon size={18} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
+        <LocationIcon
+          size={18}
+          className="shrink-0 text-theme-text-secondary"
+          aria-hidden="true"
+        />
       ) : (
         <span
           className="w-2.5 h-2.5 rounded-full shrink-0"
-          style={{ background: isActive ? "var(--theme-primary)" : "var(--theme-border)" }}
+          style={{
+            background: isActive
+              ? "var(--theme-primary)"
+              : "var(--theme-border)",
+          }}
         />
       )}
       <span className="min-w-0 flex-1">
         <span className={`block${sandbox ? " font-medium" : ""}`}>
-          {option.label_key ? t(option.label_key) : option.label || String(option.value)}
+          {option.label_key
+            ? t(option.label_key)
+            : option.label || String(option.value)}
         </span>
         {sandbox && (
           <span className="mt-0.5 block text-12 leading-relaxed text-theme-text-secondary">
@@ -72,12 +85,24 @@ function AgentOptionRow({
       {sandbox ? (
         <span
           aria-hidden="true"
-          className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${isActive ? "border-theme-text-secondary" : "border-theme-border"}`}
+          className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
+            isActive ? "border-theme-text-secondary" : "border-theme-border"
+          }`}
         >
-          {isActive && <span className="size-2 rounded-full bg-theme-text-secondary" />}
+          {isActive && (
+            <span className="size-2 rounded-full bg-theme-text-secondary" />
+          )}
         </span>
-      ) : isActive && (
-        <Check size={16} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
+      ) : (
+        isActive && (
+          <InteractiveIcon>
+            <Check
+              size={16}
+              className="shrink-0 text-theme-text-secondary"
+              aria-hidden="true"
+            />
+          </InteractiveIcon>
+        )
       )}
     </button>
   );
@@ -97,7 +122,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   const { t } = useTranslation();
   const [internalShow, setInternalShow] = useState(false);
   const showDropdown = externalOnOpenChange
-    ? (externalIsOpen ?? false)
+    ? externalIsOpen ?? false
     : internalShow;
   const setShowDropdown = externalOnOpenChange ?? setInternalShow;
   const label = option.label_key ? t(option.label_key) : option.label;
@@ -120,7 +145,13 @@ export const AgentOptionButton = memo(function AgentOptionButton({
         }`}
         title={description}
       >
-        {IconComponent ? <IconComponent size={18} /> : <Settings size={18} />}
+        {IconComponent ? (
+          <IconComponent size={18} />
+        ) : (
+          <InteractiveIcon>
+            <Settings size={18} />
+          </InteractiveIcon>
+        )}
       </button>
     );
   }
@@ -149,7 +180,11 @@ export const AgentOptionButton = memo(function AgentOptionButton({
         <ModalSurface
           open={showDropdown}
           onClose={() => setShowDropdown(false)}
-          label={optionKey === "sandbox" ? t("agentOptions.sandbox.title") : description}
+          label={
+            optionKey === "sandbox"
+              ? t("agentOptions.sandbox.title")
+              : description
+          }
           className="modal-size-md"
         >
           <div
@@ -162,7 +197,9 @@ export const AgentOptionButton = memo(function AgentOptionButton({
           >
             <div className="mb-5 flex items-center justify-between gap-3">
               <h3 className="min-w-0 text-18 font-semibold text-theme-text">
-                {optionKey === "sandbox" ? t("agentOptions.sandbox.title") : description}
+                {optionKey === "sandbox"
+                  ? t("agentOptions.sandbox.title")
+                  : description}
               </h3>
               <DialogCloseButton onClick={() => setShowDropdown(false)} />
             </div>
@@ -178,7 +215,11 @@ export const AgentOptionButton = memo(function AgentOptionButton({
             )}
             <div
               role={optionKey === "sandbox" ? "group" : undefined}
-              aria-label={optionKey === "sandbox" ? t("agentOptions.sandbox.section") : undefined}
+              aria-label={
+                optionKey === "sandbox"
+                  ? t("agentOptions.sandbox.section")
+                  : undefined
+              }
               className="flex flex-col gap-2"
             >
               {options.map((opt) => (
@@ -217,7 +258,13 @@ export const AgentOptionButton = memo(function AgentOptionButton({
       }`}
       title={description}
     >
-      {IconComponent ? <IconComponent size={18} /> : <Settings size={18} />}
+      {IconComponent ? (
+        <IconComponent size={18} />
+      ) : (
+        <InteractiveIcon>
+          <Settings size={18} />
+        </InteractiveIcon>
+      )}
     </button>
   );
 });

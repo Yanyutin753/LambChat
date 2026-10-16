@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
 import {
@@ -39,7 +40,7 @@ const statusConfig: Record<
   completed: {
     icon: CheckCircle2,
     colorClass: "text-theme-success",
-    textClass: "text-theme-text-tertiary line-through",
+    textClass: "text-theme-text-secondary",
   },
   cancelled: {
     icon: XCircle,
@@ -65,23 +66,17 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
   const isAllDone = completedCount === totalCount && totalCount > 0;
 
   return (
-    <div
-      className={clsx(
-        "my-1.5 rounded-xl ring-1",
-        "ring-theme-border",
-        "bg-theme-bg-card/80 dark:bg-theme-bg-card/40",
-      )}
-    >
+    <div className={clsx("chat-process-todo my-1.5 min-w-0")}>
       {/* Header（点击折叠/展开） */}
       <button
         type="button"
         aria-expanded={!collapsed}
         aria-label={t("chat.todo.toggle")}
         onClick={() => toggleCollapsed()}
-        className="group/todo flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
+        className="group/todo flex w-full cursor-pointer items-center gap-2 min-h-11 py-2 text-left"
       >
         <ListTodo
-          size={14}
+          size={16}
           className={clsx(
             "shrink-0",
             isAllDone ? "text-theme-success" : "text-theme-text-tertiary",
@@ -102,7 +97,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
         )}
         {/* Progress bar */}
         <div className="ml-auto flex items-center gap-2">
-          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-theme-border">
+          <div className="h-1 w-16 overflow-hidden rounded-full bg-theme-border">
             <div
               className={clsx(
                 "h-full rounded-full transition-all duration-500 ease-out",
@@ -114,21 +109,23 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           <span className="text-11 tabular-nums text-theme-text-tertiary">
             {Math.round(progress)}%
           </span>
-          <ChevronRight
-            size={14}
-            className={clsx(
-              "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
-              !collapsed && "rotate-90",
-            )}
-          />
+          <InteractiveIcon>
+            <ChevronRight
+              size={14}
+              className={clsx(
+                "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
+                !collapsed && "rotate-90",
+              )}
+            />
+          </InteractiveIcon>
         </div>
       </button>
 
       {/* Task list */}
       {!collapsed && (
-        <div className="space-y-0.5 border-t border-theme-border/60 px-3.5 py-2 max-h-60 overflow-y-auto">
+        <div className="space-y-0.5 pb-2 max-h-60 overflow-y-auto">
           {items.map((item, index) => (
-            <TodoItemRow key={index} item={item} />
+            <TodoItemRow key={index} item={item} wrap />
           ))}
         </div>
       )}
@@ -148,8 +145,8 @@ export function TodoItemRow({
   const Icon = config.icon;
 
   return (
-    <div className="relative flex items-start gap-2.5 py-1">
-      <Icon size={14} className={clsx("shrink-0 mt-0.5", config.colorClass)} />
+    <div className="relative flex items-start gap-2 py-1">
+      <Icon size={16} className={clsx("shrink-0 mt-0.5", config.colorClass)} />
       <div className="min-w-0 flex-1">
         <p
           className={clsx(

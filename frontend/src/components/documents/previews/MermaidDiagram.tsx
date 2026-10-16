@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { memo, useEffect, useRef, useState, useCallback } from "react";
 import { Copy, Check, Download, ChevronDown } from "lucide-react";
 import { ViewerDropdownMenuItem } from "../../common";
@@ -254,12 +255,18 @@ const MermaidDiagram = memo(function MermaidDiagram({
         >
           {copied ? (
             <>
-              <Check size={14} className="text-theme-success" />
-              <span className="text-theme-success">{t("documents.copied")}</span>
+              <InteractiveIcon>
+                <Check size={14} className="text-theme-success" />
+              </InteractiveIcon>
+              <span className="text-theme-success">
+                {t("documents.copied")}
+              </span>
             </>
           ) : (
             <>
-              <Copy size={14} />
+              <InteractiveIcon>
+                <Copy size={14} />
+              </InteractiveIcon>
               <span>{t("documents.copyCode")}</span>
             </>
           )}
@@ -273,9 +280,13 @@ const MermaidDiagram = memo(function MermaidDiagram({
             }}
             className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-stone-700 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
           >
-            <Download size={14} />
+            <InteractiveIcon>
+              <Download size={14} />
+            </InteractiveIcon>
             <span>{t("documents.download")}</span>
-            <ChevronDown size={12} />
+            <InteractiveIcon>
+              <ChevronDown size={12} />
+            </InteractiveIcon>
           </button>
           {showDownloadMenu && (
             <div className="absolute left-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-theme-border dark:border-stone-700 bg-theme-bg-elevated dark:bg-stone-800 shadow-lg overflow-hidden">

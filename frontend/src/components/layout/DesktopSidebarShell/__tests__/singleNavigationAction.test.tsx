@@ -78,3 +78,18 @@ test("a single permitted sidebar destination navigates directly", () => {
   fireEvent.click(screen.getByRole("button", { name: "personaPresets.title" }));
   expect(screen.getByRole("status")).toHaveTextContent("/persona");
 });
+
+test("chat and channels use distinct navigation symbols", () => {
+  render(
+    <MemoryRouter>
+      <DesktopActivityRail collapsed onOpenChats={vi.fn()} />
+    </MemoryRouter>,
+  );
+  const shape = (name: string) =>
+    Array.from(
+      screen.getByRole("button", { name }).querySelectorAll("svg path"),
+    )
+      .map((path) => path.getAttribute("d"))
+      .join(" ");
+  expect(shape("nav.channels")).not.toBe(shape("workspacePanel.viewChats"));
+});

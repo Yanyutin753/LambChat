@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { memo, useMemo } from "react";
 import { AlertCircle, RotateCcw, Type, X } from "lucide-react";
@@ -127,28 +128,24 @@ export const AttachmentCard = memo(function AttachmentCard({
   if (isCompact) {
     return (
       <div
-        onClick={handleClick}
         className={clsx(
-          "attachment-card-enter",
-          "group relative flex items-center gap-2.5 px-3 py-2",
-          "rounded-xl border border-stone-200/60 dark:border-stone-700/60",
-          "bg-linear-to-br from-white to-stone-50/80 dark:from-stone-800 dark:to-stone-900",
-          "shadow-sm cursor-pointer select-none",
-          "transition-all duration-200 ease-out",
-          "hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40",
-          "hover:border-stone-300/70 dark:hover:border-stone-600/70",
-          "hover:-translate-y-0.5",
-          "active:scale-[0.98]",
-          isUploading && !onCancel && "pointer-events-none",
-          isFailed && "border-red-300/70 dark:border-red-700/70",
+          "attachment-card attachment-card--compact attachment-card-enter",
+          "group relative flex items-center gap-2.5 px-3 py-2 select-none",
+          isFailed && "attachment-card--failed",
         )}
       >
+        <button
+          type="button"
+          className="attachment-card__preview absolute inset-0 rounded-[inherit]"
+          aria-label={attachment.name}
+          title={attachment.name}
+          onClick={handleClick}
+          disabled={isUploading || !onClick}
+        />
         {/* 图标/图片 */}
         <div
           className={clsx(
-            "shrink-0 flex items-center justify-center rounded-lg overflow-hidden",
-            "transition-transform duration-200",
-            !isUploading && "group-hover:scale-105",
+            "pointer-events-none relative shrink-0 flex items-center justify-center rounded-lg overflow-hidden",
             isThumbnail
               ? "size-10 relative overflow-hidden"
               : clsx("size-10", bgColor),
@@ -186,12 +183,12 @@ export const AttachmentCard = memo(function AttachmentCard({
         </div>
 
         {/* 文件信息：文件名 + 大小/操作左右布局 */}
-        <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-13 font-medium text-stone-800 dark:text-stone-100 truncate leading-tight">
+        <div className="pointer-events-none relative flex flex-col min-w-0 flex-1">
+          <span className="text-13 font-medium text-theme-text truncate leading-tight">
             {attachment.name}
           </span>
           <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
-            <span className="text-12 text-stone-400 dark:text-stone-500 truncate">
+            <span className="text-12 text-theme-text-secondary truncate">
               {isUploading
                 ? uploadStatusLabel
                 : isFailed
@@ -201,7 +198,7 @@ export const AttachmentCard = memo(function AttachmentCard({
 
             {/* 仍以文本发送 / 删除/取消 */}
             {variant === "editable" && (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="attachment-card__actions pointer-events-auto flex items-center gap-1 shrink-0">
                 {onSendAsText && !isUploading && (
                   <button
                     type="button"
@@ -211,14 +208,16 @@ export const AttachmentCard = memo(function AttachmentCard({
                     }}
                     className={clsx(
                       "h-5 px-1.5 rounded-md flex items-center gap-1",
-                      "text-stone-400 dark:text-stone-500",
+                      "text-theme-text-secondary",
                       "transition-all duration-200 text-10 font-medium",
                       "hover:bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)]",
                       "hover:text-[var(--theme-primary)]",
                     )}
                     title={t("chat.sendLongTextAsText", "仍以文本发送")}
                   >
-                    <Type size={12} strokeWidth={2.25} />
+                    <InteractiveIcon>
+                      <Type size={12} strokeWidth={2.25} />
+                    </InteractiveIcon>
                     <span className="hidden sm:inline">
                       {t("chat.sendLongTextAsText", "仍以文本发送")}
                     </span>
@@ -240,7 +239,9 @@ export const AttachmentCard = memo(function AttachmentCard({
                     )}
                     title={t("fileUpload.cancelUpload")}
                   >
-                    <X size={12} />
+                    <InteractiveIcon>
+                      <X size={12} />
+                    </InteractiveIcon>
                   </button>
                 ) : (
                   <>
@@ -258,7 +259,9 @@ export const AttachmentCard = memo(function AttachmentCard({
                         )}
                         title={t("fileUpload.composerRetry", "Retry")}
                       >
-                        <RotateCcw size={11} />
+                        <InteractiveIcon>
+                          <RotateCcw size={11} />
+                        </InteractiveIcon>
                         <span>{t("fileUpload.composerRetry", "Retry")}</span>
                       </button>
                     ) : null}
@@ -266,15 +269,18 @@ export const AttachmentCard = memo(function AttachmentCard({
                       <button
                         type="button"
                         onClick={handleRemove}
+                        aria-label={t("common.remove")}
                         className={clsx(
                           "size-5 rounded-md flex items-center justify-center",
-                          "text-stone-400 dark:text-stone-500",
+                          "text-theme-text-secondary",
                           "transition-all duration-200",
                           "hover:bg-red-100/80 dark:hover:bg-red-900/40",
                           "hover:text-red-500 dark:hover:text-red-400",
                         )}
                       >
-                        <X size={12} />
+                        <InteractiveIcon>
+                          <X size={12} />
+                        </InteractiveIcon>
                       </button>
                     ) : null}
                   </>
@@ -292,32 +298,22 @@ export const AttachmentCard = memo(function AttachmentCard({
     <button
       onClick={handleClick}
       className={clsx(
-        "group relative flex items-center overflow-hidden",
-        "h-12 sm:h-14 min-w-[200px] max-w-[280px] sm:min-w-[240px] sm:max-w-[320px]",
-        "bg-linear-to-br from-white to-stone-50/80",
-        "dark:from-stone-800 dark:to-stone-900",
-        "rounded-2xl sm:rounded-xl",
-        "border border-stone-200/60 dark:border-stone-700/60",
-        "shadow-sm",
-        "text-left cursor-pointer select-none",
-        "transition-all duration-300 ease-out",
-        "hover:shadow-lg hover:shadow-stone-200/50 dark:hover:shadow-stone-900/50",
-        "hover:border-stone-300/80 dark:hover:border-stone-600/80",
-        "hover:-translate-y-0.5 hover:scale-[1.02]",
-        "active:scale-[0.98] active:shadow-sm",
+        "attachment-card group relative flex items-center overflow-hidden",
+        "h-14 min-w-0 w-[280px] max-w-full sm:w-[320px]",
+        "text-left select-none",
         isUploading && "pointer-events-none",
       )}
       type="button"
+      title={attachment.name}
+      disabled={isUploading || !onClick}
     >
       {/* 左侧图标/图片区域 */}
       <div
         className={clsx(
-          "shrink-0 flex items-center justify-center",
-          "transition-transform duration-300",
-          !isUploading && "group-hover:scale-105",
+          "ml-2 shrink-0 flex items-center justify-center",
           isThumbnail
-            ? "size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl overflow-hidden"
-            : clsx("size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl", bgColor),
+            ? "size-10 rounded-lg overflow-hidden"
+            : clsx("size-10 rounded-lg", bgColor),
         )}
       >
         {isUploading ? (
@@ -327,17 +323,14 @@ export const AttachmentCard = memo(function AttachmentCard({
             className={clsx(iconColor, "")}
           />
         ) : isImage ? (
-          <>
-            <ImageWithSkeleton
-              src={attachmentUrl}
-              thumbSrc={buildChatThumbUrl(attachmentUrl)}
-              alt={attachment.name}
-              skipUrlResolve
-              inline
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </>
+          <ImageWithSkeleton
+            src={attachmentUrl}
+            thumbSrc={buildChatThumbUrl(attachmentUrl)}
+            alt={attachment.name}
+            skipUrlResolve
+            inline
+            className="w-full h-full object-cover"
+          />
         ) : isExcalidraw ? (
           <ExcalidrawThumbnail
             url={attachmentUrl}
@@ -351,33 +344,19 @@ export const AttachmentCard = memo(function AttachmentCard({
             skipUrlResolve
             inline
             className="w-full h-full object-cover"
-            errorFallback={
-              <FileIcon
-                size={18}
-                className={clsx(
-                  iconColor,
-                  "transition-transform duration-300 group-hover:scale-110",
-                )}
-              />
-            }
+            errorFallback={<FileIcon size={18} className={iconColor} />}
           />
         ) : (
-          <FileIcon
-            size={18}
-            className={clsx(
-              iconColor,
-              "transition-transform duration-300 group-hover:scale-110",
-            )}
-          />
+          <FileIcon size={18} className={iconColor} />
         )}
       </div>
 
       {/* 文件信息 */}
       <div className="flex flex-col justify-center px-3 sm:px-3.5 py-2 min-w-0 flex-1">
-        <div className="text-13 sm:text-14 font-medium truncate text-stone-800 dark:text-stone-100 leading-tight">
+        <div className="text-13 sm:text-14 font-medium truncate text-theme-text leading-tight">
           {attachment.name}
         </div>
-        <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-11 sm:text-12 text-stone-400 dark:text-stone-500">
+        <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-11 sm:text-12 text-theme-text-secondary">
           <span className="capitalize truncate">{displayLabel}</span>
           <span className="shrink-0 ml-2">
             {isUploading

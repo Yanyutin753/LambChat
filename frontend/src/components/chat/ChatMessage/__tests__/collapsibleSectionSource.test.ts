@@ -20,7 +20,7 @@ test("collapsible section header does not nest action buttons inside the toggle"
     /\{action && <div className="shrink-0">\{action\}<\/div>\}/,
   );
   expect(componentSource).toMatch(
-    /"collapsible-section-card--default bg-theme-bg-card border border-theme-border shadow-sm"/,
+    /"collapsible-section-card--default bg-theme-bg-card border border-theme-border-subtle"/,
   );
   expect(componentSource).not.toMatch(/:\s*"bg-theme-bg-subtle"/);
   expect(componentsCss).toMatch(
@@ -45,7 +45,7 @@ test("collapsible section cards and the subagent conversation keep their panel s
     /ref=\{scrollRef\}[\s\S]*?min-h-0 flex-1 overflow-y-auto/,
   );
   expect(sectionSource).toMatch(
-    /<div\s+data-sidebar-snapshot-key=\{`\$\{sectionKey\}-content`\}\s+className="mt-2 flex-1 min-h-0 overflow-y-auto animate-\[fade-in_150ms_ease-out\]"\s*>/,
+    /<div\s+id=\{contentId\}\s+data-sidebar-snapshot-key=\{`\$\{sectionKey\}-content`\}\s+className="mt-2 flex-1 min-h-0 overflow-y-auto animate-\[fade-in_150ms_ease-out\]"\s*>/,
   );
   expect(sectionSource).toMatch(/expanded && expandedClassName/);
   expect(panelSource).toMatch(/<ChatMessage/);

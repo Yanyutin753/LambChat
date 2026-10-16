@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import {
   Download,
@@ -147,7 +148,9 @@ export function SkillCard({
               className="scb__action-btn scb__action-btn--ghost"
               title={t("marketplace.preview")}
             >
-              <Eye size={16} />
+              <InteractiveIcon>
+                <Eye size={16} />
+              </InteractiveIcon>
             </button>
             {canWrite &&
               (installingSkill === skill.skill_name ? (
@@ -181,7 +184,9 @@ export function SkillCard({
                   {isInstalled ? (
                     <RefreshCcw size={16} />
                   ) : (
-                    <Download size={16} />
+                    <InteractiveIcon>
+                      <Download size={16} />
+                    </InteractiveIcon>
                   )}
                 </button>
               ))}
@@ -211,7 +216,9 @@ export function SkillCard({
                     );
                   }}
                 >
-                  <MoreHorizontal size={16} />
+                  <InteractiveIcon>
+                    <MoreHorizontal size={16} />
+                  </InteractiveIcon>
                 </button>
                 {openMenuName === skill.skill_name && (
                   <div className="absolute right-0 bottom-full mb-1 z-10 w-36 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] py-1 shadow-lg">
@@ -223,7 +230,9 @@ export function SkillCard({
                         }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-12 text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-bg-subtle)]"
                       >
-                        <Pencil size={12} />
+                        <InteractiveIcon>
+                          <Pencil size={12} />
+                        </InteractiveIcon>
                         {t("common.edit")}
                       </button>
                     )}
@@ -236,12 +245,16 @@ export function SkillCard({
                     >
                       {skill.is_active ? (
                         <>
-                          <X size={12} />
+                          <InteractiveIcon>
+                            <X size={12} />
+                          </InteractiveIcon>
                           {t("marketplace.inactive")}
                         </>
                       ) : (
                         <>
-                          <Zap size={12} />
+                          <InteractiveIcon>
+                            <Zap size={12} />
+                          </InteractiveIcon>
                           {t("marketplace.active")}
                         </>
                       )}
@@ -253,7 +266,9 @@ export function SkillCard({
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-12 text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
-                      <Trash2 size={12} />
+                      <InteractiveIcon>
+                        <Trash2 size={12} />
+                      </InteractiveIcon>
                       {t("common.delete")}
                     </button>
                   </div>

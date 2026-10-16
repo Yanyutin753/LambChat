@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -265,7 +266,9 @@ export function SkillSelector({
                   selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
                 }`}
               >
-                <Tag size={11} />
+                <InteractiveIcon>
+                  <Tag size={11} />
+                </InteractiveIcon>
                 {tag}
               </button>
             ))}
@@ -486,7 +489,9 @@ export function SkillSelector({
           defaultValue: "{{enabled}}/{{total}} skills enabled",
         })}
       >
-        <Sparkles size={18} />
+        <InteractiveIcon>
+          <Sparkles size={18} />
+        </InteractiveIcon>
       </button>
 
       {/* Modal */}

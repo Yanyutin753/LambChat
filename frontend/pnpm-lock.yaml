@@ -16,6 +16,9 @@ importers:
 
   .:
     dependencies:
+      '@animateicons/react':
+        specifier: 0.12.0
+        version: 0.12.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@capacitor/core':
         specifier: 8.5.3
         version: 8.5.3
@@ -386,6 +389,13 @@ packages:
   '@alloc/quick-lru@5.3.0':
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
     engines: {node: '>=10'}
+
+  '@animateicons/react@0.12.0':
+    resolution: {integrity: sha512-7gcoYAqLZ4mGLbsSqU+254Qd1RTIW7WIiYVR0BlzTHY/Yb813R5iFKyPV3a2hA6GALTUC63zRWV2s+6Bt5QqyA==}
+    engines: {node: '>=18.17.0'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   '@ant-design/colors@8.0.1':
     resolution: {integrity: sha512-foPVl0+SWIslGUtD/xBr1p9U4AKzPhNYEseXYRRo5QSzGACYZrQbe11AYJbYfAWnWSpGBx6JjBmSeugUsD9vqQ==}
@@ -8098,6 +8108,11 @@ snapshots:
   '@adobe/css-tools@4.5.0': {}
 
   '@alloc/quick-lru@5.3.0': {}
+
+  '@animateicons/react@0.12.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+    dependencies:
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
 
   '@ant-design/colors@8.0.1':
     dependencies:

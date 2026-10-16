@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 import { GitBranch, Clock, X } from "lucide-react";
@@ -91,14 +92,17 @@ export function UserMessageBubble({
   );
   // shortcut: legacy messages lack skill positions; keep them leading until original snapshots are available.
   const leadingSkills = (enabledSkills ?? []).filter(
-    (name) => !inlineSegments.some(
-      segment => segment.kind === "skill" && segment.skillName === name,
-    ),
+    (name) =>
+      !inlineSegments.some(
+        (segment) => segment.kind === "skill" && segment.skillName === name,
+      ),
   );
   const copyText = [
-    leadingSkills.map(name => `[引用技能：${name}]`).join(" "),
+    leadingSkills.map((name) => `[引用技能：${name}]`).join(" "),
     content ?? "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div className="w-full px-4 sm:px-10 py-4 group">
@@ -125,7 +129,9 @@ export function UserMessageBubble({
                 title={t("chat.steerCancel", "取消这条插话")}
                 aria-label={t("chat.steerCancel", "取消这条插话")}
               >
-                <X size={12} />
+                <InteractiveIcon>
+                  <X size={12} />
+                </InteractiveIcon>
               </button>
             </div>
           )}
@@ -199,7 +205,9 @@ export function UserMessageBubble({
                 )}
                 title={t("chat.message.fork")}
               >
-                <GitBranch size={16} />
+                <InteractiveIcon>
+                  <GitBranch size={16} />
+                </InteractiveIcon>
               </button>
             )}
             {extraActions}

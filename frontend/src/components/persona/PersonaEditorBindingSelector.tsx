@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -157,7 +158,9 @@ export function PersonaEditorBindingSelector({
           onChange((prev) => prev.filter((n) => n !== name));
         }}
       >
-        <X size={11} aria-hidden="true" />
+        <InteractiveIcon>
+          <X size={11} aria-hidden="true" />
+        </InteractiveIcon>
       </button>
     </span>
   ));
@@ -186,11 +189,13 @@ export function PersonaEditorBindingSelector({
             {t(placeholderKey)}
           </span>
         )}
-        <ChevronDown
-          size={14}
-          aria-hidden="true"
-          className={`ppe-skill-trigger__chevron ${open ? "rotate-180" : ""}`}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={14}
+            aria-hidden="true"
+            className={`ppe-skill-trigger__chevron ${open ? "rotate-180" : ""}`}
+          />
+        </InteractiveIcon>
       </button>
       {selected.length > 0 && !open && (
         <div className="ppe-skill-selected-area">{selectedChips}</div>
@@ -327,17 +332,21 @@ export function PersonaEditorBindingSelector({
                   >
                     <div className="ppe-skill-option__check-ring">
                       {isSelected ? (
-                        <Check
-                          size={12}
-                          className="ppe-skill-option__check-icon"
-                          aria-hidden="true"
-                        />
+                        <InteractiveIcon>
+                          <Check
+                            size={12}
+                            className="ppe-skill-option__check-icon"
+                            aria-hidden="true"
+                          />
+                        </InteractiveIcon>
                       ) : (
-                        <Plus
-                          size={12}
-                          className="ppe-skill-option__plus-icon"
-                          aria-hidden="true"
-                        />
+                        <InteractiveIcon>
+                          <Plus
+                            size={12}
+                            className="ppe-skill-option__plus-icon"
+                            aria-hidden="true"
+                          />
+                        </InteractiveIcon>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
@@ -21,7 +22,9 @@ export function SidebarMarkdownContent({
     (isStreaming || content.length > SIDEBAR_MARKDOWN_PREVIEW_LIMIT) &&
     !showFull;
   const previewContent = shouldUsePreview
-    ? content.slice(-SIDEBAR_MARKDOWN_PREVIEW_LIMIT)
+    ? isStreaming
+      ? content.slice(-SIDEBAR_MARKDOWN_PREVIEW_LIMIT)
+      : content.slice(0, SIDEBAR_MARKDOWN_PREVIEW_LIMIT)
     : content;
 
   if (!shouldUsePreview) {
@@ -29,10 +32,14 @@ export function SidebarMarkdownContent({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="sidebar-reasoning-preview space-y-2">
       <div className="relative overflow-hidden rounded-md bg-theme-bg-card">
-        <div className="max-h-[min(58vh,680px)] w-full overflow-auto whitespace-pre-wrap break-words px-3 pb-6 pt-2 text-[0.9375rem] leading-[1.75] text-theme-text-secondary sm:px-4">
-          {previewContent}
+        <div
+          tabIndex={0}
+          aria-label={t("chat.message.thought")}
+          className="sidebar-reasoning-preview__scroll max-h-[min(58dvh,680px)] w-full overflow-auto break-words px-3 pb-6 pt-2 text-[0.9375rem] leading-[1.75] text-theme-text-secondary sm:px-4"
+        >
+          <MarkdownContent content={previewContent} isStreaming={isStreaming} />
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-theme-bg-card to-transparent" />
       </div>
@@ -40,9 +47,11 @@ export function SidebarMarkdownContent({
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-theme-border bg-theme-bg-card px-2.5 text-12 font-medium text-theme-text-secondary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
+          className="sidebar-reasoning-preview__expand inline-flex min-h-8 items-center gap-1.5 rounded-md border border-theme-border bg-theme-bg-card px-2.5 text-12 font-medium text-theme-text-secondary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
         >
-          <Maximize2 size={12} />
+          <InteractiveIcon>
+            <Maximize2 size={12} />
+          </InteractiveIcon>
           {t("common.expand", "Expand")}
         </button>
       )}

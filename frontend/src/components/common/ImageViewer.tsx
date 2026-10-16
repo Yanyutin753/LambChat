@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import {
   useState,
   useEffect,
@@ -413,7 +414,9 @@ export function ImageViewer({
                 aria-label={t("imageViewer.previous", "Previous image")}
                 title={t("imageViewer.previous", "Previous image")}
               >
-                <ChevronLeft size={28} />
+                <InteractiveIcon>
+                  <ChevronLeft size={28} />
+                </InteractiveIcon>
               </button>
             )}
             {canGoNext && (
@@ -424,7 +427,9 @@ export function ImageViewer({
                 aria-label={t("imageViewer.next", "Next image")}
                 title={t("imageViewer.next", "Next image")}
               >
-                <ChevronRight size={28} />
+                <InteractiveIcon>
+                  <ChevronRight size={28} />
+                </InteractiveIcon>
               </button>
             )}
           </>

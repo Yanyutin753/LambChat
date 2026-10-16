@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /** 会话右侧工作区：按需浏览本地/云端文件，复用文档预览。 */
 
 import {
@@ -237,10 +238,20 @@ export function WorkspacePanel({
       setOpeningPath(path);
       setPreviewError(null);
       try {
-        const result = await source.read(sessionId, path, 0, 2000, controller.signal);
+        const result = await source.read(
+          sessionId,
+          path,
+          0,
+          2000,
+          controller.signal,
+        );
         if (request !== previewRequest.current) return;
         if (result.error) throw new Error(result.error);
-        if (result.encoding !== "utf-8" && result.encoding !== "base64" && result.encoding !== "binary")
+        if (
+          result.encoding !== "utf-8" &&
+          result.encoding !== "base64" &&
+          result.encoding !== "binary"
+        )
           throw new Error("Missing file content");
         const blobUrl = result.blob ? URL.createObjectURL(result.blob) : null;
         setPreview({
@@ -254,12 +265,17 @@ export function WorkspacePanel({
               </p>
             ) : undefined,
           ...(blobUrl
-            ? { signedUrl: blobUrl, imageUrl: isImageFile(path) ? blobUrl : undefined }
-            : result.encoding === "base64"
             ? {
-                signedUrl: `data:application/octet-stream;base64,${result.content ?? ""}`,
+                signedUrl: blobUrl,
+                imageUrl: isImageFile(path) ? blobUrl : undefined,
               }
-            : { content: result.content ?? "" }),
+            : result.encoding === "base64"
+              ? {
+                  signedUrl: `data:application/octet-stream;base64,${
+                    result.content ?? ""
+                  }`,
+                }
+              : { content: result.content ?? "" }),
         });
         setShowFiles(false);
       } catch {
@@ -359,13 +375,15 @@ export function WorkspacePanel({
                 className="workspace-file-row"
                 style={{ paddingLeft: padding }}
               >
-                <ChevronRight
-                  size={16}
-                  className={clsx(
-                    "shrink-0 text-theme-text-muted transition-transform duration-150 motion-reduce:transition-none",
-                    expanded && "rotate-90",
-                  )}
-                />
+                <InteractiveIcon>
+                  <ChevronRight
+                    size={16}
+                    className={clsx(
+                      "shrink-0 text-theme-text-muted transition-transform duration-150 motion-reduce:transition-none",
+                      expanded && "rotate-90",
+                    )}
+                  />
+                </InteractiveIcon>
                 {node.loading ? (
                   <LoadingSpinner
                     color="text-current"
@@ -373,15 +391,19 @@ export function WorkspacePanel({
                     className="shrink-0 text-theme-text-tertiary"
                   />
                 ) : expanded ? (
-                  <FolderOpen
-                    size={16}
-                    className="shrink-0 text-theme-text-secondary"
-                  />
+                  <InteractiveIcon>
+                    <FolderOpen
+                      size={16}
+                      className="shrink-0 text-theme-text-secondary"
+                    />
+                  </InteractiveIcon>
                 ) : (
-                  <FolderClosed
-                    size={16}
-                    className="shrink-0 text-theme-text-secondary"
-                  />
+                  <InteractiveIcon>
+                    <FolderClosed
+                      size={16}
+                      className="shrink-0 text-theme-text-secondary"
+                    />
+                  </InteractiveIcon>
                 )}
                 <span className="truncate text-14 text-left">{node.name}</span>
               </button>
@@ -447,10 +469,12 @@ export function WorkspacePanel({
                   className="shrink-0"
                 />
               ) : (
-                <Icon
-                  size={16}
-                  className="shrink-0 text-theme-text-secondary"
-                />
+                <InteractiveIcon>
+                  <Icon
+                    size={16}
+                    className="shrink-0 text-theme-text-secondary"
+                  />
+                </InteractiveIcon>
               )}
               <span className="workspace-file-name">{node.name}</span>
             </button>
@@ -471,7 +495,9 @@ export function WorkspacePanel({
                   contextMenu?.path === node.path ? menuId : undefined
                 }
               >
-                <MoreHorizontal size={16} />
+                <InteractiveIcon>
+                  <MoreHorizontal size={16} />
+                </InteractiveIcon>
               </button>
             ) : (
               <button
@@ -485,7 +511,9 @@ export function WorkspacePanel({
                   void copy();
                 }}
               >
-                <Copy size={16} />
+                <InteractiveIcon>
+                  <Copy size={16} />
+                </InteractiveIcon>
               </button>
             )}
           </div>
@@ -621,10 +649,12 @@ export function WorkspacePanel({
             aria-expanded={rootExpanded}
             onClick={() => setRootExpanded(!rootExpanded)}
           >
-            <ChevronRight
-              size={12}
-              className={rootExpanded ? "rotate-90" : undefined}
-            />
+            <InteractiveIcon>
+              <ChevronRight
+                size={12}
+                className={rootExpanded ? "rotate-90" : undefined}
+              />
+            </InteractiveIcon>
             {t("workspacePanel.root")}
           </button>
           {!isCloudView && selection && (
@@ -649,7 +679,9 @@ export function WorkspacePanel({
               <Button
                 variant="ghost"
                 size="sm"
-                aria-label={`${t("workspacePanel.retry")}: ${previewError.path}`}
+                aria-label={`${t("workspacePanel.retry")}: ${
+                  previewError.path
+                }`}
                 className="shrink-0 max-sm:!min-h-11 [@media(pointer:coarse)]:!min-h-11"
                 onClick={() => {
                   explorerRef.current?.focus({ preventScroll: true });

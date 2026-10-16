@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { ChevronsUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
@@ -68,7 +69,9 @@ export function SidebarUserRow({
               )}
             </div>
           </div>
-          <ChevronsUpDown className="size-4 text-stone-400 shrink-0" />
+          <InteractiveIcon>
+            <ChevronsUpDown className="size-4 text-stone-400 shrink-0" />
+          </InteractiveIcon>
         </>
       )}
     </button>

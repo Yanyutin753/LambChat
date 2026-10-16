@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import "./rightPanelTabs.css";
@@ -155,7 +156,9 @@ export function RightPanelTabs({
                   title={t("common.closePanelTab", { title: label })}
                   onClick={() => closeRightPanel(entry.id)}
                 >
-                  <X size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <X size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 </button>
               </div>
             );
@@ -202,9 +205,13 @@ export function RightPanelTabs({
                 onClick={viewControls.onToggleFullscreen}
               >
                 {viewControls.isFullscreen ? (
-                  <Shrink size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <Shrink size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 ) : (
-                  <Expand size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <Expand size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 )}
               </button>
             </>

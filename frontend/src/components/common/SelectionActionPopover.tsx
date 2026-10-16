@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Lightbulb, MessageCircle } from "lucide-react";
@@ -162,7 +163,9 @@ export function SelectionActionPopover() {
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => handleAction("ask")}
         >
-          <MessageCircle className="size-3 shrink-0" strokeWidth={1.5} />
+          <InteractiveIcon>
+            <MessageCircle className="size-3 shrink-0" strokeWidth={1.5} />
+          </InteractiveIcon>
           <span className="shrink-0">{t("selectionActions.ask")}</span>
         </button>
         <button
@@ -173,7 +176,9 @@ export function SelectionActionPopover() {
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => handleAction("explain")}
         >
-          <Lightbulb className="size-3 shrink-0" strokeWidth={1.5} />
+          <InteractiveIcon>
+            <Lightbulb className="size-3 shrink-0" strokeWidth={1.5} />
+          </InteractiveIcon>
           <span className="shrink-0">{t("selectionActions.explain")}</span>
         </button>
       </div>

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -284,7 +285,9 @@ export function SessionListContent({
         aria-label={t("sidebar.selectMode")}
         className={`${sectionActionClass} ${sectionRevealClass}`}
       >
-        <ListChecks size={14} />
+        <InteractiveIcon>
+          <ListChecks size={14} />
+        </InteractiveIcon>
       </button>
     </Tooltip>
   );
@@ -333,7 +336,9 @@ export function SessionListContent({
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors group"
         >
-          <SquarePen size={compactChrome ? 19 : 20} />
+          <InteractiveIcon>
+            <SquarePen size={compactChrome ? 19 : 20} />
+          </InteractiveIcon>
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-theme-text-tertiary dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
@@ -345,7 +350,9 @@ export function SessionListContent({
             onClick={onOpenSearch}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors group"
           >
-            <Search size={20} />
+            <InteractiveIcon>
+              <Search size={20} />
+            </InteractiveIcon>
             <span className="flex-1 text-left">
               {t("sidebar.searchSessions")}
             </span>
@@ -363,7 +370,9 @@ export function SessionListContent({
             onClick={() => navigate("/scheduled-tasks")}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
           >
-            <CalendarClock size={20} />
+            <InteractiveIcon>
+              <CalendarClock size={20} />
+            </InteractiveIcon>
             <span>{t("nav.scheduled-tasks")}</span>
           </button>
         )}
@@ -373,7 +382,9 @@ export function SessionListContent({
             onClick={() => navigate("/files")}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
           >
-            <FolderOpen size={20} />
+            <InteractiveIcon>
+              <FolderOpen size={20} />
+            </InteractiveIcon>
             <span>{t("fileLibrary.title")}</span>
           </button>
         )}
@@ -748,10 +759,12 @@ export function SessionListContent({
                     onClick={() => handleMoveSelected(null)}
                     className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-theme-text-secondary transition hover:text-theme-text dark:text-stone-300 dark:hover:text-stone-50"
                   >
-                    <Tag
-                      size={15}
-                      className="shrink-0 text-theme-text-tertiary"
-                    />
+                    <InteractiveIcon>
+                      <Tag
+                        size={15}
+                        className="shrink-0 text-theme-text-tertiary"
+                      />
+                    </InteractiveIcon>
                     <span className="truncate">
                       {t("sidebar.uncategorized")}
                     </span>
@@ -787,7 +800,9 @@ export function SessionListContent({
                     aria-label={t("sidebar.deleteSelected")}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"
                   >
-                    <Trash2 size={14} />
+                    <InteractiveIcon>
+                      <Trash2 size={14} />
+                    </InteractiveIcon>
                   </button>
                 </Tooltip>
                 <Tooltip content={t("common.cancel")}>
@@ -797,7 +812,9 @@ export function SessionListContent({
                     aria-label={t("common.cancel")}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text dark:text-stone-400 dark:hover:text-stone-100"
                   >
-                    <X size={15} />
+                    <InteractiveIcon>
+                      <X size={15} />
+                    </InteractiveIcon>
                   </button>
                 </Tooltip>
               </div>

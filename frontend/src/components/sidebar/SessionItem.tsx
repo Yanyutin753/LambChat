@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 /**
  * Session item component with inline title editing and drag support
@@ -271,9 +272,15 @@ function SessionItemComponent({
   const taskIndicator = getSessionTaskIndicator(session.metadata?.task_status);
   const isWaitingForHuman = taskIndicator.kind === "attention";
   const isGenerating = taskIndicator.kind === "busy";
-  const taskStatusLabel = isGenerating && taskIndicator.labelKey
-    ? t(taskIndicator.labelKey, taskIndicator.labelKey === "sidebar.pendingStatus" ? "等待中" : "运行中")
-    : null;
+  const taskStatusLabel =
+    isGenerating && taskIndicator.labelKey
+      ? t(
+          taskIndicator.labelKey,
+          taskIndicator.labelKey === "sidebar.pendingStatus"
+            ? "等待中"
+            : "运行中",
+        )
+      : null;
   const attentionLabel = t("sidebar.waitingHuman", "等待回复");
 
   const activate = () => {
@@ -305,9 +312,9 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
-          selectionMode ? "pr-2" : ""
-        }`}
+        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+          isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""
+        } ${selectionMode ? "pr-2" : ""}`}
       >
         {/* Title - editable or display */}
         <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -352,7 +359,9 @@ function SessionItemComponent({
                       : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring"
                   }`}
                 >
-                  <Check size={11} strokeWidth={3} />
+                  <InteractiveIcon>
+                    <Check size={11} strokeWidth={3} />
+                  </InteractiveIcon>
                 </span>
               )}
 
@@ -412,10 +421,12 @@ function SessionItemComponent({
               className="sidebar-action-reveal flex h-8 w-6 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
               style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
             >
-              <MoreHorizontal
-                size={14}
-                className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
-              />
+              <InteractiveIcon>
+                <MoreHorizontal
+                  size={14}
+                  className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
+                />
+              </InteractiveIcon>
             </button>
           </Tooltip>
         )}

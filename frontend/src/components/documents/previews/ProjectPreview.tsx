@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { useMemo, useState } from "react";
 import {
@@ -206,9 +207,13 @@ export default function ProjectPreview({
                   }
                 >
                   {activeTab === "preview" ? (
-                    <Code2 size={14} />
+                    <InteractiveIcon>
+                      <Code2 size={14} />
+                    </InteractiveIcon>
                   ) : (
-                    <Play size={14} />
+                    <InteractiveIcon>
+                      <Play size={14} />
+                    </InteractiveIcon>
                   )}
                 </button>
 
@@ -222,7 +227,9 @@ export default function ProjectPreview({
                         : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300",
                     )}
                   >
-                    <Play size={14} />
+                    <InteractiveIcon>
+                      <Play size={14} />
+                    </InteractiveIcon>
                     {t("project.preview", "预览")}
                   </button>
                   <button
@@ -234,7 +241,9 @@ export default function ProjectPreview({
                         : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300",
                     )}
                   >
-                    <Code2 size={14} />
+                    <InteractiveIcon>
+                      <Code2 size={14} />
+                    </InteractiveIcon>
                     {t("project.code", "代码")}
                   </button>
                 </div>
@@ -252,7 +261,9 @@ export default function ProjectPreview({
                 )}
                 title={t("project.toggleExplorer", "切换文件浏览器")}
               >
-                <FolderTree size={14} className="sm:w-4 sm:h-4" />
+                <InteractiveIcon>
+                  <FolderTree size={14} className="sm:w-4 sm:h-4" />
+                </InteractiveIcon>
               </button>
             )}
 
@@ -261,7 +272,9 @@ export default function ProjectPreview({
                 onClick={() => exportProjectZip(files, name)}
                 className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 text-12 font-medium transition-all duration-200 active:scale-95"
               >
-                <Download size={14} />
+                <InteractiveIcon>
+                  <Download size={14} />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {t("project.exportZip")}
                 </span>
@@ -274,7 +287,9 @@ export default function ProjectPreview({
                 className="flex items-center justify-center size-7 sm:size-8 rounded-lg sm:rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
                 title={t("common.close")}
               >
-                <X size={14} className="sm:w-4 sm:h-4" />
+                <InteractiveIcon>
+                  <X size={14} className="sm:w-4 sm:h-4" />
+                </InteractiveIcon>
               </button>
             )}
 
@@ -393,7 +408,9 @@ export function ProjectPreviewCompact({
               onClick={onExpand}
               className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-12 font-medium transition-colors shrink-0"
             >
-              <ExternalLink size={14} />
+              <InteractiveIcon>
+                <ExternalLink size={14} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">
                 {t("project.expand", "展开预览")}
               </span>

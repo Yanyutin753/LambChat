@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type ViewerDropdownMenuItemVariant = "stone" | "dark";
@@ -33,7 +34,7 @@ export function ViewerDropdownMenuItem({
         .join(" ")}
       {...props}
     >
-      {children}
+      <InteractiveIcon>{children}</InteractiveIcon>
     </button>
   );
 }

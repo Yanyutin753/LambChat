@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import {
   ChevronDown,
   ChevronUp,
@@ -68,9 +69,7 @@ function BlockPreviewTab({
   const close = () => closeBlockPreview(blockPreviewKey(preview));
   let icon: React.ReactNode;
   let title: string;
-  let subtitle = buildPanelSummary(
-    preview.text || preview.url || "",
-  );
+  let subtitle = buildPanelSummary(preview.text || preview.url || "");
   let content: React.ReactNode;
 
   if (preview.type === "image" && preview.src) {
@@ -106,7 +105,9 @@ function BlockPreviewTab({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-theme-bg-subtle text-14 text-theme-text-secondary hover:bg-theme-bg-elevated transition-colors border border-theme-border"
         >
-          <ExternalLink size={14} />
+          <InteractiveIcon>
+            <ExternalLink size={14} />
+          </InteractiveIcon>
           {t("chat.message.toolOpenFile", "Open file")}
         </a>
       </div>
@@ -185,7 +186,9 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
         onClick={() => openBlockPreview({ type: "file", url, fileName })}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-secondary hover:bg-theme-bg-elevated transition-colors border border-theme-border cursor-pointer"
       >
-        <File size={12} />
+        <InteractiveIcon>
+          <File size={12} />
+        </InteractiveIcon>
         {fileName}
       </button>
     );
@@ -261,7 +264,9 @@ function GeneratedImageResults({ images }: { images: GeneratedImageResult[] }) {
                 className="shrink-0 rounded-md p-1 text-theme-text-tertiary transition-colors hover:bg-theme-bg-subtle hover:text-theme-text"
                 aria-label={t("chat.message.openImage", "Open image")}
               >
-                <ExternalLink size={14} />
+                <InteractiveIcon>
+                  <ExternalLink size={14} />
+                </InteractiveIcon>
               </a>
             </figcaption>
           </figure>
@@ -546,7 +551,15 @@ function JsonFallback({
           aria-expanded={expanded}
           className="flex items-center gap-1 mt-1 text-12 text-theme-text-tertiary hover:text-theme-text transition-colors"
         >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {expanded ? (
+            <InteractiveIcon>
+              <ChevronUp size={12} />
+            </InteractiveIcon>
+          ) : (
+            <InteractiveIcon>
+              <ChevronDown size={12} />
+            </InteractiveIcon>
+          )}
           {expanded ? t("chat.message.collapse") : t("chat.message.expandAll")}
         </button>
       )}
@@ -667,9 +680,13 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
               style={{ color: "var(--theme-text-tertiary)" }}
             >
               {showDetails ? (
-                <ChevronUp size={11} />
+                <InteractiveIcon>
+                  <ChevronUp size={11} />
+                </InteractiveIcon>
               ) : (
-                <ChevronDown size={11} />
+                <InteractiveIcon>
+                  <ChevronDown size={11} />
+                </InteractiveIcon>
               )}
               {showDetails
                 ? t("chat.message.collapse")

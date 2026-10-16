@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useCallback, useMemo, useState } from "react";
 import { Globe, ImageIcon, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -412,9 +413,7 @@ const WebSearchItem = memo(function WebSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolWebSearch");
-  const pillLabel = `${titleLabel} ${
-    query ? `"${query}"` : ""
-  }`.trim();
+  const pillLabel = `${titleLabel} ${query ? `"${query}"` : ""}`.trim();
   // 结果数走 suffix 徽章，pill 主标签保持干净
   const countSuffix =
     summary && summary.results.length > 0 ? (
@@ -597,8 +596,10 @@ const WebSearchItem = memo(function WebSearchItem({
                   onClick={openSearchPanel}
                   className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-11 font-medium tabular-nums text-theme-text-tertiary transition-colors hover:text-[var(--theme-primary)]"
                 >
-                  <ImageIcon size={11} className="opacity-70" />+
-                  {summary.images.length - 3}
+                  <InteractiveIcon>
+                    <ImageIcon size={11} className="opacity-70" />
+                  </InteractiveIcon>
+                  +{summary.images.length - 3}
                 </button>
               )}
             </div>

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Select } from "../common/ui/Select";
@@ -98,11 +99,13 @@ export function SettingsCategoryNav({
                 <span className="min-w-0 break-words">
                   {t(`settings.navigation.groups.${group.id}`)}
                 </span>
-                <ChevronDown
-                  size={14}
-                  aria-hidden="true"
-                  className={`shrink-0 ${expanded ? "" : "-rotate-90"}`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={14}
+                    aria-hidden="true"
+                    className={`shrink-0 ${expanded ? "" : "-rotate-90"}`}
+                  />
+                </InteractiveIcon>
               </button>
             </h3>
             <div id={contentId} hidden={!expanded} className="space-y-0.5">

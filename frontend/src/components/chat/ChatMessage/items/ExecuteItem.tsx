@@ -62,10 +62,8 @@ function ExecuteDetail({
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-elevated text-14 font-mono flex items-baseline gap-2.5 shadow-[var(--shadow-card)] ring-1 ring-theme-border transition-colors duration-200">
         <Terminal size={13} className="shrink-0 text-theme-text-tertiary" />
-        <span className="shrink-0 text-theme-success font-semibold">
-          $
-        </span>
-        <span className="text-theme-text break-all min-w-0 flex-1">
+        <span className="shrink-0 text-theme-success font-semibold">$</span>
+        <span className="text-theme-text break-words [overflow-wrap:anywhere] min-w-0 flex-1">
           {command}
         </span>
         {timeout && (
@@ -78,6 +76,8 @@ function ExecuteDetail({
       {parsed.output && (
         <div className="relative group">
           <pre
+            tabIndex={0}
+            aria-label={t("chat.message.toolOutput")}
             className={clsx(
               "text-14 rounded-xl p-4 min-w-0 tool-code-block",
               "bg-theme-bg border border-theme-border",
@@ -168,9 +168,7 @@ const ExecuteItem = memo(function ExecuteItem({
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
     command
-      ? `${t("chat.message.toolExecute")} ${
-          command
-        }`
+      ? `${t("chat.message.toolExecute")} ${command}`
       : t("chat.message.toolExecute"),
     args,
     { isPending, result },

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LucideIcon } from "lucide-react";
@@ -46,7 +47,9 @@ export function DesktopMoreMenu({
         navigate(item.path);
       }}
     >
-      <item.icon size={20} />
+      <InteractiveIcon>
+        <item.icon size={20} />
+      </InteractiveIcon>
       <span>{item.label}</span>
     </button>
   );

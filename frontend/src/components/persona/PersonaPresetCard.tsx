@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { ResourceCardTags } from "../common/ResourceCardTags";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { useTranslation } from "react-i18next";
@@ -53,7 +54,13 @@ export function PersonaPresetCard({
       gradient={gradient}
       iconClassName=""
       icon={
-        <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={36} iconSize={20} className="rounded-lg" />
+        <AgentAvatar
+          avatar={preset.avatar}
+          seed={preset.id || preset.name}
+          size={36}
+          iconSize={20}
+          className="rounded-lg"
+        />
       }
       statusPills={
         <>
@@ -100,7 +107,9 @@ export function PersonaPresetCard({
                 onTogglePreference(preset, { is_pinned: !preset.is_pinned })
               }
             >
-              <Pin size={12} />
+              <InteractiveIcon>
+                <Pin size={12} />
+              </InteractiveIcon>
             </button>
             <button
               type="button"
@@ -114,7 +123,9 @@ export function PersonaPresetCard({
                 })
               }
             >
-              <Star size={12} />
+              <InteractiveIcon>
+                <Star size={12} />
+              </InteractiveIcon>
             </button>
           </div>
         ) : undefined
@@ -214,7 +225,9 @@ export function PersonaPresetCard({
                 className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.clear", "清除使用")}
               >
-                <Check size={16} />
+                <InteractiveIcon>
+                  <Check size={16} />
+                </InteractiveIcon>
               </button>
             ) : (
               <button
@@ -222,7 +235,9 @@ export function PersonaPresetCard({
                 className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.use", "使用")}
               >
-                <Sparkles size={16} />
+                <InteractiveIcon>
+                  <Sparkles size={16} />
+                </InteractiveIcon>
               </button>
             )}
           </div>

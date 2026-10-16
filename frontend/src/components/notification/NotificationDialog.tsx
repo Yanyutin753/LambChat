@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -106,17 +107,21 @@ export function NotificationDialog({
           }
           title={<span className="font-serif">{t("nav.notifications")}</span>}
           onClose={onClose}
-          actions={notifications.length > 0 && (
-            <button
-              type="button"
-              onClick={() => handleDismiss(notifications.map((n) => n.id))}
-              disabled={dismissing}
-              className="flex min-h-11 sm:min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-12 text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
-            >
-              <Check size={14} />
-              {t(dismissing ? "common.loading" : "sidebar.markAllRead")}
-            </button>
-          )}
+          actions={
+            notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleDismiss(notifications.map((n) => n.id))}
+                disabled={dismissing}
+                className="flex min-h-11 sm:min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-12 text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+              >
+                <InteractiveIcon>
+                  <Check size={14} />
+                </InteractiveIcon>
+                {t(dismissing ? "common.loading" : "sidebar.markAllRead")}
+              </button>
+            )
+          }
         />
 
         {/* List */}
@@ -185,7 +190,9 @@ export function NotificationDialog({
                           "var(--theme-text-secondary)";
                       }}
                     >
-                      <Check size={12} />
+                      <InteractiveIcon>
+                        <Check size={12} />
+                      </InteractiveIcon>
                       {t("notification.dismiss")}
                     </button>
                   </div>

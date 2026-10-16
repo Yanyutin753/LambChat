@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 /**
  * Pagination Component - Page number navigation with mobile responsive layout
  */
@@ -70,7 +71,9 @@ export function Pagination({
             className="pagination-btn"
             aria-label={t("common.previous")}
           >
-            <ChevronLeft size={16} />
+            <InteractiveIcon>
+              <ChevronLeft size={16} />
+            </InteractiveIcon>
           </button>
 
           {pages.map((p, idx) =>
@@ -101,7 +104,9 @@ export function Pagination({
             className="pagination-btn"
             aria-label={t("common.next")}
           >
-            <ChevronRight size={16} />
+            <InteractiveIcon>
+              <ChevronRight size={16} />
+            </InteractiveIcon>
           </button>
         </div>
       )}
