@@ -270,10 +270,10 @@ test("startup and welcome loading states share the actual card header layout", (
     'className="welcome-persona-header relative flex items-center gap-3"',
   );
   expect(chatSkeletonsSource).toContain("getWelcomePersonaSkeletonCount(true)");
-  expect(welcomePageSource).toContain(
+  expect(welcomePageSource.replace(/\s+/g, " ")).toContain(
     "<WelcomePersonaCardSkeleton key={`team-skeleton-${i}`} showTag />",
   );
-  expect(welcomePageSource).toContain(
+  expect(welcomePageSource.replace(/\s+/g, " ")).toContain(
     "<WelcomePersonaCardSkeleton key={`persona-skeleton-${i}`} />",
   );
   expect(welcomeCss).not.toMatch(

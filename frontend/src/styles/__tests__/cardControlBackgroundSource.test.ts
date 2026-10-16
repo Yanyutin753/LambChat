@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const css = readFileSync(join(import.meta.dirname, "../card-base.css"), "utf8");
+const css = readFileSync(
+  join(import.meta.dirname, "../card-base.css"),
+  "utf8",
+).replace(/\s+/g, " ");
 
 test("card actions share 36px controls and 16px icons", () => {
   for (const selector of [".scb__action-btn", ".mp-card__action-btn"]) {

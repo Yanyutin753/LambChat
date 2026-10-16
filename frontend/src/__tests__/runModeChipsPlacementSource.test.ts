@@ -146,7 +146,7 @@ test("桌面模式入口用主题竖线分隔，间距沿用共享工具栏", ()
   expect(modes).toMatch(
     /className="hidden shrink-0 items-center gap-2\.5 sm:flex"/,
   );
-  expect(modes).toContain(
+  expect(modes.replace(/\s+/g, " ")).toContain(
     'aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border"',
   );
 });

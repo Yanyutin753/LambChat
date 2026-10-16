@@ -30,7 +30,7 @@ import { resolveThinkingPresentation } from "./chatInputThinking";
 import * as runModeOptions from "./chatInputRunModes";
 const { collectActiveRunModes } = runModeOptions;
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
-import { getMentionPopupFixedPlacement } from "./chatInputViewport";
+import { useMentionPopupPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
 import {
   getMatchingSlashDropdownItems,
@@ -179,8 +179,6 @@ export const ChatInput = memo(function ChatInput({
   const formRef = useRef<HTMLFormElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [mentionPopupPlacement, setMentionPopupPlacement] =
-    useState<ReturnType<typeof getMentionPopupFixedPlacement>>(null);
   const { hasPermission } = useAuth();
   const uploadCategories = (
     Object.keys(FILE_CATEGORY_PERMISSIONS) as Array<
@@ -313,44 +311,10 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentAgent, onSelectTeam]);
-  useEffect(() => {
-    if (!mention.isActive) {
-      setMentionPopupPlacement(null);
-      return;
-    }
-    const updateMentionPopupPlacement = () => {
-      const container = containerRef.current;
-      setMentionPopupPlacement(
-        getMentionPopupFixedPlacement({
-          inputRect: container?.getBoundingClientRect() ?? null,
-          viewportHeight: window.visualViewport?.height ?? window.innerHeight,
-        }),
-      );
-    };
-    updateMentionPopupPlacement();
-    window.addEventListener("resize", updateMentionPopupPlacement);
-    window.addEventListener("scroll", updateMentionPopupPlacement, true);
-    window.visualViewport?.addEventListener(
-      "resize",
-      updateMentionPopupPlacement,
-    );
-    window.visualViewport?.addEventListener(
-      "scroll",
-      updateMentionPopupPlacement,
-    );
-    return () => {
-      window.removeEventListener("resize", updateMentionPopupPlacement);
-      window.removeEventListener("scroll", updateMentionPopupPlacement, true);
-      window.visualViewport?.removeEventListener(
-        "resize",
-        updateMentionPopupPlacement,
-      );
-      window.visualViewport?.removeEventListener(
-        "scroll",
-        updateMentionPopupPlacement,
-      );
-    };
-  }, [mention.isActive]);
+  const mentionPopupPlacement = useMentionPopupPlacement(
+    mention.isActive,
+    containerRef,
+  );
   const personaAvatar = useMemo(() => {
     if (!selectedPersonaPresetId) return null;
     const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);

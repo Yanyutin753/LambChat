@@ -9,7 +9,7 @@ test("composer action groups share spacing and desktop hover uses a softer radiu
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),
     "utf8",
-  );
+  ).replace(/\s+/g, " ");
   expect(toolbar.match(/items-center gap-2\.5/g)).toHaveLength(3);
   expect(toolbar).toMatch(/chat-input-toolbar[^"\n]*gap-2\.5/);
   expect(desktop).toMatch(/\.chat-input-toolbar\s*\{[^}]*gap:\s*0\.625rem/);
@@ -22,7 +22,7 @@ test("desktop toolbar uses equal insets and square icon actions", () => {
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),
     "utf8",
-  );
+  ).replace(/\s+/g, " ");
   expect(desktop).toMatch(
     /\.chat-input-toolbar\s*\{[^}]*padding:\s*0\.625rem;[^}]*margin:\s*0;/,
   );
@@ -38,7 +38,7 @@ test("desktop composer gives the bottom actions more breathing room and height",
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),
     "utf8",
-  );
+  ).replace(/\s+/g, " ");
   expect(desktop).toMatch(
     /@media \(min-width: 640px\)\s*\{[^]*?\.chat-input-toolbar\s*\{[^}]*padding:\s*0\.625rem/,
   );
