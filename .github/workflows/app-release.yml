@@ -528,7 +528,7 @@ jobs:
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-          python3 scripts/check_release_mutability.py
+          uv run --no-project --python 3.12 python scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
       # latest.json 增量合并：本平台 sig 就绪即把平台条目并入已发布的
