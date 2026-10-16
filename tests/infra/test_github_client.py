@@ -154,3 +154,75 @@ async def test_updater_release_searches_past_first_page(monkeypatch):
 async def test_updater_release_returns_none_on_upstream_failure(monkeypatch):
     _install(monkeypatch, {})
     assert await GitHubClient().get_latest_updater_release() is None
+
+
+@pytest.mark.asyncio
+async def test_dev_channel_selects_highest_ready_version_and_keeps_stable_cache(monkeypatch):
+    def release(tag, ready=True, draft=False):
+        return {
+            **PAYLOAD,
+            "tag_name": tag,
+            "prerelease": "-dev." in tag,
+            "draft": draft,
+            "assets": ([{"name": "dev-latest.json"}] if ready else []),
+        }
+
+    listing = gc_module.GITHUB_API_URL.removesuffix("/latest") + "?per_page=30&page=1"
+    _install(
+        monkeypatch,
+        {
+            gc_module.GITHUB_API_URL: _FakeResponse(payload=PAYLOAD),
+            listing: _FakeResponse(
+                payload=[
+                    release("v2.15.2-dev.11", False),
+                    release("v2.15.2-dev.10"),
+                    release("v2.15.2-dev.9"),
+                    release("v2.15.3-dev.1", draft=True),
+                    release("invalid"),
+                ]
+            ),
+        },
+    )
+    client = GitHubClient()
+    stable = await client.get_latest_release()
+    dev = await client.get_channel_release("dev")
+    assert dev.tag_name == "v2.15.2-dev.10"
+    assert (await client.get_latest_release()).tag_name == stable.tag_name
+
+
+@pytest.mark.asyncio
+async def test_dev_channel_promotes_same_core_final_release(monkeypatch):
+    listing = gc_module.GITHUB_API_URL.removesuffix("/latest") + "?per_page=30&page=1"
+    _install(
+        monkeypatch,
+        {
+            listing: _FakeResponse(
+                payload=[
+                    {
+                        **PAYLOAD,
+                        "tag_name": "v2.15.2-dev.10",
+                        "prerelease": True,
+                        "assets": [{"name": "dev-latest.json"}],
+                    },
+                    {
+                        **PAYLOAD,
+                        "tag_name": "v2.15.2",
+                        "prerelease": False,
+                        "assets": [{"name": "latest.json"}],
+                    },
+                ]
+            )
+        },
+    )
+    assert (await GitHubClient().get_channel_release("dev")).tag_name == "v2.15.2"
+
+
+@pytest.mark.asyncio
+async def test_dev_cache_avoids_polling_github_every_minute(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    client = GitHubClient()
+    release = client._parse_release(PAYLOAD)
+    client._dev_cache = (release, datetime.now(UTC) - timedelta(minutes=5))
+    _install(monkeypatch, {})
+    assert await client.get_channel_release("dev") is release

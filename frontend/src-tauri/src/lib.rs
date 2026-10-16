@@ -158,7 +158,13 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new()
+            .default_version_comparator(|current, update| {
+                let installed = option_env!("LAMBCHAT_RELEASE_VERSION")
+                    .and_then(|version| version.parse().ok())
+                    .unwrap_or(current.clone());
+                update.version > installed
+            }).build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         // process 插件：updater 安装完成后前端 `relaunch()` 重启壳

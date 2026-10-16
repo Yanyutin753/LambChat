@@ -3,29 +3,44 @@ name: App Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to create or update, for example v2.5.0-app. Ignored for tag pushes.'
+        description: "Release tag to create or update, for example v2.5.0-app. Ignored for tag pushes."
         required: true
         type: string
       app_url:
-        description: 'Public LambChat URL. Falls back to repo variable/secret LAMBCHAT_APP_URL.'
+        description: "Public LambChat URL. Falls back to repo variable/secret LAMBCHAT_APP_URL."
         required: false
         type: string
 
 permissions:
   contents: write
+  actions: read
+
+concurrency:
+  group: app-release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
 
 env:
-  NODE_VERSION: '22'
-  PNPM_VERSION: '10.32.1'
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.32.1"
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
   LAMBCHAT_APP_URL: ${{ inputs.app_url || vars.LAMBCHAT_APP_URL || secrets.LAMBCHAT_APP_URL }}
 
 jobs:
+  release_guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require unpublished dev tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_release_mutability.py
+
   desktop:
+    needs: release_guard
     name: Desktop (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -35,10 +50,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-      # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
-      # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
-      # updater_*：即发即传时增量合并 latest.json 的平台条目（macOS 走
-      # .app.tar.gz updater 产物，dmg 仅用于首装不分发更新）
+          # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
+          # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
+          # updater_*：即发即传时增量合并 latest.json 的平台条目（macOS 走
+          # .app.tar.gz updater 产物，dmg 仅用于首装不分发更新）
           # Linux 只发 deb/rpm（AppImage 已停发）：应用内更新走自研
           # 「版本化缓存下载 + pkcon/pkexec 安装」链路，不进 updater 清单
           - label: Linux x86_64
@@ -513,6 +528,7 @@ jobs:
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          python3 scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
       # latest.json 增量合并：本平台 sig 就绪即把平台条目并入已发布的
@@ -573,6 +589,7 @@ jobs:
           gh release upload "$RELEASE_TAG" latest.json --clobber --repo "$GITHUB_REPOSITORY"
 
   android:
+    needs: release_guard
     name: Android
     runs-on: ubuntu-latest
     outputs:
@@ -648,7 +665,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Setup Android SDK
         # v3 硬编码 sdkmanager tools，Google 已把 legacy tools 包从 SDK 仓库下架，
@@ -734,9 +751,11 @@ jobs:
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          python3 scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
   ios:
+    needs: release_guard
     name: iOS
     runs-on: macos-26
     env:
@@ -879,16 +898,18 @@ jobs:
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          python3 scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs:
+      - release_guard
       - desktop
       - android
       - ios
-    if: always()
+    if: always() && needs.release_guard.result == 'success'
     # 即发即传改造后本 job 的职责：① 权威重生成完整 latest.json（修复各
     # 平台增量合并的读-合-写竞态丢条目）；② 部分平台失败时的打捞重发
     # （needs + always()，资产已即时上传的 --clobber 原地替换幂等）。
@@ -920,6 +941,11 @@ jobs:
 
       - name: Install release signing runtime
         uses: astral-sh/setup-uv@v4
+
+      - name: Recheck dev tag before final publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_release_mutability.py
 
       - name: Sign immutable release assets
         env:
@@ -1008,3 +1034,20 @@ jobs:
           `xattr -cr /Applications/LambChat.app` in Terminal, then launch it.
           NOTE
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file body.md
+
+      - name: Publish ready dev update channel
+        if: contains(env.RELEASE_TAG, '-dev.') && needs.desktop.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_DIR: release-assets
+          RELEASE_NOTES_FILE: release-notes.md
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RELEASE_NOTES_FILE"
+          RELEASE_PUBLISHED_AT="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt)"
+          export RELEASE_PUBLISHED_AT
+          python3 scripts/generate_updater_manifest.py
+          test ! -f release-assets/latest.json
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow lint.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length > 0' | grep -qx true
+          # Upload last: this is the readiness marker consumed by the opt-in channel.
+          gh release upload "$RELEASE_TAG" release-assets/dev-latest.json --clobber --repo "$GITHUB_REPOSITORY"

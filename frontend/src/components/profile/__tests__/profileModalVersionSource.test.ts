@@ -27,7 +27,7 @@ test("initial version fetch reports the client version for has_update", () => {
   // 首次 get() 也带 client_version：has_update 按客户端版本比较，
   // 而不是服务端版本（网页端服务端=客户端，桌面端两者可能相差多个版本）。
   const source = readSource("../../../hooks/useVersion.ts");
-  expect(source).toMatch(/versionApi\.get\(\s*APP_VERSION\s*\)/);
+  expect(source).toMatch(/versionApi\.get\(\s*APP_VERSION,\s*channel\s*\)/);
 });
 
 test("app content no longer threads server versionInfo into the profile modal", () => {

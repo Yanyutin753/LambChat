@@ -16,7 +16,7 @@ import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
 import { Button } from "../common/ui";
-import { ChannelsGridSkeleton } from "../skeletons";
+import { ChannelsGridSkeleton, ChannelInstancesSkeleton } from "../skeletons";
 import { EmptyState } from "../common/EmptyState";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { getRightPanelSnapshot } from "../common/rightPanelCoordinator";
@@ -328,7 +328,7 @@ export function ChannelsPage() {
         />
         <div className="panel-body flex-1 overflow-y-auto">
           {isLoading ? (
-            <ChannelsGridSkeleton />
+            <ChannelsGridSkeleton contentOnly />
           ) : loadError ? (
             retryNotice(loadData)
           ) : (
@@ -386,7 +386,10 @@ export function ChannelsPage() {
                         description={ct.description}
                         gradient={gradient}
                         icon={
-                          <ChannelIcon channelType={ct.channel_type} size={24} />
+                          <ChannelIcon
+                            channelType={ct.channel_type}
+                            size={24}
+                          />
                         }
                         statusPills={
                           <div className="mt-1 flex flex-wrap gap-1.5">
@@ -496,7 +499,7 @@ export function ChannelsPage() {
 
         <div className="panel-body flex-1 overflow-y-auto">
           {isLoading || instanceLoading[selectedChannel!] ? (
-            <ChannelsGridSkeleton />
+            <ChannelInstancesSkeleton />
           ) : loadError ? (
             retryNotice(loadData)
           ) : instanceErrors[selectedChannel!] ? (

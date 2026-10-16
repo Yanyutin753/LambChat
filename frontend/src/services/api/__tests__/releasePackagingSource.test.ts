@@ -28,7 +28,7 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   expect(workflow).toMatch(/package:desktop/);
   expect(workflow).toMatch(/assembleRelease/);
   expect(workflow).toMatch(/softprops\/action-gh-release/);
-  expect(workflow).toMatch(/java-version: '21'/);
+  expect(workflow).toMatch(/java-version: ['"]21['"]/);
   expect(workflow).toMatch(/if: always\(\)/);
   expect(workflow).toMatch(/continue-on-error: true/);
   expect(workflow).toMatch(/-workspace App\.xcworkspace/);
@@ -161,7 +161,9 @@ test("iOS release builds only the modern package line", () => {
   expect(packageJson.devDependencies["@capacitor/ios"]).toBe("8.5.3");
   expect(podfile).toMatch(/platform :ios, '16\.4'/);
   expect(podfile).toContain("../../node_modules/@capacitor/ios");
-  expect(podfile).toContain("../../node_modules/@capacitor/local-notifications");
+  expect(podfile).toContain(
+    "../../node_modules/@capacitor/local-notifications",
+  );
   expect(
     [...project.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);/g)].every(
       ([, target]) => target === "16.4",

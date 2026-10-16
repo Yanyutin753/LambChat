@@ -5,4 +5,5 @@ import { version } from "../../package.json";
  * 发版时三者同步递增（CI 构建保证嵌入 App 的 bundle 与原生版本一致）。
  * 移动端自检更新时上报给后端做 has_update 比较。
  */
-export const APP_VERSION: string = version;
+export const APP_VERSION: string =
+  import.meta.env.VITE_RELEASE_VERSION || version;

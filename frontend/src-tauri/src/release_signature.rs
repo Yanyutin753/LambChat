@@ -69,6 +69,21 @@ pub fn version_parts(version: &str) -> Result<[u64; 3], String> {
     Ok(value)
 }
 
+pub fn release_version_parts(version: &str) -> Result<([u64; 3], u64), String> {
+    let (core, build) = match version.split_once("-dev.") {
+        Some((core, build)) => {
+            if build.is_empty() || build.starts_with('0') || !build.bytes().all(|b| b.is_ascii_digit()) {
+                return Err("Invalid dev release version".into());
+            }
+            let build: u64 = build.parse().map_err(|_| "Invalid dev release version")?;
+            if !(1..=998).contains(&build) { return Err("Invalid dev build number".into()); }
+            (core, build)
+        }
+        None => (version, 999),
+    };
+    Ok((version_parts(core)?, build))
+}
+
 fn lower_hex(value: &str, length: usize) -> bool {
     value.len() == length
         && value
@@ -110,8 +125,8 @@ fn verify_with_key(
         .map_err(|_| error)?;
     let manifest: Manifest = serde_json::from_slice(payload).map_err(|_| error)?;
     if manifest.schema != 1
-        || manifest.version != version
-        || version_parts(version)? <= version_parts(current)?
+        || manifest.version != version.split("-dev.").next().unwrap_or(version)
+        || release_version_parts(version)? <= release_version_parts(current)?
         || !lower_hex(&manifest.commit, 40)
         || manifest.assets.is_empty()
     {
@@ -181,6 +196,21 @@ mod tests {
         let key = Ed25519KeyPair::from_seed_unchecked(&[7; 32]).unwrap();
         let payload = format!(r#"{{"schema":1,"version":"{version}","commit":"{}","assets":{{"package.deb":{{"size":3,"sha256":"{}"}}}}}}"#, "a".repeat(40), "b".repeat(64)).into_bytes();
         (payload, key)
+    }
+
+    #[test]
+    fn dev_updates_keep_signature_and_full_version_rollback_guards() {
+        let (payload, key) = envelope("2.15.2");
+        for (target, current, allowed) in [
+            ("2.15.2-dev.10", "2.15.2-dev.9", true),
+            ("2.15.2", "2.15.2-dev.10", true),
+            ("2.15.2-dev.9", "2.15.2-dev.10", false),
+            ("2.15.2-dev.10", "2.15.2", false),
+            ("2.15.2-dev.0", "2.15.1", false),
+        ] {
+            assert_eq!(verify_with_key(&payload, key.sign(&payload).as_ref(), target,
+                "package.deb", current, key.public_key().as_ref()).is_ok(), allowed);
+        }
     }
 
     #[test]
