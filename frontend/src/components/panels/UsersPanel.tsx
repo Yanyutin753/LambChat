@@ -292,7 +292,7 @@ function UserFormModal({
                 {roles.map((role) => (
                   <label
                     key={role.id}
-                    className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                    className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
                   >
                     <Checkbox
                       ariaLabel={role.name}
@@ -314,7 +314,7 @@ function UserFormModal({
         {/* 状态 */}
         {isEditing && (
           <div className="es-field">
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
+            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
               <Checkbox
                 ariaLabel={t("users.enableAccount")}
                 size="sm"
@@ -483,7 +483,7 @@ export function UsersPanel() {
             <Button
               variant="primary"
               onClick={openCreateModal}
-              leftIcon={<Plus size={16} className="sm:size-[18px]" />}
+              leftIcon={<Plus size={16} className="sm:size-[1.125rem]" />}
             >
               <span className="hidden sm:inline">{t("users.createUser")}</span>
             </Button>

@@ -188,7 +188,7 @@ export function PersonaPresetSelector({
                   onOpenChange(false);
                   onManagePresets();
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg p-2 text-12 font-medium transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-800 sm:px-2.5"
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 text-12 font-medium transition-colors hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover sm:px-2.5"
                 style={{ color: "var(--theme-text-secondary)" }}
               >
                 <InteractiveIcon>

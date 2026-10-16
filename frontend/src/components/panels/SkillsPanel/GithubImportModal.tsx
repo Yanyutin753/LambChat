@@ -167,7 +167,11 @@ export function GithubImportModal({
               {githubSkills.map((skill) => (
                 <label
                   key={skill.name}
-                  className={`flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 ${selectedGithubSkills.includes(skill.name) ? "bg-theme-primary-light" : "hover:bg-theme-bg-subtle"}`}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 ${
+                    selectedGithubSkills.includes(skill.name)
+                      ? "bg-theme-primary-light"
+                      : "hover:bg-theme-bg-hover"
+                  }`}
                 >
                   <Checkbox
                     ariaLabel={skill.name}

@@ -62,8 +62,8 @@ function ArgRow({
       <div
         className={`group/arg flex items-center gap-2 rounded-[var(--radius-sm)] px-2 transition-colors duration-[var(--duration-fast)] ${
           compact
-            ? "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)] py-1 text-11"
-            : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)] py-1.5 text-12"
+            ? "bg-[var(--theme-bg-subtle)] hover:bg-theme-bg-hover py-1 text-11"
+            : "bg-[var(--theme-bg-subtle)] hover:bg-theme-bg-hover py-1.5 text-12"
         }`}
       >
         <ArgKey name={name} compact={compact} />
@@ -127,7 +127,7 @@ function ComplexArgRow({
         className={`group/arg flex items-center gap-2 rounded-[var(--radius-sm)] px-2 transition-colors duration-[var(--duration-fast)] cursor-pointer ${
           expanded
             ? "bg-[var(--theme-bg-elevated)]"
-            : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)]"
+            : "bg-[var(--theme-bg-subtle)] hover:bg-theme-bg-hover"
         } ${compact ? "py-1 text-11" : "py-1.5 text-12"}`}
       >
         <button
@@ -184,7 +184,7 @@ function ComplexArgRow({
 function ArgKey({ name, compact }: { name: string; compact: boolean }) {
   return (
     <span
-      className={`shrink-0 font-medium tracking-wide uppercase ${
+      className={`tool-arg-key shrink-0 font-medium tracking-wide uppercase ${
         compact
           ? "text-9 text-[var(--theme-text-tertiary)]"
           : "text-10 text-[var(--theme-text-tertiary)]"

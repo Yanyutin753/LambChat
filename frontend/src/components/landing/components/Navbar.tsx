@@ -81,7 +81,7 @@ export function Navbar({
             id="public-menu-toggle"
             aria-expanded={mobileMenuOpen}
             aria-controls="public-mobile-menu"
-            className="xl:hidden ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-stone-100 dark:text-theme-text-tertiary dark:hover:bg-stone-800 transition-colors"
+            className="xl:hidden ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover dark:text-theme-text-tertiary dark:hover:bg-theme-bg-hover transition-colors"
             onClick={onToggleMobileMenu}
             aria-label={t("landing.toggleMenu")}
           >

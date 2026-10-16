@@ -251,7 +251,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <button
           onClick={handleCopyCode}
-          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-stone-700 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-theme-bg-hover text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
         >
           {copied ? (
             <>
@@ -278,7 +278,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
               e.stopPropagation();
               setShowDownloadMenu(!showDownloadMenu);
             }}
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-stone-700 text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-theme-bg-subtle dark:bg-stone-800 hover:bg-theme-border/60 dark:hover:bg-theme-bg-hover text-12 font-medium text-theme-text-secondary dark:text-stone-300 transition-colors"
           >
             <InteractiveIcon>
               <Download size={14} />

@@ -87,7 +87,7 @@ export function NewProjectModal({
               onNameChange("");
               onIconChange("📁");
             }}
-            className="px-4 py-2 text-14 font-medium text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-all"
+            className="px-4 py-2 text-14 font-medium text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-all"
           >
             {t("common.cancel")}
           </button>

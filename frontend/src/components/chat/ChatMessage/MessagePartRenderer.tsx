@@ -104,7 +104,7 @@ export function MessagePartRenderer({
     return (
       <span
         id={toolPartAnchorId}
-        className="block h-0 scroll-mt-6 rounded-xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:h-1 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/80 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.25)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/60 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.12)]"
+        className="absolute h-0 scroll-mt-6 rounded-xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:h-1 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/80 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.25)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/60 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.12)]"
         aria-hidden="true"
       />
     );
@@ -775,7 +775,7 @@ export function MessagePartRenderer({
     }
 
     return (
-      <div className="chat-recommended-questions flex flex-col gap-2.5">
+      <div className="chat-recommended-questions flex flex-col gap-3">
         {part.questions.map((question, index) => (
           <button
             key={`${question.content}-${index}`}
@@ -783,8 +783,8 @@ export function MessagePartRenderer({
             onClick={() => onRecommendQuestionClick?.(question.content)}
             disabled={!onRecommendQuestionClick}
             className={clsx(
-              "mt-1 w-fit rounded-xl ring-1 ring-inset shadow-sm px-3.5 py-2 text-left text-14 leading-snug transition-all duration-200 active:scale-[0.98]",
-              "ring-theme-border bg-theme-bg-card text-theme-text-secondary hover:ring-theme-border-hover hover:shadow-[0_2px_8px_-2px_var(--theme-shadow-md)] hover:bg-theme-bg-subtle",
+              "w-fit rounded-xl ring-1 ring-inset shadow-sm px-3.5 py-2 text-left text-14 leading-snug transition-all duration-200 active:scale-[0.98]",
+              "ring-theme-border bg-theme-bg-card text-theme-text-secondary hover:ring-theme-border-hover hover:shadow-[0_2px_8px_-2px_var(--theme-shadow-md)] hover:bg-theme-bg-hover",
               !onRecommendQuestionClick && "cursor-default opacity-70",
             )}
           >

@@ -446,7 +446,7 @@ function RoleFormModal({
             {permissionGroups.map((group) => (
               <div key={group.name} className="space-y-1.5">
                 {/* 组标题 */}
-                <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
+                <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
                   <Checkbox
                     ariaLabel={group.name}
                     size="sm"
@@ -467,7 +467,7 @@ function RoleFormModal({
                   {group.permissions.map((permission) => (
                     <label
                       key={permission.value}
-                      className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                      className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
                     >
                       <Checkbox
                         ariaLabel={
@@ -663,7 +663,7 @@ export function RolesPanel() {
             <Button
               variant="primary"
               onClick={openCreateModal}
-              leftIcon={<Plus size={16} className="sm:size-[18px]" />}
+              leftIcon={<Plus size={16} className="sm:size-[1.125rem]" />}
             >
               <span className="hidden sm:inline">{t("roles.createRole")}</span>
             </Button>

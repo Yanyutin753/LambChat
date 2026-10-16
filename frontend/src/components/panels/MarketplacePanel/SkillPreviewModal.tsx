@@ -166,7 +166,7 @@ export function SkillPreviewModal({
                             onReadFile(previewSkill.skill_name, filePath);
                           }
                         }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-theme-bg-hover"
                       >
                         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
                           <InteractiveIcon>

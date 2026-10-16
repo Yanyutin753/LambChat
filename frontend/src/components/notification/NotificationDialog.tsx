@@ -113,7 +113,7 @@ export function NotificationDialog({
                 type="button"
                 onClick={() => handleDismiss(notifications.map((n) => n.id))}
                 disabled={dismissing}
-                className="flex min-h-11 sm:min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-12 text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+                className="flex min-h-11 sm:min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-12 text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
               >
                 <InteractiveIcon>
                   <Check size={14} />

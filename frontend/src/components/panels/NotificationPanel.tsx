@@ -533,7 +533,7 @@ export function NotificationPanel() {
                             className={`h-9 w-9 rounded-lg ${
                               isExpanded
                                 ? "text-stone-600 bg-stone-100 dark:text-stone-300 dark:bg-stone-800"
-                                : "text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                                : "text-stone-400 hover:bg-theme-bg-hover hover:text-stone-600 dark:hover:bg-theme-bg-hover dark:hover:text-stone-300"
                             }`}
                             title={
                               isExpanded
@@ -546,7 +546,7 @@ export function NotificationPanel() {
                           aria-label={t("notification.edit")}
                           icon={<Pencil size={16} />}
                           onClick={() => setEditingNotification(notification)}
-                          className="h-9 w-9 rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                          className="h-9 w-9 rounded-lg text-stone-400 hover:bg-theme-bg-hover hover:text-stone-600 dark:hover:bg-theme-bg-hover dark:hover:text-stone-300"
                           title={t("notification.edit")}
                         />
                         <IconButton
@@ -560,9 +560,7 @@ export function NotificationPanel() {
                     </div>
 
                     {hasContent && (
-                      <div
-                        className={`px-3 ${isExpanded ? "pb-3 pt-2" : ""}`}
-                      >
+                      <div className={`px-3 ${isExpanded ? "pb-3 pt-2" : ""}`}>
                         <div
                           aria-hidden={!isExpanded}
                           inert={!isExpanded}

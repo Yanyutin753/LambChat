@@ -192,7 +192,7 @@ export function ResourceCardMenu({
               className={`ui-menu-item aria-disabled:opacity-40 aria-disabled:cursor-not-allowed aria-[current=page]:bg-theme-bg-subtle aria-[current=page]:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${
                 action.danger
                   ? "ui-menu-item--danger text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]"
-                  : "text-theme-text hover:bg-theme-bg-subtle"
+                  : "text-theme-text hover:bg-theme-bg-hover"
               }`}
               onClick={(event) => {
                 if (action.disabled) {

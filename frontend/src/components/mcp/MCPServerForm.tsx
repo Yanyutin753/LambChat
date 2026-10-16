@@ -305,7 +305,7 @@ export function MCPServerForm({
       </div>
 
       {/* Enabled */}
-      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--theme-bg-subtle)]">
+      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-theme-bg-hover">
         <input
           type="checkbox"
           id="enabled"
@@ -313,12 +313,12 @@ export function MCPServerForm({
           onChange={(e) => setEnabled(e.target.checked)}
           className="sr-only peer"
         />
-        <div className="h-[18px] w-[18px] rounded-md border-2 border-[var(--theme-border)] flex items-center justify-center transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/30">
+        <div className="h-[1.125rem] w-[1.125rem] rounded-md border-2 border-[var(--theme-border)] flex items-center justify-center transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/30">
           {enabled && (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="12"
-              height="12"
+              width="0.75rem"
+              height="0.75rem"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
@@ -441,7 +441,7 @@ export function MCPServerForm({
               size="sm"
               type="button"
               onClick={addHeader}
-              className="text-11 text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-700 dark:hover:text-stone-200"
+              className="text-11 text-stone-500 hover:bg-theme-bg-hover hover:text-stone-700 dark:text-stone-400 dark:hover:bg-theme-bg-hover dark:hover:text-stone-200"
             >
               <Plus size={12} />
               {t("mcp.form.add")}

@@ -171,7 +171,7 @@ function FilterTabs({
             className={`relative flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-13 font-medium whitespace-nowrap transition-all duration-200 ${
               isActive
                 ? "bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-sm"
-                : "text-theme-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/5"
+                : "text-theme-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-theme-bg-hover dark:hover:bg-white/5"
             }`}
           >
             <span className="feedback-filter-label">{tab.label}</span>
@@ -236,7 +236,7 @@ function ReviewImageGrid({
           }}
           className="h-16 w-16 overflow-hidden rounded-lg bg-stone-100 dark:bg-stone-800
             flex items-center justify-center flex-shrink-0
-            hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+            hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
         >
           <span className="text-12 font-semibold text-theme-text-secondary">
             +{remaining}
@@ -450,7 +450,7 @@ function FeedbackDetailModal({
                 </code>
                 <button
                   onClick={() => onCopy(feedback.session_id, "session")}
-                  className="flex-shrink-0 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                  className="flex-shrink-0 p-1 rounded hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
                 >
                   {copiedField === "session" ? (
                     <InteractiveIcon>
@@ -472,7 +472,7 @@ function FeedbackDetailModal({
                 </code>
                 <button
                   onClick={() => onCopy(feedback.run_id, "run")}
-                  className="flex-shrink-0 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                  className="flex-shrink-0 p-1 rounded hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
                 >
                   {copiedField === "run" ? (
                     <InteractiveIcon>

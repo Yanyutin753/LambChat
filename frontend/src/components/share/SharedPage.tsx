@@ -447,7 +447,7 @@ export function SharedPage({
               </p>
               <Link
                 to="/auth/login"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {t("auth.loginNow")}
                 <InteractiveIcon>
@@ -477,7 +477,7 @@ export function SharedPage({
               </p>
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {t("errors.backToHome")}
                 <BackIcon size={16} />
@@ -761,7 +761,7 @@ export function SharedPage({
               <Link
                 to="/"
                 aria-label={t("share.createYourOwn")}
-                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-13 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white motion-reduce:transition-none motion-reduce:transform-none"
+                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-13 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-theme-bg-hover active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white motion-reduce:transition-none motion-reduce:transform-none"
               >
                 <BrandLogo className="size-6" />
                 <BrandWordmark
@@ -769,8 +769,8 @@ export function SharedPage({
                   className="h-5 w-auto max-w-[8.5rem]"
                 />
                 <svg
-                  width="14"
-                  height="14"
+                  width="0.875rem"
+                  height="0.875rem"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -813,8 +813,8 @@ export function SharedPage({
               aria-label="GitHub"
             >
               <svg
-                width="14"
-                height="14"
+                width="0.875rem"
+                height="0.875rem"
                 viewBox="0 0 24 24"
                 fill="currentColor"
               >

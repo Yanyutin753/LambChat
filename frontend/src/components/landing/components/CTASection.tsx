@@ -49,7 +49,7 @@ export function CTASection({ onLogin }: CTASectionProps) {
         >
           <button
             onClick={onLogin}
-            className="blog-btn-primary w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full bg-stone-900 dark:bg-stone-50 px-8 py-4 sm:px-9 sm:py-4 text-14 font-semibold text-white dark:text-stone-900 transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 dark:hover:bg-white hover:shadow-xl hover:shadow-stone-900/12 dark:hover:shadow-stone-50/10 active:translate-y-0"
+            className="blog-btn-primary w-full sm:w-auto group inline-flex items-center justify-center gap-2.5 rounded-full bg-stone-900 dark:bg-stone-50 px-8 py-4 sm:px-9 sm:py-4 text-14 font-semibold text-white dark:text-stone-900 transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover dark:hover:bg-white hover:shadow-xl hover:shadow-stone-900/12 dark:hover:shadow-stone-50/10 active:translate-y-0"
           >
             {t("landing.getStarted")}
             <span className="transition-transform duration-300 group-hover:translate-x-0.5">

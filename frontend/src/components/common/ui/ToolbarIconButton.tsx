@@ -15,9 +15,9 @@ function cx(...classes: Array<string | false | null | undefined>): string {
 
 const variants: Record<ToolbarIconButtonVariant, string> = {
   stone:
-    "rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60",
+    "rounded-lg text-stone-600 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-200 dark:active:bg-stone-600/60",
   muted:
-    "rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60",
+    "rounded-xl text-stone-400 dark:text-stone-500 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-200 dark:active:bg-stone-600/60",
 };
 
 const shared =

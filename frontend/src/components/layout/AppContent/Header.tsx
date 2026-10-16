@@ -283,7 +283,7 @@ export function Header({
             if (menu) closeMenu();
             else openMenu("main");
           }}
-          className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
           title={t("common.menu")}
         >
           <InteractiveIcon>
@@ -325,7 +325,7 @@ export function Header({
                 setMobileSidebarOpen(true);
               }
             }}
-            className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text sm:hidden transition-colors"
+            className="chat-header__sidebar-expand flex h-8 w-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text sm:hidden transition-colors"
             title={t("sidebar.expandSidebar")}
             aria-label={t("sidebar.expandSidebar")}
           >

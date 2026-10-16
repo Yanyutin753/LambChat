@@ -210,7 +210,7 @@ export function ProfileToolsTab() {
                         className={`profile-tool-row transition-colors ${
                           isUserDisabled
                             ? "opacity-50"
-                            : "hover:bg-theme-bg-subtle dark:hover:bg-stone-800/50"
+                            : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                         }`}
                       >
                         <button

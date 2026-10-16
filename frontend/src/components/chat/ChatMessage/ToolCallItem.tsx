@@ -1,4 +1,4 @@
-import { Globe, Wrench, Clock } from "lucide-react";
+import { Network, Wrench, Clock, Braces, SquareTerminal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
@@ -171,10 +171,14 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
   const hasArgs = Object.keys(data.args).length > 0;
 
   return (
-    <div className="tool-call-panel-content relative flex h-full min-h-0 flex-col overflow-y-auto p-2 sm:p-4 [&_pre]:!text-14 [&_pre]:!max-h-none">
+    <div className="tool-call-panel-content relative flex h-full min-h-0 flex-col overflow-y-auto p-4 sm:p-5 [&_pre]:!text-14 [&_pre]:!max-h-none">
       <div className="flex min-h-0 flex-1 flex-col space-y-3">
         {hasArgs && (
-          <CollapsibleSection title={t("chat.message.args")}>
+          <CollapsibleSection
+            title={t("chat.message.args")}
+            icon={<Braces size={16} />}
+            className="tool-surface tool-surface--collapsible"
+          >
             <ToolArgsDisplay args={data.args} />
           </CollapsibleSection>
         )}
@@ -182,6 +186,8 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
         {data.result !== undefined && (
           <CollapsibleSection
             title={t("chat.message.result")}
+            icon={<SquareTerminal size={16} />}
+            className="tool-surface tool-surface--collapsible"
             action={
               <CopyButton
                 text={
@@ -395,7 +401,11 @@ export function ToolCallItem({
   const inlineContent = canExpand && (
     <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-96 overflow-y-auto min-w-0">
       {hasArgs && (
-        <CollapsibleSection title={t("chat.message.args")}>
+        <CollapsibleSection
+          title={t("chat.message.args")}
+          icon={<Braces size={16} />}
+          className="tool-surface tool-surface--collapsible"
+        >
           <ToolArgsDisplay args={displayArgs} compact />
         </CollapsibleSection>
       )}
@@ -403,6 +413,8 @@ export function ToolCallItem({
       {hasResult && (
         <CollapsibleSection
           title={t("chat.message.result")}
+          icon={<SquareTerminal size={16} />}
+          className="tool-surface tool-surface--collapsible"
           action={
             <CopyButton
               text={
@@ -440,7 +452,7 @@ export function ToolCallItem({
     if (!canExpand || !id) return;
     openPersistentToolPanel({
       title: formattedToolName,
-      icon: isMcpTool ? <Globe size={16} /> : <Wrench size={16} />,
+      icon: isMcpTool ? <Network size={16} /> : <Wrench size={16} />,
       status,
       panelKey,
       subtitle: panelSubtitle || undefined,
@@ -455,7 +467,7 @@ export function ToolCallItem({
         status={status}
         icon={
           isMcpTool ? (
-            <Globe size={12} className="shrink-0 opacity-50" />
+            <Network size={12} className="shrink-0 opacity-50" />
           ) : (
             <Wrench size={12} className="shrink-0 opacity-50" />
           )

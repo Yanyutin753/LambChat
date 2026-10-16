@@ -116,7 +116,7 @@ const ModelItem = memo(function ModelItem({
         className={`relative flex min-h-[38px] items-center gap-2 rounded-md px-2.5 py-1.5 transition-all duration-150 ${
           isSelected
             ? "text-[var(--theme-text)]"
-            : "hover:bg-stone-100/80 dark:hover:bg-stone-700/45"
+            : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
         }`}
         style={
           isSelected
@@ -459,20 +459,22 @@ const ModelSelector = memo(function ModelSelector({
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        data-model-selector-trigger
         onClick={toggleSelector}
-        className="flex items-center gap-1.5 rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text transition-colors"
+        type="button"
+        aria-expanded={showSelector}
+        className="flex items-center gap-1.5 rounded-lg text-theme-text-secondary"
       >
         <span className="text-14 leading-5 font-medium font-serif !font-serif max-w-[200px] truncate">
           {currentModelInfo?.label || currentModelId}
         </span>
-        <InteractiveIcon>
-          <ChevronDown
-            size={14}
-            className={`transition-transform duration-200 ${
-              showSelector ? "rotate-180" : ""
-            }`}
-          />
-        </InteractiveIcon>
+        <ChevronDown
+          size={14}
+          aria-hidden="true"
+          className={`transition-transform duration-200 motion-reduce:transition-none ${
+            showSelector ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {showSelector &&
@@ -498,7 +500,7 @@ const ModelSelector = memo(function ModelSelector({
                       className={`shrink-0 rounded-full px-2 py-0.5 text-11 font-medium leading-5 transition-colors ${
                         selected
                           ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-900"
-                          : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-700/60 dark:text-stone-300 dark:hover:bg-stone-700"
+                          : "bg-stone-100 text-stone-600 hover:bg-theme-bg-hover dark:bg-stone-700/60 dark:text-stone-300 dark:hover:bg-theme-bg-hover"
                       }`}
                     >
                       {option.label}

@@ -7,8 +7,8 @@ export function BackIcon({
 }) {
   return (
     <svg
-      width={size}
-      height={size}
+      width={`${size / 16}rem`}
+      height={`${size / 16}rem`}
       viewBox="0 0 1024 1024"
       fill="currentColor"
       className={className}

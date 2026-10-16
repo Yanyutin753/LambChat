@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
 import {
   FolderTree,
   Folder as FolderIcon,
+  FolderOpen,
   Code2,
   ChevronRight,
   ChevronDown,
@@ -30,14 +31,13 @@ import {
   type RevealArtifactTreeDir,
   type RevealArtifactTreeFile,
 } from "./revealArtifacts";
+import { FileIcon } from "../../common/FileIcon";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
 
 /* ------------------------------------------------------------------ */
 /*  Tree renderer                                                      */
 /* ------------------------------------------------------------------ */
-
-const FILE_ICON_SIZE = 20;
 
 function formatSize(bytes?: number): string {
   if (bytes == null) return "";
@@ -88,9 +88,16 @@ function collectSubtreeFiles(
 
 function getFileIcon(name: string) {
   const info = getFileTypeInfo(name);
-  const Icon = info.icon;
   return (
-    <Icon size={FILE_ICON_SIZE} className={clsx("shrink-0", info.color)} />
+    <span className="size-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-stone-200/60 dark:ring-stone-700/50">
+      <FileIcon
+        icon={info.icon}
+        bg="bg-theme-bg-subtle"
+        color={info.color}
+        iconSize={16}
+        strokeWidth={1.8}
+      />
+    </span>
   );
 }
 
@@ -111,8 +118,6 @@ function TreeFileRow({
   const { t } = useTranslation();
   const ext = node.artifact.name.split(".").pop()?.toLowerCase() || "";
   const imageSrc = isImageFile(ext) ? node.artifact.preview.signedUrl : null;
-  const fileType = getFileTypeInfo(node.artifact.name);
-  const FileIcon = fileType.icon;
 
   return (
     <div
@@ -120,8 +125,8 @@ function TreeFileRow({
       className={clsx(
         "group flex min-w-0 max-w-full items-center gap-1 w-full transition-colors motion-reduce:transition-none",
         inline
-          ? "px-3 py-2 hover:bg-theme-text/[0.04]"
-          : "rounded-xl px-3 py-2.5 hover:bg-theme-bg-subtle",
+          ? "px-3 py-2 hover:bg-theme-bg-hover"
+          : "rounded-xl px-3 py-2.5 hover:bg-theme-bg-hover",
       )}
     >
       <Tooltip content={node.artifact.name}>
@@ -156,23 +161,8 @@ function TreeFileRow({
                 )}
               />
             </span>
-          ) : inline ? (
-            <span
-              className={clsx(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                fileType.bg,
-              )}
-            >
-              <FileIcon
-                size={24}
-                strokeWidth={1.5}
-                className={fileType.color}
-              />
-            </span>
           ) : (
-            <span className="flex size-9 shrink-0 items-center justify-center">
-              {getFileIcon(node.artifact.name)}
-            </span>
+            getFileIcon(node.artifact.name)
           )}
           <div className="flex-1 min-w-0 text-left">
             <div
@@ -244,6 +234,7 @@ function TreeDirRow({
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const FolderStateIcon = expanded ? FolderOpen : FolderIcon;
   const dirSize = expanded ? getTreeDirSize(node) : 0;
   const { binaryFiles, skippedCount, skippedPaths } = useMemo(
     () => buildRevealArtifactBinaryFiles(collectSubtreeFiles(node)),
@@ -257,16 +248,16 @@ function TreeDirRow({
 
   return (
     <div className="min-w-0 max-w-full">
-      <div className="flex min-w-0 max-w-full w-full items-center gap-3 overflow-hidden px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group">
+      <div className="flex min-w-0 max-w-full w-full items-center gap-3 overflow-hidden px-3 py-2.5 rounded-xl hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors group">
         <button
           type="button"
           aria-expanded={expanded}
           onClick={toggleExpanded}
           className="flex !min-w-0 min-h-[44px] flex-1 items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
         >
-          <span className="flex size-9 shrink-0 items-center justify-center">
+          <span className="flex size-10 shrink-0 items-center justify-center">
             <InteractiveIcon>
-              <FolderIcon size={20} className="shrink-0" />
+              <FolderStateIcon size={16} className="shrink-0" />
             </InteractiveIcon>
           </span>
           <div className="flex-1 min-w-0">
@@ -398,7 +389,7 @@ function ProjectRow({
     <button
       type="button"
       onClick={() => onOpenPreview?.(artifact.preview, "manual")}
-      className="group flex min-h-[60px] w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-theme-text/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
+      className="group flex min-h-[60px] w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
     >
       <span className="flex items-center justify-center size-10 rounded-lg bg-theme-bg-subtle shrink-0">
         <InteractiveIcon>
@@ -639,6 +630,7 @@ export function RevealArtifactsSummary({
   }
 
   const useSidePanel = artifacts.length >= 4;
+  const FolderStateIcon = !useSidePanel && expanded ? FolderOpen : FolderIcon;
   const collapsedNames = artifacts
     .slice(0, 2)
     .map((artifact) => artifact.name)
@@ -720,7 +712,7 @@ export function RevealArtifactsSummary({
   return (
     <>
       <section
-        className="reveal-artifacts-summary my-2 w-full min-w-0 sm:my-3"
+        className="reveal-artifacts-summary w-full min-w-0"
         aria-label={subtitle}
       >
         <div className="message-artifact-card w-full min-w-0 overflow-hidden">
@@ -738,11 +730,15 @@ export function RevealArtifactsSummary({
                 onClick={
                   useSidePanel ? handleOpenPanel : () => setExpanded(!expanded)
                 }
-                className="reveal-artifacts-toggle flex min-h-[52px] w-full items-center gap-3 pl-3 pr-40 py-2 text-left hover:bg-theme-text/[0.04] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
+                className="reveal-artifacts-toggle flex min-h-[60px] w-full items-center gap-3 pl-3 pr-40 py-2 text-left hover:bg-theme-bg-hover transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-theme-bg-subtle text-theme-text-secondary">
                   <InteractiveIcon>
-                    <FolderIcon size={24} className="shrink-0" />
+                    <FolderStateIcon
+                      size={16}
+                      strokeWidth={1.8}
+                      className="shrink-0"
+                    />
                   </InteractiveIcon>
                 </span>
                 <span className="min-w-0 flex-1">

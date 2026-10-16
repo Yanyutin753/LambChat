@@ -144,7 +144,7 @@ export function CoverGalleryDemo() {
           </div>
           <button
             onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-theme-border text-theme-text-secondary transition-colors hover:bg-theme-bg-subtle"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-theme-border text-theme-text-secondary transition-colors hover:bg-theme-bg-hover"
           >
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>

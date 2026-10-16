@@ -157,7 +157,7 @@
 .ppe-starter-remove:hover,
 .ppe-starter-add:hover {
   border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
-  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
@@ -266,7 +266,7 @@
 }
 
 .ppe-avatar-placeholder:hover {
-  background: color-mix(in srgb, var(--theme-text) 8%, var(--theme-bg));
+  background: var(--theme-bg-hover);
   color: var(--theme-text-secondary);
 }
 
@@ -639,11 +639,7 @@
 
 .ppe-skill-search:hover {
   border-color: color-mix(in srgb, var(--theme-border) 55%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--theme-text-secondary) 9%,
-    var(--theme-bg-card)
-  );
+  background: var(--theme-bg-hover);
 }
 
 .ppe-skill-search:focus {
@@ -839,11 +835,7 @@
 }
 
 .ppe-skill-option:hover {
-  background: color-mix(
-    in srgb,
-    var(--theme-text-secondary) 5%,
-    var(--theme-bg-card)
-  );
+  background: var(--theme-bg-hover);
   border-color: color-mix(in srgb, var(--theme-border) 50%, transparent);
 }
 
@@ -919,7 +911,7 @@
 }
 
 .ppe-skill-option--selected:hover {
-  background: color-mix(in srgb, var(--theme-text) 5%, transparent);
+  background: var(--theme-bg-hover);
   border-color: color-mix(in srgb, var(--theme-text) 15%, transparent);
 }
 
@@ -1068,7 +1060,7 @@
 
 .ppe-skill-option:not(.ppe-skill-option--selected)
   .ppe-skill-option__action:hover {
-  background: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  background: var(--theme-bg-hover);
   color: var(--theme-text-secondary);
 }
 
@@ -1101,7 +1093,7 @@
 
 .ppe-btn-secondary:hover {
   color: var(--theme-text);
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: var(--theme-bg-hover);
 }
 
 .ppe-btn-primary {
@@ -1473,7 +1465,7 @@
 .pps-card__action--ghost:hover {
   color: var(--theme-text);
   border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
-  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
+  background: var(--theme-bg-hover);
 }
 
 .pps-card__action:disabled {
@@ -1576,7 +1568,7 @@
 }
 
 .ppe-skill-chip-remove:hover {
-  background: var(--theme-bg-elevated);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 

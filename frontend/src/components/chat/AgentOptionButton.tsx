@@ -41,7 +41,7 @@ function AgentOptionRow({
       type="button"
       aria-pressed={isActive}
       onClick={onSelect}
-      className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-subtle focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
+      className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
         option.disabled ? " opacity-60" : ""
       }`}
       style={{

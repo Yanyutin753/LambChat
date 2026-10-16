@@ -219,7 +219,7 @@ export function ShareProjectDialog({
                 className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "full"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 {t("share.fullProject", "完整项目")}
@@ -230,7 +230,7 @@ export function ShareProjectDialog({
                 className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "partial"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 {t("share.partialSessions", "部分会话")}
@@ -290,7 +290,7 @@ export function ShareProjectDialog({
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-14 transition-colors ${
                         selectedSessionIds.includes(session.session_id)
                           ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                          : "hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
+                          : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-stone-700 dark:text-stone-300"
                       }`}
                     >
                       <Checkbox
@@ -328,7 +328,7 @@ export function ShareProjectDialog({
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "public"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
-                    : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 <InteractiveIcon>
@@ -356,7 +356,7 @@ export function ShareProjectDialog({
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "authenticated"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
-                    : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 <InteractiveIcon>
@@ -447,7 +447,7 @@ export function ShareProjectDialog({
         <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] [&>button]:min-h-11 bg-theme-bg-card border-t border-theme-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
+            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
           >
             {t("common.close")}
           </button>
@@ -457,7 +457,7 @@ export function ShareProjectDialog({
               isCreating ||
               (shareType === "partial" && selectedSessionIds.length === 0)
             }
-            className="flex items-center gap-2 px-4 py-2 text-14 font-medium bg-stone-900 hover:bg-stone-800 dark:bg-stone-600 dark:hover:bg-stone-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-14 font-medium bg-stone-900 hover:bg-theme-bg-hover dark:bg-stone-600 dark:hover:bg-theme-bg-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="inline-flex h-4 w-4 items-center justify-center">
               {isCreating ? (

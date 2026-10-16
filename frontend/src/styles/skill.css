@@ -278,7 +278,7 @@
 
 .skill-card-action:hover {
   border-color: var(--skill-border-strong);
-  background: var(--theme-bg);
+  background: var(--theme-bg-hover);
 }
 
 .skill-card-danger {
@@ -453,7 +453,7 @@
 }
 
 .skill-empty-state__action:hover {
-  background: var(--theme-bg);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 

@@ -23,7 +23,13 @@ export function ActivityRailButton({
         onFocus={() => ref.current?.startAnimation()}
         onBlur={() => ref.current?.stopAnimation()}
       >
-        <Icon ref={ref} size={19} duration={0.7} aria-hidden="true" />
+        <Icon
+          ref={ref}
+          size={19}
+          className="size-[1.1875rem] [&>svg]:size-full"
+          duration={0.7}
+          aria-hidden="true"
+        />
       </button>
     </Tooltip>
   );

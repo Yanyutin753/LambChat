@@ -259,7 +259,7 @@ export function DesktopSidebarShell({
                       aria-label={t("sidebar.collapseSidebar")}
                       aria-expanded={!collapsed}
                       onClick={() => onToggleCollapsed(true)}
-                      className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
+                      className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2"
                     >
                       <SidebarToggleIcon className="size-4" />
                     </button>
@@ -274,7 +274,7 @@ export function DesktopSidebarShell({
                     onClick={() =>
                       window.dispatchEvent(new Event(OPEN_NOTIFICATIONS_EVENT))
                     }
-                    className="relative flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
+                    className="relative flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2"
                   >
                     <InteractiveIcon>
                       <Bell size={16} />
@@ -297,7 +297,7 @@ export function DesktopSidebarShell({
                         new Event(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT),
                       )
                     }
-                    className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
+                    className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2"
                   >
                     <InteractiveIcon>
                       <Search size={16} />

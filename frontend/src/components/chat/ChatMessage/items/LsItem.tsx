@@ -57,7 +57,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
                 className={clsx(
                   "flex items-center gap-2.5 px-4 py-2 text-14 font-mono tool-file-row",
                   "border-b border-theme-border-faint last:border-b-0",
-                  "hover:bg-theme-bg-subtle transition-colors",
+                  "hover:bg-theme-bg-hover transition-colors",
                 )}
               >
                 {isDir ? (
@@ -222,7 +222,7 @@ const LsItem = memo(function LsItem({
                       className={clsx(
                         "flex items-center gap-2 px-3 py-1 text-12 font-mono tool-file-row",
                         "border-b border-theme-border-faint last:border-b-0",
-                        "hover:bg-theme-bg-subtle transition-colors",
+                        "hover:bg-theme-bg-hover transition-colors",
                       )}
                     >
                       {isDir ? (

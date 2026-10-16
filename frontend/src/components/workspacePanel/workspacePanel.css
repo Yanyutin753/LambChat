@@ -71,7 +71,7 @@
 }
 .workspace-file:hover,
 .workspace-file-row:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 .workspace-file[data-selected="true"] {
   background: color-mix(
@@ -279,7 +279,7 @@
 [data-right-panel-root]:has(.workspace-panel) .tool-console-header button:hover,
 .workspace-document .document-preview-toolbar button:hover,
 .workspace-file-menu:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 [data-right-panel-root]:has(.workspace-panel) .tool-console-header-icon {
   background: transparent;

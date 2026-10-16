@@ -68,7 +68,7 @@
   opacity: 0.65;
 }
 .profile-nav button:hover {
-  background: var(--theme-bg-card);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .profile-nav button[aria-current] {
@@ -200,7 +200,7 @@
     color 140ms;
 }
 .profile-icon-button:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .profile-env-form {
@@ -395,7 +395,9 @@
   .profile-header,
   .profile-category,
   .profile-footer {
-    padding-inline-end: calc(var(--profile-inset) + var(--panel-scrollbar, 0px));
+    padding-inline-end: calc(
+      var(--profile-inset) + var(--panel-scrollbar, 0px)
+    );
   }
 }
 @container profile (max-width: 639px) {

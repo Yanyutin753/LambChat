@@ -54,7 +54,7 @@
 }
 
 .code-editor-toolbar .ui-icon-button:hover > svg {
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: var(--theme-bg-hover);
 }
 
 @media (hover: none) {
@@ -107,7 +107,7 @@
 }
 
 .code-editor .cm-panel.cm-search button:hover {
-  background: var(--theme-bg-elevated);
+  background: var(--theme-bg-hover);
   border-color: var(--theme-border-hover);
 }
 

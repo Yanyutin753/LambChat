@@ -87,7 +87,7 @@ export function SessionGroup({
       {hiddenCount > 0 && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 self-start text-12 font-medium text-theme-text-tertiary hover:text-theme-text-secondary rounded-lg border border-theme-border bg-theme-bg-subtle hover:bg-theme-bg-subtle transition-all duration-150"
+          className="flex items-center gap-1.5 px-3 py-1.5 self-start text-12 font-medium text-theme-text-tertiary hover:text-theme-text-secondary rounded-lg border border-theme-border bg-theme-bg-subtle hover:bg-theme-bg-hover transition-all duration-150"
         >
           <span>
             {expanded

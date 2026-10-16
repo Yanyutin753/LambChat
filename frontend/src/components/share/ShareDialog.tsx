@@ -284,7 +284,7 @@ export function ShareDialog({
                 className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "full"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 {t("share.fullSession")}
@@ -295,7 +295,7 @@ export function ShareDialog({
                 className={`min-h-11 flex-1 px-4 py-2.5 rounded-lg border text-14 font-medium transition-colors ${
                   shareType === "partial"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 {t("share.partialSession")}
@@ -345,7 +345,7 @@ export function ShareDialog({
                       className={`w-full grid grid-cols-[auto_4rem_1fr] items-center gap-2 px-3 py-2 rounded-lg text-14 transition-colors ${
                         selectedRunIds.includes(run.run_id)
                           ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
-                          : "hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
+                          : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-stone-700 dark:text-stone-300"
                       }`}
                     >
                       <Checkbox
@@ -385,7 +385,7 @@ export function ShareDialog({
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "public"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
-                    : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 <InteractiveIcon>
@@ -419,7 +419,7 @@ export function ShareDialog({
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "authenticated"
                     ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
-                    : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    : "border-stone-200 dark:border-stone-600 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                 }`}
               >
                 <InteractiveIcon>
@@ -527,14 +527,14 @@ export function ShareDialog({
           {editingShare && (
             <button
               onClick={handleCancelEditShare}
-              className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
+              className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
             >
               {t("share.cancelEdit")}
             </button>
           )}
           <button
             onClick={onClose}
-            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
+            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
           >
             {t("common.close")}
           </button>
@@ -544,7 +544,7 @@ export function ShareDialog({
               isCreating ||
               (shareType === "partial" && selectedRunIds.length === 0)
             }
-            className="flex items-center gap-2 px-4 py-2 text-14 font-medium bg-stone-900 hover:bg-stone-800 dark:bg-stone-600 dark:hover:bg-stone-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-14 font-medium bg-stone-900 hover:bg-theme-bg-hover dark:bg-stone-600 dark:hover:bg-theme-bg-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="inline-flex h-4 w-4 items-center justify-center">
               {isCreating ? (

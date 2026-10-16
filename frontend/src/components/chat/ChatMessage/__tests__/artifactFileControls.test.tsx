@@ -452,8 +452,14 @@ test.each(["project", "summary"])(
     const file = screen.getByRole("button", { name: "report.md", exact: true });
     for (const button of [folder, file]) {
       const iconColumn = button.firstElementChild;
-      expect(iconColumn).toHaveClass("size-9", "shrink-0");
-      expect(iconColumn?.querySelector("svg")).toHaveAttribute("width", "20");
+      expect(iconColumn).toHaveClass(
+        kind === "summary" ? "size-10" : "size-9",
+        "shrink-0",
+      );
+      expect(iconColumn?.querySelector("svg")).toHaveAttribute(
+        "width",
+        kind === "summary" ? "16" : button === folder ? "1.25rem" : "20",
+      );
     }
   },
 );

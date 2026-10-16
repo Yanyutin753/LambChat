@@ -32,7 +32,7 @@ const AgentItem = memo(function AgentItem({
   return (
     <button
       onClick={onSelect}
-      className="w-full px-3 py-3 sm:py-4 text-left hover:bg-stone-100/80 dark:hover:bg-stone-700/50 transition-colors"
+      className="w-full px-3 py-3 sm:py-4 text-left hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
     >
       <div className="flex items-center gap-3">
         <AgentIcon icon={agent.icon} seed={agent.id} size={32} />

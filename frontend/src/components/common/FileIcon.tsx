@@ -8,6 +8,8 @@ interface FileIconProps {
   bg?: string;
   color?: string;
   compact?: boolean;
+  iconSize?: number;
+  strokeWidth?: number;
 }
 
 export function FileIcon({
@@ -15,6 +17,8 @@ export function FileIcon({
   bg = "bg-blue-100 dark:bg-blue-900/40",
   color = "text-blue-600 dark:text-blue-400",
   compact = false,
+  iconSize = 18,
+  strokeWidth = 2,
 }: FileIconProps) {
   return (
     <div
@@ -22,7 +26,7 @@ export function FileIcon({
         compact ? "size-8" : "size-10"
       } rounded-lg shrink-0 ${bg}`}
     >
-      <Icon size={18} className={color} />
+      <Icon size={iconSize} strokeWidth={strokeWidth} className={color} />
     </div>
   );
 }

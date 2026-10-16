@@ -90,7 +90,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   }, [location.pathname]);
 
   const menuItemClass =
-    "flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-14 transition-colors duration-150 motion-reduce:transition-none rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
+    "flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-14 transition-colors duration-150 motion-reduce:transition-none rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]";
 
   const navigateTo = (path: string) => {
     setShowMenu(false);

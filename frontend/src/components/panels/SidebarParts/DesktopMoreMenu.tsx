@@ -48,7 +48,7 @@ export function DesktopMoreMenu({
       }}
     >
       <InteractiveIcon>
-        <item.icon size={20} />
+        <item.icon size={16} />
       </InteractiveIcon>
       <span>{item.label}</span>
     </button>
