@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
@@ -151,7 +152,9 @@ export function UserAgentPreferencePanel() {
                   color="text-white dark:text-stone-800"
                 />
               ) : (
-                <Save size={15} />
+                <InteractiveIcon>
+                  <Save size={15} />
+                </InteractiveIcon>
               )}
             </span>
             <span>{t("common.save")}</span>

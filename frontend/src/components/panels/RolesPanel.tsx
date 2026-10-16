@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { EmptyState } from "../common/EmptyState";
 /**
  * 角色管理页面组件
@@ -378,12 +379,14 @@ function RoleFormModal({
             className="es-section-title cursor-pointer w-full"
           >
             {t("roles.uploadLimitsTitle")}
-            <ChevronDown
-              size={14}
-              className={`ml-auto transition-transform ${
-                showUploadLimits ? "rotate-180" : ""
-              }`}
-            />
+            <InteractiveIcon>
+              <ChevronDown
+                size={14}
+                className={`ml-auto transition-transform ${
+                  showUploadLimits ? "rotate-180" : ""
+                }`}
+              />
+            </InteractiveIcon>
           </button>
           {showUploadLimits && (
             <div className="es-section mt-2">

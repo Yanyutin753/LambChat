@@ -97,7 +97,7 @@ export function ToolLivePanelContent({
   }, [active, data]);
 
   return (
-    <div ref={hostRef} className="flex min-h-full flex-col">
+    <div ref={hostRef} className="flex h-full min-h-full flex-col">
       {data ? build(data) : fallback}
     </div>
   );

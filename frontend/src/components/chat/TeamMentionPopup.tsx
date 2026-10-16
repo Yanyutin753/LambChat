@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
@@ -127,10 +128,12 @@ export function TeamMentionPopup({
                       <span className="mention-popup-name font-serif">
                         {team.name}
                         {isSelected && (
-                          <Check
-                            size={13}
-                            className="inline-block ml-1.5 opacity-60"
-                          />
+                          <InteractiveIcon>
+                            <Check
+                              size={13}
+                              className="inline-block ml-1.5 opacity-60"
+                            />
+                          </InteractiveIcon>
                         )}
                       </span>
                       <span className="mention-popup-desc">

@@ -9,9 +9,12 @@ const now = "2026-09-30T08:00:00Z";
 const previewVideo = process.env.PANEL_PREVIEW_VIDEO
   ? readFileSync(process.env.PANEL_PREVIEW_VIDEO)
   : null;
-const toolGallery = () => process.env.PANEL_PREVIEW_TOOL_GALLERY
-  ? JSON.parse(readFileSync(process.env.PANEL_PREVIEW_TOOL_GALLERY, "utf8")) as { name: string; events: object[] }[]
-  : [];
+const toolGallery = () =>
+  process.env.PANEL_PREVIEW_TOOL_GALLERY
+    ? (JSON.parse(
+        readFileSync(process.env.PANEL_PREVIEW_TOOL_GALLERY, "utf8"),
+      ) as { name: string; events: object[] }[])
+    : [];
 const labels = [
   "季度业务分析",
   "产品研究与洞察",
@@ -44,9 +47,9 @@ const user = {
   created_at: now,
   updated_at: now,
 };
-const agents = ["fast", "search", "team", "quick"].map((id, i) => ({
+const agents = ["search", "team", "quick"].map((id, i) => ({
   id,
-  name: ["通用助手", "研究助手", "团队助手", "agents.quick.name"][i],
+  name: ["研究助手", "团队助手", "agents.quick.name"][i],
   description:
     id === "quick"
       ? "agents.quick.description"
@@ -169,7 +172,7 @@ const tasks = rows((i, name) => ({
   id: `task-${i}`,
   name,
   description: "收集近期进展并生成项目周报",
-  agent_id: "fast",
+  agent_id: "search",
   trigger_type: "cron",
   trigger_config: { cron: "0 9 * * 1", expression: "0 9 * * 1" },
   timezone: "Asia/Shanghai",
@@ -364,8 +367,8 @@ const settings = {
       },
       {
         key: "DEFAULT_AGENT",
-        value: "fast",
-        default_value: "fast",
+        value: "search",
+        default_value: "search",
         type: "string",
         category: "frontend",
         subcategory: "display",
@@ -1011,7 +1014,7 @@ function response(
         failed_requests: i % 3,
         tool_calls: 32 + i * 5,
       })),
-      top_agents: ["fast", "search", "team"].map((name, i) => ({
+      top_agents: ["quick", "search", "team"].map((name, i) => ({
         id: name,
         name,
         requests: 40 - i * 9,
@@ -1111,7 +1114,7 @@ function response(
       rows((i) => ({
         id: `run-${i}`,
         task_id: "task-0",
-        agent_id: "fast",
+        agent_id: "search",
         trigger_type: "cron",
         status: i % 4 ? "success" : "failed",
         session_id: `session-${i}`,
@@ -1129,7 +1132,7 @@ function response(
       rows((i, name) => ({
         id: `session-${i}`,
         name,
-        agent_id: "fast",
+        agent_id: "search",
         is_active: true,
         metadata: {},
         unread_count: i % 3,
@@ -1138,7 +1141,7 @@ function response(
   if (path.startsWith("/api/scheduled-tasks/"))
     return tasks.find((t) => path.endsWith(t.id)) ?? tasks[0];
   if (path === "/api/agents")
-    return { agents, count: agents.length, default_agent: "fast" };
+    return { agents, count: agents.length, default_agent: "search" };
   if (path.startsWith("/api/agent/config/roles/"))
     return {
       allowed_agents: agents.map((a) => a.id),
@@ -1186,23 +1189,20 @@ function response(
                 mime_type: "application/pdf",
                 card_preview: null,
               },
-              ...([
-                ["图纸预览.dxf", "dxf", "application/dxf", 260],
-                ["原始图纸.dwg", "dwg", "application/acad", 36],
+              ...(
                 [
-                  "文本回退.pptx",
-                  "pptx",
-                  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                  1080,
-                ],
-                ["音频样例.wav", "wav", "audio/wav", 16044],
-                [
-                  "视频样例.mp4",
-                  "mp4",
-                  "video/mp4",
-                  1268,
-                ],
-              ] as const).map(([name, ext, mime, size]) => ({
+                  ["图纸预览.dxf", "dxf", "application/dxf", 260],
+                  ["原始图纸.dwg", "dwg", "application/acad", 36],
+                  [
+                    "文本回退.pptx",
+                    "pptx",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    1080,
+                  ],
+                  ["音频样例.wav", "wav", "audio/wav", 16044],
+                  ["视频样例.mp4", "mp4", "video/mp4", 1268],
+                ] as const
+              ).map(([name, ext, mime, size]) => ({
                 ...file,
                 id: `preview-${ext}`,
                 file_size: size,
@@ -1322,7 +1322,7 @@ function response(
         enabled: i % 4 !== 0,
         config: {},
         capabilities: ["send_message"],
-        agent_id: "fast",
+        agent_id: "search",
       })).slice(0, 5),
     };
   if (path.startsWith("/api/channels/"))
@@ -1334,7 +1334,7 @@ function response(
       enabled: true,
       config: { app_id: "cli_preview_only", workspace: "Preview workspace" },
       capabilities: ["send_message"],
-      agent_id: "fast",
+      agent_id: "search",
     };
   if (path === "/api/channels") return { channels: [] };
   if (path === "/api/share/public/preview-report") {
@@ -1347,7 +1347,7 @@ function response(
       session: {
         id: "preview-report",
         name: "产品研究与交付计划",
-        agent_id: "fast",
+        agent_id: "search",
         agent_name: "通用助手",
         created_at: now,
       },
@@ -1361,7 +1361,7 @@ function response(
     return {
       id: "preview-report",
       user_id: user.id,
-      agent_id: "fast",
+      agent_id: "search",
       name: "产品研究与交付计划",
       is_active: true,
       created_at: now,
@@ -1403,12 +1403,23 @@ function response(
             todos: [
               { content: "整理用户需求和研究资料", status: "completed" },
               {
-                content: "核对跨平台验证结果，确保长任务名称在任务侧栏完整显示且不会横向溢出",
-                status: chatState === "completed" ? "completed" : chatState === "cancelled" ? "cancelled" : "in_progress",
+                content:
+                  "核对跨平台验证结果，确保长任务名称在任务侧栏完整显示且不会横向溢出",
+                status:
+                  chatState === "completed"
+                    ? "completed"
+                    : chatState === "cancelled"
+                      ? "cancelled"
+                      : "in_progress",
               },
               {
                 content: "汇总交付计划",
-                status: chatState === "cancelled" ? "cancelled" : chatState === "completed" ? "completed" : "pending",
+                status:
+                  chatState === "cancelled"
+                    ? "cancelled"
+                    : chatState === "completed"
+                      ? "completed"
+                      : "pending",
               },
             ],
           },
@@ -1456,7 +1467,11 @@ function response(
               ? { error: "请求超时", type: "task_error", status: "error" }
               : { status: "completed" },
         },
-      ].filter((event) => !active || ["preview-user-message", "preview-todos"].includes(event.id)),
+      ].filter(
+        (event) =>
+          !active ||
+          ["preview-user-message", "preview-todos"].includes(event.id),
+      ),
       has_more_traces: false,
     };
   }
@@ -1501,7 +1516,7 @@ function response(
         user_id: user.id,
         name,
         project_id: "preview-project",
-        agent_id: "fast",
+        agent_id: "search",
         is_active: true,
         metadata: {},
         unread_count: 0,
@@ -1544,30 +1559,37 @@ function response(
   if (path === "/api/sandbox/fs/cloud/list") {
     const directory = url.searchParams.get("path") || "";
     if (process.env.PANEL_PREVIEW_WORKSPACE_FIXTURES) {
-      return { entries: directory.replace(/^\.\//, "") === "images"
-        ? [{ path: "images/图片.PNG", is_dir: false }]
-        : [{ path: "images", is_dir: true }, { path: "images.zip", is_dir: false }, { path: "empty.bin", is_dir: false }] };
+      return {
+        entries:
+          directory.replace(/^\.\//, "") === "images"
+            ? [{ path: "images/图片.PNG", is_dir: false }]
+            : [
+                { path: "images", is_dir: true },
+                { path: "images.zip", is_dir: false },
+                { path: "empty.bin", is_dir: false },
+              ],
+      };
     }
     return {
       entries:
         scenario === "empty"
           ? []
           : directory && directory !== "."
-          ? directory === "研究资料"
-            ? [
-                { path: "研究资料/访谈记录", is_dir: true },
-                { path: "研究资料/访谈笔记.md", is_dir: false },
-              ]
-            : [{ path: `${directory}/会议记录.txt`, is_dir: false }]
-          : [
-              { path: "研究资料", is_dir: true },
-              { path: "今天吃什么.py", is_dir: false },
-              { path: "随手记.txt", is_dir: false },
-              { path: "交付计划与下一阶段验证清单.md", is_dir: false },
-              { path: "品牌图标.png", is_dir: false },
-              { path: "音频样例.wav", is_dir: false },
-              { path: "视频样例.mp4", is_dir: false },
-            ],
+            ? directory === "研究资料"
+              ? [
+                  { path: "研究资料/访谈记录", is_dir: true },
+                  { path: "研究资料/访谈笔记.md", is_dir: false },
+                ]
+              : [{ path: `${directory}/会议记录.txt`, is_dir: false }]
+            : [
+                { path: "研究资料", is_dir: true },
+                { path: "今天吃什么.py", is_dir: false },
+                { path: "随手记.txt", is_dir: false },
+                { path: "交付计划与下一阶段验证清单.md", is_dir: false },
+                { path: "品牌图标.png", is_dir: false },
+                { path: "音频样例.wav", is_dir: false },
+                { path: "视频样例.mp4", is_dir: false },
+              ],
     };
   }
   if (path === "/api/sandbox/fs/cloud/read") {
@@ -1617,7 +1639,9 @@ const failedChannelRequests = new Set<string>();
 const failedSkillPreviews = new Set<string>();
 const server = await createServer({
   root: process.cwd(),
-  cacheDir: `node_modules/.vite-panel-preview-${process.env.PANEL_PREVIEW_PORT ?? 3002}`,
+  cacheDir: `node_modules/.vite-panel-preview-${
+    process.env.PANEL_PREVIEW_PORT ?? 3002
+  }`,
   server: {
     host: "127.0.0.1",
     port: Number(process.env.PANEL_PREVIEW_PORT ?? 3002),
@@ -1648,7 +1672,9 @@ const server = await createServer({
           );
         }
         if (
-          importer?.endsWith("/components/profile/SandboxDataLocationCard.tsx") &&
+          importer?.endsWith(
+            "/components/profile/SandboxDataLocationCard.tsx",
+          ) &&
           (source === "../../services/tauri/sandboxShell" ||
             source === "@tauri-apps/plugin-process")
         ) {
@@ -1658,6 +1684,9 @@ const server = await createServer({
         }
       },
       transformIndexHtml(html, context) {
+        if (context.originalUrl?.split("?")[0] === "/controls-preview") {
+          html = html.replace("/src/main.tsx", "/scripts/controls-preview.tsx");
+        }
         if (context.originalUrl?.split("?")[0] === "/dialog-preview") {
           html = html.replace("/src/main.tsx", "/scripts/dialog-preview.tsx");
         }
@@ -1667,7 +1696,9 @@ const server = await createServer({
             "/scripts/sandbox-data-preview.tsx",
           );
         }
-        if (context.originalUrl?.split("?")[0] === "/server-connection-preview") {
+        if (
+          context.originalUrl?.split("?")[0] === "/server-connection-preview"
+        ) {
           html = html.replace(
             "/src/main.tsx",
             "/scripts/server-connection-preview.tsx",
@@ -1687,47 +1718,82 @@ const server = await createServer({
             req.headers.referer ?? "http://localhost",
           ).searchParams;
           const workspaceBackend = process.env.PANEL_PREVIEW_WORKSPACE_BACKEND;
-          if (workspaceBackend && req.method === "GET" &&
-              ["/api/sandbox/fs/cloud/read", "/api/sandbox/fs/cloud/list", "/api/sandbox/fs/cloud/status"].includes(url.pathname)) {
+          if (
+            workspaceBackend &&
+            req.method === "GET" &&
+            [
+              "/api/sandbox/fs/cloud/read",
+              "/api/sandbox/fs/cloud/list",
+              "/api/sandbox/fs/cloud/status",
+            ].includes(url.pathname)
+          ) {
             if (url.pathname.endsWith("/status")) {
               res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify({ state: "running", platform: "cubesandbox" }));
+              res.end(
+                JSON.stringify({ state: "running", platform: "cubesandbox" }),
+              );
               return;
             }
-            const config = JSON.parse(readFileSync(workspaceBackend, "utf8")) as { url: string; session_id: string };
+            const config = JSON.parse(
+              readFileSync(workspaceBackend, "utf8"),
+            ) as { url: string; session_id: string };
             const target = new URL(url.pathname + url.search, config.url);
             target.searchParams.set("session_id", config.session_id);
             const controller = new AbortController();
             res.on("close", () => controller.abort());
-            void fetch(target, { signal: controller.signal }).then((response) => {
-              res.statusCode = response.status;
-              res.setHeader("Content-Type", response.headers.get("Content-Type") || "application/json");
-              res.setHeader("Cache-Control", "no-store");
-              if (!response.body) { res.end(); return; }
-              const source = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-              source.on("error", () => res.destroy());
-              source.pipe(res);
-            }).catch(() => {
-              if (!res.headersSent) {
-                res.statusCode = 503;
-                res.setHeader("Content-Type", "application/json");
-                res.end(JSON.stringify({ error: "workspace_stream_unavailable" }));
-              } else res.destroy();
-            });
+            void fetch(target, { signal: controller.signal })
+              .then((response) => {
+                res.statusCode = response.status;
+                res.setHeader(
+                  "Content-Type",
+                  response.headers.get("Content-Type") || "application/json",
+                );
+                res.setHeader("Cache-Control", "no-store");
+                if (!response.body) {
+                  res.end();
+                  return;
+                }
+                const source = Readable.fromWeb(
+                  response.body as Parameters<typeof Readable.fromWeb>[0],
+                );
+                source.on("error", () => res.destroy());
+                source.pipe(res);
+              })
+              .catch(() => {
+                if (!res.headersSent) {
+                  res.statusCode = 503;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(
+                    JSON.stringify({ error: "workspace_stream_unavailable" }),
+                  );
+                } else res.destroy();
+              });
             return;
           }
-          const workspaceFixtures = process.env.PANEL_PREVIEW_WORKSPACE_FIXTURES;
-          if (workspaceFixtures && req.method === "GET" &&
-              url.pathname === "/api/sandbox/fs/cloud/read" && url.searchParams.get("stream") === "true") {
-            const file = (url.searchParams.get("path") || "").replace(/^\.\//, "");
-            if (!["images/图片.PNG", "images.zip", "empty.bin"].includes(file)) {
+          const workspaceFixtures =
+            process.env.PANEL_PREVIEW_WORKSPACE_FIXTURES;
+          if (
+            workspaceFixtures &&
+            req.method === "GET" &&
+            url.pathname === "/api/sandbox/fs/cloud/read" &&
+            url.searchParams.get("stream") === "true"
+          ) {
+            const file = (url.searchParams.get("path") || "").replace(
+              /^\.\//,
+              "",
+            );
+            if (
+              !["images/图片.PNG", "images.zip", "empty.bin"].includes(file)
+            ) {
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify({ error: "file_not_found" }));
               return;
             }
             res.setHeader("Content-Type", "application/octet-stream");
             res.setHeader("Cache-Control", "no-store");
-            const source = createReadStream(`${workspaceFixtures}/${file}`, { highWaterMark: 256 * 1024 });
+            const source = createReadStream(`${workspaceFixtures}/${file}`, {
+              highWaterMark: 256 * 1024,
+            });
             res.on("close", () => source.destroy());
             source.on("error", () => res.destroy());
             source.pipe(res);
@@ -1740,7 +1806,9 @@ const server = await createServer({
             const timer = setTimeout(() => {
               res.setHeader("Content-Type", "image/webp");
               res.setHeader("Cache-Control", "no-store");
-              res.end(readFileSync("public/images/best-practice/chat-home.webp"));
+              res.end(
+                readFileSync("public/images/best-practice/chat-home.webp"),
+              );
             }, 8000);
             res.on("close", () => clearTimeout(timer));
             return;
@@ -1850,7 +1918,9 @@ const server = await createServer({
               return;
             }
             res.end(
-              readFileSync(new URL("./fixtures/preview-document.pdf", import.meta.url)),
+              readFileSync(
+                new URL("./fixtures/preview-document.pdf", import.meta.url),
+              ),
             );
             return;
           }
@@ -1932,7 +2002,11 @@ const server = await createServer({
             );
             return;
           }
-          if (previewParams.has("composer-stack") && /^\/human\/(pending|preview-human)$/.test(url.pathname)) url.pathname = `/api${url.pathname}`;
+          if (
+            previewParams.has("composer-stack") &&
+            /^\/human\/(pending|preview-human)$/.test(url.pathname)
+          )
+            url.pathname = `/api${url.pathname}`;
           if (
             !url.pathname.startsWith("/api/") &&
             !url.pathname.startsWith("/ws")
@@ -2020,7 +2094,8 @@ const server = await createServer({
             const upload = url.pathname === "/api/upload/file";
             const key = `feedback-flow:${streamKey}:${url.pathname}`;
             const failed =
-              failureTarget === (upload ? "feedback-upload" : "feedback-save") &&
+              failureTarget ===
+                (upload ? "feedback-upload" : "feedback-save") &&
               !failedChannelRequests.has(key);
             if (failed) failedChannelRequests.add(key);
             setTimeout(() => {
@@ -2088,12 +2163,12 @@ const server = await createServer({
                           size: 41245,
                         }
                       : team
-                        ? (teams.find((item) =>
+                        ? teams.find((item) =>
                             url.pathname.endsWith(`/${item.id}`),
-                          ) ?? teams[0])
-                        : (presets.find((preset) =>
+                          ) ?? teams[0]
+                        : presets.find((preset) =>
                             url.pathname.endsWith(`/${preset.id}`),
-                          ) ?? presets[0]),
+                          ) ?? presets[0],
                 ),
               );
             }, 2000);
@@ -2190,7 +2265,7 @@ const server = await createServer({
           }
           const chatState = completedPreviewStreams.has(streamKey)
             ? "completed"
-            : (previewParams.get("chat-state") ?? "completed");
+            : previewParams.get("chat-state") ?? "completed";
           if (
             req.method === "GET" &&
             url.pathname === "/api/chat/sessions/preview-report/stream" &&
@@ -2256,29 +2331,210 @@ const server = await createServer({
                   url.pathname === "/api/agents"
                 ? { agents, count: agents.length, default_agent: "team" }
                 : response(url, scenario, chatState);
+          if (
+            previewParams.has("ui-polish") &&
+            url.pathname === "/api/sessions/preview-report/events"
+          ) {
+            const history = data as {
+              events: {
+                id?: string;
+                event_type: string;
+                run_id?: string;
+                timestamp?: string;
+                data: Record<string, unknown>;
+              }[];
+            };
+            const userMessage = history.events.find(
+              (event) => event.event_type === "user:message",
+            );
+            if (userMessage) {
+              userMessage.data.content =
+                "请整理这份研究资料，给出简洁的交付计划。";
+              userMessage.data.attachments = [
+                {
+                  id: "ui-report",
+                  key: "preview-report",
+                  name: "研究与交付计划.pdf",
+                  mimeType: "application/pdf",
+                  type: "document",
+                  size: 4096,
+                  url: "/preview-document.pdf",
+                },
+              ];
+            }
+            const answer = history.events.find(
+              (event) => event.event_type === "message:chunk",
+            );
+            if (previewParams.has("detail-review")) {
+              const thought = history.events.find(
+                (event) => event.event_type === "thinking",
+              );
+              if (thought)
+                thought.data.content =
+                  "先核对研究资料，再检查交付计划与验证结果。\n\n# 研究与验证过程\n\n" +
+                  Array.from(
+                    { length: 90 },
+                    (_, index) =>
+                      `## 第 ${
+                        index + 1
+                      } 步：核对需求与证据\n\n先核对原始资料、记录来源和约束，再检查桌面与手机端的阅读体验。保留完整过程，方便回看每一步的判断。长路径示例：/workspace/research/delivery-plan/cross-platform-reading-and-interaction-review.md\n\n`,
+                  ).join("") +
+                  "\n## 完成记录\n\n已保留全部验证过程。";
+              const position = answer
+                ? history.events.indexOf(answer)
+                : history.events.length - 1;
+              history.events.splice(
+                position,
+                0,
+                ...["research-notes.md", "delivery-checklist.md"].flatMap(
+                  (path, index) => [
+                    {
+                      id: `detail-read-start-${index}`,
+                      event_type: "tool:start",
+                      run_id: "preview-run",
+                      timestamp: now,
+                      data: {
+                        tool: "read_file",
+                        tool_call_id: `detail-read-${index}`,
+                        args: { file_path: path },
+                      },
+                    },
+                    {
+                      id: `detail-read-result-${index}`,
+                      event_type: "tool:result",
+                      run_id: "preview-run",
+                      timestamp: now,
+                      data: {
+                        tool: "read_file",
+                        tool_call_id: `detail-read-${index}`,
+                        success: true,
+                        result:
+                          "# 研究与交付资料\n\n已核对用户目标、跨平台验证项目与交付清单。",
+                      },
+                    },
+                  ],
+                ),
+                ...["grep", "glob"].flatMap((tool, index) => [
+                  {
+                    id: `detail-search-start-${index}`,
+                    event_type: "tool:start",
+                    run_id: "preview-run",
+                    timestamp: now,
+                    data: {
+                      tool,
+                      tool_call_id: `detail-search-${index}`,
+                      args: {
+                        pattern: tool === "grep" ? "交付|验收" : "**/*.md",
+                        path: "/workspace/research",
+                      },
+                    },
+                  },
+                  {
+                    id: `detail-search-result-${index}`,
+                    event_type: "tool:result",
+                    run_id: "preview-run",
+                    timestamp: now,
+                    data: {
+                      tool,
+                      tool_call_id: `detail-search-${index}`,
+                      success: true,
+                      result: "research-notes.md\ndelivery-checklist.md",
+                    },
+                  },
+                ]),
+                {
+                  id: "detail-review-start",
+                  event_type: "tool:start",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "execute",
+                    tool_call_id: "detail-review-execute",
+                    args: {
+                      command:
+                        "review-report --scope desktop,mobile --include research/delivery-plan/cross-platform-reading-and-interaction-review.md",
+                      timeout: 60,
+                    },
+                  },
+                },
+                {
+                  id: "detail-review-result",
+                  event_type: "tool:result",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: {
+                    tool: "execute",
+                    tool_call_id: "detail-review-execute",
+                    success: true,
+                    result:
+                      Array.from(
+                        { length: 160 },
+                        (_, index) =>
+                          `[${String(index + 1).padStart(
+                            3,
+                            "0",
+                          )}] 验证记录：长文件名、参数与结果在窄屏中可阅读；详情支持连续滚动和复制。`,
+                      ).join("\n") + "\n[Command succeeded with exit code 0]",
+                  },
+                },
+              );
+            }
+            if (answer)
+              answer.data.content =
+                "## 研究与交付计划\n\n资料已整理为三个阶段，便于确认重点并跟踪进度。\n\n1. **确认需求**：明确目标用户和首要任务。\n2. **验证原型**：完成核心流程与交互走查。\n3. **交付成果**：整理反馈、更新文档并制定迭代计划。\n\n此会话仅使用本地演示数据。";
+          }
           if (previewParams.has("composer-stack")) {
             const approval = {
-              id: "preview-human", session_id: "preview-report", status: "pending", type: "form",
+              id: "preview-human",
+              session_id: "preview-report",
+              status: "pending",
+              type: "form",
               message: "下一步优先验证哪个平台？",
-              fields: [{ name: "platform", type: "radio", label: "验证平台", options: ["桌面端", "移动端"], required: true }],
+              fields: [
+                {
+                  name: "platform",
+                  type: "radio",
+                  label: "验证平台",
+                  options: ["桌面端", "移动端"],
+                  required: true,
+                },
+              ],
               metadata: { mode: "interrupt" },
             };
             if (url.pathname === "/api/sessions/preview-report") {
               const session = data as { metadata: Record<string, unknown> };
               session.metadata.agent_options = {
-                sandbox: "local", sandbox_machine_id: "preview-machine",
-                sandbox_workspace: JSON.stringify({ id: "local-" + "a".repeat(32), machineId: "preview-machine", path: "/Users/demo/projects/LambChat" }),
+                sandbox: "local",
+                sandbox_machine_id: "preview-machine",
+                sandbox_workspace: JSON.stringify({
+                  id: "local-" + "a".repeat(32),
+                  machineId: "preview-machine",
+                  path: "/Users/demo/projects/LambChat",
+                }),
               };
             }
-            if (url.pathname === "/api/sessions/preview-report/events" && previewParams.get("composer-stack") === "human") {
+            if (
+              url.pathname === "/api/sessions/preview-report/events" &&
+              previewParams.get("composer-stack") === "human"
+            ) {
               const history = data as { events: object[] };
-              history.events = [...history.events.slice(0, -1), {
-                id: "preview-human-event", event_type: "approval_required", run_id: "preview-run", timestamp: now,
-                data: { ...approval, tool_call_id: "preview-human" },
-              }];
+              history.events = [
+                ...history.events.slice(0, -1),
+                {
+                  id: "preview-human-event",
+                  event_type: "approval_required",
+                  run_id: "preview-run",
+                  timestamp: now,
+                  data: { ...approval, tool_call_id: "preview-human" },
+                },
+              ];
             }
             if (url.pathname === "/api/human/preview-human") data = approval;
-            if (url.pathname === "/api/human/pending" && previewParams.get("composer-stack") === "human") data = { approvals: [approval] };
+            if (
+              url.pathname === "/api/human/pending" &&
+              previewParams.get("composer-stack") === "human"
+            )
+              data = { approvals: [approval] };
           }
           if (url.pathname === "/api/auth/oauth/providers") {
             const email =
@@ -2335,7 +2591,9 @@ const server = await createServer({
                 : {}),
             };
             const skillAccess = previewParams.get("skill-access");
-            if (["read", "write", "delete", "publish"].includes(skillAccess ?? "")) {
+            if (
+              ["read", "write", "delete", "publish"].includes(skillAccess ?? "")
+            ) {
               const skillPermissions = {
                 write: Permission.SKILL_WRITE,
                 delete: Permission.SKILL_DELETE,
@@ -2343,9 +2601,13 @@ const server = await createServer({
               };
               data = {
                 ...(data as object),
-                permissions: user.permissions.filter(permission =>
-                  !Object.values(skillPermissions).includes(permission) ||
-                  permission === skillPermissions[skillAccess as keyof typeof skillPermissions],
+                permissions: user.permissions.filter(
+                  (permission) =>
+                    !Object.values(skillPermissions).includes(permission) ||
+                    permission ===
+                      skillPermissions[
+                        skillAccess as keyof typeof skillPermissions
+                      ],
                 ),
               };
             }
@@ -2365,11 +2627,15 @@ const server = await createServer({
                 persona_preset_name: "跨部门产品研究与交付负责人".repeat(3),
                 model: "custom-research-and-delivery-model".repeat(3),
                 provider: "openai",
-                persona_avatar: previewParams.has("share-avatar") ? "icon:BookOpen" : undefined,
+                persona_avatar: previewParams.has("share-avatar")
+                  ? "icon:BookOpen"
+                  : undefined,
               },
               owner: {
                 username: "ResearchAndDeliveryOwner".repeat(3),
-                ...(previewParams.has("share-avatar") ? { avatar_url: "/images/lamb.webp" } : {}),
+                ...(previewParams.has("share-avatar")
+                  ? { avatar_url: "/images/lamb.webp" }
+                  : {}),
               },
             };
           }
@@ -2422,7 +2688,9 @@ const server = await createServer({
             };
           }
           if (
-            /^\/api\/share\/public\/preview-report\/sessions\/project-session-[123]$/.test(url.pathname)
+            /^\/api\/share\/public\/preview-report\/sessions\/project-session-[123]$/.test(
+              url.pathname,
+            )
           ) {
             const session = response(
               new URL("http://localhost/api/share/public/preview-report"),
@@ -2430,7 +2698,10 @@ const server = await createServer({
             ) as { session: object; events: object[] };
             data = {
               ...session,
-              session: { ...session.session, id: url.pathname.split("/").pop() },
+              session: {
+                ...session.session,
+                id: url.pathname.split("/").pop(),
+              },
               events: url.pathname.endsWith("project-session-2")
                 ? []
                 : session.events,
@@ -2443,7 +2714,7 @@ const server = await createServer({
               data = {
                 agents: agents.slice(0, 1),
                 count: 1,
-                default_agent: "fast",
+                default_agent: "search",
               };
           }
           if (
@@ -2481,8 +2752,12 @@ const server = await createServer({
               };
             }
           }
-          if (url.pathname === "/api/sessions/preview-report/events" && previewParams.has("tool-gallery")) {
-            const gallery = toolGallery()[Number(previewParams.get("tool-gallery"))];
+          if (
+            url.pathname === "/api/sessions/preview-report/events" &&
+            previewParams.has("tool-gallery")
+          ) {
+            const gallery =
+              toolGallery()[Number(previewParams.get("tool-gallery"))];
             if (gallery) data = { ...(data as object), events: gallery.events };
           }
           if (
@@ -2684,8 +2959,16 @@ const server = await createServer({
                     ],
                     ...(previewParams.get("images") === "many"
                       ? [
-                          ["工作区全览.webp", "/images/best-practice/chat-home.webp", "image"],
-                          ["移动端预览.webp", "/images/best-practice/mobile-view.webp", "image"],
+                          [
+                            "工作区全览.webp",
+                            "/images/best-practice/chat-home.webp",
+                            "image",
+                          ],
+                          [
+                            "移动端预览.webp",
+                            "/images/best-practice/mobile-view.webp",
+                            "image",
+                          ],
                           ["品牌预览.webp", "/images/lamb.webp", "image"],
                         ]
                       : []),
@@ -2751,10 +3034,20 @@ const server = await createServer({
               ["用户访谈与需求复盘记录.md", "/preview-document.md", 731],
               ["项目进度.csv", "/preview-document.csv", 421],
               ["发布验收清单.md", "/preview-document.md", 731],
-              ["长期研究资料与跨部门协作验证记录.csv", "/preview-document.csv", 421],
+              [
+                "长期研究资料与跨部门协作验证记录.csv",
+                "/preview-document.csv",
+                421,
+              ],
             ].slice(
               0,
-              artifactFixture === "single" ? 1 : artifactFixture === "few" ? 3 : artifactFixture === "many" ? 6 : 2,
+              artifactFixture === "single"
+                ? 1
+                : artifactFixture === "few"
+                  ? 3
+                  : artifactFixture === "many"
+                    ? 6
+                    : 2,
             );
             const artifacts = files.map(([name, signedUrl, fileSize]) => ({
               kind: "file",
@@ -2774,32 +3067,36 @@ const server = await createServer({
               0,
               ...[
                 ...artifacts,
-                ...(artifactFixture === "1" || artifactFixture === "mixed" ? [{
-                  kind: "project",
-                  id: "preview-artifact:project",
-                  name: "研究资料与交付计划",
-                  mode: "folder",
-                  fileCount: 2,
-                  template: "static",
-                  preview: {
-                    kind: "project",
-                    previewKey: "preview-artifact:project",
-                    project: {
-                      version: 1,
-                      name: "研究资料与交付计划",
-                      mode: "folder",
-                      path: "/研究资料与交付计划",
-                      template: "static",
-                      fileCount: 2,
-                      files: {
-                        "/交付资料/交付计划与下一阶段验证清单.md":
-                          "# 交付计划\n\n确认需求、验证原型、记录验收结果。",
-                        "/交付资料/下一阶段数据.csv":
-                          "阶段,完成率\n需求确认,100%\n原型验证,85%",
+                ...(artifactFixture === "1" || artifactFixture === "mixed"
+                  ? [
+                      {
+                        kind: "project",
+                        id: "preview-artifact:project",
+                        name: "研究资料与交付计划",
+                        mode: "folder",
+                        fileCount: 2,
+                        template: "static",
+                        preview: {
+                          kind: "project",
+                          previewKey: "preview-artifact:project",
+                          project: {
+                            version: 1,
+                            name: "研究资料与交付计划",
+                            mode: "folder",
+                            path: "/研究资料与交付计划",
+                            template: "static",
+                            fileCount: 2,
+                            files: {
+                              "/交付资料/交付计划与下一阶段验证清单.md":
+                                "# 交付计划\n\n确认需求、验证原型、记录验收结果。",
+                              "/交付资料/下一阶段数据.csv":
+                                "阶段,完成率\n需求确认,100%\n原型验证,85%",
+                            },
+                          },
+                        },
                       },
-                    },
-                  },
-                }] : []),
+                    ]
+                  : []),
               ].map((artifact, index) => ({
                 id: `preview-artifact-${index}`,
                 event_type: "artifact:result",
@@ -2816,11 +3113,12 @@ const server = await createServer({
             typeof data === "object"
           ) {
             Object.assign(data, {
-              latest_version: previewParams.get("state") === "current"
-                ? url.searchParams.get("client_version") || "2.13.2"
-                : previewParams.has("long")
-                  ? `99.0.0-${"preview".repeat(15)}`
-                  : "99.0.0",
+              latest_version:
+                previewParams.get("state") === "current"
+                  ? url.searchParams.get("client_version") || "2.13.2"
+                  : previewParams.has("long")
+                    ? `99.0.0-${"preview".repeat(15)}`
+                    : "99.0.0",
               has_update: previewParams.get("state") !== "current",
               release_url: "https://example.test/release",
               github_url: "https://example.test/source",
@@ -2988,7 +3286,9 @@ const server = await createServer({
           else if (
             isRead &&
             previewParams.get("scope") === "project" &&
-            (url.pathname.includes("/api/share/public/preview-report/sessions/") ||
+            (url.pathname.includes(
+              "/api/share/public/preview-report/sessions/",
+            ) ||
               (url.pathname === "/api/share/public/preview-report" &&
                 url.searchParams.has("session_skip")))
           )

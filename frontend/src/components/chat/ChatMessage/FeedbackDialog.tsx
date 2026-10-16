@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X, Send, ImagePlus } from "lucide-react";
 import { Dialog } from "../../common/Dialog";
@@ -14,7 +15,8 @@ import type { RatingValue } from "../../../types/feedback";
 import type { MessageAttachment } from "../../../types/upload";
 
 const MAX_IMAGES = 9;
-const actionClass = "!min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal";
+const actionClass =
+  "!min-h-11 sm:!min-h-9 [@media(pointer:coarse)]:!min-h-11 [&>span]:!whitespace-normal";
 const footerActionClass = `${actionClass} min-w-0 flex-1 self-stretch sm:flex-none`;
 
 interface FeedbackDialogProps {
@@ -196,7 +198,9 @@ export function FeedbackDialog({
                   className="absolute right-0 top-0 flex size-11 items-center justify-center opacity-100 transition-opacity sm:size-7 sm:opacity-0 sm:group-hover/att:opacity-100 sm:focus-visible:opacity-100 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-ring disabled:opacity-50"
                 >
                   <span className="flex size-5 items-center justify-center rounded-full bg-black/60 text-white">
-                    <X size={12} />
+                    <InteractiveIcon>
+                      <X size={12} />
+                    </InteractiveIcon>
                   </span>
                 </button>
               </div>

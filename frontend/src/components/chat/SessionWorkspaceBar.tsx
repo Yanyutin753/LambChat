@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useRef, useState } from "react";
 import { Folder, X } from "lucide-react";
@@ -109,7 +110,9 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
         {busy ? (
           <LoadingSpinner color="text-current" size={16} className="shrink-0" />
         ) : (
-          <Folder size={16} className="shrink-0" />
+          <InteractiveIcon>
+            <Folder size={16} className="shrink-0" />
+          </InteractiveIcon>
         )}
         <span className="truncate">
           {busy
@@ -126,7 +129,9 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
           title={t("sessionWorkspace.reset")}
           aria-label={t("sessionWorkspace.reset")}
         >
-          <X size={14} />
+          <InteractiveIcon>
+            <X size={14} />
+          </InteractiveIcon>
         </button>
       )}
     </div>

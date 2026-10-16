@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useState } from "react";
 import { Bookmark } from "lucide-react";
 import clsx from "clsx";
@@ -71,7 +72,9 @@ export function BookmarkButton({
         aria-label={bookmarkLabel}
         aria-pressed={active}
       >
-        <Bookmark size={16} fill={active ? "currentColor" : "none"} />
+        <InteractiveIcon>
+          <Bookmark size={16} fill={active ? "currentColor" : "none"} />
+        </InteractiveIcon>
       </button>
     </Tooltip>
   );

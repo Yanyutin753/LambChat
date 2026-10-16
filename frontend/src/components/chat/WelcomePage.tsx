@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import type { PersistentGoal } from "../../services/api/session";
 import {
   memo,
@@ -549,14 +550,16 @@ export const WelcomePage = memo(function WelcomePage({
                     backgroundColor: "transparent",
                   }}
                 >
-                  <RefreshCw
-                    size={12}
-                    className={
-                      isRefreshing
-                        ? "animate-spin"
-                        : "xl:w-3.5 xl:h-3.5 2xl:w-3.5 2xl:h-3.5"
-                    }
-                  />
+                  <InteractiveIcon>
+                    <RefreshCw
+                      size={12}
+                      className={
+                        isRefreshing
+                          ? "animate-spin"
+                          : "xl:w-3.5 xl:h-3.5 2xl:w-3.5 2xl:h-3.5"
+                      }
+                    />
+                  </InteractiveIcon>
                   <span>
                     {canChangeTeam
                       ? t("team.change", "更换团队")
@@ -631,7 +634,10 @@ export const WelcomePage = memo(function WelcomePage({
             )}
             {showTeamCards &&
               Array.from({ length: teamSkeletonCount }).map((_, i) => (
-                <WelcomePersonaCardSkeleton key={`team-skeleton-${i}`} showTag />
+                <WelcomePersonaCardSkeleton
+                  key={`team-skeleton-${i}`}
+                  showTag
+                />
               ))}
             {showTeamCards &&
               displayTeamCards.map((team, i) => {

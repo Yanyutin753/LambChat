@@ -1320,7 +1320,10 @@
       "systemPrompt": "システムプロンプト",
       "table": "テーブル",
       "thinking": "思考中",
+      "thinkingFailed": "思考が中断されました",
+      "thinkingCancelled": "思考をキャンセルしました",
       "thought": "思考済み",
+      "thinkingSeconds": "{{count}} 秒",
       "tokenCache": "キャッシュ",
       "tokenCacheCreation": "キャッシュ作成",
       "tokenCacheRate": "キャッシュ率",
@@ -1334,6 +1337,10 @@
       "toolAskHumanListSeparator": "、",
       "toolAudioTranscribe": "文字起こし",
       "toolCalls": "ツール呼び出し",
+      "toolGroupRead_other": "{{count}} 件のファイルを読み取り",
+      "toolGroupSearch_other": "{{count}} 回検索",
+      "toolGroupExecute_other": "{{count}} 件のコマンドを実行",
+      "toolGroupOther_other": "{{count}} 件のツール呼び出しが完了",
       "toolCreateTeam": "チーム作成",
       "toolEdit": "編集",
       "toolEditAdded": "追加",
@@ -1564,7 +1571,19 @@
       "toolListSubagents": "サブエージェント一覧",
       "toolSubagentQueued": "待機中",
       "toolSubagentTimedOut": "実行がタイムアウト",
-      "toolSubagentEmpty": "サブエージェントなし"
+      "toolSubagentEmpty": "サブエージェントなし",
+      "toolGroupRead_one": "{{count}} 件のファイルを読み取り",
+      "toolGroupRead_few": "{{count}} 件のファイルを読み取り",
+      "toolGroupRead_many": "{{count}} 件のファイルを読み取り",
+      "toolGroupSearch_one": "{{count}} 回検索",
+      "toolGroupSearch_few": "{{count}} 回検索",
+      "toolGroupSearch_many": "{{count}} 回検索",
+      "toolGroupExecute_one": "{{count}} 件のコマンドを実行",
+      "toolGroupExecute_few": "{{count}} 件のコマンドを実行",
+      "toolGroupExecute_many": "{{count}} 件のコマンドを実行",
+      "toolGroupOther_one": "{{count}} 件のツール呼び出しが完了",
+      "toolGroupOther_few": "{{count}} 件のツール呼び出しが完了",
+      "toolGroupOther_many": "{{count}} 件のツール呼び出しが完了"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -1584,7 +1603,13 @@
     "rateLimited": "リクエストが多すぎます。しばらくしてからお試しください",
     "requestFailed": "セッションの読み込みに失敗しました",
     "runningPlaceholder": "要望を追加するか、次の作業を入力…",
+    "eventStatus": {
+      "loading": "実行中",
+      "error": "失敗",
+      "cancelled": "キャンセル済み"
+    },
     "memory": {
+      "cancelled": "メモリ検索をキャンセルしました",
       "initializing": "関連するメモリを検索中",
       "ready": "メモリ検索完了"
     },
@@ -3773,6 +3798,7 @@
     "widenSidebar": "サイドバーを広げる"
   },
   "sidebar": {
+    "unreadMessages": "未読メッセージ {{count}} 件",
     "noProjects": "プロジェクトはありません",
     "addToFavorites": "お気に入りに追加",
     "batchDeleteConfirm": "選択した{{count}}件のセッションを削除しますか？この操作は取り消せません。",

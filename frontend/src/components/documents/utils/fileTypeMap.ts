@@ -30,10 +30,6 @@ import {
   DraftingCompass,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { defaultStyles, Type } from "react-file-icon";
-
-export { defaultStyles };
-export type { Type };
 
 // ============================================================================
 // Unified File Type System - 统一的文件类型图标系统

@@ -67,7 +67,7 @@ test("an initially unavailable mode catalog stays open through retry and keeps f
   await act(async () => finish());
   expect(document.activeElement).toBe(focused);
   expect(focused?.isConnected).toBe(true);
-  await userEvent.click(screen.getByRole("button", { name: /搜索助手/ }));
+  await userEvent.click(screen.getByRole("button", { name: /探索助手/ }));
   expect(select).toHaveBeenCalledWith("search");
   expect(screen.queryByRole("dialog")).toBeNull();
 });

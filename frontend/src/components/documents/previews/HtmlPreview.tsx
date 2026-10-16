@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { memo, useState, useEffect, useMemo, useRef } from "react";
 import { Code, Eye, Search } from "lucide-react";
 import { ToolbarIconButton } from "../../common";
@@ -116,7 +117,9 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
                 : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
             }`}
           >
-            <Eye size={13} />
+            <InteractiveIcon>
+              <Eye size={13} />
+            </InteractiveIcon>
             <span className="hidden sm:inline">{t("documents.preview")}</span>
           </button>
           <button
@@ -129,7 +132,9 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
                 : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
             }`}
           >
-            <Code size={13} />
+            <InteractiveIcon>
+              <Code size={13} />
+            </InteractiveIcon>
             <span className="hidden sm:inline">{t("documents.source")}</span>
           </button>
         </div>

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1032" viewBox="0 0 1440 1032" role="img" aria-labelledby="title desc"><title id="title">LambChat system architecture</title><desc id="desc">Clients connect to FastAPI. Quick, Search and Team agents use shared memory, skills, tools, approvals and goals. Model providers, MCP tools, cloud and local sandboxes integrate with the runtime. MongoDB, Redis, optional PostgreSQL checkpoints and file storage support local or arq task execution, scheduled jobs, notifications, sharing and tracing.</desc><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a4ba90"/></marker></defs><rect width="1440" height="1032" fill="#151718"/>
+<text x="48" y="63" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="600">LambChat</text>
+<text x="48" y="98" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">System architecture · Current implementation · 2026-10-16</text>
+<text x="1080" y="67" fill="#a4ba90" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="600">SELF-HOSTED · MULTI-TENANT</text>
+<rect x="48" y="144" width="318" height="100" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="70" y="184" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="600">Web &amp; PWA</text>
+<text x="70" y="217" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="400">React 19 · Vite · TailwindCSS</text>
+<polyline points="207,246 207,290" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="390" y="144" width="318" height="100" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="412" y="184" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="600">Desktop</text>
+<text x="412" y="217" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="400">Tauri · Local sandbox daemon</text>
+<polyline points="549,246 549,290" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="732" y="144" width="318" height="100" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="754" y="184" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="600">Mobile</text>
+<text x="754" y="217" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="400">Capacitor · iOS / Android</text>
+<polyline points="891,246 891,290" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="1074" y="144" width="318" height="100" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="1096" y="184" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="600">IM integrations</text>
+<text x="1096" y="217" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="400">Feishu / Lark · Slack · Telegram</text>
+<polyline points="1233,246 1233,290" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="48" y="292" width="1344" height="112" rx="16" fill="#293128" stroke="#373d38"/>
+<text x="72" y="333" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="600">FastAPI control plane</text>
+<text x="72" y="374" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="400">JWT / OAuth · RBAC · Sessions · Model routing · MCP configuration</text>
+<text x="1098" y="335" fill="#a4ba90" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="600">SSE / WebSocket</text>
+<text x="1098" y="371" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="400">Authenticated streaming APIs</text>
+<polyline points="488,406 488,454" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<polyline points="1184,406 1184,454" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="48" y="456" width="880" height="284" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="72" y="499" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="600">Agent runtime</text>
+<text x="542" y="498" fill="#a4ba90" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="600">LangGraph + deepagents</text>
+<polyline points="72,519 904,519" fill="none" stroke="#373d38" stroke-width="2"/>
+<text x="72" y="561" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">Quick</text>
+<text x="72" y="595" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Direct questions, writing</text>
+<text x="72" y="622" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">and translation</text>
+<text x="350" y="561" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">Search</text>
+<text x="350" y="595" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Research, tools and</text>
+<text x="350" y="622" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">sandbox execution</text>
+<text x="640" y="561" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">Team</text>
+<text x="640" y="595" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Role discovery, sub-agents</text>
+<text x="640" y="622" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">and continued collaboration</text>
+<polyline points="72,649 904,649" fill="none" stroke="#373d38" stroke-width="2"/>
+<text x="72" y="685" fill="#a4ba90" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="600">Shared services</text>
+<text x="72" y="716" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="400">Memory · Skills · Tools · Human approvals · Persistent goals</text>
+<rect x="976" y="456" width="416" height="284" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="1000" y="499" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="600">Models &amp; execution</text>
+<text x="1000" y="543" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="600">LLM providers</text>
+<text x="1000" y="571" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400">OpenAI · Anthropic · Gemini · More</text>
+<text x="1000" y="609" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="600">Tools &amp; MCP</text>
+<text x="1000" y="637" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400">Built-in tools · System / user MCP</text>
+<text x="1000" y="675" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="600">Cloud &amp; local sandboxes</text>
+<text x="1000" y="705" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400">Daytona · E2B · CubeSandbox · Local</text>
+<polyline points="930,599 974,599" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<polyline points="260,742 260,802" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<polyline points="720,742 720,802" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<polyline points="930,713 952,713 952,774 1184,774 1184,802" fill="none" stroke="#a4ba90" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="48" y="804" width="424" height="180" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="72" y="845" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">State &amp; file storage</text>
+<text x="72" y="883" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">MongoDB · Redis</text>
+<text x="72" y="915" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">PostgreSQL checkpoints (optional)</text>
+<text x="72" y="947" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Local files · S3 / OSS / MinIO / COS</text>
+<rect x="508" y="804" width="424" height="180" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="532" y="845" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">Task execution</text>
+<text x="532" y="883" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Local execution / arq workers</text>
+<text x="532" y="915" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Scheduled &amp; background tasks</text>
+<text x="532" y="947" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Cancellation · Recovery · Resumption</text>
+<rect x="976" y="804" width="416" height="180" rx="16" fill="#202324" stroke="#373d38"/>
+<text x="1000" y="845" fill="#eeeee8" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600">Delivery &amp; observation</text>
+<text x="1000" y="883" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Streaming events · Notifications</text>
+<text x="1000" y="915" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">IM channels · Shared sessions</text>
+<text x="1000" y="947" fill="#b0b7ac" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="400">Usage accounting · Tracing</text>
+</svg>

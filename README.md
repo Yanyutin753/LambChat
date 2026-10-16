@@ -4,12 +4,12 @@
 
 **Your personal AI agent, living in the cloud — open source, self-hosted, always on. Multi-tenant when you need it.**
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
-[![React](https://img.shields.io/badge/React-19-green.svg)]()
-[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-orange.svg)]()
-[![deepagents](https://img.shields.io/badge/deepagents-Latest-purple.svg)]()
-[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green.svg)]()
-[![Redis](https://img.shields.io/badge/Redis-Latest-red.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-green.svg)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-orange.svg)](https://fastapi.tiangolo.com/)
+[![deepagents](https://img.shields.io/badge/deepagents-Latest-purple.svg)](https://github.com/langchain-ai/deepagents)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green.svg)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-Latest-red.svg)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [English](README.md) · [简体中文](README_CN.md) · [Documentation](https://yanyutin753.github.io/LambChat/en/) · [Contributing](CONTRIBUTING.md)
@@ -57,24 +57,26 @@ The same deployment scales both ways:
 
 ## Product Preview
 
+Updated October 16, 2026. Screenshots use current UI components with demo data; light and dark variants follow your device appearance.
+
 | Chat and execution | Skills marketplace | Model management |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/chat-response.webp" width="300" alt="Streaming agent response"><br>**Streaming agent work** | <img src="docs/images/best-practice/marketplace-page.webp" width="300" alt="Skill marketplace"><br>**Skills it accumulates** | <img src="docs/images/best-practice/models-page.webp" width="300" alt="Model configuration"><br>**Your models, your keys** |
-| <img src="docs/images/best-practice/files-page.webp" width="300" alt="File library"><br>**Deliverables library** | <img src="docs/images/best-practice/mcp-page.webp" width="300" alt="MCP configuration"><br>**MCP tools** | <img src="docs/images/best-practice/mobile-view.webp" width="190" alt="Mobile responsive view"><br>**With you everywhere** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-response-dark.webp" /><img src="docs/images/best-practice/chat-response.webp" width="300" alt="Streaming agent response"></picture><br>**Streaming agent work** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/marketplace-page-dark.webp" /><img src="docs/images/best-practice/marketplace-page.webp" width="300" alt="Skill marketplace"></picture><br>**Skills it accumulates** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/models-page-dark.webp" /><img src="docs/images/best-practice/models-page.webp" width="300" alt="Model configuration"></picture><br>**Your models, your keys** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/files-page-dark.webp" /><img src="docs/images/best-practice/files-page.webp" width="300" alt="File library"></picture><br>**Deliverables library** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mcp-page-dark.webp" /><img src="docs/images/best-practice/mcp-page.webp" width="300" alt="MCP configuration"></picture><br>**MCP tools** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mobile-view-dark.webp" /><img src="docs/images/best-practice/mobile-view.webp" width="92" height="200" alt="Mobile responsive view"></picture><br>**With you everywhere** |
 
 <details>
 <summary><b>View the full screenshot gallery</b></summary>
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.webp" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/register-page.webp" width="280" alt="Register"><br>**Register** | <img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="Password Reset"><br>**Password Reset** |
-| <img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="Email Verification"><br>**Email Verification** | <img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="Registration Pending"><br>**Registration Pending** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="Chat"><br>**Chat** |
-| <img src="docs/images/best-practice/chat-response.webp" width="280" alt="Streaming"><br>**Streaming** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="Share"><br>**Share** | <img src="docs/images/best-practice/skills-page.webp" width="280" alt="Skills"><br>**Skills** |
-| <img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="Marketplace"><br>**Marketplace** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/agents-page.webp" width="280" alt="Agents"><br>**Agents** |
-| <img src="docs/images/best-practice/models-page.webp" width="280" alt="Models"><br>**Models** | <img src="docs/images/best-practice/channels-page.webp" width="280" alt="Channels"><br>**Channels** | <img src="docs/images/best-practice/files-page.webp" width="280" alt="Files"><br>**Files** |
-| <img src="docs/images/best-practice/persona-page.webp" width="280" alt="Persona"><br>**Persona** | <img src="docs/images/best-practice/memory-page.webp" width="280" alt="Memory"><br>**Memory** | <img src="docs/images/best-practice/notifications-page.webp" width="280" alt="Notifications"><br>**Notifications** |
-| <img src="docs/images/best-practice/settings-page.webp" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="Feedback"><br>**Feedback** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="Shared"><br>**Shared Session** |
-| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/users-page.webp" width="280" alt="Users"><br>**Users** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="Tablet"><br>**Tablet** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/login-page-dark.webp" /><img src="docs/images/best-practice/login-page.webp" width="280" alt="Login"></picture><br>**Login** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/register-page-dark.webp" /><img src="docs/images/best-practice/register-page.webp" width="280" alt="Register"></picture><br>**Register** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/reset-request-page-dark.webp" /><img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="Password Reset"></picture><br>**Password Reset** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/verify-email-page-dark.webp" /><img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="Email Verification"></picture><br>**Email Verification** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/registration-pending-page-dark.webp" /><img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="Registration Pending"></picture><br>**Registration Pending** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-home-dark.webp" /><img src="docs/images/best-practice/chat-home.webp" width="280" alt="Chat"></picture><br>**Chat** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-response-dark.webp" /><img src="docs/images/best-practice/chat-response.webp" width="280" alt="Streaming"></picture><br>**Streaming** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/share-dialog-dark.webp" /><img src="docs/images/best-practice/share-dialog.webp" width="280" alt="Share"></picture><br>**Share** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/skills-page-dark.webp" /><img src="docs/images/best-practice/skills-page.webp" width="280" alt="Skills"></picture><br>**Skills** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/marketplace-page-dark.webp" /><img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="Marketplace"></picture><br>**Marketplace** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mcp-page-dark.webp" /><img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"></picture><br>**MCP Config** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/agents-page-dark.webp" /><img src="docs/images/best-practice/agents-page.webp" width="280" alt="Agents"></picture><br>**Agents** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/models-page-dark.webp" /><img src="docs/images/best-practice/models-page.webp" width="280" alt="Models"></picture><br>**Models** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/channels-page-dark.webp" /><img src="docs/images/best-practice/channels-page.webp" width="280" alt="Channels"></picture><br>**Channels** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/files-page-dark.webp" /><img src="docs/images/best-practice/files-page.webp" width="280" alt="Files"></picture><br>**Files** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/persona-page-dark.webp" /><img src="docs/images/best-practice/persona-page.webp" width="280" alt="Persona"></picture><br>**Persona** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/memory-page-dark.webp" /><img src="docs/images/best-practice/memory-page.webp" width="280" alt="Memory"></picture><br>**Memory** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/notifications-page-dark.webp" /><img src="docs/images/best-practice/notifications-page.webp" width="280" alt="Notifications"></picture><br>**Notifications** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/settings-page-dark.webp" /><img src="docs/images/best-practice/settings-page.webp" width="280" alt="Settings"></picture><br>**Settings** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/feedback-page-dark.webp" /><img src="docs/images/best-practice/feedback-page.webp" width="280" alt="Feedback"></picture><br>**Feedback** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/shared-page-dark.webp" /><img src="docs/images/best-practice/shared-page.webp" width="280" alt="Shared"></picture><br>**Shared Session** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/roles-page-dark.webp" /><img src="docs/images/best-practice/roles-page.webp" width="280" alt="Roles"></picture><br>**Roles** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/users-page-dark.webp" /><img src="docs/images/best-practice/users-page.webp" width="280" alt="Users"></picture><br>**Users** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/tablet-view-dark.webp" /><img src="docs/images/best-practice/tablet-view.webp" width="148" height="190" alt="Tablet"></picture><br>**Tablet** |
 
 </details>
 
@@ -99,7 +101,7 @@ These shared sessions show the kind of end-to-end work your agent does — each 
 <summary><b>A runtime that finishes work</b></summary>
 
 - **deepagents architecture** with compiled graph runtime and fine-grained state management.
-- **Multiple agent types** for core, fast, search, and team workflows — a team of agents can split a job and hand work to each other.
+- **Three built-in agents**: `quick` for everyday questions, writing, and translation; `search` for research, tools, and sandbox execution; `team` for role discovery, sub-agent delegation, and continued collaboration.
 - **Plugin registration** through `@register_agent("id")` for custom agents.
 - **Streaming output** with native SSE — watch the agent think, call tools, and write, live.
 - **Sub-agents** for multi-level delegation.
@@ -171,9 +173,9 @@ These shared sessions show the kind of end-to-end work your agent does — each 
 
 ## Architecture
 
-<p align="center"><img src="docs/images/best-practice/architecture.webp" width="680" alt="LambChat architecture"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/architecture-dark.webp" /><img src="docs/images/best-practice/architecture.webp" width="1000" alt="LambChat architecture"></picture></p>
 
-One deployable system, no external SaaS required: a FastAPI backend with LangGraph/deepagents execution, Redis/MongoDB persistence, and sandbox isolation, behind a React 19 workspace.
+One self-hosted control plane: a FastAPI backend with LangGraph/deepagents execution, Redis/MongoDB persistence, and sandbox isolation, behind a React 19 workspace.
 
 - **Frontend**: React 19, Vite, TailwindCSS, PWA workers, Capacitor mobile builds, and Tauri desktop packaging.
 - **Backend**: FastAPI, SSE/WebSocket streaming, auth/RBAC, scheduler, storage services, model routing, and MCP management.
@@ -189,7 +191,7 @@ One deployable system, no external SaaS required: a FastAPI backend with LangGra
 
 ### Prerequisites
 
-- Python >=3.12, <3.15
+- Python `>=3.12, <3.15`
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Node.js 22.22.2+
 - [pnpm](https://pnpm.io/) 10+
@@ -318,7 +320,7 @@ pnpm run docs:build
 .
 ├── main.py                  # Uvicorn entrypoint for src.api.main:app
 ├── src/
-│   ├── agents/              # Core, fast, search, and team agent graphs
+│   ├── agents/              # Quick, Search, and Team agent graphs; shared core runtime
 │   ├── api/                 # FastAPI app, middleware, and route modules
 │   │   └── routes/          # Chat, auth, MCP, skills, files, scheduler, teams, etc.
 │   ├── infra/               # Runtime services: auth, llm, mcp, scheduler, task, storage, memory

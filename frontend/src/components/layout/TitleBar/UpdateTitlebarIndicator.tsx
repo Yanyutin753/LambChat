@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -246,7 +247,9 @@ export function UpdateTitlebarIndicator({
                   rel="noopener noreferrer"
                   className="inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1 text-12 text-theme-text-secondary hover:text-theme-text hover:underline"
                 >
-                  <ExternalLink size={12} />
+                  <InteractiveIcon>
+                    <ExternalLink size={12} />
+                  </InteractiveIcon>
                   {t("update.viewFullNotes", "查看完整更新日志")}
                 </a>
               )}

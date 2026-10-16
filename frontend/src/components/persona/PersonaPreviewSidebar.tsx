@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useState } from "react";
 import { Sparkles, Copy, Tag, FileText, Zap, Eye, Code2 } from "lucide-react";
@@ -60,7 +61,9 @@ export function PersonaPreviewSidebar({
             {isUsingPreset ? (
               <LoadingSpinner color="text-current" size={14} />
             ) : (
-              <Sparkles size={14} />
+              <InteractiveIcon>
+                <Sparkles size={14} />
+              </InteractiveIcon>
             )}
             {isUsingPreset
               ? t("personaPresets.applying", "使用中...")
@@ -75,7 +78,9 @@ export function PersonaPreviewSidebar({
               onClick={() => onCopyPreset(preset)}
               className="pps-card__action pps-card__action--ghost flex-1"
             >
-              <Copy size={14} />
+              <InteractiveIcon>
+                <Copy size={14} />
+              </InteractiveIcon>
               {t("personaPresets.copy", "复制")}
             </button>
           )}

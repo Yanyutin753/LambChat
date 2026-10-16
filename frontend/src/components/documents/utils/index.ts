@@ -35,13 +35,8 @@ export {
 export type { FileLinkInfo } from "./fileTypeChecks";
 
 // File type map and types
-export {
-  FILE_TYPE_MAP,
-  MIME_TO_EXT,
-  DEFAULT_FILE_TYPE,
-  defaultStyles,
-} from "./fileTypeMap";
-export type { FileTypeInfo, Type } from "./fileTypeMap";
+export { FILE_TYPE_MAP, MIME_TO_EXT, DEFAULT_FILE_TYPE } from "./fileTypeMap";
+export type { FileTypeInfo } from "./fileTypeMap";
 
 // File type info functions
 export {
@@ -51,11 +46,7 @@ export {
 } from "./fileTypeInfo";
 
 // Language detection
-export {
-  getFileIconType,
-  getFileTypeColor,
-  detectLanguage,
-} from "./detectLanguage";
+export { getFileTypeColor, detectLanguage } from "./detectLanguage";
 
 // File size formatting
 export { formatFileSize } from "./fileSize";

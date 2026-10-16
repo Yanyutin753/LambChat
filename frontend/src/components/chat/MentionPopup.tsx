@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -149,10 +150,12 @@ export function MentionPopup({
                       <span className="mention-popup-name font-serif">
                         {preset.name}
                         {isSelected && (
-                          <Check
-                            size={13}
-                            className="inline-block ml-1.5 opacity-60"
-                          />
+                          <InteractiveIcon>
+                            <Check
+                              size={13}
+                              className="inline-block ml-1.5 opacity-60"
+                            />
+                          </InteractiveIcon>
                         )}
                       </span>
                       <span className="mention-popup-desc">
@@ -178,7 +181,9 @@ export function MentionPopup({
                             });
                           }}
                         >
-                          <Pin size={12} />
+                          <InteractiveIcon>
+                            <Pin size={12} />
+                          </InteractiveIcon>
                         </button>
                         <button
                           type="button"
@@ -197,7 +202,9 @@ export function MentionPopup({
                             });
                           }}
                         >
-                          <Star size={12} />
+                          <InteractiveIcon>
+                            <Star size={12} />
+                          </InteractiveIcon>
                         </button>
                       </span>
                     )}

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
@@ -95,12 +96,14 @@ export function SessionGroup({
                   count: hiddenCount,
                 })}
           </span>
-          <ChevronDown
-            size={13}
-            className={`transition-transform duration-200 ${
-              expanded ? "rotate-180" : ""
-            }`}
-          />
+          <InteractiveIcon>
+            <ChevronDown
+              size={13}
+              className={`transition-transform duration-200 ${
+                expanded ? "rotate-180" : ""
+              }`}
+            />
+          </InteractiveIcon>
         </button>
       )}
     </div>

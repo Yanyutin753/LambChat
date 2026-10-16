@@ -158,6 +158,10 @@ export interface TextPart {
 }
 
 export interface ThinkingPart {
+  lastUpdatedAt?: number;
+  startedAt?: number;
+  completedAt?: number;
+  status?: "error" | "cancelled";
   type: "thinking";
   content: string;
   thinking_id?: string;
@@ -247,7 +251,15 @@ export interface SubagentPart {
   startedAt?: number; // Unix timestamp (ms)
   completedAt?: number; // Unix timestamp (ms)
   // 状态: pending | running | complete | error | cancelled
-  status?: "pending" | "queued" | "running" | "waiting_human" | "complete" | "error" | "cancelled" | "timed_out";
+  status?:
+    | "pending"
+    | "queued"
+    | "running"
+    | "waiting_human"
+    | "complete"
+    | "error"
+    | "cancelled"
+    | "timed_out";
 }
 
 export interface ToolCall {

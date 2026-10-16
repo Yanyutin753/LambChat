@@ -57,7 +57,7 @@ function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
             text={resultText}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+            copyButtonClassName="tool-result-copy"
           />
           <ToolResultContent result={result} hideCopyButton />
         </div>
@@ -109,7 +109,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
         text={resultText}
         position="resultCompact"
         className="z-20 pointer-events-auto"
-        copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+        copyButtonClassName="tool-result-copy"
       />
       <ToolResultContent result={result} hideCopyButton />
     </div>
@@ -129,9 +129,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${t("chat.message.toolUploadUrlToSandbox")} ${
-      filePath || url
-    }`,
+    `${t("chat.message.toolUploadUrlToSandbox")} ${filePath || url}`,
     args,
     { isPending, result },
   );

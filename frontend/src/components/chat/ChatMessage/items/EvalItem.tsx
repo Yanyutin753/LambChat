@@ -92,7 +92,7 @@ function deriveStatus({
   if (isPending) return "loading";
   if (cancelled) return "cancelled";
   if (success) return "success";
-  if (hasResult) return "error";
+  if (success === false || hasResult) return "error";
   return "idle";
 }
 

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -63,7 +64,9 @@ export function ProjectWorkspaceField({
               className="shrink-0"
             />
           ) : (
-            <FolderOpen size={14} className="shrink-0" />
+            <InteractiveIcon>
+              <FolderOpen size={14} className="shrink-0" />
+            </InteractiveIcon>
           )}
           <span className="truncate" title={value?.path}>
             {value?.path || t("projectWorkspace.choose")}
@@ -78,7 +81,9 @@ export function ProjectWorkspaceField({
             aria-label={t("projectWorkspace.clear")}
             className="rounded-md p-1 focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
           >
-            <X size={14} />
+            <InteractiveIcon>
+              <X size={14} />
+            </InteractiveIcon>
           </button>
         )}
       </div>
@@ -130,7 +135,9 @@ export function ProjectWorkspaceDetails({
           aria-expanded={open}
           className="flex h-8 w-6 max-sm:h-9 max-sm:w-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2"
         >
-          <Info size={14} aria-hidden="true" />
+          <InteractiveIcon>
+            <Info size={14} aria-hidden="true" />
+          </InteractiveIcon>
         </button>
       </Tooltip>
     </span>

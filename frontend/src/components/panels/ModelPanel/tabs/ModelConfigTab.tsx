@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { Cpu } from "lucide-react";
 import { Pagination } from "../../../common/Pagination";
 import { useClientPagination } from "../../../../hooks/useClientPagination";
@@ -268,17 +269,21 @@ const ModelCard = React.memo(function ModelCard({
           {hasDetails && (
             <button
               type="button"
-              aria-label={`${t(isExpanded ? "common.collapse" : "common.expand")} ${model.label}`}
+              aria-label={`${t(
+                isExpanded ? "common.collapse" : "common.expand",
+              )} ${model.label}`}
               aria-expanded={isExpanded}
               onClick={handleExpand}
               className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
             >
-              <ChevronDown
-                size={16}
-                className={`transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                }`}
-              />
+              <InteractiveIcon>
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-200 ${
+                    isExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </InteractiveIcon>
             </button>
           )}
           <button
@@ -286,7 +291,9 @@ const ModelCard = React.memo(function ModelCard({
             className="p-2 text-stone-500 hover:text-stone-700 hover:bg-white/50 rounded-lg transition-all duration-200 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/40"
             title={t("agentConfig.edit")}
           >
-            <Edit2 size={16} />
+            <InteractiveIcon>
+              <Edit2 size={16} />
+            </InteractiveIcon>
           </button>
           <button
             onClick={handleDelete}
@@ -294,7 +301,13 @@ const ModelCard = React.memo(function ModelCard({
             className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
             title={t("agentConfig.delete")}
           >
-            {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 size={16} />}
+            {isDeleting ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <InteractiveIcon>
+                <Trash2 size={16} />
+              </InteractiveIcon>
+            )}
           </button>
         </div>
       </div>
@@ -336,17 +349,21 @@ const ModelCard = React.memo(function ModelCard({
             {hasDetails && (
               <button
                 type="button"
-                aria-label={`${t(isExpanded ? "common.collapse" : "common.expand")} ${model.label}`}
+                aria-label={`${t(
+                  isExpanded ? "common.collapse" : "common.expand",
+                )} ${model.label}`}
                 aria-expanded={isExpanded}
                 onClick={handleExpand}
                 className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
               >
-                <ChevronDown
-                  size={16}
-                  className={`transition-transform duration-200 ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </InteractiveIcon>
               </button>
             )}
             <ToggleSwitch
@@ -363,7 +380,9 @@ const ModelCard = React.memo(function ModelCard({
               className="p-2 text-stone-500 hover:text-stone-700 hover:bg-white/50 rounded-lg transition-all duration-200 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/40"
               title={t("agentConfig.edit")}
             >
-              <Edit2 size={16} />
+              <InteractiveIcon>
+                <Edit2 size={16} />
+              </InteractiveIcon>
             </button>
             <button
               onClick={handleDelete}
@@ -371,7 +390,13 @@ const ModelCard = React.memo(function ModelCard({
               className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
               title={t("agentConfig.delete")}
             >
-              {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 size={16} />}
+              {isDeleting ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <InteractiveIcon>
+                  <Trash2 size={16} />
+                </InteractiveIcon>
+              )}
             </button>
           </div>
         </div>
@@ -714,7 +739,9 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
                 onClick={() => setIsCreating(true)}
                 className="skill-empty-state__action"
               >
-                <Plus size={14} />
+                <InteractiveIcon>
+                  <Plus size={14} />
+                </InteractiveIcon>
                 {t("agentConfig.addFirstModel")}
               </button>
             }

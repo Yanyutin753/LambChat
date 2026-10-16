@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -136,7 +137,9 @@ export function NotificationBanner() {
               className="notification-dismiss-btn absolute top-1/2 end-1 -translate-y-1/2 z-10 size-11 flex items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] cursor-pointer transition-colors"
               aria-label={t("notification.dismiss", "关闭")}
             >
-              <X size={14} />
+              <InteractiveIcon>
+                <X size={14} />
+              </InteractiveIcon>
             </button>
 
             {/* Content area — slides in/out */}

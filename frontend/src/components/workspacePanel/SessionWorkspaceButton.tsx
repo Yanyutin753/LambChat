@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -36,8 +37,12 @@ function WorkspaceButton(props: Props) {
   const registryKey = `workspace-${props.sessionId}`;
   const active = useSyncExternalStore(subscribeRightPanels, () => {
     const snapshot = getRightPanelSnapshot();
-    return !snapshot.collapsed && snapshot.entries.some(
-      (entry) => entry.id === snapshot.activeId && entry.registryKey === registryKey,
+    return (
+      !snapshot.collapsed &&
+      snapshot.entries.some(
+        (entry) =>
+          entry.id === snapshot.activeId && entry.registryKey === registryKey,
+      )
     );
   });
   const [headerActionsTarget, setHeaderActionsTarget] =
@@ -55,7 +60,9 @@ function WorkspaceButton(props: Props) {
         }}
         className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
-        <FolderOpen size={18} />
+        <InteractiveIcon>
+          <FolderOpen size={18} />
+        </InteractiveIcon>
       </button>
       {open && (
         <Suspense fallback={null}>

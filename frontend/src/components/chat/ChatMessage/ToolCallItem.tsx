@@ -144,7 +144,7 @@ function deriveStatus(props: {
   if (props.isPending) return "loading";
   if (props.cancelled) return "cancelled";
   if (props.success) return "success";
-  if (props.hasResult) return "error";
+  if (props.success === false || props.hasResult) return "error";
   return "idle";
 }
 
@@ -194,7 +194,10 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
             }
             expandedClassName="flex min-h-0 flex-col shrink-0"
           >
-            <ToolResultContent result={parseToolPanelResult(data.result)} hideCopyButton />
+            <ToolResultContent
+              result={parseToolPanelResult(data.result)}
+              hideCopyButton
+            />
           </CollapsibleSection>
         )}
 
@@ -461,9 +464,7 @@ export function ToolCallItem({
         animatedDots={isStreamingLabel}
         suffix={
           serverName ? (
-            <span className="min-w-0 max-w-[50%] truncate">
-              {serverName}
-            </span>
+            <span className="min-w-0 max-w-[50%] truncate">{serverName}</span>
           ) : undefined
         }
         variant="tool"

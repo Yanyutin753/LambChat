@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 /**
  * Agent + Model 统一管理面板
  * 合并助手配置和模型配置到一个页面，通过顶部 tab 切换
@@ -48,7 +49,9 @@ export function AgentModelPanel() {
                 : "text-stone-500 hover:bg-white/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
             }`}
           >
-            <Icon size={16} className="flex-shrink-0" />
+            <InteractiveIcon>
+              <Icon size={16} className="flex-shrink-0" />
+            </InteractiveIcon>
             <span>{section.label}</span>
           </button>
         );

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { Target, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { RunModeKey } from "./composerTypes";
@@ -56,7 +57,9 @@ export function RunModeChip({ modeKey, onClick, readOnly }: RunModeChipProps) {
         className="skill-chip-node-avatar"
         style={{ background: meta.gradient }}
       >
-        <Icon size="0.82em" className="text-white" strokeWidth={2.5} />
+        <InteractiveIcon>
+          <Icon size="0.82em" className="text-white" strokeWidth={2.5} />
+        </InteractiveIcon>
       </span>
       <span className="skill-chip-node-name font-serif">{label}</span>
     </span>

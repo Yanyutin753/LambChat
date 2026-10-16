@@ -219,18 +219,18 @@
 
 /* Base pill hover/transition */
 .pill-btn {
-  font-family: theme("fontFamily.mono");
-  @apply flex w-fit min-h-7 max-w-full items-center gap-2 rounded-full px-3 py-1 text-12 font-medium leading-normal;
-  border: 1px solid color-mix(in srgb, currentColor 13%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 42%, transparent),
-    0 1px 2px -1px color-mix(in srgb, currentColor 12%, transparent);
+  font-family: theme("fontFamily.sans");
+  @apply flex w-full max-w-full items-center gap-2 rounded-xl px-3 py-1 text-13 font-medium leading-5;
+  min-height: 2.375rem;
+  border: 1px solid
+    color-mix(in srgb, var(--theme-border-subtle) 65%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--theme-bg-card);
+  box-shadow: none;
+  text-align: start;
   transition:
-    transform 0.18s cubic-bezier(0.33, 1, 0.68, 1),
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    filter 0.18s ease,
-    background-color 0.18s ease;
+    border-color 150ms ease,
+    background-color 150ms ease;
 }
 
 /* Text inherits readable leading; flex centers labels, suffixes and fixed-size icons. */
@@ -242,51 +242,53 @@
   @apply block size-3 shrink-0;
 }
 
-/* Tool summaries follow viewport breakpoints and still fit a narrowed chat column. */
-.pill-btn[data-variant="tool"] {
-  max-width: 100%;
-}
-@media (min-width: 640px) {
-  .pill-btn[data-variant="tool"] {
-    max-width: min(100%, 36rem);
-  }
-}
-@media (min-width: 1024px) {
-  .pill-btn[data-variant="tool"] {
-    max-width: min(100%, 48rem);
-  }
-}
-@media (min-width: 1280px) {
-  .pill-btn[data-variant="tool"] {
-    max-width: min(100%, 64rem);
-  }
-}
-
-/* Dark mode: soften border and inset shadow so they don't glow white */
-.dark .pill-btn {
-  font-family: theme("fontFamily.mono");
-  border-color: color-mix(in srgb, currentColor 10%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, currentColor 6%, transparent),
-    0 1px 2px -1px color-mix(in srgb, currentColor 8%, transparent);
-}
-
 .pill-btn:hover:not(:disabled) {
   transform: none;
-  border-color: color-mix(in srgb, currentColor 24%, transparent);
-  filter: saturate(1.06);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 48%, transparent),
-    0 5px 14px -8px color-mix(in srgb, currentColor 40%, transparent),
-    0 2px 6px -3px color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-card) 88%,
+    var(--theme-text-secondary)
+  );
+  border-color: var(--theme-border-subtle);
+  box-shadow: none;
 }
-
-.dark .pill-btn:hover:not(:disabled) {
-  border-color: color-mix(in srgb, currentColor 18%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, currentColor 8%, transparent),
-    0 5px 14px -8px color-mix(in srgb, currentColor 25%, transparent),
-    0 2px 6px -3px color-mix(in srgb, currentColor 12%, transparent);
+.pill-btn:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+.pill-btn > :is(.pill-btn__icon, .pill-btn__chevron) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1rem;
+  width: 1rem;
+  height: 1rem;
+  line-height: 0;
+}
+.pill-btn__icon :is(span, div) {
+  opacity: 1;
+}
+.pill-btn__icon svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  color: var(--theme-text-secondary);
+  opacity: 1;
+}
+.pill-btn__chevron svg {
+  color: var(--theme-text-secondary);
+}
+.pill-btn__chevron svg {
+  display: block;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .pill-btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+  .pill-btn > .pill-btn__label {
+    flex: 1 1 0%;
+  }
 }
 
 /* Touch browsers can keep :hover active after tapping. Never lift the pill there. */
@@ -297,8 +299,8 @@
 }
 
 .pill-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-  box-shadow: inset 0 1px 2px color-mix(in srgb, currentColor 13%, transparent);
+  transform: none;
+  box-shadow: none;
   transition-duration: 0.08s;
 }
 
@@ -323,7 +325,7 @@
     animation: none !important;
   }
   .pill-btn {
-    font-family: theme("fontFamily.mono");
+    font-family: theme("fontFamily.sans");
     transition: background-color 0.15s ease !important;
   }
   .pill-btn:hover:not(:disabled),

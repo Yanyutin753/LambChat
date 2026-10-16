@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ToggleLeft, ToggleRight, Wrench } from "lucide-react";
@@ -210,15 +211,19 @@ export function MCPToolPolicyEditor({
                   }
                 >
                   {disabled ? (
-                    <ToggleLeft
-                      size={17}
-                      className="text-theme-text-tertiary dark:text-stone-600"
-                    />
+                    <InteractiveIcon>
+                      <ToggleLeft
+                        size={17}
+                        className="text-theme-text-tertiary dark:text-stone-600"
+                      />
+                    </InteractiveIcon>
                   ) : (
-                    <ToggleRight
-                      size={17}
-                      className="text-emerald-500 dark:text-emerald-400"
-                    />
+                    <InteractiveIcon>
+                      <ToggleRight
+                        size={17}
+                        className="text-emerald-500 dark:text-emerald-400"
+                      />
+                    </InteractiveIcon>
                   )}
                 </button>
 

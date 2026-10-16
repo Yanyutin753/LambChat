@@ -121,7 +121,9 @@ test("keeps the persona gallery wider than the composer without inner horizontal
   expect(personaClass).toContain("px-4 sm:px-0");
   expect(personaClass).not.toContain("sm:px-10");
   for (const source of [welcomePageSource, chatSkeletonsSource]) {
-    expect(source).toMatch(/welcome-input[^"\n]*sm:max-w-\[44rem\] md:max-w-\[46rem\] lg:max-w-\[48rem\] xl:max-w-\[50rem\] 2xl:max-w-\[52rem\]/);
+    expect(source).toMatch(
+      /welcome-input[^"\n]*sm:max-w-\[44rem\] md:max-w-\[46rem\] lg:max-w-\[48rem\] xl:max-w-\[50rem\] 2xl:max-w-\[52rem\]/,
+    );
   }
 });
 
@@ -168,7 +170,7 @@ test("uses the welcome persona skeleton class helper in the chat skeleton", () =
 
 test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
   expect(chatSkeletonsSource).toMatch(
-    /function ChatInputShellSkeleton\(\)[\s\S]*?className="chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300"/,
+    /function ChatInputShellSkeleton\(\)[\s\S]*?className="chat-input-container flex flex-col relative w-full rounded-2xl px-1 border"/,
   );
   expect(chatSkeletonsSource).toMatch(
     /className="bg-transparent w-full pt-\[10px\] text-15 leading-relaxed min-h-\[40px\] sm:min-h-\[44px\]"/,
@@ -188,7 +190,7 @@ test("keeps chat input skeleton structure 1:1 with real ChatInput", () => {
     /className="chat-tool-btn group shrink min-w-0 overflow-hidden pointer-events-none"/,
   );
   expect(chatSkeletonsSource).toMatch(
-    /className="skeleton-line h-9 w-9 rounded-full shrink-0"/,
+    /className="skeleton-line h-9 w-9 rounded-lg shrink-0"/,
   );
   // Default idle toolbar: FeatureMenu + Agent chip | Settings + Send (no mode labels)
   expect(chatSkeletonsSource).not.toMatch(/Mode label — desktop only/);
@@ -261,12 +263,22 @@ test("shows welcome choice skeletons only while the first page is loading", () =
 });
 
 test("startup and welcome loading states share the actual card header layout", () => {
-  expect(chatSkeletonsSource).toContain("export function WelcomePersonaCardSkeleton");
-  expect(chatSkeletonsSource).toContain('className="welcome-persona-header relative flex items-center gap-3"');
+  expect(chatSkeletonsSource).toContain(
+    "export function WelcomePersonaCardSkeleton",
+  );
+  expect(chatSkeletonsSource).toContain(
+    'className="welcome-persona-header relative flex items-center gap-3"',
+  );
   expect(chatSkeletonsSource).toContain("getWelcomePersonaSkeletonCount(true)");
-  expect(welcomePageSource).toContain('<WelcomePersonaCardSkeleton key={`team-skeleton-${i}`} showTag />');
-  expect(welcomePageSource).toContain('<WelcomePersonaCardSkeleton key={`persona-skeleton-${i}`} />');
-  expect(welcomeCss).not.toMatch(/\.welcome-persona-skeleton\s*\{[^}]*flex-direction:\s*row/);
+  expect(welcomePageSource.replace(/\s+/g, " ")).toContain(
+    "<WelcomePersonaCardSkeleton key={`team-skeleton-${i}`} showTag />",
+  );
+  expect(welcomePageSource.replace(/\s+/g, " ")).toContain(
+    "<WelcomePersonaCardSkeleton key={`persona-skeleton-${i}`} />",
+  );
+  expect(welcomeCss).not.toMatch(
+    /\.welcome-persona-skeleton\s*\{[^}]*flex-direction:\s*row/,
+  );
 });
 
 test("expands welcome choice gallery while skeleton cards are loading", () => {
@@ -330,20 +342,41 @@ test("uses selected team starter prompts before default suggestions", () => {
   expect(prompts).toEqual([{ icon: "🧭", text: "组织一次研究评审" }]);
 });
 
-
 test("keeps desktop rows readable while preserving the original mobile gallery", () => {
-  const desktopCss = welcomeCss.slice(welcomeCss.indexOf("@media (min-width: 640px) {", welcomeCss.indexOf(".welcome-persona-gallery")), welcomeCss.indexOf("@media (min-width: 1280px)"));
+  const desktopCss = welcomeCss.slice(
+    welcomeCss.indexOf(
+      "@media (min-width: 640px) {",
+      welcomeCss.indexOf(".welcome-persona-gallery"),
+    ),
+    welcomeCss.indexOf("@media (min-width: 1280px)"),
+  );
   expect(desktopCss).not.toMatch(/mask-image/);
-  const mobileCss = welcomeCss.slice(welcomeCss.indexOf("@media (max-width: 639px) {", welcomeCss.indexOf(".welcome-persona-gallery")), welcomeCss.indexOf("/* Mobile keyboard open"));
+  const mobileCss = welcomeCss.slice(
+    welcomeCss.indexOf(
+      "@media (max-width: 639px) {",
+      welcomeCss.indexOf(".welcome-persona-gallery"),
+    ),
+    welcomeCss.indexOf("/* Mobile keyboard open"),
+  );
   expect(mobileCss).toContain("--welcome-persona-card-height: 4.75rem;");
   expect(mobileCss).toContain("padding: 0.8125rem;");
   expect(mobileCss).toContain("gap: 0.875rem !important;");
   expect(mobileCss).toContain("width: 2.375rem;");
-  expect(mobileCss).toContain("mask-image: linear-gradient(to bottom, black 82%, transparent 100%);");
-  expect(mobileCss).toMatch(/\.welcome-persona-description\s*\{[^}]*-webkit-line-clamp: 2;/);
+  expect(mobileCss).toContain(
+    "mask-image: linear-gradient(to bottom, black 82%, transparent 100%);",
+  );
+  expect(mobileCss).toMatch(
+    /\.welcome-persona-description\s*\{[^}]*-webkit-line-clamp: 2;/,
+  );
 });
 
 test("wraps desktop names while retaining mobile single-line titles", () => {
-  expect(welcomePageSource.match(/welcome-persona-name min-w-0 truncate sm:line-clamp-2 sm:whitespace-normal sm:break-words/g)).toHaveLength(2);
-  expect(welcomePageSource.match(/text-13 sm:text-15 font-bold sm:font-semibold/g)).toHaveLength(2);
+  expect(
+    welcomePageSource.match(
+      /welcome-persona-name min-w-0 truncate sm:line-clamp-2 sm:whitespace-normal sm:break-words/g,
+    ),
+  ).toHaveLength(2);
+  expect(
+    welcomePageSource.match(/text-13 sm:text-15 font-bold sm:font-semibold/g),
+  ).toHaveLength(2);
 });

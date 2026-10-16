@@ -56,7 +56,9 @@ const baseProps = {
 test("running toolbar omits redundant background continuation and keeps stop available", () => {
   const onStopClick = vi.fn();
   const props = { ...baseProps, onContinueInBackground: vi.fn() };
-  const view = render(<ChatInputToolbar {...props} hasDraft={false} onStopClick={onStopClick} />);
+  const view = render(
+    <ChatInputToolbar {...props} hasDraft={false} onStopClick={onStopClick} />,
+  );
   expect(view.queryByTestId("continue-in-background")).toBeNull();
   fireEvent.click(view.getByRole("button", { name: /Stop|chat.stop/i }));
   expect(onStopClick).toHaveBeenCalledTimes(1);
@@ -116,7 +118,6 @@ test("hides the running send button while idle", () => {
   expect(queryByTestId("queue-followup-trigger")).toBeNull();
 });
 
-
 test("active run modes sit beside the desktop model selector and stay hidden on phones", () => {
   const onToggleAutoMode = vi.fn();
   const onToggleGoalMode = vi.fn();
@@ -133,13 +134,19 @@ test("active run modes sit beside the desktop model selector and stay hidden on 
   expect(modes).not.toBeNull();
   const buttons = modes!.querySelectorAll("button");
   expect(buttons).toHaveLength(2);
-  expect(modes!.querySelectorAll('span[aria-hidden="true"]')).toHaveLength(2);
+  expect(
+    modes!.querySelectorAll(':scope > span[aria-hidden="true"]'),
+  ).toHaveLength(2);
   expect(buttons[0].textContent).toContain("Auto");
   expect(buttons[1].textContent).toContain("Goal");
   expect(modes!.closest(".chat-input-toolbar")).not.toBeNull();
   expect(modes!.className).toContain("hidden");
   expect(modes!.className).toContain("sm:flex");
-  expect(container.querySelector("[data-run-mode-trigger] [data-run-mode-status-dot]")).not.toBeNull();
+  expect(
+    container.querySelector(
+      "[data-run-mode-trigger] [data-run-mode-status-dot]",
+    ),
+  ).not.toBeNull();
   fireEvent.click(buttons[0]);
   fireEvent.click(buttons[1]);
   expect(onToggleAutoMode).toHaveBeenCalledWith(false);
@@ -152,11 +159,12 @@ test("inactive run modes do not reserve an empty row", () => {
   expect(container.querySelector("[data-run-mode-status-dot]")).toBeNull();
 });
 
-
-test("one active desktop mode only shows the separator after the model", () => {
+test("one active desktop mode only shows its own separator", () => {
   const { container } = render(
     <ChatInputToolbar {...baseProps} goalModeEnabled />,
   );
   const modes = container.querySelector("[data-composer-run-modes]");
-  expect(modes!.querySelectorAll('span[aria-hidden="true"]')).toHaveLength(1);
+  expect(
+    modes!.querySelectorAll(':scope > span[aria-hidden="true"]'),
+  ).toHaveLength(1);
 });

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useRef } from "react";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -62,7 +63,9 @@ function PwaStatusToast({
           type="button"
           onClick={onAction}
         >
-          <RefreshCw size={14} aria-hidden="true" />
+          <InteractiveIcon>
+            <RefreshCw size={14} aria-hidden="true" />
+          </InteractiveIcon>
           <span>{t(actionLabelKey)}</span>
         </button>
       )}

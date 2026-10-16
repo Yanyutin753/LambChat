@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { memo } from "react";
 import { X, FileText, Image, Video, Music, File } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -103,7 +104,9 @@ export const AttachmentPreview = memo(function AttachmentPreview({
                   : t("fileUpload.removeAttachment")
               }
             >
-              <X size={14} />
+              <InteractiveIcon>
+                <X size={14} />
+              </InteractiveIcon>
             </button>
           </div>
         );

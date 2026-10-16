@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Users, Sparkles, User, Pin, Star } from "lucide-react";
@@ -82,7 +83,9 @@ export function PersonaScopeDropdown({
                     : "var(--theme-text-secondary)",
               }}
             >
-              <Icon size={14} />
+              <InteractiveIcon>
+                <Icon size={14} />
+              </InteractiveIcon>
               <span className="flex-1 text-left">{label}</span>
               {typeof count === "number" && (
                 <span

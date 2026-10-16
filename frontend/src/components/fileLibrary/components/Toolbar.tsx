@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { PanelHeader } from "../../common/PanelHeader";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -127,7 +128,15 @@ export function Toolbar({
             }`}
           >
             <span className="relative z-10">
-              {mode === "grid" ? <LayoutGrid size={16} /> : <List size={16} />}
+              {mode === "grid" ? (
+                <InteractiveIcon>
+                  <LayoutGrid size={16} />
+                </InteractiveIcon>
+              ) : (
+                <InteractiveIcon>
+                  <List size={16} />
+                </InteractiveIcon>
+              )}
             </span>
             <span className="file-library-view-label">{label}</span>
             {viewMode === mode && (
@@ -171,17 +180,21 @@ export function Toolbar({
                 className={`${btnBase} ${btnDefault} px-2 @sm:px-2.5`}
               >
                 {currentFilterItem?.icon && (
-                  <currentFilterItem.icon size={16} />
+                  <InteractiveIcon>
+                    <currentFilterItem.icon size={16} />
+                  </InteractiveIcon>
                 )}
                 <span className="truncate max-w-[56px] @sm:max-w-none">
                   {t(currentFilterItem?.labelKey || "fileLibrary.types.all")}
                 </span>
-                <ChevronDown
-                  size={16}
-                  className={`text-theme-text-tertiary hidden @sm:block transition-transform duration-200 ${
-                    showFilter ? "rotate-180" : ""
-                  }`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={16}
+                    className={`text-theme-text-tertiary hidden @sm:block transition-transform duration-200 ${
+                      showFilter ? "rotate-180" : ""
+                    }`}
+                  />
+                </InteractiveIcon>
               </button>
               <DropdownShell
                 show={showFilter}
@@ -201,7 +214,11 @@ export function Toolbar({
                       activeFilter === f.key ? ddItemActive : ddItemDef
                     }`}
                   >
-                    {f.icon && <f.icon size={16} />}
+                    {f.icon && (
+                      <InteractiveIcon>
+                        <f.icon size={16} />
+                      </InteractiveIcon>
+                    )}
                     {t(f.labelKey)}
                   </button>
                 ))}
@@ -219,12 +236,14 @@ export function Toolbar({
                   : btnDefault
               }`}
             >
-              <Star
-                size={16}
-                className={
-                  favoritesOnly ? "fill-amber-400 dark:fill-amber-500" : ""
-                }
-              />
+              <InteractiveIcon>
+                <Star
+                  size={16}
+                  className={
+                    favoritesOnly ? "fill-amber-400 dark:fill-amber-500" : ""
+                  }
+                />
+              </InteractiveIcon>
               <span className="hidden @xl:inline">
                 {t("fileLibrary.favorites", "我的收藏")}
               </span>
@@ -245,16 +264,20 @@ export function Toolbar({
                     selectedProject ? btnActive : btnDefault
                   }`}
                 >
-                  <FolderKanban size={16} />
+                  <InteractiveIcon>
+                    <FolderKanban size={16} />
+                  </InteractiveIcon>
                   <span className="max-w-[72px] truncate">
                     {selectedProjectName || t("fileLibrary.projectFilter")}
                   </span>
-                  <ChevronDown
-                    size={16}
-                    className={`text-theme-text-tertiary transition-transform duration-200 ${
-                      showProject ? "rotate-180" : ""
-                    }`}
-                  />
+                  <InteractiveIcon>
+                    <ChevronDown
+                      size={16}
+                      className={`text-theme-text-tertiary transition-transform duration-200 ${
+                        showProject ? "rotate-180" : ""
+                      }`}
+                    />
+                  </InteractiveIcon>
                 </button>
                 <DropdownShell
                   show={showProject}
@@ -307,19 +330,23 @@ export function Toolbar({
                 }}
                 className={`${btnBase} gap-1 px-2 @sm:px-2.5 ${btnDefault}`}
               >
-                <ArrowUpDown
-                  size={16}
-                  className="text-theme-text-tertiary @sm:hidden"
-                />
+                <InteractiveIcon>
+                  <ArrowUpDown
+                    size={16}
+                    className="text-theme-text-tertiary @sm:hidden"
+                  />
+                </InteractiveIcon>
                 <span className="max-w-[80px] truncate hidden @sm:inline">
                   {t(currentSortLabel ?? "fileLibrary.sort.newest")}
                 </span>
-                <ChevronDown
-                  size={16}
-                  className={`text-theme-text-tertiary transition-transform duration-200 ${
-                    showSort ? "rotate-180" : ""
-                  }`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={16}
+                    className={`text-theme-text-tertiary transition-transform duration-200 ${
+                      showSort ? "rotate-180" : ""
+                    }`}
+                  />
+                </InteractiveIcon>
               </button>
               <DropdownShell
                 show={showSort}
@@ -350,10 +377,12 @@ export function Toolbar({
                         />
                         <span className="flex-1">{t(o.labelKey)}</span>
                         {isActive && (
-                          <Check
-                            size={16}
-                            className="text-theme-text-tertiary shrink-0"
-                          />
+                          <InteractiveIcon>
+                            <Check
+                              size={16}
+                              className="text-theme-text-tertiary shrink-0"
+                            />
+                          </InteractiveIcon>
                         )}
                       </button>
                     </div>
@@ -385,7 +414,9 @@ export function Toolbar({
                   aria-label={t("common.clear")}
                   className="shrink-0 text-theme-text-tertiary hover:text-theme-text-secondary transition-colors rounded"
                 >
-                  <X size={16} />
+                  <InteractiveIcon>
+                    <X size={16} />
+                  </InteractiveIcon>
                 </button>
               )}
             </div>

@@ -8,7 +8,10 @@ interface InterfaceSectionProps {
   onOpenViewer: (src: string, alt: string) => void;
 }
 
-export function InterfaceSection({ shots, onOpenViewer }: InterfaceSectionProps) {
+export function InterfaceSection({
+  shots,
+  onOpenViewer,
+}: InterfaceSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -25,7 +28,7 @@ export function InterfaceSection({ shots, onOpenViewer }: InterfaceSectionProps)
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
           {shots.map((s) => (
             <ScreenshotCard
-              key={s.src}
+              key={s.altKey}
               src={s.src}
               alt={t(`landing.${s.altKey}`)}
               onClick={() => onOpenViewer(s.src, t(`landing.${s.altKey}`))}

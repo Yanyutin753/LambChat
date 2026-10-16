@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import {
   useCallback,
   useEffect,
@@ -395,10 +396,12 @@ export function MermaidDiagram({
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
                 title={t("documents.download")}
               >
-                <Download
-                  size={14}
-                  className="text-theme-text-secondary dark:text-stone-400"
-                />
+                <InteractiveIcon>
+                  <Download
+                    size={14}
+                    className="text-theme-text-secondary dark:text-stone-400"
+                  />
+                </InteractiveIcon>
               </button>
               {downloadPosition && (
                 <ResourceCardMenu
@@ -423,10 +426,12 @@ export function MermaidDiagram({
               className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("mermaidViewer.showCode")}
             >
-              <Code
-                size={14}
-                className="text-theme-text-secondary dark:text-stone-400"
-              />
+              <InteractiveIcon>
+                <Code
+                  size={14}
+                  className="text-theme-text-secondary dark:text-stone-400"
+                />
+              </InteractiveIcon>
               <span className="hidden xs:inline text-theme-text-secondary dark:text-stone-400">
                 {t("mermaidViewer.showCode")}
               </span>
@@ -438,10 +443,12 @@ export function MermaidDiagram({
               className="flex items-center gap-1 rounded-md px-2 py-1 text-12 font-medium transition-all hover:bg-theme-border-hover/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
               title={t("imageViewer.fullscreen", "Fullscreen")}
             >
-              <Maximize2
-                size={14}
-                className="text-theme-text-secondary dark:text-stone-400"
-              />
+              <InteractiveIcon>
+                <Maximize2
+                  size={14}
+                  className="text-theme-text-secondary dark:text-stone-400"
+                />
+              </InteractiveIcon>
             </button>
           </div>
         </div>

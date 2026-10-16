@@ -1,5 +1,6 @@
 import type { CollapsibleStatus } from "../../common/CollapsiblePill";
 import type { Message, MessagePart, ToolPart } from "../../../types";
+import { deriveExecuteStatus } from "./items/executeResult";
 import { parsePartialToolArgs } from "./items/partialToolArgs";
 
 export interface ToolCallPanelData {
@@ -99,10 +100,11 @@ export function createToolCallPanelStore(): ToolCallPanelStore {
 export const toolCallPanelStore = createToolCallPanelStore();
 
 function deriveToolStatus(part: ToolPart): CollapsibleStatus {
+  if (part.name === "execute") return deriveExecuteStatus(part);
   if (part.isPending) return "loading";
   if (part.cancelled) return "cancelled";
   if (part.success) return "success";
-  if (part.result !== undefined) return "error";
+  if (part.success === false || part.result !== undefined) return "error";
   return "idle";
 }
 

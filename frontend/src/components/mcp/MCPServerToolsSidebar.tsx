@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
@@ -376,14 +377,16 @@ export function MCPServerToolsSidebar({
                               }
                               className="mt-2.5 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-10 font-medium text-[var(--theme-text-tertiary)] hover:bg-[var(--theme-bg-hover)] transition-colors"
                             >
-                              <ChevronDown
-                                size={12}
-                                className={`transition-transform duration-200 ${
-                                  expandedTools.has(`${tool.name}:quotas`)
-                                    ? "rotate-180"
-                                    : ""
-                                }`}
-                              />
+                              <InteractiveIcon>
+                                <ChevronDown
+                                  size={12}
+                                  className={`transition-transform duration-200 ${
+                                    expandedTools.has(`${tool.name}:quotas`)
+                                      ? "rotate-180"
+                                      : ""
+                                  }`}
+                                />
+                              </InteractiveIcon>
                               <span className="flex-1 text-left">
                                 {t("mcp.form.rateLimits")}
                               </span>

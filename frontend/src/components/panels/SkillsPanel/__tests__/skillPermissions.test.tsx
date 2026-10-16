@@ -31,6 +31,8 @@ beforeEach(async () => {
   permissions = [Permission.SKILL_READ];
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
+    addEventListener() {},
+    removeEventListener() {},
     addListener() {},
     removeListener() {},
   }));

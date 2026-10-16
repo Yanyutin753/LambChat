@@ -86,15 +86,15 @@ const statusConfig: Record<
     icon: null,
   },
   success: {
-    color: "text-emerald-600 dark:text-emerald-400",
+    color: "text-theme-success",
     icon: <CheckCircle size={16} />,
   },
   error: {
-    color: "text-red-600 dark:text-red-400",
+    color: "text-theme-error",
     icon: <XCircle size={16} />,
   },
   cancelled: {
-    color: "text-[var(--theme-primary)]",
+    color: "text-theme-text-tertiary",
     icon: <Ban size={16} />,
   },
 };

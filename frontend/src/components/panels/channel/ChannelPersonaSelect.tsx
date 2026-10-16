@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 /**
  * Persona preset selector for channel configuration.
  * Channels can bind a persona so messages from that channel use the same role.
@@ -20,7 +21,15 @@ interface ChannelPersonaSelectProps {
 }
 
 function PersonaPresetIcon({ preset }: { preset: PersonaPreset }) {
-  return <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={18} iconSize={12} className="rounded-full" />;
+  return (
+    <AgentAvatar
+      avatar={preset.avatar}
+      seed={preset.id || preset.name}
+      size={18}
+      iconSize={12}
+      className="rounded-full"
+    />
+  );
 }
 
 export function ChannelPersonaSelect({
@@ -164,11 +173,13 @@ export function ChannelPersonaSelect({
         >
           {selected && <PersonaPresetIcon preset={selected} />}
           <span className="truncate font-serif">{displayText}</span>
-          <ChevronDown
-            size={15}
-            className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
-            style={{ transform: open ? "rotate(180deg)" : undefined }}
-          />
+          <InteractiveIcon>
+            <ChevronDown
+              size={15}
+              className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
+              style={{ transform: open ? "rotate(180deg)" : undefined }}
+            />
+          </InteractiveIcon>
         </button>
       </div>
 
@@ -199,7 +210,9 @@ export function ChannelPersonaSelect({
                   className="channel-persona-select__search-clear"
                   aria-label={t("common.clear", "清除")}
                 >
-                  <X size={13} />
+                  <InteractiveIcon>
+                    <X size={13} />
+                  </InteractiveIcon>
                 </button>
               )}
             </div>
@@ -217,7 +230,9 @@ export function ChannelPersonaSelect({
                 className={`glass-select-option ${!value ? "active" : ""}`}
               >
                 {!value && (
-                  <Check size={14} className="glass-select-option-check" />
+                  <InteractiveIcon>
+                    <Check size={14} className="glass-select-option-check" />
+                  </InteractiveIcon>
                 )}
                 <span className="glass-select-option-label">
                   {t("channel.clearPersona", "不使用角色")}
@@ -237,7 +252,12 @@ export function ChannelPersonaSelect({
                     className={`glass-select-option ${active ? "active" : ""}`}
                   >
                     {active && (
-                      <Check size={14} className="glass-select-option-check" />
+                      <InteractiveIcon>
+                        <Check
+                          size={14}
+                          className="glass-select-option-check"
+                        />
+                      </InteractiveIcon>
                     )}
                     <span className="flex min-w-0 items-center gap-2">
                       <PersonaPresetIcon preset={preset} />

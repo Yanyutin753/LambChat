@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { ButtonSize, ButtonVariant } from "./Button";
 
@@ -32,7 +33,7 @@ export function IconButton({
       )}
       {...props}
     >
-      {icon}
+      <InteractiveIcon>{icon}</InteractiveIcon>
     </button>
   );
 }

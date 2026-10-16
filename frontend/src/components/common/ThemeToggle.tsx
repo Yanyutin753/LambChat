@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { Sun, Moon, Coffee, AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { useTranslation } from "react-i18next";
@@ -43,13 +44,21 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       {saving ? (
         <LoadingSpinner size="sm" />
       ) : failed ? (
-        <AlertCircle size={20} className="text-theme-error" />
+        <InteractiveIcon>
+          <AlertCircle size={20} className="text-theme-error" />
+        </InteractiveIcon>
       ) : theme === "light" ? (
-        <Moon size={20} className="text-[var(--theme-text-secondary)]" />
+        <InteractiveIcon>
+          <Moon size={20} className="text-[var(--theme-text-secondary)]" />
+        </InteractiveIcon>
       ) : theme === "dark" ? (
-        <Coffee size={20} className="text-amber-400" />
+        <InteractiveIcon>
+          <Coffee size={20} className="text-amber-400" />
+        </InteractiveIcon>
       ) : (
-        <Sun size={20} className="text-amber-500" />
+        <InteractiveIcon>
+          <Sun size={20} className="text-amber-500" />
+        </InteractiveIcon>
       )}
     </button>
   );

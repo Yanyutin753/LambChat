@@ -129,7 +129,7 @@ test("whole trace replacement handles source supersets, changed compaction and l
   ]);
 });
 
-test("pure live replay retains active thinking, args drafts, approval and identity without repeating effects", () => {
+test("pure live replay stops reasoning at tool dispatch and retains drafts, approval and identity without repeating effects", () => {
   effects.mutation.mockClear();
   effects.markRead.mockClear();
   const timer = vi.spyOn(globalThis, "setTimeout");
@@ -162,7 +162,11 @@ test("pure live replay retains active thinking, args drafts, approval and identi
     expect(assistant?.assistantIdentity).toEqual(identity);
     expect(
       assistant?.parts?.find((part) => part.type === "thinking"),
-    ).toMatchObject({ content: "working", isStreaming: true });
+    ).toMatchObject({
+      content: "working",
+      isStreaming: false,
+      completedAt: Date.parse(time),
+    });
     expect(
       assistant?.parts?.find(
         (part) => part.type === "tool" && part.id === "draft",
@@ -378,7 +382,10 @@ test("journal replay indexes one thousand baseline messages and tools instead of
   for (const { event: live } of journal) {
     const converted = eventProcessor.processMessageEvent(
       live.event_type,
-      live.data as EventData,
+      {
+        ...(live.data as EventData),
+        timestamp: (live.data as EventData).timestamp ?? live.timestamp,
+      },
       expectedAssistant.parts || [],
       expectedAssistant.content,
       expectedAssistant.toolCalls || [],

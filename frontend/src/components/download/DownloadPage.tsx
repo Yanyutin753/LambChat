@@ -1,5 +1,6 @@
 import { UpdateChannelSelect } from "../update/UpdateChannelSelect";
 import { useUpdateChannel } from "../../utils/updateChannel";
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -98,10 +99,12 @@ function AssetRow({
             {formatAssetSize(size)}
           </span>
         )}
-        <DownloadIcon
-          size={14}
-          className="shrink-0 transition-transform duration-300 group-hover:translate-y-0.5"
-        />
+        <InteractiveIcon>
+          <DownloadIcon
+            size={14}
+            className="shrink-0 transition-transform duration-300 group-hover:translate-y-0.5"
+          />
+        </InteractiveIcon>
       </a>
     );
   }
@@ -120,10 +123,12 @@ function AssetRow({
           {formatAssetSize(size)}
         </span>
       )}
-      <DownloadIcon
-        size={14}
-        className="shrink-0 text-theme-text-secondary transition-transform duration-300 group-hover:translate-y-0.5 dark:text-theme-text-secondary"
-      />
+      <InteractiveIcon>
+        <DownloadIcon
+          size={14}
+          className="shrink-0 text-theme-text-secondary transition-transform duration-300 group-hover:translate-y-0.5 dark:text-theme-text-secondary"
+        />
+      </InteractiveIcon>
     </a>
   );
 }
@@ -335,7 +340,9 @@ export function DownloadPage() {
               aria-label={t("download.back")}
               className="inline-flex items-center gap-1.5 rounded-full border border-stone-200/80 bg-white/55 px-4 py-2 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30"
             >
-              <ArrowLeft size={13} />
+              <InteractiveIcon>
+                <ArrowLeft size={13} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">{t("download.back")}</span>
             </Link>
           </div>
@@ -394,7 +401,9 @@ export function DownloadPage() {
                 data-download-fallback
               >
                 {t("download.viewAllReleases")}
-                <ExternalLink size={13} />
+                <InteractiveIcon>
+                  <ExternalLink size={13} />
+                </InteractiveIcon>
               </a>
             </div>
           ) : (
@@ -410,10 +419,12 @@ export function DownloadPage() {
                   data-hero-direct-download
                   className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
-                  <DownloadIcon
-                    size={15}
-                    className="transition-transform duration-300 group-hover:translate-y-0.5"
-                  />
+                  <InteractiveIcon>
+                    <DownloadIcon
+                      size={15}
+                      className="transition-transform duration-300 group-hover:translate-y-0.5"
+                    />
+                  </InteractiveIcon>
                   {t("download.downloadFor", { platform: "Android" })}
                 </a>
               ) : recommended && detected ? (
@@ -423,10 +434,12 @@ export function DownloadPage() {
                   data-hero-direct-download
                   className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
-                  <DownloadIcon
-                    size={15}
-                    className="transition-transform duration-300 group-hover:translate-y-0.5"
-                  />
+                  <InteractiveIcon>
+                    <DownloadIcon
+                      size={15}
+                      className="transition-transform duration-300 group-hover:translate-y-0.5"
+                    />
+                  </InteractiveIcon>
                   {t("download.downloadFor", {
                     platform: platformLabel(detected),
                   })}
@@ -436,7 +449,9 @@ export function DownloadPage() {
                   href="#desktop"
                   className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-800 hover:shadow-xl hover:shadow-stone-900/12 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
                 >
-                  <DownloadIcon size={15} />
+                  <InteractiveIcon>
+                    <DownloadIcon size={15} />
+                  </InteractiveIcon>
                   {t("download.heroCta")}
                 </a>
               )}
@@ -444,7 +459,9 @@ export function DownloadPage() {
                 href="#tutorial"
                 className="blog-btn-ghost group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-stone-200/80 bg-white/55 px-8 py-4 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 active:translate-y-0 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:w-auto sm:px-9"
               >
-                <GraduationCap size={15} />
+                <InteractiveIcon>
+                  <GraduationCap size={15} />
+                </InteractiveIcon>
                 {t("download.heroCtaTutorial")}
               </a>
             </div>
@@ -472,7 +489,9 @@ export function DownloadPage() {
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 text-11 font-semibold uppercase tracking-[0.14em] text-theme-text-secondary transition-colors hover:text-theme-text-secondary dark:text-theme-text-secondary dark:hover:text-theme-text-tertiary sm:text-13"
                 >
-                  <ExternalLink size={11} />
+                  <InteractiveIcon>
+                    <ExternalLink size={11} />
+                  </InteractiveIcon>
                   {t("download.viewAllReleases")}
                 </a>
               </div>
@@ -891,7 +910,9 @@ export function DownloadPage() {
               rel="noreferrer"
               className="blog-btn-ghost group inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full border border-stone-200/80 bg-white/50 px-8 py-4 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 active:translate-y-0 dark:border-stone-700/50 dark:bg-stone-800/30 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:px-9"
             >
-              <ExternalLink size={14} />
+              <InteractiveIcon>
+                <ExternalLink size={14} />
+              </InteractiveIcon>
               {t("download.viewAllReleases")}
             </a>
           </div>

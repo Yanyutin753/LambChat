@@ -44,7 +44,11 @@ function ReadFileImagePreview({
 }) {
   const { t } = useTranslation();
   return (
-    <figure className="w-full max-w-md overflow-hidden rounded-lg border border-theme-border bg-theme-bg">
+    <figure
+      className={`w-full ${
+        compact ? "max-w-md" : ""
+      } overflow-hidden rounded-lg border border-theme-border bg-theme-bg`}
+    >
       <button
         type="button"
         className="block w-full bg-theme-bg-elevated cursor-zoom-in"
@@ -57,7 +61,9 @@ function ReadFileImagePreview({
           alt={imageResult.name}
           skipUrlResolve
           loading={eager ? "eager" : "lazy"}
-          className={`mx-auto w-full object-contain ${compact ? "max-h-72" : "max-h-[70dvh]"}`}
+          className={`mx-auto w-full object-contain ${
+            compact ? "max-h-72" : "max-h-[70dvh]"
+          }`}
           wrapperClassName="!my-0 !shadow-none"
         />
       </button>
@@ -121,7 +127,7 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
   }, [result]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       <ToolArgsBlock size="detail" copyText={filePath}>
         <span className="truncate">{filePath}</span>
         {lineRange && (
@@ -276,9 +282,7 @@ const ReadFileItem = memo(function ReadFileItem({
         animatedDots={isStreamingLabel}
         suffix={
           lineRange ? (
-            <span className="shrink-0 opacity-60">
-              {lineRange}
-            </span>
+            <span className="shrink-0 opacity-60">{lineRange}</span>
           ) : undefined
         }
         variant="tool"

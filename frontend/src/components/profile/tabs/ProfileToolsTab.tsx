@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -132,7 +133,9 @@ export function ProfileToolsTab() {
           className="profile-icon-button"
           title={t("common.refresh", "Refresh")}
         >
-          <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
+          <InteractiveIcon>
+            <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
+          </InteractiveIcon>
         </button>
       </div>
 
@@ -229,15 +232,19 @@ export function ProfileToolsTab() {
                               className="text-theme-text-tertiary"
                             />
                           ) : isUserDisabled ? (
-                            <ToggleLeft
-                              size={16}
-                              className="text-theme-text-tertiary dark:text-stone-500"
-                            />
+                            <InteractiveIcon>
+                              <ToggleLeft
+                                size={16}
+                                className="text-theme-text-tertiary dark:text-stone-500"
+                              />
+                            </InteractiveIcon>
                           ) : (
-                            <ToggleRight
-                              size={16}
-                              className="text-theme-success dark:text-green-500"
-                            />
+                            <InteractiveIcon>
+                              <ToggleRight
+                                size={16}
+                                className="text-theme-success dark:text-green-500"
+                              />
+                            </InteractiveIcon>
                           )}
                         </button>
                         <div className="flex-1 min-w-0">

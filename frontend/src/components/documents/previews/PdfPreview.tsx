@@ -69,6 +69,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
 
           return (
             <Document
+              suspense={false}
               file={url}
               onLoadSuccess={({ numPages: loadedPageCount }) => {
                 setNumPages(loadedPageCount);

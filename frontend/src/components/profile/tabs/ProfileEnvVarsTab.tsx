@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Braces, Pencil, X, Check } from "lucide-react";
@@ -187,7 +188,9 @@ export function ProfileEnvVarsTab() {
               {adding ? (
                 <LoadingSpinner size="xs" color="text-white" />
               ) : (
-                <Plus size={14} />
+                <InteractiveIcon>
+                  <Plus size={14} />
+                </InteractiveIcon>
               )}
             </button>
           </div>
@@ -248,7 +251,9 @@ export function ProfileEnvVarsTab() {
                             color="text-theme-success dark:text-green-400"
                           />
                         ) : (
-                          <Check size={12} />
+                          <InteractiveIcon>
+                            <Check size={12} />
+                          </InteractiveIcon>
                         )}
                       </button>
                       <button
@@ -256,7 +261,9 @@ export function ProfileEnvVarsTab() {
                         onClick={cancelEdit}
                         className="profile-icon-button"
                       >
-                        <X size={12} />
+                        <InteractiveIcon>
+                          <X size={12} />
+                        </InteractiveIcon>
                       </button>
                     </div>
                   </>
@@ -276,7 +283,9 @@ export function ProfileEnvVarsTab() {
                           className="profile-icon-button"
                           title={t("envVars.edit")}
                         >
-                          <Pencil size={12} />
+                          <InteractiveIcon>
+                            <Pencil size={12} />
+                          </InteractiveIcon>
                         </button>
                       )}
                       {canDelete && (
@@ -285,7 +294,9 @@ export function ProfileEnvVarsTab() {
                           className="profile-icon-button !text-theme-error"
                           title={t("envVars.delete")}
                         >
-                          <Trash2 size={12} />
+                          <InteractiveIcon>
+                            <Trash2 size={12} />
+                          </InteractiveIcon>
                         </button>
                       )}
                     </div>

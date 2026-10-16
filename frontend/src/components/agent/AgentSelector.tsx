@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -44,10 +45,12 @@ const AgentItem = memo(function AgentItem({
           </div>
         </div>
         {isSelected && (
-          <Check
-            size={18}
-            className="flex-shrink-0 text-stone-600 dark:text-stone-400"
-          />
+          <InteractiveIcon>
+            <Check
+              size={18}
+              className="flex-shrink-0 text-stone-600 dark:text-stone-400"
+            />
+          </InteractiveIcon>
         )}
       </div>
     </button>
@@ -140,12 +143,14 @@ const AgentSelector = memo(function AgentSelector({
         <span className="text-16 font-semibold text-stone-700 dark:text-stone-200 font-serif">
           {currentDisplayName}
         </span>
-        <ChevronDown
-          size={18}
-          className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
-            showSelector ? "rotate-180" : ""
-          }`}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={18}
+            className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
+              showSelector ? "rotate-180" : ""
+            }`}
+          />
+        </InteractiveIcon>
       </button>
 
       {/* 下拉列表 */}

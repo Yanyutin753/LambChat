@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
+import { useState, useId, useCallback } from "react";
 import { clsx } from "clsx";
 import { ChevronDown } from "lucide-react";
 
@@ -19,6 +20,7 @@ export function DetailSection({
   badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const contentId = useId();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 
@@ -29,19 +31,26 @@ export function DetailSection({
         onClick={toggleExpanded}
         className="tool-detail-section__header"
         aria-expanded={expanded}
+        aria-controls={expanded ? contentId : undefined}
       >
-        <ChevronDown
-          size={12}
-          className={clsx(
-            "tool-detail-section__chevron",
-            !expanded && "is-collapsed",
-          )}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={12}
+            className={clsx(
+              "tool-detail-section__chevron",
+              !expanded && "is-collapsed",
+            )}
+          />
+        </InteractiveIcon>
         {icon && <span className="tool-detail-section__icon">{icon}</span>}
         <span className="tool-detail-section__title">{title}</span>
         {badge && <span className="tool-detail-section__badge">{badge}</span>}
       </button>
-      {expanded && <div className="tool-detail-section__body">{children}</div>}
+      {expanded && (
+        <div id={contentId} className="tool-detail-section__body">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

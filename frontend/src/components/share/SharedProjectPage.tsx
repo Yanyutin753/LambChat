@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * SharedProjectPage - Public view of a shared project (scope=project)
  *
@@ -247,9 +248,13 @@ export function SharedProjectPage({
                   >
                     <span className="text-theme-text-secondary shrink-0">
                       {isExpanded ? (
-                        <ChevronDown size={18} />
+                        <InteractiveIcon>
+                          <ChevronDown size={18} />
+                        </InteractiveIcon>
                       ) : (
-                        <ChevronRight size={18} />
+                        <InteractiveIcon>
+                          <ChevronRight size={18} />
+                        </InteractiveIcon>
                       )}
                     </span>
                     <span className="flex-1 min-w-0">
@@ -261,7 +266,14 @@ export function SharedProjectPage({
                           t("share.untitledSession", "未命名会话")}
                       </span>
                       <span className="block text-12 text-theme-text-secondary truncate">
-                        {resolveAgentReferenceName(session.agent_id, session.agent_name || "", [], i18n.language, t, session.agent_labels)}
+                        {resolveAgentReferenceName(
+                          session.agent_id,
+                          session.agent_name || "",
+                          [],
+                          i18n.language,
+                          t,
+                          session.agent_labels,
+                        )}
                         {session.updated_at
                           ? ` · ${formatDate(session.updated_at)}`
                           : ""}

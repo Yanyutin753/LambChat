@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { GitHubIcon } from "../landing/components/Icons";
 import { RefreshCw, ExternalLink, ArrowDownCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -101,7 +102,9 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
             rel="noopener noreferrer"
             className={linkClass}
           >
-            <ExternalLink size={16} className="shrink-0" aria-hidden="true" />
+            <InteractiveIcon>
+              <ExternalLink size={16} className="shrink-0" aria-hidden="true" />
+            </InteractiveIcon>
             <span className="ui-button__label">{t("about.viewUpdate")}</span>
           </a>
         )}

@@ -120,7 +120,11 @@ function processHistoryEvent(
   messageIdOverride?: string,
 ): Message | null {
   const eventType = event.event_type;
-  const eventData = event.data as HistoryEventData;
+  const storedData = event.data as HistoryEventData;
+  const eventData = {
+    ...storedData,
+    timestamp: storedData.timestamp ?? event.timestamp,
+  };
   const depth = eventData.depth || 0;
   const agentId = eventData.agent_id;
 
@@ -552,6 +556,7 @@ export function reconstructMessagesFromEvents(
       if (currentAssistantMessage) {
         const clearedParts = clearAllLoadingStates(
           currentAssistantMessage.parts || [],
+          { terminalStatus: "cancelled" },
         );
         // Also set result on pending tools for history display
         const updatedParts = clearedParts.map((part): MessagePart => {

@@ -8,7 +8,10 @@ interface DashboardSectionProps {
   onOpenViewer: (src: string, alt: string) => void;
 }
 
-export function DashboardSection({ shots, onOpenViewer }: DashboardSectionProps) {
+export function DashboardSection({
+  shots,
+  onOpenViewer,
+}: DashboardSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -25,7 +28,7 @@ export function DashboardSection({ shots, onOpenViewer }: DashboardSectionProps)
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           {shots.map((s) => (
             <ScreenshotCard
-              key={s.src}
+              key={s.altKey}
               src={s.src}
               alt={t(`landing.${s.altKey}`)}
               onClick={() => onOpenViewer(s.src, t(`landing.${s.altKey}`))}

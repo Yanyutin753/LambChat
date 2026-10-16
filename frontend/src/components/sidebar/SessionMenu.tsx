@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 /**
@@ -183,9 +184,11 @@ export function SessionMenu({
           onRename();
           onClose();
         }}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
+        className="ui-menu-item text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
-        <Edit2 size={16} className="shrink-0" />
+        <InteractiveIcon>
+          <Edit2 size={16} className="shrink-0" />
+        </InteractiveIcon>
         <span>{t("sidebar.rename")}</span>
       </button>
 
@@ -193,9 +196,11 @@ export function SessionMenu({
       <button
         type="button"
         onClick={() => setSubPanel("project")}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
+        className="ui-menu-item text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
-        <FolderHeart size={16} className="shrink-0" />
+        <InteractiveIcon>
+          <FolderHeart size={16} className="shrink-0" />
+        </InteractiveIcon>
         <span>{t("sidebar.moveToProject")}</span>
       </button>
 
@@ -207,16 +212,18 @@ export function SessionMenu({
             onToggleFavorite();
             onClose();
           }}
-          className={`flex w-full items-center gap-3 px-3 py-2.5 text-14 transition-colors ${
+          className={`ui-menu-item transition-colors ${
             isFavorite
               ? "text-amber-500 "
               : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
           }`}
         >
-          <Star
-            size={16}
-            className={`shrink-0 ${isFavorite ? "fill-amber-500" : ""}`}
-          />
+          <InteractiveIcon>
+            <Star
+              size={16}
+              className={`shrink-0 ${isFavorite ? "fill-amber-500" : ""}`}
+            />
+          </InteractiveIcon>
           <span>
             {isFavorite
               ? t("sidebar.removeFromFavorites")
@@ -233,16 +240,18 @@ export function SessionMenu({
             onTogglePin();
             onClose();
           }}
-          className={`flex w-full items-center gap-3 px-3 py-2.5 text-14 transition-colors ${
+          className={`ui-menu-item transition-colors ${
             isPinned
               ? "text-blue-500 "
               : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] "
           }`}
         >
-          <Pin
-            size={16}
-            className={`shrink-0 ${isPinned ? "fill-blue-500" : ""}`}
-          />
+          <InteractiveIcon>
+            <Pin
+              size={16}
+              className={`shrink-0 ${isPinned ? "fill-blue-500" : ""}`}
+            />
+          </InteractiveIcon>
           <span>
             {isPinned ? t("sidebar.unpinFromTop") : t("sidebar.pinToTop")}
           </span>
@@ -257,9 +266,11 @@ export function SessionMenu({
             onShare();
             onClose();
           }}
-          className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
+          className="ui-menu-item text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
         >
-          <Share2 size={16} className="shrink-0" />
+          <InteractiveIcon>
+            <Share2 size={16} className="shrink-0" />
+          </InteractiveIcon>
           <span>{t("sidebar.share")}</span>
         </button>
       )}
@@ -277,9 +288,11 @@ export function SessionMenu({
           onDelete();
           onClose();
         }}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-14 text-red-500 transition-colors"
+        className="ui-menu-item text-red-500 transition-colors"
       >
-        <Trash2 size={16} className="shrink-0" />
+        <InteractiveIcon>
+          <Trash2 size={16} className="shrink-0" />
+        </InteractiveIcon>
         <span>{t("common.delete")}</span>
       </button>
     </>
@@ -294,7 +307,9 @@ export function SessionMenu({
         onClick={() => setSubPanel(null)}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-14 text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
-        <ChevronLeft size={16} className="shrink-0" />
+        <InteractiveIcon>
+          <ChevronLeft size={16} className="shrink-0" />
+        </InteractiveIcon>
         <span>{t("sidebar.moveToProject")}</span>
       </button>
 
@@ -333,7 +348,9 @@ export function SessionMenu({
               </span>
               {isCurrent && (
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--theme-primary)] text-white">
-                  <Check size={12} strokeWidth={3} />
+                  <InteractiveIcon>
+                    <Check size={12} strokeWidth={3} />
+                  </InteractiveIcon>
                 </span>
               )}
             </button>
@@ -358,14 +375,18 @@ export function SessionMenu({
                 : "bg-[var(--theme-bg-hover,rgba(0,0,0,0.04))] text-[var(--theme-text-secondary)]"
             }`}
           >
-            <Tag size={14} />
+            <InteractiveIcon>
+              <Tag size={14} />
+            </InteractiveIcon>
           </span>
           <span className="truncate flex-1 text-left font-medium">
             {t("sidebar.uncategorized")}
           </span>
           {currentProjectId === null && (
             <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--theme-primary)] text-white">
-              <Check size={12} strokeWidth={3} />
+              <InteractiveIcon>
+                <Check size={12} strokeWidth={3} />
+              </InteractiveIcon>
             </span>
           )}
         </button>
@@ -434,7 +455,7 @@ export function SessionMenu({
         backgroundColor: "var(--theme-bg-card)",
         borderColor: "var(--theme-border)",
       }}
-      className="sidebar-session-menu py-1 w-56 rounded-xl border shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right"
+      className="sidebar-session-menu ui-menu-surface w-56 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right"
     >
       {subPanel ? projectSubPanel : mainMenu}
     </div>,

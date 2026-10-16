@@ -17,6 +17,7 @@ import type {
   TodoPart,
 } from "../../types";
 import { parseDate } from "../../utils/datetime";
+import { parsePartialToolArgs } from "../../components/chat/ChatMessage/items/partialToolArgs";
 import type { SubagentStackItem } from "./types";
 
 // ============================================
@@ -112,7 +113,12 @@ function mergeToolArgsDeltaInParts(
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
-      const updated = mergeToolArgsDeltaInParts(p.parts, toolCallId, delta, agentId);
+      const updated = mergeToolArgsDeltaInParts(
+        p.parts,
+        toolCallId,
+        delta,
+        agentId,
+      );
       if (updated) {
         const newParts = [...parts];
         newParts[i] = { ...p, parts: updated };
@@ -260,6 +266,15 @@ export function upgradeGeneratingToolPart(
   const newParts = [...parts];
   newParts[idx] = {
     ...replacement,
+    // Results can arrive without a start; retain the command already streamed.
+    args:
+      !replacement.isPending && Object.keys(replacement.args).length === 0
+        ? parsePartialToolArgs(
+            typeof generating.args.partial === "string"
+              ? generating.args.partial
+              : "",
+          )
+        : replacement.args,
     startedAt: generating.startedAt ?? replacement.startedAt,
     alias_id:
       generating.id && generating.id !== replacement.id
@@ -278,15 +293,56 @@ export function createThinkingPart(
   depth: number,
   agentId?: string,
   isStreaming = true,
+  timestamp?: string,
 ): ThinkingPart {
+  const time = timestamp ? parseDate(timestamp).getTime() : undefined;
+  const startedAt =
+    time !== undefined && Number.isFinite(time) ? time : undefined;
   return {
     type: "thinking",
     content,
     thinking_id: thinkingId,
+    lastUpdatedAt: startedAt,
+    startedAt,
     depth,
     agent_id: agentId,
     isStreaming,
   };
+}
+
+/** Freeze observed reasoning time when the same agent starts its next step. */
+export function finishThinkingParts(
+  parts: MessagePart[],
+  timestamp?: string,
+  agentId?: string,
+  all = false,
+): MessagePart[] {
+  const end = timestamp ? parseDate(timestamp).getTime() : undefined;
+  return parts.map((part) => {
+    if (part.type === "subagent" && part.parts) {
+      return {
+        ...part,
+        parts: finishThinkingParts(part.parts, timestamp, agentId, all),
+      };
+    }
+    if (
+      part.type !== "thinking" ||
+      part.startedAt === undefined ||
+      part.completedAt !== undefined ||
+      (!all && part.agent_id !== agentId)
+    )
+      return part;
+    return {
+      ...part,
+      isStreaming: false,
+      completedAt:
+        part.startedAt !== undefined &&
+        end !== undefined &&
+        Number.isFinite(end)
+          ? Math.max(part.startedAt, end)
+          : undefined,
+    };
+  });
 }
 
 /**
@@ -362,6 +418,10 @@ function mergeThinkingPart(
   newParts[existingIndex] = {
     ...existing,
     content: existing.content + part.content,
+    startedAt: existing.startedAt ?? part.startedAt,
+    lastUpdatedAt: part.lastUpdatedAt ?? existing.lastUpdatedAt,
+    completedAt: undefined,
+    ...(existing.status ? { status: undefined } : {}),
     isStreaming: true,
   };
   return newParts;
@@ -727,11 +787,14 @@ export function updateSubagentResult(
   eventStatus?: string,
 ): MessagePart[] {
   const completedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
-  const status: SubagentPart["status"] = eventStatus === "cancelled" || error === "Cancelled"
-    ? "cancelled"
-    : eventStatus === "timed_out" || eventStatus === "waiting_human"
-      ? eventStatus
-      : success ? "complete" : "error";
+  const status: SubagentPart["status"] =
+    eventStatus === "cancelled" || error === "Cancelled"
+      ? "cancelled"
+      : eventStatus === "timed_out" || eventStatus === "waiting_human"
+        ? eventStatus
+        : success
+          ? "complete"
+          : "error";
 
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -749,9 +812,19 @@ export function updateSubagentResult(
         isPending: status === "waiting_human",
         status,
         completedAt: status === "waiting_human" ? undefined : completedAt,
-        parts: status === "waiting_human"
-          ? p.parts
-          : clearAllLoadingStates(p.parts ?? [], { discardToolDrafts: true }),
+        parts:
+          status === "waiting_human"
+            ? p.parts
+            : clearAllLoadingStates(p.parts ?? [], {
+                discardToolDrafts: true,
+                terminalStatus:
+                  status === "cancelled"
+                    ? "cancelled"
+                    : status === "error" || status === "timed_out"
+                      ? "error"
+                      : undefined,
+                error,
+              }),
       };
       return newParts;
     }
@@ -805,9 +878,19 @@ export function updateSubagentResultInParts(
         isPending: status === "waiting_human",
         status,
         completedAt: status === "waiting_human" ? undefined : completedAt,
-        parts: status === "waiting_human"
-          ? p.parts
-          : clearAllLoadingStates(p.parts ?? [], { discardToolDrafts: true }),
+        parts:
+          status === "waiting_human"
+            ? p.parts
+            : clearAllLoadingStates(p.parts ?? [], {
+                discardToolDrafts: true,
+                terminalStatus:
+                  status === "cancelled"
+                    ? "cancelled"
+                    : status === "error" || status === "timed_out"
+                      ? "error"
+                      : undefined,
+                error,
+              }),
       };
       return newParts;
     }
@@ -862,7 +945,14 @@ export function updateToolResultInDepth(
         error,
         isPending: false,
         ...(p.cancelled ? { cancelled: false } : {}),
-        ...(p.argsPartial ? { argsPartial: false } : {}),
+        ...(p.argsPartial
+          ? {
+              args: parsePartialToolArgs(
+                typeof p.args.partial === "string" ? p.args.partial : "",
+              ),
+              argsPartial: false,
+            }
+          : {}),
         ...(p.awaitingConfirmation ? { awaitingConfirmation: false } : {}),
         completedAt,
       };
@@ -887,7 +977,11 @@ export function updateToolResultInDepth(
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
-      if (targetAgentId && p.depth === targetDepth && p.agent_id !== targetAgentId) {
+      if (
+        targetAgentId &&
+        p.depth === targetDepth &&
+        p.agent_id !== targetAgentId
+      ) {
         continue;
       }
       const updatedParts = updateToolResultInPartsById(
@@ -930,7 +1024,14 @@ export function updateToolResultInPartsById(
         error,
         isPending: false,
         ...(p.cancelled ? { cancelled: false } : {}),
-        ...(p.argsPartial ? { argsPartial: false } : {}),
+        ...(p.argsPartial
+          ? {
+              args: parsePartialToolArgs(
+                typeof p.args.partial === "string" ? p.args.partial : "",
+              ),
+              argsPartial: false,
+            }
+          : {}),
         ...(p.awaitingConfirmation ? { awaitingConfirmation: false } : {}),
         completedAt,
       };
@@ -1011,13 +1112,18 @@ export function hasPendingAskHuman(parts: MessagePart[]): boolean {
 
 /**
  * Clear all loading states in message parts recursively.
- * Sets isPending: false and cancelled: true on tools and subagents,
- * isStreaming: false on thinking, cancels unfinished todos.
+ * Settles pending steps as cancelled, or failed on an explicit run error.
+ * Completed steps keep their outcome; only the current thought is interrupted.
  * Returns a new parts array with updated loading states.
  */
 export function clearAllLoadingStates(
   parts: MessagePart[],
-  options?: { preserveAskHuman?: boolean; discardToolDrafts?: boolean },
+  options?: {
+    preserveAskHuman?: boolean;
+    discardToolDrafts?: boolean;
+    terminalStatus?: "error" | "cancelled";
+    error?: string;
+  },
 ): MessagePart[] {
   // Unexecuted drafts are noise after completion; interruptions must retain resumable state.
   const visibleParts = options?.discardToolDrafts
@@ -1028,7 +1134,10 @@ export function clearAllLoadingStates(
           part.result !== undefined,
       )
     : parts;
-  return visibleParts.map((part) => {
+  const lastStepIndex = visibleParts.findLastIndex(
+    (part) => part.type !== "cancelled" && part.type !== "recommend_questions",
+  );
+  return visibleParts.map((part, index) => {
     switch (part.type) {
       case "tool": {
         const toolPart = part as ToolPart;
@@ -1036,28 +1145,70 @@ export function clearAllLoadingStates(
         if (options?.preserveAskHuman && toolPart.name === "ask_human") {
           return toolPart;
         }
-        return { ...toolPart, isPending: false, cancelled: true };
+        return options?.terminalStatus === "error"
+          ? {
+              ...toolPart,
+              isPending: false,
+              cancelled: false,
+              success: false,
+              error: options.error,
+              result: toolPart.result ?? options.error,
+            }
+          : { ...toolPart, isPending: false, cancelled: true };
       }
       case "thinking": {
         const thinkingPart = part as ThinkingPart;
-        if (!thinkingPart.isStreaming) return part;
-        return { ...thinkingPart, isStreaming: false };
+        const interrupted = options?.terminalStatus && index === lastStepIndex;
+        if (!thinkingPart.isStreaming && !interrupted) return part;
+        return {
+          ...thinkingPart,
+          isStreaming: false,
+          ...(interrupted ? { status: options?.terminalStatus } : {}),
+        };
       }
       case "subagent": {
         const subagentPart = part as SubagentPart;
+        const terminalStatus = [
+          "complete",
+          "error",
+          "timed_out",
+          "cancelled",
+        ].includes(subagentPart.status ?? "");
         const updatedParts = subagentPart.parts
-          ? clearAllLoadingStates(subagentPart.parts, options)
+          ? clearAllLoadingStates(
+              subagentPart.parts,
+              terminalStatus
+                ? {
+                    ...options,
+                    terminalStatus:
+                      subagentPart.status === "complete"
+                        ? undefined
+                        : subagentPart.status === "cancelled"
+                          ? "cancelled"
+                          : "error",
+                    error: subagentPart.error,
+                  }
+                : options,
+            )
           : [];
-        if (options?.preserveAskHuman && subagentPart.status === "waiting_human") {
+        if (
+          options?.preserveAskHuman &&
+          subagentPart.status === "waiting_human"
+        ) {
           return { ...subagentPart, parts: updatedParts };
         }
-        const terminalStatus = subagentPart.status === "complete" ||
-          subagentPart.status === "error" || subagentPart.status === "timed_out";
         return {
           ...subagentPart,
           isPending: false,
-          cancelled: !terminalStatus,
-          status: terminalStatus ? subagentPart.status : "cancelled",
+          cancelled: terminalStatus
+            ? subagentPart.status === "cancelled"
+            : options?.terminalStatus !== "error",
+          status: terminalStatus
+            ? subagentPart.status
+            : options?.terminalStatus ?? "cancelled",
+          ...(!terminalStatus && options?.terminalStatus === "error"
+            ? { error: options.error, success: false }
+            : {}),
           completedAt: subagentPart.completedAt || Date.now(),
           parts: updatedParts,
         };
@@ -1081,7 +1232,12 @@ export function clearAllLoadingStates(
       case "sandbox": {
         const sandboxPart = part as SandboxPart;
         if (sandboxPart.status !== "starting") return part;
-        return { ...sandboxPart, status: "cancelled" };
+        return {
+          ...sandboxPart,
+          status: options?.terminalStatus ?? "cancelled",
+          error: options?.error,
+          completedAt: sandboxPart.completedAt ?? new Date().toISOString(),
+        };
       }
       case "memoryStatus": {
         const memoryPart = part as MemoryStatusPart;

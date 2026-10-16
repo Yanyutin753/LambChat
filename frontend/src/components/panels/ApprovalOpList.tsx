@@ -3,7 +3,7 @@ import type { AskHumanOp } from "./askHumanMessage";
 
 /**
  * 沙箱确认门的操作清单——「单据式」只读列表：
- * 编号 + 动词标签 + 等宽命令文本，发丝线分行。
+ * 编号与操作名称在上、等宽命令在下，共用网格对齐。
  * 同时用于审批卡（ApprovalPanel）与历史回放的 ask_human 详情面板。
  */
 export function ApprovalOpList({ ops }: { ops: AskHumanOp[] }) {
@@ -16,7 +16,7 @@ export function ApprovalOpList({ ops }: { ops: AskHumanOp[] }) {
           </span>
           {op.verb ? (
             <span className="approval-op-verb">
-              <TerminalSquare size={10} strokeWidth={2} aria-hidden="true" />
+              <TerminalSquare size={12} strokeWidth={2} aria-hidden="true" />
               {op.verb}
             </span>
           ) : null}

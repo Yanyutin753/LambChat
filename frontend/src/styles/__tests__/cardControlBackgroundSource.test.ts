@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const css = readFileSync(join(import.meta.dirname, "../card-base.css"), "utf8");
+const css = readFileSync(
+  join(import.meta.dirname, "../card-base.css"),
+  "utf8",
+).replace(/\s+/g, " ");
 
 test("card actions share 36px controls and 16px icons", () => {
   for (const selector of [".scb__action-btn", ".mp-card__action-btn"]) {
@@ -49,7 +52,6 @@ test("dark card status badges use the theme surface instead of black", () => {
   }
 });
 
-
 test("shared resource cards retain readable labels over a quiet theme-aware banner", () => {
   const status = css.split(".scb__status-pill {")[1].split("}")[0];
   expect(status).toContain("background: var(--theme-bg-card);");
@@ -62,4 +64,16 @@ test("shared resource cards retain readable labels over a quiet theme-aware bann
   expect(banner).toContain("var(--theme-bg-card) 62%");
   expect(banner).toContain("pointer-events: none;");
   expect(css).not.toContain(".scb:hover .scb__banner::after");
+});
+
+test("card tag hover and selection keep the same transparent background", () => {
+  for (const selector of [
+    "button.scb__mini-tag:hover",
+    ".scb__mini-tag--active",
+    ".mp-card__mini-tag:hover",
+    ".mp-card__mini-tag--active",
+  ]) {
+    const rule = css.split(`${selector} {`)[1].split("}")[0];
+    expect(rule, selector).not.toMatch(/background(?:-color)?:/);
+  }
 });

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useRef, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { CircleHelp, Keyboard } from "lucide-react";
@@ -45,7 +46,9 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
         }}
         className="ui-button ui-icon-button ui-button--ghost ui-button--sm rounded-full"
       >
-        <CircleHelp size={14} />
+        <InteractiveIcon>
+          <CircleHelp size={14} />
+        </InteractiveIcon>
       </button>
       {position && (
         <ResourceCardMenu
