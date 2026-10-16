@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import { ExternalLink, Clock } from "lucide-react";
@@ -507,7 +508,9 @@ export function FileRevealItem({
 
           {success && parsed.filePath && (
             <div className="shrink-0 p-2 rounded-lg bg-theme-bg-subtle text-theme-text-tertiary">
-              <ExternalLink size={16} />
+              <InteractiveIcon>
+                <ExternalLink size={16} />
+              </InteractiveIcon>
             </div>
           )}
         </button>

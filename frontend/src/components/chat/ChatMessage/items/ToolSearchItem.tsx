@@ -90,7 +90,9 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
       )}
 
       {summary && <ToolSearchSummaryChips summary={summary} size="detail" />}
-      {summary?.availability && <ToolResultContent result={summary.availability} hideCopyButton />}
+      {summary?.availability && (
+        <ToolResultContent result={summary.availability} hideCopyButton />
+      )}
 
       {summary && summary.matches.length > 0 && (
         <div className="space-y-2">
@@ -124,7 +126,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
             text={typeof result === "string" ? result : JSON.stringify(result)}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+            copyButtonClassName="tool-result-copy"
           />
           <ToolResultContent result={result} hideCopyButton />
         </div>
@@ -281,7 +283,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
                   }
                   position="resultCompact"
                   className="z-20 pointer-events-auto"
-                  copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+                  copyButtonClassName="tool-result-copy"
                 />
                 <ToolResultContent result={result} hideCopyButton />
               </div>

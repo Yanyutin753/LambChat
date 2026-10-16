@@ -1,6 +1,7 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, useState, memo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
@@ -33,8 +34,10 @@ import { MessageImageGallery } from "./MessageImageGallery";
 import { Tooltip } from "../../common/Tooltip";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
 import { RunStepsCollapse } from "./RunStepsCollapse";
+import { ToolCallGroup } from "./ToolCallGroup";
 import {
   countRunSteps,
+  groupConsecutiveTools,
   getRunElapsedMs,
   getRunStartedAtMs,
   splitRunTailGroups,
@@ -203,7 +206,9 @@ function TokenDetailsButton({
             "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
           )}
         >
-          <Info size={16} />
+          <InteractiveIcon>
+            <Info size={16} />
+          </InteractiveIcon>
         </button>
       </Tooltip>
       {/* ChatGPT style details popup */}
@@ -292,13 +297,15 @@ function TokenDetailsButton({
                             className="flex items-center gap-0.5 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
                           >
                             <span>{t("chat.message.costTotal")}</span>
-                            <ChevronDown
-                              size={12}
-                              className={clsx(
-                                "opacity-50 transition-transform",
-                                costExpanded && "rotate-180",
-                              )}
-                            />
+                            <InteractiveIcon>
+                              <ChevronDown
+                                size={12}
+                                className={clsx(
+                                  "opacity-50 transition-transform",
+                                  costExpanded && "rotate-180",
+                                )}
+                              />
+                            </InteractiveIcon>
                           </button>
                         </Tooltip>
                         <span className="font-medium tabular-nums">
@@ -472,7 +479,9 @@ function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
             "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
           )}
         >
-          <Target size={16} />
+          <InteractiveIcon>
+            <Target size={16} />
+          </InteractiveIcon>
         </button>
       </Tooltip>
       {showDetails &&
@@ -692,9 +701,20 @@ export const ChatMessage = memo(function ChatMessage({
     runPartGroups,
     { enabled: !isWaitingForHuman },
   );
-  const renderPartGroups = (groups: Array<(typeof runPartGroups)[number]>) =>
-    groups.map((group) =>
-      group.type === "gallery" ? (
+  const renderPartGroups = (
+    groups: Array<(typeof runPartGroups)[number]>,
+    foldTools = true,
+  ): ReactNode =>
+    (foldTools ? groupConsecutiveTools(groups) : groups).map((group) =>
+      group.type === "tools" ? (
+        <ToolCallGroup
+          key={`tools-${group.key}`}
+          count={group.count}
+          category={group.category}
+          stateKey={`${message.id}:tools:${group.key}`}
+          renderExpanded={() => renderPartGroups(group.tools, false)}
+        />
+      ) : group.type === "gallery" ? (
         <MessageImageGallery
           key={`gallery-${group.startPartIndex}`}
           images={group.images}
@@ -758,8 +778,16 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="chat-assistant-heading mb-3 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
-              personaAvatar={message.assistantIdentity ? message.assistantIdentity.avatar : personaAvatar}
-              personaName={message.assistantIdentity ? message.assistantIdentity.name : personaName}
+              personaAvatar={
+                message.assistantIdentity
+                  ? message.assistantIdentity.avatar
+                  : personaAvatar
+              }
+              personaName={
+                message.assistantIdentity
+                  ? message.assistantIdentity.name
+                  : personaName
+              }
               personaSeed={message.assistantIdentity?.seed ?? personaSeed}
             />
             <span
@@ -767,7 +795,13 @@ export const ChatMessage = memo(function ChatMessage({
               style={{ color: "var(--theme-text)" }}
             >
               {message.assistantIdentity?.name
-                ? t(message.assistantIdentity.name, { defaultValue: message.assistantIdentity.name.startsWith("agents.") ? t("chat.message.assistant") : message.assistantIdentity.name })
+                ? t(message.assistantIdentity.name, {
+                    defaultValue: message.assistantIdentity.name.startsWith(
+                      "agents.",
+                    )
+                      ? t("chat.message.assistant")
+                      : message.assistantIdentity.name,
+                  })
                 : personaName || t("chat.message.assistant")}
             </span>
           </div>
@@ -803,7 +837,11 @@ export const ChatMessage = memo(function ChatMessage({
                   renderExpanded={() => renderPartGroups(runHeadGroups)}
                 />
               )}
-              {renderPartGroups(runTailGroups)}
+              {runTailGroups.length > 0 && (
+                <div className="chat-message-answer min-w-0">
+                  {renderPartGroups(runTailGroups)}
+                </div>
+              )}
               <RevealArtifactsSummary
                 parts={message.parts}
                 isStreaming={message.isStreaming}
@@ -914,7 +952,9 @@ export const ChatMessage = memo(function ChatMessage({
                   {isForking ? (
                     <LoadingSpinner color="text-current" size={16} />
                   ) : (
-                    <GitBranch size={16} />
+                    <InteractiveIcon>
+                      <GitBranch size={16} />
+                    </InteractiveIcon>
                   )}
                 </button>
               </Tooltip>

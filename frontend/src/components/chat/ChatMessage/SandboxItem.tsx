@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Box } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../common";
@@ -19,7 +18,6 @@ export function SandboxItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const durationText = (() => {
     if (startedAt) {
@@ -38,7 +36,7 @@ export function SandboxItem({
 
   const hasDetails =
     (status === "ready" && (sandboxId || durationText)) ||
-    (status === "error" && error) ||
+    status === "error" ||
     status === "cancelled";
 
   const pillStatus: CollapsibleStatus =
@@ -59,8 +57,11 @@ export function SandboxItem({
           ? t("chat.sandbox.initializing")
           : status === "ready"
             ? t("chat.sandbox.ready")
-            : t("chat.sandbox.name")
+            : status === "error"
+              ? t("chat.sandboxInitFailed")
+              : `${t("chat.sandbox.name")} · ${t("chat.cancelled")}`
       }
+      formatLabel={false}
       suffix={
         status === "ready" && sandboxId ? (
           <span className="min-w-0 truncate">
@@ -69,11 +70,13 @@ export function SandboxItem({
         ) : undefined
       }
       expandable={!!hasDetails}
-      onExpandChange={setIsExpanded}
       animatedDots={status === "starting"}
     >
-      {isExpanded && hasDetails && (
-        <div className="mt-1 ml-4 pl-3 border-l-2 border-theme-border max-h-40 overflow-y-auto">
+      {hasDetails && (
+        <div
+          className="mt-1 ml-4 pl-3 border-l-2 border-theme-border max-h-40 overflow-y-auto break-words [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          tabIndex={0}
+        >
           {status === "ready" && (
             <div className="text-12 text-theme-text pl-1 py-0.5 font-mono flex items-center gap-1.5">
               {sandboxId && (
@@ -87,14 +90,14 @@ export function SandboxItem({
             </div>
           )}
           {status === "error" && (
-            <div className="text-12 text-red-600 dark:text-red-400 pl-1 py-0.5">
+            <div className="text-12 text-[color-mix(in_srgb,var(--theme-error)_45%,var(--theme-text))] pl-1 py-0.5">
               {error || t("chat.sandboxInitFailed")}
               {durationText &&
                 ` · ${t("chat.sandbox.elapsed", { duration: durationText })}`}
             </div>
           )}
           {status === "cancelled" && (
-            <div className="text-12 text-amber-600 dark:text-amber-400 pl-1 py-1">
+            <div className="text-12 text-theme-text-tertiary pl-1 py-1">
               {t("chat.cancelled")}
               {durationText &&
                 ` · ${t("chat.sandbox.elapsed", { duration: durationText })}`}

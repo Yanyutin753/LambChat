@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { EmptyState } from "../../common/EmptyState";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -82,7 +83,9 @@ export function TaskSessionList({
             onClick={() => navigate("/scheduled-tasks", { replace: true })}
             className="scheduled-task-button scheduled-task-button--secondary font-serif"
           >
-            <ArrowLeft size={16} />
+            <InteractiveIcon>
+              <ArrowLeft size={16} />
+            </InteractiveIcon>
             <span className="translate-y-[0.5px]">
               {t("scheduledTask.backToTasks")}
             </span>
@@ -103,7 +106,11 @@ export function TaskSessionList({
             {sessions.map((session) => {
               const agent = agents.find((a) => a.id === session.agent_id);
               const agentName = resolveAgentReferenceName(
-                session.agent_id, "", agents, i18n.language, t,
+                session.agent_id,
+                "",
+                agents,
+                i18n.language,
+                t,
               );
 
               return (
@@ -162,10 +169,12 @@ export function TaskSessionList({
                           : session.unread_count}
                       </span>
                     )}
-                    <ChevronRight
-                      size={16}
-                      className="text-stone-300 dark:text-stone-600"
-                    />
+                    <InteractiveIcon>
+                      <ChevronRight
+                        size={16}
+                        className="text-stone-300 dark:text-stone-600"
+                      />
+                    </InteractiveIcon>
                   </div>
                 </button>
               );

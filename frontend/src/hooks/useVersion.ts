@@ -15,12 +15,13 @@ interface UseVersionReturn {
 export function useVersion(): UseVersionReturn {
   const { channel } = useUpdateChannel();
   const request = useRef(0);
+  const nextRequest = useCallback(() => ++request.current, []);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchVersion = useCallback(async () => {
-    const id = ++request.current;
+    const id = nextRequest();
     setIsLoading(true);
     setError(null);
     try {
@@ -38,10 +39,10 @@ export function useVersion(): UseVersionReturn {
     } finally {
       if (id === request.current) setIsLoading(false);
     }
-  }, [channel]);
+  }, [channel, nextRequest]);
 
   const checkForUpdates = useCallback(async () => {
-    const id = ++request.current;
+    const id = nextRequest();
     setIsLoading(true);
     setError(null);
     try {
@@ -57,15 +58,15 @@ export function useVersion(): UseVersionReturn {
     } finally {
       if (id === request.current) setIsLoading(false);
     }
-  }, [channel]);
+  }, [channel, nextRequest]);
 
   useEffect(() => {
     setVersionInfo(null);
     void fetchVersion();
     return () => {
-      request.current++;
+      nextRequest();
     };
-  }, [fetchVersion]);
+  }, [fetchVersion, nextRequest]);
 
   return {
     versionInfo,

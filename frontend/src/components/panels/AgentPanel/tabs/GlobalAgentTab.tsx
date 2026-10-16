@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useEffect, useCallback, useId } from "react";
 import { Pencil, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -133,10 +134,12 @@ export function GlobalAgentTab({
                       {displayDescription}
                     </p>
                   </div>
-                  <Pencil
-                    size={14}
-                    className="flex-shrink-0 text-theme-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 max-sm:opacity-100"
-                  />
+                  <InteractiveIcon>
+                    <Pencil
+                      size={14}
+                      className="flex-shrink-0 text-theme-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 max-sm:opacity-100"
+                    />
+                  </InteractiveIcon>
                 </button>
 
                 <ToggleSwitch
@@ -181,7 +184,13 @@ export function GlobalAgentTab({
           open={!!editingAgent}
           onClose={() => setEditingAgentId(null)}
           title={resolveAgentDisplayName(editingAgent, i18n.language, t)}
-          icon={<AgentIcon icon={editingAgent.icon} seed={editingAgent.id} size={18} />}
+          icon={
+            <AgentIcon
+              icon={editingAgent.icon}
+              seed={editingAgent.id}
+              size={18}
+            />
+          }
           footer={
             hasChanges ? (
               <div className="space-y-2">

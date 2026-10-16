@@ -1,3 +1,4 @@
+import { deriveExecuteStatus } from "./items/executeResult";
 import type { Message, MessagePart } from "../../../types";
 import type { RevealFileImageInfo } from "./revealFileImageUtils";
 
@@ -164,4 +165,102 @@ export function getRunStartedAtMs(
   }
   if (times.length > 0) return Math.min(...times);
   return null;
+}
+
+export type ToolGroupCategory = "read" | "search" | "execute" | "other";
+
+export interface ConsecutiveToolGroup {
+  type: "tools";
+  key: string;
+  category: ToolGroupCategory;
+  count: number;
+  tools: RunPartGroup[];
+}
+
+function toolCategory(name: string): ToolGroupCategory {
+  if (name === "read_file") return "read";
+  if (name === "execute") return "execute";
+  if (
+    [
+      "grep",
+      "glob",
+      "web_search",
+      "search_tools",
+      "search_skills",
+      "search_persona_presets",
+      "search_conversation_history",
+      "memory_recall",
+    ].includes(name)
+  )
+    return "search";
+  return "other";
+}
+
+/** Preserve chronology and ownership; only successful adjacent tools can fold. */
+export function groupConsecutiveTools(
+  groups: RunPartGroup[],
+): Array<RunPartGroup | ConsecutiveToolGroup> {
+  const result: Array<RunPartGroup | ConsecutiveToolGroup> = [];
+  let tools: Array<
+    Extract<RunPartGroup, { type: "single" }> & {
+      part: Extract<MessagePart, { type: "tool" }>;
+    }
+  > = [];
+  const flush = () => {
+    const first = tools[0];
+    if (!first) return;
+    const category = toolCategory(first.part.name);
+    if (tools.length > 1 || category !== "other") {
+      const count =
+        category === "read"
+          ? new Set(
+              tools.map(({ part, partIndex }) =>
+                typeof part.args.file_path === "string" &&
+                part.args.file_path.trim()
+                  ? part.args.file_path.trim()
+                  : `call:${part.id ?? partIndex}`,
+              ),
+            ).size
+          : tools.length;
+      result.push({
+        type: "tools",
+        key: first.part.id ?? `part-${first.partIndex}`,
+        category,
+        count,
+        tools,
+      });
+    } else result.push(...tools);
+    tools = [];
+  };
+  for (const group of groups) {
+    if (group.type === "single" && group.part.type === "tool") {
+      const part = group.part;
+      if (
+        part.success === true &&
+        (part.name !== "execute" || deriveExecuteStatus(part) === "success") &&
+        !part.isPending &&
+        !part.cancelled &&
+        !part.awaitingConfirmation &&
+        !part.argsPartial &&
+        !["ask_human", "reveal_file", "write_todos", "todo_write"].includes(
+          part.name,
+        )
+      ) {
+        const previous = tools[0]?.part;
+        if (
+          previous &&
+          (toolCategory(previous.name) !== toolCategory(part.name) ||
+            previous.agent_id !== part.agent_id ||
+            (previous.depth ?? 0) !== (part.depth ?? 0))
+        )
+          flush();
+        tools.push({ ...group, part });
+        continue;
+      }
+    }
+    flush();
+    result.push(group);
+  }
+  flush();
+  return result;
 }

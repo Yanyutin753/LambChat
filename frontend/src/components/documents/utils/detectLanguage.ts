@@ -7,62 +7,6 @@ import { FileCode, Image as ImageIcon, FileText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getFileExtension } from "./fileTypeChecks";
 
-// Get file type for react-file-icon
-export function getFileIconType(ext: string): string | undefined {
-  const typeMap: Record<string, string> = {
-    // Code
-    js: "js",
-    ts: "ts",
-    py: "python",
-    java: "java",
-    cpp: "cpp",
-    c: "c",
-    h: "c",
-    css: "css",
-    html: "html",
-    json: "json",
-    xml: "xml",
-    md: "markdown",
-    yaml: "yaml",
-    yml: "yaml",
-    go: "go",
-    rs: "rust",
-    rb: "ruby",
-    php: "php",
-    vue: "vue",
-    // Documents
-    pdf: "pdf",
-    doc: "doc",
-    docx: "doc",
-    xls: "xls",
-    xlsx: "xls",
-    ppt: "ppt",
-    pptx: "ppt",
-    // Media
-    jpg: "image",
-    jpeg: "image",
-    png: "image",
-    gif: "image",
-    svg: "image",
-    webp: "image",
-    mp4: "video",
-    avi: "video",
-    mov: "video",
-    mp3: "audio",
-    wav: "audio",
-    // Archives
-    zip: "zip",
-    rar: "rar",
-    "7z": "7z",
-    tar: "tar",
-    gz: "gz",
-    // Text
-    txt: "txt",
-    log: "log",
-  };
-  return typeMap[ext];
-}
-
 // Get file type info (icon, color, bg)
 export function getFileTypeColor(fileName: string): {
   icon: LucideIcon;

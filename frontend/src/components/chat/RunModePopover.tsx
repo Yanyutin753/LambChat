@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -152,7 +153,9 @@ export function RunModePopover({
               onClick={() => onToggleAutoMode(!autoModeEnabled)}
             >
               <span className="feature-menu-item-icon">
-                <Zap size={18} />
+                <InteractiveIcon>
+                  <Zap size={18} />
+                </InteractiveIcon>
               </span>
               <span className="flex-1 text-left truncate">
                 {t("mode.auto", "Auto Mode")}
@@ -169,7 +172,9 @@ export function RunModePopover({
               onClick={() => onToggleGoalMode(!goalModeEnabled)}
             >
               <span className="feature-menu-item-icon">
-                <Target size={18} />
+                <InteractiveIcon>
+                  <Target size={18} />
+                </InteractiveIcon>
               </span>
               <span className="flex-1 text-left truncate">
                 {t("mode.goal", "Goal Mode")}
@@ -191,11 +196,13 @@ export function RunModePopover({
             <span className="flex-1 text-left truncate">
               {t("featureMenu.settings", "Settings")}
             </span>
-            <ChevronDown
-              size={16}
-              className="feature-menu-chevron"
-              data-open={settingsExpanded ? "true" : undefined}
-            />
+            <InteractiveIcon>
+              <ChevronDown
+                size={16}
+                className="feature-menu-chevron"
+                data-open={settingsExpanded ? "true" : undefined}
+              />
+            </InteractiveIcon>
           </button>
           <div
             className="feature-menu-group-body"
@@ -213,7 +220,9 @@ export function RunModePopover({
                   }}
                 >
                   <span className="feature-menu-item-icon">
-                    <Bot size={18} />
+                    <InteractiveIcon>
+                      <Bot size={18} />
+                    </InteractiveIcon>
                   </span>
                   <span className="flex-1 text-left truncate">
                     {t("agent.selectMode", "Agent Mode")}
@@ -221,7 +230,9 @@ export function RunModePopover({
                   <span className="feature-menu-item-badge font-serif">
                     {agentName || ""}
                   </span>
-                  <ChevronRight size={14} className="feature-menu-chevron" />
+                  <InteractiveIcon>
+                    <ChevronRight size={14} className="feature-menu-chevron" />
+                  </InteractiveIcon>
                 </button>
               )}
 
@@ -236,7 +247,9 @@ export function RunModePopover({
                   }}
                 >
                   <span className="feature-menu-item-icon">
-                    <Brain size={18} />
+                    <InteractiveIcon>
+                      <Brain size={18} />
+                    </InteractiveIcon>
                   </span>
                   <span className="flex-1 text-left truncate">
                     {t("chat.thinkingIntensity", "Thinking Intensity")}
@@ -246,7 +259,9 @@ export function RunModePopover({
                       {thinkingLabel}
                     </span>
                   )}
-                  <ChevronRight size={14} className="feature-menu-chevron" />
+                  <InteractiveIcon>
+                    <ChevronRight size={14} className="feature-menu-chevron" />
+                  </InteractiveIcon>
                 </button>
               )}
 
@@ -261,7 +276,9 @@ export function RunModePopover({
                   }}
                 >
                   <span className="feature-menu-item-icon">
-                    <Monitor size={18} />
+                    <InteractiveIcon>
+                      <Monitor size={18} />
+                    </InteractiveIcon>
                   </span>
                   <span className="flex-1 text-left truncate">
                     {t("chat.runMode.sandbox", "Sandbox")}
@@ -284,7 +301,9 @@ export function RunModePopover({
                       background: sandboxOnline ? "#22c55e" : "#a8a29e",
                     }}
                   />
-                  <ChevronRight size={14} className="feature-menu-chevron" />
+                  <InteractiveIcon>
+                    <ChevronRight size={14} className="feature-menu-chevron" />
+                  </InteractiveIcon>
                 </button>
               )}
 
@@ -305,7 +324,9 @@ export function RunModePopover({
                     onClick={() => onToggleAgentOption?.(key, !enabled)}
                   >
                     <span className="feature-menu-item-icon">
-                      <ToggleLeft size={18} />
+                      <InteractiveIcon>
+                        <ToggleLeft size={18} />
+                      </InteractiveIcon>
                     </span>
                     <span className="flex-1 text-left truncate">{label}</span>
                     <ToggleSwitch on={enabled} />

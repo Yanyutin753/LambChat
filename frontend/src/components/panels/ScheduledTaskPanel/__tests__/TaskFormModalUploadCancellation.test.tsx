@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import i18n from "../../../../i18n";
 
 import {
   fireEvent,
@@ -129,7 +130,11 @@ test("scheduled-task upload cancellation aborts the request owned by its real up
   await waitFor(() => expect(uploadFile).toHaveBeenCalledOnce());
   const card = fileName.closest(".attachment-card-enter");
   expect(card).not.toBeNull();
-  fireEvent.click(within(card as HTMLElement).getByRole("button"));
+  fireEvent.click(
+    within(card as HTMLElement).getByRole("button", {
+      name: i18n.t("fileUpload.cancelUpload"),
+    }),
+  );
 
   expect(abortUpload).toHaveBeenCalledOnce();
   await waitFor(() =>

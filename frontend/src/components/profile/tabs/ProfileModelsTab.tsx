@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
@@ -53,12 +54,14 @@ export function ProfileModelsTab() {
                   </span>
                 )}
                 {model.description && (
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-theme-text-tertiary transition-transform duration-200 ${
-                      expanded === model.id ? "rotate-180" : ""
-                    }`}
-                  />
+                  <InteractiveIcon>
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-theme-text-tertiary transition-transform duration-200 ${
+                        expanded === model.id ? "rotate-180" : ""
+                      }`}
+                    />
+                  </InteractiveIcon>
                 )}
               </button>
               {expanded === model.id && model.description && (

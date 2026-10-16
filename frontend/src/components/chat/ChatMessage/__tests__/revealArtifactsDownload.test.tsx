@@ -113,7 +113,8 @@ function openAllFilesPanel(parts: MessagePart[]): void {
     screen.getByRole("button", { name: "All files", exact: true }),
   );
   const panel = mocks.openPersistentToolPanel.mock.calls.at(-1)?.[0] as
-    { children: ReactNode; customHeader?: ReactNode } | undefined;
+    | { children: ReactNode; customHeader?: ReactNode }
+    | undefined;
   if (!panel) throw new Error("All files panel did not open");
   view.unmount();
   render(
@@ -221,7 +222,7 @@ test("folder downloads are real buttons and do not toggle the folder", () => {
   expect(mocks.exportProjectZip).toHaveBeenCalledTimes(1);
 });
 
-test("folder rows retain the original illustrated folder icon", () => {
+test("folder rows use the shared monochrome folder icon", () => {
   openAllFilesPanel([
     filePart({
       id: "file:report",
@@ -233,10 +234,10 @@ test("folder rows retain the original illustrated folder icon", () => {
   const icon = screen
     .getByRole("button", { name: "workspace" })
     .querySelector("svg");
-  expect(icon).toHaveAttribute("viewBox", "0 0 1024 1024");
+  expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
   expect(icon).toHaveAttribute("width", "20");
-  expect(icon?.querySelectorAll('path[fill="#FFE8A3"]')).toHaveLength(2);
-  expect(icon?.querySelector('path[fill="#FFCF40"]')).not.toBeNull();
+  expect(icon).toHaveClass("lucide-folder");
+  expect(icon).toHaveAttribute("fill", "none");
 });
 
 test("folder download appears immediately before the expansion chevron", () => {
@@ -440,7 +441,9 @@ test("four files open the side panel directly without expanding inline", () => {
   );
   const view = render(<RevealArtifactsSummary parts={parts} />);
   expect(view.container.querySelector("button[aria-controls]")).toBeNull();
-  expect(screen.queryByRole("button", { name: "report-0.md", exact: true })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "report-0.md", exact: true }),
+  ).not.toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", { name: "All files", exact: true }),
   );

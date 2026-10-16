@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useRef, useCallback, memo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
@@ -160,7 +161,9 @@ export const FileUploadButton = memo(function FileUploadButton({
         className="chat-tool-btn"
         title={t("fileUpload.title")}
       >
-        <Paperclip size={18} />
+        <InteractiveIcon>
+          <Paperclip size={18} />
+        </InteractiveIcon>
       </button>
 
       {/* Dropdown menu via portal */}
@@ -189,10 +192,12 @@ export const FileUploadButton = memo(function FileUploadButton({
                     className="flex items-center justify-center w-7 h-7 rounded-lg"
                     style={{ background: "var(--theme-primary-light)" }}
                   >
-                    <Icon
-                      size={14}
-                      style={{ color: "var(--theme-text-secondary)" }}
-                    />
+                    <InteractiveIcon>
+                      <Icon
+                        size={14}
+                        style={{ color: "var(--theme-text-secondary)" }}
+                      />
+                    </InteractiveIcon>
                   </div>
                   <span className="flex-1 text-left font-medium">
                     {t(`fileUpload.categories.${category}`)}

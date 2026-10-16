@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useCallback } from "react";
 import type { TFunction } from "i18next";
 import {
@@ -153,7 +154,9 @@ export function SystemHealthSection() {
       >
         <div className="flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-100 to-cyan-50 text-blue-600 dark:from-blue-900/50 dark:to-cyan-900/30 dark:text-blue-400">
-            <Activity size={16} />
+            <InteractiveIcon>
+              <Activity size={16} />
+            </InteractiveIcon>
           </div>
           <div>
             <span className="text-14 font-semibold font-serif text-stone-800 dark:text-stone-100">
@@ -182,12 +185,21 @@ export function SystemHealthSection() {
             disabled={isLoading}
             className="rounded-lg p-1.5 text-stone-400 transition-colors hover:bg-[var(--glass-bg)] hover:text-stone-600 disabled:opacity-50 dark:text-stone-500 dark:hover:text-stone-300"
           >
-            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            <InteractiveIcon>
+              <RefreshCw
+                size={14}
+                className={isLoading ? "animate-spin" : ""}
+              />
+            </InteractiveIcon>
           </button>
           {expanded ? (
-            <ChevronUp size={16} className="text-stone-400" />
+            <InteractiveIcon>
+              <ChevronUp size={16} className="text-stone-400" />
+            </InteractiveIcon>
           ) : (
-            <ChevronDown size={16} className="text-stone-400" />
+            <InteractiveIcon>
+              <ChevronDown size={16} className="text-stone-400" />
+            </InteractiveIcon>
           )}
         </div>
       </div>

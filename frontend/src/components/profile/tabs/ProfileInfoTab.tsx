@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Check } from "lucide-react";
@@ -386,7 +387,9 @@ function ProfileInfoContent() {
                 className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3 group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
-                  <Mail size={14} />
+                  <InteractiveIcon>
+                    <Mail size={14} />
+                  </InteractiveIcon>
                   {t("profile.email", "Email")}
                 </span>
                 <span className="min-w-0 text-right [overflow-wrap:anywhere] text-14 font-medium text-theme-text dark:text-stone-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
@@ -402,7 +405,9 @@ function ProfileInfoContent() {
                 className="flex items-center justify-between py-3.5 gap-3 group"
               >
                 <span className="flex items-center gap-2 text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
-                  <ExternalLink size={14} />
+                  <InteractiveIcon>
+                    <ExternalLink size={14} />
+                  </InteractiveIcon>
                   {t("about.contactSupport", "Support")}
                 </span>
                 <span className="text-14 font-medium text-theme-text-tertiary dark:text-stone-500 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">

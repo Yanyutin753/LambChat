@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { CheckCircle2, ChevronRight, ListTodo } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -98,11 +99,13 @@ export function SessionTodoDock({
             }
             className={`mb-1 flex min-h-11 w-full max-w-full min-w-0 items-center gap-2 rounded-lg border border-transparent px-5 py-2 text-left text-12 text-theme-text-secondary transition-colors hover:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
           >
-            <Icon
-              size={16}
-              className="shrink-0 text-[var(--theme-primary)]"
-              aria-hidden="true"
-            />
+            <InteractiveIcon>
+              <Icon
+                size={16}
+                className="shrink-0 text-[var(--theme-primary)]"
+                aria-hidden="true"
+              />
+            </InteractiveIcon>
             <span className="shrink-0 tabular-nums">{progress}</span>
             {(current || cancelled > 0) && (
               <span
@@ -112,7 +115,9 @@ export function SessionTodoDock({
                 {summary}
               </span>
             )}
-            <ChevronRight size={16} className="shrink-0" aria-hidden="true" />
+            <InteractiveIcon>
+              <ChevronRight size={16} className="shrink-0" aria-hidden="true" />
+            </InteractiveIcon>
           </button>
         </div>
       </div>

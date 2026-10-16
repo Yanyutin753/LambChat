@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -195,7 +196,9 @@ export function ChatInputSelectors({
     machineValue,
     defaultMachineId,
   );
-  const policyTarget = `${user?.id}:${isLocal ? selectedMachine?.machine_id ?? "local" : "cloud"}`;
+  const policyTarget = `${user?.id}:${
+    isLocal ? selectedMachine?.machine_id ?? "local" : "cloud"
+  }`;
   const cloudPolicy = user?.metadata?.sandboxCloudConfirmPolicy;
   const executionPolicy =
     policyOverride?.target === policyTarget
@@ -213,21 +216,28 @@ export function ChatInputSelectors({
     ) {
       return;
     }
-    save(policyTarget, async () => {
-      if (!isLocal) {
-        await authApi.updateMetadata({ sandboxCloudConfirmPolicy: policy });
-      } else if (selectedMachine) {
-        await sandboxApiMachines.updateConfirmPolicy(selectedMachine.machine_id, policy);
-        if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
-          await writeConfirmPolicy(policy);
+    save(
+      policyTarget,
+      async () => {
+        if (!isLocal) {
+          await authApi.updateMetadata({ sandboxCloudConfirmPolicy: policy });
+        } else if (selectedMachine) {
+          await sandboxApiMachines.updateConfirmPolicy(
+            selectedMachine.machine_id,
+            policy,
+          );
+          if (selectedMachine.machine_id === currentMachineId && sandboxShell) {
+            await writeConfirmPolicy(policy);
+          }
         }
-      }
-    }, () => {
-      setPolicyOverride({ target: policyTarget, value: policy });
-      if (isLocal) notifySandboxStatusRefresh();
-      else void refreshUser();
-      toast.success(t("agentOptions.sandboxPolicy.updated"));
-    });
+      },
+      () => {
+        setPolicyOverride({ target: policyTarget, value: policy });
+        if (isLocal) notifySandboxStatusRefresh();
+        else void refreshUser();
+        toast.success(t("agentOptions.sandboxPolicy.updated"));
+      },
+    );
   };
   const handleSelectMachineRow = (row: SandboxMachineRow) => {
     if (row.disabled) {
@@ -279,7 +289,11 @@ export function ChatInputSelectors({
                     color: "var(--theme-text)",
                   }}
                 >
-                  <PlatformIcon size={18} className="shrink-0 opacity-60" aria-hidden="true" />
+                  <PlatformIcon
+                    size={18}
+                    className="shrink-0 opacity-60"
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1 truncate">{row.label}</span>
                   {row.isCurrent && (
                     <span
@@ -294,7 +308,13 @@ export function ChatInputSelectors({
                     </span>
                   )}
                   {active && (
-                    <Check size={16} className="shrink-0 text-theme-text-secondary" aria-hidden="true" />
+                    <InteractiveIcon>
+                      <Check
+                        size={16}
+                        className="shrink-0 text-theme-text-secondary"
+                        aria-hidden="true"
+                      />
+                    </InteractiveIcon>
                   )}
                 </button>
               );
@@ -304,51 +324,62 @@ export function ChatInputSelectors({
       </>
     ) : undefined;
 
-  const policySection = !isLocal || selectedMachine ? (
-    <section className="mt-5 border-t border-theme-border-faint pt-5" data-sandbox-policy-section>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h4 className="flex items-center gap-2 text-12 font-medium text-theme-text-secondary">
-          {t("agentOptions.sandboxPolicy.section")}
-        </h4>
-        {policySaving && (
-          <span role="status" className="text-12 text-theme-text-muted">
-            {t("common.saving")}
-          </span>
-        )}
-      </div>
-      <Select
-        key={policyTarget}
-        ariaLabel={t("agentOptions.sandboxPolicy.section")}
-        value={executionPolicy}
-        onChange={handlePolicyChange}
-        disabled={policySaving || (isLocal && selectedMachine?.online === false)}
-        options={["all", "commands", "none"].map((policy) => ({
-          value: policy,
-          label: t(`agentOptions.sandboxPolicy.${policy}`),
-        }))}
-        className="w-full"
-        triggerClassName="!min-h-11 !px-3 !border-[var(--theme-border-faint)]"
-        dropdownClassName="!border-[var(--theme-border-faint)]"
-      />
-      <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
-        {t(isLocal
-          ? "agentOptions.sandboxPolicy.localHint"
-          : "agentOptions.sandboxPolicy.cloudHint")}
-      </p>
-      {states[policyTarget] === "error" && (
-        <div role="alert" className="mt-2 flex items-center justify-between gap-3 text-12 text-theme-text-secondary">
-          <span>{t("agentOptions.sandboxPolicy.updateFailed")}</span>
-          <button
-            type="button"
-            onClick={() => retry(policyTarget)}
-            className="min-h-11 px-2 underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
-          >
-            {t("common.retry")}
-          </button>
+  const policySection =
+    !isLocal || selectedMachine ? (
+      <section
+        className="mt-5 border-t border-theme-border-faint pt-5"
+        data-sandbox-policy-section
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h4 className="flex items-center gap-2 text-12 font-medium text-theme-text-secondary">
+            {t("agentOptions.sandboxPolicy.section")}
+          </h4>
+          {policySaving && (
+            <span role="status" className="text-12 text-theme-text-muted">
+              {t("common.saving")}
+            </span>
+          )}
         </div>
-      )}
-    </section>
-  ) : undefined;
+        <Select
+          key={policyTarget}
+          ariaLabel={t("agentOptions.sandboxPolicy.section")}
+          value={executionPolicy}
+          onChange={handlePolicyChange}
+          disabled={
+            policySaving || (isLocal && selectedMachine?.online === false)
+          }
+          options={["all", "commands", "none"].map((policy) => ({
+            value: policy,
+            label: t(`agentOptions.sandboxPolicy.${policy}`),
+          }))}
+          className="w-full"
+          triggerClassName="!min-h-11 !px-3 !border-[var(--theme-border-faint)]"
+          dropdownClassName="!border-[var(--theme-border-faint)]"
+        />
+        <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
+          {t(
+            isLocal
+              ? "agentOptions.sandboxPolicy.localHint"
+              : "agentOptions.sandboxPolicy.cloudHint",
+          )}
+        </p>
+        {states[policyTarget] === "error" && (
+          <div
+            role="alert"
+            className="mt-2 flex items-center justify-between gap-3 text-12 text-theme-text-secondary"
+          >
+            <span>{t("agentOptions.sandboxPolicy.updateFailed")}</span>
+            <button
+              type="button"
+              onClick={() => retry(policyTarget)}
+              className="min-h-11 px-2 underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
+            >
+              {t("common.retry")}
+            </button>
+          </div>
+        )}
+      </section>
+    ) : undefined;
 
   return (
     <>
@@ -470,21 +501,25 @@ export function ChatInputSelectors({
 
             if (isSandbox) {
               // 离线（壳内或纯 web 本地档置灰可见）：统一提示 + 底部下载引导
-              const note = isLocal && !sandboxOnline
-                ? t("agentOptions.sandbox.offlineHint")
-                : undefined;
-              const downloadFooter = isLocal && !sandboxOnline ? (
-                <button
-                  type="button"
-                  onClick={() => navigate("/download")}
-                  className="flex w-full items-center gap-2 px-3 py-2 rounded-xl text-14 cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                  style={{ color: "var(--theme-primary)" }}
-                  data-sandbox-download-entry
-                >
-                  <Download size={14} className="shrink-0" />
-                  {t("agentOptions.sandbox.downloadEntry")}
-                </button>
-              ) : undefined;
+              const note =
+                isLocal && !sandboxOnline
+                  ? t("agentOptions.sandbox.offlineHint")
+                  : undefined;
+              const downloadFooter =
+                isLocal && !sandboxOnline ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/download")}
+                    className="flex w-full items-center gap-2 px-3 py-2 rounded-xl text-14 cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    style={{ color: "var(--theme-primary)" }}
+                    data-sandbox-download-entry
+                  >
+                    <InteractiveIcon>
+                      <Download size={14} className="shrink-0" />
+                    </InteractiveIcon>
+                    {t("agentOptions.sandbox.downloadEntry")}
+                  </button>
+                ) : undefined;
               // 独立 panel key：与思考档模态互斥，同帧只开一个选项模态；
               // 触发入口在工具栏沙箱 chip 与 RunModePopover 的"沙箱"条目。
               // 统一面板：档位下方注入执行设备列表（选设备 = 定档 + 定目标）。

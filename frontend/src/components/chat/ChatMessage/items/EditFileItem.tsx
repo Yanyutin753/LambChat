@@ -36,8 +36,8 @@ function EditFileDetail({
         : "error";
 
   return (
-    <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
-      <div className="ai-file-diff" data-state={status}>
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+      <div className="ai-file-diff tool-panel-output" data-state={status}>
         <ToolArgsBlock
           size="detail"
           copyText={filePath}

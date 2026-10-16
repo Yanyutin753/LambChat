@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import clsx from "clsx";
@@ -100,14 +101,16 @@ export function MessageImageGallery({
         <span className="min-w-0 truncate text-[0.9375rem] max-sm:text-16 leading-6 text-theme-text-secondary">
           {t("chat.message.imageGalleryCount", { count: images.length })}
         </span>
-        <ChevronRight
-          size={16}
-          strokeWidth={2}
-          className={clsx(
-            "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/imgtoggle:opacity-100",
-            expanded && "rotate-90",
-          )}
-        />
+        <InteractiveIcon>
+          <ChevronRight
+            size={16}
+            strokeWidth={2}
+            className={clsx(
+              "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/imgtoggle:opacity-100",
+              expanded && "rotate-90",
+            )}
+          />
+        </InteractiveIcon>
       </button>
       {expanded && (
         <div className={layoutClass}>
@@ -145,7 +148,9 @@ export function MessageImageGallery({
                     aria-hidden="true"
                   >
                     <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
-                      <ExternalLink size={14} className="text-white" />
+                      <InteractiveIcon>
+                        <ExternalLink size={14} className="text-white" />
+                      </InteractiveIcon>
                     </div>
                   </div>
                   {/* File name label on hover */}

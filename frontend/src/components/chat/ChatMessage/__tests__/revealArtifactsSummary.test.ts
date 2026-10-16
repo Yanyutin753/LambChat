@@ -5,9 +5,9 @@ test("inline artifact thumbnails and glyphs share the same size and text alignme
     "utf8",
   );
   expect(source).toMatch(
-    /<span\s+className=\{\s*inline\s*\? "flex h-8 w-8 shrink-0 items-center justify-center"\s*:\s*"contents"\s*\}\s*>\s*<ImageWithSkeleton/,
+    /<span\s+className=\{\s*inline\s*\? "flex h-10 w-10 shrink-0 items-center justify-center"\s*:\s*"contents"\s*\}\s*>\s*<ImageWithSkeleton/,
   );
-  expect(source).toMatch(/inline \? "w-6 h-6" : "w-9 h-9"/);
+  expect(source).toMatch(/inline \? "w-10 h-10" : "w-9 h-9"/);
   expect(source).toMatch(/<FileIcon\s+size=\{24\}/);
   expect(source).toMatch(/<Icon\s+size=\{24\}/);
   expect(source).toMatch(/<FolderIcon\s+size=\{24\}/);

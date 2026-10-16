@@ -5524,7 +5524,7 @@ function expectPrivateStreamingReplay(
   return actual;
 }
 
-test("private streaming replay keeps root thinking and todo streaming fields without history settlement", () => {
+test("private streaming replay freezes finished reasoning while leaving active todos streaming", () => {
   const message = expectPrivateStreamingReplay([
     indexedEvent("thinking", { thinking_id: "live-thought", content: "first" }),
     indexedEvent("tool:args:chunk", {
@@ -5558,7 +5558,7 @@ test("private streaming replay keeps root thinking and todo streaming fields wit
     }),
   ]);
   expect(message.parts?.find((part) => part.type === "thinking")).toMatchObject(
-    { isStreaming: true },
+    { isStreaming: false, completedAt: indexedScaleNow },
   );
   expect(message.parts?.find((part) => part.type === "todo")).toMatchObject({
     isStreaming: true,

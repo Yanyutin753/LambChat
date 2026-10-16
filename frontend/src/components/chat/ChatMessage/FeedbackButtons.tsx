@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { clsx } from "clsx";
@@ -150,13 +151,15 @@ export function FeedbackButtons({
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
-            <ThumbsUp
-              size={16}
-              className={clsx(
-                selectedRating === "up" &&
-                  "text-theme-text-secondary dark:text-stone-300",
-              )}
-            />
+            <InteractiveIcon>
+              <ThumbsUp
+                size={16}
+                className={clsx(
+                  selectedRating === "up" &&
+                    "text-theme-text-secondary dark:text-stone-300",
+                )}
+              />
+            </InteractiveIcon>
           </button>
         </Tooltip>
         <Tooltip content={t("feedback.negative")}>
@@ -170,13 +173,15 @@ export function FeedbackButtons({
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
-            <ThumbsDown
-              size={16}
-              className={clsx(
-                selectedRating === "down" &&
-                  "text-theme-text-secondary dark:text-stone-300",
-              )}
-            />
+            <InteractiveIcon>
+              <ThumbsDown
+                size={16}
+                className={clsx(
+                  selectedRating === "down" &&
+                    "text-theme-text-secondary dark:text-stone-300",
+                )}
+              />
+            </InteractiveIcon>
           </button>
         </Tooltip>
       </div>

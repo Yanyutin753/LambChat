@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { parseFrontendGoalCommand } from "../../hooks/useAgent/goalCommands";
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
@@ -516,7 +517,12 @@ export const ChatInput = memo(function ChatInput({
     focusComposer: focusComposerAtEnd,
   });
   const goalCommand = parseFrontendGoalCommand(input);
-  const isPersistentGoalCommand = goalCommand?.action === "persist" || goalCommand?.action === "pause" || goalCommand?.action === "resume" || (goalCommand?.action === "clear" && getGoalControlScope(activeGoal, persistentGoal) === "persistent");
+  const isPersistentGoalCommand =
+    goalCommand?.action === "persist" ||
+    goalCommand?.action === "pause" ||
+    goalCommand?.action === "resume" ||
+    (goalCommand?.action === "clear" &&
+      getGoalControlScope(activeGoal, persistentGoal) === "persistent");
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -691,7 +697,9 @@ export const ChatInput = memo(function ChatInput({
           isLoading && canSend && !sendBlocked ? onSupplement : undefined
         }
       />
-      <div className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}>
+      <div
+        className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
+      >
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&
             createPortal(
@@ -701,7 +709,7 @@ export const ChatInput = memo(function ChatInput({
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`chat-input-container font-sans flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
+                  className={`chat-input-container font-sans flex flex-col relative w-full rounded-2xl px-1 border ${
                     isDraggingOver ? "data-drag-over" : ""
                   }`}
                   data-mention-active={mention.isActive || undefined}
@@ -720,13 +728,25 @@ export const ChatInput = memo(function ChatInput({
                   <ActiveGoalBar
                     goal={activeGoal ?? null}
                     persistentGoal={persistentGoal}
-                    onPause={onControlPersistentGoal ? () => onControlPersistentGoal("pause") : undefined}
-                    onResume={onControlPersistentGoal ? () => onControlPersistentGoal("resume") : undefined}
+                    onPause={
+                      onControlPersistentGoal
+                        ? () => onControlPersistentGoal("pause")
+                        : undefined
+                    }
+                    onResume={
+                      onControlPersistentGoal
+                        ? () => onControlPersistentGoal("resume")
+                        : undefined
+                    }
                     label={goalLabel}
                     durationLabel={goalDurationLabel}
                     clearLabel={goalClearLabel}
                     onClear={onClearActiveGoal}
-                    onClearPersistentGoal={onControlPersistentGoal ? () => onControlPersistentGoal("clear") : undefined}
+                    onClearPersistentGoal={
+                      onControlPersistentGoal
+                        ? () => onControlPersistentGoal("clear")
+                        : undefined
+                    }
                     disabled={isLoading || !canSend}
                     persistentDisabled={persistentGoalBusy || !canSend}
                     embedded
@@ -775,7 +795,9 @@ export const ChatInput = memo(function ChatInput({
                     }}
                     onRetryUpload={(attachment) => {
                       if (attachment.composerReferenceId) {
-                        handleRetryFileReference(attachment.composerReferenceId);
+                        handleRetryFileReference(
+                          attachment.composerReferenceId,
+                        );
                       }
                     }}
                   />
@@ -801,7 +823,9 @@ export const ChatInput = memo(function ChatInput({
                           title={t("chat.collapseComposer", "收起")}
                           aria-label={t("chat.collapseComposer", "收起")}
                         >
-                          <Minimize2 size={16} />
+                          <InteractiveIcon>
+                            <Minimize2 size={16} />
+                          </InteractiveIcon>
                         </button>
                       </div>
                     ) : null}
@@ -811,12 +835,30 @@ export const ChatInput = memo(function ChatInput({
                         focusRequest={focusRequest}
                         ariaLabel={t("chat.messageInput", "Message")}
                         initialPlainText={input}
-                        placeholder={<ChatInputPlaceholder
-                          {...{ canSend, disabled, sendBlocked, isLoading, mentionMode }}
-                          mentionEnabled={mentionEnabled && !onMentionQueryChange}
-                          selectedId={mentionMode === "team" ? selectedTeamId : selectedPersonaPresetId}
-                          sandbox={agentOptions?.sandbox && (agentOptionValues.sandbox ?? agentOptions.sandbox.default)}
-                        />}
+                        placeholder={
+                          <ChatInputPlaceholder
+                            {...{
+                              canSend,
+                              disabled,
+                              sendBlocked,
+                              isLoading,
+                              mentionMode,
+                            }}
+                            mentionEnabled={
+                              mentionEnabled && !onMentionQueryChange
+                            }
+                            selectedId={
+                              mentionMode === "team"
+                                ? selectedTeamId
+                                : selectedPersonaPresetId
+                            }
+                            sandbox={
+                              agentOptions?.sandbox &&
+                              (agentOptionValues.sandbox ??
+                                agentOptions.sandbox.default)
+                            }
+                          />
+                        }
                         availableSkills={availableRunSkills}
                         onApplySlashCommand={applySlashCommand}
                         onChange={handleComposerChange}
@@ -851,7 +893,9 @@ export const ChatInput = memo(function ChatInput({
                           aria-label={t("chat.expandComposer", "展开编辑")}
                           disabled={disabled || !canSend}
                         >
-                          <Maximize2 size={14} />
+                          <InteractiveIcon>
+                            <Maximize2 size={14} />
+                          </InteractiveIcon>
                         </button>
                       ) : null}
                     </div>
@@ -904,7 +948,11 @@ export const ChatInput = memo(function ChatInput({
                     onNoPermissionClick={() => setContactAdminOpen(true)}
                     autoModeEnabled={autoModeEnabled}
                     goalModeEnabled={goalModeEnabled}
-                    persistentGoalStatus={persistentGoal?.status === "cleared" ? undefined : persistentGoal?.status}
+                    persistentGoalStatus={
+                      persistentGoal?.status === "cleared"
+                        ? undefined
+                        : persistentGoal?.status
+                    }
                     onToggleAutoMode={onToggleAutoMode}
                     onToggleGoalMode={onToggleGoalMode}
                   />

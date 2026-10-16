@@ -119,7 +119,7 @@ test("updates tool panel chrome from durable data while its message row is off-s
   render(createElement(PersistentToolPanelHost));
 
   expect(
-    document.querySelector(".tool-console-header-icon .text-emerald-600"),
+    document.querySelector(".tool-console-header-icon .text-theme-success"),
   ).toBeNull();
 
   toolCallPanelStore.set({
@@ -136,7 +136,7 @@ test("updates tool panel chrome from durable data while its message row is off-s
 
   await waitFor(() => {
     expect(
-      document.querySelector(".tool-console-header-icon .text-emerald-600"),
+      document.querySelector(".tool-console-header-icon .text-theme-success"),
     ).not.toBeNull();
   });
 });

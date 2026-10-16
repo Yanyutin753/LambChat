@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { Link } from "react-router-dom";
 import { Home } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,7 +23,9 @@ export function NotFoundPage() {
           to="/chat"
           className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-theme-text px-6 py-3 text-14 font-medium text-theme-bg transition-colors hover:bg-theme-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-theme-primary"
         >
-          <Home size={18} aria-hidden="true" />
+          <InteractiveIcon>
+            <Home size={18} aria-hidden="true" />
+          </InteractiveIcon>
           {t("errors.backToHome")}
         </Link>
       </div>

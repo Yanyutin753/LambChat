@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { EmptyState } from "../common/EmptyState";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
@@ -323,7 +324,9 @@ function FeedbackCard({
             hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
         >
           <span>{t("feedback.viewDetail", "查看详情")}</span>
-          <ChevronRight size={12} />
+          <InteractiveIcon>
+            <ChevronRight size={12} />
+          </InteractiveIcon>
         </button>
 
         {canDelete && (
@@ -336,7 +339,9 @@ function FeedbackCard({
               hover:text-red-500 dark:hover:text-red-400 transition-colors"
             title={t("feedback.delete")}
           >
-            <Trash2 size={12} />
+            <InteractiveIcon>
+              <Trash2 size={12} />
+            </InteractiveIcon>
             <span>{t("feedback.delete")}</span>
           </button>
         )}
@@ -448,9 +453,13 @@ function FeedbackDetailModal({
                   className="flex-shrink-0 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
                 >
                   {copiedField === "session" ? (
-                    <Check size={12} className="text-emerald-500" />
+                    <InteractiveIcon>
+                      <Check size={12} className="text-emerald-500" />
+                    </InteractiveIcon>
                   ) : (
-                    <Copy size={12} className="text-stone-400" />
+                    <InteractiveIcon>
+                      <Copy size={12} className="text-stone-400" />
+                    </InteractiveIcon>
                   )}
                 </button>
               </div>
@@ -466,9 +475,13 @@ function FeedbackDetailModal({
                   className="flex-shrink-0 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
                 >
                   {copiedField === "run" ? (
-                    <Check size={12} className="text-emerald-500" />
+                    <InteractiveIcon>
+                      <Check size={12} className="text-emerald-500" />
+                    </InteractiveIcon>
                   ) : (
-                    <Copy size={12} className="text-stone-400" />
+                    <InteractiveIcon>
+                      <Copy size={12} className="text-stone-400" />
+                    </InteractiveIcon>
                   )}
                 </button>
               </div>

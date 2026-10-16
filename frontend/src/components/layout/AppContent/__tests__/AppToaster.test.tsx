@@ -27,7 +27,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
   document.body.replaceChildren();
 });
-beforeEach(() => vi.stubGlobal("matchMedia", () => ({ matches: true })));
+beforeEach(() =>
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
+    addEventListener() {},
+    removeEventListener() {},
+  })),
+);
 
 test.each(["offline", "update"])(
   "%s custom toast can be dismissed immediately",

@@ -21,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { BackendSession } from "../../services/api";
 import { authApi } from "../../services/api/auth";
+import { notificationApi } from "../../services/api/notification";
 import { useAuth } from "../../hooks/useAuth";
 import { useProjectSessionList } from "../../hooks/useSession";
 import { usePinnedSessionList } from "../../hooks/useSession";
@@ -46,7 +47,10 @@ import { ShareDialog } from "../share/ShareDialog";
 import { ShareProjectDialog } from "../share/ShareProjectDialog";
 import { NewProjectModal } from "./NewProjectModal";
 import type { Project } from "../../types";
-import { DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT } from "../layout/DesktopSidebarShell/desktopShellPlatform";
+import {
+  DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,
+  NOTIFICATION_COUNT_EVENT,
+} from "../layout/DesktopSidebarShell/desktopShellPlatform";
 import {
   SessionListContent,
   SidebarRail,
@@ -129,6 +133,22 @@ export const SessionSidebar = forwardRef<
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isRecentChatsOpen, setIsRecentChatsOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  useEffect(() => {
+    let initialCountPending = true;
+    const update = (event: Event) => {
+      initialCountPending = false;
+      setNotificationCount((event as CustomEvent<number>).detail);
+    };
+    window.addEventListener(NOTIFICATION_COUNT_EVENT, update);
+    notificationApi.getActive().then((items) => {
+      if (initialCountPending) setNotificationCount(items.length);
+    });
+    return () => {
+      initialCountPending = false;
+      window.removeEventListener(NOTIFICATION_COUNT_EVENT, update);
+    };
+  }, []);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(() => {
     const saved = localStorage.getItem(PROJECTS_COLLAPSED_STORAGE_KEY);
@@ -519,6 +539,7 @@ export const SessionSidebar = forwardRef<
     () => ({
       user,
       imgError,
+      notificationCount,
       onImgError: handleImgError,
       onNewSession,
       onOpenSearch: handleOpenSearch,
@@ -569,6 +590,7 @@ export const SessionSidebar = forwardRef<
     [
       user,
       imgError,
+      notificationCount,
       handleImgError,
       onNewSession,
       handleOpenSearch,

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { DialogCloseButton } from "../../common/DialogCloseButton";
 import { ModalSurface } from "../../common/ModalSurface";
 import { useState, useRef } from "react";
@@ -96,10 +97,12 @@ export function SkillPreviewModal({
                 {isDescExpanded
                   ? t("marketplace.previewCollapse")
                   : t("marketplace.previewExpand")}
-                <ChevronDown
-                  size={14}
-                  className={isDescExpanded ? "rotate-180" : ""}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={14}
+                    className={isDescExpanded ? "rotate-180" : ""}
+                  />
+                </InteractiveIcon>
               </button>
             )}
           </div>
@@ -166,7 +169,9 @@ export function SkillPreviewModal({
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[var(--theme-bg-subtle)]"
                       >
                         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
-                          <FileText size={12} />
+                          <InteractiveIcon>
+                            <FileText size={12} />
+                          </InteractiveIcon>
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-12 font-medium text-[var(--theme-text)]">
@@ -180,10 +185,12 @@ export function SkillPreviewModal({
                             className="text-[var(--theme-text-secondary)]"
                           />
                         ) : (
-                          <ChevronRight
-                            size={14}
-                            className="text-[var(--theme-text-secondary)]"
-                          />
+                          <InteractiveIcon>
+                            <ChevronRight
+                              size={14}
+                              className="text-[var(--theme-text-secondary)]"
+                            />
+                          </InteractiveIcon>
                         )}
                       </button>
                     </div>

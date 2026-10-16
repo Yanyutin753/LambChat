@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
@@ -60,11 +61,15 @@ export function FileTabs({
           {files.length > 1 && (
             <button
               type="button"
-              aria-label={`${t("common.remove")}: ${file.path || untitledLabel}`}
+              aria-label={`${t("common.remove")}: ${
+                file.path || untitledLabel
+              }`}
               onClick={() => onRemove(index)}
               className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
             >
-              <X size={10} />
+              <InteractiveIcon>
+                <X size={10} />
+              </InteractiveIcon>
             </button>
           )}
         </div>

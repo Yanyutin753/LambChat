@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -37,11 +38,13 @@ export function PickerTrigger({
       >
         {children}
       </span>
-      <ChevronDown
-        size={15}
-        className="ui-select-trigger__icon"
-        style={{ transform: open ? "rotate(180deg)" : undefined }}
-      />
+      <InteractiveIcon>
+        <ChevronDown
+          size={15}
+          className="ui-select-trigger__icon"
+          style={{ transform: open ? "rotate(180deg)" : undefined }}
+        />
+      </InteractiveIcon>
     </button>
   );
 }

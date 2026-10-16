@@ -88,7 +88,9 @@ test("ExecuteItem panel content refreshes when the streamed result lands", async
     expect(rendered.getByText(/streamed output/)).toBeTruthy();
   });
   // 状态行被解析为退出码徽标而非留在输出正文里
-  expect(rendered.queryByText(/Command succeeded/)).toBe(null);
+  expect(rendered.container.querySelector("pre")?.textContent).not.toContain(
+    "[Command succeeded",
+  );
   expect(rendered.container.querySelector("pre")?.textContent).toContain(
     "streamed output",
   );
@@ -118,3 +120,42 @@ test("ReadFileItem pill omits the line range when reading without offset or limi
   );
   expect(view.queryByText(/:L\d/)).toBe(null);
 });
+
+test.each([
+  [{}, "idle"],
+  [{ isPending: true }, "loading"],
+  [{ isPending: true, cancelled: true }, "cancelled"],
+  [{ success: true, result: "finished without a status trailer" }, "success"],
+  [
+    { success: true, result: "output\n[Command failed with exit code 2]\n" },
+    "error",
+  ],
+  [{ result: "error is just a word in this output" }, "idle"],
+  [
+    {
+      success: true,
+      result:
+        "[Command failed with exit code 1]\n[Command succeeded with exit code 0]",
+    },
+    "success",
+  ],
+  [
+    { success: true, result: "[MCP Tool Error] execute failed: unavailable" },
+    "error",
+  ],
+  [{ success: true, result: "output\n[Command failed]" }, "error"],
+  [
+    { success: true, result: "output\n[Command failed with exit code -1]" },
+    "error",
+  ],
+])(
+  "ExecuteItem derives status from terminal evidence: %j",
+  (props, expected) => {
+    const view = render(
+      <ExecuteItem args={{ command: "example" }} {...props} />,
+    );
+    expect(
+      view.container.querySelector(".pill-btn")?.getAttribute("data-status"),
+    ).toBe(expected);
+  },
+);

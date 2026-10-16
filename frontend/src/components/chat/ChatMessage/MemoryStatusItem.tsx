@@ -29,21 +29,29 @@ export function MemoryStatusItem({
 
   return (
     <CollapsiblePill
-      status={status === "starting" ? "loading" : "success"}
+      status={
+        status === "starting"
+          ? "loading"
+          : status === "cancelled"
+            ? "cancelled"
+            : "success"
+      }
       icon={<BookOpen size={12} className="shrink-0 opacity-50" />}
       label={
         status === "starting"
           ? t("chat.memory.initializing")
-          : t("chat.memory.ready")
+          : status === "cancelled"
+            ? t("chat.memory.cancelled")
+            : t("chat.memory.ready")
       }
       suffix={
         status === "ready" && durationText ? (
-          <span className="min-w-0 truncate">
-            {durationText}
-          </span>
+          <span className="min-w-0 truncate">{durationText}</span>
         ) : undefined
       }
       animatedDots={status === "starting"}
+      expandable={false}
+      formatLabel={false}
     />
   );
 }

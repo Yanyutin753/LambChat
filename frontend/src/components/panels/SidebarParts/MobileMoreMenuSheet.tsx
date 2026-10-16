@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { DialogCloseButton } from "../../common/DialogCloseButton";
 import { ModalSurface } from "../../common/ModalSurface";
 
@@ -43,7 +44,9 @@ export function MobileMoreMenuSheet({
         navigate(item.path);
       }}
     >
-      <item.icon size={20} />
+      <InteractiveIcon>
+        <item.icon size={20} />
+      </InteractiveIcon>
       <span>{item.label}</span>
     </button>
   );

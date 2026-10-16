@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
@@ -10,7 +11,7 @@ import {
 import { useUiExpansionState } from "./uiExpansionStore";
 
 /**
- * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、行下淡分隔线）。
+ * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、展开后按行展示完整过程）。
  * 流式过程中状态行只读（工作中不显示展开收起控件），直接展示完整过程详情；
  * 完成后自动收起成一行，点击可展开/收起。展开状态按 stateKey 存入会话级
  * store，虚拟列表滚动卸载后滚回不丢。
@@ -104,7 +105,7 @@ export function RunStepsCollapse({
         >
           <span className={statusClass}>{statusText}</span>
         </div>
-        <div className="space-y-3 pt-2">{renderExpanded()}</div>
+        <div className="chat-process-detail pt-3">{renderExpanded()}</div>
       </div>
     );
   }
@@ -122,16 +123,20 @@ export function RunStepsCollapse({
         )}
       >
         <span className={statusClass}>{statusText}</span>
-        <ChevronRight
-          size={16}
-          strokeWidth={2}
-          className={clsx(
-            "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
-            expanded && "rotate-90",
-          )}
-        />
+        <InteractiveIcon>
+          <ChevronRight
+            size={16}
+            strokeWidth={2}
+            className={clsx(
+              "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
+              expanded && "rotate-90",
+            )}
+          />
+        </InteractiveIcon>
       </button>
-      {expanded && <div className="space-y-3 pt-2">{renderExpanded()}</div>}
+      {expanded && (
+        <div className="chat-process-detail pt-3">{renderExpanded()}</div>
+      )}
     </div>
   );
 }

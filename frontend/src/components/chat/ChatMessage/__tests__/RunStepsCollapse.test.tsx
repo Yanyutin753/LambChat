@@ -230,7 +230,7 @@ describe("RunStepsCollapse", () => {
     expect(workingSpan.className).toContain("text-theme-text-secondary");
   });
 
-  test("summary row matches the markdown body font size", () => {
+  test("summary row keeps the original process typography", () => {
     render(
       <RunStepsCollapse
         steps={2}
@@ -239,12 +239,10 @@ describe("RunStepsCollapse", () => {
       />,
     );
     const span = SummaryRow().querySelector("span");
-    // 与 .markdown-preview 正文一致：桌面 0.9375rem，≤640px 提升到 1rem
     expect(span?.className).toContain("text-[0.9375rem]");
-    expect(span?.className).toContain("max-sm:text-16");
   });
 
-  test("summary row divider uses the full theme border color", () => {
+  test("summary row keeps the original divider", () => {
     render(
       <RunStepsCollapse
         steps={2}
@@ -252,7 +250,7 @@ describe("RunStepsCollapse", () => {
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    expect(SummaryRow().className).toContain("border-theme-border");
+    expect(SummaryRow().className).toContain("border-b");
     expect(SummaryRow().style.borderColor).toBe("");
   });
 

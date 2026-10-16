@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { EmptyState } from "../common/EmptyState";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -76,7 +77,9 @@ export function SessionBookmarksPanelBody({
               className="scheduled-task-button font-serif"
               title={t("bookmarks.jump")}
             >
-              <CornerRightUp size={14} />
+              <InteractiveIcon>
+                <CornerRightUp size={14} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">{t("bookmarks.jump")}</span>
             </button>
             <div className="scheduled-task-actions">
@@ -85,7 +88,9 @@ export function SessionBookmarksPanelBody({
                 className="scheduled-task-button"
                 title={t("bookmarks.remove")}
               >
-                <Trash2 size={14} />
+                <InteractiveIcon>
+                  <Trash2 size={14} />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {t("bookmarks.remove")}
                 </span>
@@ -181,7 +186,9 @@ export function SessionBookmarksButton({
       title={t("bookmarks.sessionTitle")}
       aria-label={t("bookmarks.sessionTitle")}
     >
-      <Bookmark size={17} />
+      <InteractiveIcon>
+        <Bookmark size={17} />
+      </InteractiveIcon>
       <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1 text-10 font-semibold leading-none text-white">
         {count > 99 ? "99+" : count}
       </span>

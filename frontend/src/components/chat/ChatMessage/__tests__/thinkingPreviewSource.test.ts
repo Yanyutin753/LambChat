@@ -10,8 +10,9 @@ test("ThinkingBlock appends the live tail preview to the streaming label", () =>
   expect(source).toMatch(
     /if \(isStreaming\) return buildStreamingThinkingPreview\(displayContent\);/,
   );
-  // 标签拼上「思考中」前缀
-  expect(source).toMatch(
-    /`\$\{t\("chat\.message\.thinking"\)\} \$\{preview\}`/,
+  // Keep the live preview separate from the stable status title.
+  expect(source).toContain(
+    'const label = isStreaming ? t("chat.message.thinking") : settledLabel;',
   );
+  expect(source).toContain("description={preview}");
 });

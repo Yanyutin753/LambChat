@@ -28,6 +28,7 @@ from typing import Any
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
 from langchain_core.messages import ToolMessage
 
+from src.infra.backend.lazy_sandbox import SandboxInitializationError
 from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import needs_confirm
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
@@ -191,12 +192,12 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Any]],
     ) -> ToolMessage | Any:
-        # AppError 护盾：沙箱派发失败（超时/离线/exec_failed 等）转错误
+        # 沙箱初始化与派发失败（超时/离线/exec_failed 等）转错误
         # ToolMessage——模型看到失败可调整重试，单条命令失败不再击穿整个 run
         # （deepagents ToolNode 不兜工具异常，实验验证）。编程性异常照旧上抛。
         try:
             return await self._awrap_tool_call_inner(request, handler)
-        except AppError as exc:
+        except (AppError, SandboxInitializationError) as exc:
             return self._error_tool_message(request, exc)
 
     async def _awrap_tool_call_inner(
@@ -273,10 +274,12 @@ class SandboxConfirmMiddleware(AgentMiddleware):
             return await handler(request)
         return self._declined(request)
 
-    def _error_tool_message(self, request: ToolCallRequest, exc: AppError) -> ToolMessage:
+    def _error_tool_message(
+        self, request: ToolCallRequest, exc: AppError | SandboxInitializationError
+    ) -> ToolMessage:
         tool_call = request.tool_call
         return ToolMessage(
-            content=exc.display_message,
+            content=exc.display_message if isinstance(exc, AppError) else str(exc),
             tool_call_id=str(tool_call.get("id", "") or ""),
             name=str(tool_call.get("name", "")),
             status="error",

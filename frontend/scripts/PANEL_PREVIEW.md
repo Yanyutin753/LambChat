@@ -40,7 +40,7 @@ URL 参数：`?theme=dark` 为深色；默认浅色。`?fixture=empty` 返回空
 
 助手角色读取恢复可用 `/agents?failure=agent-role`：角色分配首次读取失败，编辑被阻止，点击 Retry 后恢复。角色切换使用共享选择器，可验证键盘、长列表及草稿保留。保存仍返回 405，不改变真实权限。
 
-选择器单独走查可用 `?fixture=error&failure=teams` 或 `?fixture=error&failure=persona-presets`，仅让对应列表请求失败，保留聊天与模式入口。演示助手标识与后端注册一致（`fast`、`search`、`team`、`quick`），团队模式的功能菜单可打开团队选择器。
+选择器单独走查可用 `?fixture=error&failure=teams` 或 `?fixture=error&failure=persona-presets`，仅让对应列表请求失败，保留聊天与模式入口。演示助手标识与后端注册一致（`quick`、`search`、`team`），团队模式的功能菜单可打开团队选择器。
 
 欢迎页可用 `/chat?fixture=error&failure=welcome-personas` 或 `failure=welcome-teams`：每个页面查询组合的对应列表首次请求失败，重试恢复；团队场景默认进入团队助手。更换查询参数或重启预览可重放。已完成的聊天样例包含宽表格与长 Python 行，可检查消息内复制、CSV 导出和局部横向滚动。
 
@@ -141,7 +141,6 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 
 子目录恢复走查：`/chat/preview-report?failure=workspace-child&workspace-flow=1` 保持根目录正常，首次读取子目录 GET 等待2秒后503，重试返回研究资料内的访谈记录目录和访谈笔记；进一步展开访谈记录可读会议记录.txt。新的 `run` 参数重放失败，可组合三主题。目录失败就地提示，Retry 保留展开状态、稳定焦点及缓存；全局刷新也重新读取失败目录。`failure=workspace-read` 可检查深层文件路径、读取失败、直接Retry及移动端返回原文件。仅只读fixture，不证明真实沙箱权限、原生文件管理器或设备行为。
 
-
 系统弹窗走查：`/dialog-preview?theme=dark&lang=ru` 直接渲染实际 UpdateDialog；支持 `state=downloading|error|ready`、`long=1` 长版本号/日志/表格、`platform=ios|tauri`（默认 android）和 `source=unknown`。升级按钮只模拟等待2秒、首次失败、重试后待安装、确认后关闭，不调用原生 updater、下载、安装、重启或真实写 API。
 
 联系管理员走查：同一路由加 `view=contact&guest=1` 渲染实际 ContactAdminDialog 的无 token 路径；默认邮箱验证原因，`reason=permission` 切换权限说明，`contact=empty` 为空联系方式，`long=1` 是公开占位长邮箱。公开认证配置 GET `/api/auth/oauth/providers` 等待2秒，`failure=contact-config` 首次503、Retry恢复（旧 `contact-settings` 参数保留为别名）；新的 `run` 查询可重放。也可从 `/auth/pending?email=preview@example.test&guest=1&contact-flow=1` 的实际支持按钮进入，`contact-flow=1` 仅延迟 GET。保留实际 mailto/外链语义，走查仅检查链接、不激活邮件客户端或发送消息。公开 API 内容由只读 fixture 提供，不证明真实认证服务、配置广播、支持发送或原生设备行为；接口白名单及受保护设置匿名401由真实 AuthMiddleware 边界测试验证。
@@ -166,3 +165,11 @@ PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由
 卡片密度复查：共享资源卡片减去默认阴影和悬停上浮，正文内边距统一为 12px，描述、标签和底部间距统一为 8px；渠道及加载骨架同步，渐变条保留。
 
 手机主题复查（2026-10-13）：以真实 390×844 浏览器视口逐页检查页面清单的 17 个 panel，浅色和深色均保留专属图标及原渐变条。用户卡片同步 12px 内边距、8px 纵向间距和扁平边框；权限角色、收藏、通知正文统一窄面板 12px 内边距。生成头像深色仅调亮度/饱和度，图片、Emoji 和品牌 Logo 不套用调色。后续验证锁释放后，已通过 16 个相关测试文件共 128 项测试、全前端 lint 及含 TypeScript 检查的 build；PWA 和性能预算通过。未验证真实手机 App、头像上传保存或全量前端测试。
+
+按钮、菜单与附件走查：`/controls-preview?theme=light|dark|sepia` 使用真实 Button、IconButton、ResourceCardMenu 和 AttachmentCard；包含禁用/加载按钮、菜单键盘导航和焦点归还、长文件名、上传处理中、失败重试与移除。所有操作仅更新演示内存，不上传、下载、删除真实文件或发送写 API；`/skills`、`/files`、`/chat/preview-report` 可检查实际页面中的共享样式。
+
+输入框视觉走查：`/chat/preview-report?theme=light|dark|sepia` 检查真实 ChatInput 的单层边界、16px 圆角和统一工具栏按钮；`composer-stack=workspace&chat-state=working` 检查目录行与任务摘要，`composer-stack=human` 检查等待人工确认时的禁用发送状态。保留原有中文输入法、草稿历史、附件和队列行为；本地 fixture 不执行真实模型调用。
+
+整套控件走查：`/chat/preview-report?ui-polish=1&theme=light` 在真实会话流中显示本地 PDF 附件、简短回答和输入框，可同时检查左侧交互图标及菜单。附件复用已有本地 PDF 样例；不上传或修改真实文件。
+
+消息详情回看：`/chat/preview-report?theme=dark&ui-polish=1&detail-review=1&artifacts=few` 加入长思考、读取2个文件、搜索2次、执行1条命令和160行工具输出，用于检查原有卡片、全文展开、复制、日志卡内滚动和窄屏对齐。仅本地只读模拟事件，不运行命令。

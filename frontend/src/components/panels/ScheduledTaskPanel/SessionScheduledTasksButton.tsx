@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { EmptyState } from "../../common/EmptyState";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -150,8 +151,22 @@ function SessionScheduledTaskPanelBody({
                   <span className="truncate">{formatTaskTrigger(task, t)}</span>
                 </span>
                 <span className="scheduled-task-mini-card__pill">
-                  <AgentIcon icon={agents.find((agent) => agent.id === task.agent_id)?.icon} seed={task.agent_id} size={14} />
-                  <span className="truncate">{resolveAgentReferenceName(task.agent_id, "", agents, i18n.language, t)}</span>
+                  <AgentIcon
+                    icon={
+                      agents.find((agent) => agent.id === task.agent_id)?.icon
+                    }
+                    seed={task.agent_id}
+                    size={14}
+                  />
+                  <span className="truncate">
+                    {resolveAgentReferenceName(
+                      task.agent_id,
+                      "",
+                      agents,
+                      i18n.language,
+                      t,
+                    )}
+                  </span>
                 </span>
                 {task.last_run_at ? (
                   <>
@@ -180,7 +195,9 @@ function SessionScheduledTaskPanelBody({
                   className="scheduled-task-button scheduled-task-button--secondary font-serif"
                   title={t("scheduledTask.details", "详情")}
                 >
-                  <History size={14} />
+                  <InteractiveIcon>
+                    <History size={14} />
+                  </InteractiveIcon>
                   <span className="hidden sm:inline">
                     {t("scheduledTask.details", "详情")}
                   </span>
@@ -193,7 +210,9 @@ function SessionScheduledTaskPanelBody({
                       className="scheduled-task-button"
                       title={t("scheduledTask.pause")}
                     >
-                      <Pause size={14} />
+                      <InteractiveIcon>
+                        <Pause size={14} />
+                      </InteractiveIcon>
                       <span className="hidden sm:inline">
                         {t("scheduledTask.pause")}
                       </span>
@@ -205,7 +224,9 @@ function SessionScheduledTaskPanelBody({
                       className="scheduled-task-button scheduled-task-button--success"
                       title={t("scheduledTask.resume")}
                     >
-                      <Play size={14} />
+                      <InteractiveIcon>
+                        <Play size={14} />
+                      </InteractiveIcon>
                       <span className="hidden sm:inline">
                         {t("scheduledTask.resume")}
                       </span>
@@ -217,7 +238,9 @@ function SessionScheduledTaskPanelBody({
                       className="scheduled-task-button scheduled-task-button--info"
                       title={t("scheduledTask.runNow")}
                     >
-                      <RotateCcw size={14} />
+                      <InteractiveIcon>
+                        <RotateCcw size={14} />
+                      </InteractiveIcon>
                       <span className="hidden sm:inline">
                         {t("scheduledTask.runNow")}
                       </span>
@@ -315,7 +338,9 @@ export function SessionScheduledTasksButton({
       }
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >
-      <CalendarClock size={17} />
+      <InteractiveIcon>
+        <CalendarClock size={17} />
+      </InteractiveIcon>
       <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-10 font-semibold leading-none text-white">
         {count > 99 ? "99+" : count}
       </span>

@@ -90,7 +90,7 @@ function VideoAnalyzeDetail({ args, result }: ToolDetailProps) {
   const analysis = useMemo(() => getAnalysisText(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       {prompt && (
         <ToolArgsBlock size="detail" copyText={prompt} wrap>
           <MessageSquareText
@@ -155,8 +155,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
   const prompt = (args.prompt as string) || "";
   const analysis = useMemo(() => getAnalysisText(result), [result]);
   // 参数生成中（无结果）也允许打开面板：实时等待分析结果
-  const canExpand =
-    videos.length > 0 || !!prompt || !!analysis || !!isPending;
+  const canExpand = videos.length > 0 || !!prompt || !!analysis || !!isPending;
   const status = isPending
     ? "loading"
     : cancelled
@@ -201,9 +200,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${t("chat.message.toolVideoAnalyze")} ${
-      prompt || videoSummary
-    }`,
+    `${t("chat.message.toolVideoAnalyze")} ${prompt || videoSummary}`,
     args,
     { isPending, result },
   );

@@ -13,18 +13,19 @@ const approvalCss = readFileSync(
   "utf8",
 );
 
-test("adapts sandbox-confirm op rows to two-line stacking on narrow screens", () => {
-  // 窄屏：编号 + 动词胶囊一行，命令独占整行换行并缩进对齐胶囊左缘，
-  // 避免胶囊挤压命令宽度；参数单标签列同步放宽
+test("keeps operation labels above commands at every container width", () => {
   expect(approvalCss).toMatch(
-    /@media \(max-width: 640px\)[\s\S]*?\.approval-op-row\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
+    /\.approval-op-row\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*max-content minmax\(0, 1fr\);/,
   );
-  expect(approvalCss).toMatch(
-    /@media \(max-width: 640px\)[\s\S]*?\.approval-op-detail\s*\{[\s\S]*?flex-basis:\s*100%;/,
-  );
-  expect(approvalCss).toMatch(
-    /@media \(max-width: 640px\)[\s\S]*?\.approval-st-label\s*\{[\s\S]*?flex-basis:\s*5rem;/,
-  );
+  for (const name of ["verb", "detail"]) {
+    expect(approvalCss).toMatch(
+      new RegExp(
+        `\\.approval-op-${name}\\s*\\{[^}]*grid-column:\\s*2;[^}]*min-width:\\s*0;`,
+      ),
+    );
+  }
+  expect(approvalCss).not.toMatch(/\.approval-op-verb\s*\{[^}]*border-radius/);
+  expect(approvalCss.match(/^\.approval-op-row\s*\{/gm)).toHaveLength(1);
 });
 
 test("renders sandbox-confirm batches as a structured op list, not one crammed line", () => {
@@ -46,7 +47,7 @@ test("renders sandbox-confirm batches as a structured op list, not one crammed l
     /\.approval-op-detail\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-op-row \+ \.approval-op-row\s*\{[\s\S]*?border-top:\s*1px dashed/,
+    /\.approval-op-row \+ \.approval-op-row\s*\{[\s\S]*?border-top:\s*1px solid/,
   );
 });
 

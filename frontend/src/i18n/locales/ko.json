@@ -1320,7 +1320,10 @@
       "systemPrompt": "시스템 프롬프트",
       "table": "표",
       "thinking": "생각 중",
+      "thinkingFailed": "생각이 중단되었습니다",
+      "thinkingCancelled": "생각이 취소되었습니다",
       "thought": "생각 완료",
+      "thinkingSeconds": "{{count}} 초",
       "tokenCache": "캐시",
       "tokenCacheCreation": "캐시 생성",
       "tokenCacheRate": "캐시율",
@@ -1334,6 +1337,10 @@
       "toolAskHumanListSeparator": ", ",
       "toolAudioTranscribe": "전사",
       "toolCalls": "도구 호출",
+      "toolGroupRead_other": "파일 {{count}}개 읽음",
+      "toolGroupSearch_other": "{{count}}회 검색함",
+      "toolGroupExecute_other": "명령 {{count}}개 실행함",
+      "toolGroupOther_other": "도구 호출 {{count}}회 완료",
       "toolCreateTeam": "팀 생성",
       "toolEdit": "편집",
       "toolEditAdded": "추가",
@@ -1564,7 +1571,19 @@
       "toolListSubagents": "하위 에이전트 목록",
       "toolSubagentQueued": "대기열에 있음",
       "toolSubagentTimedOut": "실행 시간 초과",
-      "toolSubagentEmpty": "하위 에이전트 없음"
+      "toolSubagentEmpty": "하위 에이전트 없음",
+      "toolGroupRead_one": "파일 {{count}}개 읽음",
+      "toolGroupRead_few": "파일 {{count}}개 읽음",
+      "toolGroupRead_many": "파일 {{count}}개 읽음",
+      "toolGroupSearch_one": "{{count}}회 검색함",
+      "toolGroupSearch_few": "{{count}}회 검색함",
+      "toolGroupSearch_many": "{{count}}회 검색함",
+      "toolGroupExecute_one": "명령 {{count}}개 실행함",
+      "toolGroupExecute_few": "명령 {{count}}개 실행함",
+      "toolGroupExecute_many": "명령 {{count}}개 실행함",
+      "toolGroupOther_one": "도구 호출 {{count}}회 완료",
+      "toolGroupOther_few": "도구 호출 {{count}}회 완료",
+      "toolGroupOther_many": "도구 호출 {{count}}회 완료"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -1584,7 +1603,13 @@
     "rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요",
     "requestFailed": "세션 로드에 실패했습니다",
     "runningPlaceholder": "요구 사항을 추가하거나 다음 작업을 입력하세요…",
+    "eventStatus": {
+      "loading": "실행 중",
+      "error": "실패",
+      "cancelled": "취소됨"
+    },
     "memory": {
+      "cancelled": "메모리 검색이 취소되었습니다",
       "initializing": "관련 메모리를 검색하는 중",
       "ready": "메모리 검색 완료"
     },
@@ -3773,6 +3798,7 @@
     "widenSidebar": "사이드바 넓히기"
   },
   "sidebar": {
+    "unreadMessages": "읽지 않은 메시지 {{count}}개",
     "noProjects": "프로젝트가 없습니다",
     "addToFavorites": "즐겨찾기에 추가",
     "batchDeleteConfirm": "선택한 {{count}}개의 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",

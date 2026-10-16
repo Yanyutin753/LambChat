@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { createPortal } from "react-dom";
 import { useId, useRef, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
@@ -158,10 +159,12 @@ export function SkillFilterDropdown<T extends string>({
             {activeCount}
           </span>
         )}
-        <ChevronDown
-          size={16}
-          className={cx("transition-transform", isOpen && "rotate-180")}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={16}
+            className={cx("transition-transform", isOpen && "rotate-180")}
+          />
+        </InteractiveIcon>
       </button>
       {panel}
     </>

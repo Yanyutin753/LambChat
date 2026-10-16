@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import {
   Fragment,
   useLayoutEffect,
@@ -124,7 +125,7 @@ export function ResourceCardMenu({
       id={id}
       role="menu"
       aria-label={title}
-      className="fixed z-[999] w-56 max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-auto rounded-xl border border-theme-border bg-theme-bg-card p-1 shadow-xl"
+      className="fixed z-[999] w-56 max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-auto ui-menu-surface"
       style={{ left: fitted.x, top: fitted.y }}
       onClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => {
@@ -188,7 +189,11 @@ export function ResourceCardMenu({
               aria-disabled={action.disabled || undefined}
               disabled={action.href ? undefined : action.disabled}
               tabIndex={-1}
-              className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-13 aria-disabled:opacity-40 aria-disabled:cursor-not-allowed aria-[current=page]:bg-theme-bg-subtle aria-[current=page]:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${action.danger ? "text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]" : "text-theme-text hover:bg-theme-bg-subtle"}`}
+              className={`ui-menu-item aria-disabled:opacity-40 aria-disabled:cursor-not-allowed aria-[current=page]:bg-theme-bg-subtle aria-[current=page]:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] ${
+                action.danger
+                  ? "ui-menu-item--danger text-theme-error hover:bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]"
+                  : "text-theme-text hover:bg-theme-bg-subtle"
+              }`}
               onClick={(event) => {
                 if (action.disabled) {
                   event.preventDefault();
@@ -198,7 +203,7 @@ export function ResourceCardMenu({
                 action.onClick?.();
               }}
             >
-              {action.icon}
+              <InteractiveIcon>{action.icon}</InteractiveIcon>
               <span className="min-w-0 break-words">{action.label}</span>
             </Item>
           </Fragment>

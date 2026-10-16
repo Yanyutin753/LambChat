@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import {
   useState,
   useRef,
@@ -73,11 +74,13 @@ function MenuGroup({
       >
         <span className="feature-menu-group-icon">{icon}</span>
         <span className="flex-1 text-left truncate">{label}</span>
-        <ChevronDown
-          size={16}
-          className="feature-menu-chevron"
-          data-open={expanded ? "true" : undefined}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={16}
+            className="feature-menu-chevron"
+            data-open={expanded ? "true" : undefined}
+          />
+        </InteractiveIcon>
       </button>
       <div
         id={bodyId}
@@ -225,7 +228,9 @@ export const FeatureMenu = memo(function FeatureMenu({
         aria-expanded={isOpen}
         aria-controls={isOpen ? dropdownId : undefined}
       >
-        <Plus size={16} />
+        <InteractiveIcon>
+          <Plus size={16} />
+        </InteractiveIcon>
       </button>
 
       {isOpen &&

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useMemo } from "react";
 import { Search, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -15,7 +16,14 @@ interface RoleSquareProps {
 }
 
 function renderAvatar(preset: PersonaPreset) {
-  return <AgentAvatar avatar={preset.avatar} seed={preset.id || preset.name} size={28} iconSize={16} />;
+  return (
+    <AgentAvatar
+      avatar={preset.avatar}
+      seed={preset.id || preset.name}
+      size={28}
+      iconSize={16}
+    />
+  );
 }
 
 export function RoleSquare({
@@ -104,7 +112,9 @@ export function RoleSquare({
                 className="team-role-card__add"
                 title={t("team.addToTeam")}
               >
-                <Plus className="h-3.5 w-3.5" />
+                <InteractiveIcon>
+                  <Plus className="h-3.5 w-3.5" />
+                </InteractiveIcon>
               </button>
             </div>
           );

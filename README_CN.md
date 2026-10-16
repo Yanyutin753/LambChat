@@ -4,12 +4,12 @@
 
 **运行在云端的个人 AI Agent —— 开源、自托管、全天候在线，需要时也是多租户平台。**
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
-[![React](https://img.shields.io/badge/React-19-green.svg)]()
-[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-orange.svg)]()
-[![deepagents](https://img.shields.io/badge/deepagents-Latest-purple.svg)]()
-[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green.svg)]()
-[![Redis](https://img.shields.io/badge/Redis-Latest-red.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-green.svg)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-orange.svg)](https://fastapi.tiangolo.com/)
+[![deepagents](https://img.shields.io/badge/deepagents-Latest-purple.svg)](https://github.com/langchain-ai/deepagents)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green.svg)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-Latest-red.svg)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [English](README.md) · [简体中文](README_CN.md) · [文档](https://yanyutin753.github.io/LambChat/zh/) · [参与贡献](CONTRIBUTING.md)
@@ -57,24 +57,26 @@
 
 ## 产品预览
 
+更新于 2026 年 10 月 16 日。截图来自当前界面组件，使用演示数据；浅色与深色版本随设备配色切换。
+
 | 对话与执行 | 技能市场 | 模型管理 |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/chat-response.webp" width="300" alt="流式 Agent 响应"><br>**流式 Agent 工作** | <img src="docs/images/best-practice/marketplace-page.webp" width="300" alt="技能市场"><br>**越积越多的技能** | <img src="docs/images/best-practice/models-page.webp" width="300" alt="模型配置"><br>**你的模型你的密钥** |
-| <img src="docs/images/best-practice/files-page.webp" width="300" alt="文件库"><br>**交付物文件库** | <img src="docs/images/best-practice/mcp-page.webp" width="300" alt="MCP 配置"><br>**MCP 工具** | <img src="docs/images/best-practice/mobile-view.webp" width="190" alt="移动端响应式视图"><br>**处处都在** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-response-dark.webp" /><img src="docs/images/best-practice/chat-response.webp" width="300" alt="流式 Agent 响应"></picture><br>**流式 Agent 工作** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/marketplace-page-dark.webp" /><img src="docs/images/best-practice/marketplace-page.webp" width="300" alt="技能市场"></picture><br>**越积越多的技能** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/models-page-dark.webp" /><img src="docs/images/best-practice/models-page.webp" width="300" alt="模型配置"></picture><br>**你的模型你的密钥** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/files-page-dark.webp" /><img src="docs/images/best-practice/files-page.webp" width="300" alt="文件库"></picture><br>**交付物文件库** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mcp-page-dark.webp" /><img src="docs/images/best-practice/mcp-page.webp" width="300" alt="MCP 配置"></picture><br>**MCP 工具** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mobile-view-dark.webp" /><img src="docs/images/best-practice/mobile-view.webp" width="92" height="200" alt="移动端响应式视图"></picture><br>**处处都在** |
 
 <details>
 <summary><b>查看完整界面图库</b></summary>
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.webp" width="280" alt="登录"><br>**登录** | <img src="docs/images/best-practice/register-page.webp" width="280" alt="注册"><br>**注册** | <img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="重置密码"><br>**重置密码** |
-| <img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="邮箱验证"><br>**邮箱验证** | <img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="注册待审核"><br>**注册待审核** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="聊天"><br>**聊天** |
-| <img src="docs/images/best-practice/chat-response.webp" width="280" alt="流式"><br>**流式输出** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="分享"><br>**分享** | <img src="docs/images/best-practice/skills-page.webp" width="280" alt="技能"><br>**技能** |
-| <img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="技能市场"><br>**技能市场** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP 配置** | <img src="docs/images/best-practice/agents-page.webp" width="280" alt="智能体"><br>**智能体** |
-| <img src="docs/images/best-practice/models-page.webp" width="280" alt="模型"><br>**模型** | <img src="docs/images/best-practice/channels-page.webp" width="280" alt="渠道"><br>**渠道** | <img src="docs/images/best-practice/files-page.webp" width="280" alt="文件"><br>**文件** |
-| <img src="docs/images/best-practice/persona-page.webp" width="280" alt="人格"><br>**人格** | <img src="docs/images/best-practice/memory-page.webp" width="280" alt="记忆"><br>**记忆** | <img src="docs/images/best-practice/notifications-page.webp" width="280" alt="通知"><br>**通知** |
-| <img src="docs/images/best-practice/settings-page.webp" width="280" alt="设置"><br>**系统设置** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="反馈"><br>**反馈** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="分享页"><br>**会话分享** |
-| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="角色"><br>**角色管理** | <img src="docs/images/best-practice/users-page.webp" width="280" alt="用户"><br>**用户管理** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="平板"><br>**平板端** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/login-page-dark.webp" /><img src="docs/images/best-practice/login-page.webp" width="280" alt="登录"></picture><br>**登录** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/register-page-dark.webp" /><img src="docs/images/best-practice/register-page.webp" width="280" alt="注册"></picture><br>**注册** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/reset-request-page-dark.webp" /><img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="重置密码"></picture><br>**重置密码** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/verify-email-page-dark.webp" /><img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="邮箱验证"></picture><br>**邮箱验证** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/registration-pending-page-dark.webp" /><img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="注册待审核"></picture><br>**注册待审核** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-home-dark.webp" /><img src="docs/images/best-practice/chat-home.webp" width="280" alt="聊天"></picture><br>**聊天** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/chat-response-dark.webp" /><img src="docs/images/best-practice/chat-response.webp" width="280" alt="流式"></picture><br>**流式输出** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/share-dialog-dark.webp" /><img src="docs/images/best-practice/share-dialog.webp" width="280" alt="分享"></picture><br>**分享** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/skills-page-dark.webp" /><img src="docs/images/best-practice/skills-page.webp" width="280" alt="技能"></picture><br>**技能** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/marketplace-page-dark.webp" /><img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="技能市场"></picture><br>**技能市场** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/mcp-page-dark.webp" /><img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"></picture><br>**MCP 配置** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/agents-page-dark.webp" /><img src="docs/images/best-practice/agents-page.webp" width="280" alt="智能体"></picture><br>**智能体** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/models-page-dark.webp" /><img src="docs/images/best-practice/models-page.webp" width="280" alt="模型"></picture><br>**模型** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/channels-page-dark.webp" /><img src="docs/images/best-practice/channels-page.webp" width="280" alt="渠道"></picture><br>**渠道** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/files-page-dark.webp" /><img src="docs/images/best-practice/files-page.webp" width="280" alt="文件"></picture><br>**文件** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/persona-page-dark.webp" /><img src="docs/images/best-practice/persona-page.webp" width="280" alt="角色广场"></picture><br>**角色广场** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/memory-page-dark.webp" /><img src="docs/images/best-practice/memory-page.webp" width="280" alt="记忆"></picture><br>**记忆** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/notifications-page-dark.webp" /><img src="docs/images/best-practice/notifications-page.webp" width="280" alt="通知"></picture><br>**通知** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/settings-page-dark.webp" /><img src="docs/images/best-practice/settings-page.webp" width="280" alt="设置"></picture><br>**系统设置** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/feedback-page-dark.webp" /><img src="docs/images/best-practice/feedback-page.webp" width="280" alt="反馈"></picture><br>**反馈** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/shared-page-dark.webp" /><img src="docs/images/best-practice/shared-page.webp" width="280" alt="分享页"></picture><br>**会话分享** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/roles-page-dark.webp" /><img src="docs/images/best-practice/roles-page.webp" width="280" alt="角色"></picture><br>**角色管理** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/users-page-dark.webp" /><img src="docs/images/best-practice/users-page.webp" width="280" alt="用户"></picture><br>**用户管理** | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/tablet-view-dark.webp" /><img src="docs/images/best-practice/tablet-view.webp" width="148" height="190" alt="平板"></picture><br>**平板端** |
 
 </details>
 
@@ -99,7 +101,7 @@
 <summary><b>能把活干完的运行时</b></summary>
 
 - **deepagents 架构**：编译图运行时，支持细粒度状态管理。
-- **多 Agent 类型**：支持 core、fast、search 和 team 工作流——一支 Agent 团队可以拆分任务、互相交接。
+- **三类内置 Agent**：`quick` 负责日常问答、写作与翻译；`search` 负责研究、工具调用与沙箱执行；`team` 负责角色搜索、子代理分派与持续协作。
 - **插件注册**：通过 `@register_agent("id")` 接入自定义 Agent。
 - **流式输出**：原生 SSE——实时看着 Agent 思考、调工具、写内容。
 - **子 Agent**：支持多层级任务委派。
@@ -171,9 +173,9 @@
 
 ## 系统架构
 
-<p align="center"><img src="docs/images/best-practice/architecture.webp" width="680" alt="LambChat 系统架构"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/best-practice/architecture-dark.webp" /><img src="docs/images/best-practice/architecture.webp" width="1000" alt="LambChat 系统架构"></picture></p>
 
-一套可部署系统，不依赖外部 SaaS：FastAPI 后端承载 LangGraph/deepagents 执行、Redis/MongoDB 持久化和沙箱隔离，前面是 React 19 工作台。
+一套自托管控制平面：FastAPI 后端承载 LangGraph/deepagents 执行、Redis/MongoDB 持久化和沙箱隔离，前面是 React 19 工作台。
 
 - **前端**：React 19、Vite、TailwindCSS、PWA workers、Capacitor 移动端构建和 Tauri 桌面端打包。
 - **后端**：FastAPI、SSE/WebSocket 流式通信、鉴权/RBAC、调度器、存储服务、模型路由和 MCP 管理。
@@ -189,7 +191,7 @@
 
 ### 前置要求
 
-- Python >=3.12, <3.15
+- Python `>=3.12, <3.15`
 - [uv](https://docs.astral.sh/uv/)（Python 包管理器）
 - Node.js 22.22.2+
 - [pnpm](https://pnpm.io/) 10+
@@ -318,7 +320,7 @@ pnpm run docs:build
 .
 ├── main.py                  # Uvicorn 入口，指向 src.api.main:app
 ├── src/
-│   ├── agents/              # Core、fast、search、team Agent 图
+│   ├── agents/              # Quick、Search、Team Agent 图及共享 core 运行时
 │   ├── api/                 # FastAPI 应用、中间件与路由模块
 │   │   └── routes/          # Chat、auth、MCP、skills、files、scheduler、teams 等
 │   ├── infra/               # 运行时服务：auth、llm、mcp、scheduler、task、storage、memory

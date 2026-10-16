@@ -29,15 +29,15 @@ function contrast(a: Color, b: Color): number {
 const labels = [
   {
     file: "common/CollapsiblePill.tsx",
-    pattern: /success:\s*\n\s*"(bg-[^"]+)"/,
+    pattern: /success:\s*\n\s*"(text-[^"]+)"/,
     status: "success",
-    tint: 0.12,
+    tint: 0,
   },
   {
     file: "common/CollapsiblePill.tsx",
-    pattern: /error:\s*\n?\s*"(bg-[^"]+)"/,
+    pattern: /error:\s*\n\s*"(text-[^"]+)"/,
     status: "error",
-    tint: 0.12,
+    tint: 0,
   },
   {
     file: "pages/ChannelsPage.tsx",

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { ResourceCardTags } from "../common/ResourceCardTags";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { TeamListSkeleton } from "../skeletons";
@@ -486,12 +487,14 @@ export function TeamBuilderWrapper() {
                 <span className="hidden sm:inline">
                   {currentScope?.label ?? t("personaPresets.all", "全部")}
                 </span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${
-                    isScopeOpen ? "rotate-180" : ""
-                  }`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${
+                      isScopeOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </InteractiveIcon>
               </button>
             </div>
             {allTags.length > 0 && (
@@ -511,7 +514,9 @@ export function TeamBuilderWrapper() {
                       : ""
                   }`}
                 >
-                  <Tag size={14} />
+                  <InteractiveIcon>
+                    <Tag size={14} />
+                  </InteractiveIcon>
                   <span className="hidden sm:inline">
                     {t("team.tags", "标签")}
                   </span>
@@ -520,12 +525,14 @@ export function TeamBuilderWrapper() {
                       1
                     </span>
                   )}
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform ${
-                      isFilterOpen ? "rotate-180" : ""
-                    }`}
-                  />
+                  <InteractiveIcon>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${
+                        isFilterOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </InteractiveIcon>
                 </button>
               </div>
             )}
@@ -539,7 +546,9 @@ export function TeamBuilderWrapper() {
               className="btn-secondary h-10"
               title={t("team.export", "导出团队")}
             >
-              <Download size={16} />
+              <InteractiveIcon>
+                <Download size={16} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">
                 {t("personaPresets.export", "导出")}
               </span>
@@ -550,7 +559,9 @@ export function TeamBuilderWrapper() {
               className="btn-secondary h-10"
               title={t("team.import", "导入团队")}
             >
-              <Upload size={16} />
+              <InteractiveIcon>
+                <Upload size={16} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">
                 {isImporting
                   ? t("personaPresets.importing", "导入中...")
@@ -558,7 +569,9 @@ export function TeamBuilderWrapper() {
               </span>
             </button>
             <button onClick={handleCreateNew} className="btn-primary h-10">
-              <Plus size={15} />
+              <InteractiveIcon>
+                <Plus size={15} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">{t("team.newTeam")}</span>
             </button>
           </>
@@ -607,7 +620,9 @@ export function TeamBuilderWrapper() {
                   onClick={handleCreateNew}
                   className="btn-primary h-9 text-14"
                 >
-                  <Plus size={15} />
+                  <InteractiveIcon>
+                    <Plus size={15} />
+                  </InteractiveIcon>
                   {t("team.createFirst")}
                 </button>
               )
@@ -663,7 +678,9 @@ export function TeamBuilderWrapper() {
                           })
                         }
                       >
-                        <Pin size={12} />
+                        <InteractiveIcon>
+                          <Pin size={12} />
+                        </InteractiveIcon>
                       </button>
                       <button
                         type="button"
@@ -679,7 +696,9 @@ export function TeamBuilderWrapper() {
                           })
                         }
                       >
-                        <Star size={12} />
+                        <InteractiveIcon>
+                          <Star size={12} />
+                        </InteractiveIcon>
                       </button>
                     </div>
                   }
@@ -772,7 +791,9 @@ export function TeamBuilderWrapper() {
                           className="scb__action-btn scb__action-btn--ghost"
                           title={t("team.use", "使用")}
                         >
-                          <Sparkles size={16} />
+                          <InteractiveIcon>
+                            <Sparkles size={16} />
+                          </InteractiveIcon>
                         </button>
                       </div>
                     </div>

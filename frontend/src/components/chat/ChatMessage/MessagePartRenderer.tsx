@@ -466,19 +466,46 @@ export function MessagePartRenderer({
       );
     }
     if (part.name === "start_background_task") {
-      return <StartBackgroundTaskItem id={part.id} args={part.args} result={part.result}
-        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
-        startedAt={part.startedAt} completedAt={part.completedAt} />;
+      return (
+        <StartBackgroundTaskItem
+          id={part.id}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
     }
     if (part.name === "cancel_subagent") {
-      return <CancelSubagentItem id={part.id} args={part.args} result={part.result}
-        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
-        startedAt={part.startedAt} completedAt={part.completedAt} />;
+      return (
+        <CancelSubagentItem
+          id={part.id}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
     }
     if (part.name === "list_subagents") {
-      return <ListSubagentsItem id={part.id} args={part.args} result={part.result}
-        success={part.success} isPending={part.isPending} cancelled={part.cancelled}
-        startedAt={part.startedAt} completedAt={part.completedAt} />;
+      return (
+        <ListSubagentsItem
+          id={part.id}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
     }
     if (
       part.name === "send_subagent_message" ||
@@ -659,6 +686,12 @@ export function MessagePartRenderer({
       <ThinkingBlock
         content={part.content}
         isStreaming={isStreaming && isLast && part.isStreaming}
+        terminalStatus={part.status}
+        startedAt={part.startedAt}
+        completedAt={
+          part.completedAt ??
+          (!part.isStreaming || !isStreaming ? part.lastUpdatedAt : undefined)
+        }
         panelKey={part.thinking_id}
       />
     );

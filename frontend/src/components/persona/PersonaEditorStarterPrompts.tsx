@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { X, Plus, Sparkles } from "lucide-react";
 
@@ -65,7 +66,9 @@ export function StarterPromptsEditor({
               )} ${index + 1}`}
               title={t("common.delete", "删除")}
             >
-              <X size={14} />
+              <InteractiveIcon>
+                <X size={14} />
+              </InteractiveIcon>
             </button>
           </div>
         ))}
@@ -75,7 +78,9 @@ export function StarterPromptsEditor({
         className="ppe-starter-add"
         onClick={() => onChange((prev) => [...prev, { icon: "", text: "" }])}
       >
-        <Plus size={13} />
+        <InteractiveIcon>
+          <Plus size={13} />
+        </InteractiveIcon>
         {t("personaPresets.addStarterPrompt", "添加开场提示词")}
       </button>
     </div>

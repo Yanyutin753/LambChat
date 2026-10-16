@@ -63,7 +63,7 @@ function GrepDetail({ args, result }: ToolDetailProps) {
   const parsedResult = useMemo(() => parseGrepResult(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       <ToolArgsBlock
         size="detail"
         copyText={[pattern, searchPath, glob].filter(Boolean).join("\n")}
