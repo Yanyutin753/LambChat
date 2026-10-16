@@ -4488,7 +4488,11 @@
     "readyHint": "再起動すると新しいバージョンを使用できます。",
     "notesUnavailable": "このバージョンの詳しい更新内容はまだ提供されていません。更新履歴をご確認ください。",
     "readyToast": "v{{version}} のインストール準備ができました",
-    "downloadingToast": "v{{version}} をダウンロード中です。完了後にインストールできます"
+    "downloadingToast": "v{{version}} をダウンロード中です。完了後にインストールできます",
+    "channel": "更新チャンネル",
+    "channelStable": "安定版（既定）",
+    "channelDev": "テスト版",
+    "channelDevHint": "テスト版には未解決の問題が含まれる場合があります。dev.2 以前は一度手動で新版をインストールしてください。以後は通常の更新を利用できます。"
   },
   "download": {
     "title": "ローカルサンドボックスのダウンロード",

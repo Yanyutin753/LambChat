@@ -33,12 +33,8 @@
       "signingIdentity": "-",
       "hardenedRuntime": false
     },
-    "externalBin": [
-      "binaries/lambchat-daemon"
-    ],
-    "resources": [
-      "resources/python/"
-    ],
+    "externalBin": ["binaries/lambchat-daemon"],
+    "resources": ["resources/python/"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -51,8 +47,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3REJCNjQ1NTgzN0NGNTkKUldSWnp6ZFlSYmJiWjRHb1lJRFhVOXl5cW93OWlnK0hhS25pdE5lWC9xaVpiL0svTzV0em5ydVIK",
       "endpoints": [
-        "https://lambchat.com/api/version/assets/latest.json/download",
-        "https://github.com/Yanyutin753/LambChat/releases/latest/download/latest.json"
+        "https://lambchat.com/api/version/assets/latest.json/download"
       ],
       "windows": {
         "installMode": "passive"

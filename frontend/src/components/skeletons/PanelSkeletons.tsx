@@ -13,6 +13,7 @@ export {
 } from "./InfraSkeletons";
 export {
   ChannelsGridSkeleton,
+  ChannelInstancesSkeleton,
   ChannelConfigSkeleton,
 } from "./ChannelSkeletons";
 export {

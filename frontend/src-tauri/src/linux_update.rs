@@ -236,7 +236,7 @@ fn package_version(asset: &str, arch: &str) -> Result<String, String> {
     let version_and_suffix = asset.strip_prefix("LambChat-v").ok_or("Invalid update asset")?;
     for kind in [SOURCE_DEB, SOURCE_RPM] {
         if let Some(version) = version_and_suffix.strip_suffix(&format!("-Linux-{arch}.{kind}")) {
-            crate::release_signature::version_parts(version)?;
+            crate::release_signature::release_version_parts(version)?;
             return Ok(version.into());
         }
     }
@@ -493,7 +493,7 @@ pub async fn download_linux_package(
     let client = update_http_client(&manifest_url)?;
     let manifest = fetch_release_metadata(&client, manifest_url, MAX_MANIFEST_BYTES).await?;
     let signature = fetch_release_metadata(&client, signature_url, 64).await?;
-    let signed = verify_release(&manifest, &signature, &version, &asset_name, env!("CARGO_PKG_VERSION"))?;
+    let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
     let app_for_progress = app.clone();
     let (_path, downloaded) = download_update_package(
         &url,
@@ -517,6 +517,10 @@ pub async fn download_linux_package(
     Ok(downloaded)
 }
 
+fn requires_package_replacement(target: &str, current: &str) -> bool {
+    target.split("-dev.").next() == current.split("-dev.").next()
+}
+
 /// 从缓存安装 deb/rpm 更新包（pkcon → pkexec 包管理器 → 底层工具三级
 /// 回退；成功后清空缓存，调用方 relaunch 进新版）。
 #[tauri::command]
@@ -530,12 +534,16 @@ pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(
     let cache = update_cache_dir();
     let manifest = read_cached_metadata(&cache.join(format!("{asset_name}.security.json")), MAX_MANIFEST_BYTES)?;
     let signature = read_cached_metadata(&cache.join(format!("{asset_name}.security.sig")), 64)?;
-    let signed = verify_release(&manifest, &signature, &version, &asset_name, env!("CARGO_PKG_VERSION"))?;
+    let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
     let path = cache.join(&asset_name);
     verify_package(&path, &signed)?;
 
     let chains = installer_argv_chain(&kind, &path)
         .ok_or_else(|| format!("unsupported package kind: {kind}"))?;
+    // Package managers may report success without installing another same-core dev build.
+    let chains = if requires_package_replacement(&version, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))) {
+        chains.into_iter().rev().take(1).collect()
+    } else { chains };
     let mut last_err = String::new();
     for argv in chains {
         // pkexec/pkcon 授权是阻塞轮询（≤20min 授权窗口），挪出 async 线程
@@ -559,6 +567,13 @@ pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn same_core_dev_updates_require_package_replacement() {
+        assert!(requires_package_replacement("2.15.2-dev.4", "2.15.2-dev.3"));
+        assert!(requires_package_replacement("2.15.2", "2.15.2-dev.4"));
+        assert!(!requires_package_replacement("2.15.3-dev.1", "2.15.2"));
+    }
 
     #[test]
     fn linux_release_identity_rejects_wrong_arch_and_paths() {

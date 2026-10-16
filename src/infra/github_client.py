@@ -1,10 +1,12 @@
 """GitHub client for fetching release information."""
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 import httpx
+from packaging.version import Version
 
 GITHUB_REPO = "Yanyutin753/LambChat"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -56,6 +58,7 @@ class GitHubClient:
     def __init__(self):
         self._cache: Optional[GitHubRelease] = None
         self._cache_time: Optional[datetime] = None
+        self._dev_cache: Optional[tuple[GitHubRelease, datetime]] = None
         self._updater_cache: Optional[tuple[GitHubRelease, datetime]] = None
         self._tag_cache: dict[str, tuple[GitHubRelease, datetime]] = {}
 
@@ -69,6 +72,50 @@ class GitHubClient:
             self._cache = release
             self._cache_time = datetime.now(UTC)
         return release
+
+    async def get_channel_release(
+        self, channel: Literal["stable", "dev"], force_refresh: bool = False
+    ) -> Optional[GitHubRelease]:
+        """Select only completed dev manifests; keep stable Latest behavior unchanged."""
+        if channel == "stable":
+            return await self.get_latest_release(force_refresh=force_refresh)
+        cached = self._dev_cache
+        if not force_refresh and cached and datetime.now(UTC) - cached[1] < timedelta(minutes=10):
+            return cached[0]
+        candidates: list[tuple[Version, GitHubRelease]] = []
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # shortcut: inspect 90 releases; expand if the active channel spans more history.
+                for page in range(1, 4):
+                    response = await client.get(
+                        f"{GITHUB_API_URL.removesuffix('/latest')}?per_page=30&page={page}",
+                        headers={"Accept": "application/vnd.github+json"},
+                    )
+                    if response.status_code != 200:
+                        return None
+                    releases = response.json()
+                    for data in releases:
+                        tag = data.get("tag_name", "")
+                        if data.get("draft") or not re.fullmatch(
+                            r"v[0-9]+\.[0-9]+\.[0-9]+(?:-dev\.[1-9][0-9]*)?", tag
+                        ):
+                            continue
+                        is_dev = "-dev." in tag
+                        if bool(data.get("prerelease")) != is_dev:
+                            continue
+                        release = self._parse_release(data)
+                        marker = "dev-latest.json" if is_dev else "latest.json"
+                        if any(asset["name"] == marker for asset in release.assets):
+                            candidates.append((Version(tag.removeprefix("v")), release))
+                    if len(releases) < 30:
+                        break
+        except (httpx.HTTPError, ValueError, TypeError):
+            return None
+        if not candidates:
+            return None
+        selected = max(candidates, key=lambda entry: entry[0])[1]
+        self._dev_cache = (selected, datetime.now(UTC))
+        return selected
 
     def _is_cache_valid(self) -> bool:
         """Check if cache is valid"""

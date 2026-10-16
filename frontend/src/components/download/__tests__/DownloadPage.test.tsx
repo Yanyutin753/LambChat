@@ -3,6 +3,7 @@
 // （桌面端安装包 + 独立 daemon 二进制 + 配对教程），失败兜底 GitHub Releases。
 import { render as renderBase, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
+import { setUpdateChannel } from "../../../utils/updateChannel";
 import i18n from "../../../i18n";
 import { LanguagePreferenceProvider } from "../../../hooks/useLanguagePreference";
 import type { ReactNode } from "react";
@@ -90,6 +91,7 @@ const ASSETS = [
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   vi.clearAllMocks();
+  setUpdateChannel("stable");
 });
 
 test("renders desktop and daemon downloads from the latest release assets", async () => {
@@ -120,12 +122,12 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
     .find(Boolean);
   expect(msi).toHaveAttribute(
     "href",
-    "/api/version/assets/LambChat-v2.8.1-Windows.msi/download",
+    "/api/version/assets/LambChat-v2.8.1-Windows.msi/download?tag=v2.8.1",
   );
   const dmg = screen.getByText("LambChat-v2.8.1-macOS.dmg").closest("a");
   expect(dmg).toHaveAttribute(
     "href",
-    "/api/version/assets/LambChat-v2.8.1-macOS.dmg/download",
+    "/api/version/assets/LambChat-v2.8.1-macOS.dmg/download?tag=v2.8.1",
   );
 
   // daemon 二进制区
@@ -134,7 +136,7 @@ test("renders desktop and daemon downloads from the latest release assets", asyn
     .closest("a");
   expect(daemon).toHaveAttribute(
     "href",
-    "/api/version/assets/lambchat-daemon-x86_64-pc-windows-msvc.exe/download",
+    "/api/version/assets/lambchat-daemon-x86_64-pc-windows-msvc.exe/download?tag=v2.8.1",
   );
 
   // 教程步骤
@@ -146,6 +148,7 @@ test("macOS card shows the Gatekeeper first-launch note with the xattr command",
   // macOS 分区给出 xattr 解法（与 release notes 引导同一命令）
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
+    latest_version: "2.8.1",
     release_assets: ASSETS,
   });
 
@@ -164,6 +167,7 @@ test("macOS card promotes the one-line install script command", async () => {
   // curl 下载不带隔离标记，装完直接可开——无需 xattr 的推荐安装路径
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
+    latest_version: "2.8.1",
     release_assets: ASSETS,
   });
 
@@ -180,6 +184,7 @@ test("macOS card promotes the one-line install script command", async () => {
 test("daemon section shows the login and run commands", async () => {
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
+    latest_version: "2.8.1",
     release_assets: ASSETS,
   });
 
@@ -214,6 +219,7 @@ test("hero CTA directly downloads the detected platform's installer", async () =
 
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
+    latest_version: "2.8.1",
     release_assets: ASSETS,
   });
 
@@ -223,7 +229,7 @@ test("hero CTA directly downloads the detected platform's installer", async () =
     const direct = await screen.findByText(/Download for Windows/i);
     expect(direct.closest("a")).toHaveAttribute(
       "href",
-      "/api/version/assets/LambChat-v2.8.1-Windows.msi/download",
+      "/api/version/assets/LambChat-v2.8.1-Windows.msi/download?tag=v2.8.1",
     );
   } finally {
     Object.defineProperty(window.navigator, "userAgent", {
@@ -242,6 +248,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
 
   mocks.get.mockResolvedValue({
     app_version: "2.8.1",
+    latest_version: "2.8.1",
     release_assets: ASSETS,
   });
 
@@ -251,7 +258,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
     const direct = await screen.findByText(/Download for Android/i);
     expect(direct.closest("a")).toHaveAttribute(
       "href",
-      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download",
+      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download?tag=v2.8.1",
     );
 
     // 手机端分区：APK 行可下载
@@ -260,7 +267,7 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
     );
     expect(apkRow.closest("a")).toHaveAttribute(
       "href",
-      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download",
+      "/api/version/assets/LambChat-android-v2.8.1-signed.apk/download?tag=v2.8.1",
     );
   } finally {
     Object.defineProperty(window.navigator, "userAgent", {
@@ -273,3 +280,21 @@ test("android visitors get a direct apk download in the hero and a mobile sectio
 function render(children: ReactNode) {
   return renderBase(children, { wrapper: LanguagePreferenceProvider });
 }
+
+test("shows opt-in update channel without changing the stable default", async () => {
+  render(<DownloadPage />);
+  expect(
+    await screen.findByRole("button", { name: /更新通道|Update channel/ }),
+  ).toBeTruthy();
+});
+
+test("dev lookup failure links to all releases rather than stable latest", async () => {
+  setUpdateChannel("dev");
+  mocks.get.mockRejectedValue(new Error("offline"));
+  render(<DownloadPage />);
+  const fallback = await screen.findByText(/view all releases on github/i);
+  expect(fallback.closest("a")).toHaveAttribute(
+    "href",
+    "https://github.com/Yanyutin753/LambChat/releases",
+  );
+});

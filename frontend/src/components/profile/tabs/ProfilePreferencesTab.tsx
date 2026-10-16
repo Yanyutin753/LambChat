@@ -1,3 +1,4 @@
+import { UpdateChannelSelect } from "../../update/UpdateChannelSelect";
 import { useLanguagePreference } from "../../../hooks/useLanguagePreference";
 import {
   lazy,
@@ -537,10 +538,7 @@ function PreferencesContent() {
         {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
         <div>
           <div className="sandbox-preference-heading">
-            <Cloud
-              size={15}
-              className="text-theme-text-tertiary shrink-0"
-            />
+            <Cloud size={15} className="text-theme-text-tertiary shrink-0" />
             <span className="font-medium text-14 text-theme-text">
               {t("profile.cloudSandbox")}
             </span>
@@ -574,6 +572,7 @@ function PreferencesContent() {
       {/* 关于：检查更新——仅原生客户端（桌面/移动）渲染；Web 随部署走刷新即更 */}
       {isNativeAppRuntime() && (
         <div className="profile-section">
+          <UpdateChannelSelect />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <RefreshCw

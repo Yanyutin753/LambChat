@@ -1,8 +1,8 @@
 """Version info route."""
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query
 from fastapi.responses import StreamingResponse
 
 from src.infra.github_client import github_client
@@ -16,6 +16,7 @@ router = APIRouter()
 
 @router.get("/version", response_model=VersionResponse)
 async def get_version(
+    channel: Literal["stable", "dev"] = Query("stable"),
     force_refresh: bool = Query(False, description="Force refresh GitHub cache"),
     client_version: Optional[str] = Query(
         None,
@@ -24,7 +25,7 @@ async def get_version(
 ) -> VersionResponse:
     """Get application version info including git tag and build time."""
     # Fetch latest from GitHub
-    latest_release = await github_client.get_latest_release(force_refresh=force_refresh)
+    latest_release = await github_client.get_channel_release(channel, force_refresh=force_refresh)
 
     # Determine if update available
     # has_update 优先按客户端上报版本比较（客户端自检更新）；未上报时回落
@@ -66,6 +67,7 @@ def _find_asset(latest_release: Any, asset_name: str) -> Optional[dict]:
 @router.get("/version/assets/{asset_name}/download")
 async def download_release_asset(
     asset_name: str,
+    x_lambchat_update_channel: Literal["stable", "dev"] = Header("stable"),
     tag: Optional[str] = Query(None, description="锁定 release tag；缺省取最新"),
 ) -> StreamingResponse:
     """按资产名流式代理 GitHub release 资产下载。
@@ -78,7 +80,13 @@ async def download_release_asset(
     ``?tag=`` 把资产锁定到具体 release：发新版瞬间 latest 已前移时，
     老清单里的资产名仍能在其所属 release 中找到，不因竞态 404。
     """
-    if tag:
+    if not tag and asset_name == "latest.json" and x_lambchat_update_channel == "dev":
+        release = await github_client.get_channel_release("dev")
+        manifest_name = (
+            "dev-latest.json" if release and "-dev." in release.tag_name else "latest.json"
+        )
+        asset = _find_asset(release, manifest_name)
+    elif tag:
         release = await github_client.get_release_by_tag(tag)
         asset = _find_asset(release, asset_name)
     else:
@@ -109,7 +117,10 @@ async def download_release_asset(
         finally:
             await stream.close()
 
-    headers = {"Content-Disposition": f'attachment; filename="{asset_name}"'}
+    headers = {
+        "Vary": "X-LambChat-Update-Channel",
+        "Content-Disposition": f'attachment; filename="{asset_name}"',
+    }
     if stream.content_length:
         headers["Content-Length"] = str(stream.content_length)
     return StreamingResponse(

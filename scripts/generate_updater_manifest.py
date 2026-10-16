@@ -29,6 +29,7 @@ import glob
 import json
 import os
 import pathlib
+import re
 import sys
 
 PROXY_ASSET_BASE = "https://lambchat.com/api/version/assets"
@@ -46,7 +47,7 @@ REQUIRED_PLATFORMS = ("windows-x86_64", "darwin-aarch64", "darwin-x86_64")
 def main() -> int:
     tag = os.environ.get("RELEASE_TAG", "").strip()
     asset_dir = pathlib.Path(os.environ.get("ASSET_DIR", "release-assets"))
-    if not tag.startswith("v"):
+    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-dev\.[1-9][0-9]*)?", tag):
         print(f"RELEASE_TAG 必须形如 v2.9.3，收到: {tag!r}", file=sys.stderr)
         return 1
 
@@ -77,9 +78,9 @@ def main() -> int:
         or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "platforms": platforms,
     }
-    out = asset_dir / "latest.json"
+    out = asset_dir / ("dev-latest.json" if "-dev." in tag else "latest.json")
     out.write_text(json.dumps(manifest, indent=2))
-    print(f"latest.json platforms: {sorted(platforms)}")
+    print(f"{out.name} platforms: {sorted(platforms)}")
 
     if not all(p in platforms for p in REQUIRED_PLATFORMS):
         print(

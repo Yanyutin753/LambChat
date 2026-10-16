@@ -11,6 +11,14 @@ import {
   PRECACHE_BUDGET_BYTES,
 } from "./scripts/performanceBudget.ts";
 
+// The immutable release identity is distinct from native numeric package versions.
+if (process.env.RELEASE_TAG) {
+  const tag = process.env.RELEASE_TAG;
+  if (!/^v\d+\.\d+\.\d+(?:-dev\.[1-9]\d*)?$/.test(tag))
+    throw new Error("Invalid RELEASE_TAG");
+  process.env.VITE_RELEASE_VERSION = tag.slice(1);
+}
+
 // Available agents (sync with backend)
 const AGENT_IDS = ["default", "api", "data_pipeline", "simple_workflow"];
 const ICONS_DIR = path.resolve(import.meta.dirname, "public/icons");
@@ -146,7 +154,10 @@ export default defineConfig({
       },
       {
         find: /^stream$/,
-        replacement: path.resolve(import.meta.dirname, "node_modules/stream-browserify"),
+        replacement: path.resolve(
+          import.meta.dirname,
+          "node_modules/stream-browserify",
+        ),
       },
       {
         find: /^events$/,
@@ -158,7 +169,10 @@ export default defineConfig({
       },
       {
         find: /^process$/,
-        replacement: path.resolve(import.meta.dirname, "node_modules/process/browser"),
+        replacement: path.resolve(
+          import.meta.dirname,
+          "node_modules/process/browser",
+        ),
       },
     ],
   },
@@ -174,8 +188,14 @@ export default defineConfig({
         },
         codeSplitting: {
           groups: [
-            { name: "vendor-react", test: /node_modules\/(react|react-dom|react-router|scheduler)(\/|$)/ },
-            { name: "vendor-i18n", test: /node_modules\/(i18next|react-i18next)(\/|$)/ },
+            {
+              name: "vendor-react",
+              test: /node_modules\/(react|react-dom|react-router|scheduler)(\/|$)/,
+            },
+            {
+              name: "vendor-i18n",
+              test: /node_modules\/(i18next|react-i18next)(\/|$)/,
+            },
           ],
         },
       },
