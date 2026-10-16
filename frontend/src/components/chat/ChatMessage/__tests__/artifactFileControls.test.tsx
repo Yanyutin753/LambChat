@@ -458,7 +458,7 @@ test.each(["project", "summary"])(
       );
       expect(iconColumn?.querySelector("svg")).toHaveAttribute(
         "width",
-        kind === "summary" ? "16" : "20",
+        kind === "summary" ? "16" : button === folder ? "1.25rem" : "20",
       );
     }
   },

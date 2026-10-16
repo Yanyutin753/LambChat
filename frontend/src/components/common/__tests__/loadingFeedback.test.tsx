@@ -30,15 +30,18 @@ test("indicator preserves caller dimensions, color and static feedback", () => {
     <LoadingSpinner size={18} static color="text-current" />,
   );
   const indicator = container.querySelector("svg")!;
-  expect(indicator.getAttribute("width")).toBe("18");
-  expect(indicator.getAttribute("height")).toBe("18");
+  expect(indicator.getAttribute("width")).toBe("1.125rem");
+  expect(indicator.getAttribute("height")).toBe("1.125rem");
   expect(indicator.classList.contains("text-current")).toBe(true);
   expect(indicator.classList.contains("spinner-rotate")).toBe(false);
 });
 
 test("explicit caller foreground overrides the shared muted color", () => {
   const { container } = render(
-    <LoadingSpinner color="text-current" className="text-theme-text-tertiary" />,
+    <LoadingSpinner
+      color="text-current"
+      className="text-theme-text-tertiary"
+    />,
   );
   const indicator = container.querySelector("svg")!;
   expect(indicator.classList.contains("text-current")).toBe(false);
