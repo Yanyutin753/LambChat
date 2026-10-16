@@ -12,6 +12,7 @@ def check_release_mutability(tag: str, repo: str) -> None:
         ["gh", "api", f"repos/{repo}/releases/tags/{tag}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if response.returncode:
@@ -28,6 +29,7 @@ def check_release_source(tag: str, repo: str, expected_sha: str) -> None:
         ["gh", "api", f"repos/{repo}/commits/{tag}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if response.returncode or json.loads(response.stdout).get("sha") != expected_sha:

@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -45,3 +46,22 @@ def test_release_source_must_match_requested_tag(actual):
         else:
             with pytest.raises(RuntimeError, match="source"):
                 module.check_release_source("v2.15.2-dev.3", "owner/repo", "a" * 40)
+
+
+@pytest.mark.parametrize("gate", ["source", "mutability"])
+def test_release_gates_decode_utf8_on_windows(gate):
+    payload = json.dumps({"sha": "a" * 40, "assets": [], "body": "发布门禁"}, ensure_ascii=False)
+    run = subprocess.run
+
+    def github_response(_command, **kwargs):
+        kwargs.setdefault("encoding", "cp1252")
+        return run(
+            [sys.executable, "-c", f"import sys; sys.stdout.buffer.write({payload.encode()!r})"],
+            **kwargs,
+        )
+
+    with patch("subprocess.run", side_effect=github_response):
+        if gate == "source":
+            module.check_release_source("v2.15.2-dev.4", "owner/repo", "a" * 40)
+        else:
+            module.check_release_mutability("v2.15.2-dev.4", "owner/repo")
