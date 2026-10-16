@@ -169,3 +169,33 @@ test("task configuration fields and trigger choices have accessible names and st
     expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
   }
 });
+
+test("a chat-created schedule defaults to continuing the current conversation", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={null}
+      defaultSessionId="chat-1"
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText(i18n.t("scheduledTask.name")), {
+    target: { value: "Follow up" },
+  });
+  expect(
+    screen.getByText(i18n.t("scheduledTask.inheritContext")),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByLabelText(i18n.t("scheduledTask.agent")),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0]).toMatchObject({
+    execution_mode: "conversation",
+    target_session_id: "chat-1",
+    notification_policy: "meaningful_changes",
+  });
+});

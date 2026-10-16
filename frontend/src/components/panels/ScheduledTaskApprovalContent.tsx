@@ -13,6 +13,7 @@ interface ScheduledTaskApprovalContentProps {
     run_on_start: boolean;
     timeout_seconds: number;
     message: string;
+    execution_mode?: "conversation" | "standalone";
   };
 }
 
@@ -46,7 +47,13 @@ export function ScheduledTaskApprovalContent({
 }: ScheduledTaskApprovalContentProps) {
   const { t, i18n } = useTranslation();
   const agents = useAgentCatalog();
-  const agentName = resolveAgentReferenceName(preview.agent_id, "", agents, i18n.language, t);
+  const agentName = resolveAgentReferenceName(
+    preview.agent_id,
+    "",
+    agents,
+    i18n.language,
+    t,
+  );
 
   return (
     <div className="approval-st">
@@ -60,6 +67,13 @@ export function ScheduledTaskApprovalContent({
       <div className="approval-st-sheet">
         <SpecRow label={t("approvals.scheduledTask.name")}>
           <span className="approval-st-name">{preview.name}</span>
+        </SpecRow>
+        <SpecRow label={t("scheduledTask.executionMode")}>
+          {t(
+            preview.execution_mode === "conversation"
+              ? "scheduledTask.conversationMode"
+              : "scheduledTask.standaloneMode",
+          )}
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.agent")}>
           <MonoChip>
@@ -108,10 +122,12 @@ export function ScheduledTaskApprovalContent({
       </div>
 
       <p className="approval-st-effect">
-        {t("approvals.scheduledTask.effect", {
-          agent: agentName,
-          schedule: preview.schedule,
-        })}
+        {preview.execution_mode === "conversation"
+          ? t("scheduledTask.inheritContext")
+          : t("approvals.scheduledTask.effect", {
+              agent: agentName,
+              schedule: preview.schedule,
+            })}
         {preview.run_on_start && t("approvals.scheduledTask.effectImmediate")}
       </p>
 

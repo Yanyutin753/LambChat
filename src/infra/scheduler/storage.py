@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import re
+from datetime import datetime
 from typing import Any, Optional
+from uuid import uuid4
 
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from src.infra.logging import get_logger
@@ -28,6 +31,9 @@ _SCHEDULER_DEFINITION_REVISION_ID = "scheduler_definition_revision"
 _TASK_EXECUTION_PROJECTION = {
     "_id": 1,
     "name": 1,
+    "execution_mode": 1,
+    "target_session_id": 1,
+    "notification_policy": 1,
     "agent_id": 1,
     "trigger_type": 1,
     "trigger_config": 1,
@@ -50,6 +56,7 @@ class ScheduledTaskStorage:
 
     def __init__(self) -> None:
         self._collections: dict[str, Any] = {}
+        self._conversation_scan_after: tuple[datetime, str] | None = None
 
     def _get_collection(self, name: str):
         """Lazy-load a MongoDB collection."""
@@ -78,6 +85,13 @@ class ScheduledTaskStorage:
         )
 
         c_runs = self._get_collection(_COLL_RUNS)
+        await c_runs.create_index(
+            [("task_id", 1)],
+            unique=True,
+            partialFilterExpression={"conversation_pending": True},
+            name="one_pending_conversation_wakeup",
+        )
+        await c_runs.create_index([("conversation_state", 1), ("created_at", 1)])
         await c_runs.create_index("task_id")
         await c_runs.create_index([("task_id", 1), ("created_at", -1)])
         await c_runs.create_index("session_id")
@@ -159,7 +173,14 @@ class ScheduledTaskStorage:
         else:
             query["status"] = {"$ne": ScheduledTaskStatus.DELETED}
         if source_session_id:
-            query["source_session_id"] = source_session_id
+            query["$and"] = [
+                {
+                    "$or": [
+                        {"source_session_id": source_session_id},
+                        {"target_session_id": source_session_id},
+                    ]
+                }
+            ]
         if created_by:
             query["created_by"] = created_by
         if search and search.strip():
@@ -264,6 +285,175 @@ class ScheduledTaskStorage:
             collection.count_documents(query),
         )
         return records, total
+
+    async def enqueue_conversation(self, task, trigger_type):
+        now = utc_now()
+        run_id = f"scheduled-{uuid4()}"
+        document = TaskRunRecord(
+            id=run_id,
+            task_id=task.id,
+            agent_id=task.agent_id,
+            trigger_type=trigger_type,
+            session_id=task.target_session_id,
+            input_snapshot=task.input_payload,
+            created_at=now,
+        ).model_dump(by_alias=True)
+        collection = self._get_collection(_COLL_RUNS)
+        try:
+            result = await collection.find_one_and_update(
+                {"task_id": task.id, "conversation_pending": True},
+                {
+                    "$setOnInsert": {
+                        **document,
+                        "conversation_pending": True,
+                        "conversation_state": "pending",
+                        "owner_id": task.owner_id,
+                        "timeout_seconds": task.timeout_seconds,
+                    }
+                },
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            result = await collection.find_one({"task_id": task.id, "conversation_pending": True})
+        return result
+
+    async def cancel_pending_conversation_runs(self, task_id):
+        await self._get_collection(_COLL_RUNS).update_many(
+            {"task_id": task_id, "conversation_state": "pending"},
+            {
+                "$set": {
+                    "conversation_state": "finished",
+                    "conversation_pending": False,
+                    "status": "skipped",
+                    "finished_at": utc_now(),
+                }
+            },
+        )
+
+    async def mark_conversation_read(self, task_id, owner_id):
+        if not task_id:
+            return 0
+        result = await self._get_collection(_COLL_TASKS).update_one(
+            {"_id": task_id, "owner_id": owner_id, "execution_mode": "conversation"},
+            {"$set": {"last_read_at": utc_now()}},
+        )
+        return result.modified_count
+
+    async def conversation_unread_counts(self, owner_id, task_ids):
+        if not task_ids:
+            return {}
+        from datetime import datetime, timezone
+
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        pipeline = [
+            {
+                "$match": {
+                    "owner_id": owner_id,
+                    "task_id": {"$in": task_ids},
+                    "conversation_state": "finished",
+                    "quiet": {"$ne": True},
+                    "status": {"$in": ["success", "failed", "timeout"]},
+                }
+            },
+            {
+                "$lookup": {
+                    "from": _COLL_TASKS,
+                    "localField": "task_id",
+                    "foreignField": "_id",
+                    "as": "task",
+                }
+            },
+            {"$unwind": "$task"},
+            {
+                "$lookup": {
+                    "from": settings.MONGODB_SESSIONS_COLLECTION,
+                    "let": {"target": "$session_id"},
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "user_id": owner_id,
+                                "$expr": {
+                                    "$or": [
+                                        {"$eq": ["$session_id", "$$target"]},
+                                        {"$eq": [{"$toString": "$_id"}, "$$target"]},
+                                    ]
+                                },
+                            }
+                        },
+                        {"$project": {"last_read_at": 1}},
+                    ],
+                    "as": "session",
+                }
+            },
+            {"$unwind": "$session"},
+            {
+                "$match": {
+                    "$expr": {
+                        "$gt": [
+                            "$finished_at",
+                            {
+                                "$max": [
+                                    {"$ifNull": ["$session.last_read_at", epoch]},
+                                    {"$ifNull": ["$task.last_read_at", epoch]},
+                                ]
+                            },
+                        ]
+                    }
+                }
+            },
+            {"$group": {"_id": "$task_id", "count": {"$sum": 1}}},
+        ]
+        return {
+            item["_id"]: item["count"]
+            async for item in await self._get_collection(_COLL_RUNS).aggregate(pipeline)
+        }
+
+    async def has_open_conversation_runs(self, task_id):
+        return bool(
+            await self._get_collection(_COLL_RUNS).find_one(
+                {
+                    "task_id": task_id,
+                    "conversation_state": {"$in": ["pending", "submitting", "submitted"]},
+                }
+            )
+        )
+
+    async def pending_conversation_runs(self):
+        query: dict[str, Any] = {
+            "conversation_state": {"$in": ["pending", "submitting", "submitted"]}
+        }
+        if self._conversation_scan_after:
+            created_at, run_id = self._conversation_scan_after
+            query["$or"] = [
+                {"created_at": {"$gt": created_at}},
+                {"created_at": created_at, "_id": {"$gt": run_id}},
+            ]
+        records = (
+            await self._get_collection(_COLL_RUNS)
+            .find(query)
+            .sort([("created_at", 1), ("_id", 1)])
+            .limit(100)
+            .to_list(length=100)
+        )
+        self._conversation_scan_after = (
+            (records[-1]["created_at"], records[-1]["_id"]) if len(records) == 100 else None
+        )
+        return records
+
+    async def claim_conversation_run(self, run_id):
+        from datetime import timedelta
+
+        return await self._get_collection(_COLL_RUNS).find_one_and_update(
+            {"_id": run_id, "conversation_state": "pending"},
+            {
+                "$set": {
+                    "conversation_state": "submitting",
+                    "claim_until": utc_now() + timedelta(seconds=120),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
 
     async def _bump_scheduler_definition_revision(self) -> None:
         await self._get_collection(_COLL_METADATA).update_one(

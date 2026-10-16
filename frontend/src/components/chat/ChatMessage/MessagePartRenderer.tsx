@@ -53,6 +53,7 @@ import { createToolPartAnchorId } from "./messagePartAnchors";
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
   part,
+  isScheduledRun,
   messageId,
   partIndex,
   isStreaming,
@@ -64,6 +65,7 @@ export function MessagePartRenderer({
   onRetryCancelled,
 }: {
   part: MessagePart;
+  isScheduledRun?: boolean;
   messageId?: string;
   partIndex?: number;
   isStreaming?: boolean;
@@ -86,7 +88,11 @@ export function MessagePartRenderer({
   if (part.type === "text") {
     return (
       <MarkdownContent
-        content={part.content}
+        content={
+          isScheduledRun && !isStreaming && part.content.trim() === "NO_UPDATE"
+            ? t("scheduledTask.noUpdate")
+            : part.content
+        }
         isStreaming={isStreaming && isLast}
         headingAnchorContext={
           messageId !== undefined && partIndex !== undefined

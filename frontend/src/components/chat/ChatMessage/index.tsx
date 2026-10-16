@@ -725,6 +725,7 @@ export const ChatMessage = memo(function ChatMessage({
         <MessagePartRenderer
           key={group.partIndex}
           part={group.part}
+          isScheduledRun={message.runId?.startsWith("scheduled-")}
           messageId={
             typeof message.metadata?.partAnchorOwnerId === "string"
               ? message.metadata.partAnchorOwnerId

@@ -236,6 +236,7 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Verify service was called with correct trigger config
     request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.notification_policy == "meaningful_changes"
     assert request.trigger_type == TriggerType.INTERVAL
     assert request.trigger_config == {"seconds": 300}
     assert request.input_payload == {"message": "Clean up expired cache entries"}
@@ -1412,3 +1413,9 @@ async def test_service_error_handled_gracefully(monkeypatch: pytest.MonkeyPatch)
 
     assert "error" in result
     assert "DB connection lost" in result["error"]
+
+
+def test_chat_schedule_defaults_to_conversation_with_quiet_notifications():
+    fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
+    assert fields["execution_mode"].default == "conversation"
+    assert fields["notification_policy"].default is None

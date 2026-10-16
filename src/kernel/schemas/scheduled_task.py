@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -87,6 +87,9 @@ class ChannelDeliveryConfig(BaseModel):
 class ScheduledTaskCreate(BaseModel):
     """Request body for creating a scheduled task."""
 
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str = Field(..., min_length=1, max_length=200)
     agent_id: str = Field(..., min_length=1)
     trigger_type: TriggerType
@@ -115,6 +118,9 @@ class ScheduledTaskCreate(BaseModel):
 class ScheduledTaskUpdate(BaseModel):
     """Request body for updating a scheduled task."""
 
+    execution_mode: Literal["conversation", "standalone"] | None = None
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] | None = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     agent_id: Optional[str] = Field(None, min_length=1)
     trigger_type: Optional[TriggerType] = None
@@ -135,6 +141,9 @@ class ScheduledTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(..., alias="_id")
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str
     description: Optional[str] = None
     agent_id: str
@@ -192,6 +201,9 @@ class ScheduledTaskResponse(BaseModel):
     """API response for a scheduled task."""
 
     id: str
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str
     description: Optional[str] = None
     agent_id: str

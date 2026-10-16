@@ -48,6 +48,7 @@ from src.infra.goal_runtime import (
     submit_chat_with_goal,
 )
 from src.infra.logging import get_logger
+from src.infra.scheduler.conversation import execute_conversation_schedule
 from src.infra.session.manager import SessionManager
 from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
@@ -210,6 +211,7 @@ def resolve_goal_for_request(
 
 # Register the default agent-stream executor so any worker can dispatch queued tasks
 register_executor("agent_stream", _execute_agent_stream)
+register_executor("conversation_schedule", execute_conversation_schedule)
 
 
 @router.post("/stream")
@@ -236,8 +238,11 @@ async def chat_stream(
         status: 任务状态 (pending / queued)
         queue_position: 排队位置（仅排队时返回）
     """
-    async with timed_server_phase("chat_submit"):
-        return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
+    from src.infra.scheduler.conversation import conversation_submission
+
+    async with conversation_submission(request.session_id, user.sub):
+        async with timed_server_phase("chat_submit"):
+            return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
 
 
 async def _submit_chat(
@@ -293,7 +298,16 @@ async def _submit_chat(
     restrictions = BACKGROUND_RESTRICTIONS.get()
     if background_run and restrictions is not None:
         apply_background_restrictions(request, restrictions)
-    run_id = background_run or _generate_run_id()
+    from src.infra.scheduler.conversation import SCHEDULED_SUBMISSION
+
+    scheduled = SCHEDULED_SUBMISSION.get()
+    if scheduled:
+        from src.infra.scheduler.conversation import execute_conversation_schedule
+
+        register_executor("conversation_schedule", execute_conversation_schedule)
+        executor_key = "conversation_schedule"
+        executor = execute_conversation_schedule
+    run_id = (scheduled["run_id"] if scheduled else None) or background_run or _generate_run_id()
     active_goal_data, run_id = await bind_submission_goal(
         request, existing_metadata, session_id, user.sub, run_id
     )

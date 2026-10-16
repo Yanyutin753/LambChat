@@ -3058,6 +3058,18 @@
     }
   },
   "scheduledTask": {
+    "executionMode": "Режим выполнения",
+    "conversationMode": "Продолжить в этом чате",
+    "standaloneMode": "Новый чат при каждом запуске",
+    "targetConversation": "Целевой чат",
+    "targetRequired": "Выберите чат",
+    "currentConversation": "Текущий чат",
+    "inheritContext": "Использует актуальный контекст, проект, модель и инструменты. Ожидает, пока чат освободится.",
+    "notificationPolicy": "Уведомления",
+    "meaningfulChanges": "Только изменения или нужные действия",
+    "alwaysNotify": "При каждом запуске",
+    "openConversation": "Открыть исходный чат",
+    "noUpdate": "Проверка завершена, изменений нет",
     "searchPlaceholder": "Поиск по названию или описанию задачи…",
     "noResults": "Подходящих задач нет",
     "noResultsDesc": "Попробуйте другой запрос или измените фильтр статуса.",

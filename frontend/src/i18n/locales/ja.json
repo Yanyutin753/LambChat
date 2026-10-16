@@ -3058,6 +3058,18 @@
     }
   },
   "scheduledTask": {
+    "executionMode": "実行方法",
+    "conversationMode": "この会話で続行",
+    "standaloneMode": "実行ごとに新しい会話",
+    "targetConversation": "対象の会話",
+    "targetRequired": "会話を選択してください",
+    "currentConversation": "現在の会話",
+    "inheritContext": "会話の最新の文脈、プロジェクト、モデル、ツールを使用します。実行中の場合は待機します。",
+    "notificationPolicy": "通知",
+    "meaningfulChanges": "進展または対応が必要な場合のみ",
+    "alwaysNotify": "毎回通知",
+    "openConversation": "元の会話を開く",
+    "noUpdate": "確認完了、更新なし",
     "searchPlaceholder": "タスク名や説明を検索…",
     "noResults": "一致する定期タスクはありません",
     "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",

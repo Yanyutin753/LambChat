@@ -300,19 +300,11 @@ class BackgroundTaskManager:
         trace_id = trace_id or ""
         background_resume = False
         if hitl_resume or interrupted_resume:
-            from .background_admission import (
-                validate_background_resume,
-                validate_background_run_admission,
-            )
-            from .background_tasks import execute_background_stream
+            from .background_admission import validate_resume_admission
 
-            if executor is execute_background_stream:
-                await validate_background_run_admission(session_id, user_id, run_id)
-                background_resume = True
-            else:
-                background_resume = await validate_background_resume(
-                    self.storage, session_id, user_id, run_id
-                )
+            background_resume = await validate_resume_admission(
+                self.storage, executor, session_id, user_id, run_id
+            )
 
         async with self._lock:
             existing_task = self._tasks.get(run_id)

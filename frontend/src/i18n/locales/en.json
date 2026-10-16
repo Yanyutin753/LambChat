@@ -3058,6 +3058,18 @@
     }
   },
   "scheduledTask": {
+    "executionMode": "Execution mode",
+    "conversationMode": "Continue in this conversation",
+    "standaloneMode": "Start a new conversation each run",
+    "targetConversation": "Target conversation",
+    "targetRequired": "Select a conversation",
+    "currentConversation": "Current conversation",
+    "inheritContext": "Uses the latest context, project, model and tools. Waits while this conversation is busy.",
+    "notificationPolicy": "Notifications",
+    "meaningfulChanges": "Only changes or required action",
+    "alwaysNotify": "Notify on every run",
+    "openConversation": "Open conversation",
+    "noUpdate": "Check complete, no updates",
     "searchPlaceholder": "Search task names or descriptions…",
     "noResults": "No matching scheduled tasks",
     "noResultsDesc": "Try another keyword or adjust the status filter.",

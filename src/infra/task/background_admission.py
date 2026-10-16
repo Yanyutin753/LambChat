@@ -57,3 +57,20 @@ async def validate_background_resume(storage, session_id: str, user_id: str, run
         return False
     await validate_background_run_admission(session_id, user_id, run_id)
     return True
+
+
+async def validate_resume_admission(storage, executor, session_id, user_id, run_id):
+    """Keep scheduled and detached resume ownership checks at the same admission boundary."""
+    from src.infra.scheduler.conversation import (
+        execute_conversation_schedule,
+        validate_scheduled_run_admission,
+    )
+    from src.infra.task.background_tasks import execute_background_stream
+
+    if executor is execute_conversation_schedule:
+        await validate_scheduled_run_admission(session_id, user_id, run_id)
+        return True
+    if executor is execute_background_stream:
+        await validate_background_run_admission(session_id, user_id, run_id)
+        return True
+    return await validate_background_resume(storage, session_id, user_id, run_id)

@@ -167,6 +167,10 @@ def _run_goal(value) -> dict:
 async def bind_submission_goal(
     request, metadata: dict, session_id: str, user_id: str, run_id: str, *, service=None
 ):
+    from src.infra.scheduler.conversation import SCHEDULED_SUBMISSION
+
+    if SCHEDULED_SUBMISSION.get():
+        return None, run_id
     dispatch = GOAL_DISPATCH.get()
     if dispatch is None and not metadata.get("persistent_goal_id"):
         return request.goal.model_dump() if request.goal else None, run_id
@@ -382,11 +386,16 @@ def with_goal_run_lease(function):
     @wraps(function)
     async def owned(*args, **kwargs):
         arguments = signature.bind(*args, **kwargs).arguments
+        from src.infra.scheduler.conversation import (
+            SCHEDULED_SUBMISSION,
+            execute_conversation_schedule,
+        )
         from src.infra.task.background_tasks import execute_background_stream
 
         background = (
             (arguments["user_id"], arguments["session_id"])
-            if arguments.get("executor") is execute_background_stream
+            if arguments.get("executor")
+            in (execute_background_stream, execute_conversation_schedule)
             else None
         )
         async with goal_run_lease(
@@ -395,8 +404,23 @@ def with_goal_run_lease(function):
             reuse=True,
             background_identity=background,
         ):
+            if arguments.get("executor") is execute_conversation_schedule:
+                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                await validate_scheduled_run_admission(
+                    arguments["session_id"], arguments["user_id"], arguments["run_id"]
+                )
             await validate_goal_admission(arguments)
-            return await function(*args, **kwargs)
+            token = (
+                SCHEDULED_SUBMISSION.set(None)
+                if arguments.get("executor") is execute_conversation_schedule
+                else None
+            )
+            try:
+                return await function(*args, **kwargs)
+            finally:
+                if token is not None:
+                    SCHEDULED_SUBMISSION.reset(token)
 
     return owned
 
@@ -408,11 +432,13 @@ def with_goal_submission_lease(function):
     async def owned(*args, **kwargs):
         bound = signature.bind(*args, **kwargs)
         goal = bound.arguments.get("active_goal")
+        from src.infra.scheduler.conversation import execute_conversation_schedule
         from src.infra.task.background_tasks import execute_background_stream
 
         background = (
             (bound.arguments["user_id"], bound.arguments["session_id"])
-            if bound.arguments.get("executor") is execute_background_stream
+            if bound.arguments.get("executor")
+            in (execute_background_stream, execute_conversation_schedule)
             else None
         )
         if (not goal or not goal.get("_persistent_id")) and background is None:

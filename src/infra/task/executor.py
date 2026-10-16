@@ -777,6 +777,17 @@ class TaskExecutor(TaskSessionStatusMixin):
             except Exception:
                 pass
 
+            if run_id.startswith("scheduled-") or session_metadata.get("scheduled_task_id"):
+                from src.infra.scheduler.conversation import completion_context
+
+                scheduled_task_id, quiet = await completion_context(
+                    session_id, run_id, status.value
+                )
+                if quiet:
+                    return
+                if scheduled_task_id:
+                    notification["data"]["scheduled_task_id"] = scheduled_task_id
+
             from src.infra.task.completion_events import TaskCompletionStore, prepare_completion
 
             completion = (

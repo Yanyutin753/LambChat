@@ -33,7 +33,7 @@ class TaskStatusQueries:
         """Get status for a specific run."""
         try:
             session = await self._storage.get_by_session_id(session_id)
-            if session and session.metadata:
+            if session and session.metadata and session.metadata.get("current_run_id") == run_id:
                 task_status = session.metadata.get("task_status")
                 if task_status:
                     return TaskStatus(task_status)

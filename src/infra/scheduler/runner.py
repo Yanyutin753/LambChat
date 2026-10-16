@@ -169,6 +169,17 @@ class ScheduledTaskRunner:
                 if not slot_claimed:
                     return {"skipped": True, "reason": "slot_contended"}
 
+        if task.execution_mode == "conversation":
+            record = await storage.enqueue_conversation(task, trigger_type)
+            from src.infra.scheduler.conversation import dispatch_pending
+
+            _spawn_monitor(dispatch_pending())
+            return {
+                "run_id": record["_id"],
+                "status": "queued",
+                "session_id": task.target_session_id,
+            }
+
         run_id = str(uuid.uuid4())
 
         # 1. Acquire distributed lock (multi-instance dedup)

@@ -199,7 +199,24 @@ async def list_task_sessions(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """List sessions (conversations) created by a scheduled task's executions."""
-    await _require_owned_task(task_id, user, service)
+    task = await _require_owned_task(task_id, user, service)
+    if task.execution_mode == "conversation":
+        records, total = await service.get_task_runs(task_id, limit=limit, offset=skip)
+        return TaskSessionListResponse(
+            items=[
+                TaskSessionResponse(
+                    id=record.session_id or task.target_session_id or "",
+                    name=task.name,
+                    agent_id=task.agent_id,
+                    created_at=record.created_at,
+                    updated_at=record.finished_at or record.started_at,
+                    is_active=record.status.value in {"pending", "running"},
+                    metadata={"run_id": record.id, "run_status": record.status.value},
+                )
+                for record in records
+            ],
+            total=total,
+        )
     from src.infra.session.storage import SessionStorage
 
     storage = SessionStorage()

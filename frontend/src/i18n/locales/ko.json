@@ -3058,6 +3058,18 @@
     }
   },
   "scheduledTask": {
+    "executionMode": "실행 방식",
+    "conversationMode": "현재 대화에서 계속",
+    "standaloneMode": "실행마다 새 대화 시작",
+    "targetConversation": "대상 대화",
+    "targetRequired": "대화를 선택하세요",
+    "currentConversation": "현재 대화",
+    "inheritContext": "대화의 최신 맥락, 프로젝트, 모델 및 도구를 사용합니다. 대화가 실행 중이면 기다립니다.",
+    "notificationPolicy": "알림",
+    "meaningfulChanges": "변경 사항이나 조치가 필요할 때만",
+    "alwaysNotify": "실행마다 알림",
+    "openConversation": "원래 대화 열기",
+    "noUpdate": "확인 완료, 변경 없음",
     "searchPlaceholder": "작업 이름 또는 설명 검색…",
     "noResults": "일치하는 예약 작업이 없습니다",
     "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",

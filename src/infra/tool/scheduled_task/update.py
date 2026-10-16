@@ -45,6 +45,13 @@ async def scheduled_task_update(
         '{"hour":"9","minute":"0","day_of_week":"mon-fri"}. '
         "Use create to change trigger_type.",
     ] = None,
+    notification_policy: Annotated[
+        Literal["always", "meaningful_changes"] | None, "When to notify."
+    ] = None,
+    execution_mode: Annotated[
+        Literal["conversation", "standalone"] | None,
+        "Change destination only after pending/running work finishes.",
+    ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Update selected task fields or perform a lifecycle action. To change trigger_type,
@@ -116,6 +123,17 @@ async def scheduled_task_update(
 
     # Build update payload
     updates: dict[str, Any] = {}
+    if notification_policy is not None:
+        updates["notification_policy"] = notification_policy
+    if execution_mode is not None:
+        from src.infra.logging.context import TraceContext
+
+        updates["execution_mode"] = execution_mode
+        updates["target_session_id"] = (
+            TraceContext.get_request_context().session_id
+            if execution_mode == "conversation"
+            else None
+        )
     if name is not None:
         updates["name"] = name
     if message is not None:

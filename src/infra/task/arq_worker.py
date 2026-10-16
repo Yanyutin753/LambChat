@@ -128,6 +128,10 @@ def _resolve_executor(executor_key: str) -> Any:
     if executor_fn is not None:
         return executor_fn
 
+    if executor_key == "conversation_schedule":
+        from src.infra.scheduler.conversation import execute_conversation_schedule
+
+        return execute_conversation_schedule
     if executor_key == "background_agent_stream":
         from .background_tasks import execute_background_stream
 
@@ -198,7 +202,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     try:
         background = (
             (payload["user_id"], payload["session_id"])
-            if payload.get("executor_key") == "background_agent_stream"
+            if payload.get("executor_key") in {"background_agent_stream", "conversation_schedule"}
             else None
         )
         async with goal_run_lease(
@@ -209,6 +213,12 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
                 from .background_admission import validate_background_run_admission
 
                 await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            if payload.get("executor_key") == "conversation_schedule":
+                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                await validate_scheduled_run_admission(
                     payload["session_id"], payload["user_id"], run_id
                 )
             await _run_agent_payload(payload_store, payload, dispatch_id, run_id)
@@ -239,7 +249,8 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
     interrupted_resume = bool(payload.get("interrupted_resume"))
     persistent_goal = bool((payload.get("active_goal") or {}).get("_persistent_id"))
     background_run = payload.get("executor_key") == "background_agent_stream"
-    fenced_resume = persistent_goal or background_run
+    scheduled_run = payload.get("executor_key") == "conversation_schedule"
+    fenced_resume = persistent_goal or background_run or scheduled_run
 
     async def admit_goal_resume():
         if fenced_resume:
@@ -250,6 +261,12 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
                 from .background_admission import validate_background_run_admission
 
                 await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            if scheduled_run:
+                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                await validate_scheduled_run_admission(
                     payload["session_id"], payload["user_id"], run_id
                 )
             await task_executor._update_session_status(

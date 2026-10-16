@@ -51,7 +51,6 @@ export const scheduledTaskApi = {
   ): Promise<ScheduledTaskListResponse> {
     return this.list(skip, limit, undefined, {
       sourceSessionId: sessionId,
-      createdBy: "agent",
     });
   },
 

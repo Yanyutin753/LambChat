@@ -30,6 +30,7 @@ import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { UserMenu } from "../UserMenu";
 import { ComposerUsageChip } from "../../chat/ComposerUsageChip";
+import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel/SessionScheduledTasksButton";
 import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -270,6 +271,12 @@ export function Header({
   const actions = (
     /* Right */
     <div className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0">
+      {activeTab === "chat" && sessionId && (
+        <SessionScheduledTasksButton
+          sessionId={sessionId}
+          className="relative flex size-9 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+        />
+      )}
       {/* Overflow menu (unified for all screen sizes) */}
       <div className="relative">
         <button

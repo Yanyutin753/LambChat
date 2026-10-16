@@ -52,3 +52,14 @@ test("unknown task agent IDs remain readable without a catalog", async () => {
   );
   expect(await screen.findByText("archived-agent")).toBeVisible();
 });
+
+test("conversation task approval explains context reuse instead of a fresh chat", async () => {
+  api.list.mockResolvedValue({ agents: [] });
+  const conversationPreview = {
+    ...preview,
+    execution_mode: "conversation" as const,
+  };
+  render(<ScheduledTaskApprovalContent preview={conversationPreview} />);
+  expect(await screen.findByText("在当前对话继续")).toBeVisible();
+  expect(screen.queryByText(/每次执行会启动一个新会话/)).toBeNull();
+});

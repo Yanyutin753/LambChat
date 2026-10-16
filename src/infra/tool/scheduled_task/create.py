@@ -138,11 +138,19 @@ async def scheduled_task_create(
         list[dict[str, Any]] | None,
         "Attachment objects reused on each run; defaults to current message attachments.",
     ] = None,
+    execution_mode: Annotated[
+        Literal["conversation", "standalone"],
+        "conversation continues this chat with latest context; standalone starts a new chat each run.",
+    ] = "conversation",
+    notification_policy: Annotated[
+        Literal["always", "meaningful_changes"] | None,
+        "Defaults to meaningful_changes for conversation, always for standalone.",
+    ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Create a confirmed agent schedule: date for one run, interval for fixed periods,
     or cron for calendar times in the user's timezone. Explain it before calling; each
-    run creates a new session and creation does not run a preview."""
+    run continues this conversation by default; choose standalone for independent runs."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
@@ -295,6 +303,10 @@ async def scheduled_task_create(
         description=description,
         timeout_seconds=timeout_seconds,
         run_on_start=effective_run_on_start,
+        execution_mode=execution_mode,
+    )
+    preview["notification_policy"] = notification_policy or (
+        "meaningful_changes" if execution_mode == "conversation" else "always"
     )
     if resolved_role_match:
         preview["resolved_persona_preset"] = resolved_role_match
@@ -335,6 +347,10 @@ async def scheduled_task_create(
         }
         task = await service.create_task(
             request=ScheduledTaskCreate(
+                execution_mode=execution_mode,
+                target_session_id=ctx.session_id if execution_mode == "conversation" else None,
+                notification_policy=notification_policy
+                or ("meaningful_changes" if execution_mode == "conversation" else "always"),
                 name=name,
                 agent_id=effective_agent_id,
                 trigger_type=trigger_enum,

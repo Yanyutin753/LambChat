@@ -8,6 +8,7 @@ import i18n from "../../../i18n";
 import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { RunStatusBadge } from "./Badges";
 import { PanelHeader } from "../../common/PanelHeader";
 import { Pagination } from "../../common/Pagination";
 import { TaskSessionListSkeleton } from "../../skeletons";
@@ -115,8 +116,16 @@ export function TaskSessionList({
 
               return (
                 <button
-                  key={session.id}
-                  onClick={() => handleSessionClick(session.id)}
+                  key={`${session.id}:${String(session.metadata.run_id || "")}`}
+                  onClick={() =>
+                    session.metadata.run_id
+                      ? navigate(
+                          `/chat/${session.id}?run_id=${encodeURIComponent(
+                            String(session.metadata.run_id),
+                          )}`,
+                        )
+                      : handleSessionClick(session.id)
+                  }
                   className="glass-card scheduled-task-session-card w-full text-left"
                 >
                   {/* Left indicator: agent's real icon (emoji / lobe icon) */}
@@ -135,6 +144,9 @@ export function TaskSessionList({
                   <div className="scheduled-task-session-card__body">
                     <p className="scheduled-task-session-card__title font-serif">
                       {session.name || t("scheduledTask.untitledSession")}
+                      {typeof session.metadata.run_status === "string" && (
+                        <RunStatusBadge status={session.metadata.run_status} />
+                      )}
                     </p>
                     <div className="scheduled-task-session-card__meta">
                       {agentName && (

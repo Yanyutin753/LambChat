@@ -3058,6 +3058,18 @@
     }
   },
   "scheduledTask": {
+    "executionMode": "执行方式",
+    "conversationMode": "在当前对话继续",
+    "standaloneMode": "每次新建独立对话",
+    "targetConversation": "目标对话",
+    "targetRequired": "请选择目标对话",
+    "currentConversation": "当前对话",
+    "inheritContext": "使用该对话的最新上下文、项目、模型和工具配置；忙碌时等待，不打断当前任务。",
+    "notificationPolicy": "通知方式",
+    "meaningfulChanges": "仅有进展或需要处理时",
+    "alwaysNotify": "每次运行都通知",
+    "openConversation": "打开原对话",
+    "noUpdate": "检查完成，无更新",
     "searchPlaceholder": "搜索任务名称或描述…",
     "noResults": "没有匹配的定时任务",
     "noResultsDesc": "试试其他关键词或调整状态筛选。",

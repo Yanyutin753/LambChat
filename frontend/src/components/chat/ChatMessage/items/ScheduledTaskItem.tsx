@@ -343,6 +343,15 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {trigger && <TriggerBadge type={trigger} t={t} />}
+              <span className="text-12 text-theme-text-secondary">
+                {t(
+                  (task?.execution_mode ||
+                    preview?.execution_mode ||
+                    args.execution_mode) === "conversation"
+                    ? "scheduledTask.conversationMode"
+                    : "scheduledTask.standaloneMode",
+                )}
+              </span>
               {schedule && (
                 <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono leading-relaxed">
                   {schedule}
