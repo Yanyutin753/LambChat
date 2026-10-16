@@ -37,7 +37,7 @@ function ProgressRing({ progress }: { progress: number }) {
   const c = 2 * Math.PI * r;
   const clamped = Math.min(Math.max(progress, 0), 100);
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width="1rem" height="1rem" viewBox="0 0 16 16" aria-hidden="true">
       <circle
         cx="8"
         cy="8"

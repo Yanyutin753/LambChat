@@ -80,8 +80,8 @@ function FolderIcon({
 }) {
   return (
     <svg
-      width={size}
-      height={size}
+      width={`${size / 16}rem`}
+      height={`${size / 16}rem`}
       viewBox="0 0 1024 1024"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
@@ -106,11 +106,7 @@ function getFileIcon(name: string) {
   const info = getFileTypeInfo(name);
   const Icon = info.icon;
   return (
-    <Icon
-      size={FILE_ICON_SIZE}
-      style={{ width: FILE_ICON_SIZE, height: FILE_ICON_SIZE }}
-      className={clsx("shrink-0", info.color)}
-    />
+    <Icon size={FILE_ICON_SIZE} className={clsx("shrink-0", info.color)} />
   );
 }
 
@@ -194,7 +190,7 @@ function FileTreeNode({
       Object.keys(textFiles).length + Object.keys(binFiles).length > 0;
     return (
       <div className="min-w-0 max-w-full">
-        <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+        <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-hover transition-colors">
           <Tooltip content={node.name}>
             <button
               type="button"
@@ -307,7 +303,7 @@ function FileTreeNode({
     : null;
 
   return (
-    <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors">
+    <div className="group flex min-w-0 max-w-full items-center gap-1 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-hover transition-colors">
       <Tooltip content={node.name}>
         <button
           type="button"

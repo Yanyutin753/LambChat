@@ -347,12 +347,7 @@ export function ChatView({
 
   // --- Outline panel (side effects managed by hook) ---
   const { outlineItems, handleVisibleRangeChange: handleOutlineRangeChange } =
-    useChatOutline(
-      messages,
-      dataIndexVirtuosoRef,
-      outlineToggleRef,
-      t,
-    );
+    useChatOutline(messages, dataIndexVirtuosoRef, outlineToggleRef, t);
 
   // --- Timeline rail (mini-map navigation strip) ---
   const showTimelineRail = shouldShowMessageOutline(messages);
@@ -666,8 +661,8 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler((content, messageId) =>
-      onCancelSteer?.(content, messageId),
+    setSteerCancelHandler(
+      (content, messageId) => onCancelSteer?.(content, messageId),
     );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
@@ -864,7 +859,12 @@ export function ChatView({
         {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
         {messages.length > 0 && (
           <div className="relative">
-            <SessionTodoDock running={sessionRunning || approvals.length > 0} sessionId={sessionId} messages={messages} currentRunId={currentRunId} />
+            <SessionTodoDock
+              running={sessionRunning || approvals.length > 0}
+              sessionId={sessionId}
+              messages={messages}
+              currentRunId={currentRunId}
+            />
             <div
               className={`chat-scroll-actions absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
             >
@@ -890,7 +890,7 @@ export function ChatView({
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+                  className="w-4 h-4 sm:w-[1.125rem] sm:h-[1.125rem] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
                 >
                   <path
                     fillRule="evenodd"
@@ -918,7 +918,7 @@ export function ChatView({
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+                  className="w-4 h-4 sm:w-[1.125rem] sm:h-[1.125rem] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
                 >
                   <path
                     fillRule="evenodd"
@@ -937,16 +937,31 @@ export function ChatView({
                 />
               </div>
             )}
-            {hasPendingAskHumanApproval && (persistentGoal || visibleActiveGoal) && (
-              <ActiveGoalBar goal={visibleActiveGoal} persistentGoal={persistentGoal}
-                disabled={isLoading || !canSendMessage}
-                persistentDisabled={persistentGoalBusy || !canSendMessage}
-                onClear={onClearActiveGoal}
-                onPause={onControlPersistentGoal ? () => onControlPersistentGoal("pause") : undefined}
-                onResume={onControlPersistentGoal ? () => onControlPersistentGoal("resume") : undefined}
-                onClearPersistentGoal={onControlPersistentGoal ? () => onControlPersistentGoal("clear") : undefined}
-              />
-            )}
+            {hasPendingAskHumanApproval &&
+              (persistentGoal || visibleActiveGoal) && (
+                <ActiveGoalBar
+                  goal={visibleActiveGoal}
+                  persistentGoal={persistentGoal}
+                  disabled={isLoading || !canSendMessage}
+                  persistentDisabled={persistentGoalBusy || !canSendMessage}
+                  onClear={onClearActiveGoal}
+                  onPause={
+                    onControlPersistentGoal
+                      ? () => onControlPersistentGoal("pause")
+                      : undefined
+                  }
+                  onResume={
+                    onControlPersistentGoal
+                      ? () => onControlPersistentGoal("resume")
+                      : undefined
+                  }
+                  onClearPersistentGoal={
+                    onControlPersistentGoal
+                      ? () => onControlPersistentGoal("clear")
+                      : undefined
+                  }
+                />
+              )}
             {!hasPendingAskHumanApproval && (
               <ChatInput
                 {...chatInputProps}

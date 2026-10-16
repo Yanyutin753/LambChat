@@ -65,7 +65,7 @@ export function MobileMenu({
               className={`w-full text-left px-4 py-3 rounded-xl text-14 font-medium transition-colors ${
                 activeSection === item.id
                   ? "text-stone-900 dark:text-stone-100 bg-stone-100/80 dark:bg-stone-800/50"
-                  : "text-theme-text-secondary dark:text-theme-text-secondary hover:text-theme-text-secondary dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800/20"
+                  : "text-theme-text-secondary dark:text-theme-text-secondary hover:text-theme-text-secondary dark:hover:text-stone-200 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
               }`}
             >
               {t(`landing.${item.labelKey}`)}

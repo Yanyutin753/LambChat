@@ -128,7 +128,7 @@ export function RunStepsCollapse({
             size={16}
             strokeWidth={2}
             className={clsx(
-              "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
+              "self-center shrink-0 text-theme-text-secondary transition-transform duration-200",
               expanded && "rotate-90",
             )}
           />

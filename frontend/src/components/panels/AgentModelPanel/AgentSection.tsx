@@ -205,7 +205,7 @@ export function AgentSection() {
                 className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
                   activeTab === "global"
                     ? "bg-theme-bg-card text-theme-text shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
-                    : "text-theme-text-secondary hover:bg-theme-bg-card/60 hover:text-theme-text dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                    : "text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text dark:text-stone-400 dark:hover:bg-theme-bg-hover dark:hover:text-stone-100"
                 }`}
               >
                 {t("agentConfig.globalTab")}
@@ -217,7 +217,7 @@ export function AgentSection() {
                 className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
                   activeTab === "roles"
                     ? "bg-theme-bg-card text-theme-text shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
-                    : "text-theme-text-secondary hover:bg-theme-bg-card/60 hover:text-theme-text dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                    : "text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text dark:text-stone-400 dark:hover:bg-theme-bg-hover dark:hover:text-stone-100"
                 }`}
               >
                 {t("agentConfig.rolesTab")}

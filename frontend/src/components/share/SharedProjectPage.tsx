@@ -244,7 +244,7 @@ export function SharedProjectPage({
                     onClick={() => toggleSession(session.id)}
                     aria-expanded={isExpanded}
                     aria-controls={isExpanded ? panelId : undefined}
-                    className="w-full flex items-center gap-3 px-3 sm:px-4 py-3.5 text-left hover:bg-theme-bg-subtle transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
+                    className="w-full flex items-center gap-3 px-3 sm:px-4 py-3.5 text-left hover:bg-theme-bg-hover transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
                   >
                     <span className="text-theme-text-secondary shrink-0">
                       {isExpanded ? (

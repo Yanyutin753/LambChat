@@ -276,7 +276,7 @@ export function RecentChatsDialog({
                   className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group ${
                     session.id === currentSessionId
                       ? "bg-stone-100 dark:bg-stone-800/60"
-                      : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
+                      : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover"
                   }`}
                 >
                   <div className="min-w-0 flex-1">

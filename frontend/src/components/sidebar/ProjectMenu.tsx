@@ -139,7 +139,7 @@ export function ProjectMenu({
                   onNewSessionInProject(_project.id);
                   onClose();
                 }}
-                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
+                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover rounded-lg transition-colors"
               >
                 <InteractiveIcon>
                   <SquarePen size={16} />
@@ -154,7 +154,7 @@ export function ProjectMenu({
                 onRename();
                 onClose();
               }}
-              className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
+              className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover rounded-lg transition-colors"
             >
               <InteractiveIcon>
                 <Edit2 size={16} />
@@ -169,7 +169,7 @@ export function ProjectMenu({
                   onShare();
                   onClose();
                 }}
-                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle rounded-lg transition-colors"
+                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover rounded-lg transition-colors"
               >
                 <InteractiveIcon>
                   <Share2 size={16} />
@@ -215,7 +215,7 @@ export function ProjectMenu({
           onRename();
           onClose();
         }}
-        className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
+        className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover transition-colors"
       >
         <InteractiveIcon>
           <Edit2 size={14} />
@@ -230,7 +230,7 @@ export function ProjectMenu({
             onShare();
             onClose();
           }}
-          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
+          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover transition-colors"
         >
           <InteractiveIcon>
             <Share2 size={14} />
@@ -246,7 +246,7 @@ export function ProjectMenu({
             onNewSessionInProject(_project.id);
             onClose();
           }}
-          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-subtle transition-colors"
+          className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover transition-colors"
         >
           <InteractiveIcon>
             <SquarePen size={14} />

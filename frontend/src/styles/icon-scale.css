@@ -1,0 +1,88 @@
+/* Lucide and its animated replacements expose numeric SVG width attributes.
+   Keep those public props intact; utilities and component rules override this base. */
+@layer base {
+  :where(.interactive-action-icon > div) {
+    width: var(--interactive-icon-size, 1.5rem);
+    height: var(--interactive-icon-size, 1.5rem);
+  }
+
+  :where(svg.lucide) {
+    width: var(--ui-icon-size, 1.5rem);
+    height: var(--ui-icon-size, 1.5rem);
+  }
+
+  /* shortcut: numeric sizes use this compatibility table; extend it when adding a size
+     (iconFontScaleSource.test.ts guards the sizes used by application components). */
+  :where(svg.lucide)[width="7"] {
+    --ui-icon-size: 0.4375rem;
+  }
+  :where(svg.lucide)[width="8"] {
+    --ui-icon-size: 0.5rem;
+  }
+  :where(svg.lucide)[width="9"] {
+    --ui-icon-size: 0.5625rem;
+  }
+  :where(svg.lucide)[width="10"] {
+    --ui-icon-size: 0.625rem;
+  }
+  :where(svg.lucide)[width="11"] {
+    --ui-icon-size: 0.6875rem;
+  }
+  :where(svg.lucide)[width="12"] {
+    --ui-icon-size: 0.75rem;
+  }
+  :where(svg.lucide)[width="13"] {
+    --ui-icon-size: 0.8125rem;
+  }
+  :where(svg.lucide)[width="14"] {
+    --ui-icon-size: 0.875rem;
+  }
+  :where(svg.lucide)[width="15"] {
+    --ui-icon-size: 0.9375rem;
+  }
+  :where(svg.lucide)[width="16"] {
+    --ui-icon-size: 1rem;
+  }
+  :where(svg.lucide)[width="17"] {
+    --ui-icon-size: 1.0625rem;
+  }
+  :where(svg.lucide)[width="18"] {
+    --ui-icon-size: 1.125rem;
+  }
+  :where(svg.lucide)[width="19"] {
+    --ui-icon-size: 1.1875rem;
+  }
+  :where(svg.lucide)[width="20"] {
+    --ui-icon-size: 1.25rem;
+  }
+  :where(svg.lucide)[width="22"] {
+    --ui-icon-size: 1.375rem;
+  }
+  :where(svg.lucide)[width="24"] {
+    --ui-icon-size: 1.5rem;
+  }
+  :where(svg.lucide)[width="28"] {
+    --ui-icon-size: 1.75rem;
+  }
+  :where(svg.lucide)[width="30"] {
+    --ui-icon-size: 1.875rem;
+  }
+  :where(svg.lucide)[width="32"] {
+    --ui-icon-size: 2rem;
+  }
+  :where(svg.lucide)[width="36"] {
+    --ui-icon-size: 2.25rem;
+  }
+  :where(svg.lucide)[width="38"] {
+    --ui-icon-size: 2.375rem;
+  }
+  :where(svg.lucide)[width="40"] {
+    --ui-icon-size: 2.5rem;
+  }
+  :where(svg.lucide)[width="44"] {
+    --ui-icon-size: 2.75rem;
+  }
+  :where(svg.lucide)[width="48"] {
+    --ui-icon-size: 3rem;
+  }
+}

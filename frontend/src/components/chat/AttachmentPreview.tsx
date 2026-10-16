@@ -97,7 +97,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({
                   ? onCancel(attachment.id)
                   : onRemove(attachment.id)
               }
-              className="p-1 rounded-full hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-500 dark:text-stone-400 relative z-[1]"
+              className="p-1 rounded-full hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover text-stone-500 dark:text-stone-400 relative z-[1]"
               title={
                 isUploading
                   ? t("fileUpload.cancelUpload")

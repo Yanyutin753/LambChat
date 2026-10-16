@@ -45,7 +45,7 @@ export function ListCard({
         }}
         onClick={() => onPreview(file)}
         onContextMenu={(e) => ctx.show(e, file)}
-        className="group/card relative flex items-center gap-3.5 px-4 py-3 rounded-xl bg-theme-bg-card border border-theme-border cursor-pointer select-none transition-all duration-150 hover:bg-theme-bg-subtle hover:border-theme-border-hover hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+        className="group/card relative flex items-center gap-3.5 px-4 py-3 rounded-xl bg-theme-bg-card border border-theme-border cursor-pointer select-none transition-all duration-150 hover:bg-theme-bg-hover hover:border-theme-border-hover hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
         {/* Icon / thumbnail */}
         <div className="shrink-0">
@@ -83,7 +83,7 @@ export function ListCard({
             if (ctx.menu) ctx.hide(true);
             else ctx.show(e, file);
           }}
-          className="flex size-11 sm:size-7 items-center justify-center shrink-0 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+          className="flex size-11 sm:size-7 items-center justify-center shrink-0 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-hover transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
           <InteractiveIcon>
             <MoreHorizontal size={16} />

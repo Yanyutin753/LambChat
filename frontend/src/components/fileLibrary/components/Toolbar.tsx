@@ -42,14 +42,14 @@ interface ToolbarProps {
 const btnBase =
   "flex items-center h-9 gap-1.5 rounded-lg border transition-all duration-150 text-14";
 const btnDefault =
-  "border-theme-border bg-theme-bg-card text-theme-text hover:bg-theme-bg-subtle hover:border-theme-border-hover";
+  "border-theme-border bg-theme-bg-card text-theme-text hover:bg-theme-bg-hover hover:border-theme-border-hover";
 const btnActive =
   "border-theme-border-hover bg-theme-bg-subtle text-theme-text";
 
 const ddItemBase =
   "w-full text-left px-3 py-2 text-14 transition-colors rounded-lg flex items-center gap-2";
 const ddItemActive = "text-theme-text bg-theme-bg-subtle font-medium";
-const ddItemDef = "text-theme-text-secondary hover:bg-theme-bg-subtle";
+const ddItemDef = "text-theme-text-secondary hover:bg-theme-bg-hover";
 
 const smItemBase =
   "w-full text-left px-3 py-2 text-12 rounded-lg flex items-center gap-2";

@@ -60,12 +60,17 @@
 }
 
 .chat-header__identity > button:is(:hover, [aria-expanded="true"]),
-.chat-header__identity > .relative > button:is(:hover, [aria-expanded="true"]),
+.chat-header__identity
+  > .relative
+  > button:not([data-model-selector-trigger]):is(
+    :hover,
+    [aria-expanded="true"]
+  ),
 .chat-header__actions > button:is(:hover, [aria-expanded="true"]),
 .chat-header__actions > .relative > button:is(:hover, [aria-expanded="true"]),
 [data-sidebar-brand] button:hover {
   color: var(--theme-text);
-  background-color: var(--theme-bg-subtle);
+  background-color: var(--theme-bg-hover);
 }
 
 .chat-header__actions .composer-usage-amount {
@@ -444,7 +449,7 @@
 .panel-header .btn-secondary:hover,
 .panel-header .ui-button--secondary:hover {
   border-color: var(--theme-border-hover);
-  background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card));
+  background: var(--theme-bg-hover);
 }
 
 .panel-header :is(.ui-button--secondary, .btn-secondary) {
@@ -453,7 +458,7 @@
 }
 .panel-header :is(.ui-button--secondary, .btn-secondary):hover {
   border-color: transparent;
-  background: color-mix(in srgb, var(--theme-text) 10%, var(--theme-bg-card));
+  background: var(--theme-bg-hover);
 }
 
 @container panel (max-width: 639px) {
@@ -574,7 +579,7 @@
 
 .panel-filter-trigger:hover {
   border-color: var(--theme-border-hover);
-  background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card));
+  background: var(--theme-bg-hover);
 }
 
 .panel-filter-trigger--active {
@@ -1353,7 +1358,7 @@
 .ui-button--secondary:hover,
 .btn-secondary:hover {
   border-color: transparent;
-  background: color-mix(in srgb, var(--theme-text) 10%, var(--theme-bg-card));
+  background: var(--theme-bg-hover);
 }
 
 .ui-button--ghost {
@@ -1362,7 +1367,7 @@
 }
 
 .ui-button--ghost:hover {
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
@@ -1466,13 +1471,13 @@
 
 .ui-icon-button:hover,
 .btn-icon:hover {
-  background-color: var(--theme-bg-subtle);
+  background-color: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
 .dark .ui-icon-button:hover,
 .dark .btn-icon:hover {
-  background-color: var(--theme-bg-subtle);
+  background-color: var(--theme-bg-hover);
   color: var(--theme-text-secondary);
 }
 
@@ -1516,7 +1521,7 @@
 }
 .pagination-btn:hover:not(:disabled),
 .pagination-page:hover:not(.pagination-page-active) {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .pagination-btn:disabled {
@@ -1584,7 +1589,7 @@
   transition: background-color 0.15s;
 }
 .menu-item:hover {
-  background-color: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background-color: var(--theme-bg-hover);
 }
 .menu-item-fav:hover {
   background-color: color-mix(in srgb, #f59e0b 10%, transparent);
@@ -1625,7 +1630,7 @@
   height: 1rem;
 }
 .ui-menu-item:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 .ui-menu-item--danger:hover:not(:disabled):not([aria-disabled="true"]) {
   background: color-mix(in srgb, var(--theme-error) 10%, transparent);
@@ -1649,7 +1654,7 @@
 }
 .attachment-card:hover {
   border-color: var(--theme-border-hover);
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 .attachment-card--compact {
   width: 17.5rem;
@@ -1856,7 +1861,7 @@
   :is(.editor-sidebar-header, .tool-console-header, .document-preview-toolbar)
   button:hover:not(:disabled) {
   color: var(--theme-text);
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 
 [data-right-panel-root] .tool-console-chrome {
@@ -2498,7 +2503,7 @@
 
 .ui-select-option:hover:not(.ui-select-option--active),
 .glass-select-option:hover:not(.active) {
-  background: color-mix(in srgb, var(--theme-text) 5%, transparent);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
@@ -3133,7 +3138,7 @@
 }
 
 .scheduled-task-button:hover {
-  background: var(--theme-bg-card);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
   transform: translateY(-2px);
   box-shadow:
@@ -3484,7 +3489,7 @@
 }
 
 .scheduled-task-session-card:hover .scheduled-task-session-card__agent {
-  background: color-mix(in srgb, var(--theme-text) 9%, transparent);
+  background: var(--theme-bg-hover);
 }
 
 .scheduled-task-session-card__meta-separator {
@@ -3679,7 +3684,7 @@
 }
 
 .tool-detail-section__header:hover {
-  background-color: color-mix(in srgb, var(--theme-text) 4%, transparent);
+  background-color: var(--theme-bg-hover);
 }
 
 .tool-detail-section__header:focus-visible {
@@ -4123,7 +4128,7 @@
 
 .tool-result-copy.ui-icon-button:hover,
 .tool-result-copy.ui-icon-button:focus-visible {
-  background: var(--theme-bg-elevated);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 
@@ -4134,7 +4139,7 @@
 
 .tool-args-block .tool-args-block__copy:hover,
 .tool-args-block .tool-args-block__copy:focus-visible {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text-secondary);
 }
 
@@ -5036,7 +5041,7 @@
 
 @media (hover: hover) {
   .sidebar-session-row:not([data-selected="true"]):hover {
-    background: color-mix(in srgb, var(--theme-text) 4%, transparent);
+    background: var(--theme-bg-hover);
   }
 }
 
@@ -5186,20 +5191,6 @@
     min-width: 2.25rem;
     min-height: 2.25rem;
   }
-}
-
-/* Plain reading sections inside the shared tool panel, without nested cards. */
-.tool-call-panel-content .collapsible-section-card--default {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding-inline: 0;
-}
-.tool-call-panel-content
-  .collapsible-section-card--default
-  + .collapsible-section-card--default {
-  border-top: 1px solid var(--theme-border-faint);
 }
 
 /* Shared reading scale for built-in and MCP tool detail panels. */
@@ -5368,4 +5359,73 @@
   .tool-detail-section__chevron {
     transition: none;
   }
+}
+
+/* Terminal and generic MCP details share one quiet, visible boundary. */
+.tool-surface,
+.tool-call-panel-content .tool-surface--collapsible {
+  min-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background: var(--theme-bg-code);
+  box-shadow: none;
+}
+.tool-surface__header,
+.tool-surface--collapsible > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-secondary);
+  font-family: theme("fontFamily.sans");
+}
+.tool-surface__title,
+.tool-surface--collapsible
+  .collapsible-section-card__trigger
+  > span:last-child {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--theme-text-secondary);
+}
+.tool-surface__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--theme-text-tertiary);
+}
+.tool-surface__body,
+.tool-surface--collapsible > div[id] {
+  margin: 0;
+  padding: 0.875rem;
+}
+.tool-surface--collapsible:not(:has(> div[id])) > div:first-child {
+  border-bottom: 0;
+}
+.tool-surface > .tool-code-block {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.tool-surface--collapsible [class~="group/arg"] {
+  background: transparent;
+  font-family: theme("fontFamily.mono");
+  font-size: 0.8125rem;
+}
+.tool-surface--collapsible [class~="group/arg"] .italic {
+  font-style: normal;
+  opacity: 1;
+}
+.tool-surface--collapsible .tool-arg-key {
+  font-family: theme("fontFamily.sans");
+  font-size: 0.75rem;
+  letter-spacing: normal;
+  text-transform: none;
 }

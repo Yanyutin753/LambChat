@@ -11,7 +11,7 @@ interface ViewerDropdownMenuItemProps
 
 const variantClasses: Record<ViewerDropdownMenuItemVariant, string> = {
   stone:
-    "px-3 py-2 text-12 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700",
+    "px-3 py-2 text-12 text-stone-700 dark:text-stone-300 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
   dark: "px-4 py-2.5 text-14 text-white/80 hover:bg-white/10",
 };
 

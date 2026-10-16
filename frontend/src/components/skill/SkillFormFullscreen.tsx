@@ -65,7 +65,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
               <button
                 type="button"
                 onClick={addFile}
-                className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-hover dark:hover:bg-white/5 transition-colors"
               >
                 <InteractiveIcon>
                   <Plus size={13} />
@@ -76,7 +76,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 <button
                   type="button"
                   onClick={a.addBinaryFile}
-                  className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-hover dark:hover:bg-white/5 transition-colors"
                 >
                   <InteractiveIcon>
                     <Upload size={13} />

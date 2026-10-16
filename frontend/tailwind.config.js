@@ -3,17 +3,15 @@ import colors from "tailwindcss/colors";
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: "class",
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       // Preserve the v3 visual scale while the application adopts the v4 engine.
       borderRadius: { sm: "0.125rem", DEFAULT: "0.25rem" },
       boxShadow: {
         sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        DEFAULT: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        DEFAULT:
+          "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
       },
       dropShadow: {
         sm: "0 1px 1px rgb(0 0 0 / 0.05)",
@@ -76,43 +74,27 @@ export default {
         // Tailwind v4 applies /opacity directly to CSS variable colors.
         theme: {
           text: "var(--theme-text)",
-          "text-secondary":
-            "var(--theme-text-secondary)",
-          "text-tertiary":
-            "var(--theme-text-tertiary)",
+          "text-secondary": "var(--theme-text-secondary)",
+          "text-tertiary": "var(--theme-text-tertiary)",
           bg: "var(--theme-bg)",
-          "bg-card":
-            "var(--theme-bg-card)",
-          "bg-elevated":
-            "var(--theme-bg-elevated)",
-          "bg-subtle":
-            "var(--theme-bg-subtle)",
-          "bg-code":
-            "var(--theme-bg-code)",
-          border:
-            "var(--theme-border)",
-          "border-hover":
-            "var(--theme-border-hover)",
-          "border-subtle":
-            "var(--theme-border-subtle)",
-          "border-faint":
-            "var(--theme-border-faint)",
-          primary:
-            "var(--theme-primary)",
-          "primary-hover":
-            "var(--theme-primary-hover)",
-          "primary-light":
-            "var(--theme-primary-light)",
-          "toggle-knob":
-            "var(--theme-toggle-knob)",
+          "bg-card": "var(--theme-bg-card)",
+          "bg-elevated": "var(--theme-bg-elevated)",
+          "bg-subtle": "var(--theme-bg-subtle)",
+          "bg-hover": "var(--theme-bg-hover)",
+          "bg-code": "var(--theme-bg-code)",
+          border: "var(--theme-border)",
+          "border-hover": "var(--theme-border-hover)",
+          "border-subtle": "var(--theme-border-subtle)",
+          "border-faint": "var(--theme-border-faint)",
+          primary: "var(--theme-primary)",
+          "primary-hover": "var(--theme-primary-hover)",
+          "primary-light": "var(--theme-primary-light)",
+          "toggle-knob": "var(--theme-toggle-knob)",
           // 语义状态色：CSS 变量在 tokens.css 按三主题各自定义（sepia 降饱和），
           // 漏映射时 text-theme-error 之类会静默不生成（守卫测试盯这条）
-          success:
-            "var(--theme-success)",
-          error:
-            "var(--theme-error)",
-          warning:
-            "var(--theme-warning)",
+          success: "var(--theme-success)",
+          error: "var(--theme-error)",
+          warning: "var(--theme-warning)",
           info: "var(--theme-info)",
         },
       },

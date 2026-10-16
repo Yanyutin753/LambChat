@@ -2,7 +2,7 @@
 html:has([data-titlebar], [data-workspace-ui]) {
   --workspace-header-height: 3rem;
   --desktop-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --desktop-hover: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  --desktop-hover: var(--theme-bg-hover);
   --desktop-selected: color-mix(in srgb, var(--theme-text) 10%, transparent);
   --radius-chat: 1rem;
 }
@@ -103,7 +103,7 @@ html:has([data-desktop-activity-rail]) [data-titlebar] {
 }
 
 [data-desktop-activity-rail] {
-  --desktop-hover: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  --desktop-hover: var(--theme-bg-hover);
   --desktop-selected: color-mix(in srgb, var(--theme-text) 14%, transparent);
 }
 
@@ -241,7 +241,6 @@ html:has([data-titlebar], [data-workspace-ui])
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
-  font-size: 0.8125rem;
   font-weight: 500;
 }
 

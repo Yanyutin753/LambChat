@@ -230,7 +230,7 @@ export function SkillCard({
                           onOpenMenu(null);
                           onEdit(skill.skill_name);
                         }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-12 text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-12 text-[var(--theme-text)] transition-colors hover:bg-theme-bg-hover"
                       >
                         <InteractiveIcon>
                           <Pencil size={12} />
@@ -243,7 +243,7 @@ export function SkillCard({
                         onOpenMenu(null);
                         onActivate(skill.skill_name, !skill.is_active);
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-12 text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-bg-subtle)]"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-12 text-[var(--theme-text)] transition-colors hover:bg-theme-bg-hover"
                     >
                       {skill.is_active ? (
                         <>

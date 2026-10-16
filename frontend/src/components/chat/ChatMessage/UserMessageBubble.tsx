@@ -160,7 +160,7 @@ export function UserMessageBubble({
             <div className="user-message-bubble max-w-full px-5 py-2.5 border transition-shadow duration-200 hover:-translate-y-px">
               <div
                 className="user-message-inline-markdown leading-relaxed"
-                style={{ color: "var(--theme-text)" }}
+                style={{ color: "var(--theme-text-secondary)" }}
               >
                 {/* Run-mode chips - inline with content, ahead of skill chips */}
                 {runModes && runModes.length > 0 && (
@@ -200,7 +200,7 @@ export function UserMessageBubble({
                 className={clsx(
                   "p-1.5 rounded-md transition-colors duration-200",
                   getUserMessageActionButtonVisibilityClass(isLastMessage),
-                  "hover:bg-stone-200 dark:hover:bg-stone-700",
+                  "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
                 )}
                 title={t("chat.message.fork")}

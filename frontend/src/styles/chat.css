@@ -162,7 +162,7 @@ html[data-mobile-keyboard="true"]
   touch-action: manipulation;
 }
 .chat-tool-btn:hover {
-  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .chat-tool-btn:focus-visible,
@@ -542,7 +542,7 @@ html[data-mobile-keyboard="true"]
   }
 }
 .feature-menu-group-header:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .feature-menu-group-icon {
@@ -608,7 +608,7 @@ html[data-mobile-keyboard="true"]
   }
 }
 .feature-menu-item:hover:not(:disabled) {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 
 /* ─── Run Mode Popover: settings panel refinement ───
@@ -647,10 +647,10 @@ html[data-mobile-keyboard="true"]
 
 /* 行悬停反馈：导航行与开关行统一柔和底色（专业面板的可交互感） */
 #run-mode-popover .feature-menu-item:not([data-toggle]):hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 #run-mode-popover .feature-menu-item[data-toggle]:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 
 /* 徽标：安静的中性胶囊（无衬线 + 等宽数字，弱化装饰感） */
@@ -870,7 +870,7 @@ html[data-mobile-keyboard="true"]
 }
 
 .mention-popup-item:hover {
-  background: color-mix(in srgb, var(--theme-text) 4%, var(--theme-bg));
+  background: var(--theme-bg-hover);
   border-color: color-mix(
     in srgb,
     var(--theme-primary) 20%,
@@ -1153,7 +1153,7 @@ html[data-mobile-keyboard="true"]
 
 .chat-message-actions button:not([aria-pressed="true"]):enabled:hover {
   color: var(--theme-text-secondary);
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 
 .chat-message-actions button[aria-pressed="true"] {
@@ -1161,7 +1161,7 @@ html[data-mobile-keyboard="true"]
 }
 
 .chat-message-actions button[aria-pressed="true"]:enabled:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
 }
 
 .chat-message-actions button,

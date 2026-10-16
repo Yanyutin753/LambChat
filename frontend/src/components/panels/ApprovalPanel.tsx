@@ -581,7 +581,7 @@ export function ApprovalPanel({
               <button
                 onClick={goToPrev}
                 disabled={currentIndex === 0}
-                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-theme-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
               >
                 <InteractiveIcon>
@@ -591,7 +591,7 @@ export function ApprovalPanel({
               <button
                 onClick={goToNext}
                 disabled={currentIndex === approvals.length - 1}
-                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-theme-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
               >
                 <InteractiveIcon>

@@ -31,15 +31,6 @@ export interface CollapsiblePillProps {
   formatLabel?: boolean;
 }
 
-// Event surfaces stay neutral; labels convey the execution status.
-const statusStyles: Record<CollapsibleStatus, string> = {
-  idle: "text-theme-text-secondary",
-  loading: "text-theme-text-secondary",
-  success: "text-theme-text-secondary",
-  error: "text-theme-text-secondary",
-  cancelled: "text-theme-text-tertiary",
-};
-
 export function CollapsiblePill({
   status = "idle",
   icon,
@@ -100,7 +91,7 @@ export function CollapsiblePill({
         onClick={handleToggle}
         className={clsx(
           "pill-btn",
-          statusStyles[status],
+          "text-theme-text-secondary",
           canExpand && "cursor-pointer",
           !canExpand && "cursor-default",
         )}
@@ -138,7 +129,7 @@ export function CollapsiblePill({
             </span>
           )}
         {suffix != null && (
-          <span className="pill-btn__suffix min-w-0 max-w-[40%] truncate text-12 font-normal text-theme-text-tertiary tabular-nums">
+          <span className="pill-btn__suffix min-w-0 max-w-[40%] truncate text-12 font-normal text-theme-text-secondary tabular-nums">
             {suffix}
           </span>
         )}
@@ -149,7 +140,7 @@ export function CollapsiblePill({
                 size={12}
                 className={clsx(
                   "shrink-0 transition-transform duration-200",
-                  "text-theme-text-tertiary",
+                  "text-theme-text-secondary",
                   isExpanded && "rotate-90",
                 )}
               />

@@ -161,7 +161,7 @@
   box-shadow:
     0 2px 8px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
     0 0 0 3px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   transform: scale(1.04);
 }
 
@@ -300,7 +300,7 @@ button.scb__mini-tag:hover {
 }
 
 .scb__action-btn:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
   border-color: color-mix(
     in srgb,
@@ -333,7 +333,7 @@ button.scb__mini-tag:hover {
 }
 
 .scb__action-btn--ghost:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   border-color: color-mix(
     in srgb,
     var(--theme-text-secondary) 15%,
@@ -624,7 +624,7 @@ button.scb__mini-tag:hover {
 }
 
 .mp-card__action-btn:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
   border-color: color-mix(
     in srgb,

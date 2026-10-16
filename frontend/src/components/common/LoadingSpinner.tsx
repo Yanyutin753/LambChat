@@ -30,8 +30,8 @@ export function LoadingSpinner({
     <svg
       aria-hidden="true"
       focusable="false"
-      width={sizeValue}
-      height={sizeValue}
+      width={`${sizeValue / 16}rem`}
+      height={`${sizeValue / 16}rem`}
       viewBox="0 0 24 24"
       fill="none"
       className={twMerge(

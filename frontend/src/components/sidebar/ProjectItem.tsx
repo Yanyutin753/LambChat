@@ -432,7 +432,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
         {/* Expandable content - sessions list with independent pagination */}
         {isExpanded && (
-          <div className="ms-6 mt-0.5 mb-2 flex flex-col gap-px">
+          <div className="mt-0.5 mb-2 flex flex-col gap-px [&>.sidebar-session-row]:ps-[33px]">
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />

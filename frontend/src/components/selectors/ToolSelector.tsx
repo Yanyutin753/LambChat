@@ -133,7 +133,7 @@ export function ToolSelector({
         icon={
           <Wrench
             size={16}
-            className="text-stone-500 dark:text-amber-400 sm:w-[18px] sm:h-[18px]"
+            className="text-stone-500 dark:text-amber-400 sm:w-[1.125rem] sm:h-[1.125rem]"
           />
         }
         title={t("tools.title")}
@@ -202,7 +202,7 @@ export function ToolSelector({
               >
                 {/* Category Header */}
                 <div
-                  className="flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/70 active:bg-stone-100 dark:active:bg-stone-800 transition-all duration-200"
+                  className="flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-3 cursor-pointer hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100 dark:active:bg-stone-800 transition-all duration-200"
                   onClick={() => toggleCategoryExpand(cat)}
                   role="button"
                   tabIndex={0}
@@ -226,7 +226,7 @@ export function ToolSelector({
                     <InteractiveIcon>
                       <Icon
                         size={13}
-                        className="text-stone-500 dark:text-stone-400 sm:w-[14px] sm:h-[14px]"
+                        className="text-stone-500 dark:text-stone-400 sm:w-[0.875rem] sm:h-[0.875rem]"
                       />
                     </InteractiveIcon>
                   </div>
@@ -260,7 +260,7 @@ export function ToolSelector({
                             <div
                               className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
                                 tool.enabled
-                                  ? "hover:bg-stone-50 dark:hover:bg-stone-800/70 active:bg-stone-100/80 dark:active:bg-stone-800"
+                                  ? "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100/80 dark:active:bg-stone-800"
                                   : "bg-[var(--theme-primary)]/[0.07] ring-1 ring-[var(--theme-primary)]/10 dark:bg-[var(--theme-primary)]/[0.10] hover:bg-[var(--theme-primary)]/[0.12] dark:hover:bg-[var(--theme-primary)]/[0.14] active:bg-[var(--theme-primary)]/[0.18] dark:active:bg-[var(--theme-primary)]/[0.20]"
                               }`}
                               onClick={() => onToggleTool(tool.name)}
@@ -270,7 +270,7 @@ export function ToolSelector({
                                 onClick={(e) => toggleToolExpand(tool.name, e)}
                                 className={`p-1 -ml-1 rounded transition-all duration-200 touch-manip ${
                                   hasParams
-                                    ? "hover:bg-stone-100 dark:hover:bg-stone-600 active:bg-stone-200 dark:active:bg-stone-500"
+                                    ? "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-200 dark:active:bg-stone-500"
                                     : ""
                                 }`}
                               >
@@ -284,7 +284,7 @@ export function ToolSelector({
                                     />
                                   </InteractiveIcon>
                                 ) : (
-                                  <div className="w-[14px] h-[14px]" />
+                                  <div className="w-[0.875rem] h-[0.875rem]" />
                                 )}
                               </button>
 
@@ -330,7 +330,7 @@ export function ToolSelector({
                                   <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-stone-100 dark:bg-stone-700/60 border-b border-stone-200/80 dark:border-stone-600/50">
                                     <Info
                                       size={10}
-                                      className="text-stone-400 dark:text-stone-500 sm:w-[11px] sm:h-[11px]"
+                                      className="text-stone-400 dark:text-stone-500 sm:w-[0.6875rem] sm:h-[0.6875rem]"
                                     />
                                     <span className="text-12 sm:text-12 font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
                                       {t("tools.parameters")}
@@ -357,7 +357,7 @@ export function ToolSelector({
                                           (param: ToolParamInfo) => (
                                             <tr
                                               key={param.name}
-                                              className={`border-b border-stone-50 dark:border-stone-700/50 last:border-b-0 hover:bg-stone-50/50 dark:hover:bg-stone-700/30 transition-colors`}
+                                              className={`border-b border-stone-50 dark:border-stone-700/50 last:border-b-0 hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors`}
                                             >
                                               <td className="px-2.5 sm:px-3 py-1.5">
                                                 <div className="flex items-center gap-1">

@@ -84,7 +84,7 @@ export function GridCard({
               if (ctx.menu) ctx.hide(true);
               else ctx.show(e, file);
             }}
-            className="shrink-0 flex items-center justify-center size-11 sm:size-7 rounded-md hover:bg-theme-bg-subtle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+            className="shrink-0 flex items-center justify-center size-11 sm:size-7 rounded-md hover:bg-theme-bg-hover transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
           >
             <InteractiveIcon>
               <MoreHorizontal size={15} className="text-theme-text-tertiary" />

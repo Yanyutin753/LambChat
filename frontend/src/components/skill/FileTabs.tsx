@@ -39,7 +39,7 @@ export function FileTabs({
           className={`skill-file-tab group flex shrink-0 items-center rounded-lg text-12 font-medium whitespace-nowrap transition-colors duration-150 ${
             activeFileIndex === index
               ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)] shadow-sm"
-              : "text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
+              : "text-stone-500 hover:bg-theme-bg-hover dark:text-stone-400 dark:hover:bg-theme-bg-hover"
           }`}
         >
           <button
@@ -65,7 +65,7 @@ export function FileTabs({
                 file.path || untitledLabel
               }`}
               onClick={() => onRemove(index)}
-              className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+              className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
             >
               <InteractiveIcon>
                 <X size={10} />

@@ -37,7 +37,7 @@
 }
 
 .right-panel-tab:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .right-panel-tab:not(:last-child):not([data-selected="true"]):not(:hover):not(
@@ -122,7 +122,7 @@
     color 120ms ease;
 }
 .right-panel-tab-close:hover svg {
-  background: var(--theme-bg-card);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .right-panel-tab button:focus-visible {
@@ -200,7 +200,7 @@
 }
 .right-panel-view-action:hover,
 .right-panel-collapse:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .right-panel-view-action:focus-visible,
@@ -250,7 +250,7 @@
   }
 }
 .right-panel-restore:hover {
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-hover);
   color: var(--theme-text);
 }
 .right-panel-restore:focus-visible {

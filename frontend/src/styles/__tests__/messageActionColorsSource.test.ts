@@ -42,7 +42,7 @@ test("message actions share theme colors for idle and hover states", () => {
     /\.chat-message-actions button:not\(\[aria-pressed="true"\]\)\s*\{[^}]*color: var\(--theme-text-tertiary\);[^}]*background: transparent;/,
   );
   expect(css).toMatch(
-    /\.chat-message-actions button:not\(\[aria-pressed="true"\]\):enabled:hover\s*\{[^}]*color: var\(--theme-text-secondary\);[^}]*background: var\(--theme-bg-subtle\);/,
+    /\.chat-message-actions button:not\(\[aria-pressed="true"\]\):enabled:hover\s*\{[^}]*color: var\(--theme-text-secondary\);[^}]*background: var\(--theme-bg-hover\);/,
   );
 });
 
@@ -51,7 +51,7 @@ test("user bubble fork button shares the stone hover surface with the action row
     "../../components/chat/ChatMessage/UserMessageBubble.tsx",
   );
   expect(source).toMatch(
-    /"p-1\.5 rounded-md transition-colors duration-200",\s*\n\s*getUserMessageActionButtonVisibilityClass\(isLastMessage\),\s*\n\s*"hover:bg-stone-200 dark:hover:bg-stone-700",/,
+    /"p-1\.5 rounded-md transition-colors duration-200",\s*\n\s*getUserMessageActionButtonVisibilityClass\(isLastMessage\),\s*\n\s*"hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover",/,
   );
   expect(source).not.toContain("hover:bg-black/5");
 });

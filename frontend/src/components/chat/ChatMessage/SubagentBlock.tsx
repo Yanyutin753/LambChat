@@ -227,7 +227,7 @@ export function SubagentBlock({
     >
       <button
         type="button"
-        className="flex w-full min-h-11 items-center gap-3 px-3.5 py-2.5 text-left cursor-pointer transition-colors duration-150 hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-ring)]"
+        className="flex w-full min-h-11 items-center gap-3 px-3.5 py-2.5 text-left cursor-pointer transition-colors duration-150 hover:bg-theme-bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-ring)]"
         onClick={handleOpenInPanel}
       >
         <AgentAvatar

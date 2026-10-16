@@ -194,3 +194,35 @@ test("image output previews identify the source without exposing inline data", a
     "private-image-data",
   );
 });
+
+test("MCP detail sections keep independent folding and live results", () => {
+  const view = render(
+    <ToolCallItem
+      id="mcp-sections"
+      name="docs:search"
+      args={{ query: "delivery plan" }}
+      result="First result"
+      success
+    />,
+  );
+  fireEvent.click(view.container.querySelector("button")!);
+  const panel = getPersistentToolPanelState()!;
+  const details = render(panel.children as React.ReactElement);
+  const argsToggle = details.getByRole("button", { name: "Args", exact: true });
+  expect(argsToggle).toHaveAttribute("aria-expanded", "true");
+  expect(details.getByText('"delivery plan"')).toBeTruthy();
+
+  fireEvent.click(argsToggle);
+  expect(argsToggle).toHaveAttribute("aria-expanded", "false");
+  expect(details.queryByText('"delivery plan"')).toBe(null);
+  expect(details.getByText("First result")).toBeTruthy();
+
+  act(() => {
+    toolCallPanelStore.set({
+      ...toolCallPanelStore.get("mcp-sections")!,
+      result: "Updated result",
+    });
+  });
+  expect(details.getByText("Updated result")).toBeTruthy();
+  expect(argsToggle).toHaveAttribute("aria-expanded", "false");
+});

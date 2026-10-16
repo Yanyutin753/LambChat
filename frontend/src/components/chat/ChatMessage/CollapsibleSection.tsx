@@ -16,6 +16,7 @@ function snapshotKeySlug(title: string): string {
 
 export function CollapsibleSection({
   title,
+  icon,
   defaultExpanded = true,
   action,
   variant = "default",
@@ -24,6 +25,7 @@ export function CollapsibleSection({
   children,
 }: {
   title: string;
+  icon?: React.ReactNode;
   defaultExpanded?: boolean;
   action?: React.ReactNode;
   variant?: "default" | "error";
@@ -64,17 +66,22 @@ export function CollapsibleSection({
                 "transition-transform duration-200",
                 isError
                   ? "text-red-500 dark:text-red-400"
-                  : "text-theme-text-tertiary",
+                  : "text-theme-text-secondary",
                 !expanded && "-rotate-90",
               )}
             />
           </InteractiveIcon>
+          {icon && (
+            <span className="tool-surface__icon" aria-hidden="true">
+              {icon}
+            </span>
+          )}
           <span
             className={clsx(
               "min-w-0 truncate text-12 uppercase tracking-wider font-medium",
               isError
                 ? "text-red-600 dark:text-red-400"
-                : "text-theme-text-tertiary",
+                : "text-theme-text-secondary",
             )}
           >
             {title}
