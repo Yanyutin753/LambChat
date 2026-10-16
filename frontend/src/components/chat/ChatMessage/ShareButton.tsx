@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 /**
  * ShareButton - Standalone share button component for ChatMessage
  */
@@ -47,7 +48,9 @@ export function ShareButton({ sessionId, runId, className }: ShareButtonProps) {
             className,
           )}
         >
-          <Share2 size={16} />
+          <InteractiveIcon>
+            <Share2 size={16} />
+          </InteractiveIcon>
         </button>
       </Tooltip>
       <ShareDialog

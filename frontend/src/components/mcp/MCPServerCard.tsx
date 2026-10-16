@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import {
   Server,
   ToggleLeft,
@@ -23,12 +24,10 @@ interface MCPServerCardProps {
 
 const TRANSPORT_COLORS: Record<string, string> = {
   sse: "text-theme-success dark:text-emerald-400",
-  streamable_http:
-    "text-violet-600 dark:text-violet-400",
+  streamable_http: "text-violet-600 dark:text-violet-400",
 };
 
-const DEFAULT_TRANSPORT_COLOR =
-  "text-theme-text-secondary";
+const DEFAULT_TRANSPORT_COLOR = "text-theme-text-secondary";
 
 export function MCPServerCard({
   server,
@@ -142,12 +141,16 @@ export function MCPServerCard({
               className="scb__action-btn scb__action-btn--ghost"
             >
               {server.enabled ? (
-                <ToggleRight
-                  size={16}
-                  className="text-theme-success dark:text-green-500"
-                />
+                <InteractiveIcon>
+                  <ToggleRight
+                    size={16}
+                    className="text-theme-success dark:text-green-500"
+                  />
+                </InteractiveIcon>
               ) : (
-                <ToggleLeft size={16} />
+                <InteractiveIcon>
+                  <ToggleLeft size={16} />
+                </InteractiveIcon>
               )}
             </button>
           </Tooltip>

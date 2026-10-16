@@ -53,7 +53,9 @@
   background: var(--theme-bg-card);
   border: 1px solid var(--theme-border);
   box-shadow: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .dark .scb {
@@ -125,7 +127,8 @@
 }
 
 /* Card headers use compact icons; standalone avatar controls keep their size. */
-.scb__header > :is(.scb__icon-ring, .scb__avatar-ring, .team-card__identity-avatar) {
+.scb__header
+  > :is(.scb__icon-ring, .scb__avatar-ring, .team-card__identity-avatar) {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 50%;
@@ -263,7 +266,6 @@ button.scb__mini-tag {
 button.scb__mini-tag:hover {
   border-color: color-mix(in srgb, var(--theme-text) 18%, var(--theme-border));
   color: var(--theme-text);
-  background: var(--theme-bg-subtle);
 }
 
 .scb__mini-tag--active {
@@ -271,11 +273,6 @@ button.scb__mini-tag:hover {
     in srgb,
     var(--theme-text-secondary) 15%,
     var(--theme-border)
-  );
-  background: color-mix(
-    in srgb,
-    var(--theme-bg-subtle) 68%,
-    var(--theme-bg-card)
   );
   color: var(--theme-text);
 }
@@ -400,7 +397,8 @@ button.scb__mini-tag:hover {
   padding-block: 0;
 }
 
-:is(.scb__action-btn, .mp-card__action-btn, .scb__footer .pps-card__action) > svg {
+:is(.scb__action-btn, .mp-card__action-btn, .scb__footer .pps-card__action)
+  > svg {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
@@ -593,7 +591,6 @@ button.scb__mini-tag:hover {
 .mp-card__mini-tag:hover {
   border-color: color-mix(in srgb, var(--theme-text) 18%, var(--theme-border));
   color: var(--theme-text);
-  background: var(--theme-bg-subtle);
 }
 
 .mp-card__mini-tag--active {
@@ -601,11 +598,6 @@ button.scb__mini-tag:hover {
     in srgb,
     var(--theme-text-secondary) 15%,
     var(--theme-border)
-  );
-  background: color-mix(
-    in srgb,
-    var(--theme-bg-subtle) 68%,
-    var(--theme-bg-card)
   );
   color: var(--theme-text);
 }

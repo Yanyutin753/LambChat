@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import {
@@ -118,7 +119,9 @@ function FormFieldRenderer({
                   disabled && "approval-choice-option--disabled",
                 )}
               >
-                <Icon size={16} strokeWidth={isSelected ? 2.4 : 1.8} />
+                <InteractiveIcon>
+                  <Icon size={16} strokeWidth={isSelected ? 2.4 : 1.8} />
+                </InteractiveIcon>
                 <span>{option}</span>
               </button>
             );
@@ -581,7 +584,9 @@ export function ApprovalPanel({
                 className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
               >
-                <ChevronLeft size={16} />
+                <InteractiveIcon>
+                  <ChevronLeft size={16} />
+                </InteractiveIcon>
               </button>
               <button
                 onClick={goToNext}
@@ -589,7 +594,9 @@ export function ApprovalPanel({
                 className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
               >
-                <ChevronRight size={16} />
+                <InteractiveIcon>
+                  <ChevronRight size={16} />
+                </InteractiveIcon>
               </button>
             </div>
           </div>
@@ -622,7 +629,9 @@ export function ApprovalPanel({
               aria-controls={`approval-details-${currentApproval.id}`}
             >
               <div className="approval-icon">
-                <ShieldCheck size={16} strokeWidth={2} />
+                <InteractiveIcon>
+                  <ShieldCheck size={16} strokeWidth={2} />
+                </InteractiveIcon>
               </div>
               <div className="min-w-0 flex-1 text-left">
                 <span className="approval-title block">
@@ -640,17 +649,21 @@ export function ApprovalPanel({
                     isUrgent ? "approval-timer-urgent" : ""
                   }`}
                 >
-                  <Clock size={14} />
+                  <InteractiveIcon>
+                    <Clock size={14} />
+                  </InteractiveIcon>
                   {formatCountdown(currentRemaining)}
                 </span>
               )}
-              <ChevronRight
-                size={16}
-                className={`approval-expand-icon shrink-0 transition-transform ${
-                  isExpanded ? "rotate-90" : ""
-                }`}
-                aria-hidden="true"
-              />
+              <InteractiveIcon>
+                <ChevronRight
+                  size={16}
+                  className={`approval-expand-icon shrink-0 transition-transform ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </InteractiveIcon>
             </button>
           ) : (
             <div className="approval-ask-human-header">
@@ -850,7 +863,9 @@ export function ApprovalPanel({
                     }
                     className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <X size={14} />
+                    <InteractiveIcon>
+                      <X size={14} />
+                    </InteractiveIcon>
                     <span>
                       {isAskHuman
                         ? t("approvals.ignore")
@@ -864,7 +879,9 @@ export function ApprovalPanel({
                     title={t("approvals.submit")}
                     className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Send size={14} />
+                    <InteractiveIcon>
+                      <Send size={14} />
+                    </InteractiveIcon>
                     <span>{t("approvals.submit")}</span>
                   </button>
                 </div>

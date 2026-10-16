@@ -98,7 +98,7 @@ function DocumentParseDetail({ args, result }: ToolDetailProps) {
   const parsed = useMemo(() => parseDocumentParseResult(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       {url && (
         <ToolArgsBlock size="detail" copyText={url} wrap>
           <FileScan
@@ -212,9 +212,7 @@ const DocumentParseItem = memo(function DocumentParseItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${t("chat.message.toolDocumentParse")} ${
-      filename
-    }`,
+    `${t("chat.message.toolDocumentParse")} ${filename}`,
     args,
     { isPending, result },
   );
@@ -235,8 +233,7 @@ const DocumentParseItem = memo(function DocumentParseItem({
             title: t("chat.message.toolDocumentParse"),
             icon: <FileScan size={16} />,
             status,
-            subtitle:
-              url || undefined,
+            subtitle: url || undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
               <DocumentParseDetail {...toolDetailPropsFromPanelData(data)} />

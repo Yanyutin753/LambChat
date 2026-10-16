@@ -5,25 +5,29 @@ const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("user action icons align with the bubble right edge at both target sizes", () => {
-  expect(read("../../components/chat/ChatMessage/UserMessageBubble.tsx")).toContain(
-    "chat-message-actions chat-user-actions",
-  );
+  expect(
+    read("../../components/chat/ChatMessage/UserMessageBubble.tsx"),
+  ).toContain("chat-message-actions chat-user-actions");
   const css = read("../chat.css");
-  expect(css).toMatch(/\.chat-user-actions\s*\{\s*margin-inline-end: -0\.5rem;/);
+  expect(css).toMatch(
+    /\.chat-user-actions\s*\{\s*margin-inline-end: -0\.5rem;/,
+  );
   expect(css).toMatch(
     /@media \(max-width: 639px\), \(pointer: coarse\)\s*\{[^}]*\}[^@]*?\.chat-user-actions\s*\{\s*margin-inline-end: -0\.625rem;/,
   );
 });
 
-test("assistant action icons align with the content edge at both target sizes", () => {
+test("assistant action icons align with the content at both target sizes", () => {
   expect(read("../../components/chat/ChatMessage/index.tsx")).toContain(
     "chat-message-actions chat-assistant-actions",
   );
-  expect(read("../../components/chat/ChatMessage/UserMessageBubble.tsx")).not.toContain(
-    "chat-assistant-actions",
-  );
+  expect(
+    read("../../components/chat/ChatMessage/UserMessageBubble.tsx"),
+  ).not.toContain("chat-assistant-actions");
   const css = read("../chat.css");
-  expect(css).toMatch(/\.chat-assistant-actions\s*\{\s*margin-inline-start: -0\.5rem;/);
+  expect(css).toMatch(
+    /\.chat-assistant-actions\s*\{\s*margin-inline-start: -0\.5rem;/,
+  );
   expect(css).toMatch(
     /@media \(max-width: 639px\), \(pointer: coarse\)\s*\{\s*\.chat-assistant-actions\s*\{\s*margin-inline-start: -0\.625rem;/,
   );

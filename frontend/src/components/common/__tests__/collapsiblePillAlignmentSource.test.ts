@@ -11,9 +11,9 @@ const animationSource = readFileSync(
 );
 
 describe("CollapsiblePill alignment", () => {
-  test("uses a readable line height while preserving monospace labels", () => {
+  test("uses a readable line height while using the shared interface font", () => {
     expect(animationSource).toMatch(
-      /\.pill-btn\s*\{[^}]*font-family:\s*theme\(['"]fontFamily\.mono['"]\)[^}]*items-center[^}]*leading-normal/,
+      /\.pill-btn\s*\{[^}]*font-family:\s*theme\(['"]fontFamily\.sans['"]\)[^}]*items-center[^}]*leading-5/,
     );
     expect(animationSource).toMatch(
       /\.pill-btn > span\s*\{\s*line-height: inherit;/,

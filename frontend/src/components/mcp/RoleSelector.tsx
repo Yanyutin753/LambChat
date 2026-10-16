@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
@@ -93,7 +94,9 @@ export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
             ? selectedRoles.join(", ")
             : t("mcp.form.allRoles")}
         </span>
-        <ChevronDown size={15} className="ui-select-trigger__icon" />
+        <InteractiveIcon>
+          <ChevronDown size={15} className="ui-select-trigger__icon" />
+        </InteractiveIcon>
       </button>
       {isOpen &&
         createPortal(

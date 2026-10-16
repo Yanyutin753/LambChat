@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import "./rightPanelTabs.css";
@@ -76,7 +77,9 @@ export function RightPanelTabs({
           title={t("common.expandPanel")}
           aria-expanded={false}
         >
-          <PanelRightOpen size={16} aria-hidden="true" />
+          <InteractiveIcon>
+            <PanelRightOpen size={16} aria-hidden="true" />
+          </InteractiveIcon>
           <span>{t("common.panelTabs")}</span>
           <span className="right-panel-restore-count">{entries.length}</span>
         </button>
@@ -142,7 +145,11 @@ export function RightPanelTabs({
                     }}
                   >
                     <span className="right-panel-tab-icon" aria-hidden="true">
-                      {entry.icon ?? <PanelRight size={14} />}
+                      {entry.icon ?? (
+                        <InteractiveIcon>
+                          <PanelRight size={14} />
+                        </InteractiveIcon>
+                      )}
                     </span>
                     <span className="right-panel-tab-label">{label}</span>
                   </button>
@@ -155,7 +162,9 @@ export function RightPanelTabs({
                   title={t("common.closePanelTab", { title: label })}
                   onClick={() => closeRightPanel(entry.id)}
                 >
-                  <X size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <X size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 </button>
               </div>
             );
@@ -181,9 +190,13 @@ export function RightPanelTabs({
                 onClick={viewControls.onToggleViewMode}
               >
                 {viewControls.isSidebar ? (
-                  <Columns2 size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <Columns2 size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 ) : (
-                  <PanelRight size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <PanelRight size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 )}
               </button>
               <button
@@ -202,9 +215,13 @@ export function RightPanelTabs({
                 onClick={viewControls.onToggleFullscreen}
               >
                 {viewControls.isFullscreen ? (
-                  <Shrink size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <Shrink size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 ) : (
-                  <Expand size={16} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <Expand size={16} aria-hidden="true" />
+                  </InteractiveIcon>
                 )}
               </button>
             </>
@@ -220,7 +237,9 @@ export function RightPanelTabs({
           title={t("common.collapsePanel")}
           aria-expanded={true}
         >
-          <PanelRightClose size={16} aria-hidden="true" />
+          <InteractiveIcon>
+            <PanelRightClose size={16} aria-hidden="true" />
+          </InteractiveIcon>
         </button>
       </div>
     </div>

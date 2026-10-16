@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { Shrink, Plus, ChevronDown, Upload, Search } from "lucide-react";
 import { useId, useRef, useState } from "react";
@@ -66,7 +67,9 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 onClick={addFile}
                 className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-white/5 transition-colors"
               >
-                <Plus size={13} />
+                <InteractiveIcon>
+                  <Plus size={13} />
+                </InteractiveIcon>
                 {t("skills.form.addFile")}
               </button>
               {a.allowBinaryUploads && (
@@ -75,7 +78,9 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                   onClick={a.addBinaryFile}
                   className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-14 text-theme-text-secondary dark:text-stone-400 hover:bg-theme-bg-subtle dark:hover:bg-white/5 transition-colors"
                 >
-                  <Upload size={13} />
+                  <InteractiveIcon>
+                    <Upload size={13} />
+                  </InteractiveIcon>
                   {t("skills.form.addBinaryFile", "Upload binary file")}
                 </button>
               )}

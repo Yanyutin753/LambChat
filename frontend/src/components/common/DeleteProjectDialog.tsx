@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { DialogCloseButton } from "./DialogCloseButton";
 import { ModalSurface } from "./ModalSurface";
 import { useEffect, useRef } from "react";
@@ -80,7 +81,9 @@ export function DeleteProjectDialog({
             disabled={loading}
             className="flex w-full items-center gap-3 px-4 py-3 rounded-lg text-left text-14 transition-colors text-red-500/80 hover:text-red-500 dark:text-red-400/80 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            <Trash2 size={16} strokeWidth={1.8} className="shrink-0" />
+            <InteractiveIcon>
+              <Trash2 size={16} strokeWidth={1.8} className="shrink-0" />
+            </InteractiveIcon>
             <div className="min-w-0">
               <span className="block">
                 {t("sidebar.deleteProjectAndSessions")}
@@ -104,7 +107,9 @@ export function DeleteProjectDialog({
             disabled={loading}
             className="flex w-full items-center gap-3 px-4 py-3 rounded-lg text-left text-14 transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            <FolderInput size={16} strokeWidth={1.8} className="shrink-0" />
+            <InteractiveIcon>
+              <FolderInput size={16} strokeWidth={1.8} className="shrink-0" />
+            </InteractiveIcon>
             <div className="min-w-0">
               <span className="block">
                 {t("sidebar.deleteProjectKeepSessions")}

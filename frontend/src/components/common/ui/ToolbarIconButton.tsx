@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type ToolbarIconButtonVariant = "stone" | "muted";
@@ -40,7 +41,7 @@ export function ToolbarIconButton({
       }}
       {...props}
     >
-      {icon}
+      <InteractiveIcon>{icon}</InteractiveIcon>
     </button>
   );
 }

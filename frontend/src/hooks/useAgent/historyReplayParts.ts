@@ -20,6 +20,7 @@ import {
   createToolPart,
   createGeneratingToolPart,
   createThinkingPart,
+  finishThinkingParts,
   createSubagentPart,
   upgradeGeneratingToolPart,
   addPartToDepth,
@@ -295,6 +296,10 @@ export class HistoryPartReplay {
               {
                 ...target.slot.part,
                 content: target.slot.part.content + part.content,
+                startedAt: target.slot.part.startedAt ?? part.startedAt,
+                lastUpdatedAt:
+                  part.lastUpdatedAt ?? target.slot.part.lastUpdatedAt,
+                completedAt: undefined,
                 isStreaming: this.streaming
                   ? true
                   : target.slot.part.isStreaming,
@@ -423,6 +428,20 @@ export class HistoryPartReplay {
           data.status,
         )[0];
         if (child) {
+          for (const thought of child.slots.all(
+            historySlotKey("open-thinking", data.agent_id),
+          )) {
+            const ref = child.refs.get(thought.position);
+            if (ref)
+              index.replace(
+                ref,
+                finishThinkingParts(
+                  [thought.part],
+                  data.timestamp,
+                  data.agent_id,
+                )[0],
+              );
+          }
           if (!(next as SubagentPart).isPending)
             for (const loading of index.loading(child)) {
               const settled = clearAllLoadingStates([loading.slot.part], {
@@ -439,6 +458,24 @@ export class HistoryPartReplay {
       return true;
     }
     const owner = this.route(index, depth, data.agent_id || routeAgent);
+    if (
+      ["message:chunk", "tool:args:chunk", "tool:start"].includes(eventType)
+    ) {
+      for (const thought of owner.slots.all(
+        historySlotKey("open-thinking", data.agent_id),
+      )) {
+        const ref = owner.refs.get(thought.position);
+        if (ref)
+          index.replace(
+            ref,
+            finishThinkingParts(
+              [thought.part],
+              data.timestamp,
+              data.agent_id,
+            )[0],
+          );
+      }
+    }
     if (eventType === "tool:args:chunk") {
       const delta = typeof data.content === "string" ? data.content : "";
       if (!delta) return true;
@@ -625,6 +662,7 @@ export class HistoryPartReplay {
                 depth,
                 data.agent_id,
                 this.streaming,
+                data.timestamp,
               )
             : undefined
           : eventType === "message:chunk"

@@ -6,7 +6,10 @@ interface ResponsiveSectionProps {
   onOpenViewer: (src: string, alt: string) => void;
 }
 
-export function ResponsiveSection({ shots, onOpenViewer }: ResponsiveSectionProps) {
+export function ResponsiveSection({
+  shots,
+  onOpenViewer,
+}: ResponsiveSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -25,7 +28,7 @@ export function ResponsiveSection({ shots, onOpenViewer }: ResponsiveSectionProp
             <button
               type="button"
               aria-label={t(`landing.${s.altKey}`)}
-              key={s.src}
+              key={s.altKey}
               data-reveal-scale
               className="public-preview blog-screenshot-card group relative overflow-hidden cursor-pointer p-4 sm:p-6"
               onClick={() => onOpenViewer(s.src, t(`landing.${s.altKey}`))}

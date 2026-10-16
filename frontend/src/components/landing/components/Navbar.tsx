@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
@@ -70,7 +71,9 @@ export function Navbar({
             aria-label={t("imageViewer.download")}
             title={t("imageViewer.download")}
           >
-            <Download size={18} aria-hidden="true" />
+            <InteractiveIcon>
+              <Download size={18} aria-hidden="true" />
+            </InteractiveIcon>
           </Link>
           <LanguageToggle />
           <ThemeToggle />

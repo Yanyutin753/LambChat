@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -54,9 +55,15 @@ export function ToolbarChip({
           {icon && (
             <span
               aria-hidden="true"
-              className={`relative h-4 w-4 shrink-0 inline-flex items-center justify-center ${iconBadge ? "overflow-visible" : "overflow-hidden"}${onClear ? " sm:group-hover:opacity-0 sm:group-focus-within:opacity-0" : ""}`}
+              className={`relative h-4 w-4 shrink-0 inline-flex items-center justify-center ${
+                iconBadge ? "overflow-visible" : "overflow-hidden"
+              }${
+                onClear
+                  ? " sm:group-hover:opacity-0 sm:group-focus-within:opacity-0"
+                  : ""
+              }`}
             >
-              {icon}
+              <InteractiveIcon>{icon}</InteractiveIcon>
               {iconBadge}
             </span>
           )}
@@ -79,7 +86,9 @@ export function ToolbarChip({
           onClick={onClear}
           className="chat-tool-btn absolute left-0 top-0 !hidden h-9 w-8 sm:!flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
         >
-          <X size={16} />
+          <InteractiveIcon>
+            <X size={16} />
+          </InteractiveIcon>
         </button>
       )}
     </div>

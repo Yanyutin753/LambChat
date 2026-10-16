@@ -94,6 +94,9 @@ export class HistoryPartSlots {
       keys.push(historySlotKey("tool", part.id));
       if (part.name === "ask_human" && part.isPending)
         keys.push(historySlotKey("ask"), historySlotKey("ask", part.id));
+    } else if (part.type === "thinking") {
+      if (part.startedAt !== undefined && part.completedAt === undefined)
+        keys.push(historySlotKey("open-thinking", part.agent_id));
     } else if (part.type === "artifact")
       keys.push(historySlotKey("artifact", historyArtifactKey(part)));
     else if (part.type === "summary") {

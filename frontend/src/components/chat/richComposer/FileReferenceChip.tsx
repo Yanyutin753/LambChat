@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { AlertCircle, Paperclip, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -55,16 +56,20 @@ export function FileReferenceChip({
           : undefined
       }
     >
-      <Paperclip className="composer-reference-chip__icon" size="1em" />
+      <InteractiveIcon>
+        <Paperclip className="composer-reference-chip__icon" size="1em" />
+      </InteractiveIcon>
       <span className="skill-chip-node-name composer-reference-chip__label font-serif">
         {displayLabel}
       </span>
       {!readOnly && StatusIcon ? (
-        <StatusIcon
-          className="composer-reference-chip__status"
-          size={13}
-          aria-hidden="true"
-        />
+        <InteractiveIcon>
+          <StatusIcon
+            className="composer-reference-chip__status"
+            size={13}
+            aria-hidden="true"
+          />
+        </InteractiveIcon>
       ) : null}
       {status === "failed" && onRetry ? (
         <button
@@ -77,7 +82,9 @@ export function FileReferenceChip({
             onRetry();
           }}
         >
-          <RotateCcw size={12} aria-hidden="true" />
+          <InteractiveIcon>
+            <RotateCcw size={12} aria-hidden="true" />
+          </InteractiveIcon>
           <span>{t("fileUpload.composerRetry", "Retry")}</span>
         </button>
       ) : null}

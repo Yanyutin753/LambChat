@@ -37,6 +37,8 @@ beforeEach(async () => {
   localStorage.clear();
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
+    addEventListener() {},
+    removeEventListener() {},
     addListener() {},
     removeListener() {},
   }));

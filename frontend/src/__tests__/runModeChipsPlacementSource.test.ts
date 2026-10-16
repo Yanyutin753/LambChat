@@ -18,12 +18,14 @@ test("运行模式仅在桌面模型旁显示，不占用可编辑消息文本",
   );
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   expect(toolbar).toMatch(/data-composer-run-modes/);
-  expect(toolbar).toMatch(/className="hidden shrink-0 items-center gap-1\.5 sm:flex"/);
+  expect(toolbar).toMatch(
+    /className="hidden shrink-0 items-center gap-2\.5 sm:flex"/,
+  );
   expect(toolbar.indexOf("data-composer-run-modes")).toBeGreaterThan(
     toolbar.indexOf("<ToolbarChip"),
   );
   expect(toolbar.indexOf("data-composer-run-modes")).toBeLessThan(
-    toolbar.indexOf("flex shrink-0 items-center gap-1.5 self-center"),
+    toolbar.indexOf("flex shrink-0 items-center gap-2.5 self-center"),
   );
 });
 
@@ -36,7 +38,9 @@ test("工具栏右侧操作区不再渲染运行模式文字按钮", () => {
 test("手机运行模式触发按钮显示激活状态角标", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   // 手机端模式文字隐藏后，由设置图标角标提示启用状态。
-  const trigger = toolbar.match(/<button\s[^>]*data-run-mode-trigger[\s\S]*?<\/button>/)?.[0];
+  const trigger = toolbar.match(
+    /<button\s[^>]*data-run-mode-trigger[\s\S]*?<\/button>/,
+  )?.[0];
   expect(trigger).toBeDefined();
   expect(trigger).toContain("data-run-mode-status-dot");
   expect(trigger).toContain("sm:hidden");
@@ -93,9 +97,7 @@ test("右簇沙箱 chip 手机端显示图标和状态角标，隐藏档位文�
 
 test("工具栏右簇与左行图标同轴居中，不再贴底错位", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
-  expect(toolbar).toMatch(
-    /flex shrink-0 items-center gap-1\.5 self-center/,
-  );
+  expect(toolbar).toMatch(/flex shrink-0 items-center gap-2\.5 self-center/);
   expect(toolbar).not.toMatch(/self-end/);
 });
 
@@ -109,7 +111,7 @@ test("工具栏左行不再横向滚动，手机端超宽靠 chip 截断降级",
 test("沙箱 chip 归入右簇，不混入左侧身份 chip 行", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   const clusterIdx = toolbar.indexOf(
-    "flex shrink-0 items-center gap-1.5 self-center",
+    "flex shrink-0 items-center gap-2.5 self-center",
   );
   const sandboxIdx = toolbar.indexOf("data-sandbox-status-dot");
   // 沙箱保留在右簇，用量入口已移到页头。
@@ -138,10 +140,13 @@ test("发送后的用户消息携带运行模式 chip", () => {
   expect(messageView).toMatch(/runModes=\{message\.runModes\}/);
 });
 
-
-test("桌面模式入口与模型之间用主题竖线分隔", () => {
+test("桌面模式入口用主题竖线分隔，间距沿用共享工具栏", () => {
   const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
   const modes = toolbar.slice(toolbar.indexOf("data-composer-run-modes"));
-  expect(modes).toMatch(/aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border"/);
-  expect(modes.indexOf("bg-theme-border")).toBeLessThan(modes.indexOf("activeModes.map"));
+  expect(modes).toMatch(
+    /className="hidden shrink-0 items-center gap-2\.5 sm:flex"/,
+  );
+  expect(modes.replace(/\s+/g, " ")).toContain(
+    'aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border"',
+  );
 });

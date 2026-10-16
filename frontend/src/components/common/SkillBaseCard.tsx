@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import {
   useCallback,
   useId,
@@ -230,7 +231,9 @@ export function SkillBaseCard({
       )}
 
       <div
-        className={`scb__body flex flex-1 flex-col gap-2 p-3 ${gradient ? "-mt-3 pt-4" : ""}`}
+        className={`scb__body flex flex-1 flex-col gap-2 p-3 ${
+          gradient ? "-mt-3 pt-4" : ""
+        }`}
       >
         <div className="scb__header flex items-center gap-2">
           {icon &&
@@ -336,7 +339,9 @@ export function SkillBaseCard({
                     });
                   }}
                 >
-                  <MoreHorizontal size={16} />
+                  <InteractiveIcon>
+                    <MoreHorizontal size={16} />
+                  </InteractiveIcon>
                 </button>
               )
             )}

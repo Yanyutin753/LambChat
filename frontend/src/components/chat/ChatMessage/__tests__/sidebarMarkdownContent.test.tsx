@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
-import { vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -15,6 +15,8 @@ vi.mock("react-i18next", async (importOriginal) => {
 
 import { SidebarMarkdownContent } from "../SidebarMarkdownContent";
 
+afterEach(cleanup);
+
 test("lightweight sidebar preview keeps normal reading-area spacing and typography", () => {
   render(
     <SidebarMarkdownContent
@@ -24,7 +26,7 @@ test("lightweight sidebar preview keeps normal reading-area spacing and typograp
   );
 
   const preview = screen.getByText(/First preview line/);
-  expect(preview).toHaveClass(
+  expect(preview.closest(".sidebar-reasoning-preview__scroll")).toHaveClass(
     "px-3",
     "pt-2",
     "pb-6",
@@ -32,4 +34,15 @@ test("lightweight sidebar preview keeps normal reading-area spacing and typograp
     "text-[0.9375rem]",
     "leading-[1.75]",
   );
+});
+
+test("completed long reasoning begins at the start and can reveal the full history", () => {
+  render(
+    <SidebarMarkdownContent
+      content={"START " + "review ".repeat(2100) + " END"}
+    />,
+  );
+  expect(screen.getByText(/^START/)).not.toHaveTextContent("END");
+  fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+  expect(screen.getByText(/START/)).toHaveTextContent("END");
 });

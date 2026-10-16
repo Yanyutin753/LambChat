@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import "../../styles/app-content.css";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { LanguageToggle } from "../common/LanguageToggle";
@@ -86,9 +87,16 @@ export function SharedPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
-  const agentName = data ? resolveAgentReferenceName(
-    data.session.agent_id, data.session.agent_name || "", [], i18n.language, t, data.session.agent_labels,
-  ) : "";
+  const agentName = data
+    ? resolveAgentReferenceName(
+        data.session.agent_id,
+        data.session.agent_name || "",
+        [],
+        i18n.language,
+        t,
+        data.session.agent_labels,
+      )
+    : "";
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -442,7 +450,9 @@ export function SharedPage({
                 className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {t("auth.loginNow")}
-                <ExternalLink size={16} />
+                <InteractiveIcon>
+                  <ExternalLink size={16} />
+                </InteractiveIcon>
               </Link>
             </div>
           </div>
@@ -511,7 +521,9 @@ export function SharedPage({
               title={t("share.goToChat")}
               aria-label={t("share.goToChat")}
             >
-              <MessageCircle size={18} />
+              <InteractiveIcon>
+                <MessageCircle size={18} />
+              </InteractiveIcon>
             </Link>
             <LanguageToggle sync={false} className="!min-h-11 !min-w-11" />
             <IconButton
@@ -602,9 +614,7 @@ export function SharedPage({
                     </span>
                   )}
                   {agentName && (
-                    <span className={metadataClassName}>
-                      {agentName}
-                    </span>
+                    <span className={metadataClassName}>{agentName}</span>
                   )}
                   {data.session.persona_preset_name && (
                     <span className={metadataClassName}>
@@ -627,12 +637,14 @@ export function SharedPage({
                         const iconUrl = getModelIconUrl(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            string | undefined,
+                            | string
+                            | undefined,
                         );
                         const mono = isMonochromeIcon(
                           data.session.model,
                           (data.session as Record<string, unknown>).provider as
-                            string | undefined,
+                            | string
+                            | undefined,
                         );
                         return iconUrl ? (
                           <ImageWithSkeleton

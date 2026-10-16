@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useState,
   useId,
   useLayoutEffect,
@@ -16,6 +17,11 @@ type ResolvedPlacement = Exclude<Placement, "auto">;
 
 interface TooltipProps {
   content: ReactNode;
+  /** Card presentation for structured previews. */
+  variant?: "default" | "card";
+  disabled?: boolean;
+  anchorRef?: RefObject<HTMLElement | null>;
+  align?: "center" | "start";
   placement?: Placement;
   children: ReactNode;
   /** Extra className for the tooltip bubble */
@@ -116,6 +122,7 @@ function getTooltipPosition(
   requested: Placement,
   content: ReactNode,
   measuredSize?: { width: number; height: number },
+  align: "center" | "start" = "center",
 ) {
   const { width, height } = measuredSize ?? estimateTooltipSize(content);
   const resolved = resolvePlacement(requested, rect, width, height);
@@ -129,7 +136,7 @@ function getTooltipPosition(
       resolved === "right"
         ? rect.right + TOOLTIP_GAP
         : rect.left - TOOLTIP_GAP - width;
-    const idealTop = centerY - height / 2;
+    const idealTop = align === "start" ? rect.top : centerY - height / 2;
     const clampedTop = clamp(
       idealTop,
       VIEWPORT_PADDING,
@@ -193,6 +200,10 @@ function getTooltipPosition(
 
 export function Tooltip({
   content,
+  variant = "default",
+  disabled = false,
+  anchorRef,
+  align = "center",
   placement = "auto",
   children,
   className,
@@ -235,13 +246,14 @@ export function Tooltip({
   const handleMouseEnter = useCallback(() => {
     clearTimeout(hoverTimer.current);
     // Synthetic mouseenter right after a tap is not a real hover
-    if (Date.now() - lastTouchAtRef.current < TOUCH_MOUSE_GATE_MS) return;
+    if (disabled || Date.now() - lastTouchAtRef.current < TOUCH_MOUSE_GATE_MS)
+      return;
     clearTimeout(touchHideTimer.current);
     clearTimeout(longPressTimer.current);
     if (hoverDelay)
       hoverTimer.current = setTimeout(() => setShow(true), hoverDelay);
     else setShow(true);
-  }, [hoverDelay]);
+  }, [hoverDelay, disabled]);
 
   const handleMouseLeave = useCallback(() => {
     clearTimeout(hoverTimer.current);
@@ -412,7 +424,11 @@ export function Tooltip({
   }, []);
 
   // Forced-open (touch-driven) shows the bubble on top of the internal hover/long-press state
-  const visible = open === true || show;
+  const visible = !disabled && (open === true || show);
+
+  useEffect(() => {
+    if (disabled) handleActivate();
+  }, [disabled, handleActivate]);
 
   useLayoutEffect(() => {
     if (!visible) {
@@ -439,7 +455,7 @@ export function Tooltip({
   }, [visible, getChild, tooltipId]);
 
   const tipStyle = useStickyDropdownPosition(
-    childElRef,
+    anchorRef ?? childElRef,
     visible,
     (rect) => {
       const position = getTooltipPosition(
@@ -447,6 +463,7 @@ export function Tooltip({
         placement,
         content,
         measuredSize,
+        align,
       );
       resolvedPlacement.current = position.resolved;
       arrowStyle.current = position.arrowStyle;
@@ -480,20 +497,24 @@ export function Tooltip({
             id={tooltipId}
             role="tooltip"
             data-placement={resolvedPlacement.current}
-            className={`fixed z-50 max-w-[min(240px,calc(100vw-16px))] w-max rounded-md border border-white/10 bg-stone-700/95 px-2.5 py-1.5 text-12 font-medium leading-relaxed text-white shadow-xl shadow-black/20 backdrop-blur-sm whitespace-normal pointer-events-none ${
-              className ?? ""
-            }`}
+            className={`fixed z-50 w-max text-12 leading-relaxed whitespace-normal pointer-events-none ${
+              variant === "card"
+                ? "max-w-[min(320px,calc(100vw-16px))] rounded-xl border border-theme-border bg-theme-bg-card px-3 py-[5px] text-theme-text shadow-lg"
+                : "max-w-[min(240px,calc(100vw-16px))] rounded-md border border-white/10 bg-stone-700/95 px-2.5 py-1.5 font-medium text-white shadow-xl shadow-black/20 backdrop-blur-sm"
+            } ${className ?? ""}`}
             style={{
               ...tipStyle,
               zIndex,
             }}
           >
             {content}
-            <span
-              data-tooltip-arrow
-              className={arrowClassName}
-              style={arrowStyle.current}
-            />
+            {variant !== "card" && (
+              <span
+                data-tooltip-arrow
+                className={arrowClassName}
+                style={arrowStyle.current}
+              />
+            )}
           </span>,
           portalContainer ?? document.body,
         )}

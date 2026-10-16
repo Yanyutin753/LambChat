@@ -1320,7 +1320,10 @@
       "systemPrompt": "System Prompt",
       "table": "Table",
       "thinking": "Thinking",
+      "thinkingFailed": "Reasoning interrupted",
+      "thinkingCancelled": "Reasoning cancelled",
       "thought": "Thought",
+      "thinkingSeconds": "{{count}} s",
       "tokenCache": "Cache",
       "tokenCacheCreation": "Cache Creation",
       "tokenCacheRate": "Cache Rate",
@@ -1334,6 +1337,14 @@
       "toolAskHumanListSeparator": ", ",
       "toolAudioTranscribe": "Transcribe",
       "toolCalls": "Tool Calls",
+      "toolGroupRead_one": "Read {{count}} file",
+      "toolGroupRead_other": "Read {{count}} files",
+      "toolGroupSearch_one": "Performed {{count}} search",
+      "toolGroupSearch_other": "Performed {{count}} searches",
+      "toolGroupExecute_one": "Ran {{count}} command",
+      "toolGroupExecute_other": "Ran {{count}} commands",
+      "toolGroupOther_one": "Completed {{count}} tool call",
+      "toolGroupOther_other": "Completed {{count}} tool calls",
       "toolCreateTeam": "Create Team",
       "toolEdit": "Edit",
       "toolEditAdded": "Added",
@@ -1564,7 +1575,15 @@
       "toolListSubagents": "List subagents",
       "toolSubagentQueued": "Queued",
       "toolSubagentTimedOut": "Timed out",
-      "toolSubagentEmpty": "No subagents"
+      "toolSubagentEmpty": "No subagents",
+      "toolGroupRead_few": "Read {{count}} files",
+      "toolGroupRead_many": "Read {{count}} files",
+      "toolGroupSearch_few": "Performed {{count}} searches",
+      "toolGroupSearch_many": "Performed {{count}} searches",
+      "toolGroupExecute_few": "Ran {{count}} commands",
+      "toolGroupExecute_many": "Ran {{count}} commands",
+      "toolGroupOther_few": "Completed {{count}} tool calls",
+      "toolGroupOther_many": "Completed {{count}} tool calls"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1584,7 +1603,13 @@
     "rateLimited": "Too many requests, please try again later",
     "requestFailed": "Failed to load session",
     "runningPlaceholder": "Add details or plan the next step…",
+    "eventStatus": {
+      "loading": "Running",
+      "error": "Failed",
+      "cancelled": "Cancelled"
+    },
     "memory": {
+      "cancelled": "Memory recall cancelled",
       "initializing": "Recalling relevant memories",
       "ready": "Memory recall complete"
     },
@@ -3773,6 +3798,7 @@
     "widenSidebar": "Widen sidebar"
   },
   "sidebar": {
+    "unreadMessages": "{{count}} unread messages",
     "noProjects": "No projects",
     "addToFavorites": "Add to Favorites",
     "batchDeleteConfirm": "Delete the {{count}} selected sessions? This action cannot be undone.",

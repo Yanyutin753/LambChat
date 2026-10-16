@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import {
   ArrowDownCircle,
   BadgeCheck,
@@ -217,7 +218,9 @@ export function UpdateDialog({
             rel="noopener noreferrer"
             className="inline-flex min-h-11 sm:min-h-0 [@media(pointer:coarse)]:min-h-11 items-center gap-1 text-12 text-blue-600 hover:underline dark:text-blue-400"
           >
-            <ExternalLink size={12} />
+            <InteractiveIcon>
+              <ExternalLink size={12} />
+            </InteractiveIcon>
             {t("update.viewFullNotes", "查看完整更新日志")}
           </a>
         )}

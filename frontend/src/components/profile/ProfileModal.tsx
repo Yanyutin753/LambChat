@@ -1,18 +1,11 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { Select } from "../common/ui/Select";
 import { observePanelWidths } from "../common/panelWidths";
 import { useState, useEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  User,
-  Bell,
-  Settings,
-  Braces,
-  Wrench,
-  Cpu,
-  Scale,
-} from "lucide-react";
+import { User, Bell, Settings, Braces, Wrench, Cpu, Scale } from "lucide-react";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { APP_VERSION } from "../../utils/appVersion";
 
@@ -100,7 +93,9 @@ export function ProfileModal({
                     aria-current={activeTab === tab.key ? "page" : undefined}
                     onClick={() => setActiveTab(tab.key)}
                   >
-                    <Icon size={16} />
+                    <InteractiveIcon>
+                      <Icon size={16} />
+                    </InteractiveIcon>
                     <span>{tab.label}</span>
                   </button>
                 );

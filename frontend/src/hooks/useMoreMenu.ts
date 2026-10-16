@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Server,
   Brain,
-  MessageCircle,
+  Network,
   Sparkles,
   UserRound,
   Users,
@@ -65,7 +65,7 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
     {
       path: "/channels",
       label: t("nav.channels"),
-      icon: MessageCircle,
+      icon: Network,
       show: canReadChannels,
     },
     {

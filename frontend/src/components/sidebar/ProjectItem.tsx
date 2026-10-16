@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * Project item component with expand/collapse and inline rename.
  * Manages its own session list via useProjectSessionList.
@@ -404,7 +405,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   })}
                   className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] max-sm:h-9 max-sm:w-9"
                 >
-                  <SquarePen size={14} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <SquarePen size={14} aria-hidden="true" />
+                  </InteractiveIcon>
                 </button>
               </Tooltip>
             )}
@@ -418,7 +421,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                   aria-label={t("sidebar.moreOptions")}
                   className="flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9 rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
                 >
-                  <MoreHorizontal size={14} aria-hidden="true" />
+                  <InteractiveIcon>
+                    <MoreHorizontal size={14} aria-hidden="true" />
+                  </InteractiveIcon>
                 </button>
               </Tooltip>
             )}
@@ -488,7 +493,13 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 onClick={() => onNewSessionInProject(project.id)}
                 className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-13 text-theme-text-secondary hover:text-theme-text focus-visible:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
-                <SquarePen size={14} className="shrink-0" aria-hidden="true" />
+                <InteractiveIcon>
+                  <SquarePen
+                    size={14}
+                    className="shrink-0"
+                    aria-hidden="true"
+                  />
+                </InteractiveIcon>
                 {t("sidebar.startFirstChat")}
               </button>
             ) : null}

@@ -6,8 +6,6 @@
  * unpkg）自动换源重试，避免单一 CDN 抖动导致头像/图标裂图。
  */
 
-import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
-
 export type EmojiAssetType = "anim" | "3d" | "flat" | "modern" | "mono";
 
 const NPM_MIRROR_EMOJI_RE =
@@ -18,7 +16,18 @@ export function getEmojiAssetUrl(
   emoji: string,
   type: EmojiAssetType = "3d",
 ): string {
-  return getFluentEmojiCDN(emoji, { type });
+  const unicode = Array.from(emoji, (character) =>
+    character.codePointAt(0)!.toString(16),
+  ).join("-");
+  const first = unicode.split("-")[0];
+  // CDN shards use the original hexadecimal string ordering, including variation selectors.
+  const shard =
+    first < "1f469" ? 1 : first < "1f620" ? 2 : first < "1f9a0" ? 3 : 4;
+  const packageName = `@lobehub/fluent-emoji-${type}${
+    type === "anim" ? `-${shard}` : ""
+  }`;
+  const extension = type === "anim" || type === "3d" ? "webp" : "svg";
+  return `https://registry.npmmirror.com/${packageName}/latest/files/assets/${unicode}.${extension}`;
 }
 
 /** 由 npmmirror 形态的 emoji URL 派生备用 CDN 链；非 emoji URL 返回空。 */

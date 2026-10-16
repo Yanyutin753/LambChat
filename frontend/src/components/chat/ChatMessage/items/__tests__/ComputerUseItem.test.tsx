@@ -32,13 +32,11 @@ afterEach(() => {
 
 test("screenshots load with authentication into revocable blob URLs", async () => {
   vi.spyOn(tokenManager, "getValidAccessToken").mockResolvedValue("test-token");
-  const fetch = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      status: 200,
-      blob: async () => new Blob(["test"], { type: "image/jpeg" }),
-    });
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    blob: async () => new Blob(["test"], { type: "image/jpeg" }),
+  });
   vi.stubGlobal("fetch", fetch);
   const create = vi.fn().mockReturnValue("blob:private-screenshot");
   const revoke = vi.fn();
@@ -163,7 +161,7 @@ test("daemon errors never show a successful pill", () => {
     result: "ERROR dispatch_failed: offline",
     success: true,
   });
-  expect(view.getByRole("button").className).toContain("bg-red");
+  expect(view.getByRole("button").getAttribute("data-status")).toBe("error");
   expect(panel.getByText(/打开 LambChat 桌面端/)).toBeTruthy();
 });
 

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { ResourceCardTags } from "../common/ResourceCardTags";
 import {
   FileText,
@@ -84,7 +85,9 @@ export function SkillCard({
                   });
                 }}
               >
-                <Pin size={12} />
+                <InteractiveIcon>
+                  <Pin size={12} />
+                </InteractiveIcon>
               </button>
             </Tooltip>
             <Tooltip content={t("personaPresets.favorite", "收藏")}>
@@ -102,7 +105,9 @@ export function SkillCard({
                   });
                 }}
               >
-                <Star size={12} />
+                <InteractiveIcon>
+                  <Star size={12} />
+                </InteractiveIcon>
               </button>
             </Tooltip>
           </>
@@ -239,9 +244,7 @@ export function SkillCard({
         onToggle ? (
           <Tooltip
             content={
-              skill.enabled
-                ? t("skills.card.disable")
-                : t("skills.card.enable")
+              skill.enabled ? t("skills.card.disable") : t("skills.card.enable")
             }
           >
             <button
@@ -257,12 +260,16 @@ export function SkillCard({
               className="scb__action-btn scb__action-btn--ghost"
             >
               {skill.enabled ? (
-                <ToggleRight
-                  size={16}
-                  className="text-theme-success dark:text-green-500"
-                />
+                <InteractiveIcon>
+                  <ToggleRight
+                    size={16}
+                    className="text-theme-success dark:text-green-500"
+                  />
+                </InteractiveIcon>
               ) : (
-                <ToggleLeft size={16} />
+                <InteractiveIcon>
+                  <ToggleLeft size={16} />
+                </InteractiveIcon>
               )}
             </button>
           </Tooltip>

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { hasVisibleModalDialog } from "../../../utils/modalDialog";
 /** 左侧导航壳：会话列表、全局导航和可调整宽度。会话文件由右侧面板承载。 */
@@ -275,7 +276,9 @@ export function DesktopSidebarShell({
                     }
                     className="relative flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
                   >
-                    <Bell size={16} />
+                    <InteractiveIcon>
+                      <Bell size={16} />
+                    </InteractiveIcon>
                     {notificationCount > 0 && (
                       <span
                         className="pointer-events-none absolute right-0 top-0 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium tabular-nums leading-none text-white"
@@ -296,7 +299,9 @@ export function DesktopSidebarShell({
                     }
                     className="flex size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle focus-visible:outline focus-visible:outline-2"
                   >
-                    <Search size={16} />
+                    <InteractiveIcon>
+                      <Search size={16} />
+                    </InteractiveIcon>
                   </button>
                 </div>
               </div>

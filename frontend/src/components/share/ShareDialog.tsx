@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
@@ -387,14 +388,16 @@ export function ShareDialog({
                     : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
                 }`}
               >
-                <Globe
-                  size={20}
-                  className={
-                    visibility === "public"
-                      ? "text-stone-600 dark:text-stone-300"
-                      : "text-stone-400 dark:text-stone-500"
-                  }
-                />
+                <InteractiveIcon>
+                  <Globe
+                    size={20}
+                    className={
+                      visibility === "public"
+                        ? "text-stone-600 dark:text-stone-300"
+                        : "text-stone-400 dark:text-stone-500"
+                    }
+                  />
+                </InteractiveIcon>
                 <div>
                   <div
                     className={`text-14 font-medium font-serif ${
@@ -419,14 +422,16 @@ export function ShareDialog({
                     : "border-stone-200 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700"
                 }`}
               >
-                <Lock
-                  size={20}
-                  className={
-                    visibility === "authenticated"
-                      ? "text-stone-600 dark:text-stone-300"
-                      : "text-stone-400 dark:text-stone-500"
-                  }
-                />
+                <InteractiveIcon>
+                  <Lock
+                    size={20}
+                    className={
+                      visibility === "authenticated"
+                        ? "text-stone-600 dark:text-stone-300"
+                        : "text-stone-400 dark:text-stone-500"
+                    }
+                  />
+                </InteractiveIcon>
                 <div>
                   <div
                     className={`text-14 font-medium font-serif ${
@@ -545,7 +550,9 @@ export function ShareDialog({
               {isCreating ? (
                 <LoadingSpinner color="text-current" size={16} />
               ) : (
-                <Share2 size={16} />
+                <InteractiveIcon>
+                  <Share2 size={16} />
+                </InteractiveIcon>
               )}
             </span>
             <span>

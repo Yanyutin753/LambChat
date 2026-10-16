@@ -1,3 +1,5 @@
+import { useEffect, useState, type RefObject } from "react";
+
 const DEFAULT_TEXTAREA_MAX_HEIGHT_PX = 150;
 const MOBILE_TEXTAREA_VIEWPORT_RATIO = 0.22;
 const MOBILE_TEXTAREA_MIN_HEIGHT_PX = 120;
@@ -148,4 +150,51 @@ export function getMentionPopupFixedPlacement({
       viewportHeight,
     }),
   };
+}
+
+export function useMentionPopupPlacement(
+  active: boolean,
+  containerRef: RefObject<HTMLDivElement | null>,
+) {
+  const [mentionPopupPlacement, setMentionPopupPlacement] =
+    useState<ReturnType<typeof getMentionPopupFixedPlacement>>(null);
+  useEffect(() => {
+    if (!active) {
+      setMentionPopupPlacement(null);
+      return;
+    }
+    const updateMentionPopupPlacement = () => {
+      const container = containerRef.current;
+      setMentionPopupPlacement(
+        getMentionPopupFixedPlacement({
+          inputRect: container?.getBoundingClientRect() ?? null,
+          viewportHeight: window.visualViewport?.height ?? window.innerHeight,
+        }),
+      );
+    };
+    updateMentionPopupPlacement();
+    window.addEventListener("resize", updateMentionPopupPlacement);
+    window.addEventListener("scroll", updateMentionPopupPlacement, true);
+    window.visualViewport?.addEventListener(
+      "resize",
+      updateMentionPopupPlacement,
+    );
+    window.visualViewport?.addEventListener(
+      "scroll",
+      updateMentionPopupPlacement,
+    );
+    return () => {
+      window.removeEventListener("resize", updateMentionPopupPlacement);
+      window.removeEventListener("scroll", updateMentionPopupPlacement, true);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        updateMentionPopupPlacement,
+      );
+      window.visualViewport?.removeEventListener(
+        "scroll",
+        updateMentionPopupPlacement,
+      );
+    };
+  }, [active, containerRef]);
+  return mentionPopupPlacement;
 }

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import {
   UserRound,
@@ -132,12 +133,14 @@ export function PersonaPlazaPanel() {
                     </>
                   );
                 })()}
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${
-                    isScopeOpen ? "rotate-180" : ""
-                  }`}
-                />
+                <InteractiveIcon>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${
+                      isScopeOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </InteractiveIcon>
               </button>
             </div>
             {allTags.length > 0 && (
@@ -157,7 +160,9 @@ export function PersonaPlazaPanel() {
                       : ""
                   }`}
                 >
-                  <Tag size={14} />
+                  <InteractiveIcon>
+                    <Tag size={14} />
+                  </InteractiveIcon>
                   <span className="hidden sm:inline">
                     {t("personaPresets.tags", "标签")}
                   </span>
@@ -166,12 +171,14 @@ export function PersonaPlazaPanel() {
                       1
                     </span>
                   )}
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform ${
-                      isFilterOpen ? "rotate-180" : ""
-                    }`}
-                  />
+                  <InteractiveIcon>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${
+                        isFilterOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </InteractiveIcon>
                 </button>
               </div>
             )}
@@ -185,7 +192,9 @@ export function PersonaPlazaPanel() {
               className="btn-secondary h-10"
               title={t("personaPresets.export", "导出角色")}
             >
-              <Download size={16} />
+              <InteractiveIcon>
+                <Download size={16} />
+              </InteractiveIcon>
               <span className="hidden sm:inline">
                 {t("personaPresets.export", "导出")}
               </span>
@@ -197,7 +206,9 @@ export function PersonaPlazaPanel() {
                 className="btn-secondary h-10"
                 title={t("personaPresets.import", "导入角色")}
               >
-                <Upload size={16} />
+                <InteractiveIcon>
+                  <Upload size={16} />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {isImporting
                     ? t("personaPresets.importing", "导入中...")
@@ -210,7 +221,9 @@ export function PersonaPlazaPanel() {
                 onClick={() => openModal(null, "user")}
                 className="btn-secondary h-10"
               >
-                <Plus size={16} />
+                <InteractiveIcon>
+                  <Plus size={16} />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {t("personaPresets.createMine", "新建我的角色")}
                 </span>
@@ -221,7 +234,9 @@ export function PersonaPlazaPanel() {
                 onClick={() => openModal(null, "global")}
                 className="btn-primary h-10"
               >
-                <Sparkles size={16} />
+                <InteractiveIcon>
+                  <Sparkles size={16} />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {t("personaPresets.publishOfficial", "发布官方角色")}
                 </span>

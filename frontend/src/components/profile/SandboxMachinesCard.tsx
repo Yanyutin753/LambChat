@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * 本地沙箱机器管理卡（多机 daemon）：机器列表（含离线机置灰保留）+
  * 默认机/重命名/忘记管理 + 当前连接的服务器地址展示。
@@ -174,7 +175,9 @@ export function SandboxMachinesCard() {
                     className="rounded-md p-1 text-theme-text-secondary hover:text-amber-500 disabled:opacity-40"
                     title={t("profile.localSandbox.renameSave")}
                   >
-                    <Check size={13} />
+                    <InteractiveIcon>
+                      <Check size={13} />
+                    </InteractiveIcon>
                   </button>
                   <button
                     type="button"
@@ -182,7 +185,9 @@ export function SandboxMachinesCard() {
                     className="rounded-md p-1 text-theme-text-secondary hover:text-theme-text dark:hover:text-stone-300"
                     title={t("profile.localSandbox.renameCancel")}
                   >
-                    <X size={13} />
+                    <InteractiveIcon>
+                      <X size={13} />
+                    </InteractiveIcon>
                   </button>
                 </span>
               ) : (
@@ -243,7 +248,9 @@ export function SandboxMachinesCard() {
                       title={t("profile.localSandbox.forgetMachine")}
                       data-testid={`forget-${machine.machine_id}`}
                     >
-                      <Trash2 size={12} className="opacity-70" />
+                      <InteractiveIcon>
+                        <Trash2 size={12} className="opacity-70" />
+                      </InteractiveIcon>
                     </button>
                   )}
                   {machineOnline && !isDefault && (
@@ -254,7 +261,9 @@ export function SandboxMachinesCard() {
                       className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50"
                       title={t("profile.localSandbox.setDefault")}
                     >
-                      <Star size={11} />
+                      <InteractiveIcon>
+                        <Star size={11} />
+                      </InteractiveIcon>
                       {t("profile.localSandbox.setDefault")}
                     </button>
                   )}
@@ -265,7 +274,9 @@ export function SandboxMachinesCard() {
                     className="shrink-0 rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-700/60 hover:text-theme-text dark:hover:text-stone-200 disabled:opacity-50"
                     title={t("profile.localSandbox.rename")}
                   >
-                    <Pencil size={12} className="opacity-70" />
+                    <InteractiveIcon>
+                      <Pencil size={12} className="opacity-70" />
+                    </InteractiveIcon>
                   </button>
                 </>
               )}

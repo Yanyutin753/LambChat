@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import {
   useState,
   useEffect,
@@ -369,7 +370,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         const nextMembers = members.filter((m) => m.member_id !== memberId);
         setMembers(nextMembers);
         setDefaultMemberId((current) =>
-          current === memberId ? (nextMembers[0]?.member_id ?? null) : current,
+          current === memberId ? nextMembers[0]?.member_id ?? null : current,
         );
       },
       [members],
@@ -729,18 +730,22 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                       rolePickerOpen ? "team-role-picker-trigger--open" : ""
                     }`}
                   >
-                    <Plus size={14} />
+                    <InteractiveIcon>
+                      <Plus size={14} />
+                    </InteractiveIcon>
                     <span>
                       {members.length === 0
                         ? t("team.addRoles")
                         : t("team.addAnotherRole")}
                     </span>
-                    <ChevronDown
-                      size={14}
-                      className={`team-role-picker-trigger__chevron ${
-                        rolePickerOpen ? "rotate-180" : ""
-                      }`}
-                    />
+                    <InteractiveIcon>
+                      <ChevronDown
+                        size={14}
+                        className={`team-role-picker-trigger__chevron ${
+                          rolePickerOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </InteractiveIcon>
                   </button>
 
                   {rolePickerOpen && (

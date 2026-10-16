@@ -10,7 +10,9 @@ const source = readFileSync(
 
 test("recent chats renders the same task status indicators as the sidebar", () => {
   expect(source).toMatch(/task_status/);
-  expect(source).toMatch(/getSessionTaskIndicator\(session\.metadata\?\.task_status\)/);
+  expect(source).toMatch(
+    /getSessionTaskIndicator\(\s*session\.metadata\?\.task_status,?\s*\)/,
+  );
   expect(source).toMatch(/taskIndicator\.kind === "busy"/);
   expect(source).toMatch(/taskIndicator\.kind === "attention"/);
   expect(source).toMatch(/data-session-status="ask-human"/);

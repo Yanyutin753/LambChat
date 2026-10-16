@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 /**
  * Session item component with inline title editing and drag support
@@ -5,13 +6,19 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, MoreHorizontal } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  MessageCircle,
+  MoreHorizontal,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { sessionApi } from "../../services/api";
 import { SessionMenu } from "./SessionMenu";
 import { getSessionTaskIndicator } from "./sessionTaskIndicator";
+import { formatDateTime, formatTimeAgo, parseDate } from "../../utils/datetime";
 import { Tooltip } from "../common/Tooltip";
 import { shouldBlockSessionSelection } from "../../utils/sessionSelectionGuard";
 
@@ -80,6 +87,7 @@ function SessionItemComponent({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLButtonElement>(null);
   const returnTitleFocusRef = useRef(false);
@@ -271,9 +279,22 @@ function SessionItemComponent({
   const taskIndicator = getSessionTaskIndicator(session.metadata?.task_status);
   const isWaitingForHuman = taskIndicator.kind === "attention";
   const isGenerating = taskIndicator.kind === "busy";
-  const taskStatusLabel = isGenerating && taskIndicator.labelKey
-    ? t(taskIndicator.labelKey, taskIndicator.labelKey === "sidebar.pendingStatus" ? "等待中" : "运行中")
-    : null;
+  const taskStatusLabel =
+    isGenerating && taskIndicator.labelKey
+      ? t(
+          taskIndicator.labelKey,
+          taskIndicator.labelKey === "sidebar.pendingStatus"
+            ? "等待中"
+            : "运行中",
+        )
+      : null;
+  const hasUnread = !isActive && (session.unread_count ?? 0) > 0;
+  const unreadLabel = t("sidebar.unreadMessages", {
+    count: session.unread_count ?? 0,
+  });
+  const validUpdatedAt = Number.isFinite(
+    parseDate(session.updated_at).getTime(),
+  );
   const attentionLabel = t("sidebar.waitingHuman", "等待回复");
 
   const activate = () => {
@@ -289,6 +310,7 @@ function SessionItemComponent({
   return (
     <>
       <div
+        ref={rowRef}
         role="group"
         aria-label={displayTitle}
         data-selected={isSelected || (!selectionMode && isActive) || undefined}
@@ -305,9 +327,9 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""} ${
-          selectionMode ? "pr-2" : ""
-        }`}
+        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+          isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""
+        } ${selectionMode ? "pr-2" : ""}`}
       >
         {/* Title - editable or display */}
         <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -325,39 +347,86 @@ function SessionItemComponent({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <button
-              ref={titleRef}
-              type="button"
-              role={selectionMode ? "checkbox" : undefined}
-              aria-current={!selectionMode && isActive ? "page" : undefined}
-              aria-checked={selectionMode ? isSelected : undefined}
-              onClick={(e) => {
-                e.stopPropagation();
-                activate();
-              }}
-              className={`truncate text-13 font-serif transition-colors ${
-                isSelected
-                  ? "text-theme-text dark:text-stone-200"
-                  : isActive
-                    ? "text-theme-text dark:text-stone-100 font-medium"
-                    : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
-              } min-w-0 w-full h-8 max-sm:h-9 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
-            >
-              {selectionMode && (
-                <span
-                  aria-hidden="true"
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
-                    isSelected
-                      ? "border-theme-primary bg-theme-primary text-white"
-                      : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring"
-                  }`}
-                >
-                  <Check size={11} strokeWidth={3} />
+            <Tooltip
+              placement="right"
+              align="start"
+              anchorRef={rowRef}
+              hoverDelay={450}
+              variant="card"
+              disabled={
+                selectionMode || isMenuOpen || isDragging || isDraggingTouch
+              }
+              content={
+                <span className="flex w-72 max-w-full flex-col gap-1.5">
+                  <span className="flex items-start gap-3">
+                    <span className="min-w-0 flex-1 break-words text-13 leading-5 font-medium">
+                      {displayTitle}
+                    </span>
+                    {validUpdatedAt && (
+                      <time
+                        dateTime={session.updated_at}
+                        title={formatDateTime(session.updated_at)}
+                        className="shrink-0 text-11 text-theme-text-tertiary"
+                      >
+                        {formatTimeAgo(t, session.updated_at)}
+                      </time>
+                    )}
+                    {hasUnread && (
+                      <span
+                        role="img"
+                        aria-label={unreadLabel}
+                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-theme-primary"
+                      />
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-theme-text-secondary">
+                    <MessageCircle size={14} aria-hidden="true" />
+                    <span>{t("nav.chat")}</span>
+                    {(taskStatusLabel || isWaitingForHuman) && (
+                      <span className="ml-auto text-11">
+                        {taskStatusLabel || attentionLabel}
+                      </span>
+                    )}
+                  </span>
                 </span>
-              )}
+              }
+            >
+              <button
+                ref={titleRef}
+                type="button"
+                role={selectionMode ? "checkbox" : undefined}
+                aria-current={!selectionMode && isActive ? "page" : undefined}
+                aria-checked={selectionMode ? isSelected : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  activate();
+                }}
+                className={`truncate text-13 font-serif transition-colors ${
+                  isSelected
+                    ? "text-theme-text dark:text-stone-200"
+                    : isActive
+                      ? "text-theme-text dark:text-stone-100 font-medium"
+                      : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
+                } min-w-0 w-full h-8 max-sm:h-9 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
+              >
+                {selectionMode && (
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                      isSelected
+                        ? "border-theme-primary bg-theme-primary text-white"
+                        : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring"
+                    }`}
+                  >
+                    <InteractiveIcon>
+                      <Check size={11} strokeWidth={3} />
+                    </InteractiveIcon>
+                  </span>
+                )}
 
-              <span className="truncate">{displayTitle}</span>
-            </button>
+                <span className="truncate leading-5">{displayTitle}</span>
+              </button>
+            </Tooltip>
           )}
         </div>
 
@@ -392,14 +461,10 @@ function SessionItemComponent({
           (session.unread_count ?? 0) > 0 && (
             <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
               <span
-                className={`inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white ${
-                  session.unread_count! <= 9
-                    ? "w-4 h-4"
-                    : "h-4 min-w-[20px] px-1.5"
-                }`}
-              >
-                {session.unread_count}
-              </span>
+                role="img"
+                aria-label={unreadLabel}
+                className="h-1.5 w-1.5 rounded-full bg-theme-primary"
+              />
             </span>
           )}
         {!selectionMode && !isEditing && (
@@ -412,10 +477,12 @@ function SessionItemComponent({
               className="sidebar-action-reveal flex h-8 w-6 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
               style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
             >
-              <MoreHorizontal
-                size={14}
-                className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
-              />
+              <InteractiveIcon>
+                <MoreHorizontal
+                  size={14}
+                  className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
+                />
+              </InteractiveIcon>
             </button>
           </Tooltip>
         )}

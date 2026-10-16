@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -203,6 +204,17 @@ export function ToolSelector({
                 <div
                   className="flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/70 active:bg-stone-100 dark:active:bg-stone-800 transition-all duration-200"
                   onClick={() => toggleCategoryExpand(cat)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (
+                      event.target === event.currentTarget &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      toggleCategoryExpand(cat);
+                    }
+                  }}
                 >
                   <ChevronRight
                     size={16}
@@ -211,10 +223,12 @@ export function ToolSelector({
                     }`}
                   />
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-stone-50 dark:bg-stone-800 flex items-center justify-center shadow-sm border border-stone-100 dark:border-stone-700">
-                    <Icon
-                      size={13}
-                      className="text-stone-500 dark:text-stone-400 sm:w-[14px] sm:h-[14px]"
-                    />
+                    <InteractiveIcon>
+                      <Icon
+                        size={13}
+                        className="text-stone-500 dark:text-stone-400 sm:w-[14px] sm:h-[14px]"
+                      />
+                    </InteractiveIcon>
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-13 sm:text-14 font-semibold font-serif text-stone-800 dark:text-stone-100">
@@ -261,12 +275,14 @@ export function ToolSelector({
                                 }`}
                               >
                                 {hasParams ? (
-                                  <ChevronRight
-                                    size={14}
-                                    className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ease-out ${
-                                      isToolExpanded ? "rotate-90" : ""
-                                    }`}
-                                  />
+                                  <InteractiveIcon>
+                                    <ChevronRight
+                                      size={14}
+                                      className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ease-out ${
+                                        isToolExpanded ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                  </InteractiveIcon>
                                 ) : (
                                   <div className="w-[14px] h-[14px]" />
                                 )}
@@ -437,7 +453,9 @@ export function ToolSelector({
         className="chat-tool-btn"
         title={`${enabledCount}/${totalCount} ${t("tools.toolsEnabled")}`}
       >
-        <Wrench size={18} />
+        <InteractiveIcon>
+          <Wrench size={18} />
+        </InteractiveIcon>
       </button>
 
       {/* Modal */}

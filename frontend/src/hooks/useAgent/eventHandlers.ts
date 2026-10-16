@@ -162,7 +162,18 @@ export function handleStreamEvent(
   }
 
   if (
-    (eventType === "agent:call" || eventType === "agent:result") &&
+    [
+      "agent:call",
+      "agent:result",
+      "thinking",
+      "message:chunk",
+      "tool:args:chunk",
+      "tool:start",
+      "tool:result",
+      "complete",
+      "done",
+      "error",
+    ].includes(eventType) &&
     data.timestamp == null
   ) {
     data = { ...data, timestamp: eventTimestamp || new Date().toISOString() };
@@ -828,7 +839,9 @@ function handleError(
     prev.map((m) => {
       if (m.id !== messageId) return m;
       if (isCancelled) {
-        const clearedParts = clearAllLoadingStates(m.parts || []);
+        const clearedParts = clearAllLoadingStates(m.parts || [], {
+          terminalStatus: "cancelled",
+        });
         return {
           ...m,
           isStreaming: false,
@@ -842,7 +855,10 @@ function handleError(
         ...m,
         content: i18n.t("chat.errorPrefix", { error: errorMsg }),
         isStreaming: false,
-        parts: clearAllLoadingStates(m.parts || []),
+        parts: clearAllLoadingStates(m.parts || [], {
+          terminalStatus: "error",
+          error: errorMsg,
+        }),
       };
     }),
   );

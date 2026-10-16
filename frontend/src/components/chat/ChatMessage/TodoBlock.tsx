@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
 import {
@@ -67,9 +68,8 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
   return (
     <div
       className={clsx(
-        "my-1.5 rounded-xl ring-1",
-        "ring-theme-border",
-        "bg-theme-bg-card/80 dark:bg-theme-bg-card/40",
+        "chat-process-todo my-1.5 min-w-0 rounded-xl border border-theme-border",
+        "bg-theme-bg-card",
       )}
     >
       {/* Header（点击折叠/展开） */}
@@ -78,15 +78,17 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
         aria-expanded={!collapsed}
         aria-label={t("chat.todo.toggle")}
         onClick={() => toggleCollapsed()}
-        className="group/todo flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
+        className="group/todo flex w-full cursor-pointer font-sans items-center gap-2 min-h-11 px-3.5 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
-        <ListTodo
-          size={14}
-          className={clsx(
-            "shrink-0",
-            isAllDone ? "text-theme-success" : "text-theme-text-tertiary",
-          )}
-        />
+        <InteractiveIcon>
+          <ListTodo
+            size={14}
+            className={clsx(
+              "shrink-0",
+              isAllDone ? "text-theme-success" : "text-theme-text-tertiary",
+            )}
+          />
+        </InteractiveIcon>
         <span className="text-12 font-medium text-theme-text-secondary">
           {t("chat.todo.progress", {
             completed: completedCount,
@@ -114,13 +116,15 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
           <span className="text-11 tabular-nums text-theme-text-tertiary">
             {Math.round(progress)}%
           </span>
-          <ChevronRight
-            size={14}
-            className={clsx(
-              "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
-              !collapsed && "rotate-90",
-            )}
-          />
+          <InteractiveIcon>
+            <ChevronRight
+              size={14}
+              className={clsx(
+                "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
+                !collapsed && "rotate-90",
+              )}
+            />
+          </InteractiveIcon>
         </div>
       </button>
 

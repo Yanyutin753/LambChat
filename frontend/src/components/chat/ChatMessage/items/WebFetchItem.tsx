@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useMemo } from "react";
 import { BookOpen, FileText, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -103,10 +104,12 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
           className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)] transition-colors hover:border-[color-mix(in_srgb,var(--theme-primary)_30%,var(--theme-border))]"
         >
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
-            <BookOpen
-              size={14}
-              className="shrink-0 text-[var(--theme-primary)]"
-            />
+            <InteractiveIcon>
+              <BookOpen
+                size={14}
+                className="shrink-0 text-[var(--theme-primary)]"
+              />
+            </InteractiveIcon>
           </span>
           <span className="min-w-0 flex-1">
             {summary?.title && (
@@ -130,7 +133,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
             text={summary.content}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
+            copyButtonClassName="tool-result-copy"
           />
           <pre className="whitespace-pre-wrap break-words font-mono text-12 leading-relaxed text-theme-text">
             {summary.content}
@@ -144,7 +147,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
             text={typeof result === "string" ? result : JSON.stringify(result)}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
+            copyButtonClassName="tool-result-copy"
           />
           <ToolResultContent result={result} hideCopyButton />
         </div>
@@ -283,7 +286,7 @@ const WebFetchItem = memo(function WebFetchItem({
                 }
                 position="resultCompact"
                 className="z-20 pointer-events-auto"
-                copyButtonClassName={"bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-theme-border/70 hover:bg-theme-bg-subtle dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"}
+                copyButtonClassName="tool-result-copy"
               />
               <ToolResultContent result={result} hideCopyButton />
             </div>

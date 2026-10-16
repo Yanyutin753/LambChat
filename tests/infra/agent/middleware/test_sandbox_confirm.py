@@ -337,3 +337,26 @@ async def test_registry_policy_resolver_passes_machine_id(monkeypatch):
     resolver = sandbox_confirm._RegistryPolicyResolver("u1", machine_id="mac1")
     assert await resolver() == "none"
     assert calls == [("u1", "mac1")]
+
+
+@pytest.mark.parametrize(
+    "tool_name,args",
+    [
+        ("read_file", {"file_path": "/notes.md"}),
+        ("write_file", {"file_path": "/notes.md", "content": "review"}),
+        ("execute", {"command": "check"}),
+    ],
+)
+async def test_lazy_sandbox_initialization_failure_is_a_tool_error(tool_name, args):
+    from src.infra.backend.lazy_sandbox import SandboxInitializationError
+
+    async def failing_handler(request):
+        raise SandboxInitializationError() from RuntimeError("private provider credentials")
+
+    middleware = SandboxConfirmMiddleware(user_id="u1", policy_resolver=_const_policy("none"))
+    result = await middleware.awrap_tool_call(_request(tool_name, args), failing_handler)
+    assert result.status == "error"
+    assert result.tool_call_id == "c0"
+    assert result.name == tool_name
+    assert result.content == SandboxInitializationError.PUBLIC_MESSAGE
+    assert "private" not in result.content

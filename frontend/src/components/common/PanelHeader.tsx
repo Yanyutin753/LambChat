@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 /**
  * 统一的面板头部组件
  * 用于所有管理面板的标题和操作区域
@@ -217,7 +218,9 @@ export function PanelHeader({
                 aria-expanded={isMobileMenuOpen}
                 onClick={() => setIsMobileMenuOpen((prev) => !prev)}
               >
-                <MoreHorizontal size={22} />
+                <InteractiveIcon>
+                  <MoreHorizontal size={22} />
+                </InteractiveIcon>
               </button>
               {mobileMenu}
             </div>
@@ -253,7 +256,9 @@ export function PanelHeader({
                   aria-expanded={isMobileMenuOpen}
                   onClick={() => setIsMobileMenuOpen((prev) => !prev)}
                 >
-                  <MoreHorizontal size={22} />
+                  <InteractiveIcon>
+                    <MoreHorizontal size={22} />
+                  </InteractiveIcon>
                 </button>
                 {mobileMenu}
               </div>

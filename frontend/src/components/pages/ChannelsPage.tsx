@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * Channels Page - Lists all available channels and their instances
  */
@@ -490,7 +491,9 @@ export function ChannelsPage() {
                 onClick={() => navigate(`/channels/${selectedChannel}/new`)}
                 className="btn-primary btn-sm"
               >
-                <Plus size={16} />
+                <InteractiveIcon>
+                  <Plus size={16} />
+                </InteractiveIcon>
                 <span>{t("channel.addInstance", "Add Instance")}</span>
               </button>
             )
@@ -588,11 +591,13 @@ export function ChannelsPage() {
                         </p>
                       </div>
                     </div>
-                    <ChevronRight
-                      size={18}
-                      className="shrink-0 text-theme-text-tertiary"
-                      aria-hidden="true"
-                    />
+                    <InteractiveIcon>
+                      <ChevronRight
+                        size={18}
+                        className="shrink-0 text-theme-text-tertiary"
+                        aria-hidden="true"
+                      />
+                    </InteractiveIcon>
                   </Link>
                 );
               })}

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import {
   AlertCircle,
   CornerDownRight,
@@ -70,7 +71,9 @@ function QueueRow({
             className={`${actionClass} px-3`}
             title={t("chat.queueGuideHint")}
           >
-            <CornerDownRight size={14} />
+            <InteractiveIcon>
+              <CornerDownRight size={14} />
+            </InteractiveIcon>
             {t("chat.queueGuide")}
           </button>
         )}
@@ -82,7 +85,9 @@ function QueueRow({
             aria-label={t("chat.queueDelete")}
             title={t("chat.queueDelete")}
           >
-            <Trash2 size={14} />
+            <InteractiveIcon>
+              <Trash2 size={14} />
+            </InteractiveIcon>
           </button>
         )}
         {onEdit && (
@@ -94,7 +99,9 @@ function QueueRow({
             title={t("chat.message.queueEdit")}
             onClick={() => onEdit(item.content, item.id, item.attachments)}
           >
-            <Pencil size={14} />
+            <InteractiveIcon>
+              <Pencil size={14} />
+            </InteractiveIcon>
           </button>
         )}
       </div>

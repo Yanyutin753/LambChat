@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useMemo, useCallback, useRef, useId } from "react";
 import {
   Eye,
@@ -821,7 +822,9 @@ export const BatchCreateModal = ({
                     : "border-[var(--glass-border)] hover:border-theme-text-secondary"
                 }`}
               >
-                <FileJson size={20} className="text-theme-text-secondary" />
+                <InteractiveIcon>
+                  <FileJson size={20} className="text-theme-text-secondary" />
+                </InteractiveIcon>
                 <span className="text-14 text-theme-text">
                   {isDraggingJson
                     ? t("agentConfig.batchDropzoneActive")

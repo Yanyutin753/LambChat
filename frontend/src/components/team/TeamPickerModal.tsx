@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -145,7 +146,9 @@ export function TeamPickerModal({
               }}
             >
               <span className="inline-flex h-full items-center justify-center gap-1.5">
-                <Plus size={13} />
+                <InteractiveIcon>
+                  <Plus size={13} />
+                </InteractiveIcon>
                 {t("common.new", "新建")}
               </span>
             </button>
@@ -178,7 +181,9 @@ export function TeamPickerModal({
                 }}
               >
                 <span className="inline-flex h-full items-center justify-center gap-1.5">
-                  <Settings2 size={13} />
+                  <InteractiveIcon>
+                    <Settings2 size={13} />
+                  </InteractiveIcon>
                   <span className="hidden sm:inline">
                     {t("team.manage", "管理")}
                   </span>
@@ -320,7 +325,9 @@ export function TeamPickerModal({
                               : "pps-card__action--primary"
                           }`}
                         >
-                          <Sparkles size={13} />
+                          <InteractiveIcon>
+                            <Sparkles size={13} />
+                          </InteractiveIcon>
                           {selected
                             ? t("personaPresets.using", "使用中")
                             : t("personaPresets.use", "使用")}

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useEffect, useMemo, useState } from "react";
 import { Code2, FolderTree, Download, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -172,10 +173,9 @@ export function ProjectRevealItem({
       !projectAutoOpenKey ||
       !shouldLoadFiles
     ) {
-      const cached =
-        isManifestProject(parsed)
-          ? getCachedProjectRevealFiles(projectAutoOpenKey)
-          : null;
+      const cached = isManifestProject(parsed)
+        ? getCachedProjectRevealFiles(projectAutoOpenKey)
+        : null;
       const nextLoadedFiles = cached?.files || inlineFiles;
       const nextBinaryFiles = normalizeProjectRevealBinaryFiles(
         cached?.binaryFiles,
@@ -321,7 +321,9 @@ export function ProjectRevealItem({
               className="flex items-center justify-center size-8 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-colors"
               title={t("project.exportZip")}
             >
-              <Download size={16} />
+              <InteractiveIcon>
+                <Download size={16} />
+              </InteractiveIcon>
             </button>
           )}
           <button

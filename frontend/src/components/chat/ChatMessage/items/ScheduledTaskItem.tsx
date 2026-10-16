@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import {
@@ -257,9 +258,13 @@ function RejectionCard({
               className="flex items-center gap-0.5 text-11 text-theme-text-tertiary transition-colors hover:text-theme-text-secondary"
             >
               {showDetails ? (
-                <ChevronUp size={11} />
+                <InteractiveIcon>
+                  <ChevronUp size={11} />
+                </InteractiveIcon>
               ) : (
-                <ChevronDown size={11} />
+                <InteractiveIcon>
+                  <ChevronDown size={11} />
+                </InteractiveIcon>
               )}
               {showDetails
                 ? t("chat.message.collapse")
@@ -385,10 +390,7 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
       {/* Result message (confirmation) */}
       {resultMessage && !isList && (
         <div className="flex items-center gap-2 text-12">
-          <CheckCircle2
-            size={13}
-            className="shrink-0 text-theme-success"
-          />
+          <CheckCircle2 size={13} className="shrink-0 text-theme-success" />
           <span className="text-theme-text-tertiary">{resultMessage}</span>
         </div>
       )}
@@ -614,10 +616,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
       {/* Compact confirmation */}
       {resultMessage && !isList && (
         <div className="flex items-center gap-1.5 text-10">
-          <CheckCircle2
-            size={10}
-            className="shrink-0 text-theme-success"
-          />
+          <CheckCircle2 size={10} className="shrink-0 text-theme-success" />
           <span className="text-theme-text-tertiary truncate min-w-0 flex-1 overflow-hidden">
             {resultMessage.length > 120
               ? resultMessage.slice(0, 117) + "…"

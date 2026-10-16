@@ -21,7 +21,7 @@ function WriteFileDetail({ args, result }: ToolDetailProps) {
   const content = (args.content as string) || "";
 
   return (
-    <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       <ToolArgsBlock size="detail" copyText={filePath}>
         <span className="truncate">{filePath}</span>
       </ToolArgsBlock>

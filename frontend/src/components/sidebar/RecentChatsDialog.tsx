@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -249,12 +250,20 @@ export function RecentChatsDialog({
         ) : (
           <>
             {sessions.map((session) => {
-              const taskIndicator = getSessionTaskIndicator(session.metadata?.task_status);
+              const taskIndicator = getSessionTaskIndicator(
+                session.metadata?.task_status,
+              );
               const isWaitingForHuman = taskIndicator.kind === "attention";
               const isGenerating = taskIndicator.kind === "busy";
-              const runningLabel = isGenerating && taskIndicator.labelKey
-                ? t(taskIndicator.labelKey, taskIndicator.labelKey === "sidebar.pendingStatus" ? "等待中" : "运行中")
-                : null;
+              const runningLabel =
+                isGenerating && taskIndicator.labelKey
+                  ? t(
+                      taskIndicator.labelKey,
+                      taskIndicator.labelKey === "sidebar.pendingStatus"
+                        ? "等待中"
+                        : "运行中",
+                    )
+                  : null;
               const attentionLabel = t("sidebar.waitingHuman", "等待回复");
 
               return (
@@ -304,14 +313,20 @@ export function RecentChatsDialog({
                         aria-label={attentionLabel}
                         className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
                       >
-                        <AlertCircle size={16} strokeWidth={2.3} />
+                        <InteractiveIcon>
+                          <AlertCircle size={16} strokeWidth={2.3} />
+                        </InteractiveIcon>
                       </span>
                     </Tooltip>
                   )}
                   {session.unread_count != null && session.unread_count > 0 && (
-                    <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white">
-                      {session.unread_count}
-                    </span>
+                    <span
+                      role="img"
+                      aria-label={t("sidebar.unreadMessages", {
+                        count: session.unread_count,
+                      })}
+                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-theme-primary"
+                    />
                   )}
                 </button>
               );

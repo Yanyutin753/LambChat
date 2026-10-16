@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -163,7 +164,9 @@ export function Select({
       }}
     >
       {option.value === value && (
-        <Check size={14} className="ui-select-option__check" />
+        <InteractiveIcon>
+          <Check size={14} className="ui-select-option__check" />
+        </InteractiveIcon>
       )}
       <span className="ui-select-option__label">{option.label}</span>
     </button>
@@ -198,11 +201,13 @@ export function Select({
         >
           {displayText ?? ""}
         </span>
-        <ChevronDown
-          size={15}
-          className="ui-select-trigger__icon"
-          style={{ transform: open ? "rotate(180deg)" : undefined }}
-        />
+        <InteractiveIcon>
+          <ChevronDown
+            size={15}
+            className="ui-select-trigger__icon"
+            style={{ transform: open ? "rotate(180deg)" : undefined }}
+          />
+        </InteractiveIcon>
       </button>
 
       {open &&

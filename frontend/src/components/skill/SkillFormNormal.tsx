@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { Maximize2, X, Plus, Save, Pencil, Upload } from "lucide-react";
 import { ToggleSwitch } from "../panels/AgentPanel/shared/ToggleSwitch";
@@ -85,7 +86,9 @@ export function SkillFormNormal(a: SkillFormActions) {
                         className="skill-tag-chip-remove"
                         aria-label={`${t("common.remove")}: ${tag}`}
                       >
-                        <X size={11} />
+                        <InteractiveIcon>
+                          <X size={11} />
+                        </InteractiveIcon>
                       </button>
                     </span>
                   ))}

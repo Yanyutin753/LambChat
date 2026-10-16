@@ -26,7 +26,7 @@ function GlobDetail({ args, result }: ToolDetailProps) {
   }, [result]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       <ToolArgsBlock
         size="detail"
         copyText={[pattern, searchPath].filter(Boolean).join("\n")}
@@ -42,11 +42,11 @@ function GlobDetail({ args, result }: ToolDetailProps) {
         )}
       </ToolArgsBlock>
       {paths.length > 0 && (
-        <div>
+        <div className="tool-panel-output flex min-h-0 flex-col">
           <div className="text-12 text-theme-text-tertiary mb-2">
             {t("chat.message.toolFileCount", { count: paths.length })}
           </div>
-          <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto max-h-[60dvh]">
+          <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto flex-1 min-h-0">
             <ToolHoverCopyButton
               text={paths.join("\n")}
               size={14}

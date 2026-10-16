@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
@@ -190,7 +191,9 @@ export function PersonaPresetSelector({
                 className="inline-flex items-center gap-1.5 rounded-lg p-2 text-12 font-medium transition-colors hover:bg-theme-bg-subtle dark:hover:bg-stone-800 sm:px-2.5"
                 style={{ color: "var(--theme-text-secondary)" }}
               >
-                <Settings2 size={18} className="shrink-0" />
+                <InteractiveIcon>
+                  <Settings2 size={18} className="shrink-0" />
+                </InteractiveIcon>
                 <span className="hidden sm:inline">
                   {t("personaPresets.manage", "管理角色")}
                 </span>
@@ -352,7 +355,9 @@ export function PersonaPresetSelector({
                               });
                             }}
                           >
-                            <Pin size={12} />
+                            <InteractiveIcon>
+                              <Pin size={12} />
+                            </InteractiveIcon>
                           </button>
                           <button
                             type="button"
@@ -370,7 +375,9 @@ export function PersonaPresetSelector({
                               });
                             }}
                           >
-                            <Star size={12} />
+                            <InteractiveIcon>
+                              <Star size={12} />
+                            </InteractiveIcon>
                           </button>
                         </div>
                       )}
@@ -457,7 +464,9 @@ export function PersonaPresetSelector({
                           {isUsingPreset ? (
                             <LoadingSpinner color="text-current" size={13} />
                           ) : (
-                            <Sparkles size={13} />
+                            <InteractiveIcon>
+                              <Sparkles size={13} />
+                            </InteractiveIcon>
                           )}
                           {isUsingPreset
                             ? t("personaPresets.applying", "使用中...")
@@ -475,7 +484,9 @@ export function PersonaPresetSelector({
                             }}
                             className="pps-card__action pps-card__action--ghost"
                           >
-                            <Copy size={13} />
+                            <InteractiveIcon>
+                              <Copy size={13} />
+                            </InteractiveIcon>
                             {t("personaPresets.copy", "复制")}
                           </button>
                         )}

@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import type { PersistentGoal } from "../../services/api/session";
 import { Fragment, useRef, useCallback, useState, useEffect } from "react";
 import {
@@ -252,10 +253,10 @@ export function ChatInputToolbar({
   const activeModes = collectActiveRunModes(autoModeEnabled, goalModeEnabled);
 
   return (
-    <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-1.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
+    <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-2.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
       {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
           超宽时由 chip 的 shrink + truncate 优雅降级 */}
-      <div className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5">
+      <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -305,7 +306,11 @@ export function ChatInputToolbar({
         {selectedPersonaName && currentAgent !== "team" && (
           <ToolbarChip
             icon={
-              <AgentAvatar avatar={personaAvatar?.avatar} seed={personaAvatar?.seed || selectedPersonaName} size={16} />
+              <AgentAvatar
+                avatar={personaAvatar?.avatar}
+                seed={personaAvatar?.seed || selectedPersonaName}
+                size={16}
+              />
             }
             label={selectedPersonaName}
             onClick={() => onActivePanelChange("persona")}
@@ -338,14 +343,14 @@ export function ChatInputToolbar({
             data-composer-run-modes
             role="group"
             aria-label={t("mode.title", "Run Mode")}
-            className="hidden shrink-0 items-center gap-1.5 sm:flex"
+            className="hidden shrink-0 items-center gap-2.5 sm:flex"
           >
-            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border" />
-            {activeModes.map((mode, index) => (
+            {activeModes.map((mode) => (
               <Fragment key={mode}>
-                {index > 0 && (
-                  <span aria-hidden="true" className="h-4 w-px shrink-0 bg-theme-border" />
-                )}
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-px shrink-0 bg-theme-border"
+                />
                 <button
                   type="button"
                   className="chat-tool-btn shrink-0 gap-2 text-14 font-semibold"
@@ -360,11 +365,17 @@ export function ChatInputToolbar({
                   }
                 >
                   {mode === "auto" ? (
-                    <Zap size={16} aria-hidden="true" />
+                    <InteractiveIcon>
+                      <Zap size={16} aria-hidden="true" />
+                    </InteractiveIcon>
                   ) : (
-                    <Target size={16} aria-hidden="true" />
+                    <InteractiveIcon>
+                      <Target size={16} aria-hidden="true" />
+                    </InteractiveIcon>
                   )}
-                  <span className="composer-run-mode-label">{t(`mode.${mode}`)}</span>
+                  <span className="composer-run-mode-label">
+                    {t(`mode.${mode}`)}
+                  </span>
                 </button>
               </Fragment>
             ))}
@@ -374,7 +385,7 @@ export function ChatInputToolbar({
 
       {/* 右簇与左行同轴居中：避免贴底对齐造成发送键相对左行图标错位。
           簇内间距整体收紧（沙箱/用量/模式/发送四枚图标）。 */}
-      <div className="flex shrink-0 items-center gap-1.5 self-center">
+      <div className="flex shrink-0 items-center gap-2.5 self-center">
         {showSandboxEntry && (
           <ToolbarChip
             icon={
@@ -417,10 +428,25 @@ export function ChatInputToolbar({
           }}
           className="chat-tool-btn group shrink-0 relative"
           title={t("mode.title", "Run Mode")}
-          aria-description={[...activeModes.map((mode) => t(`mode.${mode}`)), ...(persistentGoalStatus ? [t("chat.goalPersistent.modeHint", { status: t(`chat.goalPersistent.status.${persistentGoalStatus}`) })] : [])].join(" · ") || undefined}
+          aria-description={
+            [
+              ...activeModes.map((mode) => t(`mode.${mode}`)),
+              ...(persistentGoalStatus
+                ? [
+                    t("chat.goalPersistent.modeHint", {
+                      status: t(
+                        `chat.goalPersistent.status.${persistentGoalStatus}`,
+                      ),
+                    }),
+                  ]
+                : []),
+            ].join(" · ") || undefined
+          }
         >
           <span className="relative inline-flex h-4 w-4 items-center justify-center">
-            <Settings2 size={16} />
+            <InteractiveIcon>
+              <Settings2 size={16} />
+            </InteractiveIcon>
             {activeModes.length > 0 && (
               <span
                 data-run-mode-status-dot
@@ -460,27 +486,31 @@ export function ChatInputToolbar({
               e.stopPropagation();
               onNoPermissionClick();
             }}
-            className="flex items-center justify-center rounded-full h-9 w-9 cursor-pointer transition-all duration-200 hover:scale-105"
+            className="chat-send-button"
             style={{
               backgroundColor: "var(--theme-primary-light)",
               color: "var(--theme-text-secondary)",
             }}
             title={t("chat.noPermission")}
           >
-            <Lock size={16} />
+            <InteractiveIcon>
+              <Lock size={16} />
+            </InteractiveIcon>
           </button>
         ) : sendBlocked ? (
           <button
             type="submit"
             disabled
-            className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300"
+            className="chat-send-button"
             style={{
               backgroundColor: "transparent",
               color: "var(--theme-text-secondary)",
             }}
             title={t("chat.waitingForHuman", "等待人工确认后才能发送")}
           >
-            <ArrowUp size={16} />
+            <InteractiveIcon>
+              <ArrowUp size={16} />
+            </InteractiveIcon>
           </button>
         ) : isLoading &&
           hasDraft &&
@@ -496,7 +526,7 @@ export function ChatInputToolbar({
               e.stopPropagation();
               onQueueFollowUp();
             }}
-            className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300 hover:scale-105 active:scale-95"
+            className="chat-send-button"
             style={{
               backgroundColor: "var(--theme-primary)",
               border: "1px solid var(--theme-primary)",
@@ -511,7 +541,9 @@ export function ChatInputToolbar({
               "追加消息（当前任务结束后发送）",
             )}
           >
-            <ArrowUp size={16} />
+            <InteractiveIcon>
+              <ArrowUp size={16} />
+            </InteractiveIcon>
           </button>
         ) : isLoading ? (
           <button
@@ -521,7 +553,7 @@ export function ChatInputToolbar({
               e.stopPropagation();
               onStopClick();
             }}
-            className="chat-tool-btn-active flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300 hover:scale-105 active:scale-95"
+            className="chat-send-button"
             style={{
               borderColor:
                 "color-mix(in srgb, var(--theme-primary) 40%, transparent)",
@@ -531,13 +563,15 @@ export function ChatInputToolbar({
             }}
             title={t("chat.stop")}
           >
-            <Square size={16} fill="currentColor" />
+            <InteractiveIcon>
+              <Square size={16} fill="currentColor" />
+            </InteractiveIcon>
           </button>
         ) : (
           <button
             type="submit"
             disabled={sendBlocked || !canSubmit}
-            className={`flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300`}
+            className="chat-send-button"
             style={
               canSubmit
                 ? {
@@ -556,7 +590,9 @@ export function ChatInputToolbar({
                 : t("chat.send")
             }
           >
-            <ArrowUp size={16} />
+            <InteractiveIcon>
+              <ArrowUp size={16} />
+            </InteractiveIcon>
           </button>
         )}
       </div>

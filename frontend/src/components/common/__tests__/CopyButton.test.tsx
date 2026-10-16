@@ -10,6 +10,11 @@ import {
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useLayoutEffect, useRef } from "react";
 import { CopyButton } from "../CopyButton";
+// Animation is covered by InteractiveIcon tests; isolate feedback timer ownership.
+vi.mock("../InteractiveIcon", () => ({
+  InteractiveIcon: ({ children }: { children: import("react").ReactNode }) =>
+    children,
+}));
 const mocks = vi.hoisted(() => ({
   copy: vi.fn(),
   success: vi.fn(),

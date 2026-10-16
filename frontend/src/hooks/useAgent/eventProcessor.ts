@@ -30,6 +30,7 @@ import {
   appendTopLevelTextChunk,
   createSubagentPart,
   createThinkingPart,
+  finishThinkingParts,
   createToolPart,
   mergeSummaryPart,
   updateSubagentResult,
@@ -109,6 +110,24 @@ export function processMessageEvent(
   isStreaming: boolean,
   messageId?: string,
 ): ProcessMessageEventResult {
+  if (
+    [
+      "message:chunk",
+      "tool:args:chunk",
+      "tool:start",
+      "agent:result",
+      "complete",
+      "done",
+      "error",
+    ].includes(eventType)
+  ) {
+    parts = finishThinkingParts(
+      parts,
+      data.timestamp,
+      data.agent_id,
+      ["complete", "done", "error"].includes(eventType),
+    );
+  }
   const result: ProcessMessageEventResult = { parts, content, toolCalls };
   const agentId = data.agent_id;
 
@@ -195,6 +214,7 @@ export function processMessageEvent(
         depth,
         agentId,
         isStreaming,
+        data.timestamp,
       );
 
       if (depth > 0) {
@@ -231,6 +251,10 @@ export function processMessageEvent(
           newParts[existingIndex] = {
             ...existing,
             content: existing.content + thinkingContent,
+            startedAt: existing.startedAt ?? thinkingPart.startedAt,
+            lastUpdatedAt: thinkingPart.lastUpdatedAt ?? existing.lastUpdatedAt,
+            completedAt: undefined,
+            ...(existing.status ? { status: undefined } : {}),
             isStreaming: isStreaming ? true : existing.isStreaming,
           };
         } else {
@@ -438,7 +462,13 @@ export function processMessageEvent(
         // A missed start must not hide a received result, including during history replay.
         if (result.parts === parts && toolName) {
           const completedTool = {
-            ...createToolPart(toolName, data.args || {}, depth, agentId, toolCallId),
+            ...createToolPart(
+              toolName,
+              data.args || {},
+              depth,
+              agentId,
+              toolCallId,
+            ),
             result: resultContent,
             success: isSuccess,
             error: errorMsg,
@@ -448,7 +478,12 @@ export function processMessageEvent(
           result.parts =
             upgradeGeneratingToolPart(parts, completedTool, depth) ??
             addPartToDepth(
-              parts, completedTool, depth, subagentStack, agentId, messageId,
+              parts,
+              completedTool,
+              depth,
+              subagentStack,
+              agentId,
+              messageId,
             );
         }
       } else {
@@ -712,7 +747,10 @@ export function processMessageEvent(
         break;
       }
       const isCancelled = isCancelledErrorType(data.type);
-      let nextParts = isStreaming ? clearAllLoadingStates(parts) : parts;
+      let nextParts = clearAllLoadingStates(parts, {
+        terminalStatus: isCancelled ? "cancelled" : "error",
+        error: isCancelled ? undefined : errorMsg,
+      });
       if (isCancelled) {
         // 重连合成路径只有 error 事件、没有 user:cancel，胶囊在这里补
         // （appendCancelledPart 自带去重，正常执行器路径不会重复追加）
@@ -754,7 +792,8 @@ function hasToolCallId(
     if (part.type === "tool")
       return (
         (!part.argsPartial || part.result !== undefined) &&
-        part.id === toolCallId && (!agentId || part.agent_id === agentId)
+        part.id === toolCallId &&
+        (!agentId || part.agent_id === agentId)
       );
     if (part.type === "subagent") {
       return hasToolCallId(part.parts ?? [], toolCallId, agentId);

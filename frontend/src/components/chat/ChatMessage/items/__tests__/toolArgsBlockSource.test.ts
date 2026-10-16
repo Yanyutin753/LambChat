@@ -66,9 +66,9 @@ test("tool argument layout stays within narrow grids and preserves touch targets
   );
 });
 
-test("right panel argument labels use the shared serif font", () => {
+test("right panel code arguments retain the shared monospace font", () => {
   const css = readSource("../../../../../styles/components.css");
   expect(css).toMatch(
-    /\.tool-readable \.tool-args-block,\s*\.tool-readable \.tool-args-block__content \.font-mono\s*\{\s*font-family: theme\(['"]fontFamily\.serif['"]\);/,
+    /\.tool-readable \.tool-args-block__content \.font-mono\s*\{\s*font-family: theme\(['"]fontFamily\.mono['"]\);/,
   );
 });

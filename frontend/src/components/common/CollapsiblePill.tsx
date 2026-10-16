@@ -1,7 +1,8 @@
+import { useTranslation } from "react-i18next";
+import { InteractiveIcon } from "./InteractiveIcon";
 import { clsx } from "clsx";
-import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, XCircle, ChevronRight } from "lucide-react";
-import { LoadingSpinner } from "./LoadingSpinner";
+import { Children, useId, useState } from "react";
+import { ChevronRight } from "lucide-react";
 
 export type CollapsibleStatus =
   | "idle"
@@ -15,6 +16,7 @@ export interface CollapsiblePillProps {
   status?: CollapsibleStatus;
   icon: React.ReactNode;
   label: string;
+  description?: string;
   suffix?: React.ReactNode;
   defaultExpanded?: boolean;
   onExpandChange?: (expanded: boolean) => void;
@@ -29,68 +31,20 @@ export interface CollapsiblePillProps {
   formatLabel?: boolean;
 }
 
-// Unified status-based colors — same status always gets the same color.
-// 状态底色走 theme 语义 token 的 color-mix 调和，sepia 随变量降饱和变暖；
-// loading 保留 amber 品牌强调（与开关 accent 同源，三主题恒 amber）。
+// Event surfaces stay neutral; labels convey the execution status.
 const statusStyles: Record<CollapsibleStatus, string> = {
-  idle: "bg-theme-bg-subtle text-theme-text-secondary",
-  loading:
-    "bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
-  success:
-    "bg-[color-mix(in_srgb,var(--theme-success)_12%,transparent)] text-[color-mix(in_srgb,var(--theme-success)_50%,var(--theme-text))] dark:bg-emerald-950/30 dark:text-emerald-300",
-  error:
-    "bg-[color-mix(in_srgb,var(--theme-error)_12%,transparent)] text-[color-mix(in_srgb,var(--theme-error)_50%,var(--theme-text))] dark:bg-red-950/30 dark:text-red-300",
-  cancelled:
-    "bg-[color-mix(in_srgb,var(--theme-text-secondary)_10%,transparent)] text-theme-text-secondary dark:bg-stone-700/50 dark:text-stone-400",
-};
-
-// Status indicator icon/spinner colors
-const statusIconColors: Record<CollapsibleStatus, string> = {
-  idle: "",
-  loading: "text-amber-500 dark:text-amber-400",
-  success: "text-theme-success dark:text-emerald-400",
-  error: "text-theme-error dark:text-red-400",
+  idle: "text-theme-text-secondary",
+  loading: "text-theme-text-secondary",
+  success: "text-theme-text-secondary",
+  error: "text-theme-text-secondary",
   cancelled: "text-theme-text-tertiary",
 };
-
-function StatusIndicator({ status }: { status: CollapsibleStatus }) {
-  if (status === "loading") {
-    return (
-      <LoadingSpinner
-        size="xs"
-        className="shrink-0"
-        color={statusIconColors[status]}
-      />
-    );
-  }
-  if (status === "success") {
-    return (
-      <CheckCircle
-        size={12}
-        className={clsx("shrink-0", statusIconColors[status])}
-      />
-    );
-  }
-  if (status === "error") {
-    return (
-      <XCircle
-        size={12}
-        className={clsx("shrink-0", statusIconColors[status])}
-      />
-    );
-  }
-  if (status === "cancelled") {
-    return (
-      <Ban size={12} className={clsx("shrink-0", statusIconColors[status])} />
-    );
-  }
-  return null;
-}
 
 export function CollapsiblePill({
   status = "idle",
   icon,
   label,
+  description,
   suffix,
   defaultExpanded = false,
   onExpandChange,
@@ -101,26 +55,10 @@ export function CollapsiblePill({
   animatedDots = false,
   formatLabel = true,
 }: CollapsiblePillProps) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [enterClass, setEnterClass] = useState("");
-  const prevStatus = useRef(status);
-  const hasChildren = children !== undefined;
-
-  // One-shot enter animation when status changes to success/error
-  useEffect(() => {
-    if (prevStatus.current === status) return;
-    prevStatus.current = status;
-    if (status === "success") {
-      setEnterClass("pill-enter-success");
-      const t = setTimeout(() => setEnterClass(""), 500);
-      return () => clearTimeout(t);
-    }
-    if (status === "error") {
-      setEnterClass("pill-enter-error");
-      const t = setTimeout(() => setEnterClass(""), 350);
-      return () => clearTimeout(t);
-    }
-  }, [status]);
+  const contentId = useId();
+  const hasChildren = Children.toArray(children).length > 0;
 
   const handleToggle = () => {
     if (!expandable && !hasChildren) return;
@@ -143,46 +81,87 @@ export function CollapsiblePill({
   const displayedLabel =
     formatLabel && _variant !== "tool" ? formattedLabel : label;
 
+  const terminalLabel =
+    status === "loading" || status === "error" || status === "cancelled"
+      ? t(`chat.eventStatus.${status}`)
+      : "";
+
   return (
     <div className="my-1 min-w-0 max-w-full">
       <button
         type="button"
         data-variant={_variant}
+        data-status={status}
+        aria-expanded={hasChildren && !onPanelOpen ? isExpanded : undefined}
+        aria-controls={
+          hasChildren && isExpanded && !onPanelOpen ? contentId : undefined
+        }
+        aria-disabled={!canExpand || undefined}
         onClick={handleToggle}
         className={clsx(
           "pill-btn",
           statusStyles[status],
-          enterClass,
-          status === "loading" && "pill-loading-breathe",
           canExpand && "cursor-pointer",
           !canExpand && "cursor-default",
         )}
       >
-        {status === "loading" && <StatusIndicator status={status} />}
-        {icon}
+        <span className="pill-btn__icon" aria-hidden="true">
+          <InteractiveIcon>{icon}</InteractiveIcon>
+        </span>
         <span
           className={clsx(
-            "min-w-0 truncate overflow-hidden",
-            animatedDots && "typing-dots",
+            "pill-btn__label min-w-0 flex-1 truncate overflow-hidden",
+            description && "flex items-center gap-2",
+            animatedDots && !description && "typing-dots",
           )}
         >
-          {displayedLabel}
+          {description ? (
+            <>
+              <span className="shrink-0">{displayedLabel}</span>
+              <span className="min-w-0 truncate font-normal text-theme-text-secondary">
+                {description}
+              </span>
+            </>
+          ) : (
+            displayedLabel
+          )}
         </span>
-        {suffix}
+        {_variant === "tool" &&
+          terminalLabel &&
+          !displayedLabel.includes(terminalLabel) && (
+            <span
+              className={
+                status === "error" ? "sr-only" : "shrink-0 text-12 font-normal"
+              }
+            >
+              {terminalLabel}
+            </span>
+          )}
+        {suffix != null && (
+          <span className="pill-btn__suffix min-w-0 max-w-[40%] truncate text-12 font-normal text-theme-text-tertiary tabular-nums">
+            {suffix}
+          </span>
+        )}
         {canExpand && (
-          <ChevronRight
-            size={12}
-            className={clsx(
-              "shrink-0 transition-transform duration-200",
-              statusIconColors[status] || "text-theme-text-secondary",
-              isExpanded && "rotate-90",
-            )}
-          />
+          <span className="pill-btn__chevron" aria-hidden="true">
+            <InteractiveIcon>
+              <ChevronRight
+                size={12}
+                className={clsx(
+                  "shrink-0 transition-transform duration-200",
+                  "text-theme-text-tertiary",
+                  isExpanded && "rotate-90",
+                )}
+              />
+            </InteractiveIcon>
+          </span>
         )}
       </button>
 
       {isExpanded && hasChildren && (
-        <div className="mt-1 animate-[fade-in_150ms_ease-out]">{children}</div>
+        <div id={contentId} className="mt-1 animate-[fade-in_150ms_ease-out]">
+          {children}
+        </div>
       )}
     </div>
   );

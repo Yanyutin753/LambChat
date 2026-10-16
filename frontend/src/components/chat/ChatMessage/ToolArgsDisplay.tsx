@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -131,17 +132,23 @@ function ComplexArgRow({
       >
         <button
           type="button"
-          aria-label={`${t(expanded ? "common.collapse" : "common.expand")} ${name}`}
+          aria-label={`${t(
+            expanded ? "common.collapse" : "common.expand",
+          )} ${name}`}
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
           className="tool-arg-expand flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <ChevronDown
-            size={compact ? 10 : 12}
-            className="shrink-0"
-            style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
-            aria-hidden="true"
-          />
+          <InteractiveIcon>
+            <ChevronDown
+              size={compact ? 10 : 12}
+              className="shrink-0"
+              style={{
+                transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
+              }}
+              aria-hidden="true"
+            />
+          </InteractiveIcon>
           <ArgKey name={name} compact={compact} />
           <ArgSeparator />
           <span className="min-w-0 flex-1 text-[var(--theme-text-tertiary)] break-all opacity-60 group-hover/arg:opacity-100 transition-opacity">

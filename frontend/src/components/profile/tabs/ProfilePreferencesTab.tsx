@@ -1,4 +1,5 @@
 import { UpdateChannelSelect } from "../../update/UpdateChannelSelect";
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useLanguagePreference } from "../../../hooks/useLanguagePreference";
 import {
   lazy,
@@ -590,7 +591,9 @@ function PreferencesContent() {
               }}
               className="flex items-center gap-1.5 rounded-lg border border-theme-border dark:border-stone-600/60 px-3 py-1.5 text-12 font-medium text-theme-text-secondary dark:text-stone-300 hover:bg-theme-bg-card dark:hover:bg-black/20 transition-colors"
             >
-              <RefreshCw size={12} />
+              <InteractiveIcon>
+                <RefreshCw size={12} />
+              </InteractiveIcon>
               {t("update.checkNow", "检查更新")}
             </button>
           </div>

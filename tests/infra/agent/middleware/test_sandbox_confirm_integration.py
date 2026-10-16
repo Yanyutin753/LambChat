@@ -381,7 +381,8 @@ def recorder_install(monkeypatch: pytest.MonkeyPatch) -> ApprovalRecorder:
     return rec
 
 
-async def test_backend_failure_does_not_kill_run(recorder_install) -> None:
+@pytest.mark.parametrize("failure", ["timeout", "sandbox_init"])
+async def test_backend_failure_does_not_kill_run(recorder_install, failure) -> None:
     """单命令后端失败（超时/离线）→ 错误 ToolMessage，图继续、模型收尾——
     不再击穿整个 run（线上复盘：sandbox timeout 打死对话）。"""
     model_messages = [
@@ -394,6 +395,10 @@ async def test_backend_failure_does_not_kill_run(recorder_install) -> None:
         """执行命令。"""
         from src.kernel.errors import AppError, ErrorCode
 
+        if failure == "sandbox_init":
+            from src.infra.backend.lazy_sandbox import SandboxInitializationError
+
+            raise SandboxInitializationError()
         raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": 30})
 
     _boom.name = "execute"  # 工具名必须是 execute（确认清单按名匹配）
@@ -423,7 +428,10 @@ async def test_backend_failure_does_not_kill_run(recorder_install) -> None:
         tool_msgs = [
             m for m in snapshot.values["messages"] if m.__class__.__name__ == "ToolMessage"
         ]
-        assert any("timed out after 30s" in str(m.content) for m in tool_msgs)
+        expected_error = (
+            "Sandbox initialization failed" if failure == "sandbox_init" else "timed out after 30s"
+        )
+        assert any(expected_error in str(m.content) for m in tool_msgs)
         final = snapshot.values["messages"][-1]
         assert "换个方式" in str(final.content)
     finally:

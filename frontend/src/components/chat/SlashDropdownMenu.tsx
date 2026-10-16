@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
@@ -157,11 +158,13 @@ export function SlashDropdownMenu({
               >
                 {item.type === "command" ? (
                   <>
-                    <item.command.icon
-                      size={14}
-                      className="shrink-0"
-                      style={{ color: "var(--theme-text-secondary)" }}
-                    />
+                    <InteractiveIcon>
+                      <item.command.icon
+                        size={14}
+                        className="shrink-0"
+                        style={{ color: "var(--theme-text-secondary)" }}
+                      />
+                    </InteractiveIcon>
                     <span className="font-medium shrink-0">
                       {t(item.command.labelKey, item.command.fallbackLabel)}
                     </span>
@@ -187,11 +190,13 @@ export function SlashDropdownMenu({
                           {item.skill.name}
                         </span>
                         {isSelected && (
-                          <Check
-                            size={14}
-                            className="shrink-0"
-                            style={{ color: "var(--theme-primary)" }}
-                          />
+                          <InteractiveIcon>
+                            <Check
+                              size={14}
+                              className="shrink-0"
+                              style={{ color: "var(--theme-primary)" }}
+                            />
+                          </InteractiveIcon>
                         )}
                       </>
                     );

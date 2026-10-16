@@ -113,3 +113,22 @@ test("shows measured server-processing percentage and keeps cancel available", (
   expect(screen.getByText("Processing on server… 46%")).toBeInTheDocument();
   expect(screen.getByTitle("Cancel upload")).toBeInTheDocument();
 });
+
+test("compact attachments expose separate preview and remove buttons", () => {
+  const preview = vi.fn();
+  const remove = vi.fn();
+  render(
+    <AttachmentCard
+      attachment={{ ...baseAttachment, isUploading: false }}
+      size="compact"
+      variant="editable"
+      onClick={preview}
+      onRemove={remove}
+    />,
+  );
+  screen.getByRole("button", { name: "capture.png" }).click();
+  expect(preview).toHaveBeenCalledOnce();
+  screen.getByRole("button", { name: i18n.t("common.remove") }).click();
+  expect(remove).toHaveBeenCalledOnce();
+  expect(preview).toHaveBeenCalledOnce();
+});

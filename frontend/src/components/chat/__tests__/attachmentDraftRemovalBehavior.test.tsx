@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
+import i18n from "../../../i18n";
 import type { MessageAttachment } from "../../../types";
 import { ChatInputAttachments } from "../ChatInputAttachments";
 
@@ -29,7 +30,11 @@ test("removing an uploaded draft attachment only updates local state", () => {
 
   const card = screen.getByText("report.pdf").closest(".attachment-card-enter");
   expect(card).not.toBeNull();
-  fireEvent.click(within(card as HTMLElement).getByRole("button"));
+  fireEvent.click(
+    within(card as HTMLElement).getByRole("button", {
+      name: i18n.t("common.remove"),
+    }),
+  );
 
   const update = onAttachmentsChange.mock.calls[0]?.[0] as (
     previous: MessageAttachment[],
@@ -62,7 +67,11 @@ test("cancelling an in-flight attachment delegates to upload abort", () => {
     .getByText("uploading.pdf")
     .closest(".attachment-card-enter");
   expect(card).not.toBeNull();
-  fireEvent.click(within(card as HTMLElement).getByRole("button"));
+  fireEvent.click(
+    within(card as HTMLElement).getByRole("button", {
+      name: i18n.t("fileUpload.cancelUpload"),
+    }),
+  );
 
   expect(onCancelUpload).toHaveBeenCalledWith("temp-upload-1");
   expect(onAttachmentsChange).not.toHaveBeenCalled();

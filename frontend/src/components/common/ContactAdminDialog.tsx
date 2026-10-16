@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "./InteractiveIcon";
 import { Mail, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,7 +36,7 @@ export function ContactAdminDialog({
         if (!controller.signal.aborted)
           setResult(
             data
-              ? (data.admin_contact ?? {})
+              ? data.admin_contact ?? {}
               : { error: t("settings.loadFailed") },
           );
       },
@@ -111,11 +112,13 @@ export function ContactAdminDialog({
           <div className="space-y-1">
             {adminEmail && (
               <a href={`mailto:${adminEmail}`} className={linkClass}>
-                <Mail
-                  size={16}
-                  className="shrink-0 text-theme-text-tertiary"
-                  aria-hidden="true"
-                />
+                <InteractiveIcon>
+                  <Mail
+                    size={16}
+                    className="shrink-0 text-theme-text-tertiary"
+                    aria-hidden="true"
+                  />
+                </InteractiveIcon>
                 <span className="min-w-0 [overflow-wrap:anywhere]">
                   {adminEmail}
                 </span>
@@ -128,11 +131,13 @@ export function ContactAdminDialog({
                 rel="noopener noreferrer"
                 className={linkClass}
               >
-                <ExternalLink
-                  size={16}
-                  className="shrink-0 text-theme-text-tertiary"
-                  aria-hidden="true"
-                />
+                <InteractiveIcon>
+                  <ExternalLink
+                    size={16}
+                    className="shrink-0 text-theme-text-tertiary"
+                    aria-hidden="true"
+                  />
+                </InteractiveIcon>
                 <span className="min-w-0 [overflow-wrap:anywhere]">
                   {t("contactAdmin.supportLink")}
                 </span>

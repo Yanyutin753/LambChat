@@ -311,7 +311,7 @@
     },
     "search": {
       "description": "支持代码解释器和沙箱，适合复杂任务",
-      "name": "搜索助手"
+      "name": "探索助手"
     },
     "team": {
       "description": "自动搜索合适角色并分派子代理，支持追加任务和持续协作",
@@ -1320,7 +1320,10 @@
       "systemPrompt": "系统提示词",
       "table": "表格",
       "thinking": "思考中",
+      "thinkingFailed": "思考中断",
+      "thinkingCancelled": "思考已取消",
       "thought": "已思考",
+      "thinkingSeconds": "{{count}} 秒",
       "tokenCache": "缓存",
       "tokenCacheCreation": "缓存写入",
       "tokenCacheRate": "缓存率",
@@ -1334,6 +1337,10 @@
       "toolAskHumanListSeparator": "、",
       "toolAudioTranscribe": "转录",
       "toolCalls": "工具调用",
+      "toolGroupRead_other": "已读取 {{count}} 个文件",
+      "toolGroupSearch_other": "已搜索 {{count}} 次",
+      "toolGroupExecute_other": "已执行 {{count}} 条命令",
+      "toolGroupOther_other": "已完成 {{count}} 次工具调用",
       "toolCreateTeam": "创建团队",
       "toolEdit": "编辑",
       "toolEditAdded": "新增",
@@ -1564,7 +1571,19 @@
       "toolListSubagents": "查看子代理",
       "toolSubagentQueued": "排队中",
       "toolSubagentTimedOut": "执行超时",
-      "toolSubagentEmpty": "暂无子代理"
+      "toolSubagentEmpty": "暂无子代理",
+      "toolGroupRead_one": "已读取 {{count}} 个文件",
+      "toolGroupRead_few": "已读取 {{count}} 个文件",
+      "toolGroupRead_many": "已读取 {{count}} 个文件",
+      "toolGroupSearch_one": "已搜索 {{count}} 次",
+      "toolGroupSearch_few": "已搜索 {{count}} 次",
+      "toolGroupSearch_many": "已搜索 {{count}} 次",
+      "toolGroupExecute_one": "已执行 {{count}} 条命令",
+      "toolGroupExecute_few": "已执行 {{count}} 条命令",
+      "toolGroupExecute_many": "已执行 {{count}} 条命令",
+      "toolGroupOther_one": "已完成 {{count}} 次工具调用",
+      "toolGroupOther_few": "已完成 {{count}} 次工具调用",
+      "toolGroupOther_many": "已完成 {{count}} 次工具调用"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -1584,7 +1603,13 @@
     "rateLimited": "请求过于频繁，请稍后再试",
     "requestFailed": "加载会话失败",
     "runningPlaceholder": "继续输入，补充要求或安排下一步…",
+    "eventStatus": {
+      "loading": "执行中",
+      "error": "执行失败",
+      "cancelled": "已取消"
+    },
     "memory": {
+      "cancelled": "记忆检索已取消",
       "initializing": "正在检索相关记忆",
       "ready": "记忆检索完成"
     },
@@ -3773,6 +3798,7 @@
     "widenSidebar": "加宽侧栏"
   },
   "sidebar": {
+    "unreadMessages": "{{count}} 条未读消息",
     "noProjects": "暂无项目",
     "addToFavorites": "添加到收藏",
     "batchDeleteConfirm": "确定要删除选中的 {{count}} 个会话吗？此操作无法撤销。",

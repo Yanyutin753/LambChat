@@ -66,7 +66,7 @@ function TransferDetail({
             text={resultText}
             position="resultCompact"
             className="z-20 pointer-events-auto"
-            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+            copyButtonClassName="tool-result-copy"
           />
           <ToolResultContent result={result} hideCopyButton />
         </div>
@@ -128,7 +128,7 @@ const TransferItem = memo(function TransferItem({
         text={resultText}
         position="resultCompact"
         className="z-20 pointer-events-auto"
-        copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+        copyButtonClassName="tool-result-copy"
       />
       <ToolResultContent result={result} hideCopyButton />
     </div>

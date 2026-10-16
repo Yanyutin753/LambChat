@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../InteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { LoadingSpinner } from "../LoadingSpinner";
 
@@ -53,10 +54,14 @@ export function Button({
           }
         />
       ) : (
-        leftIcon
+        <InteractiveIcon>{leftIcon}</InteractiveIcon>
       )}
-      {children && <span className="ui-button__label">{children}</span>}
-      {rightIcon}
+      {children && (
+        <span className="ui-button__label">
+          <InteractiveIcon>{children}</InteractiveIcon>
+        </span>
+      )}
+      <InteractiveIcon>{rightIcon}</InteractiveIcon>
     </button>
   );
 }

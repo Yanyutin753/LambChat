@@ -16,7 +16,13 @@ import {
   SECTION_IDS,
   SECTION_ROUTE_BY_ID,
 } from "./constants";
-import { MAIN_SHOTS, MGMT_SHOTS, RESPONSIVE_SHOTS, shotSrc, themedShots } from "./data";
+import {
+  MAIN_SHOTS,
+  MGMT_SHOTS,
+  RESPONSIVE_SHOTS,
+  shotSrc,
+  themedShots,
+} from "./data";
 import { Navbar } from "./components/Navbar";
 import { MobileMenu } from "./components/MobileMenu";
 import { HeroSection } from "./components/HeroSection";
@@ -44,7 +50,7 @@ export function LandingPage() {
     omitSuffix: true,
   });
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const containerRef = useScrollReveal();
   const { isAuthenticated, isLoading, token } = useAuth();
   const scrollProgress = useScrollProgress();
@@ -57,24 +63,32 @@ export function LandingPage() {
 
   const { theme } = useTheme();
   const [mainShots, managementShots, responsiveShots] = useMemo(
-    () => [MAIN_SHOTS, MGMT_SHOTS, RESPONSIVE_SHOTS].map((shots) => themedShots(shots, theme)),
+    () =>
+      [MAIN_SHOTS, MGMT_SHOTS, RESPONSIVE_SHOTS].map((shots) =>
+        themedShots(shots, theme),
+      ),
     [theme],
   );
+
+  const architectureSrc = shotSrc("architecture", theme);
 
   const galleryItems = useMemo(
     () => [
       ...mainShots.map((s) => ({ src: s.src, alt: t(`landing.${s.altKey}`) })),
       {
-        src: shotSrc("architecture"),
+        src: architectureSrc,
         alt: t("landing.architecture"),
       },
-      ...managementShots.map((s) => ({ src: s.src, alt: t(`landing.${s.altKey}`) })),
+      ...managementShots.map((s) => ({
+        src: s.src,
+        alt: t(`landing.${s.altKey}`),
+      })),
       ...responsiveShots.map((s) => ({
         src: s.src,
         alt: t(`landing.${s.altKey}`),
       })),
     ],
-    [t, i18n.language, mainShots, managementShots, responsiveShots],
+    [t, mainShots, managementShots, responsiveShots, architectureSrc],
   );
 
   const openViewer = useCallback(
@@ -146,14 +160,11 @@ export function LandingPage() {
       if (route && window.location.pathname !== route) {
         navigate(route, { replace: false });
       }
-      document
-        .getElementById(id)
-        ?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? "auto"
-            : "smooth",
-        });
+      document.getElementById(id)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
     },
     [navigate],
   );
@@ -247,7 +258,7 @@ export function LandingPage() {
         <div className="blog-ornament-diamond" />
       </div>
 
-      <ArchitectureSection onOpenViewer={openViewer} />
+      <ArchitectureSection src={architectureSrc} onOpenViewer={openViewer} />
 
       <div className="blog-section-divider py-2" aria-hidden="true">
         <div className="blog-ornament-diamond" />

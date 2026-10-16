@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
@@ -84,7 +85,9 @@ export function ListCard({
           }}
           className="flex size-11 sm:size-7 items-center justify-center shrink-0 rounded-md text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
-          <MoreHorizontal size={16} />
+          <InteractiveIcon>
+            <MoreHorizontal size={16} />
+          </InteractiveIcon>
         </button>
       </div>
 

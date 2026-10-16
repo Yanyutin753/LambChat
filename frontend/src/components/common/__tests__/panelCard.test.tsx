@@ -72,7 +72,10 @@ test("resource cards center their icon beside a compact title and status", () =>
   expect(header?.classList.contains("items-center")).toBe(true);
   expect(header?.classList.contains("gap-2")).toBe(true);
   expect(header?.querySelector(".scb__status")?.textContent).toBe("Published");
-  const styles = readFileSync("src/styles/card-base.css", "utf8");
+  const styles = readFileSync("src/styles/card-base.css", "utf8").replace(
+    /\s+/g,
+    " ",
+  );
   expect(styles).toMatch(/\.scb__status\s*\{[^}]*margin-top: 0\.25rem;/);
   expect(styles).toMatch(/\.scb__status > \*\s*\{\s*margin-top: 0;/);
   expect(styles).toMatch(
@@ -86,40 +89,59 @@ test("resource cards center their icon beside a compact title and status", () =>
   expect(icon.style.height).toBe("36px");
 });
 
- test("resource cards use flat surfaces and shared compact content spacing", () => {
-  const { container } = render(<SkillBaseCard title="Compact" description="Description" tags={<span>Tag</span>} />);
+test("resource cards use flat surfaces and shared compact content spacing", () => {
+  const { container } = render(
+    <SkillBaseCard
+      title="Compact"
+      description="Description"
+      tags={<span>Tag</span>}
+    />,
+  );
   expect(container.querySelector(".scb__body")).not.toBeNull();
-  expect(container.querySelector(".scb__body")?.classList.contains("gap-2")).toBe(true);
-  const styles = readFileSync("src/styles/card-base.css", "utf8");
+  expect(
+    container.querySelector(".scb__body")?.classList.contains("gap-2"),
+  ).toBe(true);
+  const styles = readFileSync("src/styles/card-base.css", "utf8").replace(
+    /\s+/g,
+    " ",
+  );
   expect(styles).toMatch(/\.scb\s*\{[^}]*box-shadow: none;/);
   expect(styles).toMatch(/\.scb:hover\s*\{[^}]*transform: none;/);
 });
 
 test("mobile panel cards share compact spacing and generated avatars follow dark theme", () => {
- const styles = readFileSync("src/styles/panels.css", "utf8");
- expect(styles).toMatch(/\.panel-card[^}]*padding: 0\.75rem;/);
- expect(styles).toMatch(/\.dark \.agent-avatar__artwork[^}]*brightness\(0\.88\)/);
-});
-
-
-test.each([false, true])("card metadata shares its bottom row with actions (footer=%s)", (withFooter) => {
-  const { container } = render(
-    <SkillBaseCard
-      title="Aligned card"
-      description="Description"
-      meta={<span>1 file</span>}
-      footer={withFooter ? <button>Enable</button> : undefined}
-      actions={[{ label: "Edit" }, { label: "Delete" }]}
-    />,
+  const styles = readFileSync("src/styles/panels.css", "utf8");
+  expect(styles).toMatch(/\.panel-card[^}]*padding: 0\.75rem;/);
+  expect(styles).toMatch(
+    /\.dark \.agent-avatar__artwork[^}]*brightness\(0\.88\)/,
   );
-  const footer = container.querySelector(".scb__footer");
-  expect(footer?.textContent).toContain("1 file");
-  expect(footer?.querySelector('[aria-haspopup="menu"]')).not.toBeNull();
-  if (withFooter) expect(footer?.textContent).toContain("Enable");
-  expect(container.querySelector(".scb__body > .flex-1")).toBeNull();
 });
+
+test.each([false, true])(
+  "card metadata shares its bottom row with actions (footer=%s)",
+  (withFooter) => {
+    const { container } = render(
+      <SkillBaseCard
+        title="Aligned card"
+        description="Description"
+        meta={<span>1 file</span>}
+        footer={withFooter ? <button>Enable</button> : undefined}
+        actions={[{ label: "Edit" }, { label: "Delete" }]}
+      />,
+    );
+    const footer = container.querySelector(".scb__footer");
+    expect(footer?.textContent).toContain("1 file");
+    expect(footer?.querySelector('[aria-haspopup="menu"]')).not.toBeNull();
+    if (withFooter) expect(footer?.textContent).toContain("Enable");
+    expect(container.querySelector(".scb__body > .flex-1")).toBeNull();
+  },
+);
 
 test("read-only metadata remains visible without any actions", () => {
-  const { container } = render(<SkillBaseCard title="Read only" meta={<span>Updated today</span>} />);
-  expect(container.querySelector(".scb__footer")?.textContent).toBe("Updated today");
+  const { container } = render(
+    <SkillBaseCard title="Read only" meta={<span>Updated today</span>} />,
+  );
+  expect(container.querySelector(".scb__footer")?.textContent).toBe(
+    "Updated today",
+  );
 });

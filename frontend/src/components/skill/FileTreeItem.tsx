@@ -1,3 +1,4 @@
+import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState } from "react";
 import { ChevronDown, FolderOpen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -33,16 +34,20 @@ export function FileTreeItem({
           className="w-full flex items-center gap-1.5 py-[4px] text-13 text-left text-stone-500 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors duration-100 select-none"
           style={{ paddingLeft: `${indent}px`, paddingRight: "8px" }}
         >
-          <ChevronDown
-            size={12}
-            className={`shrink-0 transition-transform duration-150 ${
-              expanded ? "" : "-rotate-90"
-            }`}
-          />
-          <FolderOpen
-            size={14}
-            className="shrink-0 text-stone-400 dark:text-stone-500"
-          />
+          <InteractiveIcon>
+            <ChevronDown
+              size={12}
+              className={`shrink-0 transition-transform duration-150 ${
+                expanded ? "" : "-rotate-90"
+              }`}
+            />
+          </InteractiveIcon>
+          <InteractiveIcon>
+            <FolderOpen
+              size={14}
+              className="shrink-0 text-stone-400 dark:text-stone-500"
+            />
+          </InteractiveIcon>
           <span className="truncate">{node.name}</span>
         </button>
         {expanded &&
@@ -106,7 +111,9 @@ export function FileTreeItem({
           }}
           className="skill-file-remove flex shrink-0 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
         >
-          <X size={10} />
+          <InteractiveIcon>
+            <X size={10} />
+          </InteractiveIcon>
         </button>
       )}
     </div>

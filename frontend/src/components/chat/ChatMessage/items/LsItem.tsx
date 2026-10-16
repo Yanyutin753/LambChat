@@ -27,7 +27,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
   const hasEntries = entries.length > 0;
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
       <ToolArgsBlock size="detail" copyText={dirPath}>
         <FolderOpen size={14} className="shrink-0 opacity-60" />
         <span className="truncate">{dirPath}</span>
@@ -38,7 +38,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
         )}
       </ToolArgsBlock>
       {hasEntries ? (
-        <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto max-h-[60dvh]">
+        <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto tool-panel-output">
           <ToolHoverCopyButton
             text={entries.join("\n")}
             size={14}
@@ -86,7 +86,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
           })}
         </div>
       ) : rawText.trim().length > 0 ? (
-        <pre className="group/result relative max-h-[60dvh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-theme-border bg-theme-bg p-3 text-12 text-theme-text-secondary">
+        <pre className="group/result relative tool-panel-output overflow-auto whitespace-pre-wrap break-words rounded-lg border border-theme-border bg-theme-bg p-3 text-12 text-theme-text-secondary">
           <ToolHoverCopyButton
             text={rawText}
             size={14}
