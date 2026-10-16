@@ -44,8 +44,10 @@
 
 ### Task 4: CI, deployment and release
 
-- [ ] Commit/push PR to develop, require green CI; staging deploy and smoke.
-- [ ] PR to main, require green CI; production deploy and smoke.
-- [ ] Tag new v2.15.2-dev.3 at main merge; wait full native matrix and final publish.
+- [x] Commit/push PR to develop, require green CI; staging deploy and smoke.
+- [x] PR to main, require green CI; production deploy and smoke.
+- [ ] Tag new v2.15.2-dev.4 at main merge; wait full native matrix and final publish.
 - [ ] Verify stable isolation, dev API/manifest, tagged downloads and signatures; record runtime verification limits.
 - [ ] Remove owned temporary resources and release validation lock.
+
+Release recovery: dev.3 Windows asset publication failed because Python decoded UTF-8 GitHub metadata using Windows cp1252. Keep the existing tag immutable and leave its dev readiness marker absent; fix explicit UTF-8 decoding and ship dev.4 with incremented mobile build numbers.
