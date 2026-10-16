@@ -128,8 +128,8 @@ async def scheduled_task_create(
     ] = None,
     timeout_seconds: Annotated[
         int,
-        "Execution timeout seconds (10-7200). Default: 3600s. Do not set this too short.",
-    ] = 3600,
+        "Deprecated and ignored. Scheduled runs have no total execution time limit.",
+    ] = 0,
     run_on_start: Annotated[
         bool,
         "Run once immediately after creation.",

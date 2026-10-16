@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -230,6 +231,100 @@ async def exercise(base_url, db, username, password):
         print("PASS pause and standalone compatibility", flush=True)
 
 
+async def exercise_unlimited(base_url, db, username, password):
+    """Exercise old deadlines, both execution modes and serialization with real models."""
+    async with httpx.AsyncClient(base_url=base_url, timeout=30) as client:
+
+        async def api(method, path, body=None):
+            response = await client.request(method, path, json=body)
+            response.raise_for_status()
+            return response.json()
+
+        login = await api("POST", "/api/auth/login", {"username": username, "password": password})
+        client.headers["Authorization"] = f"Bearer {login['access_token']}"
+        session = await api(
+            "POST",
+            "/api/sessions",
+            {
+                "name": "Unlimited execution check",
+                "metadata": {"agent_id": "quick", "task_status": "completed"},
+            },
+        )
+        session_id = session["id"]
+        runs = []
+        for mode in ("conversation", "conversation", "standalone"):
+            task = await api(
+                "POST",
+                "/api/scheduled-tasks/",
+                {
+                    "name": f"Unlimited {mode}",
+                    "agent_id": "quick",
+                    "execution_mode": mode,
+                    "target_session_id": session_id if mode == "conversation" else None,
+                    "source_session_id": session_id,
+                    "trigger_type": "interval",
+                    "trigger_config": {"seconds": 3600},
+                    "timeout_seconds": 10,
+                    "input_payload": {
+                        "message": "Write 200 numbered short Chinese sentences about trees. End with UNLIMITED_OK."
+                    },
+                },
+            )
+            assert task["timeout_seconds"] == 0
+            run = await api("POST", f"/api/scheduled-tasks/{task['id']}/run")
+            runs.append((task["id"], run["run_id"], mode))
+            if len(runs) == 1:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    record = db.task_run_records.find_one({"_id": run["run_id"]})
+                    if record and record.get("conversation_state") == "submitted":
+                        db.task_run_records.update_one(
+                            {"_id": run["run_id"]},
+                            {
+                                "$set": {
+                                    "started_at": datetime.now(timezone.utc) - timedelta(days=3),
+                                    "timeout_seconds": 10,
+                                }
+                            },
+                        )
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    raise AssertionError("Conversation run was not submitted")
+
+        traces = []
+        for task_id, run_id, mode in runs:
+            deadline = time.monotonic() + 600
+            while time.monotonic() < deadline:
+                response = await api("GET", f"/api/scheduled-tasks/{task_id}/runs")
+                record = next((item for item in response["items"] if item["id"] == run_id), None)
+                if record and record["status"] in {"success", "failed", "timeout"}:
+                    assert record["status"] == "success", record
+                    trace = db.traces.find_one({"run_id": run_id})
+                    assert trace and trace.get("completed_at"), "Missing completed real model trace"
+                    elapsed = (trace["completed_at"] - trace["started_at"]).total_seconds()
+                    assert elapsed > 1, (
+                        f"Model run too short to exercise sustained execution: {elapsed}"
+                    )
+                    traces.append((mode, trace))
+                    print(
+                        f"PASS {mode} unlimited real model completed in {elapsed:.1f}s", flush=True
+                    )
+                    break
+                await asyncio.sleep(1)
+            else:
+                raise AssertionError("Unlimited scheduled model run did not finish")
+            await api("POST", f"/api/scheduled-tasks/{task_id}/pause")
+        ordered = sorted(
+            [trace for mode, trace in traces if mode == "conversation"],
+            key=lambda item: item["started_at"],
+        )
+        assert ordered[1]["started_at"] >= ordered[0]["completed_at"]
+        print(
+            "PASS aged legacy deadline ignored and conversation schedules remain serial", flush=True
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend", choices=("local", "arq"), default="local")
@@ -339,6 +434,7 @@ def main():
             else:
                 raise AssertionError(f"Backend not ready; inspect {log_dir / 'backend.log'}")
             asyncio.run(exercise(base_url, db, username, password))
+            asyncio.run(exercise_unlimited(base_url, db, username, password))
         print(f"PASS real HTTP/model smoke ({args.backend}); isolated test data removed")
     finally:
         stop(backend_process)

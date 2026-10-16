@@ -3058,6 +3058,7 @@
     }
   },
   "scheduledTask": {
+    "noTimeLimit": "実行時間の上限なし",
     "executionMode": "実行方法",
     "conversationMode": "この会話で続行",
     "standaloneMode": "実行ごとに新しい会話",

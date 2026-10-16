@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
-import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -21,6 +20,7 @@ from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.locks import (
     acquire_task_lock,
     acquire_task_slot_lock,
+    extend_task_lock,
     release_task_lock,
 )
 from src.infra.scheduler.runtime import get_runtime_scheduler
@@ -41,7 +41,12 @@ from src.kernel.schemas.user import TokenPayload
 logger = get_logger(__name__)
 
 _POLL_INTERVAL = 2  # seconds between status checks when waiting for completion
-_DEFAULT_TIMEOUT = 3600  # 60 minutes
+_EXECUTION_LOCK_TTL = 600  # Renewed while running; not an execution deadline.
+
+
+class _ExecutionLeaseLostError(RuntimeError):
+    pass
+
 
 # Track detached monitor tasks so they can be drained on shutdown.
 _detached_monitor_tasks: set[asyncio.Task[None]] = set()
@@ -184,9 +189,7 @@ class ScheduledTaskRunner:
 
         # 1. Acquire distributed lock (multi-instance dedup)
         max_attempts = max(1, int(task.max_retries or 0) + 1)
-        lock_token = await acquire_task_lock(
-            task_id, run_id, ttl=task.timeout_seconds * max_attempts
-        )
+        lock_token = await acquire_task_lock(task_id, run_id, ttl=_EXECUTION_LOCK_TTL)
         if lock_token is None:
             return {
                 "skipped": True,
@@ -261,9 +264,16 @@ class ScheduledTaskRunner:
                 )
                 try:
                     result = await self._execute_agent(
-                        task, run_id, session_id, trigger_type, now=started_at
+                        task,
+                        run_id,
+                        session_id,
+                        trigger_type,
+                        now=started_at,
+                        lock_token=lock_token,
                     )
                     final_attempt = self._classify_attempt_result(result)
+                except _ExecutionLeaseLostError:
+                    raise
                 except Exception as exc:
                     final_attempt = _AttemptResult(
                         status=RunStatus.FAILED,
@@ -389,6 +399,7 @@ class ScheduledTaskRunner:
         session_id: str,
         trigger_type: str | None = None,
         now: datetime | None = None,
+        lock_token: str | None = None,
     ) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session.
 
@@ -464,6 +475,7 @@ class ScheduledTaskRunner:
         session_metadata = {
             "source": "scheduled_task",
             "scheduled_task_id": task.id,
+            "executor_key": "scheduled_agent_stream",
             "scheduled_task_run_id": run_id,
             "scheduled_task_trigger_type": trigger_type or task.trigger_type.value,
             "hidden_from_conversation_list": True,
@@ -484,8 +496,9 @@ class ScheduledTaskRunner:
                 agent_id=task.agent_id,
                 message=message,
                 user_id=task.owner_id,
-                executor_key="agent_stream",
+                executor_key="scheduled_agent_stream",
                 run_id=run_id,
+                dispatch_id=f"scheduled:{run_id}:{session_id}",
                 disabled_tools=task.input_payload.get("disabled_tools"),
                 agent_options=agent_options,
                 attachments=attachments,
@@ -534,7 +547,7 @@ class ScheduledTaskRunner:
         )
 
         result = await self._wait_for_completion(
-            task_manager, session_id, run_id, task.owner_id, task.timeout_seconds
+            task_manager, session_id, run_id, task.owner_id, task_id=task.id, lock_token=lock_token
         )
         result["session_id"] = session_id
         result["trace_id"] = trace_id
@@ -546,13 +559,29 @@ class ScheduledTaskRunner:
         session_id: str,
         run_id: str,
         user_id: str,
-        timeout_seconds: int = _DEFAULT_TIMEOUT,
+        *,
+        task_id: str | None = None,
+        lock_token: str | None = None,
     ) -> dict:
-        """Poll task status until completion or timeout."""
+        """Wait for a terminal state, renewing ownership regardless of elapsed time."""
         from src.infra.task.status import TaskStatus
 
-        start = time.monotonic()
-        while time.monotonic() - start < timeout_seconds:
+        while True:
+            if task_id and lock_token:
+                try:
+                    owned = await extend_task_lock(
+                        task_id, lock_token, extra_seconds=_EXECUTION_LOCK_TTL
+                    )
+                except Exception:
+                    logger.exception("Scheduled task execution lease renewal failed: %s", task_id)
+                    owned = False
+                if not owned:
+                    try:
+                        await task_manager.cancel_run(run_id, user_id=user_id)
+                    finally:
+                        raise _ExecutionLeaseLostError(
+                            "Scheduled task execution ownership was lost"
+                        )
             status = await task_manager.get_run_status(session_id, run_id)
             if status in (
                 TaskStatus.COMPLETED,
@@ -560,21 +589,8 @@ class ScheduledTaskRunner:
                 TaskStatus.CANCELLED,
                 TaskStatus.EXPIRED,
             ):
-                return {
-                    "session_status": (status.value if hasattr(status, "value") else str(status))
-                }
+                return {"session_status": status.value if hasattr(status, "value") else str(status)}
             await asyncio.sleep(_POLL_INTERVAL)
-
-        try:
-            await task_manager.cancel_run(run_id, user_id=user_id)
-        except Exception as exc:
-            logger.warning(
-                "[Runner] failed to cancel timed-out task run=%s session=%s: %s",
-                run_id,
-                session_id,
-                exc,
-            )
-        return {"session_status": "timeout"}
 
     @staticmethod
     def _classify_attempt_result(result: dict[str, Any]) -> _AttemptResult:

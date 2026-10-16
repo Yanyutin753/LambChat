@@ -3058,6 +3058,7 @@
     }
   },
   "scheduledTask": {
+    "noTimeLimit": "Без ограничения общего времени выполнения",
     "executionMode": "Режим выполнения",
     "conversationMode": "Продолжить в этом чате",
     "standaloneMode": "Новый чат при каждом запуске",

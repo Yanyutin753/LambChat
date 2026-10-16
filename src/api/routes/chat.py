@@ -211,6 +211,7 @@ def resolve_goal_for_request(
 
 # Register the default agent-stream executor so any worker can dispatch queued tasks
 register_executor("agent_stream", _execute_agent_stream)
+register_executor("scheduled_agent_stream", _execute_agent_stream)
 register_executor("conversation_schedule", execute_conversation_schedule)
 
 

@@ -117,7 +117,7 @@ export function ScheduledTaskApprovalContent({
           </span>
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.timeout")}>
-          <MonoChip>{preview.timeout_seconds}s</MonoChip>
+          <span>{t("scheduledTask.noTimeLimit")}</span>
         </SpecRow>
       </div>
 

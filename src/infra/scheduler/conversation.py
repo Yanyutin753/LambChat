@@ -225,11 +225,6 @@ async def dispatch_pending():
                 state = getattr(state, "value", state)
                 if state in {"completed", "failed", "cancelled", "expired"}:
                     await _finish(storage, record, "success" if state == "completed" else "failed")
-                elif record.get("started_at") and (
-                    utc_now() - ensure_utc(record["started_at"])
-                ).total_seconds() > record.get("timeout_seconds", 3600):
-                    await get_task_manager().cancel_run(record["_id"], user_id=record["owner_id"])
-                    await _finish(storage, record, "timeout")
                 continue
             if record["conversation_state"] == "submitting":
                 if ensure_utc(record["claim_until"]) > utc_now():

@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from dataclasses import replace
 from typing import Any, Callable
 
-from arq.worker import Worker
+from arq.worker import Worker, func
 
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
-from .arq_worker import WorkerSettings
+from .arq_worker import WorkerSettings, run_scheduled_agent_task
 
 logger = get_logger(__name__)
 
@@ -57,9 +58,17 @@ class EmbeddedArqRuntime:
         logger.info("Embedded arq worker started")
 
     def _create_worker(self) -> Any:
-        return self._worker_factory(
-            WorkerSettings.functions,
-            cron_jobs=WorkerSettings.cron_jobs,
+        worker = self._worker_factory(
+            [
+                fn
+                if fn is run_scheduled_agent_task
+                else func(fn, timeout=settings.ARQ_JOB_TIMEOUT_SECONDS)
+                for fn in WorkerSettings.functions
+            ],
+            cron_jobs=[
+                replace(job, timeout_s=job.timeout_s or settings.ARQ_JOB_TIMEOUT_SECONDS)
+                for job in WorkerSettings.cron_jobs
+            ],
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
             handle_signals=False,
@@ -72,6 +81,11 @@ class EmbeddedArqRuntime:
             },
             allow_abort_jobs=True,
         )
+
+        # ARQ None normally falls back to the worker deadline; ordinary functions
+        # carry explicit limits, while scheduled jobs renew their finite Redis leases.
+        worker.job_timeout_s = None
+        return worker
 
     async def _close_worker_quietly(self, worker: Any) -> None:
         close = getattr(worker, "close", None)

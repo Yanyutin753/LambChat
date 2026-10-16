@@ -329,7 +329,11 @@ class TaskRecoveryService:
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
         executor_fn = get_registered_executor(executor_key)
-        if executor_fn is None and executor_key == "agent_stream":
+        if executor_fn is None and executor_key in {
+            "agent_stream",
+            "scheduled_agent_stream",
+            "conversation_schedule",
+        }:
             from importlib import import_module
 
             import_module("src.api.routes.chat")

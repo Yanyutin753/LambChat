@@ -37,7 +37,9 @@ async def scheduled_task_update(
     message: Annotated[str | None, "New per-run agent message."] = None,
     description: Annotated[str | None, "New description."] = None,
     enabled: Annotated[bool | None, "Enable or disable."] = None,
-    timeout_seconds: Annotated[int | None, "Timeout seconds (10-7200)."] = None,
+    timeout_seconds: Annotated[
+        int | None, "Deprecated and ignored; scheduled runs have no total execution time limit."
+    ] = None,
     max_retries: Annotated[int | None, "Retry count (0-10)."] = None,
     trigger_config: Annotated[
         dict | None,

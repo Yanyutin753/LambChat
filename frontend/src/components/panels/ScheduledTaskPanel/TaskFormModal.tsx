@@ -191,9 +191,6 @@ export function TaskFormModal({
   const [enabled, setEnabled] = useState(task?.enabled ?? true);
   const [runOnStart, setRunOnStart] = useState(task?.run_on_start ?? false);
   const [maxRetries, setMaxRetries] = useState(String(task?.max_retries ?? 0));
-  const [timeoutSeconds, setTimeoutSeconds] = useState(
-    String(task?.timeout_seconds ?? 600),
-  );
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const isTeamAgent = agentId === "team";
@@ -312,7 +309,7 @@ export function TaskFormModal({
         enabled,
         run_on_start: triggerType === "date" ? false : runOnStart,
         max_retries: Math.max(0, parseInt(maxRetries) || 0),
-        timeout_seconds: Math.max(10, parseInt(timeoutSeconds) || 600),
+        timeout_seconds: 0,
       });
     } finally {
       setIsSaving(false);
@@ -830,17 +827,11 @@ export function TaskFormModal({
             </div>
             <div className="scheduled-task-form-field">
               <label className="scheduled-task-label">
-                {t("scheduledTask.timeoutSeconds")}
+                {t("approvals.scheduledTask.timeout")}
               </label>
-              <Input
-                aria-label={t("scheduledTask.timeoutSeconds")}
-                type="number"
-                min={10}
-                max={3600}
-                value={timeoutSeconds}
-                onChange={(e) => setTimeoutSeconds(e.target.value)}
-                className={inputClass}
-              />
+              <span className="text-13 text-theme-text-secondary">
+                {t("scheduledTask.noTimeLimit")}
+              </span>
             </div>
           </div>
         </div>

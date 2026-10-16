@@ -436,22 +436,14 @@ async def test_runner_does_not_retry_timeout(
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_times_out_and_cancels_run() -> None:
+async def test_wait_for_completion_waits_until_terminal_without_cancelling_run() -> None:
     manager = AsyncMock()
-    manager.get_run_status = AsyncMock(return_value=TaskStatus.RUNNING)
-    manager.cancel_run = AsyncMock(return_value={"success": True})
+    manager.get_run_status = AsyncMock(side_effect=[TaskStatus.RUNNING, TaskStatus.COMPLETED])
     runner = ScheduledTaskRunner()
-
-    result = await runner._wait_for_completion(
-        manager,
-        session_id="session_1",
-        run_id="run_1",
-        user_id="user_1",
-        timeout_seconds=0,
-    )
-
-    assert result == {"session_status": "timeout"}
-    manager.cancel_run.assert_awaited_once_with("run_1", user_id="user_1")
+    with patch("src.infra.scheduler.runner.asyncio.sleep", AsyncMock()):
+        result = await runner._wait_for_completion(manager, "session_1", "run_1", "user_1")
+    assert result == {"session_status": "completed"}
+    manager.cancel_run.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -525,6 +517,7 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
     assert submitted["session_metadata"] == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
@@ -532,6 +525,7 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
     assert session_manager.metadata == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
@@ -835,7 +829,8 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
         "session_id": "session_1",
         "trace_id": "trace_1",
     }
-    assert submitted["executor_key"] == "agent_stream"
+    assert submitted["executor_key"] == "scheduled_agent_stream"
+    assert submitted["dispatch_id"] == "scheduled:run_1:session_1"
     assert submitted["run_id"] == "run_1"
     assert submitted["session_id"] == "session_1"
     assert submitted["display_message"] == "Run distributed report"
@@ -843,6 +838,7 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
     assert submitted["session_metadata"] == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,

@@ -218,6 +218,27 @@ async def test_submit_arq_persists_payload_and_enqueues_job() -> None:
     assert arq_pool.enqueued == [("run_agent_task", ("run-1",), {"_job_id": "run-1"})]
 
 
+@pytest.mark.parametrize("executor_key", ["conversation_schedule", "scheduled_agent_stream"])
+async def test_scheduled_submission_uses_durable_arq_enqueue(monkeypatch, executor_key):
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    enqueue = AsyncMock(return_value=True)
+    monkeypatch.setattr("src.infra.task.manager.arq_payloads.enqueue_scheduled_job", enqueue)
+    pool = _FakeArqPool()
+    await manager.submit_arq(
+        session_id="session-1",
+        agent_id="quick",
+        message="check",
+        user_id="owner",
+        executor_key=executor_key,
+        payload_store=_FakePayloadStore(),
+        arq_pool=pool,
+        run_id="run-1",
+    )
+    enqueue.assert_awaited_once_with(pool, "run-1")
+    assert pool.enqueued == []
+
+
 @pytest.mark.asyncio
 async def test_submit_arq_uses_private_dispatch_id_for_same_run_resume() -> None:
     manager = BackgroundTaskManager()

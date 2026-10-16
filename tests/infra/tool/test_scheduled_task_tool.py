@@ -164,10 +164,10 @@ def test_create_tool_timeout_prompt_prefers_3600s_default() -> None:
     fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
     timeout_field = fields["timeout_seconds"]
 
-    assert timeout_field.default == 3600
+    assert timeout_field.default == 0
     assert timeout_field.description is not None
-    assert "Default: 3600s" in timeout_field.description
-    assert "Do not set this too short" in timeout_field.description
+    assert "no total execution time limit" in timeout_field.description
+    assert "ignored" in timeout_field.description
 
 
 def test_list_tool_can_fetch_single_task_details() -> None:

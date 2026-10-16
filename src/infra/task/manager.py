@@ -19,6 +19,7 @@ from src.infra.session.storage import SessionStorage
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 
+from . import arq_payloads
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
 from .cancellation import TaskCancellation
@@ -552,7 +553,9 @@ class BackgroundTaskManager:
         if arq_pool is None:
             arq_pool = await self._get_arq_pool()
         enqueue_operations = [
-            arq_pool.enqueue_job("run_agent_task", dispatch_id, _job_id=dispatch_id),
+            arq_payloads.enqueue_scheduled_job(arq_pool, dispatch_id)
+            if executor_key in {"conversation_schedule", "scheduled_agent_stream"}
+            else arq_pool.enqueue_job("run_agent_task", dispatch_id, _job_id=dispatch_id),
         ]
         if should_index_user_message and search_index_content:
             enqueue_operations.append(

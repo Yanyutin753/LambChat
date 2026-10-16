@@ -143,7 +143,6 @@ test("task configuration fields and trigger choices have accessible names and st
     "intervalSeconds",
     "inputPayload",
     "maxRetries",
-    "timeoutSeconds",
   ]) {
     expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
   }
@@ -198,4 +197,27 @@ test("a chat-created schedule defaults to continuing the current conversation", 
     target_session_id: "chat-1",
     notification_policy: "meaningful_changes",
   });
+});
+
+test("legacy task editing shows no execution deadline and saves unlimited duration", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("scheduled.pdf");
+  expect(
+    screen.queryByRole("spinbutton", {
+      name: i18n.t("scheduledTask.timeoutSeconds"),
+    }),
+  ).toBeNull();
+  expect(screen.getByText(i18n.t("scheduledTask.noTimeLimit"))).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].timeout_seconds).toBe(0);
 });

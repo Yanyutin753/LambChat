@@ -31,7 +31,7 @@ def _format_approval_message(preview: dict[str, Any]) -> str:
         f"| **Agent** | `{preview['agent_id']}` |\n"
         f"| **Schedule** | {preview['schedule']} |\n"
         f"| **Run immediately** | {immediate} |\n"
-        f"| **Timeout** | {preview['timeout_seconds']}s |\n"
+        "| **Execution time** | Unlimited |\n"
         "\n"
         f"{preview['effect']}\n\n"
         "**Prompt sent on each run:**\n\n"

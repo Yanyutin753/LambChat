@@ -3058,6 +3058,7 @@
     }
   },
   "scheduledTask": {
+    "noTimeLimit": "총 실행 시간 제한 없음",
     "executionMode": "실행 방식",
     "conversationMode": "현재 대화에서 계속",
     "standaloneMode": "실행마다 새 대화 시작",

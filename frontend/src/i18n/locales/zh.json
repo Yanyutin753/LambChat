@@ -3058,6 +3058,7 @@
     }
   },
   "scheduledTask": {
+    "noTimeLimit": "无总时长限制",
     "executionMode": "执行方式",
     "conversationMode": "在当前对话继续",
     "standaloneMode": "每次新建独立对话",

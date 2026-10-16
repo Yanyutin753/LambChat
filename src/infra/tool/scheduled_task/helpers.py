@@ -180,7 +180,7 @@ def _build_task_preview(
         "timezone": timezone_name,
         "schedule": schedule,
         "message": message,
-        "timeout_seconds": timeout_seconds,
+        "timeout_seconds": 0,
         "run_on_start": run_on_start,
         "effect": (
             f"After creation, agent '{agent_id}' will run on {schedule}. "

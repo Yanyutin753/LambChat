@@ -61,7 +61,10 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
     assert runtime.is_running is True
     assert _FakeWorker.instances
     worker = _FakeWorker.instances[0]
-    assert worker.args[0] == arq_runtime.WorkerSettings.functions
+    assert [getattr(fn, "name", None) or fn.__name__ for fn in worker.args[0]] == [
+        fn.__name__ for fn in arq_runtime.WorkerSettings.functions
+    ]
+    assert worker.job_timeout_s is None
     assert worker.kwargs["handle_signals"] is False
     assert worker.kwargs["max_jobs"] == 128
     assert worker.kwargs["job_timeout"] == 30
@@ -382,8 +385,9 @@ def test_actual_worker_factory_registers_goal_continuations_and_recovery_scans(m
     monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
     runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_FakeWorker)
     worker = runtime._create_worker()
-    assert {fn.__name__ for fn in worker.args[0]} == {
+    assert {getattr(fn, "name", None) or fn.__name__ for fn in worker.args[0]} == {
         "run_agent_task",
+        "run_scheduled_agent_task",
         "update_user_message_search_index",
         "continue_persistent_goal",
     }
