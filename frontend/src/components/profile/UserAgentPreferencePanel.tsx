@@ -112,7 +112,7 @@ export function UserAgentPreferencePanel() {
                   className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${
                     selectedAgent === agent.id
                       ? "border-amber-400/60 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-900/15"
-                      : "border-transparent bg-white/60 dark:bg-stone-600/40 hover:bg-white dark:hover:bg-theme-bg-hover"
+                      : "border-transparent bg-theme-bg-card/60 dark:bg-stone-600/40 hover:bg-theme-bg-hover"
                   }`}
                 >
                   <input

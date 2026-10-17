@@ -221,7 +221,7 @@ export function MCPToolPolicyEditor({
                     <InteractiveIcon>
                       <ToggleRight
                         size={17}
-                        className="text-emerald-500 dark:text-emerald-400"
+                        className="text-theme-success"
                       />
                     </InteractiveIcon>
                   )}
