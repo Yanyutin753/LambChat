@@ -177,7 +177,7 @@ export function ToolSelector({
             value={searchQuery}
             onValueChange={setSearchQuery}
             placeholder={t("tools.searchPlaceholder")}
-            className="w-full rounded-2xl border border-stone-200 bg-white py-2.5 pl-9 pr-3 text-14 text-stone-700 shadow-sm outline-hidden transition-colors placeholder:text-stone-400 focus:border-[var(--theme-primary)] focus:bg-white dark:border-stone-700 dark:bg-stone-950/60 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:bg-stone-950"
+            className="w-full rounded-2xl border border-theme-border bg-theme-bg-card py-2.5 pl-9 pr-3 text-14 text-theme-text shadow-sm outline-hidden transition-colors placeholder:text-theme-text-tertiary focus:border-[var(--theme-primary)] focus:bg-theme-bg-card dark:bg-stone-950/60 dark:focus:bg-stone-950"
           />
         </div>
       </div>
@@ -198,7 +198,7 @@ export function ToolSelector({
             return (
               <div
                 key={category}
-                className="rounded-2xl border border-stone-200/80 bg-white/90 shadow-sm shadow-stone-200/50 overflow-hidden dark:border-stone-700/70 dark:bg-stone-900/70 dark:shadow-black/10"
+                className="rounded-2xl border border-theme-border/80 bg-theme-bg-card/90 shadow-sm shadow-stone-200/50 overflow-hidden dark:border-stone-700/70 dark:bg-stone-900/70 dark:shadow-black/10"
               >
                 {/* Category Header */}
                 <div
@@ -337,7 +337,7 @@ export function ToolSelector({
                                     </span>
                                   </div>
                                   {/* Table Body */}
-                                  <div className="bg-white dark:bg-stone-800">
+                                  <div className="bg-theme-bg-card">
                                     <table className="w-full text-12 sm:text-12">
                                       <thead>
                                         <tr className="border-b border-stone-100 dark:border-stone-700">

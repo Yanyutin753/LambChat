@@ -74,7 +74,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
                 strokeWidth="2.5"
                 strokeDasharray={`${upPct * 0.9738} 100`}
                 strokeLinecap="round"
-                className="text-emerald-500 dark:text-emerald-400"
+                className="text-theme-success"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -97,13 +97,13 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
             </span>
             <div className="h-2 rounded-full bg-theme-border overflow-hidden">
               <div
-                className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400"
+                className="h-full rounded-full bg-theme-success"
                 style={{
                   width: `${upPct}%`,
                 }}
               />
             </div>
-            <span className="w-8 text-right text-11 font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums flex-shrink-0">
+            <span className="w-8 text-right text-11 font-semibold text-theme-success tabular-nums flex-shrink-0">
               {stats.up_count}
             </span>
           </div>
@@ -454,7 +454,7 @@ function FeedbackDetailModal({
                 >
                   {copiedField === "session" ? (
                     <InteractiveIcon>
-                      <Check size={12} className="text-emerald-500" />
+                      <Check size={12} className="text-theme-success" />
                     </InteractiveIcon>
                   ) : (
                     <InteractiveIcon>
@@ -476,7 +476,7 @@ function FeedbackDetailModal({
                 >
                   {copiedField === "run" ? (
                     <InteractiveIcon>
-                      <Check size={12} className="text-emerald-500" />
+                      <Check size={12} className="text-theme-success" />
                     </InteractiveIcon>
                   ) : (
                     <InteractiveIcon>

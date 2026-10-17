@@ -38,6 +38,34 @@ test("legacy gray utilities follow neutral dark tokens and retain opacity modifi
   expect(result.css).not.toContain("<alpha-value>");
 });
 
+test("sepia theme defines a complete warm neutral scale for legacy stone utilities", () => {
+  const tokens = readFileSync(
+    new URL("../tokens.css", import.meta.url),
+    "utf8",
+  );
+  const sepia = tokens.slice(tokens.indexOf(".theme-sepia {"));
+  const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+  let previousLuma = Infinity;
+  for (const shade of shades) {
+    const match = sepia.match(
+      new RegExp(`--theme-neutral-${shade}: (#\\w{6});`),
+    );
+    expect(match, `sepia shade ${shade}`).not.toBeNull();
+    const [r, g, b] = match![1]
+      .match(/[a-f\d]{2}/gi)!
+      .map((value) => parseInt(value, 16));
+    // 暖调（R>G>B）：sepia 下 stone 类须变米黄/暖褐，而非 fallback 的原生冷暖灰
+    expect(r, `sepia neutral-${shade} R>G`).toBeGreaterThan(g);
+    expect(g, `sepia neutral-${shade} G>B`).toBeGreaterThan(b);
+    // 刻度单调递深，防止插档错乱
+    const luma = (r + g + b) / 3;
+    expect(luma, `sepia neutral-${shade} luma decreasing`).toBeLessThan(
+      previousLuma,
+    );
+    previousLuma = luma;
+  }
+});
+
 test("shared dark panel styles do not override neutral utilities with warm gray literals", () => {
   const warmGray =
     /#(?:fafaf9|f5f5f4|e7e5e4|d6d3d1|a8a29e|78716c|57534e|44403c|292524|1c1917)\b|rgba?\((?:168, 162, 158|120, 113, 108)/i;

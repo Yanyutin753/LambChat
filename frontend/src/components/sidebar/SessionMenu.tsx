@@ -288,7 +288,7 @@ export function SessionMenu({
           onDelete();
           onClose();
         }}
-        className="ui-menu-item text-red-500 transition-colors"
+        className="ui-menu-item ui-menu-item--danger text-theme-error transition-colors"
       >
         <InteractiveIcon>
           <Trash2 size={16} className="shrink-0" />
