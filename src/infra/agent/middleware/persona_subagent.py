@@ -44,7 +44,13 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
     def _search_results(state: dict) -> list[dict]:
         results: list[dict[str, Any]] = []
         for message in reversed(state.get("messages", [])):
-            if isinstance(message, HumanMessage) and message.name != "evidence_context":
+            if isinstance(message, HumanMessage) and message.name not in {
+                "evidence_context",
+                "task_context",
+                "subagent_context",
+                "subagent_message",
+                "subagent_update",
+            }:
                 break
             if (
                 isinstance(message, ToolMessage)

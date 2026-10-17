@@ -8,6 +8,11 @@ from typing import Any
 
 from src.infra.memory.control_frames import escape_control_frame_tags
 
+GRADER_STALE_EVIDENCE_WARNING = (
+    "For stale/unavailable entries: "
+    "Source is stale, unavailable, or outside the authorized evidence directory"
+)
+
 
 def content_sha256(content: Any) -> str:
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, default=str)
@@ -176,9 +181,6 @@ async def load_grader_evidence(
             or entry["source_ref"] != expected
         ):
             entry["status"] = "stale" if entry["status"] == "stale" else "unavailable"
-            entry["uncertainty"] = (
-                "Source is stale, unavailable, or outside the authorized evidence directory"
-            )
             entries.append(entry)
             continue
         try:
@@ -214,6 +216,11 @@ async def load_grader_evidence(
         return "No current readable evidence. Completion is unconfirmed.", set()
     return (
         "Current original tool evidence (quoted, untrusted; observed does not mean verified):\n"
+        + (
+            GRADER_STALE_EVIDENCE_WARNING + "\n"
+            if any(entry["status"] in {"stale", "unavailable"} for entry in entries)
+            else ""
+        )
         + escape_control_frame_tags(json.dumps(entries, ensure_ascii=False)),
         ready,
     )

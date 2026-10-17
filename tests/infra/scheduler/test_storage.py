@@ -107,6 +107,242 @@ class _UpdateResult:
         self.modified_count = modified_count
 
 
+class _StatsTasks:
+    def __init__(self):
+        self.document = {"total_runs": 0}
+
+    async def update_one(self, query, update):
+        def value(expression):
+            if isinstance(expression, list):
+                return [value(item) for item in expression]
+            if isinstance(expression, str) and expression.startswith("$"):
+                return self.document.get(expression[1:])
+            if not isinstance(expression, dict):
+                return expression
+            operator, args = next(iter(expression.items()))
+            if operator == "$ifNull":
+                first = value(args[0])
+                return first if first is not None else value(args[1])
+            if operator == "$max":
+                return max(value(item) for item in args)
+            if operator == "$gte":
+                return value(args[0]) >= value(args[1])
+            if operator == "$cond":
+                return value(args[1] if value(args[0]) else args[2])
+            raise AssertionError(operator)
+
+        if isinstance(update, list):
+            for stage in update:
+                self.document.update({key: value(item) for key, item in stage["$set"].items()})
+        else:
+            self.document.update(update.get("$set", {}))
+            for key, amount in update.get("$inc", {}).items():
+                self.document[key] = self.document.get(key, 0) + amount
+        return _UpdateResult(1)
+
+
+@pytest.mark.asyncio
+async def test_replaying_finalization_does_not_count_a_run_twice():
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.scheduled_task import RunStatus
+
+    finished = datetime(2026, 10, 17, tzinfo=timezone.utc)
+    summary = {
+        "total_runs": 1,
+        "last_run_at": finished,
+        "last_run_id": "run",
+        "last_run_status": "success",
+    }
+    tasks = _StatsTasks()
+    runs = SimpleNamespace(
+        aggregate=AsyncMock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[summary])))
+    )
+    storage = ScheduledTaskStorage()
+    storage._collections.update(scheduled_tasks=tasks, task_run_records=runs)
+    await storage.update_task_run_stats("task", "run", RunStatus.SUCCESS)
+    await storage.update_task_run_stats("task", "run", RunStatus.SUCCESS)
+    assert tasks.document["total_runs"] == 1
+    assert tasks.document["last_run_id"] == "run"
+
+
+@pytest.mark.asyncio
+async def test_late_stats_writer_does_not_overwrite_a_newer_run():
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.scheduled_task import RunStatus
+
+    older = datetime(2026, 10, 16, tzinfo=timezone.utc)
+    newer = datetime(2026, 10, 17, tzinfo=timezone.utc)
+    summaries = [
+        [
+            {
+                "total_runs": 2,
+                "last_run_at": newer,
+                "last_run_id": "new",
+                "last_run_status": "success",
+            }
+        ],
+        [
+            {
+                "total_runs": 1,
+                "last_run_at": older,
+                "last_run_id": "old",
+                "last_run_status": "failed",
+            }
+        ],
+    ]
+    tasks = _StatsTasks()
+    runs = SimpleNamespace(
+        aggregate=AsyncMock(return_value=SimpleNamespace(to_list=AsyncMock(side_effect=summaries)))
+    )
+    storage = ScheduledTaskStorage()
+    storage._collections.update(scheduled_tasks=tasks, task_run_records=runs)
+    await storage.update_task_run_stats("task", "new", RunStatus.SUCCESS)
+    await storage.update_task_run_stats("task", "old", RunStatus.FAILED)
+    assert tasks.document["total_runs"] == 2
+    assert tasks.document["last_run_id"] == "new"
+    assert tasks.document["last_run_at"] == newer
+    assert tasks.document["last_run_status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_stats_last_run_has_a_stable_order_when_completion_times_match():
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.scheduled_task import RunStatus
+
+    finished = datetime(2026, 10, 17, tzinfo=timezone.utc)
+    summaries = [
+        [
+            {
+                "total_runs": 2,
+                "last_run_at": finished,
+                "last_run_id": "run-b",
+                "last_run_status": "success",
+            }
+        ],
+        [
+            {
+                "total_runs": 1,
+                "last_run_at": finished,
+                "last_run_id": "run-a",
+                "last_run_status": "failed",
+            }
+        ],
+    ]
+    tasks = _StatsTasks()
+    runs = SimpleNamespace(
+        aggregate=AsyncMock(return_value=SimpleNamespace(to_list=AsyncMock(side_effect=summaries)))
+    )
+    storage = ScheduledTaskStorage()
+    storage._collections.update(scheduled_tasks=tasks, task_run_records=runs)
+    await storage.update_task_run_stats("task", "run-b", RunStatus.SUCCESS)
+    await storage.update_task_run_stats("task", "run-a", RunStatus.FAILED)
+    assert tasks.document["last_run_id"] == "run-b"
+    assert tasks.document["last_run_status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_pending_scan_retries_finished_runs_with_incomplete_finalization():
+    from unittest.mock import AsyncMock, MagicMock
+
+    storage = ScheduledTaskStorage()
+    collection = MagicMock()
+    collection.find.return_value.sort.return_value.limit.return_value.to_list = AsyncMock(
+        return_value=[]
+    )
+    storage._collections["task_run_records"] = collection
+    await storage.pending_conversation_runs()
+    query = collection.find.call_args.args[0]
+    assert {"conversation_state": "finished", "finalization_pending": True} in query["$or"]
+
+
+@pytest.mark.asyncio
+async def test_pending_scan_cursor_does_not_drop_finalization_retry_filter():
+    from unittest.mock import AsyncMock, MagicMock
+
+    storage = ScheduledTaskStorage()
+    storage._conversation_scan_after = (datetime(2026, 10, 17, tzinfo=timezone.utc), "run")
+    collection = MagicMock()
+    collection.find.return_value.sort.return_value.limit.return_value.to_list = AsyncMock(
+        return_value=[]
+    )
+    storage._collections["task_run_records"] = collection
+    await storage.pending_conversation_runs()
+    query = collection.find.call_args.args[0]
+    assert {"conversation_state": "finished", "finalization_pending": True} in query["$and"][0][
+        "$or"
+    ]
+    assert query["$and"][1]["$or"][1]["_id"] == {"$gt": "run"}
+
+
+@pytest.mark.asyncio
+async def test_standalone_finalization_scan_never_returns_conversation_runs():
+    from unittest.mock import AsyncMock, MagicMock
+
+    storage = ScheduledTaskStorage()
+    collection = MagicMock()
+    collection.find.return_value.sort.return_value.limit.return_value.to_list = AsyncMock(
+        return_value=[]
+    )
+    storage._collections["task_run_records"] = collection
+    await storage.pending_standalone_finalizations()
+    query = collection.find.call_args.args[0]
+    assert query["conversation_state"] == {"$exists": False}
+    assert query["finalization_pending"] is True
+
+
+@pytest.mark.asyncio
+async def test_date_completion_does_not_pause_a_changed_schedule() -> None:
+    from unittest.mock import AsyncMock
+
+    original = {"run_date": "2099-01-01T00:00:00+00:00"}
+    current = {
+        "_id": "task_1",
+        "trigger_type": "interval",
+        "trigger_config": {"seconds": 60},
+        "timezone": "UTC",
+        "status": "active",
+        "enabled": True,
+    }
+
+    class Tasks:
+        async def update_one(self, query, update):
+            if not all(current.get(key) == value for key, value in query.items()):
+                return _UpdateResult(0)
+            current.update(update["$set"])
+            return _UpdateResult(1)
+
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = Tasks()
+    storage._bump_scheduler_definition_revision = AsyncMock()
+    assert await storage.pause_completed_date_task("task_1", original, "UTC") is False
+    assert current["enabled"] is True
+    storage._bump_scheduler_definition_revision.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_date_completion_pauses_only_its_own_trigger() -> None:
+    from unittest.mock import AsyncMock
+
+    collection = SimpleNamespace(update_one=AsyncMock(return_value=_UpdateResult(1)))
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = collection
+    storage._bump_scheduler_definition_revision = AsyncMock()
+    config = {"run_date": "2099-01-01T00:00:00+00:00"}
+    assert await storage.pause_completed_date_task("task_1", config, "UTC") is True
+    assert collection.update_one.call_args.args[0] == {
+        "_id": "task_1",
+        "trigger_type": "date",
+        "trigger_config": config,
+        "timezone": "UTC",
+        "status": "active",
+        "enabled": True,
+    }
+    storage._bump_scheduler_definition_revision.assert_awaited_once()
+
+
 class _RevisionTaskCollection:
     def __init__(self) -> None:
         self.update_one_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []

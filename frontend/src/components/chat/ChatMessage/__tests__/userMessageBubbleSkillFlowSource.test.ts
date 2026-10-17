@@ -16,6 +16,10 @@ const fileReferenceSource = readFileSync(
   new URL("../../richComposer/FileReferenceChip.tsx", import.meta.url),
   "utf8",
 );
+const runModeSource = readFileSync(
+  new URL("../../richComposer/RunModeChip.tsx", import.meta.url),
+  "utf8",
+);
 
 test("user message skill chips and text share the same inline flow", () => {
   expect(source).toMatch(/className="inline leading-relaxed/);
@@ -27,9 +31,9 @@ test("user message skill chips and text share the same inline flow", () => {
   expect(chatCss).toMatch(
     /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit/s,
   );
-  // 名称节点随全局 serif 特性使用 font-serif；字号/字重仍由 CSS inherit 保持内联一致
-  expect(skillChipSource).toMatch(/skill-chip-node-name[^"]*font-serif/);
-  expect(fileReferenceSource).toMatch(/skill-chip-node-name[^"]*font-serif/);
+  for (const chip of [skillChipSource, fileReferenceSource, runModeSource]) {
+    expect(chip).toMatch(/skill-chip-node-name[^"]*font-serif/);
+  }
   expect(skillChipSource).not.toMatch(/font-semibold/);
   expect(fileReferenceSource).not.toMatch(/font-semibold/);
   expect(chatCss).toMatch(

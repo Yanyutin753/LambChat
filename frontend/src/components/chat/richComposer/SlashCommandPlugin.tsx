@@ -138,8 +138,6 @@ export function SlashCommandPlugin({
               skillName: item.skill.name,
               tags: item.skill.tags,
             });
-          } else if (item.command.kind === "insert") {
-            range.insertText(`${item.command.command} `);
           }
         },
         { discrete: true },
@@ -170,6 +168,7 @@ export function SlashCommandPlugin({
       if (!open || !event) return false;
       if (event.isComposing || event.keyCode === 229) return false;
       event.preventDefault();
+      event.stopPropagation();
       const item = items[highlightIndex];
       if (item) applySelection(item);
       return item !== undefined;

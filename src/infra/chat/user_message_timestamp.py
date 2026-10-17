@@ -43,3 +43,19 @@ def format_user_message_with_timestamp(
         f"[User message sent at: {timestamp} {_format_offset(localized)} {timezone_label}] "
         f"{content}"
     )
+
+
+def format_scheduled_message_with_timestamp(
+    content: str,
+    user_timezone: str | None,
+    now: datetime | None = None,
+) -> str:
+    return format_user_message_with_timestamp(
+        content + "\n\nThe timestamp above is this scheduled run's real system clock time. "
+        "When reporting this run's time, use that timestamp in the requested format. "
+        "Do not guess the time or advance timestamps from previous replies. "
+        "After any wait, label the supplied timestamp as the run time, "
+        "not as a newly read current time.",
+        user_timezone,
+        now=now,
+    )

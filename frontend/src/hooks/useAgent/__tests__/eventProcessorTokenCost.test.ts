@@ -1,6 +1,17 @@
 // token:usage 事件 → TokenUsagePart 的金额字段透传（实时与历史共用此处理器）
 import { processMessageEvent } from "../eventProcessor.ts";
 
+test("read denominator certificate survives live and historical event reconstruction without pricing missing writes", () => {
+  const result = processMessageEvent("token:usage", {
+    input_tokens: 100, output_tokens: 5, cache_read_tokens: 80,
+    input_includes_cache: true, unknown_usage_fields: ["cache_creation_tokens"],
+  }, [], "", [], 0, [], false, "certified-rate");
+  expect(result.tokenUsage?.input_includes_cache).toBe(true);
+  expect(result.tokenUsage?.cache_creation_tokens).toBeUndefined();
+  expect(result.tokenUsage?.usage_incomplete).toBe(true);
+  expect(result.tokenUsage?.cost_usd).toBeUndefined();
+});
+
 test("token:usage carries cost fields through to the message part", () => {
   const result = processMessageEvent(
     "token:usage",
@@ -9,6 +20,8 @@ test("token:usage carries cost fields through to the message part", () => {
       output_tokens: 500,
       total_tokens: 1500,
       cache_read_tokens: 200,
+      cache_creation_tokens: 0,
+      usage_incomplete: false,
       model_id: "model-1",
       model: "openai/gpt-4o",
       cost_usd: 0.0246,
@@ -42,6 +55,7 @@ test("token:usage carries cost fields through to the message part", () => {
     total_tokens: 1500,
     cache_creation_tokens: 0,
     cache_read_tokens: 200,
+    usage_incomplete: false,
     model_id: "model-1",
     model: "openai/gpt-4o",
     cost_usd: 0.0246,
@@ -77,4 +91,19 @@ test("token:usage without pricing keeps cost fields undefined", () => {
   expect(result.tokenUsage?.cost_usd).toBeUndefined();
   expect(result.tokenUsage?.cost_breakdown).toBeUndefined();
   expect(result.tokenUsage?.cost_rates).toBeUndefined();
+  expect(result.tokenUsage?.cache_read_tokens).toBeUndefined();
+  expect(result.tokenUsage?.cache_creation_tokens).toBeUndefined();
+  expect(result.tokenUsage?.usage_incomplete).toBe(true);
+});
+
+test("explicit cache zero remains known zero", () => {
+  const result = processMessageEvent(
+    "token:usage",
+    { input_tokens: 10, output_tokens: 5, total_tokens: 15,
+      cache_read_tokens: 0, cache_creation_tokens: 0, usage_incomplete: false },
+    [], "", [], 0, [], false, "zero-usage",
+  );
+  expect(result.tokenUsage?.cache_read_tokens).toBe(0);
+  expect(result.tokenUsage?.cache_creation_tokens).toBe(0);
+  expect(result.tokenUsage?.usage_incomplete).toBe(false);
 });

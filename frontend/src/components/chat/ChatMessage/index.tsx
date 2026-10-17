@@ -123,13 +123,14 @@ function TokenDetailsButton({
   const [costExpanded, setCostExpanded] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  // 口径与今日用量卡一致：分母取有效 prompt 输入并 clamp ≤1，
-  // 兼容 input_tokens 不含缓存 token 的 provider。
+  // 正缓存率仅使用服务端认证的 inclusive input。
   const cacheRate = tokenUsage
     ? cacheHitRateFromTokens(
-        tokenUsage.input_tokens ?? 0,
-        tokenUsage.cache_read_tokens ?? 0,
-        tokenUsage.cache_creation_tokens ?? 0,
+        tokenUsage.input_tokens,
+        tokenUsage.cache_read_tokens,
+        tokenUsage.cache_creation_tokens,
+        tokenUsage.unknown_usage_fields,
+        tokenUsage.input_includes_cache,
       )
     : null;
   const costRows = buildCostDetailRows(tokenUsage);
@@ -218,7 +219,7 @@ function TokenDetailsButton({
             ref={popupRef}
             style={popupStyle}
             className={clsx(
-              "z-[100] min-w-[150px] max-w-[calc(100vw-1rem)] w-auto p-3 rounded-lg shadow-lg",
+              "z-[300] min-w-[150px] max-w-[calc(100vw-1rem)] w-auto p-3 rounded-lg shadow-lg",
               "bg-theme-bg-card",
               "border border-theme-border",
               "whitespace-nowrap",
@@ -256,15 +257,20 @@ function TokenDetailsButton({
                       </span>
                     </div>
                   )}
-                  {cacheRate !== null && cacheRate > 0 && (
+                  {(
                     <div className="flex justify-between gap-4 text-fuchsia-600 dark:text-fuchsia-400">
                       <span className="text-theme-text-secondary">
                         {t("chat.message.tokenCacheRate")}
                       </span>
                       <span className="font-medium">
-                        {(cacheRate * 100).toFixed(1)}%
+                        {cacheRate === null ? "—" : `${(cacheRate * 100).toFixed(1)}%`}
                       </span>
                     </div>
+                  )}
+                  {cacheRate === null && (
+                    <p className="max-w-64 whitespace-normal text-11 text-theme-text-muted">
+                      {t("usage.cacheRateUnknown")}
+                    </p>
                   )}
                   {(tokenUsage.cache_read_tokens ?? 0) > 0 && (
                     <div className="flex justify-between gap-4 text-pink-600 dark:text-pink-400">
@@ -463,7 +469,7 @@ function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
     : null;
 
   const statusLabel = goal.ended_at
-    ? t("chat.goal.completed")
+    ? t(goal._persistent_id ? "chat.goal.turnEnded" : "chat.goal.completed")
     : t("chat.goal.runningStatus");
 
   return (
@@ -491,7 +497,7 @@ function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
             ref={popupRef}
             style={popupStyle}
             className={clsx(
-              "z-[100] w-64 p-3 rounded-lg shadow-lg",
+              "z-[300] w-64 p-3 rounded-lg shadow-lg",
               "bg-theme-bg-card",
               "border border-theme-border",
             )}
@@ -649,8 +655,8 @@ export const ChatMessage = memo(function ChatMessage({
         data-outline-anchor="true"
         data-outline-id={createMessageAnchorId(message.id)}
         className={clsx(
-          "scroll-mt-6 rounded-2xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:shadow-[0_0_16px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] space-y-3 sm:space-y-4",
-          !isFirst && "pt-2",
+          "scroll-mt-6 space-y-3 sm:space-y-4",
+          isFirst ? "pt-4" : "chat-message-spacing",
         )}
       >
         <UserMessageBubble
@@ -765,18 +771,25 @@ export const ChatMessage = memo(function ChatMessage({
       data-outline-anchor="true"
       data-outline-id={createMessageAnchorId(message.id)}
       className={clsx(
-        "group w-full scroll-mt-6 rounded-2xl transition-[background-color,box-shadow] duration-300 data-[external-navigation-highlighted=true]:bg-[var(--theme-primary)]/8",
+        "group w-full scroll-mt-6",
         isLastMessage &&
           message.isStreaming &&
           "animate-[fade-in_0.3s_ease-out]",
-        !isFirst && "pt-2",
+        isFirst ? "pt-4" : "chat-message-spacing",
       )}
     >
-      <div className="mx-auto flex flex-col gap-3 max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-10">
+      {typeof message.metadata?.scheduledTaskName === "string" && (
+        <div className="mb-4 sm:mb-6">
+          <UserMessageBubble
+            content={`${t("scheduledTask.title")} · ${message.metadata.scheduledTaskName}\n${message.timestamp.toLocaleString()}`}
+          />
+        </div>
+      )}
+      <div className="chat-content-column chat-message-content flex flex-col gap-3">
         {/* Content */}
         <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
-          <div className="chat-assistant-heading mb-3 flex flex-nowrap items-center gap-2">
+          <div className="chat-assistant-heading mb-2 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
               personaAvatar={
@@ -807,6 +820,13 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           </div>
 
+          {message.metadata?.scheduledProgressStatus === "waiting_human" && (
+            <div className="mb-2 text-12 text-theme-text-tertiary">{t("chat.goal.waiting_human")}</div>
+          )}
+          {message.metadata?.scheduledProgressStatus === "failed" && (
+            <div className="mb-2 text-12 text-theme-text-tertiary">{t("scheduledTask.failed")}</div>
+          )}
+
           {/* Run just started, no parts yet: working row stays, loading icon under the divider */}
           {isStreaming && !hasParts && (
             <RunStepsCollapse
@@ -816,11 +836,13 @@ export const ChatMessage = memo(function ChatMessage({
               stateKey={message.id}
               active
               renderExpanded={() => (
-                <LoadingSpinner
-                  color="text-current"
-                  size={16}
-                  className="text-theme-text-tertiary"
-                />
+                <div className="flex justify-start">
+                  <LoadingSpinner
+                    color="text-current"
+                    size={16}
+                    className="text-theme-text-tertiary"
+                  />
+                </div>
               )}
             />
           )}

@@ -306,7 +306,7 @@
       "name": "Fast Agent"
     },
     "quick": {
-      "description": "Everyday questions, writing and translation, with direct responses.",
+      "description": "Fast answers, writing and translation, with automatic handoff for search and execution.",
       "name": "Everyday Assistant"
     },
     "search": {
@@ -331,6 +331,8 @@
     "previous": "Previous item",
     "reject": "Reject",
     "scheduledTask": {
+      "conversationSummary": "Runs independently with its own history and sends results to this chat.",
+      "standaloneSummary": "Each run creates a new chat where its results are saved.",
       "searchPlaceholder": "Search task names or descriptions…",
       "noResults": "No matching scheduled tasks",
       "noResultsDesc": "Try another keyword or adjust the status filter.",
@@ -1184,6 +1186,7 @@
     }
   },
   "chat": {
+    "agentHandoff": "{{agent}} has taken over",
     "addMoreFiles": "Add more files",
     "assistant": "Assistant",
     "attachFile": "Attach file",
@@ -1212,6 +1215,7 @@
     },
     "features": "Features",
     "goal": {
+      "turnEnded": "Turn ended",
       "active": "Goal",
       "clear": "Clear goal",
       "command": "Goal",
@@ -1221,6 +1225,7 @@
       "placeholder": "Enter your goal…",
       "required": "Enter a goal",
       "running": "Running",
+    "waiting_human": "Awaiting input",
       "runningStatus": "Running",
       "startedAt": "Started"
     },
@@ -1454,6 +1459,8 @@
       "subagentMessage": "Follow-up message",
       "toolSubagentRunning": "Running",
       "toolSubagentMessageQueued": "Message queued",
+      "rubricGraderName": "Rubric Grader",
+      "rubricGraderInput": "Evaluating against rubric criteria",
       "toolSubagentCompleted": "Completed",
       "toolSubagentWaitingHuman": "Waiting for human input",
       "toolSubagentFailed": "Failed",
@@ -1684,13 +1691,16 @@
     "welcomeSubtitle": "What can I do for you?",
     "welcomeSuggestions": "Suggestions",
     "goalPersistent": {
+      "edit": "Edit goal",
+      "criteria": "Acceptance criteria",
+      "label": "Goal",
       "pause": "Pause goal",
       "resume": "Resume goal",
       "clear": "Clear goal",
       "noGoal": "Create a persistent goal first.",
       "tokensUnknown": "Token usage unknown",
-      "turns": "{{count}} / {{max}} turns",
-      "tokens": "{{count}} / {{max}} tokens",
+      "turns": "{{count}} turns",
+      "tokens": "{{count}} tokens",
       "timeLimit": "{{minutes}} min limit",
       "status": {
         "active": "Active",
@@ -1702,7 +1712,18 @@
         "cleared": "Cleared"
       },
       "modeHint": "Persistent goal: {{status}}",
-      "attachmentsUnsupported": "Send attachments in a regular message before setting a persistent goal."
+      "attachmentsUnsupported": "Send attachments in a regular message before setting a persistent goal.",
+      "currentTurn": "Working on turn {{count}}",
+      "stopReason": {
+        "user_paused": "Paused by you",
+        "no_progress": "No new progress across consecutive turns",
+        "invalid_rubric": "Completion criteria could not be evaluated",
+        "turn_limit": "Turn limit reached",
+        "token_limit": "Token budget reached",
+        "time_limit": "Time limit reached",
+        "execution_error": "Execution failed; review the last response before resuming",
+        "budget_limit": "Goal budget reached"
+      }
     }
   },
   "common": {
@@ -2581,7 +2602,7 @@
     "auto": "Auto",
     "autoDesc": "Auto-execute, skip confirmations",
     "goal": "Goal",
-    "goalDesc": "Messages as goals for guided execution",
+    "goalDesc": "Keep one goal working across turns until completed or paused",
     "hint": "Both modes can be active simultaneously",
     "title": "Run Mode"
   },
@@ -3060,12 +3081,12 @@
   "scheduledTask": {
     "noTimeLimit": "No total execution time limit",
     "executionMode": "Execution mode",
-    "conversationMode": "Continue in this conversation",
+    "conversationMode": "Send results to this conversation",
     "standaloneMode": "Start a new conversation each run",
     "targetConversation": "Target conversation",
     "targetRequired": "Select a conversation",
     "currentConversation": "Current conversation",
-    "inheritContext": "Uses the latest context, project, model and tools. Waits while this conversation is busy.",
+    "inheritContext": "Runs independently with its own history and the settings selected at creation. Sends results here without interrupting your chat.",
     "notificationPolicy": "Notifications",
     "meaningfulChanges": "Only changes or required action",
     "alwaysNotify": "Notify on every run",
@@ -4320,6 +4341,7 @@
     "agent": "Agent",
     "allPeriods": "All Time",
     "cache": "Cache",
+    "cacheRateUnknown": "Input, cache reads, or their accounting basis is incomplete. Cost is assessed separately.",
     "cacheHitRate": "Cache Hit",
     "cacheRead": "Cache Read",
     "cacheTokens": "{{count}} tokens",

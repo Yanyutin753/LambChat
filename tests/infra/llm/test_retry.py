@@ -3,10 +3,28 @@ from __future__ import annotations
 import logging
 
 import httpx
+import httpx2
 import openai as openai_module
 import pytest
 
 from src.infra.llm.retry import ainvoke_with_retry, is_auth_model_error, is_retryable_model_error
+
+
+@pytest.mark.parametrize("error_type", [httpx2.RemoteProtocolError, httpx2.ReadTimeout])
+async def test_current_sdk_transport_disconnect_is_retried(error_type):
+    model = _Model([error_type("incomplete upstream response")])
+    assert await ainvoke_with_retry(model, "prompt", max_retries=1, retry_delay=0) == "ok"
+    assert model.calls == 2
+
+
+@pytest.mark.parametrize("status", [401, 403, 408, 429, 503])
+def test_current_sdk_http_status_keeps_auth_and_transient_boundaries(status):
+    request = httpx2.Request("POST", "https://model.invalid")
+    error = httpx2.HTTPStatusError(
+        "upstream", request=request, response=httpx2.Response(status, request=request)
+    )
+    assert is_auth_model_error(error) is (status in (401, 403))
+    assert is_retryable_model_error(error) is (status in (408, 429, 503))
 
 
 def _openai_status_error(error_cls, status_code: int):
@@ -42,6 +60,49 @@ class _Model:
         if self.failures:
             raise self.failures.pop(0)
         return self.result
+
+
+async def test_fallback_keeps_handoff_tool_binding(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    class RoutingModel(_Model):
+        bound = False
+
+        def bind_tools(self, tools):
+            self.bound = bool(tools)
+            return self
+
+        async def ainvoke(self, prompt, **kwargs):
+            assert self.bound
+            return await super().ainvoke(prompt, **kwargs)
+
+    primary = RoutingModel([httpx.ReadTimeout("unavailable")])
+    fallback = RoutingModel(
+        [],
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "handoff_to_search", "args": {}, "id": "route-1"}],
+        ),
+    )
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.llm.client.LLMClient.get_model", AsyncMock(return_value=fallback)
+    )
+    response = await ainvoke_with_retry(
+        primary,
+        "Please check current information",
+        max_retries=0,
+        fallback_model="fallback",
+        tools=[
+            {
+                "name": "handoff_to_search",
+                "description": "Handoff",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ],
+    )
+    assert response.tool_calls[0]["name"] == "handoff_to_search"
 
 
 async def test_ainvoke_retries_three_times_after_initial_timeout() -> None:

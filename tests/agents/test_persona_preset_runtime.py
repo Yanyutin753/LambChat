@@ -93,9 +93,10 @@ def test_conversation_config_ignores_persona_snapshot_without_preset_id() -> Non
         language="zh",
     )
 
-    assert "persona_preset_id" not in config
-    assert "persona_preset_name" not in config
-    assert "persona_snapshot" not in config
+    assert config["persona_preset_id"] is None
+    assert config["persona_preset_name"] is None
+    assert config["persona_snapshot"] is None
+    assert config["persona_avatar"] is None
 
 
 @pytest.mark.asyncio

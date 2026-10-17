@@ -232,6 +232,7 @@ export interface ChatViewProps {
   onCancelSteer?: (content: string, messageId?: string) => void;
   persistentGoal?: PersistentGoal | null;
   persistentGoalBusy?: boolean;
+  onUpdatePersistentGoal?: (objective: string, rubric: string, expectedRevision: number) => Promise<boolean>;
   onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;

@@ -45,6 +45,53 @@ async def test_conversation_target_requires_ownership():
             await ScheduledTaskService()._validate_conversation("conversation", "chat-1", "owner")
 
 
+async def test_temporary_authority_outage_keeps_schedule_pending(monkeypatch):
+    from src.infra.scheduler import conversation
+    from src.kernel.errors import AppError, ErrorCode
+
+    record = {
+        "_id": "r",
+        "task_id": "t",
+        "session_id": "child",
+        "target_session_id": "parent",
+        "conversation_state": "pending",
+    }
+    task = SimpleNamespace(
+        id="t", owner_id="u", enabled=True, status="active", target_session_id="parent"
+    )
+    storage = SimpleNamespace(
+        pending_conversation_runs=AsyncMock(return_value=[record]),
+        get_task=AsyncMock(return_value=task),
+        claim_conversation_run=AsyncMock(return_value=record),
+        update_task=AsyncMock(),
+        update_run=AsyncMock(),
+    )
+    monkeypatch.setattr("src.infra.scheduler.storage.get_scheduled_task_storage", lambda: storage)
+    monkeypatch.setattr(
+        "src.infra.scheduler.runner.reconcile_standalone_finalizations", AsyncMock()
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager.get_session",
+        AsyncMock(return_value=SimpleNamespace(id="parent", user_id="u")),
+    )
+    monkeypatch.setattr(
+        conversation,
+        "ensure_execution_session",
+        AsyncMock(return_value=SimpleNamespace(id="child")),
+    )
+    monkeypatch.setattr(conversation, "ensure_idle", AsyncMock())
+    monkeypatch.setattr(
+        "src.api.deps._load_user_payload",
+        AsyncMock(side_effect=AppError(ErrorCode.SERVICE_UNAVAILABLE)),
+    )
+    finish = AsyncMock()
+    monkeypatch.setattr(conversation, "_finish", finish)
+    await conversation.dispatch_pending()
+    storage.update_task.assert_not_awaited()
+    finish.assert_not_awaited()
+    storage.update_run.assert_awaited_once_with("r", {"conversation_state": "pending"})
+
+
 def test_request_inherits_latest_configuration_without_provider_secrets():
     from src.infra.scheduler.conversation import build_request
 
@@ -72,6 +119,23 @@ def test_request_inherits_latest_configuration_without_provider_secrets():
     assert "NO_UPDATE" in result.message
 
 
+def test_new_execution_keeps_task_identity_and_uses_only_observed_history():
+    from src.infra.scheduler.conversation import build_request
+
+    task = SimpleNamespace(
+        id="same-task",
+        name="Three checks",
+        input_payload={"message": "Continue the counter"},
+        notification_policy="always",
+    )
+    session = SimpleNamespace(id="isolated-task", metadata={})
+    for run_id in ("execution-one", "execution-two"):
+        message = build_request(task, session, run_id).message
+        assert f"task same-task, run {run_id}" in message
+        assert "A new run does not create a new task or reset its history." in message
+        assert "Do not infer previous results from the task name." in message
+
+
 async def test_busy_conversation_does_not_admit_schedule():
     from src.infra.scheduler.conversation import ConversationBusyError, ensure_idle
 
@@ -92,7 +156,8 @@ def test_quiet_completion_requires_exact_final_result():
     assert not is_quiet_result("completed", "meaningful_changes", "Found NO_UPDATE in a file")
 
 
-async def test_old_run_status_does_not_read_new_run_status():
+@pytest.mark.parametrize("status", ["completed", "cancelled", "expired", "waiting_human", "failed"])
+async def test_old_run_status_does_not_read_new_run_status(status):
     from src.infra.task.status import TaskStatus
     from src.infra.task.status_queries import TaskStatusQueries
 
@@ -106,16 +171,15 @@ async def test_old_run_status_does_not_read_new_run_status():
     cursor = SimpleNamespace(
         sort=lambda *a: cursor,
         limit=lambda *a: cursor,
-        to_list=AsyncMock(return_value=[{"status": "completed"}]),
+        to_list=AsyncMock(return_value=[{"status": status}]),
     )
     with patch(
         "src.infra.task.status_queries.get_trace_storage",
         return_value=SimpleNamespace(collection=SimpleNamespace(find=lambda *a: cursor)),
     ):
-        assert (
-            await TaskStatusQueries(storage=storage, run_info={}).get_run_status("chat", "old")
-            == TaskStatus.COMPLETED
-        )
+        assert await TaskStatusQueries(storage=storage, run_info={}).get_run_status(
+            "chat", "old"
+        ) == TaskStatus(status)
 
 
 async def test_two_wakeups_cannot_claim_the_same_pending_record():
@@ -241,7 +305,7 @@ async def test_pending_scan_rotates_past_busy_first_page():
     storage._collections["task_run_records"] = Collection()
     await storage.pending_conversation_runs()
     await storage.pending_conversation_runs()
-    assert queries[1]["$or"] == [
+    assert queries[1]["$and"][1]["$or"] == [
         {"created_at": {"$gt": now}},
         {"created_at": now, "_id": {"$gt": "99"}},
     ]
@@ -293,10 +357,13 @@ async def test_conversation_enqueue_preserves_wire_identity_and_owner():
         input_payload={"message": "check"},
         owner_id="owner",
         timeout_seconds=60,
+        trigger_config={"seconds": 60},
+        timezone="UTC",
     )
     record = await storage.enqueue_conversation(task, "manual")
     assert record["_id"].startswith("scheduled-")
-    assert record["session_id"] == "chat"
+    assert record["session_id"] == "sch_conversation_task"
+    assert record["target_session_id"] == "chat"
     assert record["owner_id"] == "owner"
     assert record["conversation_pending"] is True
     assert record["input_snapshot"] == {"message": "check"}
@@ -338,3 +405,36 @@ async def test_finish_resolves_quiet_result_before_channel_delivery():
         await _finish(storage, record, "success")
     resolve.assert_awaited_once_with("chat", "run", "completed")
     deliver.assert_not_awaited()
+
+
+def test_each_conversation_wakeup_injects_fresh_real_time():
+    from datetime import datetime, timezone
+
+    from src.infra.scheduler.conversation import build_request
+
+    task = SimpleNamespace(
+        id="t",
+        name="Numbers",
+        input_payload={"message": "Send a number"},
+        timezone="Asia/Shanghai",
+        notification_policy="always",
+    )
+    session = SimpleNamespace(
+        id="chat-1",
+        metadata={
+            "user_timezone": "Asia/Shanghai",
+            "prompt_time_reported_at": "2026-10-16T17:33:26+00:00",
+        },
+    )
+    with patch(
+        "src.infra.chat.user_message_timestamp.utc_now",
+        side_effect=[
+            datetime(2026, 10, 16, 17, 46, 41, tzinfo=timezone.utc),
+            datetime(2026, 10, 16, 17, 47, 41, tzinfo=timezone.utc),
+        ],
+    ):
+        first = build_request(task, session, "r1")
+        second = build_request(task, session, "r2")
+    assert "2026-10-17 01:46:41 +08:00 Asia/Shanghai" in first.message
+    assert "2026-10-17 01:47:41 +08:00 Asia/Shanghai" in second.message
+    assert "Do not guess" in second.message

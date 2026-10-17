@@ -367,3 +367,14 @@ async def test_real_quick_graph_does_not_replay_delivered_stream(monkeypatch):
                 delivered.append(event["data"]["chunk"].content)
     assert delivered == ["已经交付的正文"]
     assert model.attempts == 1
+
+
+async def test_quick_checkpoint_and_output_hide_model_authored_write_receipts(monkeypatch):
+    model = _FakeModel(reply="Verified. [Activity log saved to: /workspace/quick_fake.md]")
+    _patch_model(monkeypatch, model)
+    result = await quick_agent_node(_state("Check evidence"), {"configurable": {}})
+    assert (
+        result["messages"][-1].text
+        == result["output"]
+        == "Verified. [Unverified activity receipt removed.]"
+    )

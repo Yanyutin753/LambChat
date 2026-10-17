@@ -30,25 +30,54 @@ test("places approvals directly above the composer", () => {
 
 test("removes the fixed approval frame when there are no approvals", () => {
   expect(chatViewSource).toMatch(
-    /\{approvals\.length > 0 && \(\s*<div\s+className="approval-panel-scroll-region/,
+    /\{hasPendingApproval \? \(\s*<div\s+className="approval-panel-scroll-region/,
   );
 });
 
-test("approval panel exposes a collapsible Codex-style compact state", () => {
-  expect(approvalSource).toMatch(/useState\(false\)/);
-  expect(approvalSource).toMatch(/approval-compact/);
-  expect(approvalSource).toMatch(/aria-expanded/);
+test("all approvals use the full ask-human card with visible actions", () => {
+  expect(approvalSource).toMatch(
+    /className="approval-card approval-card--composer approval-card--ask-human/,
+  );
+  expect(approvalSource).not.toMatch(/isExpanded|approval-compact|aria-expanded/);
+  expect(approvalSource).toMatch(
+    /className="approval-actions approval-ask-human-footer font-serif"/,
+  );
 });
 
-test("approval composer matches the input width and rounded border", () => {
+test("all pending approvals replace the composer", () => {
+  expect(chatViewSource).toMatch(/hasPendingApproval = approvals\.length > 0/);
+  expect(chatViewSource).toMatch(
+    /\{hasPendingApproval \? \([\s\S]*?<ApprovalPanel[\s\S]*?\) : \(\s*<ChatInput/,
+  );
+});
+
+test("pending approvals suppress welcome and loading composers without messages", () => {
+  expect(chatViewSource).toMatch(
+    /\{messages\.length === 0 \? \(\s*!hasPendingApproval && \(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,
+  );
+  expect(chatViewSource).toMatch(
+    /\{\(messages\.length > 0 \|\| hasPendingApproval\) && \(\s*<div className="relative">/,
+  );
+});
+
+test("approval composer follows the input column and rounded border", () => {
   expect(approvalSource).toMatch(
-    /approval-scroll-container[^"\n]*overflow-visible[^"\n]*px-2[^"\n]*sm:px-8/,
+    /approval-scroll-container[^"\n]*overflow-visible[^"\n]*py-2[^"\n]*sm:py-3/,
   );
   expect(approvalSource).toMatch(
-    /approval-panel-content-shell[^"]*mx-auto[^"]*w-full[^"]*max-w-4xl[^"]*lg:max-w-5xl[^"]*xl:max-w-6xl/,
+    /approval-panel-content-shell chat-content-column/,
   );
   expect(approvalStyles).toMatch(
-    /\.approval-card\.approval-card--composer\s*\{[^}]*border-radius:\s*1\.5rem;/s,
+    /\.approval-card\.approval-card--composer\s*\{[^}]*border-radius:\s*1rem;/s,
+  );
+});
+
+test("confirmation cards inset slightly from the composer at each pane width", () => {
+  expect(approvalStyles).toMatch(
+    /\.approval-panel-content-shell\s*\{[^}]*box-sizing:\s*border-box;[^}]*padding-inline:\s*0\.75rem;/,
+  );
+  expect(approvalStyles).toMatch(
+    /@container \(max-width: 40rem\)\s*\{\s*\.approval-panel-content-shell\s*\{\s*padding-inline:\s*0\.25rem;/,
   );
 });
 
@@ -97,14 +126,19 @@ test("forwards session-scoped approval clearing from useAgent", () => {
   );
 });
 
+test("forwards the server deadline and timeout into the confirmation card", () => {
+  expect(chatAppSource).toMatch(/addApproval\(\{[^}]*expires_at: approval\.expires_at/);
+  expect(chatAppSource).toMatch(/addApproval\(\{[^}]*timeout: approval\.timeout/);
+});
+
 test("passes the resumed run id to the stream recovery callback", () => {
   expect(chatAppSource).toMatch(
-    /onInterruptResume:\s*\(runId\)\s*=>\s*ensureResumeStreamRef\.current\(runId\)/,
+    /onInterruptResume:\s*\(runId, sourceSessionId\)\s*=>\s*ensureResumeStreamRef\.current\(runId, sourceSessionId\)/,
   );
   expect(chatAppSource).toMatch(
-    /ensureResumeStreamRef\.current\s*=\s*\(runId\)\s*=>/,
+    /ensureResumeStreamRef\.current\s*=\s*\(runId, sourceSessionId\)\s*=>/,
   );
   expect(approvalsHookSource).toMatch(
-    /onInterruptResume\?\.\(res\.hitl_resume\.run_id\)/,
+    /onInterruptResume\?\.\(res\.hitl_resume\.run_id,/,
   );
 });

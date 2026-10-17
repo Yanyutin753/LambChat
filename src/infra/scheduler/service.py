@@ -460,7 +460,6 @@ class ScheduledTaskService:
                 "status": task.status.value,
                 "run_on_start": task.run_on_start,
                 "name": task.name,
-                "last_run_at": task.last_run_at,
                 "created_at": task.created_at,
             },
             default=str,
@@ -477,7 +476,7 @@ class ScheduledTaskService:
         """
         if task.trigger_type == TriggerType.INTERVAL:
             interval_cfg = IntervalTriggerConfig(**task.trigger_config)
-            anchor = task.last_run_at or task.created_at
+            anchor = task.created_at
             start_date = (
                 ensure_utc(anchor) + timedelta(seconds=interval_cfg.seconds)
                 if anchor is not None

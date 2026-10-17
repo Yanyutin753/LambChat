@@ -23,7 +23,10 @@ from src.infra.agent.middleware.sandbox_confirm import SandboxConfirmMiddleware
 from src.infra.agent.middleware.sandbox_slow_run import SandboxSlowRunMiddleware
 from src.infra.agent.middleware.sandbox_workspace import SandboxWorkspaceMiddleware
 from src.infra.agent.middleware.steer import SteerMiddleware
-from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
+from src.infra.agent.middleware.subagent_activity import (
+    ActivityReferenceMiddleware,
+    SubagentActivityMiddleware,
+)
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
 from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
 from src.infra.agent.middleware.tool_interception import (
@@ -35,6 +38,7 @@ __all__ = [
     "SandboxConfirmMiddleware",
     "create_retry_middleware",
     "create_code_interpreter_middleware",
+    "ActivityReferenceMiddleware",
     "ArtifactDeliveryMiddleware",
     "EmptyContentRetryMiddleware",
     "EnvVarPromptMiddleware",

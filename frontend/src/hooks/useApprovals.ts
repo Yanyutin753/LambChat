@@ -9,7 +9,7 @@ import {
 
 interface UseApprovalsOptions {
   sessionId: string | null;
-  onInterruptResume?: (runId?: string | null) => void;
+  onInterruptResume?: (runId?: string | null, sourceSessionId?: string | null) => void;
 }
 
 export function useApprovals({
@@ -19,8 +19,11 @@ export function useApprovals({
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const hasApprovalsRef = useRef(false);
+  const fetchingRef = useRef(false);
 
   const fetchApprovals = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       const data = await authFetch<{ approvals?: PendingApproval[] }>(
         `${API_BASE}/human/pending`,
@@ -32,6 +35,8 @@ export function useApprovals({
       }
     } catch (error) {
       console.error("Failed to fetch approvals:", error);
+    } finally {
+      fetchingRef.current = false;
     }
   }, []);
 
@@ -95,7 +100,7 @@ export function useApprovals({
         if (isApprovalResponseAccepted(res)) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
           if (res?.hitl_resume?.submitted) {
-            onInterruptResume?.(res.hitl_resume.run_id);
+            onInterruptResume?.(res.hitl_resume.run_id, approvals.find(approval => approval.id === approvalId)?.session_id);
           }
           return true;
         }
@@ -107,7 +112,7 @@ export function useApprovals({
         setIsLoading(false);
       }
     },
-    [onInterruptResume],
+    [onInterruptResume, approvals],
   );
 
   // 初始加载时获取一次（用于页面刷新后恢复状态）

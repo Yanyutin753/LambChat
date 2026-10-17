@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import i18n from "../../../i18n";
 import {
   Bot,
   Palette,
@@ -99,10 +101,24 @@ const SUBAGENT_ROLE_ICON_META: Record<
 };
 
 export function formatSubagentName(agentName: string): string {
+  if (/^rubric[ _]grader$/i.test(agentName)) {
+    return i18n.t("chat.message.rubricGraderName");
+  }
   return agentName
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+export function formatSubagentInput(
+  agentName: string,
+  input: string,
+  t: TFunction = i18n.t,
+): string {
+  return /^rubric[ _]grader$/i.test(agentName) &&
+    input === "Evaluating against rubric criteria"
+    ? t("chat.message.rubricGraderInput")
+    : input;
 }
 
 export function getSubagentRoleIconMeta(

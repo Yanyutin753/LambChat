@@ -306,7 +306,7 @@
       "name": "빠른 에이전트"
     },
     "quick": {
-      "description": "일상 질문, 글쓰기와 번역에 바로 답합니다.",
+      "description": "일상 질문, 글쓰기와 번역에 답하고 검색이나 실행이 필요하면 자동으로 연결합니다.",
       "name": "일상 도우미"
     },
     "search": {
@@ -331,6 +331,8 @@
     "previous": "이전 항목",
     "reject": "거부",
     "scheduledTask": {
+      "conversationSummary": "독립된 기록으로 실행하고 결과를 이 대화로 보냅니다.",
+      "standaloneSummary": "실행할 때마다 새 대화를 만들고 해당 대화에 결과를 저장합니다.",
       "searchPlaceholder": "작업 이름 또는 설명 검색…",
       "noResults": "일치하는 예약 작업이 없습니다",
       "noResultsDesc": "다른 검색어를 입력하거나 상태 필터를 변경하세요.",
@@ -1184,6 +1186,7 @@
     }
   },
   "chat": {
+    "agentHandoff": "{{agent}}가 이어서 처리합니다",
     "addMoreFiles": "더 많은 파일 추가",
     "assistant": "어시스턴트",
     "attachFile": "파일 첨부",
@@ -1212,6 +1215,7 @@
     },
     "features": "기능",
     "goal": {
+      "turnEnded": "이번 턴 종료",
       "active": "목표",
       "clear": "목표 지우기",
       "command": "목표",
@@ -1221,6 +1225,7 @@
       "placeholder": "목표를 입력…",
       "required": "목표를 입력하세요",
       "running": "실행",
+    "waiting_human": "확인 대기",
       "runningStatus": "실행 중",
       "startedAt": "시작 시간"
     },
@@ -1450,6 +1455,8 @@
       "subagentMessage": "추가 메시지",
       "toolSubagentRunning": "실행 중",
       "toolSubagentMessageQueued": "메시지가 대기열에 추가됨",
+      "rubricGraderName": "평가 기준 채점 도우미",
+      "rubricGraderInput": "평가 기준에 따라 평가 중",
       "toolSubagentCompleted": "완료",
       "toolSubagentWaitingHuman": "사용자 입력 대기 중",
       "toolSubagentFailed": "실패",
@@ -1684,13 +1691,16 @@
     "welcomeSubtitle": "무엇을 도와드릴까요?",
     "welcomeSuggestions": "추천",
     "goalPersistent": {
+      "edit": "목표 수정",
+      "criteria": "완료 기준",
+      "label": "목표",
       "pause": "목표 일시 중지",
       "resume": "목표 계속",
       "clear": "목표 지우기",
       "noGoal": "먼저 지속 목표를 만드세요.",
       "tokensUnknown": "토큰 사용량 알 수 없음",
-      "turns": "{{count}} / {{max}} 회",
-      "tokens": "{{count}} / {{max}} 토큰",
+      "turns": "{{count}} 회",
+      "tokens": "{{count}} 토큰",
       "timeLimit": "시간 제한 {{minutes}}분",
       "status": {
         "active": "진행 중",
@@ -1702,7 +1712,18 @@
         "cleared": "지워짐"
       },
       "modeHint": "지속 목표: {{status}}",
-      "attachmentsUnsupported": "지속 목표를 설정하기 전에 일반 메시지로 첨부 파일을 보내세요."
+      "attachmentsUnsupported": "지속 목표를 설정하기 전에 일반 메시지로 첨부 파일을 보내세요.",
+      "currentTurn": "{{count}}번째 턴 진행 중",
+      "stopReason": {
+        "user_paused": "요청에 따라 일시 중지됨",
+        "no_progress": "연속된 턴에서 새로운 진전이 없음",
+        "invalid_rubric": "완료 기준을 평가할 수 없음",
+        "turn_limit": "턴 수 한도에 도달함",
+        "token_limit": "토큰 예산에 도달함",
+        "time_limit": "시간 한도에 도달함",
+        "execution_error": "실행 실패. 재개 전에 이전 응답을 확인하세요",
+        "budget_limit": "목표 예산에 도달함"
+      }
     }
   },
   "common": {
@@ -2581,7 +2602,7 @@
     "auto": "자동",
     "autoDesc": "자동 실행, 확인 생략",
     "goal": "목표",
-    "goalDesc": "메시지를 목표로 안내 실행",
+    "goalDesc": "완료하거나 일시 중지할 때까지 같은 목표를 여러 턴에 걸쳐 진행",
     "hint": "두 모드를 동시에 활성화할 수 있습니다",
     "title": "실행 모드"
   },
@@ -3060,12 +3081,12 @@
   "scheduledTask": {
     "noTimeLimit": "총 실행 시간 제한 없음",
     "executionMode": "실행 방식",
-    "conversationMode": "현재 대화에서 계속",
+    "conversationMode": "이 대화로 결과 보내기",
     "standaloneMode": "실행마다 새 대화 시작",
     "targetConversation": "대상 대화",
     "targetRequired": "대화를 선택하세요",
     "currentConversation": "현재 대화",
-    "inheritContext": "대화의 최신 맥락, 프로젝트, 모델 및 도구를 사용합니다. 대화가 실행 중이면 기다립니다.",
+    "inheritContext": "생성 시 선택한 설정과 별도의 작업 기록으로 독립 실행합니다. 채팅을 방해하지 않고 이 대화로 결과를 보냅니다.",
     "notificationPolicy": "알림",
     "meaningfulChanges": "변경 사항이나 조치가 필요할 때만",
     "alwaysNotify": "실행마다 알림",
@@ -4320,6 +4341,7 @@
     "agent": "에이전트",
     "allPeriods": "전체",
     "cache": "캐시",
+    "cacheRateUnknown": "입력, 캐시 읽기 또는 집계 기준이 불완전하여 계산할 수 없습니다. 비용은 별도로 산정합니다.",
     "cacheHitRate": "캐시 적중",
     "cacheRead": "캐시 읽기",
     "cacheTokens": "{{count}} tokens",

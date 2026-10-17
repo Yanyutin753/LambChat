@@ -100,7 +100,22 @@ class TaskSessionStatusMixin:
             update_for_run = getattr(self._storage, "update_metadata_for_run", None)
             if expected_run_id:
                 if not callable(update_for_run) or not await update_for_run(
-                    session_id, expected_run_id, metadata
+                    session_id,
+                    expected_run_id,
+                    metadata,
+                    **(
+                        {
+                            "expected_statuses": [
+                                "queued",
+                                "pending",
+                                "starting",
+                                "running",
+                                "recovering",
+                            ]
+                        }
+                        if status in {TaskStatus.STARTING, TaskStatus.RUNNING}
+                        else {}
+                    ),
                 ):
                     raise GoalRunAdmissionError("Goal session ownership changed before admission")
             elif (

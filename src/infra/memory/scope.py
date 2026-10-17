@@ -12,6 +12,8 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
+from bson import ObjectId
+
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,9 +101,12 @@ async def resolve_session_project_id(session_id: Optional[str]) -> Optional[str]
 
     project_id: Optional[str] = None
     try:
-        doc = await _get_sessions_collection().find_one(
-            {"session_id": session_id}, {"metadata.project_id": 1}
-        )
+        collection = _get_sessions_collection()
+        doc = await collection.find_one({"session_id": session_id}, {"metadata.project_id": 1})
+        if doc is None and ObjectId.is_valid(session_id):
+            doc = await collection.find_one(
+                {"_id": ObjectId(session_id)}, {"metadata.project_id": 1}
+            )
         metadata = (doc or {}).get("metadata") or {}
         project_id = str(metadata.get("project_id") or "").strip() or None
     except Exception as exc:

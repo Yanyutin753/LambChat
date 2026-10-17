@@ -119,6 +119,7 @@ class _FakePresenter:
         schedule_search_index: bool = True,
         run_modes=None,
         assistant_identity=None,
+        goal_continuation=None,
     ) -> None:
         self.calls.append(
             (

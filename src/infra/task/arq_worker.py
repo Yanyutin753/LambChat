@@ -125,6 +125,10 @@ async def worker_shutdown(ctx: dict[str, Any]) -> None:
 
 
 def _resolve_executor(executor_key: str) -> Any:
+    if executor_key == "scheduled_agent_stream":
+        from src.infra.scheduler.runner import execute_standalone_schedule
+
+        return execute_standalone_schedule
     executor_fn = get_registered_executor(executor_key)
     if executor_fn is not None:
         return executor_fn
@@ -137,7 +141,7 @@ def _resolve_executor(executor_key: str) -> Any:
         from .background_tasks import execute_background_stream
 
         return execute_background_stream
-    if executor_key in {"agent_stream", "scheduled_agent_stream"}:
+    if executor_key == "agent_stream":
         import_module("src.api.routes.chat")
         return get_registered_executor(executor_key)
 
@@ -185,6 +189,9 @@ def _run_watchdog_timeout() -> float | None:
 
 async def _validate_standalone_scheduled_admission(payload: dict, run_id: str) -> None:
     from src.infra.goal_runtime import GoalRunAdmissionError
+    from src.kernel.errors import AppError
+
+    from .background_tasks import apply_background_restrictions, validate_background_execution
 
     session = await get_task_manager().storage.get_by_session_id(payload["session_id"])
     metadata = (session.metadata or {}) if session else {}
@@ -202,6 +209,61 @@ async def _validate_standalone_scheduled_admission(payload: dict, run_id: str) -
         or (status == "waiting_human" and not payload.get("hitl_resume"))
     ):
         raise GoalRunAdmissionError("Scheduled task no longer owns a runnable conversation")
+    try:
+        request = await validate_background_execution(
+            payload["session_id"],
+            payload["agent_id"],
+            payload["user_id"],
+            payload.get("agent_options") or {},
+        )
+        apply_background_restrictions(request, payload)
+    except AppError as error:
+        if error.http_status >= 500:
+            raise
+        executor = get_task_manager()._ensure_executor()
+        await executor._update_session_status(
+            payload["session_id"],
+            TaskStatus.FAILED,
+            "Scheduled task authorization is no longer valid",
+            run_id=run_id,
+            expected_run_id=run_id,
+        )
+        try:
+            if payload.get("trace_id"):
+                from src.infra.writer.present import Presenter, PresenterConfig
+
+                presenter = Presenter(
+                    PresenterConfig(
+                        session_id=payload["session_id"],
+                        agent_id=payload["agent_id"],
+                        user_id=payload["user_id"],
+                        run_id=run_id,
+                        trace_id=payload["trace_id"],
+                    )
+                )
+                presenter._trace_created = True
+                await executor._handle_generic_error(
+                    payload["session_id"], run_id, payload["user_id"], error, None, presenter
+                )
+                done = presenter.done()
+                done["data"]["status"] = "error"
+                await presenter.emit(done)
+                writer = await presenter._get_dual_writer()
+                await writer.flush_mongo_buffer(require_empty=True)
+        finally:
+            await _release_concurrency_slot(payload["user_id"], run_id, dequeue=True)
+        raise GoalRunAdmissionError("Scheduled task authorization is no longer valid") from error
+    payload["agent_options"] = request.agent_options
+    for field in (
+        "persona_system_prompt",
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+        "team_id",
+    ):
+        payload[field] = getattr(request, field)
 
 
 async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:

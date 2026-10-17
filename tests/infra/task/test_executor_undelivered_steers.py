@@ -108,7 +108,7 @@ def _fixture(
 
     monkeypatch.setattr(cancellation.TaskCancellation, "clear_interrupt", _no_op)
 
-    async def _record_status(session_id, status, error=None, run_id=None):
+    async def _record_status(session_id, status, error=None, run_id=None, *, expected_run_id=None):
         return None
 
     executor = TaskExecutor(

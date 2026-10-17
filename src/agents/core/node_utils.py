@@ -36,6 +36,8 @@ def append_memory_recall_middleware(
     user_id: str | None,
     session_id: Any,
     active_goal: Any,
+    *,
+    tools: list[Any],
 ) -> None:
     """Give an Agent or sub-agent the same scoped recall context."""
     if not enabled or not user_id:
@@ -47,6 +49,7 @@ def append_memory_recall_middleware(
             user_id=user_id,
             session_id=str(session_id or "") or None,
             active_goal=active_goal,
+            recall_available=any(getattr(tool, "name", "") == "memory_recall" for tool in tools),
         )
     )
 
@@ -80,9 +83,13 @@ def build_nested_graph_configurable(
 
 
 @asynccontextmanager
-async def isolated_nested_graph_run() -> AsyncIterator[None]:
+async def isolated_nested_graph_run(*, presenter: Any = None) -> AsyncIterator[None]:
     """Run a manually nested graph without inheriting the parent graph task config."""
-    token = var_child_runnable_config.set(None)
+    from src.infra.goal_runtime import execution_guard_callbacks
+
+    # Carry only execution guards; parent graph callbacks/checkpoint config stay isolated.
+    callbacks = execution_guard_callbacks(presenter) if presenter is not None else []
+    token = var_child_runnable_config.set({"callbacks": callbacks} if callbacks else None)
     try:
         yield
     finally:
@@ -664,9 +671,9 @@ def build_human_message(
 
 
 def resolve_run_usage_carry(
-    hitl_resume: dict | None, *, default_started_at: float
+    hitl_resume: dict | None, *, default_started_at: float, handoff_usage: dict | None = None
 ) -> tuple[float, dict | None]:
-    """HITL 恢复执行沿用原 run 的起点与先前分段的累计用量。
+    """HITL 恢复优先沿用完整累计值；首次接力承接 Quick 已消耗的用量。
 
     审批恢复会从节点顶部重新执行 agent_node，本函数从
     configurable.hitl_resume 还原跨分段锚点：run_started_at 是原 run
@@ -675,6 +682,8 @@ def resolve_run_usage_carry(
     最终事件与 usage_logs 才是全量口径）。非恢复执行或载荷残缺时
     回退节点入口时间、不带先验用量。
     """
+    if hitl_resume is None:
+        hitl_resume = handoff_usage
     if not isinstance(hitl_resume, dict):
         return default_started_at, None
 
@@ -695,6 +704,10 @@ def resolve_run_usage_carry(
         )
         if isinstance(prior.get(key), int)
     }
+    if carried:
+        for key in ("usage_observed", "unknown_usage_fields", "input_includes_cache"):
+            if key in prior:
+                carried[key] = prior[key]
     return started_at, carried or None
 
 

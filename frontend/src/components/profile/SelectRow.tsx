@@ -11,6 +11,7 @@ export function SelectRow<T extends string>({
   onSelect,
   loading,
   renderLabel,
+  placeholder,
   children,
 }: {
   label: string;
@@ -20,7 +21,8 @@ export function SelectRow<T extends string>({
   onToggle?: () => void;
   onSelect: (key: T) => void;
   loading?: boolean;
-  renderLabel?: (key: T) => string;
+  renderLabel?: (key: T) => ReactNode;
+  placeholder?: ReactNode;
   children?: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -37,6 +39,7 @@ export function SelectRow<T extends string>({
           onChange={(key) => onSelect(key as T)}
           disabled={loading}
           ariaLabel={label}
+          placeholder={placeholder}
           options={options.map((option) => ({
             value: option.key,
             label: renderLabel ? renderLabel(option.key) : t(option.labelKey),

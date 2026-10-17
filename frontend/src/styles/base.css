@@ -331,10 +331,7 @@ html[data-mobile-keyboard="true"] #root {
   color: var(--theme-text-secondary);
 }
 .sidebar-rail-btn:hover {
-  background-color: var(
-    --glass-bg-subtle,
-    color-mix(in srgb, var(--theme-bg) 80%, white)
-  );
+  background-color: color-mix(in srgb, var(--theme-text) 5%, transparent);
   color: var(--theme-text);
 }
 

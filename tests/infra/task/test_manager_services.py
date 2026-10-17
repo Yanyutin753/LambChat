@@ -288,7 +288,17 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
             "task_status": "failed",
             "agent_id": "search",
             "executor_key": "agent_stream",
-            "enabled_skills": [],
+            **{
+                key: []
+                for key in (
+                    "disabled_tools",
+                    "disabled_skills",
+                    "enabled_skills",
+                    "disabled_mcp_tools",
+                    "enabled_mcp_servers",
+                )
+            },
+            "auto_mode": False,
         },
     )
     storage = _FakeStorage(session)
@@ -336,7 +346,15 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
     result = await service.resume_session("session-1")
 
     assert result["success"] is True
-    assert submit_calls[0]["enabled_skills"] == []
+    for key in (
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+    ):
+        assert submit_calls[0][key] == []
+    assert submit_calls[0]["auto_mode"] is False
     assert submit_calls[0]["user_message_written"] is True
 
 

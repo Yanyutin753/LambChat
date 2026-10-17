@@ -54,6 +54,7 @@ from src.agents.search_agent.prompt import (
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    ActivityReferenceMiddleware,
     ArtifactDeliveryMiddleware,
     EnvVarPromptMiddleware,
     MainAgentContextMiddleware,
@@ -148,7 +149,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     selected_model = agent_options.get("model")  # Per-request model override
     model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
     resolved_model_config = agent_options.get("_resolved_model_config")
-    thinking_config = build_thinking_config(agent_options)
+    thinking_config = build_thinking_config(agent_options, default_level="medium")
     logger.info(f"agent_options: {agent_options}")
 
     # 获取附件
@@ -298,7 +299,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
             mw.append(SandboxSlowRunMiddleware())
         append_memory_recall_middleware(
-            mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
+            mw,
+            settings.ENABLE_MEMORY,
+            context.user_id,
+            session_id,
+            active_goal,
+            tools=(
+                list(tool_context.filter_tools())
+                if tool_context is not context
+                else filtered_tool_list
+            ),
         )
         manager = deferred_manager if prompt_sections is not None else tool_context.deferred_manager
         if manager is not None:
@@ -358,6 +368,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 构建中间件栈：steer → retry → binary → authored prompts → sandbox tools → memory_index → tool search
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
+    user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
@@ -394,6 +405,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 user_id=context.user_id,
                 session_id=str(state.get("session_id") or "") or None,
                 active_goal=active_goal,
+                recall_available=any(
+                    getattr(tool, "name", "") == "memory_recall" for tool in filtered_tool_list
+                ),
             )
         )
     if sandbox_backend:
@@ -585,7 +599,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # HITL 恢复沿用原 run 的墙钟起点与先前分段累计用量：token:usage 的
     # duration 与 token 数跨恢复累计，否则只记审批恢复后的最后一段
     run_started_at, prior_usage = resolve_run_usage_carry(
-        hitl_resume, default_started_at=start_time
+        hitl_resume,
+        default_started_at=start_time,
+        handoff_usage=agent_options.get("_handoff_usage"),
     )
     if hitl_resume is not None:
         from langgraph.types import Command
@@ -607,6 +623,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 base_url=configurable.get("base_url", ""),
             )
         new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
+        handoff_message_id = (agent_options.get("_handoff_usage") or {}).get("message_id")
+        if isinstance(handoff_message_id, str):
+            new_message.id = handoff_message_id
         graph_input = build_goal_input(
             new_message, active_goal, rubric_middleware=rubric_middleware
         )
@@ -635,7 +654,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
-        async with isolated_nested_graph_run():
+        async with isolated_nested_graph_run(presenter=presenter):
             from src.infra.agent.recovery_guard import guard_graph_recovery
 
             await guard_graph_recovery(inner_graph, inner_config)
@@ -654,6 +673,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         await subagent_sessions.close(
             preserve_approvals=current_task is None or not current_task.cancelling()
         )
+        await event_processor.drain_activity_references()
         await event_processor.flush()
         await emit_token_usage(
             event_processor,

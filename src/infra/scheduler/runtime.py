@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import inspect
+from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, TypeAlias
 
+from apscheduler.events import EVENT_JOB_MISSED, EVENT_JOB_SUBMITTED
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.base import BaseTrigger
@@ -16,6 +20,7 @@ from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 
 logger = get_logger(__name__)
+SCHEDULED_FIRE_TIME: ContextVar[datetime | None] = ContextVar("scheduled_fire_time", default=None)
 
 IntervalValue = int | Callable[[], int]
 EnabledValue = bool | Callable[[], bool]
@@ -68,6 +73,7 @@ class RuntimeScheduler:
         self._scheduler: AsyncIOScheduler | None = None
         self._jobs: dict[str, ScheduledJob] = {}
         self._scheduled_intervals: dict[str, int] = {}
+        self._submitted_fire_times: dict[str, deque[datetime]] = defaultdict(deque)
 
     # ── Public API ─────────────────────────────────
 
@@ -93,6 +99,7 @@ class RuntimeScheduler:
         """Remove a job from the scheduler."""
         self._jobs.pop(job_id, None)
         self._scheduled_intervals.pop(job_id, None)
+        self._submitted_fire_times.pop(job_id, None)
         if self._scheduler is not None:
             try:
                 self._scheduler.remove_job(job_id)
@@ -109,7 +116,11 @@ class RuntimeScheduler:
         if self._scheduler is not None and getattr(self._scheduler, "running", False):
             return
         self._scheduler = AsyncIOScheduler(timezone="UTC")
+        self._scheduler.add_listener(
+            self._record_scheduler_event, EVENT_JOB_SUBMITTED | EVENT_JOB_MISSED
+        )
         self._scheduled_intervals.clear()
+        self._submitted_fire_times.clear()
         for job in self._jobs.values():
             self._add_or_replace_job(job)
         self._scheduler.start()
@@ -122,6 +133,7 @@ class RuntimeScheduler:
         scheduler = self._scheduler
         self._scheduler = None
         self._scheduled_intervals.clear()
+        self._submitted_fire_times.clear()
         shutdown_result = scheduler.shutdown(wait=False)
         if inspect.isawaitable(shutdown_result):
             await shutdown_result
@@ -131,11 +143,16 @@ class RuntimeScheduler:
         """Release registered job handlers and interval bookkeeping."""
         self._jobs.clear()
         self._scheduled_intervals.clear()
+        self._submitted_fire_times.clear()
 
     async def run_job_now(self, job_id: str) -> Any:
         """Run a registered job immediately; mainly useful for tests and admin hooks."""
         job = self._jobs[job_id]
-        return await self._run_job(job)
+        token = SCHEDULED_FIRE_TIME.set(None)
+        try:
+            return await self._run_job(job)
+        finally:
+            SCHEDULED_FIRE_TIME.reset(token)
 
     # ── Internal ───────────────────────────────────
 
@@ -166,9 +183,26 @@ class RuntimeScheduler:
     def _make_job_runner(self, job_id: str) -> Callable[[], Awaitable[Any]]:
         async def _runner() -> Any:
             job = self._jobs[job_id]
-            return await self._run_job(job)
+            fire_times = self._submitted_fire_times.get(job_id)
+            token = SCHEDULED_FIRE_TIME.set(fire_times.popleft() if fire_times else None)
+            try:
+                return await self._run_job(job)
+            finally:
+                SCHEDULED_FIRE_TIME.reset(token)
 
         return _runner
+
+    def _record_scheduler_event(self, event) -> None:
+        job = self._jobs.get(event.job_id)
+        # Dynamic task schedules coalesce; one submitted time belongs to one coroutine.
+        if job is None or not job.coalesce:
+            return
+        if event.code == EVENT_JOB_SUBMITTED:
+            self._submitted_fire_times[event.job_id].append(event.scheduled_run_times[-1])
+        elif event.code == EVENT_JOB_MISSED:
+            times = self._submitted_fire_times.get(event.job_id)
+            if times and event.scheduled_run_time in times:
+                times.remove(event.scheduled_run_time)
 
     async def _run_job(self, job: ScheduledJob) -> Any:
         try:

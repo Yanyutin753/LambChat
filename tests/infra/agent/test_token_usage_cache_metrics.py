@@ -17,6 +17,34 @@ def _processor() -> AgentEventProcessor:
     )
 
 
+@pytest.mark.parametrize("normalized", [True, False])
+def test_read_rate_certifies_only_normalized_inclusive_input(normalized):
+    processor = _processor()
+    usage = {"input_tokens": 100, "output_tokens": 2, "input_token_details": {"cache_read": 80}}
+    response = (
+        _Response(usage_metadata=usage)
+        if normalized
+        else _Response(response_metadata={"usage": usage})
+    )
+    processor._handle_token_usage({"data": {"output": response}})
+    totals = processor.usage_totals()
+    assert (totals.get("input_includes_cache") is True) is normalized
+    assert "cache_creation_tokens" in totals["unknown_usage_fields"]
+    restored = _processor()
+    restored.seed_usage(totals)
+    assert restored.usage_totals().get("input_includes_cache") == totals.get("input_includes_cache")
+
+
+def test_raw_or_inconsistent_call_revokes_inclusive_input_certificate():
+    processor = _processor()
+    for usage in [
+        {"input_tokens": 100, "input_token_details": {"cache_read": 80}},
+        {"input_tokens": 10, "input_token_details": {"cache_read": 90}},
+    ]:
+        processor._handle_token_usage({"data": {"output": _Response(usage_metadata=usage)}})
+    assert processor.usage_totals().get("input_includes_cache") is not True
+
+
 def test_token_usage_counts_openai_cached_tokens_as_cache_read() -> None:
     processor = AgentEventProcessor(
         create_presenter(session_id="session-1", agent_id="search", agent_name="Search")

@@ -23,10 +23,14 @@ vi.mock("../index", () => ({
   ChatMessage: ({
     message,
     personaName,
+    personaSeed,
+    personaAvatar,
     showFeedbackAndShareActions,
   }: {
     message: Message;
     personaName: string;
+    personaSeed?: string;
+    personaAvatar?: string;
     showFeedbackAndShareActions: boolean;
   }) => (
     <section
@@ -38,6 +42,8 @@ vi.mock("../index", () => ({
       data-failed={message.metadata?.steerStatus === "failed"}
       data-feedback={showFeedbackAndShareActions}
       data-persona={personaName}
+      data-persona-seed={personaSeed}
+      data-persona-avatar={personaAvatar}
     >
       {message.content}
       {message.parts?.map((part, index) => (
@@ -55,6 +61,30 @@ await i18n.init({ lng: "en", resources: { en: { translation: en } } });
 afterEach(() => {
   cleanup();
   subagentPanelStore.clear();
+});
+
+test.each([
+  ["rubric_grader", undefined],
+  ["code_reviewer", "generated:configured-reviewer"],
+])("panel replies keep %s's original avatar identity", (agentName, agentAvatar) => {
+  subagentPanelStore.set({
+    agentId: "reviewer",
+    agentName,
+    agentAvatar,
+    input: "Review",
+    result: "Report",
+    status: "complete",
+    success: true,
+  });
+  const view = render(
+    <I18nextProvider i18n={i18n}>
+      <SubagentPanelContent agentId="reviewer" />
+    </I18nextProvider>,
+  );
+  const reply = view.getAllByTestId("chat-message")[1];
+  expect(reply.dataset.personaSeed).toBe(agentName);
+  expect(reply.dataset.personaAvatar).toBe(agentAvatar);
+  expect(reply.dataset.persona).not.toBe(agentName);
 });
 
 test("the conversation shows initial work, follow-up and resumed replies in order", () => {

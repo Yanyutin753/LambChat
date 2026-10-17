@@ -100,11 +100,13 @@ export function RankingList({
                   {t("usage.ranking.countSuffix", { count: item.requests })}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  {(item.cost_usd ?? 0) > 0 && (
+                  {(item.cost_usd !== undefined || (item.unpriced_requests ?? 0) > 0) && (
                     <span className="tabular-nums">
-                      {fmtCostUsd(item.cost_usd ?? 0, true, {
+                      {fmtCostUsd(item.cost_usd, true, {
                         language: i18n.language,
                         rates: fxRates,
+                        pricedRequests: item.priced_requests,
+                        unpricedRequests: item.unpriced_requests,
                       })}
                     </span>
                   )}
@@ -119,6 +121,9 @@ export function RankingList({
                   <span>
                     {t("usage.cacheRead")}: {fmt(item.cache_read_tokens)}
                   </span>
+                  {pct(item.cache_read_share) === "—" && (
+                    <span className="basis-full">{t("usage.cacheRateUnknown")}</span>
+                  )}
                 </div>
               )}
             </div>

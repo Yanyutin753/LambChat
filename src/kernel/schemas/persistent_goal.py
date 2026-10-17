@@ -4,17 +4,11 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 GoalStatus = Literal[
     "active", "paused", "waiting_human", "blocked", "completed", "budget_limited", "cleared"
 ]
-
-
-class GoalLimits(BaseModel):
-    max_turns: int = Field(10, ge=1, le=10)
-    max_tokens: int = Field(100000, ge=1, le=100000)
-    max_seconds: int = Field(3600, ge=1, le=3600)
 
 
 class GoalAccounting(BaseModel):
@@ -32,8 +26,12 @@ class GoalRunAccounting(BaseModel):
 class PersistentGoalCreate(BaseModel):
     objective: str = Field(min_length=1, max_length=8000)
     rubric: str = Field(min_length=1, max_length=16000)
-    limits: GoalLimits = Field(default_factory=GoalLimits)
     expected_revision: int | None = None
+
+
+class PersistentGoalUpdate(PersistentGoalCreate):
+    model_config = {"str_strip_whitespace": True}
+    expected_revision: int
 
 
 class PersistentGoal(BaseModel):
@@ -45,7 +43,7 @@ class PersistentGoal(BaseModel):
     version: int = 1
     revision: int = 1
     status: GoalStatus = "active"
-    limits: GoalLimits = Field(default_factory=GoalLimits)
+    stop_reason: str | None = None
     accounting: GoalAccounting = Field(default_factory=GoalAccounting)
     run_accounting: list[GoalRunAccounting] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -57,3 +55,10 @@ class PersistentGoal(BaseModel):
     intent_submitted: bool = False
     dispatch_token: str | None = None
     dispatch_expires_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_legacy_budget_stop(cls, value: Any) -> Any:
+        if isinstance(value, dict) and value.get("status") == "budget_limited":
+            return {**value, "status": "paused", "stop_reason": None}
+        return value

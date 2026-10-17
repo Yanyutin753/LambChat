@@ -118,7 +118,7 @@ export function ChatInputSteerQueue({
 
   return (
     <div
-      className="mx-auto w-full max-w-4xl px-3 sm:px-5 lg:max-w-5xl xl:max-w-6xl"
+      className="chat-content-column"
       aria-label={t("chat.steerQueue")}
     >
       <div className="-mb-5 rounded-t-3xl border border-b-0 border-[var(--theme-border)] bg-[var(--theme-bg-card)] pb-5 text-[var(--theme-text-secondary)]">

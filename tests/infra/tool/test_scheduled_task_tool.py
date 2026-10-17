@@ -879,6 +879,7 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
         session_id="session-1",
         run_id="run-1",
         timeout=120,
+        expires_at=None,
         trace_id=None,
         preview=preview,
     )

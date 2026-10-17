@@ -18,6 +18,7 @@ import type { Project } from "../../types";
 import { sessionApi } from "../../services/api";
 import { SessionMenu } from "./SessionMenu";
 import { getSessionTaskIndicator } from "./sessionTaskIndicator";
+import { formatUnreadCount } from "./unreadCounts";
 import { formatDateTime, formatTimeAgo, parseDate } from "../../utils/datetime";
 import { Tooltip } from "../common/Tooltip";
 import { shouldBlockSessionSelection } from "../../utils/sessionSelectionGuard";
@@ -288,7 +289,8 @@ function SessionItemComponent({
             : "运行中",
         )
       : null;
-  const hasUnread = !isActive && (session.unread_count ?? 0) > 0;
+  const hasUnread =
+    !isActive && taskIndicator.kind === "idle" && (session.unread_count ?? 0) > 0;
   const unreadLabel = t("sidebar.unreadMessages", {
     count: session.unread_count ?? 0,
   });
@@ -327,7 +329,7 @@ function SessionItemComponent({
         style={
           isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
         }
-        className={`sidebar-session-row sidebar-action-row group relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+        className={`sidebar-session-row sidebar-action-row group/session relative flex cursor-pointer items-center gap-1 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
           isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""
         } ${selectionMode ? "pr-2" : ""}`}
       >
@@ -358,15 +360,15 @@ function SessionItemComponent({
               }
               content={
                 <span className="flex w-72 max-w-full flex-col gap-1.5">
-                  <span className="flex items-start gap-3">
-                    <span className="min-w-0 flex-1 break-words text-13 leading-5 font-medium">
+                  <span className="flex items-baseline gap-3">
+                    <span className="min-w-0 flex-1 line-clamp-3 break-words text-13 leading-5 font-normal text-theme-text-secondary">
                       {displayTitle}
                     </span>
                     {validUpdatedAt && (
                       <time
                         dateTime={session.updated_at}
                         title={formatDateTime(session.updated_at)}
-                        className="shrink-0 text-11 text-theme-text-tertiary"
+                        className="shrink-0 text-11 leading-5 text-theme-text-tertiary"
                       >
                         {formatTimeAgo(t, session.updated_at)}
                       </time>
@@ -375,8 +377,10 @@ function SessionItemComponent({
                       <span
                         role="img"
                         aria-label={unreadLabel}
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-theme-primary"
-                      />
+                        className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center self-start rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
+                      >
+                        {formatUnreadCount(session.unread_count!)}
+                      </span>
                     )}
                   </span>
                   <span className="flex items-center gap-1.5 text-theme-text-secondary">
@@ -406,7 +410,7 @@ function SessionItemComponent({
                     ? "text-theme-text dark:text-stone-200"
                     : isActive
                       ? "text-theme-text dark:text-stone-100 font-medium"
-                      : "text-theme-text-secondary dark:text-stone-300 group-hover:text-theme-text dark:group-hover:text-stone-200"
+                      : "text-theme-text-secondary dark:text-stone-300 group-hover/session:text-theme-text dark:group-hover/session:text-stone-200"
                 } min-w-0 w-full h-8 max-sm:h-9 rounded text-left flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
               >
                 {selectionMode && (
@@ -415,7 +419,7 @@ function SessionItemComponent({
                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
                       isSelected
                         ? "border-theme-primary bg-theme-primary text-white"
-                        : "border-theme-border-hover bg-transparent text-transparent group-hover:border-theme-ring"
+                        : "border-theme-border-hover bg-transparent text-transparent group-hover/session:border-theme-ring"
                     }`}
                   >
                     <InteractiveIcon>
@@ -454,19 +458,18 @@ function SessionItemComponent({
           </Tooltip>
         )}
 
-        {/* Unread dot - hidden when session is active (user is viewing it) */}
-        {!selectionMode &&
-          !isEditing &&
-          !isActive &&
-          (session.unread_count ?? 0) > 0 && (
-            <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
-              <span
-                role="img"
-                aria-label={unreadLabel}
-                className="h-1.5 w-1.5 rounded-full bg-theme-primary"
-              />
+        {/* Show unread count only when no task status is displayed. */}
+        {!selectionMode && !isEditing && hasUnread && (
+          <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
+            <span
+              role="img"
+              aria-label={unreadLabel}
+              className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
+            >
+              {formatUnreadCount(session.unread_count!)}
             </span>
-          )}
+          </span>
+        )}
         {!selectionMode && !isEditing && (
           <Tooltip content={t("sidebar.moreOptions")}>
             <button
@@ -474,14 +477,11 @@ function SessionItemComponent({
               ref={menuButtonRef}
               onClick={handleMenuClick}
               aria-label={t("sidebar.moreOptions")}
-              className="sidebar-action-reveal flex h-8 w-6 shrink-0 items-center justify-center rounded-md max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
-              style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
+              className="sidebar-action-reveal flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2"
+              data-revealed={isTouched || isMenuOpen || undefined}
             >
               <InteractiveIcon>
-                <MoreHorizontal
-                  size={14}
-                  className="text-theme-text-tertiary hover:text-theme-text-secondary dark:text-stone-500 dark:hover:text-stone-300"
-                />
+                <MoreHorizontal size={14} />
               </InteractiveIcon>
             </button>
           </Tooltip>

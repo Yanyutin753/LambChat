@@ -89,7 +89,7 @@ export function ComposerUsageChip() {
   if (!snapshot) return null;
 
   const label = t("usage.todayShort", { amount: snapshot.amount });
-  const visibleShares = snapshot.shares.filter((s) => s.share > 0);
+  const visibleShares = snapshot.sharesKnown ? snapshot.shares.filter((s) => s.share > 0) : [];
 
   return (
     <>
@@ -178,13 +178,13 @@ export function ComposerUsageChip() {
                       className="text-right tabular-nums"
                       style={{ color: "var(--theme-text-tertiary)" }}
                     >
-                      {s.tokens.toLocaleString()}
+                      {snapshot.sharesKnown ? s.tokens.toLocaleString() : "—"}
                     </span>
                     <span
                       className="w-9 text-right tabular-nums"
                       style={{ color: "var(--theme-text-tertiary)" }}
                     >
-                      {Math.round(s.share)}%
+                      {snapshot.sharesKnown ? `${Math.round(s.share)}%` : "—"}
                     </span>
                   </div>
                 ))}
@@ -225,6 +225,11 @@ export function ComposerUsageChip() {
             </div>
 
             {/* ── 详情入口 ── */}
+            {snapshot.cacheHitRate === null && (
+              <p className="px-3 pb-2 text-11 text-theme-text-muted">
+                {t("usage.cacheRateUnknown")}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => {

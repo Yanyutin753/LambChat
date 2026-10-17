@@ -3,6 +3,8 @@
 import asyncio
 import shutil
 import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 import pytest_asyncio
@@ -13,11 +15,12 @@ from src.infra.channel.chat_lease import ChatLease, release_message
 
 
 @pytest_asyncio.fixture
-async def lease_redis(tmp_path, monkeypatch):
+async def lease_redis(monkeypatch):
     binary = shutil.which("redis-server")
     if not binary:
         pytest.skip("redis-server is required for Lua lease integration tests")
-    socket = str(tmp_path / "lease.sock")
+    socket_dir = TemporaryDirectory(prefix="lc-lease-")
+    socket = str(Path(socket_dir.name) / "lease.sock")
     process = subprocess.Popen(
         [binary, "--port", "0", "--unixsocket", socket, "--save", "", "--appendonly", "no"],
         stdout=subprocess.DEVNULL,
@@ -39,6 +42,7 @@ async def lease_redis(tmp_path, monkeypatch):
         await client.aclose()
         process.terminate()
         await asyncio.to_thread(process.wait, timeout=5)
+        socket_dir.cleanup()
 
 
 async def test_lease_excludes_second_reader_and_only_current_owner_can_renew(lease_redis):

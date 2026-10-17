@@ -18,6 +18,7 @@ import {
 import { MarkAllReadBadge } from "./MarkAllReadBadge";
 import { Tooltip } from "../common/Tooltip";
 import { getSessionTaskIndicator } from "./sessionTaskIndicator";
+import { formatUnreadCount } from "./unreadCounts";
 import { AlertCircle } from "lucide-react";
 
 interface RecentChatsDialogProps {
@@ -319,15 +320,19 @@ export function RecentChatsDialog({
                       </span>
                     </Tooltip>
                   )}
-                  {session.unread_count != null && session.unread_count > 0 && (
-                    <span
-                      role="img"
-                      aria-label={t("sidebar.unreadMessages", {
-                        count: session.unread_count,
-                      })}
-                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-theme-primary"
-                    />
-                  )}
+                  {taskIndicator.kind === "idle" &&
+                    session.unread_count != null &&
+                    session.unread_count > 0 && (
+                      <span
+                        role="img"
+                        aria-label={t("sidebar.unreadMessages", {
+                          count: session.unread_count,
+                        })}
+                        className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
+                      >
+                        {formatUnreadCount(session.unread_count)}
+                      </span>
+                    )}
                 </button>
               );
             })}

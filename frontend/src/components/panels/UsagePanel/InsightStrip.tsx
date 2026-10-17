@@ -61,7 +61,9 @@ export function InsightStrip({
       icon: DatabaseZap,
       label: t("usage.insight.cacheReuse"),
       value: pct(s.cache_read_share),
-      detail: t("usage.tokensValue", { count: fmt(s.total_cache_read_tokens) }),
+      detail: pct(s.cache_read_share) === "—"
+        ? t("usage.cacheRateUnknown")
+        : t("usage.tokensValue", { count: fmt(s.total_cache_read_tokens) }),
     },
     {
       icon: AlertTriangle,

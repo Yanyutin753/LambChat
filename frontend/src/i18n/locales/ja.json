@@ -306,7 +306,7 @@
       "name": "ファストエージェント"
     },
     "quick": {
-      "description": "日常の質問、文章作成、翻訳に直接回答します。",
+      "description": "日常の質問、文章作成、翻訳に回答し、検索や実行が必要なら自動で引き継ぎます。",
       "name": "ライトアシスタント"
     },
     "search": {
@@ -331,6 +331,8 @@
     "previous": "前の項目",
     "reject": "拒否",
     "scheduledTask": {
+      "conversationSummary": "独立した履歴で実行し、結果をこのチャットに送信します。",
+      "standaloneSummary": "実行ごとに新しいチャットを作成し、結果を保存します。",
       "searchPlaceholder": "タスク名や説明を検索…",
       "noResults": "一致する定期タスクはありません",
       "noResultsDesc": "別のキーワードを試すか、ステータスの絞り込みを変更してください。",
@@ -1184,6 +1186,7 @@
     }
   },
   "chat": {
+    "agentHandoff": "{{agent}}が引き継ぎました",
     "addMoreFiles": "さらにファイルを追加",
     "assistant": "アシスタント",
     "attachFile": "ファイルを添付",
@@ -1212,6 +1215,7 @@
     },
     "features": "機能",
     "goal": {
+      "turnEnded": "このターンは終了しました",
       "active": "目標",
       "clear": "目標をクリア",
       "command": "目標",
@@ -1221,6 +1225,7 @@
       "placeholder": "目標を入力…",
       "required": "目標を入力してください",
       "running": "実行中",
+    "waiting_human": "確認待ち",
       "runningStatus": "実行中",
       "startedAt": "開始時間"
     },
@@ -1450,6 +1455,8 @@
       "subagentMessage": "追加メッセージ",
       "toolSubagentRunning": "実行中",
       "toolSubagentMessageQueued": "メッセージをキューに追加しました",
+      "rubricGraderName": "評価基準採点アシスタント",
+      "rubricGraderInput": "評価基準に基づいて評価中",
       "toolSubagentCompleted": "完了",
       "toolSubagentWaitingHuman": "人の入力を待機中",
       "toolSubagentFailed": "失敗",
@@ -1684,13 +1691,16 @@
     "welcomeSubtitle": "何かお手伝いできることはありますか？",
     "welcomeSuggestions": "おすすめ",
     "goalPersistent": {
+      "edit": "目標を編集",
+      "criteria": "受け入れ基準",
+      "label": "目標",
       "pause": "目標を一時停止",
       "resume": "目標を再開",
       "clear": "目標をクリア",
       "noGoal": "先に継続目標を作成してください。",
       "tokensUnknown": "トークン使用量は不明",
-      "turns": "{{count}} / {{max}} 回",
-      "tokens": "{{count}} / {{max}} トークン",
+      "turns": "{{count}} 回",
+      "tokens": "{{count}} トークン",
       "timeLimit": "制限 {{minutes}} 分",
       "status": {
         "active": "実行中",
@@ -1702,7 +1712,18 @@
         "cleared": "クリア済み"
       },
       "modeHint": "継続目標：{{status}}",
-      "attachmentsUnsupported": "継続目標を設定する前に、通常のメッセージで添付ファイルを送信してください。"
+      "attachmentsUnsupported": "継続目標を設定する前に、通常のメッセージで添付ファイルを送信してください。",
+      "currentTurn": "第 {{count}} ターンを実行中",
+      "stopReason": {
+        "user_paused": "リクエストにより一時停止しました",
+        "no_progress": "連続するターンで新しい進展がありません",
+        "invalid_rubric": "完了条件を評価できませんでした",
+        "turn_limit": "ターン数の上限に達しました",
+        "token_limit": "トークン予算に達しました",
+        "time_limit": "制限時間に達しました",
+        "execution_error": "実行に失敗しました。再開前に直前の応答を確認してください",
+        "budget_limit": "目標の予算に達しました"
+      }
     }
   },
   "common": {
@@ -2581,7 +2602,7 @@
     "auto": "自動",
     "autoDesc": "自動実行、確認をスキップ",
     "goal": "ゴール",
-    "goalDesc": "メッセージをゴールとしてガイド実行",
+    "goalDesc": "完了または一時停止まで、同じ目標を複数ターンで進めます",
     "hint": "両モードを同時に有効にできます",
     "title": "実行モード"
   },
@@ -3060,12 +3081,12 @@
   "scheduledTask": {
     "noTimeLimit": "実行時間の上限なし",
     "executionMode": "実行方法",
-    "conversationMode": "この会話で続行",
+    "conversationMode": "この会話に結果を送信",
     "standaloneMode": "実行ごとに新しい会話",
     "targetConversation": "対象の会話",
     "targetRequired": "会話を選択してください",
     "currentConversation": "現在の会話",
-    "inheritContext": "会話の最新の文脈、プロジェクト、モデル、ツールを使用します。実行中の場合は待機します。",
+    "inheritContext": "作成時の設定と専用の履歴を使って独立して実行します。チャットを中断せず、この会話に結果を送信します。",
     "notificationPolicy": "通知",
     "meaningfulChanges": "進展または対応が必要な場合のみ",
     "alwaysNotify": "毎回通知",
@@ -4320,6 +4341,7 @@
     "agent": "エージェント",
     "allPeriods": "全期間",
     "cache": "キャッシュ",
+    "cacheRateUnknown": "入力、キャッシュ読み取り、または集計基準が不完全なため計算できません。料金は別途算定します。",
     "cacheHitRate": "キャッシュ命中",
     "cacheRead": "キャッシュ読取",
     "cacheTokens": "{{count}} tokens",

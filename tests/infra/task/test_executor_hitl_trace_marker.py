@@ -83,7 +83,7 @@ def _executor_fixture(monkeypatch: pytest.MonkeyPatch) -> tuple[TaskExecutor, _F
     trace_storage = _FakeTraceStorage()
     monkeypatch.setattr(trace_storage_mod, "get_trace_storage", lambda: trace_storage)
 
-    async def _record_status(session_id, status, error=None, run_id=None):
+    async def _record_status(session_id, status, error=None, run_id=None, *, expected_run_id=None):
         return None
 
     executor = TaskExecutor(

@@ -32,5 +32,6 @@ class QuickAgentState(DeepAgentState):
     input: str
     session_id: str
     output: str
+    agent_handoff: NotRequired[dict[str, Any] | None]
     attachments: Optional[List[Dict[str, Any]]]
     context: NotRequired[Annotated[Any, EphemeralValue]]

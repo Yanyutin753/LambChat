@@ -441,6 +441,7 @@ class StoragePresenterMixin:
                     self._goal_end_recorded = True
                 elif event_type == "done":
                     self._done_recorded = True
+
         except Exception as e:
             logger.warning("Failed to save event: %s", e)
             if raise_on_error:
@@ -491,7 +492,7 @@ class StoragePresenterMixin:
             # block complete_trace: a trace stuck in status="running" hides all
             # its non-user events from the session events read path.
             try:
-                await dual_writer.flush_mongo_buffer(require_empty=True)
+                await dual_writer.flush_mongo_buffer(require_trace_id=self.trace_id)
             except Exception as e:
                 logger.error(
                     "Mongo event buffer not empty while completing trace %s; "

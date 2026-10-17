@@ -86,7 +86,7 @@ def _executor_fixture(
 
     status_updates: list[str] = []
 
-    async def _record_status(session_id, status, error=None, run_id=None):
+    async def _record_status(session_id, status, error=None, run_id=None, *, expected_run_id=None):
         status_updates.append(status.value if hasattr(status, "value") else str(status))
 
     executor = TaskExecutor(

@@ -55,6 +55,10 @@ class TaskStatusQueries:
                         "running": TaskStatus.RUNNING,
                         "completed": TaskStatus.COMPLETED,
                         "error": TaskStatus.FAILED,
+                        "failed": TaskStatus.FAILED,
+                        "cancelled": TaskStatus.CANCELLED,
+                        "expired": TaskStatus.EXPIRED,
+                        "waiting_human": TaskStatus.WAITING_HUMAN,
                     }
                     return status_map.get(trace_status, TaskStatus.PENDING)
         except Exception as e:

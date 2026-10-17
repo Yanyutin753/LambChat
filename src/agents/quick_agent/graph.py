@@ -1,7 +1,7 @@
 """
 Quick Agent - 快问快答
 
-消息直发 LLM，单节点图，无工具/技能/子代理/沙箱。
+消息直发 LLM，单节点图；需要执行能力时请求同会话交给 Search。
 完全复用 BaseGraphAgent 的流式执行链路（metadata/事件处理/用量/done），
 历史由外层图 messages channel + checkpointer 维护。
 
@@ -30,7 +30,7 @@ class QuickAgent(BaseGraphAgent):
     _agent_id = "quick"
     _agent_name = "Everyday Assistant"
     _name_key = "agents.quick.name"
-    _description = "Everyday questions, writing and translation, with direct responses."
+    _description = "Fast answers, writing and translation, with automatic execution handoff."
     _description_key = "agents.quick.description"
     _version = "1.0.0"
     _sort_order = 2  # 排序权重，数值越小越靠前（search=1, quick=2）

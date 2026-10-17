@@ -247,3 +247,86 @@ async def test_cancel_run_cancels_local_task_when_agent_close_hangs(
     assert result["cancelled_locally"] is True
     assert task.done()
     assert task_cancelled is True
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_accepts_child_cancelled_by_agent_close_and_keeps_other_run_alive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    published = []
+
+    async def local_task():
+        started.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(local_task())
+    other = asyncio.create_task(asyncio.Event().wait())
+    await started.wait()
+    cancellation = TaskCancellation(
+        lock=asyncio.Lock(), tasks={"closed-by-agent": task, "other-run": other}
+    )
+
+    class RecordingRedis(_FakeRedis):
+        async def publish(self, channel, payload):
+            published.append(json.loads(payload))
+            return 1
+
+    class ClosingAgent:
+        async def close(self, run_id):
+            assert run_id == "closed-by-agent"
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    class Factory:
+        @staticmethod
+        async def get(agent_id):
+            assert agent_id == "search"
+            return ClosingAgent()
+
+    monkeypatch.setattr(cancellation_module, "get_redis_client", lambda: RecordingRedis())
+    monkeypatch.setattr(cancellation_module, "_interrupted_runs", {})
+    monkeypatch.setattr("src.agents.core.base.AgentFactory", Factory)
+    try:
+        result = await cancellation.cancel_run("closed-by-agent", run_info={"agent_id": "search"})
+        assert result["success"] is True
+        assert result["cancelled_locally"] is True
+        assert task.cancelled()
+        assert not other.done()
+        assert [row["run_id"] for row in published] == ["closed-by-agent"]
+    finally:
+        for running in (task, other):
+            running.cancel()
+        await asyncio.gather(task, other, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel_child", [False, True])
+async def test_cancel_run_propagates_caller_cancellation_even_if_child_also_cancelled(
+    monkeypatch: pytest.MonkeyPatch, cancel_child: bool
+) -> None:
+    signalled = asyncio.Event()
+
+    class SignallingRedis(_FakeRedis):
+        async def set(self, *args, **kwargs):
+            signalled.set()
+            return True
+
+    monkeypatch.setattr(cancellation_module, "get_redis_client", lambda: SignallingRedis())
+    monkeypatch.setattr(cancellation_module, "_interrupted_runs", {})
+    child = asyncio.create_task(asyncio.Event().wait())
+    cancellation = TaskCancellation(lock=asyncio.Lock(), tasks={"caller-cancelled": child})
+    caller = asyncio.create_task(cancellation.cancel_run("caller-cancelled", publish=False))
+    try:
+        await signalled.wait()
+        if cancel_child:
+            child.cancel()
+        caller.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await caller
+        if not cancel_child:
+            assert not child.done()
+    finally:
+        caller.cancel()
+        child.cancel()
+        await asyncio.gather(caller, child, return_exceptions=True)

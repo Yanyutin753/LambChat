@@ -2,6 +2,15 @@
 import type { MessagePart } from "../../types";
 import { historyReplayKey } from "./historyReplayKey";
 
+// Adjacent float labels keep repeated late inserts between their anchor and the draft tail.
+function nextPosition(position: number): number {
+  if (position === 0) return Number.MIN_VALUE;
+  const value = new Float64Array([position]);
+  const bits = new BigUint64Array(value.buffer);
+  bits[0] += position < 0 ? -1n : 1n;
+  return value[0];
+}
+
 export interface HistoryPartSlot {
   position: number;
   part: MessagePart;
@@ -121,7 +130,8 @@ export class HistoryPartSlots {
     this.changed?.(entry, previous);
   }
   insertAfter(position: number, part: MessagePart): HistoryPartSlot {
-    const inserted = position + 0.5;
+    let inserted = nextPosition(position);
+    while (this.records.has(inserted)) inserted = nextPosition(inserted);
     this.parts[inserted] = part;
     this.record(inserted);
     this.deferred = true;

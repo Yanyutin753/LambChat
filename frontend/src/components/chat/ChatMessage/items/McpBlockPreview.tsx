@@ -544,7 +544,7 @@ function JsonFallback({
       className="tool-json-result min-w-0 overflow-hidden rounded-lg border border-theme-border bg-theme-bg-card"
     >
       <div className="tool-json-result__header flex min-h-10 items-center justify-between gap-3 border-b border-theme-border-subtle bg-theme-bg-subtle px-3 py-1">
-        <span className="font-sans font-normal text-theme-text-secondary">
+        <span className="font-normal text-theme-text-secondary">
           {t("chat.message.toolOutput")}
         </span>
         {!hideCopyButton && (

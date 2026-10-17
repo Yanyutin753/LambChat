@@ -18,7 +18,7 @@ test("tool reading typography compiles with monospace utilities without a cycle"
 });
 
 
-test.each(["base.css", "animations.css", "landing.css", "components.css", "auth.css"])(
+test.each(["base.css", "animations.css", "landing.css", "components.css", "auth.css", "chat.css", "app-content.css"])(
   "%s resolves its shared Tailwind reference",
   async (file) => {
     const source = new URL(`../${file}`, import.meta.url);

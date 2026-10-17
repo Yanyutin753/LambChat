@@ -65,7 +65,7 @@ export function ChatAppContent({
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
   const { user, hasPermission, isAuthenticated } = useAuth();
-  const ensureResumeStreamRef = useRef<(runId?: string | null) => void>(
+  const ensureResumeStreamRef = useRef<(runId?: string | null, sourceSessionId?: string | null) => void>(
     () => {},
   );
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
@@ -80,7 +80,7 @@ export function ChatAppContent({
     isLoading: approvalLoading,
   } = useApprovals({
     sessionId: null,
-    onInterruptResume: (runId) => ensureResumeStreamRef.current(runId),
+    onInterruptResume: (runId, sourceSessionId) => ensureResumeStreamRef.current(runId, sourceSessionId),
   });
   const {
     tools,
@@ -173,6 +173,7 @@ export function ChatAppContent({
     persistentGoal,
     persistentGoalBusy,
     controlPersistentGoal,
+    updatePersistentGoal,
     goalsByRunId,
     sendMessage,
     queueFollowUp,
@@ -213,7 +214,9 @@ export function ChatAppContent({
         type: "form",
         fields: approval.fields || [],
         status: "pending",
-        session_id: sessionId,
+        session_id: approval.session_id ?? sessionId,
+        expires_at: approval.expires_at,
+        timeout: approval.timeout,
         metadata: approval.metadata,
       });
     },
@@ -241,10 +244,25 @@ export function ChatAppContent({
       setTimeout(() => fetchSkills(), 500);
     },
   });
-  ensureResumeStreamRef.current = (runId) => {
+  ensureResumeStreamRef.current = (runId, sourceSessionId) => {
+    if (sourceSessionId && sourceSessionId !== sessionId) return;
     void reconnectSSE(runId);
   };
-  useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
+  useEffect(() => {
+    if (!sessionId) return;
+    const refresh = () => {
+      if (document.visibilityState !== "hidden") void refreshApprovals();
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [sessionId, refreshApprovals]);
   const switchToPersonaAgentMode = useCallback(() => {
     if (currentAgent !== "team") return;
     const nextAgentId = resolvePersonaAgentId(currentAgent, undefined, agents);
@@ -601,6 +619,10 @@ export function ChatAppContent({
       sidebarRef.current?.updateSessionMetadata(data.session_id, {
         task_status: data.task_status,
       });
+      if (data.task_status === "waiting_human") void refreshApprovals();
+      if (data.session_id === sessionId) {
+        void reconcileActiveRun();
+      }
     },
     onCurrentSessionTaskComplete: () => {
       void reconcileActiveRun();
@@ -937,6 +959,7 @@ export function ChatAppContent({
           activeGoal={activeGoal}
           persistentGoal={persistentGoal}
           persistentGoalBusy={persistentGoalBusy}
+          onUpdatePersistentGoal={updatePersistentGoal}
           onControlPersistentGoal={(action) => void controlPersistentGoal(action)}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}

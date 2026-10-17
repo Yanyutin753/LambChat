@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { CollapsibleStatus } from "../../common";
 import type {
   Message,
@@ -12,9 +13,10 @@ import {
   createSubagentAnchorOwnerId,
 } from "./messagePartAnchors";
 import { formatDateTime } from "../../../utils/datetime";
-import { formatSubagentName } from "./subagentRoleMeta";
+import { formatSubagentName, formatSubagentInput } from "./subagentRoleMeta";
 import { extractText } from "./items/toolUtils";
 import { splitRunTailGroups } from "./runStepsCollapseUtils";
+import { stripActivityReferences } from "../../../utils/activityReferences";
 
 export function parseSubagentControlResult(
   result: ToolPart["result"],
@@ -49,7 +51,10 @@ export function resolveSubagentControlState(
   return run?.status === "complete" ? "completed" : run?.status ?? state;
 }
 
-export function buildSubagentConversation(data: SubagentPanelData): Message[] {
+export function buildSubagentConversation(
+  data: SubagentPanelData,
+  t?: TFunction,
+): Message[] {
   const history = data.history?.length
     ? data.history
     : [
@@ -146,7 +151,7 @@ export function buildSubagentConversation(data: SubagentPanelData): Message[] {
       messages.push({
         id: `${id}-task`,
         role: "user",
-        content: part.input,
+        content: formatSubagentInput(part.agent_name, part.input, t),
         timestamp,
       });
     }
@@ -155,7 +160,14 @@ export function buildSubagentConversation(data: SubagentPanelData): Message[] {
       part.status ??
       (part.isPending ? "running" : part.success ? "complete" : "error");
     const isStreaming = status === "pending" || status === "running";
-    const parts = [...(part.parts ?? [])];
+    const project = (parts: MessagePart[]): MessagePart[] => parts.map((item) =>
+      item.type === "thinking"
+        ? { ...item, content: stripActivityReferences(item.content, !!item.isStreaming) }
+        : item.type === "subagent" && item.parts
+          ? { ...item, parts: project(item.parts) }
+          : item,
+    );
+    const parts = project(part.parts ?? []);
     let streamedPrefix: MessagePart | undefined;
     if (part.result && ["complete", "timed_out", "error"].includes(status)) {
       let lastText = -1;
@@ -299,6 +311,7 @@ export function buildSubagentPanelState(data: SubagentPanelData) {
     subtitle: subtitle || undefined,
     panelKey: createSubagentPanelKey(data.agentId),
     formattedAgentName: formatSubagentName(data.agentName),
+    formattedInput: formatSubagentInput(data.agentName, data.input),
   };
 }
 

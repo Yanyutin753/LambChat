@@ -105,8 +105,8 @@ export function UserMessageBubble({
     .join("\n");
 
   return (
-    <div className="w-full px-4 sm:px-10 py-4 group">
-      <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
+    <div className="w-full group">
+      <div className="chat-content-column chat-message-content flex justify-end">
         <div
           className={`flex flex-col items-end max-w-[90%] transition-opacity ${
             queued ? "opacity-70" : ""
@@ -157,7 +157,7 @@ export function UserMessageBubble({
 
           {/* Message bubble */}
           {hasContent && (
-            <div className="user-message-bubble max-w-full px-5 py-2.5 border transition-shadow duration-200 hover:-translate-y-px">
+            <div className="user-message-bubble max-w-full px-6 py-3.5 border transition-shadow duration-200 hover:-translate-y-px">
               <div
                 className="user-message-inline-markdown leading-relaxed"
                 style={{ color: "var(--theme-text-secondary)" }}

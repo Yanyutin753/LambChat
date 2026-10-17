@@ -503,7 +503,7 @@ function TeamDetail({
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-12 text-theme-text font-semibold font-serif truncate">
+                          <div className="text-12 text-theme-text font-semibold truncate">
                             {roleName}
                           </div>
                           {mTags.length > 0 && (

@@ -60,3 +60,18 @@ test("assistant copies current text parts ahead of the saved body", async () => 
   await screen.findByRole("button", { name: "chat.message.copied" });
   expect(copy).toHaveBeenCalledWith("First\nSecond");
 });
+
+
+test.each([false, true])("scheduled trigger renders as a user bubble before its assistant (%s)", (isStreaming) => {
+  const timestamp = new Date("2026-10-17T19:33:41Z");
+  const { container } = render(<ChatMessage message={{
+    id: "scheduled-result:run", role: "assistant", content: isStreaming ? "" : "692",
+    timestamp, isStreaming, metadata: { scheduledTaskName: "每分钟随机数字" },
+  }} />);
+  const bubble = container.querySelector(".user-message-bubble");
+  expect(bubble).toHaveTextContent("scheduledTask.title · 每分钟随机数字");
+  expect(bubble).toHaveTextContent(timestamp.toLocaleString());
+  const heading = container.querySelector(".chat-assistant-heading")!;
+  expect(bubble!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(heading.parentElement?.textContent).not.toContain("每分钟随机数字");
+});

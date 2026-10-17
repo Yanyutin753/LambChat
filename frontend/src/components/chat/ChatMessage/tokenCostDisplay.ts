@@ -9,14 +9,21 @@ export interface CostDetailRow {
   /** 该档计费 token 数 */
   tokens: number;
   /** 该档 USD 成本 */
-  usd: number;
+  usd: number | null;
   /** 该档单价（USD / 每百万 token）；未知为 null */
   ratePerMillion: number | null;
 }
 
 /** 是否有可展示的金额（未匹配价格的模型为 false） */
 export function hasPricedCost(usage: TokenUsagePart | undefined): boolean {
-  return typeof usage?.cost_usd === "number";
+  const missingCachePrice = usage?.cost_rates && (
+    (usage.cache_read_tokens ?? 0) > 0 && usage.cost_rates.cache_read == null
+    || (usage.cache_creation_tokens ?? 0) > 0 && usage.cost_rates.cache_write == null
+  );
+  return typeof usage?.cost_usd === "number" && Number.isFinite(usage.cost_usd)
+    && usage.usage_incomplete === false && !missingCachePrice
+    && typeof usage.cache_read_tokens === "number"
+    && typeof usage.cache_creation_tokens === "number";
 }
 
 /**
@@ -26,7 +33,7 @@ export function hasPricedCost(usage: TokenUsagePart | undefined): boolean {
 export function buildCostDetailRows(
   usage: TokenUsagePart | undefined,
 ): CostDetailRow[] {
-  if (!usage) return [];
+  if (!usage || usage.usage_incomplete === true) return [];
   const cacheRead = usage.cache_read_tokens ?? 0;
   const cacheCreation = usage.cache_creation_tokens ?? 0;
   const breakdown = usage.cost_breakdown;
@@ -36,13 +43,13 @@ export function buildCostDetailRows(
     {
       key: "input",
       tokens: Math.max(usage.input_tokens - cacheRead - cacheCreation, 0),
-      usd: breakdown?.input ?? 0,
+      usd: breakdown?.input ?? null,
       ratePerMillion: rates?.input ?? null,
     },
     {
       key: "output",
       tokens: usage.output_tokens,
-      usd: breakdown?.output ?? 0,
+      usd: breakdown?.output ?? null,
       ratePerMillion: rates?.output ?? null,
     },
   ];
@@ -51,7 +58,7 @@ export function buildCostDetailRows(
     rows.push({
       key: "cache_read",
       tokens: cacheRead,
-      usd: breakdown?.cache_read ?? 0,
+      usd: breakdown?.cache_read ?? null,
       ratePerMillion: rates?.cache_read ?? null,
     });
   }
@@ -59,7 +66,7 @@ export function buildCostDetailRows(
     rows.push({
       key: "cache_write",
       tokens: cacheCreation,
-      usd: breakdown?.cache_write ?? 0,
+      usd: breakdown?.cache_write ?? null,
       ratePerMillion: rates?.cache_write ?? null,
     });
   }
@@ -77,7 +84,7 @@ export function formatCostDetailRow(
   opts: FormatCostRowOpts,
 ): { cost: string; rate: string | null } {
   return {
-    cost: formatCostUsd(row.usd, opts),
+    cost: row.usd === null ? "—" : formatCostUsd(row.usd, opts),
     rate:
       row.ratePerMillion === null
         ? null

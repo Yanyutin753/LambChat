@@ -66,6 +66,7 @@ async def test_old_conversation_run_is_not_cancelled_by_elapsed_time():
         get_run_status=AsyncMock(return_value="running"), cancel_run=AsyncMock()
     )
     with (
+        patch("src.infra.scheduler.runner.reconcile_standalone_finalizations", AsyncMock()),
         patch("src.infra.scheduler.storage.get_scheduled_task_storage", return_value=storage),
         patch("src.infra.task.manager.get_task_manager", return_value=manager),
         patch("src.infra.scheduler.conversation._finish", AsyncMock()) as finish,

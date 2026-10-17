@@ -37,3 +37,25 @@ it("sidebar attention label follows the selected language", () => {
   const view = render(<SessionItem session={{...session,metadata:{task_status:"waiting_human"}}} isActive={false} projects={[]} onSelect={vi.fn()} onDelete={vi.fn()} onMoveToProject={vi.fn()} onSessionUpdate={vi.fn()} />);
   expect(view.container.querySelector("[data-session-status=ask-human]")).toHaveAttribute("aria-label", "Needs your reply");
 });
+
+
+it.each(["queued", "pending", "starting", "running", "recovering", "waiting_human", "completed"])(
+  "recent chats gives %s status priority over unread count",
+  async (status) => {
+    vi.spyOn(sessionApi, "list").mockResolvedValue([
+      { ...session, unread_count: 100, metadata: { task_status: status } },
+    ]);
+    const view = render(
+      <RecentChatsDialog
+        isOpen
+        onClose={vi.fn()}
+        onSelectSession={vi.fn()}
+        anchorEl={document.createElement("button")}
+      />,
+    );
+    await waitFor(() => expect(view.getByText(session.name)).toBeInTheDocument());
+    const unread = view.queryByLabelText("sidebar.unreadMessages");
+    if (status === "completed") expect(unread).toHaveTextContent("99+");
+    else expect(unread).toBeNull();
+  },
+);

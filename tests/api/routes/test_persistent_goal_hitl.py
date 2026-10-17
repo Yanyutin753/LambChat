@@ -11,6 +11,7 @@ from src.infra.session.storage import SessionStorage
 from src.infra.task.executor import TaskExecutor
 from src.infra.task.status import TaskStatus
 from src.kernel.schemas.persistent_goal import PersistentGoalCreate
+from tests.infra.agent.test_goal_runtime import runtime_redis  # noqa: F401
 from tests.infra.agent.test_persistent_goal import Store
 
 
@@ -38,7 +39,10 @@ class SessionCollection:
             actual = self.doc
             for part in key.split("."):
                 actual = actual.get(part) if isinstance(actual, dict) else None
-            if actual != expected:
+            if isinstance(expected, dict) and "$in" in expected:
+                if actual not in expected["$in"]:
+                    return False
+            elif actual != expected:
                 return False
         return True
 

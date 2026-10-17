@@ -173,6 +173,47 @@ class _RespondCollection:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("ttl", [120, None])
+async def test_created_approval_returns_the_persisted_deadline(ttl) -> None:
+    from datetime import timedelta
+    from unittest.mock import AsyncMock
+
+    from src.infra.storage.mongodb import PendingApproval
+
+    storage = ApprovalStorage()
+    collection = AsyncMock()
+    storage._collection = collection
+    storage._indexes_created = True
+    result = await storage.create(PendingApproval(id="ap-1", message="Confirm"), ttl=ttl)
+    doc = collection.insert_one.call_args.args[0]
+
+    assert result.created_at == doc["created_at"]
+    assert result.expires_at == doc["expires_at"]
+    assert result.expires_at == (
+        result.created_at + timedelta(seconds=ttl) if ttl is not None else None
+    )
+
+
+@pytest.mark.asyncio
+async def test_finish_if_pending_closes_only_the_unanswered_request() -> None:
+    from unittest.mock import AsyncMock
+
+    storage = ApprovalStorage()
+    collection = AsyncMock()
+    collection.update_one.return_value.modified_count = 1
+    storage._collection = collection
+
+    assert await storage.finish_if_pending("approval-1", "timeout") is True
+    query, update = collection.update_one.call_args.args
+    assert query == {"_id": "approval-1", "status": "pending"}
+    assert update["$set"]["status"] == "timeout"
+    assert "response" not in update["$set"]
+
+    collection.update_one.return_value.modified_count = 0
+    assert await storage.finish_if_pending("approval-1", "cancelled") is False
+
+
+@pytest.mark.asyncio
 async def test_respond_if_pending_returns_updated_approval() -> None:
     from pymongo import ReturnDocument
 

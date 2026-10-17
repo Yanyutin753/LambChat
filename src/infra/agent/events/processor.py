@@ -11,7 +11,12 @@ from io import StringIO
 from typing import Any
 
 from src.infra.agent.events.binary_uploads import upload_binary_blocks
-from src.infra.agent.events.buffers import TextChunkBuffer
+from src.infra.agent.events.buffers import (
+    ActivityReferenceFilter,
+    ActivityStreamKey,
+    BufferKey,
+    TextChunkBuffer,
+)
 from src.infra.agent.events.debug_logger import debug_log_event
 from src.infra.agent.events.stream import StreamEventMixin
 from src.infra.agent.events.subagents import SubagentEventMixin
@@ -70,6 +75,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "total_tokens",
         "total_cache_creation_tokens",
         "total_cache_read_tokens",
+        "_usage_unknown_fields",
+        "_usage_observed",
+        "_input_includes_cache",
+        "_pending_model_runs",
+        "_completed_model_runs",
         "_token_usage_emitted",
         "_output_buffer_chars",
         "_presenter_emit",
@@ -87,6 +97,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_rubric_grader_active",
         "_rubric_grader_id",
         "_first_event_timing",
+        "_activity_reference_filters",
     )
 
     _CHUNK_FLUSH_SIZE = 200
@@ -113,6 +124,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self.total_tokens = 0
         self.total_cache_creation_tokens = 0
         self.total_cache_read_tokens = 0
+        self._usage_unknown_fields: set[str] = set()
+        self._usage_observed = False
+        self._input_includes_cache = True
+        self._pending_model_runs: set[str] = set()
+        self._completed_model_runs: set[str] = set()
         self._token_usage_emitted = False
         self._presenter_emit = presenter.emit
         self._before_tool_start = before_tool_start
@@ -122,6 +138,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
         self._tool_args_buffers: dict[tuple[str | None, int | str], TextChunkBuffer] = {}
         self._tool_args_meta: dict[tuple[str | None, int | str], tuple[str, str | None]] = {}
+        self._activity_reference_filters: dict[
+            ActivityStreamKey, tuple[ActivityReferenceFilter, BufferKey]
+        ] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
@@ -143,6 +162,25 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         """
         if not isinstance(prior_usage, dict):
             return
+        fields = {
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cache_creation_tokens",
+            "cache_read_tokens",
+        }
+        if not any(isinstance(prior_usage.get(key), int) for key in fields):
+            return
+        self._usage_observed = True
+        self._input_includes_cache &= prior_usage.get("input_includes_cache") is True
+        unknown = prior_usage.get("unknown_usage_fields")
+        if isinstance(unknown, list) and all(
+            isinstance(key, str) and key in fields for key in unknown
+        ):
+            self._usage_unknown_fields.update(unknown)
+        else:
+            # Legacy counters did not distinguish unreported usage from a genuine zero.
+            self._usage_unknown_fields.update(fields)
         if isinstance(prior_usage.get("input_tokens"), int):
             self.total_input_tokens += prior_usage["input_tokens"]
         if isinstance(prior_usage.get("output_tokens"), int):
@@ -156,13 +194,19 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
     def usage_totals(self) -> dict:
         """当前累计用量快照，用于挂起时写入 resume_context 传给下一段。"""
-        return {
+        totals: dict[str, Any] = {
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,
             "total_tokens": self.total_tokens,
             "cache_creation_tokens": self.total_cache_creation_tokens,
             "cache_read_tokens": self.total_cache_read_tokens,
         }
+        if self._usage_observed:
+            totals["usage_observed"] = True
+            totals["unknown_usage_fields"] = sorted(self._usage_unknown_fields)
+            if self._input_includes_cache:
+                totals["input_includes_cache"] = True
+        return totals
 
     async def flush(self) -> None:
         """Flush pending stream chunks without clearing counters or output text."""
@@ -171,8 +215,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         await self._flush_thinking_chunk_buffer()
         await self._flush_tool_args_buffers()
 
+    async def drain_activity_references(self) -> None:
+        """Finish interrupted streams without clearing their output or usage."""
+        for stream_key in list(self._activity_reference_filters):
+            await self._finish_activity_reference(stream_key)
+
     async def finalize(self) -> None:
         """Flush pending chunks and release session-scoped buffers."""
+        await self.drain_activity_references()
         await self.flush()
         self.clear()
 
@@ -187,8 +237,16 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         if self._token_usage_emitted:
             return False
 
+        if self._pending_model_runs:
+            self._mark_unknown_model_usage()
+            self._completed_model_runs.update(self._pending_model_runs)
+            self._pending_model_runs.clear()
+
         if not (
-            self.total_input_tokens > 0 or self.total_output_tokens > 0 or self.total_tokens > 0
+            self.total_input_tokens > 0
+            or self.total_output_tokens > 0
+            or self.total_tokens > 0
+            or self._usage_observed
         ):
             return False
 
@@ -199,8 +257,18 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             output_tokens=self.total_output_tokens,
             total_tokens=total_tokens,
             duration=duration,
-            cache_creation_tokens=self.total_cache_creation_tokens,
-            cache_read_tokens=self.total_cache_read_tokens,
+            cache_creation_tokens=(
+                None
+                if "cache_creation_tokens" in self._usage_unknown_fields
+                else self.total_cache_creation_tokens
+            ),
+            cache_read_tokens=(
+                None
+                if "cache_read_tokens" in self._usage_unknown_fields
+                else self.total_cache_read_tokens
+            ),
+            unknown_usage_fields=sorted(self._usage_unknown_fields),
+            input_includes_cache=self._usage_observed and self._input_includes_cache,
             model_id=model_id,
             model=model,
             cost=cost,
@@ -214,6 +282,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self, *, model: str | None, model_id: str | None
     ) -> tuple[Any, Any]:
         """best-effort 计算本次用量成本；失败或未匹配价格时返回 (None, None)。"""
+        if self._usage_unknown_fields:
+            return None, None
         try:
             result = await compute_usage_cost(
                 model_value=model,
@@ -244,6 +314,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._thinking_chunk_buffer.reset()
         self._tool_args_buffers.clear()
         self._tool_args_meta.clear()
+        self._activity_reference_filters.clear()
         self._started_tool_call_ids.clear()
 
     async def process_event(self, event: StreamEvent) -> None:
@@ -251,6 +322,17 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         await debug_log_event(event, self._debug_log_context())
         evt_type = event.get("event")
         event_name = event.get("name", "")
+        run_id = event.get("run_id")
+        # Account hidden model calls too; display gates below only suppress their text.
+        if evt_type == "on_chat_model_start" and run_id:
+            if run_id not in self._completed_model_runs:
+                self._pending_model_runs.add(run_id)
+        elif evt_type == "on_chat_model_error":
+            if run_id and run_id in self._pending_model_runs:
+                self._pending_model_runs.remove(run_id)
+                self._completed_model_runs.add(run_id)
+                self._mark_unknown_model_usage()
+            return
         if evt_type == "on_custom_event" and event_name == "lambchat_subagent_message":
             await self._handle_subagent_message(event)
             return
@@ -323,13 +405,22 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                     return
 
         if evt_type == "on_chat_model_end":
-            await self.flush()
             metadata = event.get("metadata", {})
             agent_id = metadata.get("lambchat_subagent_id")
             if not isinstance(agent_id, str) or not agent_id:
                 agent_id, _ = self._get_agent_context(self._get_checkpoint_ns(metadata))
+            for kind in ("body", "thinking", "summary"):
+                await self._finish_activity_reference((agent_id, event.get("run_id"), kind))
+            await self.flush()
             self._reset_tool_args_buffers(agent_id)
-            self._handle_token_usage(event)
+            if not run_id or run_id not in self._completed_model_runs:
+                if run_id:
+                    started = run_id in self._pending_model_runs
+                    self._pending_model_runs.discard(run_id)
+                    self._completed_model_runs.add(run_id)
+                    if started and not event.get("data", {}).get("output"):
+                        self._mark_unknown_model_usage()
+                self._handle_token_usage(event)
             return
 
         if evt_type not in _CONTEXT_EVENT_TYPES:
@@ -367,6 +458,10 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         match evt_type:
             case "on_chat_model_start":
+                run_id = event.get("run_id")
+                for stream_key in list(self._activity_reference_filters):
+                    if stream_key[0] == current_agent_id and stream_key[1] != run_id:
+                        await self._finish_activity_reference(stream_key)
                 # 新模型流开始：上一步残留的参数缓冲已被 model_end 冲掉，
                 # 异常中断的残留在此丢弃（对应工具不会执行）。
                 self._reset_tool_args_buffers(current_agent_id)

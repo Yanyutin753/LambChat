@@ -160,10 +160,12 @@ class TaskExecutor(TaskSessionStatusMixin):
                 raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
             fenced_resume = True  # STARTING was already written atomically.
 
-        try:
-            if not fenced_resume:
-                await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
+        if not fenced_resume:
+            await self._update_session_status(
+                session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
+            )
 
+        try:
             # queued path 已经同时创建 trace 和写入 user:message 时，可安全复用。
             already_written = user_message_written or self._run_info.get(run_id, {}).get(
                 "user_message_written", False
@@ -213,7 +215,9 @@ class TaskExecutor(TaskSessionStatusMixin):
             # 心跳与 RUNNING 状态彼此独立；并发完成后才进入 agent stream。
             await asyncio.gather(
                 self._heartbeat.start(run_id, user_id=user_id),
-                self._update_session_status(session_id, TaskStatus.RUNNING, run_id=run_id),
+                self._update_session_status(
+                    session_id, TaskStatus.RUNNING, run_id=run_id, expected_run_id=run_id
+                ),
             )
 
             # 立即发送 user:message 事件（任务开始时固定发送）
@@ -224,6 +228,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    goal_continuation=(active_goal or {}).get("_continuation"),
                 )
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
@@ -783,7 +788,10 @@ class TaskExecutor(TaskSessionStatusMixin):
                 scheduled_task_id, quiet = await completion_context(
                     session_id, run_id, status.value
                 )
-                if quiet:
+                if quiet or (
+                    session_metadata.get("scheduled_target_session_id")
+                    and status == TaskStatus.COMPLETED
+                ):
                     return
                 if scheduled_task_id:
                     notification["data"]["scheduled_task_id"] = scheduled_task_id

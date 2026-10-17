@@ -298,7 +298,7 @@ async def test_publish_goal_persists_terminal_scope_and_notifies_without_running
         user_id="u",
         objective="done",
         rubric="tests",
-        status="budget_limited",
+        status="blocked",
         version=4,
         run_accounting=[GoalRunAccounting(run_id="r", version=3)],
     )
@@ -320,7 +320,7 @@ async def test_publish_goal_persists_terminal_scope_and_notifies_without_running
     )
     await publish_goal(goal)
     metadata = update.call_args.args[1]
-    assert metadata["persistent_goal_status"] == "budget_limited"
+    assert metadata["persistent_goal_status"] == "blocked"
     assert metadata["persistent_goal_version"] == 4
     assert metadata["persistent_goal_revision"] == goal.revision
     assert metadata["persistent_goal_run_id"] == "r"

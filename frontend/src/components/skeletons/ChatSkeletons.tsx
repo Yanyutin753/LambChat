@@ -72,8 +72,8 @@ function UserMessageSkeleton({
   msg: { bubble: string; lines: string[] };
 }) {
   return (
-    <div className="w-full px-4 sm:px-6 py-4 group">
-      <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
+    <div className="w-full group">
+      <div className="chat-content-column chat-message-content flex justify-end">
         <div className={`flex flex-col items-end max-w-[90%] ${msg.bubble}`}>
           <div
             className="w-full px-5 py-2.5 shadow-sm border transition-shadow duration-200"
@@ -101,7 +101,7 @@ function UserMessageSkeleton({
 function AssistantMessageSkeleton() {
   return (
     <div className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl">
-      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6">
+      <div className="chat-content-column chat-message-content flex flex-col">
         {/* Avatar + name */}
         <div className="mb-3 flex flex-nowrap items-center gap-2">
           <div className="skeleton-line size-5 sm:size-6 rounded-full shrink-0" />
@@ -132,7 +132,7 @@ function AssistantMessageSkeleton() {
 
 /** Skeleton for the chat input area (reused in ChatSkeleton / WelcomeSkeleton) */
 function ChatInputSkeleton({
-  formClassName = "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl px-2",
+  formClassName = "chat-content-column chat-conversation-composer",
   shellClassName = "shrink-0",
 }: {
   formClassName?: string;
@@ -140,7 +140,7 @@ function ChatInputSkeleton({
 } = {}) {
   return (
     <div className={shellClassName}>
-      <div className="chat-input-shell sm:px-4 pb-3 sm:pb-5">
+      <div className="chat-input-shell pb-3 sm:pb-2">
         <div className={formClassName}>
           <ChatInputShellSkeleton />
         </div>

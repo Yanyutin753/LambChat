@@ -4,10 +4,11 @@ import os
 from uuid import uuid4
 
 import pytest
+from pymongo import AsyncMongoClient
 
 from src.infra.memory import extraction
 from src.infra.memory.evolution import reflector
-from src.infra.storage.mongodb import get_mongo_client
+from src.infra.storage.mongodb import build_mongo_connection_string
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
@@ -19,7 +20,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.asyncio
 async def test_real_trace_context_is_removed_before_memory_extraction(monkeypatch):
-    client = get_mongo_client()
+    client = AsyncMongoClient(build_mongo_connection_string())
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: client)
     database_name = settings.MONGODB_DB
     db = client[database_name]
     run_id = f"memory-context-{uuid4().hex}"
@@ -69,3 +71,4 @@ async def test_real_trace_context_is_removed_before_memory_extraction(monkeypatc
         assert await reflector._load_exchange(run_id, session_id, "other-user") == ("", "")
     finally:
         await db[settings.MONGODB_TRACES_COLLECTION].delete_one({"run_id": run_id})
+        await client.close()

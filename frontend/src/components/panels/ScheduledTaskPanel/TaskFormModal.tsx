@@ -1,3 +1,4 @@
+import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { AgentAvatar } from "../../common/AgentAvatar";
@@ -585,7 +586,12 @@ export function TaskFormModal({
                     { value: "", label: t("scheduledTask.modelPlaceholder") },
                     ...(availableModels || []).map((model) => ({
                       value: model.id,
-                      label: model.label || model.value,
+                      label: (
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <ModelIconImg model={model.value} provider={model.provider} icon={model.icon} size={16} />
+                          {model.label || model.value}
+                        </span>
+                      ),
                     })),
                   ]}
                 />

@@ -76,7 +76,7 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
             size={14}
             className="shrink-0 text-violet-500 dark:text-violet-400"
           />
-          <span className="text-violet-600 dark:text-violet-400 font-mono font-semibold min-w-0 truncate">
+          <span className="text-violet-600 dark:text-violet-400 font-medium min-w-0 truncate">
             {truncate(query, 80)}
           </span>
         </ToolArgsBlock>
@@ -104,9 +104,12 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
                 </p>
               )}
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="inline-flex items-center gap-1 text-10 font-mono text-theme-text-tertiary bg-theme-bg border border-theme-border rounded-md px-1.5 py-0.5 truncate">
+                <span
+                  className="inline-flex min-w-0 max-w-full items-center gap-1 text-10 font-mono text-theme-text-tertiary bg-theme-bg border border-theme-border rounded-md px-1.5 py-0.5"
+                  title={match.path}
+                >
                   <BookOpen size={10} className="shrink-0 opacity-60" />
-                  {match.path}
+                  <span className="min-w-0 truncate">{match.path}</span>
                 </span>
                 {match.tags.length > 0 && (
                   <span className="inline-flex items-center gap-1 text-10 text-theme-text-tertiary truncate">
@@ -229,7 +232,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
                 size={12}
                 className="shrink-0 text-violet-500 dark:text-violet-400"
               />
-              <span className="text-violet-600 dark:text-violet-400 font-mono font-medium min-w-0 truncate">
+              <span className="text-violet-600 dark:text-violet-400 font-medium min-w-0 truncate">
                 {truncate(query, 50)}
               </span>
             </ToolArgsBlock>

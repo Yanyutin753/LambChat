@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFxRates } from "../../hooks/useFxRates";
-import { effectivePromptInput } from "../chat/todayUsageSnapshot";
+import { cacheHitRateFromTokens } from "../chat/todayUsageSnapshot";
 import { fmtCostUsd } from "./UsagePanel/formatters";
 import {
   buildModelLabelMap,
@@ -197,17 +197,16 @@ export function UsagePanel() {
   );
 
   const cacheHitLabel = useMemo(() => {
-    // 与输入框用量卡同口径：分母取 max(input, cacheRead+cacheWrite)，
-    // 兼容 input_tokens 不含缓存 token 的 provider。
-    if (!stats) return "0%";
-    const effectiveInput = effectivePromptInput(
+    // 聚合统计须确认所有调用都采用包含缓存的输入口径。
+    if (!stats || (stats.cache_unknown_requests ?? 0) > 0) return "—";
+    const rate = cacheHitRateFromTokens(
       stats.total_input_tokens,
       stats.total_cache_read_tokens,
       stats.total_cache_creation_tokens,
+      [],
+      stats.cache_unknown_requests === 0,
     );
-    if (effectiveInput <= 0) return "0%";
-    const rate = Math.min(stats.total_cache_read_tokens / effectiveInput, 1);
-    return `${Math.round(rate * 100)}%`;
+    return pct(rate);
   }, [stats]);
 
   const dashboardSummary = dashboard?.summary;
@@ -332,7 +331,7 @@ export function UsagePanel() {
               icon={DatabaseZap}
               label={t("usage.cacheHitRate")}
               value={cacheHitLabel}
-              hint={t("usage.cacheTokens", {
+              hint={cacheHitLabel === "—" ? t("usage.cacheRateUnknown") : t("usage.cacheTokens", {
                 count: fmt(stats.total_cache_read_tokens),
               })}
             />
@@ -351,6 +350,8 @@ export function UsagePanel() {
               value={fmtCostUsd(stats.total_cost_usd, true, {
                 language: i18n.language,
                 rates: fxRates,
+                pricedRequests: stats.priced_requests,
+                unpricedRequests: stats.unpriced_requests,
               })}
               hint={
                 (stats.unpriced_requests ?? 0) > 0

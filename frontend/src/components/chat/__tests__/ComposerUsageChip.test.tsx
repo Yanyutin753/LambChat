@@ -57,6 +57,7 @@ function todayStats(overrides: Partial<UsageStats> = {}): UsageStats {
     total_cache_read_tokens: 30,
     total_cost_usd: 0.5,
     total_duration: 12,
+    cache_unknown_requests: 0,
     ...overrides,
   };
 }
@@ -106,6 +107,18 @@ test("refreshes when a chat round settles via the window event", async () => {
     window.dispatchEvent(new Event("today-usage-refresh"));
   });
   expect(getStatsMock).toHaveBeenCalledTimes(2);
+});
+
+test("unknown usage shows neither invented free cost nor token percentages", async () => {
+  getStatsMock.mockResolvedValue(todayStats({ total_cost_usd: 0,
+    priced_requests: 0, unpriced_requests: 3, cache_unknown_requests: 1,
+    usage_unknown_requests: 1 }));
+  render(<ComposerUsageChip />);
+  fireEvent.click(await screen.findByRole("button", { name: "今日 —" }));
+  expect(await screen.findByText("Token 构成")).toBeInTheDocument();
+  expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  expect(screen.queryByText("30.0%")).not.toBeInTheDocument();
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(8);
 });
 
 test("queues a follow-up refresh when the event lands while a fetch is in flight", async () => {

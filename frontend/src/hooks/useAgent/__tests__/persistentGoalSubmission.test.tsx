@@ -1,18 +1,18 @@
 /** @vitest-environment jsdom */
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
-const mocks = vi.hoisted(() => ({ create: vi.fn(), put: vi.fn(), control: vi.fn(), submit: vi.fn(), get: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), put: vi.fn(), control: vi.fn(), submit: vi.fn(), get: vi.fn(), steer: vi.fn(), cancel: vi.fn() }));
 vi.mock("../../useAuth", () => ({ useAuth: () => ({ hasAnyPermission: () => false }) }));
 vi.mock("../../../services/api", () => ({ sessionApi: {
   getPersistentGoal: mocks.get, create: mocks.create, putPersistentGoal: mocks.put, controlPersistentGoal: mocks.control,
-  submitChat: mocks.submit, markRead: vi.fn().mockResolvedValue(undefined),
+  steer: mocks.steer, cancel: mocks.cancel, submitChat: mocks.submit, markRead: vi.fn().mockResolvedValue(undefined),
 } }));
 vi.mock("../../../services/api/authenticatedRequest", () => ({ authenticatedRequest: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ agents: [{ id: "fast", name: "Fast" }], default_agent: "fast", allowed_model_ids: null }) }) }));
 vi.mock("../../../services/api/feedback", () => ({ feedbackApi: { listBySession: vi.fn() } }));
 vi.mock("../../../services/api/tokenManager", () => ({ getValidAccessToken: vi.fn().mockResolvedValue("token") }));
 import { useAgent } from "../../useAgent";
 
-const goal = { id: "g1", session_id: "s1", user_id: "u1", objective: "docs", rubric: "verified", revision: 1, version: 1, status: "paused", limits: { max_turns: 10, max_tokens: 100000, max_seconds: 3600 }, accounting: { turns: 0, tokens: null }, started_at: null, current_run_id: null };
+const goal = { id: "g1", session_id: "s1", user_id: "u1", objective: "docs", rubric: "verified", revision: 1, version: 1, status: "paused", accounting: { turns: 0, tokens: null }, started_at: null, current_run_id: null };
 
 test("persistent command creates a session then explicit goal API without submitting ordinary chat", async () => {
   mocks.create.mockResolvedValue({ id: "s1", metadata: {}, agent_id: "fast" });
@@ -90,7 +90,7 @@ test.each(["cleared", "paused", "completed"])("ordinary /goal clear preserves %s
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("fast"));
   await act(async () => { await result.current.sendMessage("/goal persist docs"); });
-  await act(async () => { await result.current.sendMessage("/goal docs\n---\nverified"); });
+  await act(async () => { await result.current.sendMessage("/goal run docs\n---\nverified"); });
   expect(result.current.activeGoal?.objective).toBe("docs");
   const controlsBefore = mocks.control.mock.calls.length;
   await act(async () => { await result.current.sendMessage("/goal clear"); });
@@ -127,4 +127,36 @@ test("unavailable persistent status backs off and hidden pages stop polling", as
     vi.useRealTimers();
     warn.mockRestore();
   }
+});
+
+test.each(["/goal docs", "toolbar"])("%s creates a persistent goal by default", async (entry) => {
+  mocks.create.mockResolvedValue({ id: "s1", metadata: {}, agent_id: "fast" });
+  mocks.put.mockResolvedValue({ goal });
+  const { result, unmount } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("fast"));
+  if (entry === "toolbar") act(() => result.current.setGoalModeEnabled(true));
+  const before = mocks.put.mock.calls.length;
+  await act(async () => { await result.current.sendMessage(entry === "toolbar" ? "docs" : entry); });
+  expect(mocks.put.mock.calls.length).toBe(before + 1);
+  expect(result.current.persistentGoal?.id).toBe("g1");
+  unmount();
+});
+
+test("guiding an active Goal enqueues a steer without cancelling or pausing it", async () => {
+  const active = { ...goal, status: "active", current_run_id: null };
+  mocks.create.mockResolvedValue({ id: "s1", metadata: {}, agent_id: "fast" });
+  mocks.put.mockResolvedValue({ goal: active });
+  mocks.get.mockResolvedValue({ goal: active });
+  mocks.steer.mockResolvedValue({ status: "queued", outcome: "accepted" });
+  const cancellations = mocks.cancel.mock.calls.length;
+  const submissions = mocks.submit.mock.calls.length;
+  const { result, unmount } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("fast"));
+  await act(async () => { await result.current.sendMessage("/goal persist docs"); });
+  await act(async () => { await result.current.supplementFollowUp("owner Xiaolin"); });
+  expect(mocks.steer).toHaveBeenCalledWith("s1", "owner Xiaolin", expect.any(String), []);
+  expect(mocks.cancel.mock.calls.length).toBe(cancellations);
+  expect(mocks.submit.mock.calls.length).toBe(submissions);
+  expect(result.current.persistentGoal?.status).toBe("active");
+  unmount();
 });

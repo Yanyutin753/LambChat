@@ -306,7 +306,7 @@
       "name": "快速助手"
     },
     "quick": {
-      "description": "日常问答、写作与翻译，专注直接回应。",
+      "description": "日常问答、写作与翻译，需要搜索或执行时自动接力。",
       "name": "轻量助手"
     },
     "search": {
@@ -331,6 +331,8 @@
     "previous": "上一项",
     "reject": "拒绝",
     "scheduledTask": {
+      "conversationSummary": "独立运行并保留任务历史，结果发送到此对话。",
+      "standaloneSummary": "每次运行创建新对话，结果保存在对应对话中。",
       "searchPlaceholder": "搜索任务名称或描述…",
       "noResults": "没有匹配的定时任务",
       "noResultsDesc": "试试其他关键词或调整状态筛选。",
@@ -1184,6 +1186,7 @@
     }
   },
   "chat": {
+    "agentHandoff": "已由{{agent}}接手处理",
     "addMoreFiles": "添加更多文件",
     "assistant": "助手",
     "attachFile": "附件",
@@ -1212,6 +1215,7 @@
     },
     "features": "功能",
     "goal": {
+      "turnEnded": "本轮已结束",
       "active": "目标",
       "clear": "清除目标",
       "command": "目标",
@@ -1221,6 +1225,7 @@
       "placeholder": "输入你的目标…",
       "required": "请输入目标内容",
       "running": "运行",
+    "waiting_human": "等待确认",
       "runningStatus": "运行中",
       "startedAt": "开始时间"
     },
@@ -1450,6 +1455,8 @@
       "subagentMessage": "追加消息",
       "toolSubagentRunning": "运行中",
       "toolSubagentMessageQueued": "消息已排队",
+      "rubricGraderName": "验收评分助手",
+      "rubricGraderInput": "正在根据验收标准进行评估",
       "toolSubagentCompleted": "已完成",
       "toolSubagentWaitingHuman": "等待人工处理",
       "toolSubagentFailed": "执行失败",
@@ -1684,13 +1691,16 @@
     "welcomeSubtitle": "✨ 我能为你做什么？",
     "welcomeSuggestions": "建议",
     "goalPersistent": {
+      "edit": "修改目标",
+      "criteria": "验收标准",
+      "label": "目标",
       "pause": "暂停目标",
       "resume": "继续目标",
       "clear": "清除目标",
       "noGoal": "请先创建持久目标。",
       "tokensUnknown": "Token 用量未知",
-      "turns": "{{count}} / {{max}} 轮",
-      "tokens": "{{count}} / {{max}} tokens",
+      "turns": "{{count}} 轮",
+      "tokens": "{{count}} tokens",
       "timeLimit": "时限 {{minutes}} 分钟",
       "status": {
         "active": "进行中",
@@ -1702,7 +1712,18 @@
         "cleared": "已清除"
       },
       "modeHint": "持久目标：{{status}}",
-      "attachmentsUnsupported": "请先通过普通消息发送附件，再设置持久目标。"
+      "attachmentsUnsupported": "请先通过普通消息发送附件，再设置持久目标。",
+      "currentTurn": "正在执行第 {{count}} 轮",
+      "stopReason": {
+        "user_paused": "已按你的要求暂停",
+        "no_progress": "连续多轮未取得新进展",
+        "invalid_rubric": "无法评估目标验收标准",
+        "turn_limit": "已达到轮次上限",
+        "token_limit": "已达到 Token 预算",
+        "time_limit": "已达到时间上限",
+        "execution_error": "执行失败，请查看上一轮回复后再继续",
+        "budget_limit": "已达到目标预算"
+      }
     }
   },
   "common": {
@@ -2581,7 +2602,7 @@
     "auto": "自动",
     "autoDesc": "自动执行，跳过确认",
     "goal": "目标",
-    "goalDesc": "将消息作为目标进行引导执行",
+    "goalDesc": "围绕同一目标跨轮推进，直到完成或暂停",
     "hint": "两种模式可以同时激活",
     "title": "运行模式"
   },
@@ -3060,12 +3081,12 @@
   "scheduledTask": {
     "noTimeLimit": "无总时长限制",
     "executionMode": "执行方式",
-    "conversationMode": "在当前对话继续",
+    "conversationMode": "结果发回此对话",
     "standaloneMode": "每次新建独立对话",
     "targetConversation": "目标对话",
     "targetRequired": "请选择目标对话",
     "currentConversation": "当前对话",
-    "inheritContext": "使用该对话的最新上下文、项目、模型和工具配置；忙碌时等待，不打断当前任务。",
+    "inheritContext": "在独立任务中执行并保留任务历史，继承创建时选定的配置。结果发送到此对话，不占用或打断聊天。",
     "notificationPolicy": "通知方式",
     "meaningfulChanges": "仅有进展或需要处理时",
     "alwaysNotify": "每次运行都通知",
@@ -4320,6 +4341,7 @@
     "agent": "智能体",
     "allPeriods": "全部",
     "cache": "缓存",
+    "cacheRateUnknown": "输入、缓存读取或统计口径不完整，暂无法计算。费用单独核算。",
     "cacheHitRate": "缓存命中",
     "cacheRead": "缓存读取",
     "cacheTokens": "{{count}} tokens",

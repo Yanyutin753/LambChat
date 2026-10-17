@@ -87,14 +87,48 @@ export function usePersistentGoalRuntime({
     [sessionIdRef, setError, setPersistentGoal, setPersistentGoalBusy],
   );
 
+  const updatePersistentGoal = useCallback(
+    async (objective: string, rubric: string, expectedRevision: number): Promise<boolean> => {
+      const target = sessionIdRef.current;
+      if (!target || persistentMutationRef.current) return false;
+      persistentMutationRef.current = true;
+      persistentMutationEpochRef.current += 1;
+      setPersistentGoalBusy(true);
+      try {
+        const response = await sessionApi.updatePersistentGoal(target, {
+          objective, rubric, expected_revision: expectedRevision,
+        });
+        if (sessionIdRef.current !== target) return false;
+        if (response.goal.session_id !== target)
+          throw new Error(i18n.t("chat.goalPersistent.noGoal"));
+        setPersistentGoal(previous => selectPersistentGoal(previous, response.goal, target));
+        setError(null);
+        return true;
+      } catch (error) {
+        if (sessionIdRef.current === target) {
+          const apiError = error as Error & { code?: string; args?: Record<string, unknown> };
+          setError(translateApiError(apiError.code, apiError.message, apiError.args, i18n.t));
+        }
+        return false;
+      } finally {
+        persistentMutationRef.current = false;
+        setPersistentGoalBusy(false);
+      }
+    },
+    [sessionIdRef, setPersistentGoal, setPersistentGoalBusy, setError],
+  );
+
   const persistentGoalId = persistentGoal?.id;
   const persistentGoalStatus = persistentGoal?.status;
+  const pendingUsageSettlement =
+    persistentGoal?.run_accounting?.at(-1)?.completed === false;
   useEffect(() => {
     if (
       !sessionId ||
       !persistentGoalId ||
       !persistentGoalStatus ||
-      !["active", "waiting_human"].includes(persistentGoalStatus)
+      (!["active", "waiting_human"].includes(persistentGoalStatus) &&
+        !(persistentGoalStatus === "paused" && pendingUsageSettlement))
     )
       return;
     let cancelled = false;
@@ -128,20 +162,26 @@ export function usePersistentGoalRuntime({
         if (
           cancelled ||
           sessionIdRef.current !== sessionId ||
-          mutationEpoch !== persistentMutationEpochRef.current
+          mutationEpoch !== persistentMutationEpochRef.current ||
+          isSendingRef.current ||
+          isLoadingHistoryRef.current
         )
           return;
+        const previous = persistentGoalRef.current;
         const selected = selectPersistentGoal(
-          persistentGoalRef.current,
+          previous,
           response.goal,
           sessionId,
         );
         if (selected !== response.goal) return;
         setPersistentGoal(selected);
         if (
-          response.goal?.current_run_id &&
-          response.goal.current_run_id !== currentRunIdRef.current
+          response.goal &&
+          ((response.goal.current_run_id &&
+            response.goal.current_run_id !== currentRunIdRef.current) ||
+            response.goal.accounting.turns > (previous?.accounting.turns ?? 0))
         ) {
+          // A run target only opens historical content; session reconciliation also attaches SSE.
           await loadHistoryRef.current?.(sessionId);
         }
       } catch (error) {
@@ -173,6 +213,7 @@ export function usePersistentGoalRuntime({
     sessionId,
     persistentGoalId,
     persistentGoalStatus,
+    pendingUsageSettlement,
     setPersistentGoal,
     sessionIdRef,
     currentRunIdRef,
@@ -186,5 +227,6 @@ export function usePersistentGoalRuntime({
     persistentMutationRef,
     persistentMutationEpochRef,
     controlPersistentGoal,
+    updatePersistentGoal,
   };
 }

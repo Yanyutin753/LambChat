@@ -52,11 +52,11 @@ async def scheduled_task_create(
     name: Annotated[str, "Task name."],
     message: Annotated[
         str,
-        "Instructions sent to the agent on each run.",
+        "Per-run agent instructions.",
     ],
     trigger_type: Annotated[
         Literal["date", "interval", "cron"],
-        "date=once, interval=fixed seconds, cron=calendar schedule.",
+        "date=once; interval=seconds; cron=calendar.",
     ],
     delay_seconds: Annotated[
         int | None,
@@ -64,11 +64,11 @@ async def scheduled_task_create(
     ] = None,
     run_at_iso: Annotated[
         str | None,
-        "ISO-8601 time for date trigger; naive values use schedule_timezone.",
+        "ISO-8601 date time; naive uses schedule_timezone.",
     ] = None,
     schedule_timezone: Annotated[
         str | None,
-        "IANA timezone; defaults to user timezone. Cron fields use it, not UTC.",
+        "IANA zone; defaults to user timezone, including cron.",
     ] = None,
     interval_seconds: Annotated[
         int | None,
@@ -76,7 +76,7 @@ async def scheduled_task_create(
     ] = None,
     cron_hour: Annotated[
         str | None,
-        "Cron hour (0-23), e.g. 9, 0,12, or */3; uses schedule_timezone.",
+        "Cron hour 0-23 in schedule_timezone, e.g. 9 or */3.",
     ] = None,
     cron_minute: Annotated[
         str | None,
@@ -96,7 +96,7 @@ async def scheduled_task_create(
     ] = None,
     agent_id: Annotated[
         str | None,
-        "Agent ID; defaults to current conversation.",
+        "Agent ID; defaults to this chat.",
     ] = None,
     persona_preset_id: Annotated[
         str | None,
@@ -116,7 +116,7 @@ async def scheduled_task_create(
     ] = None,
     model_id: Annotated[
         str | None,
-        "Model config ID; defaults to current conversation.",
+        "Model config ID; defaults to this chat.",
     ] = None,
     model: Annotated[
         str | None,
@@ -136,11 +136,11 @@ async def scheduled_task_create(
     ] = False,
     attachments: Annotated[
         list[dict[str, Any]] | None,
-        "Attachment objects reused on each run; defaults to current message attachments.",
+        "Per-run attachment objects; defaults to this message attachments.",
     ] = None,
     execution_mode: Annotated[
         Literal["conversation", "standalone"],
-        "conversation continues this chat with latest context; standalone starts a new chat each run.",
+        "conversation: independent history, results here; standalone: new task chat per run.",
     ] = "conversation",
     notification_policy: Annotated[
         Literal["always", "meaningful_changes"] | None,
@@ -150,7 +150,9 @@ async def scheduled_task_create(
 ) -> str:
     """Create a confirmed agent schedule: date for one run, interval for fixed periods,
     or cron for calendar times in the user's timezone. Explain it before calling; each
-    run continues this conversation by default; choose standalone for independent runs."""
+    run executes independently and sends results here by default. Include all required
+    context in message; the task does not share this chat's live state. Choose standalone
+    to keep results in a new task chat each run."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})

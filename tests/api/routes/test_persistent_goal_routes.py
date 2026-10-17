@@ -7,6 +7,7 @@ from src.api.routes import persistent_goal as routes
 from src.infra.persistent_goal import GoalService
 from src.kernel.errors import AppError
 from src.kernel.schemas.persistent_goal import PersistentGoalCreate
+from tests.infra.agent.test_goal_runtime import runtime_redis  # noqa: F401
 from tests.infra.agent.test_persistent_goal import Store
 
 
@@ -73,4 +74,79 @@ async def test_goal_control_cancels_captured_run_when_new_human_arrives(monkeypa
     task_manager.cancel.assert_not_awaited()
     task_manager.cancel_run.assert_awaited_once()
     assert task_manager.cancel_run.await_args.args[0] == old.current_run_id
-    assert "session_id" not in task_manager.cancel_run.await_args.kwargs["run_info_override"]
+    assert task_manager.cancel_run.await_args.kwargs["run_info_override"]["session_id"] == "s"
+
+
+async def test_pause_returns_usage_finalized_during_cancellation(monkeypatch):
+    service = GoalService(Store())
+    created = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="tests")
+    )
+    running = await service.reserve("s", "u", created.version)
+    manager = SimpleNamespace(
+        get_session=AsyncMock(return_value=SimpleNamespace(user_id="u", metadata={}))
+    )
+
+    async def cancel(session, previous):
+        await service.record_usage(
+            "s",
+            "u",
+            running.version,
+            running.current_run_id,
+            usage=75,
+            completed=True,
+            expected_goal_id=created.id,
+        )
+
+    publish = AsyncMock()
+    monkeypatch.setattr(routes, "SessionManager", lambda: manager)
+    monkeypatch.setattr(routes, "GoalService", lambda: service)
+    monkeypatch.setattr(routes, "_cancel_goal_run", cancel)
+    monkeypatch.setattr(routes, "publish_goal", publish)
+    paused = (await routes.pause_goal("s", user=SimpleNamespace(sub="u")))["goal"]
+    assert paused["accounting"]["turns"] == 1
+    assert paused["accounting"]["tokens"] == 75
+    assert paused["revision"] == (await service.get("s", "u")).revision
+    assert publish.await_args.args[0].accounting.tokens == 75
+
+
+async def test_edit_authorizes_owner_and_keeps_late_usage_without_cancelling_new_run(monkeypatch):
+    from src.kernel.schemas.persistent_goal import PersistentGoalUpdate
+
+    store = Store()
+    service = GoalService(store)
+    created = await service.create("s", "u", PersistentGoalCreate(objective="old", rubric="old"))
+    running = await service.reserve("s", "u", created.version)
+    manager = SimpleNamespace(
+        get_session=AsyncMock(return_value=SimpleNamespace(user_id="u", metadata={}))
+    )
+
+    async def cancel(session, captured):
+        assert captured.current_run_id == running.current_run_id
+        await service.record_usage(
+            "s",
+            "u",
+            running.version,
+            running.current_run_id,
+            usage=80,
+            completed=True,
+            expected_goal_id=running.id,
+        )
+
+    monkeypatch.setattr(routes, "SessionManager", lambda: manager)
+    monkeypatch.setattr(routes, "GoalService", lambda: service)
+    monkeypatch.setattr(routes, "_cancel_goal_run", cancel)
+    monkeypatch.setattr(routes, "publish_goal", AsyncMock())
+    enqueue = AsyncMock()
+    monkeypatch.setattr(routes, "enqueue_goal", enqueue)
+    payload = PersistentGoalUpdate(
+        objective="new", rubric="new", expected_revision=running.revision
+    )
+    response = await routes.update_goal("s", payload, user=SimpleNamespace(sub="u"))
+    assert response["goal"]["id"] == created.id
+    assert response["goal"]["objective"] == "new"
+    assert response["goal"]["accounting"] == {"turns": 1, "tokens": 80}
+    assert enqueue.await_args.args[0].accounting.tokens == 80
+    manager.get_session.return_value = SimpleNamespace(user_id="other")
+    with pytest.raises(AppError):
+        await routes.update_goal("s", payload, user=SimpleNamespace(sub="u"))

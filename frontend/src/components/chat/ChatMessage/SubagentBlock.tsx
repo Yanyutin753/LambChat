@@ -39,7 +39,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     return false;
   }
 
-  const { panelStatus, subtitle, panelKey, formattedAgentName } =
+  const { panelStatus, subtitle, panelKey, formattedAgentName, formattedInput } =
     buildSubagentPanelState(data);
 
   if (isPersistentToolPanelActive(panelKey)) {
@@ -50,7 +50,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
   const roleIconMeta = getSubagentRoleIconMeta(data.agentName);
   openPersistentToolPanel({
     title: formattedAgentName,
-    subtitle: buildPanelSummary(data.input),
+    subtitle: buildPanelSummary(formattedInput),
     icon: (
       <AgentAvatar
         avatar={data.agentAvatar}
@@ -105,6 +105,7 @@ export function SubagentBlock({
     subtitle,
     panelKey,
     formattedAgentName,
+    formattedInput,
   } = buildSubagentPanelState({
     agentId: agent_id,
     agentName: agent_name,
@@ -119,7 +120,7 @@ export function SubagentBlock({
     status,
   });
   const { t } = useTranslation();
-  const roleIconMeta = getSubagentRoleIconMeta(formattedAgentName);
+  const roleIconMeta = getSubagentRoleIconMeta(agent_name);
   const fallbackIcon =
     roleIconMeta.kind === "general" ? undefined : roleIconMeta.icon;
 
@@ -149,7 +150,7 @@ export function SubagentBlock({
       markSubagentPanelAutoOpened(panelKey);
       openPersistentToolPanel({
         title: formattedAgentName,
-        subtitle: buildPanelSummary(input),
+        subtitle: buildPanelSummary(formattedInput),
         icon: (
           <AgentAvatar
             avatar={agent_avatar}
@@ -181,6 +182,7 @@ export function SubagentBlock({
     panelStatus,
     subtitle,
     formattedAgentName,
+    formattedInput,
     agent_avatar,
     fallbackIcon,
     panelKey,
@@ -190,7 +192,7 @@ export function SubagentBlock({
     resetSubagentPanelAutoOpenState(panelKey);
     openPersistentToolPanel({
       title: formattedAgentName,
-      subtitle: buildPanelSummary(input),
+      subtitle: buildPanelSummary(formattedInput),
       icon: (
         <AgentAvatar
           avatar={agent_avatar}
@@ -207,6 +209,7 @@ export function SubagentBlock({
     });
   }, [
     formattedAgentName,
+    formattedInput,
     agent_avatar,
     agent_name,
     fallbackIcon,
@@ -214,7 +217,6 @@ export function SubagentBlock({
     subtitle,
     panelKey,
     agent_id,
-    input,
   ]);
 
   return (
@@ -250,7 +252,7 @@ export function SubagentBlock({
           </span>
           {input && (
             <p className="text-12 text-theme-text-tertiary truncate mt-0.5">
-              {input}
+              {formattedInput}
             </p>
           )}
         </div>

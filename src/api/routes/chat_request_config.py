@@ -64,6 +64,11 @@ def build_conversation_config(
         "enabled_mcp_servers": request.enabled_mcp_servers,
         "language": language,
         "auto_mode": request.auto_mode,
+        "persona_preset_id": None,
+        "persona_preset_name": None,
+        "persona_snapshot": None,
+        "persona_avatar": None,
+        "team_id": request.team_id if agent_id == "team" else None,
     }
     if trace_id:
         conversation_config["trace_id"] = trace_id
