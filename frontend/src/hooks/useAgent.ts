@@ -119,7 +119,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   } = useChatRuntimeStates();
   const [autoModeEnabled, setAutoModeEnabled] = useAutoModeSetting();
 
-  // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
   const historyAbortControllerRef = useRef<AbortController | null>(null);
   const sseGenerationRef = useRef(0);
@@ -138,13 +137,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     null,
   );
   const retryCountRef = useRef(0);
-  // Track processed event IDs to prevent duplicates
   const processedEventIdsRef = useRef<Set<string>>(new Set());
-  // Track last event timestamp from history
   const lastHistoryTimestampRef = useRef<Date | null>(null);
-  // Subagent tracking stack
   const activeSubagentStackRef = useRef<SubagentStackItem[]>([]);
-  // Current streaming message ID
   const streamingMessageIdRef = useRef<string | null>(null);
   // 最近一次流事件（含 ping）时刻：回前台对账/看门狗的存活信号
   const lastStreamActivityAtRef = useRef<number | null>(null);
@@ -154,11 +149,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
   >(null);
 
-  // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
   // Stream version to invalidate stale SSE events after clearMessages
   const streamVersionRef = useRef(0);
-  // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
@@ -277,7 +270,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setError,
   });
 
-  // Create event handler context
   const createEventHandlerContext = useCallback(
     (historyRunId?: string): EventHandlerContext => ({
       ...createHistoryReplayContext(
@@ -330,7 +322,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ],
   );
 
-  // Create SSE connection context
   const createSSEContext = useCallback(
     (historyRunId?: string): SSEConnectionContext => ({
       ...createEventHandlerContext(historyRunId),
@@ -683,7 +674,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ],
   );
 
-  // Send message
   const sendMessage = useCallback(
     async (
       content: string,

@@ -25,16 +25,9 @@ PRICED_USAGE_CONDITION = {
         COMPLETE_USAGE_CONDITION,
     ]
 }
-CACHE_METRICS_CONDITION = {
-    "$eq": [
-        {
-            "$ifNull": [
-                "$cache_metrics_available",
-                {"$eq": ["$usage_incomplete", False]},
-            ]
-        },
-        True,
-    ]
+CACHE_METRICS_CONDITION = {"$eq": ["$cache_metrics_available", True]}
+CERTIFIED_CACHE_METRICS_CONDITION = {
+    "$and": [CACHE_METRICS_CONDITION, {"$eq": ["$input_includes_cache", True]}]
 }
 SCHEDULED_USAGE_CONDITION = {
     "$or": [
@@ -323,13 +316,13 @@ class UsageStorage:
             "cost_usd": _as_float(usage_data.get("cost_usd", 0.0)),
             "usage_incomplete": usage_incomplete,
             "unknown_usage_fields": sorted(unknown_fields),
+            "input_includes_cache": usage_data.get("input_includes_cache") is True,
             "cache_metrics_available": not {
                 "input_tokens",
                 "cache_read_tokens",
             }.intersection(unknown_fields)
             and (
-                "cache_creation_tokens" not in unknown_fields
-                or input_tokens > 0
+                input_tokens > 0
                 and usage_data.get("cache_read_tokens") == 0
                 or usage_data.get("input_includes_cache") is True
                 and 0 <= _as_int(usage_data.get("cache_read_tokens")) <= input_tokens
@@ -513,6 +506,11 @@ class UsageStorage:
                                 "cache_unknown_requests": {
                                     "$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}
                                 },
+                                "cache_uncertified_requests": {
+                                    "$sum": {
+                                        "$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]
+                                    }
+                                },
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
                                 },
@@ -569,6 +567,11 @@ class UsageStorage:
                                 },
                                 "cache_unknown_requests": {
                                     "$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}
+                                },
+                                "cache_uncertified_requests": {
+                                    "$sum": {
+                                        "$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]
+                                    }
                                 },
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
@@ -643,21 +646,24 @@ class UsageStorage:
             "_id": group_id,
             "requests": {"$sum": 1},
             "tokens": {"$sum": "$total_tokens"},
+            "input_tokens": {"$sum": "$input_tokens"},
+            "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+            "cache_read_tokens": {"$sum": "$cache_read_tokens"},
             "duration": {"$sum": "$duration"},
             "cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
             "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
             "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
             "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
             "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
+            "cache_uncertified_requests": {
+                "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
+            },
         }
         if name_field:
             group["name"] = {"$first": f"${name_field}"}
         if include_cache_metrics:
             group.update(
                 {
-                    "input_tokens": {"$sum": "$input_tokens"},
-                    "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
-                    "cache_read_tokens": {"$sum": "$cache_read_tokens"},
                     "zero_cache_requests": {
                         "$sum": {
                             "$cond": [
@@ -711,6 +717,9 @@ class UsageStorage:
                     "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
                     "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
                     "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
+                    "cache_uncertified_requests": {
+                        "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
+                    },
                 }
             },
         ]
@@ -732,7 +741,9 @@ class UsageStorage:
                         "unpriced_requests": doc.get("unpriced_requests", 0),
                         "priced_requests": doc.get("priced_requests", 0),
                         "usage_unknown_requests": doc.get("usage_unknown_requests", 0),
-                        "cache_unknown_requests": doc.get("cache_unknown_requests", 0),
+                        "cache_unknown_requests": _aggregate_cache_unknown_requests(
+                            doc, "total_cache_read_tokens"
+                        ),
                     }
                 )
                 break  # only one group result
@@ -863,6 +874,18 @@ def _empty_stats() -> Dict[str, Any]:
     }
 
 
+def _aggregate_cache_unknown_requests(
+    doc: Dict[str, Any], cache_read_field: str = "cache_read_tokens"
+) -> int:
+    # Positive rates require inclusive input accounting for every contributing request.
+    field = (
+        "cache_uncertified_requests"
+        if _as_int(doc.get(cache_read_field)) > 0
+        else "cache_unknown_requests"
+    )
+    return _as_int(doc.get(field, doc.get("cache_unknown_requests")))
+
+
 def _cache_read_share(
     input_tokens: int, cache_read_tokens: int, cache_creation_tokens: int
 ) -> float:
@@ -892,12 +915,12 @@ def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "priced_requests": _as_int(doc.get("priced_requests")),
         "unpriced_requests": _as_int(doc.get("unpriced_requests")),
         "usage_unknown_requests": _as_int(doc.get("usage_unknown_requests")),
-        "cache_unknown_requests": _as_int(doc.get("cache_unknown_requests")),
+        "cache_unknown_requests": _aggregate_cache_unknown_requests(doc),
         "input_tokens": input_tokens,
         "cache_creation_tokens": cache_creation_tokens,
         "cache_read_tokens": cache_read_tokens,
         "cache_read_share": None
-        if _as_int(doc.get("cache_unknown_requests")) > 0
+        if _aggregate_cache_unknown_requests(doc) > 0
         else _cache_read_share(input_tokens, cache_read_tokens, cache_creation_tokens),
         "zero_cache_requests": _as_int(doc.get("zero_cache_requests")),
     }
@@ -926,7 +949,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "priced_requests": _as_int(item.get("priced_requests")),
             "unpriced_requests": _as_int(item.get("unpriced_requests")),
             "usage_unknown_requests": _as_int(item.get("usage_unknown_requests")),
-            "cache_unknown_requests": _as_int(item.get("cache_unknown_requests")),
+            "cache_unknown_requests": _aggregate_cache_unknown_requests(item),
             "scheduled_runs": _as_int(item.get("scheduled_runs")),
             "cancelled_requests": _as_int(item.get("cancelled_requests")),
             "failed_requests": _as_int(item.get("failed_requests")),
@@ -935,7 +958,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "cache_creation_tokens": _as_int(item.get("cache_creation_tokens")),
             "cache_read_tokens": _as_int(item.get("cache_read_tokens")),
             "cache_read_share": None
-            if _as_int(item.get("cache_unknown_requests")) > 0
+            if _aggregate_cache_unknown_requests(item) > 0
             else _cache_read_share(
                 _as_int(item.get("input_tokens")),
                 _as_int(item.get("cache_read_tokens")),
@@ -954,7 +977,9 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "total_requests": total_requests,
         "priced_requests": _as_int(summary_doc.get("priced_requests")),
         "usage_unknown_requests": _as_int(summary_doc.get("usage_unknown_requests")),
-        "cache_unknown_requests": _as_int(summary_doc.get("cache_unknown_requests")),
+        "cache_unknown_requests": _aggregate_cache_unknown_requests(
+            summary_doc, "total_cache_read_tokens"
+        ),
         "total_tokens": total_tokens,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": _as_int(summary_doc.get("total_output_tokens")),
@@ -971,7 +996,9 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "avg_duration_per_request": (total_duration / total_requests) if total_requests else 0.0,
         "scheduled_share": (scheduled_runs / total_requests) if total_requests else 0.0,
         "cache_read_share": None
-        if _as_int(summary_doc.get("cache_unknown_requests")) > 0
+        if _aggregate_cache_unknown_requests(
+            summary_doc, "total_cache_read_tokens"
+        ) > 0
         else _cache_read_share(
             total_input_tokens, total_cache_read_tokens, total_cache_creation_tokens
         ),
