@@ -53,13 +53,20 @@ export function UpdateDialog({
   }, [isOpen, state.error]);
 
   // Linux 安装来源分流文案：deb/rpm=下载并安装（pkcon/pkexec），appimage/
-  // unknown=前往下载（AppImage 已停发，引导换装 deb），其余保持 updater 语义
+  // unknown=前往下载（AppImage 已停发，引导换装 deb），deb/rpm 但资产缺失
+  // （Release 无匹配架构包）也降级「前往下载」——实际动作是 openDownloadPage，
+  // 按钮不得承诺不会发生的下载安装；其余保持 updater 语义
   const source = state.linuxInstallSource;
   const isLinuxPackage =
-    platform === "tauri" && (source === "deb" || source === "rpm");
+    platform === "tauri" &&
+    (source === "deb" || source === "rpm") &&
+    !state.linuxPackageAssetMissing;
   const isGoToDownload =
     platform === "ios" ||
-    (platform === "tauri" && (source === "unknown" || source === "appimage"));
+    (platform === "tauri" &&
+      (source === "unknown" ||
+        source === "appimage" ||
+        state.linuxPackageAssetMissing));
 
   const footer = (
     <>

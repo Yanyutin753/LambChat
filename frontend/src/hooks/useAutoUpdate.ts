@@ -76,6 +76,7 @@ const INITIAL_STATE: UpdateState = {
   readyToInstall: false,
   error: null,
   linuxInstallSource: null,
+  linuxPackageAssetMissing: false,
 };
 
 /** 当前 runtime 是否是 Linux 桌面（deb/rpm/AppImage 分流只在这类设备生效） */
@@ -545,6 +546,11 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
               releaseUrl: info.release_url ?? null,
               releaseAssets: info.release_assets ?? [],
               linuxInstallSource: source,
+              // 资产缺失（Release 无匹配架构的 deb/rpm）：实际动作是
+              // openDownloadPage，状态要如实体现在按钮文案上
+              linuxPackageAssetMissing:
+                (source === "deb" || source === "rpm") &&
+                linuxTargetAssetRef.current === null,
             }));
             // 主流 deb 客户端模式：发现即后台缓存下载（版本化缓存保证
             // 不重复下载），完成后指示器一键「重启并安装」
