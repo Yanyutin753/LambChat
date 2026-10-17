@@ -81,12 +81,56 @@ fn append_desktop_log(line: &str) {
     }
 }
 
+/// 壳 stderr 单行输出。写失败必须忽略：windows_subsystem="windows" 的壳
+/// stderr 句柄无效，`eprint!` 在写失败时直接 panic（下方排空线程注释同款
+/// 结论）；而 `warn_log!` 会在持有 `child` 锁的临界区内被调用，panic 即
+/// 丢弃已 spawn 的 `GroupChild`——command-group 无 kill-on-drop 语义，
+/// daemon 就此孤儿化。拆出可注入 sink 的核心便于单测。
+fn write_log_line_to<W: std::io::Write>(sink: &mut W, msg: &str) -> std::io::Result<()> {
+    sink.write_all(msg.as_bytes())?;
+    sink.write_all(b"\n")
+}
+
+pub(crate) fn emit_stderr_line(msg: &str) {
+    let _ = write_log_line_to(&mut std::io::stderr(), msg);
+}
+
 macro_rules! warn_log {
     ($($arg:tt)*) => {{
         let msg = format!("[lambchat-daemon] {}", format!($($arg)*));
-        eprintln!("{msg}");
+        crate::daemon::emit_stderr_line(&msg);
         crate::daemon::append_desktop_log(&msg);
     }};
+}
+
+#[cfg(test)]
+mod warn_log_tests {
+    use super::*;
+
+    /// `eprint!` 在 stderr 写失败时直接 panic（GUI 壳 stderr 句柄无效即触发）；
+    /// 防护写法必须把错误交给调用方吞掉，绝不能在持锁临界区内炸掉。
+    struct FailingSink;
+
+    impl std::io::Write for FailingSink {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "stderr unavailable",
+            ))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "stderr unavailable",
+            ))
+        }
+    }
+
+    #[test]
+    fn guarded_stderr_write_reports_failure_instead_of_panicking() {
+        let mut sink = FailingSink;
+        assert!(write_log_line_to(&mut sink, "[lambchat-daemon] line").is_err());
+    }
 }
 
 /// 当前托管的 daemon 子进程：command-group 的 [`GroupChild`]——
@@ -477,13 +521,14 @@ fn handle_exit(app: &AppHandle, generation: u64) {
     if manager.take_if_current(generation).is_none() {
         return; // 已被 stop() 或新一轮 start() 接管（或同代槽位已处理过），交由新逻辑负责
     }
-    let uptime = manager
-        .started_at
-        .lock()
-        .unwrap()
+    // 毒锁容忍（lock_ok，v2.9.1 政策）：这里曾是全文件唯一的生产代码裸
+    // `.lock().unwrap()`——若持锁方曾 panic，监视线会在崩溃处理路径上连环
+    // panic，唯一负责重启 daemon 的线程就此消失。单次加锁内 take，顺带
+    // 消掉原来两段独立加锁之间的窗口。
+    let uptime = lock_ok(&manager.started_at)
+        .take()
         .map(|started| started.elapsed())
         .unwrap_or_default();
-    *lock_ok(&manager.started_at) = None;
     emit_status(app); // 槽位已空：先广播 stopped，重启成功后会再广播 running
 
     if should_reset_restart_budget(uptime) {
@@ -1137,8 +1182,10 @@ pub fn sandbox_data_location(app: AppHandle) -> Result<SandboxDataLocation, Stri
 /// 更改沙箱数据根（设置页"更改位置"）。校验 → 停 daemon（迁移前释放
 /// audit/workspaces 文件句柄）→ 可选迁移旧根顶层条目 → 写覆盖文件 →
 /// 本进程 `set_var` 即时生效。**前端成功后须引导重启壳**：PBS 播种等
-/// 启动期逻辑与托盘状态在 relaunch 后才彻底换根。async：跨盘迁移数百
-/// MB（PBS 运行时）耗时长，不阻塞主线程命令通道。
+/// 启动期逻辑与托盘状态在 relaunch 后才彻底换根。阻塞段（stop + 跨盘迁移
+/// 数百 MB PBS 运行时）经 spawn_blocking 挪出 async 执行器线程——直接在
+/// async 上下文同步执行会占死一个 tokio worker 数分钟，其余 async 命令与
+/// 事件循环被饿（与 clear_pairing / restart_daemon 的同款纪律，v2.9.1 教训）。
 #[tauri::command]
 pub async fn set_sandbox_data_location(
     app: AppHandle,
@@ -1150,11 +1197,18 @@ pub async fn set_sandbox_data_location(
     std::fs::create_dir_all(&new_home)
         .map_err(|e| format!("failed to create {}: {e}", new_home.display()))?;
 
-    stop(&app);
-
-    if migrate_data {
-        migrate_root_entries(&current, &new_home)?;
-    }
+    let migrate_from = current;
+    let migrate_to = new_home.clone();
+    let migrate_app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        stop(&migrate_app);
+        if migrate_data {
+            migrate_root_entries(&migrate_from, &migrate_to)?;
+        }
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|e| format!("sandbox data migration task failed: {e}"))??;
 
     let override_path = sandbox_home_override_path(&app)?;
     if let Some(parent) = override_path.parent() {
