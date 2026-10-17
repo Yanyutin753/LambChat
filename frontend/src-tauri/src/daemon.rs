@@ -40,7 +40,8 @@ fn restart_backoff(restarts_before: u8) -> Duration {
 /// daemon 托管状态变化事件名（Tauri event，前端订阅替代轮询）。
 pub const STATUS_EVENT: &str = "sandbox-daemon-status";
 
-/// 监视线轮询间隔（env 直启 try_wait / sidecar kill(pid,0) 探活共用）。
+/// 监视线轮询间隔（env 直启与 sidecar 统一走 command-group 句柄的
+/// `try_wait` 探活）。
 const ENV_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 /// 主动 stop 的优雅宽限：SIGTERM 后等待 daemon 自行退出的上限（daemon 侧
@@ -200,6 +201,16 @@ impl DaemonManager {
         self.running.store(taken.is_some(), Ordering::SeqCst);
         taken
     }
+
+    /// 退避唤醒后的重启权威快照（持锁）：generation 已被 stop() /
+    /// clear_pairing() / 新 start() 递增，或槽位已被手动 restart 占满——
+    /// 两种情况本次自动重启都应取消。供 handle_exit 在睡眠后预检（提前
+    /// 返回 + 日志）；start_gated 的临界区内还有同款兜底复检，防预检与
+    /// spawn 之间的锁缝。
+    fn backoff_restart_cancelled(&self, expected_generation: u64) -> bool {
+        let slot = lock_ok(&self.child);
+        self.generation.load(Ordering::SeqCst) != expected_generation || slot.is_some()
+    }
 }
 
 /// 毒锁容忍：任一线程曾持锁 panic 后，后续 `.lock().unwrap()` 会连环 panic——
@@ -223,10 +234,25 @@ fn lock_ok<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// fire-and-forget，且它们回到这把锁之前必须先观察到进程退出事件，
 /// 最多在锁上短暂等待本临界区返回，不会死锁。
 pub fn start(app: &AppHandle) -> Result<(), String> {
+    start_gated(app, None)
+}
+
+/// [`start`] 的带权版本：`expected_generation` 为 Some 时（意外退出后的
+/// 退避重启路径），临界区内复检 generation——退避睡眠期间任何 stop()、
+/// clear_pairing()（迁移/解绑前释放文件句柄）或手动 restart 都会递增代次，
+/// 此时拉起 daemon 属「无人要求的复活」。复检必须在持锁临界区内：锁外
+/// 先查再进 start，stop 可落在检查与 spawn 之间。
+fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), String> {
     let manager = app.state::<DaemonManager>();
     let mut slot = lock_ok(&manager.child);
     if slot.is_some() {
         return Ok(());
+    }
+    if let Some(expected) = expected_generation {
+        if manager.generation.load(Ordering::SeqCst) != expected {
+            warn_log!("daemon restart cancelled: slot authority changed during backoff");
+            return Ok(());
+        }
     }
     let generation = manager.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -267,7 +293,8 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     group.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let mut child = group.spawn().map_err(|e| {
-        manager.unsupported.store(true, Ordering::SeqCst);
+        // 启动失败≠平台不支持：env 路径存在但 spawn 失败（权限/格式/缺依赖）
+        // 时 unsupported 置位会把状态误报为「不支持」，误导排查方向。
         format!("failed to spawn lambchat-daemon: {e}")
     })?;
     let pid = child.id();
@@ -429,11 +456,19 @@ pub fn stop(app: &AppHandle) {
     // 持锁递增 generation 并取走槽位（与 start 一致）：generation 的全部变更点
     // 都在 child 锁内，handle_exit 的持锁复检（take_if_current）才能成立。
     // 锁在等待**之前**释放：优雅宽限最长 3s，持锁等待会卡住 IPC。
+    //
+    // 槽位取走的同锁内即翻转 running 镜像并广播：SIGTERM 宽限 3s + 收尸 2s
+    // 期间 status() 仍报 running 属状态契约违例（「写点与槽位变更同锁内」，
+    // 见 running 字段注释）——先如实报 stopped，终止流程在「已停止」语义
+    // 下进行（B7）。
     let child = {
         let mut slot = lock_ok(&manager.child);
         manager.generation.fetch_add(1, Ordering::SeqCst);
-        slot.take()
+        let taken = slot.take();
+        manager.running.store(taken.is_some(), Ordering::SeqCst);
+        taken
     };
+    emit_status(app);
     if let Some(DaemonChild::Group(mut child)) = child {
         warn_log!("stopping daemon group (pid {})", child.id());
         #[cfg(unix)]
@@ -467,10 +502,10 @@ pub fn stop(app: &AppHandle) {
             );
         }
     }
+    // running 镜像与 stopped 事件已在槽位取走的锁内先行翻转/广播（见上），
+    // 这里只重置重启预算与启动时刻。
     manager.restarts.store(0, Ordering::SeqCst);
-    manager.running.store(false, Ordering::SeqCst);
     *lock_ok(&manager.started_at) = None;
-    emit_status(app);
 }
 
 /// 进程状态：`"running" | "stopped" | "unsupported"`。
@@ -556,7 +591,15 @@ fn handle_exit(app: &AppHandle, generation: u64) {
         // 先装满槽位，随后的 start() 幂等 no-op，不会双实例
         std::thread::sleep(backoff);
     }
-    if let Err(e) = start(app) {
+    // 退避唤醒后先做权威快照预检（日志 + 免走 spawn 路径）；start_gated 的
+    // 临界区内还有同款兜底复检，防预检与 spawn 之间的锁缝。睡眠期间的
+    // stop()（迁移/解绑前释放句柄）若不复检，daemon 会在迁移半途复活、
+    // 重新占用 audit/workspaces 文件句柄（B2 竞窗）。
+    if manager.backoff_restart_cancelled(generation) {
+        warn_log!("daemon restart cancelled: slot authority changed during backoff");
+        return;
+    }
+    if let Err(e) = start_gated(app, Some(generation)) {
         warn_log!("daemon restart failed: {e}");
     }
 }
@@ -598,6 +641,8 @@ fn default_sandbox_home() -> Option<PathBuf> {
 /// 时生效，消除 write→chmod 之间的宽松权限窗口）。
 /// 写入配置文件时先写同目录临时文件，再原子替换目标，避免 daemon 重启
 /// 恰好读到截断 JSON（Windows/macOS 的进程重启竞态尤其容易复现）。
+/// 临时名带 uuid：同进程的两个命令并发写同一目标（save_pairing 与
+/// write_confirm_policy 撞 sandbox.json）不会因 PID 同名互踩 create_new。
 fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = path
         .parent()
@@ -606,31 +651,21 @@ fn write_atomic_file(path: &Path, contents: &[u8]) -> Result<(), String> {
         .file_name()
         .ok_or_else(|| format!("cannot determine file name for {}", path.display()))?
         .to_string_lossy();
-    let tmp = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
+    let tmp = parent.join(format!(
+        ".{file_name}.{}-{}.tmp",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
     if let Err(e) = write_private_file(&tmp, contents) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
+    // std 的 Windows rename 走 MoveFileEx(REPLACE_EXISTING)，可直接替换已存在
+    // 目标。旧实现先 remove 再 rename：两步之间崩溃会把 pat/sandbox.json
+    // 整个丢掉（不是回退旧版），且 remove 与 daemon 恰好打开读取撞 Windows
+    // 共享模式会让配对流程偶发报错。目标被占用时 rename 与 remove 一样
+    // 失败，错误路径行为不变。
     if let Err(e) = std::fs::rename(&tmp, path) {
-        #[cfg(windows)]
-        {
-            // Windows rename cannot replace an existing file. Remove only after
-            // the complete temp write succeeds, then perform the short swap.
-            if path.exists() {
-                std::fs::remove_file(path).map_err(|remove_err| {
-                    let _ = std::fs::remove_file(&tmp);
-                    format!("failed to replace {}: {remove_err}", path.display())
-                })?;
-                if let Err(rename_err) = std::fs::rename(&tmp, path) {
-                    let _ = std::fs::remove_file(&tmp);
-                    return Err(format!(
-                        "failed to replace {}: {rename_err}",
-                        path.display()
-                    ));
-                }
-                return Ok(());
-            }
-        }
         let _ = std::fs::remove_file(&tmp);
         return Err(format!("failed to replace {}: {e}", path.display()));
     }
@@ -1124,35 +1159,87 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 旧根顶层条目迁移到新根：先 rename（同盘零拷贝），跨卷失败回退递归
-/// copy + remove；目标已存在则跳过（部分失败后重跑幂等，绝不覆盖新根
-/// 已有内容）。旧根不存在（全新安装）直接 0 迁移。返回迁移条目数。
+/// 旧根顶层条目迁移到新根：同卷 rename 直达（零拷贝、原子可见）；跨卷
+/// 回退「先暂存后转正」两阶段——拷贝落在 `new_root/.migrating-<uuid>/`
+/// 暂存区内，本轮全部拷完后逐条 rename 转正（暂存区与目标同在 new_root，
+/// 同卷原子）。目标已存在则跳过（部分失败后重跑幂等，绝不覆盖新根已有
+/// 内容）。旧根不存在（全新安装）直接 0 迁移。返回迁移条目数。
+///
+/// 两阶段的意义：copy 中途失败（磁盘满/权限/文件被占用）时，残缺拷贝只
+/// 存在于暂存区并随错误整体清除——**正式位置永远只有完整条目**，重试不再
+/// 把半份拷贝当完整迁移结果跳过（旧实现直接拷到正式位置，中断后重跑的
+/// `to.exists()` 幂等跳过会让残缺数据永久冒充迁移完成）。
 fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, String> {
     let entries = match std::fs::read_dir(old_root) {
         Ok(entries) => entries,
         Err(_) => return Ok(0), // 旧根不存在：无需迁移
     };
+    // 同一时刻只有一条 set_sandbox_data_location 在跑：上次失败残留的
+    // 暂存区直接清除（存在即代表上次迁移中止，内容不作为正式数据）。
+    cleanup_stale_staging(new_root);
+    let staging = new_root.join(format!(".migrating-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&staging)
+        .map_err(|e| format!("failed to create {}: {e}", staging.display()))?;
     let mut moved = 0usize;
+    let mut staged: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new(); // (暂存, 目标, 源)
     for entry in entries.flatten() {
         let from = entry.path();
         let to = new_root.join(entry.file_name());
         if to.exists() {
             continue; // 幂等：已在新根的条目跳过，不覆盖
         }
-        if std::fs::rename(&from, &to).is_err() {
-            // 跨卷（不同盘符/挂载点）rename 失败 → copy + remove 回退
-            copy_dir_recursive(&from, &to)?;
-            if from.is_dir() {
-                std::fs::remove_dir_all(&from)
-                    .map_err(|e| format!("failed to remove {}: {e}", from.display()))?;
-            } else {
-                std::fs::remove_file(&from)
-                    .map_err(|e| format!("failed to remove {}: {e}", from.display()))?;
-            }
+        if std::fs::rename(&from, &to).is_ok() {
+            moved += 1; // 同卷直达：目标即正式位置
+            continue;
+        }
+        // 跨卷（不同盘符/挂载点）rename 失败 → 先拷进暂存区
+        let staged_path = staging.join(entry.file_name());
+        let stage_result = if from.is_dir() {
+            copy_dir_recursive(&from, &staged_path)
+        } else {
+            std::fs::copy(&from, &staged_path).map(|_| ()).map_err(|e| {
+                format!("failed to copy {} -> {}: {e}", from.display(), staged_path.display())
+            })
+        };
+        if let Err(e) = stage_result {
+            let _ = std::fs::remove_dir_all(&staging); // 残缺拷贝绝不留在可被发现的位置
+            return Err(e);
+        }
+        staged.push((staged_path, to, from));
+    }
+    // 转正 + 清源。已转正条目完整无损（每条 rename 原子），中途失败时
+    // 重试经 to.exists() 幂等跳过、剩余条目重新暂存——正确性不依赖本次
+    // 全部成功。旧源的删除推迟到转正之后：拷贝未转正前旧根仍是唯一
+    // 完整数据；清源失败（如旧根只读）报错但已转正数据保持完整。
+    for (staged_path, to, from) in staged {
+        if let Err(e) = std::fs::rename(&staged_path, &to) {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(format!("failed to finalize {}: {e}", to.display()));
+        }
+        let remove_result = if from.is_dir() {
+            std::fs::remove_dir_all(&from)
+        } else {
+            std::fs::remove_file(&from)
+        };
+        if let Err(e) = remove_result {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(format!("failed to remove {}: {e}", from.display()));
         }
         moved += 1;
     }
+    let _ = std::fs::remove_dir_all(&staging);
     Ok(moved)
+}
+
+/// 清除新根内上次迁移失败残留的暂存区（`.migrating-*`，尽力而为）。
+fn cleanup_stale_staging(new_root: &Path) {
+    if let Ok(entries) = std::fs::read_dir(new_root) {
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with(".migrating-") {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
 }
 
 /// 沙箱数据根状态（设置页"数据位置"卡片）。
@@ -1320,12 +1407,108 @@ mod sandbox_home_override_tests {
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
+    /// 上次迁移失败残留的暂存区必须被清掉，成功迁移后新根不留 `.migrating-*`。
+    #[test]
+    fn migration_cleans_stale_staging_and_leaves_no_residue() {
+        let tmp = std::env::temp_dir().join(format!("lc-migrate-stale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let old_root = tmp.join("old");
+        let new_root = tmp.join("new");
+        std::fs::create_dir_all(new_root.join(".migrating-stale-run")).unwrap();
+        std::fs::write(
+            new_root.join(".migrating-stale-run").join("partial.bin"),
+            "half",
+        )
+        .unwrap();
+        std::fs::create_dir_all(old_root.join("audit")).unwrap();
+        std::fs::write(old_root.join("audit").join("b.jsonl"), "log2").unwrap();
+
+        let moved = migrate_root_entries(&old_root, &new_root).unwrap();
+        assert_eq!(moved, 1);
+        assert!(new_root.join("audit").join("b.jsonl").exists());
+        // 残留暂存区被清除；本轮自己的暂存区也已收尾
+        assert!(!new_root.join(".migrating-stale-run").exists());
+        let leftovers: Vec<_> = std::fs::read_dir(&new_root)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with(".migrating-"))
+            .collect();
+        assert!(leftovers.is_empty(), "staging residue left behind");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 旧根只读时：同卷 rename 失败 → 走暂存回退路径；清源被拒报错，但
+    /// **已转正的目标条目内容完整**——正式位置永远只有完整数据（B3 核心
+    /// 不变量），重试在权限恢复后幂等完成。
+    #[cfg(unix)]
+    #[test]
+    fn migration_failure_keeps_formal_position_complete() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = std::env::temp_dir().join(format!("lc-migrate-ro-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let old_root = tmp.join("old");
+        let new_root = tmp.join("new");
+        std::fs::create_dir_all(&old_root).unwrap();
+        std::fs::create_dir_all(&new_root).unwrap();
+        std::fs::write(old_root.join("sandbox.json"), "complete-payload").unwrap();
+        std::fs::set_permissions(&old_root, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        // rename 无源目录写权限 → 失败 → 暂存回退；promote 成功、清源被拒
+        let result = migrate_root_entries(&old_root, &new_root);
+        assert!(result.is_err(), "source removal denial must surface");
+        // 目标已转正且内容完整（不是半份拷贝）
+        assert_eq!(
+            std::fs::read_to_string(new_root.join("sandbox.json")).unwrap(),
+            "complete-payload"
+        );
+
+        // 权限恢复后重试：幂等跳过已迁移条目，不再报错
+        std::fs::set_permissions(&old_root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(old_root.join("extra.txt"), "x").unwrap();
+        let moved = migrate_root_entries(&old_root, &new_root).unwrap();
+        assert_eq!(moved, 1);
+        assert!(new_root.join("extra.txt").exists());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// 跨平台「睡 30 秒」子进程（reap / take_if_current 竞窗测试用）：
+    /// unix 用 sleep，Windows 用 cmd ping（免 PowerShell 冷启动开销）。
+    /// 本模块曾整体 `#[cfg(all(test, unix))]`——v2.9.x 的打包/启动事故
+    /// 多数发生在 Windows，回归锚点却在出事最多的平台不编译（D2）。
+    fn spawn_sleeper() -> command_group::GroupChild {
+        use command_group::CommandGroup;
+        let mut command = if cfg!(windows) {
+            let mut c = std::process::Command::new("cmd");
+            c.args(["/C", "ping -n 31 127.0.0.1 > nul"]);
+            c
+        } else {
+            let mut c = std::process::Command::new("sleep");
+            c.arg("30");
+            c
+        };
+        command.group_spawn().expect("spawn sleeper")
+    }
+
+    /// 退避重启的权威判定（B2）：无人介入照常重启；退避期间 stop()/
+    /// 新 start() 递增 generation 后取消。槽位占满分支由手动 restart 先行
+    /// 覆盖（无法脱离真实子进程构造 GroupChild，此处只测代次分支）。
+    #[test]
+    fn backoff_restart_is_cancelled_when_generation_moves_on() {
+        let manager = DaemonManager::default();
+        let expected = manager.generation.fetch_add(1, Ordering::SeqCst) + 1; // start 的递增语义
+        assert!(!manager.backoff_restart_cancelled(expected)); // 无人介入：照常重启
+        manager.generation.fetch_add(1, Ordering::SeqCst); // 退避期间 stop()/新 start() 递增
+        assert!(manager.backoff_restart_cancelled(expected)); // 权威易主：取消
+    }
 
     /// 稳定运行 ≥ 5 分钟后预算恢复；不足则维持（cloudflald 模式的恢复窗口）。
     #[test]
@@ -1437,11 +1620,7 @@ mod tests {
     /// 有界收尸（v2.9.1 偏好设置卡死回归锚点）：kill 后快速等到退出。
     #[test]
     fn reap_bounded_returns_after_kill() {
-        use command_group::CommandGroup;
-        let mut child = std::process::Command::new("sleep")
-            .arg("30")
-            .group_spawn()
-            .expect("spawn sleep");
+        let mut child = spawn_sleeper();
         let _ = child.kill();
         let t0 = std::time::Instant::now();
         assert!(reap_bounded(&mut child, std::time::Duration::from_secs(2)));
@@ -1451,11 +1630,7 @@ mod tests {
     /// 活着不退的进程：宽限到点必须返回 false（放弃句柄而非无限等）。
     #[test]
     fn reap_bounded_gives_up_at_deadline() {
-        use command_group::CommandGroup;
-        let mut child = std::process::Command::new("sleep")
-            .arg("30")
-            .group_spawn()
-            .expect("spawn sleep");
+        let mut child = spawn_sleeper();
         let t0 = std::time::Instant::now();
         assert!(!reap_bounded(
             &mut child,
@@ -1639,6 +1814,9 @@ mod tests {
     /// 注意：本仓库 Rust 侧以 `cargo build` 为验证主线，此测试是
     /// `resolve_openable_path` 安全语义的回归锚点（`cargo test` 本地跑，未接 CI）。
     /// 单一测试函数内串行断言，避免 `$HOME` 环境变量并发竞争。
+    /// 符号链接仅 unix：Windows 无对应的无特权 symlink 创建路径，单独门控
+    ///（模块级 unix 门控已随 D2 解除）。
+    #[cfg(unix)]
     #[test]
     fn resolve_openable_path_blocks_symlink_escape_and_dotdot() {
         let tmp =
@@ -1714,16 +1892,9 @@ mod tests {
     #[test]
     fn take_if_current_never_takes_slot_of_newer_generation() {
         let manager = Arc::new(DaemonManager::default());
-        use command_group::CommandGroup;
-        let mut child_gen1 = std::process::Command::new("sleep")
-            .arg("30")
-            .group_spawn()
-            .unwrap();
+        let mut child_gen1 = spawn_sleeper();
         let pid_gen1 = child_gen1.id();
-        let child_gen3 = std::process::Command::new("sleep")
-            .arg("30")
-            .group_spawn()
-            .unwrap();
+        let child_gen3 = spawn_sleeper();
 
         // 主线程持锁：装入 gen=1 的子进程（start 的落点效果）。
         let mut slot = lock_ok(&manager.child);
