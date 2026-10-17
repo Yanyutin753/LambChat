@@ -1,3 +1,4 @@
+import { SCHEDULED_PROGRESS_EVENT, SCHEDULED_RESULT_EVENT, SCHEDULED_RESULTS_REFRESH_EVENT } from "../../../hooks/useAgent/scheduledResults";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -324,7 +325,9 @@ export function useWebSocketNotifications({
 
       // 当前会话跑完（可能在本端断连窗口内、也可能在另一端推进）：
       // 触发对流对账——落定气泡、必要时重载历史/接上新 run
-      if (session_id === sessionId) {
+      if (notification.data.notification_kind === "scheduled_result") {
+        window.dispatchEvent(new Event(SCHEDULED_RESULTS_REFRESH_EVENT));
+      } else if (session_id === sessionId) {
         onCurrentSessionTaskCompleteRef.current?.({
           session_id,
           run_id,
@@ -656,6 +659,7 @@ export function useWebSocketNotifications({
     onWsOpen: () => {
       if (!isNotificationScopeActive()) return;
       void restoreCompletions();
+      window.dispatchEvent(new Event(SCHEDULED_RESULTS_REFRESH_EVENT));
       setSandboxWsHealthy(true);
     },
     onWsClose: () => {
@@ -674,6 +678,14 @@ export function useWebSocketNotifications({
     onRecommendQuestions: (notification) => {
       if (!isNotificationScopeActive()) return;
       onRecommendQuestionsRef.current?.(notification);
+    },
+    onScheduledProgress: (data) => {
+      if (!isNotificationScopeActive()) return;
+      window.dispatchEvent(new CustomEvent(SCHEDULED_PROGRESS_EVENT, { detail: data }));
+    },
+    onScheduledResult: (data) => {
+      if (!isNotificationScopeActive()) return;
+      window.dispatchEvent(new CustomEvent(SCHEDULED_RESULT_EVENT, { detail: data }));
     },
     onTaskComplete: (notification) => {
       if (!isNotificationScopeActive()) return;

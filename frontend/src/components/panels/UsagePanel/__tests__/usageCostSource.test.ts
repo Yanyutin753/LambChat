@@ -18,6 +18,7 @@ test("usage panel shows a total cost KPI card", () => {
   expect(source).toMatch(/usage\.costTotal/);
   expect(source).toMatch(/stats\.total_cost_usd/);
   expect(source).toMatch(/stats\.unpriced_requests/);
+  expect(source).toMatch(/stats\.cache_unknown_requests/);
 });
 
 test("usage log table renders a cost column across desktop, tablet and mobile", () => {
@@ -54,7 +55,13 @@ test("ranking rows show per-model cost", () => {
     "utf8",
   );
 
-  expect(source).toMatch(/item\.cost_usd \?\? 0/);
+  expect(source).toMatch(/fmtCostUsd\(item\.cost_usd, true/);
+  expect(source).toMatch(/unpricedRequests: item\.unpriced_requests/);
+});
+
+test("usage log cache counts distinguish unknown from zero at every breakpoint", () => {
+  const source = readFileSync(resolve(currentDir, "../UsageLogsTable.tsx"), "utf8");
+  expect(source.match(/log\.cache_metrics_available === true/g)).toHaveLength(3);
 });
 
 test("usage cost labels are available in every locale", () => {

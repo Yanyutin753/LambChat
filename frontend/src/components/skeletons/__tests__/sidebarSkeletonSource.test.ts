@@ -36,7 +36,7 @@ test("activity rail hover uses the shared desktop feedback token", () => {
     "utf8",
   );
   expect(css).toMatch(
-    /\[data-desktop-activity-rail\]\s+button:not\(:disabled\):hover\s*\{[^}]*background(?:-color)?: var\(--desktop-hover\)/,
+    /\[data-desktop-activity-rail\]\s+button:not\(:disabled\):not\(\[aria-pressed="true"\]\):hover\s*\{[^}]*background(?:-color)?: var\(--desktop-hover\)/,
   );
 });
 

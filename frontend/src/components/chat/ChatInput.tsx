@@ -58,10 +58,7 @@ import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
 import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
 import { ChatInputDialogLayer } from "./ChatInputDialogLayer";
 import { areAttachmentsSendable } from "./attachmentValidation";
-import {
-  createRunningSendToolkit,
-  handleEnterSubmit,
-} from "./chatInputRunningSend";
+import { createRunningSendToolkit, handleEnterSubmit } from "./chatInputRunningSend";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
@@ -133,6 +130,7 @@ export const ChatInput = memo(function ChatInput({
   persistentGoal,
   persistentGoalBusy = false,
   onControlPersistentGoal,
+  onUpdatePersistentGoal,
   onClearActiveGoal,
   goalLabel,
   goalDurationLabel,
@@ -329,13 +327,16 @@ export const ChatInput = memo(function ChatInput({
     () => (enableSkills ? skills.filter((skill) => skill.enabled) : []),
     [skills, enableSkills],
   );
-  const applySlashCommand = useCallback((command: ChatInputSlashCommand) => {
-    if (command.kind !== "panel") return;
-    if (command.id === "tools") setActivePanel("tools");
-    else if (command.id === "persona") setActivePanel("persona");
-    else if (command.id === "team") setActivePanel("team");
-    else if (command.id === "agent") setActivePanel("agent");
-  }, []);
+  const applySlashCommand = useCallback(
+    (command: ChatInputSlashCommand) => {
+      if (command.id === "goal") onToggleGoalMode?.(true);
+      else if (command.id === "tools") setActivePanel("tools");
+      else if (command.id === "persona") setActivePanel("persona");
+      else if (command.id === "team") setActivePanel("team");
+      else if (command.id === "agent") setActivePanel("agent");
+    },
+    [onToggleGoalMode],
+  );
   const applyMentionSelection = useCallback(
     (preset: PersonaPreset) => {
       if (!mention.isActive) return;
@@ -638,9 +639,36 @@ export const ChatInput = memo(function ChatInput({
     agentOptionValues,
     t,
   );
+  const goalControl = (action: "pause" | "resume" | "clear") =>
+    onControlPersistentGoal && (() => onControlPersistentGoal(action));
+  const goalBar = (
+    <ActiveGoalBar
+      goal={activeGoal ?? null}
+      persistentGoal={persistentGoal}
+      onUpdatePersistentGoal={onUpdatePersistentGoal}
+      onPause={goalControl("pause")}
+      onResume={goalControl("resume")}
+      label={goalLabel}
+      durationLabel={goalDurationLabel}
+      clearLabel={goalClearLabel}
+      onClear={onClearActiveGoal}
+      onResumeOrdinary={
+        activeGoal?.ended_at
+          ? () =>
+              onSend(
+                `/goal run ${activeGoal.objective}${activeGoal.rubric ? `\n---\n${activeGoal.rubric}` : ""}`,
+              )
+          : undefined
+      }
+      onClearPersistentGoal={goalControl("clear")}
+      disabled={isLoading || !canSend}
+      persistentDisabled={persistentGoalBusy || !canSend}
+      embedded={!composerExpanded}
+    />
+  );
   return (
     <div
-      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-2"
+      className="chat-input-shell pb-3 sm:pb-2"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       {composerExpanded
@@ -662,12 +690,13 @@ export const ChatInput = memo(function ChatInput({
         }
       />
       <div
-        className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
+        className={className ?? "chat-content-column chat-conversation-composer"}
       >
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&
             createPortal(
               <form ref={formRef} onSubmit={handleSubmit}>
+                {!composerExpanded && goalBar}
                 <div
                   ref={containerRef}
                   onDragOver={handleDragOver}
@@ -683,38 +712,13 @@ export const ChatInput = memo(function ChatInput({
                     backgroundColor: "var(--theme-bg-card)",
                   }}
                 >
+                  {composerExpanded && goalBar}
                   <SessionWorkspaceBar
                     values={agentOptionValues}
                     onChange={onToggleAgentOption}
                     disabled={isLoading || !canSend}
                   />
                   {isDraggingOver && <ChatInputDragOverlay />}
-                  <ActiveGoalBar
-                    goal={activeGoal ?? null}
-                    persistentGoal={persistentGoal}
-                    onPause={
-                      onControlPersistentGoal
-                        ? () => onControlPersistentGoal("pause")
-                        : undefined
-                    }
-                    onResume={
-                      onControlPersistentGoal
-                        ? () => onControlPersistentGoal("resume")
-                        : undefined
-                    }
-                    label={goalLabel}
-                    durationLabel={goalDurationLabel}
-                    clearLabel={goalClearLabel}
-                    onClear={onClearActiveGoal}
-                    onClearPersistentGoal={
-                      onControlPersistentGoal
-                        ? () => onControlPersistentGoal("clear")
-                        : undefined
-                    }
-                    disabled={isLoading || !canSend}
-                    persistentDisabled={persistentGoalBusy || !canSend}
-                    embedded
-                  />
                   {mention.isActive &&
                     !onMentionQueryChange &&
                     mentionMode === "persona" && (

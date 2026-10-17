@@ -43,9 +43,13 @@ async def test_discovered_role_replaces_task_with_trusted_subagent_tool():
     assert handler.await_args.args[0].tool is tool
 
 
-async def test_evidence_snapshot_does_not_hide_current_turn_role_search():
+@pytest.mark.parametrize(
+    "name",
+    ["evidence_context", "task_context", "subagent_context", "subagent_message", "subagent_update"],
+)
+async def test_context_snapshot_does_not_hide_current_turn_role_search(name):
     req = request("persona:p1", result={"success": True, "presets": [{"id": "p1"}]})
-    req.state["messages"].append(HumanMessage(content="Evidence snapshot", name="evidence_context"))
+    req.state["messages"].append(HumanMessage(content="Context snapshot", name=name))
     build = AsyncMock(return_value=object())
     handler = AsyncMock(return_value="done")
 
@@ -53,6 +57,25 @@ async def test_evidence_snapshot_does_not_hide_current_turn_role_search():
 
     assert result == "done"
     build.assert_awaited_once_with("p1")
+
+
+async def test_child_mail_does_not_invalidate_current_user_turn_role_discovery():
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=AsyncMock(), checkpointer=InMemorySaver()
+    )
+    sessions.records["child"] = {"subagent_type": "reviewer", "status": "running"}
+    await sessions.send_parent("child", "Progress", message_id="note-1", config={})
+    req = request("persona:p1", result={"success": True, "presets": [{"id": "p1"}]})
+    req.state["messages"].extend(sessions.drain_parent(req.state["messages"]))
+
+    middleware = PersonaSubagentMiddleware(build_task_tool=AsyncMock(return_value=object()))
+    result = await middleware.awrap_tool_call(req, AsyncMock(return_value="done"))
+
+    assert result == "done"
 
 
 @pytest.mark.asyncio

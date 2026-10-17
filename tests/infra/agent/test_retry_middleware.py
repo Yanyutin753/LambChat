@@ -1,4 +1,5 @@
 import httpx
+import httpx2
 import pytest
 from langchain_core.messages import AIMessage
 
@@ -16,6 +17,28 @@ class _Request:
 
     def override(self, **kwargs):
         return _Request(kwargs.get("model", self.model), kwargs.get("messages", self.messages))
+
+
+async def test_agent_retry_stack_recovers_current_sdk_disconnect(monkeypatch):
+    from langchain.agents.middleware import ModelRetryMiddleware
+
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "LLM_MAX_RETRIES", 1)
+    monkeypatch.setattr(settings, "LLM_RETRY_DELAY", 0)
+    retry = next(m for m in create_retry_middleware() if isinstance(m, ModelRetryMiddleware))
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise httpx2.RemoteProtocolError("incomplete chunked read")
+        return AIMessage(content="Recovered without restarting the Goal")
+
+    result = await retry.awrap_model_call(_Request(object()), handler)
+    assert result.content == "Recovered without restarting the Goal"
+    assert calls == 2
 
 
 async def test_fallback_runs_when_primary_raises_non_retryable_error() -> None:
@@ -132,6 +155,68 @@ async def test_truncated_content_exhausted_still_returns_last_response() -> None
     result = await middleware.awrap_model_call(None, handler)
 
     assert result.content == "半截回答："
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"stop_reason": "max_tokens"},
+        {"finish_reason": "length"},
+        {"incomplete_details": {"reason": "max_output_tokens"}},
+    ],
+)
+@pytest.mark.parametrize(
+    "content", ["Partial answer", [{"type": "thinking", "thinking": "budget exhausted"}]]
+)
+async def test_output_limit_preserves_response_without_identical_retries(metadata, content):
+    middleware = EmptyContentRetryMiddleware(max_retries=3, retry_delay=0)
+    message = AIMessage(content=content, response_metadata=metadata)
+    calls = 0
+
+    async def handler(_request):
+        nonlocal calls
+        calls += 1
+        return message
+
+    assert await middleware.awrap_model_call(None, handler) is message
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"finish_reason": "length"},
+        {"incomplete_details": {"reason": "max_output_tokens"}},
+    ],
+)
+async def test_output_limit_still_allows_configured_model_fallback(metadata):
+    primary, fallback = object(), object()
+    middleware = ModelFallbackMiddleware(fallback_model="openai/fallback-model")
+    middleware._fallback_llm = fallback
+
+    async def handler(request):
+        return (
+            AIMessage(content="Partial answer", response_metadata=metadata)
+            if request.model is primary
+            else AIMessage(content="fallback answer")
+        )
+
+    result = await middleware.awrap_model_call(_Request(primary), handler)
+    assert result.content == "fallback answer"
+
+
+async def test_heuristic_connection_truncation_still_retries():
+    middleware = EmptyContentRetryMiddleware(max_retries=1, retry_delay=0)
+    calls = 0
+
+    async def handler(_request):
+        nonlocal calls
+        calls += 1
+        return AIMessage(content="Unfinished answer:" if calls == 1 else "Complete answer.")
+
+    result = await middleware.awrap_model_call(None, handler)
+    assert result.content == "Complete answer."
+    assert calls == 2
 
 
 async def test_tool_call_only_response_returns_without_raise() -> None:

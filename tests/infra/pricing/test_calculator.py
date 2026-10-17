@@ -58,8 +58,7 @@ class TestComputeCost:
         )
         assert cost is None
 
-    def test_missing_cache_prices_bill_cache_tokens_at_zero(self):
-        # 未提供缓存单价时按 0 计（models.dev 未收录即视为不单独计费）
+    def test_missing_cache_prices_remain_unpriced(self):
         rates = PriceRates(input=3.0, output=15.0)
         cost = compute_cost(
             input_tokens=100_000,
@@ -67,13 +66,10 @@ class TestComputeCost:
             cache_read_tokens=50_000,
             rates=rates,
         )
-        assert cost is not None
-        assert cost.cache_read_usd == 0.0
-        assert cost.cache_write_usd == 0.0
-        assert cost.input_usd == 50_000 * 3.0 / 1_000_000
+        assert cost is None
 
     def test_negative_billable_input_clamped_to_zero(self):
-        rates = PriceRates(input=3.0, output=15.0)
+        rates = PriceRates(input=3.0, output=15.0, cache_read=0, cache_write=0)
         cost = compute_cost(
             input_tokens=100,
             output_tokens=0,

@@ -52,6 +52,53 @@ class _TestAgent(base_module.BaseGraphAgent):
 
 
 @pytest.mark.asyncio
+async def test_producer_interrupt_survives_a_cleared_interrupt_flag(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        base_module,
+        "AgentEventProcessor",
+        lambda *a, **kw: SimpleNamespace(
+            process_event=AsyncMock(), finalize=AsyncMock(), emit_token_usage=AsyncMock()
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt",
+        AsyncMock(side_effect=TaskInterruptedError("cancelled producer")),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast", lambda _: False
+    )
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = _FakeGraph()
+    presenter = _FakePresenter()
+    with pytest.raises(TaskInterruptedError, match="cancelled producer"):
+        _ = [event async for event in agent._stream("hello", "s", "u", presenter=presenter)]
+    assert not any(event["event"] == "done" for event in presenter.emitted_events)
+    assert not agent._stream_tasks
+
+
+@pytest.mark.parametrize("close_run", [None, "r"])
+async def test_close_consumes_already_finished_stream_failure(close_run) -> None:
+    async def fail():
+        raise TaskInterruptedError("already interrupted")
+
+    task = asyncio.create_task(fail())
+    cleanup = asyncio.create_task(fail()) if close_run is None else None
+    await asyncio.wait({task, cleanup} if cleanup is not None else {task})
+    assert task._log_traceback
+    agent = _TestAgent()
+    agent._stream_tasks["r"] = task
+    if cleanup is not None:
+        agent._cleanup_task = cleanup
+    await agent.close(close_run)
+    assert not task._log_traceback
+    assert cleanup is None or not cleanup._log_traceback
+
+
+@pytest.mark.asyncio
 async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -> None:
     processed = asyncio.Event()
     instances = []
@@ -278,3 +325,55 @@ async def test_cancelled_full_event_queue_does_not_deadlock(monkeypatch) -> None
     next_event.cancel()
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(next_event, timeout=1)
+
+
+async def test_outer_summary_cannot_replace_inner_incomplete_usage_on_cancellation(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.agents.core.node_utils import emit_token_usage
+
+    processed = asyncio.Event()
+    presenter = _FakePresenter()
+    inner_data = {"input_tokens": 4517, "cache_read_tokens": 576, "usage_incomplete": True,
+                  "unknown_usage_fields": ["input_tokens", "output_tokens", "cache_read_tokens"]}
+
+    async def inner_emit(**kwargs):
+        await presenter.emit({"event": "token:usage", "data": inner_data})
+        return True
+
+    class NestedGraph(_FakeGraph):
+        async def astream_events(self, *args, **kwargs):
+            await emit_token_usage(SimpleNamespace(emit_token_usage=inner_emit), presenter, 0)
+            async for event in super().astream_events(*args, **kwargs):
+                yield event
+
+    class OuterProcessor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def process_event(self, event):
+            processed.set()
+
+        async def finalize(self):
+            pass
+
+        async def emit_token_usage(self, **kwargs):
+            await presenter.emit({"event": "token:usage", "data": {"input_tokens": 4517, "cache_read_tokens": 576, "input_includes_cache": True}})
+            return True
+
+    monkeypatch.setattr(base_module, "AgentEventProcessor", OuterProcessor)
+    monkeypatch.setattr("src.infra.task.manager.BackgroundTaskManager.check_interrupt", AsyncMock())
+    monkeypatch.setattr("src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast", lambda _: False)
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = NestedGraph()
+    stream = agent._stream("hello", "session-1", "user-1", presenter=presenter)
+    await stream.__anext__()
+    next_event = asyncio.create_task(stream.__anext__())
+    await asyncio.wait_for(processed.wait(), timeout=1)
+    next_event.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await next_event
+    usage = [event["data"] for event in presenter.emitted_events if event["event"] == "token:usage"]
+    assert usage == [inner_data]

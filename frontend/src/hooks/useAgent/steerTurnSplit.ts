@@ -1,16 +1,17 @@
 import type { Message } from "../../types/message";
 import { clearAllLoadingStates } from "./messageParts";
 
-/**
- * 插话打断了这段生成：封存轮次标 cancelled，状态行「工作中」切换为
- * 「已停止」（RunStepsCollapse 文字切换，不追加 cancelled part 组件）。
- * 没有任何内容的空轮次不加，避免空气泡上凭空出现已停止标记。
- */
-export function markInterruptedBySteer(message: Message): Message {
-  const hasContent =
-    (message.parts?.length ?? 0) > 0 || Boolean(message.content?.trim());
-  if (!hasContent) return message;
-  return { ...message, cancelled: true };
+/** A delivered steer closes a segment; only cancellation events stop the run. */
+export function sealAssistantBeforeSteer(message: Message): Message {
+  return {
+    ...message,
+    isStreaming: false,
+    metadata: { ...message.metadata, continuedBySteer: true },
+    parts: clearAllLoadingStates(message.parts || [], {
+      preserveAskHuman: true,
+      preserveTodos: true,
+    }),
+  };
 }
 
 /**
@@ -18,7 +19,7 @@ export function markInterruptedBySteer(message: Message): Message {
  *
  * 实时视图中一个 run 的所有模型输出流进同一个助手消息（run 级
  * messageId）。插话送达（steer:message 事件）时：封存当前流式助手
- * 消息（重命名 id、清加载态、标记已停止——插话即打断），并追加新的
+ * 消息（重命名 id、清加载态、保留待办与运行结果），并追加新的
  * 助手占位（沿用原 messageId 接收后续事件）。插话本身在独立状态里，
  * 渲染时按时间戳落在封存轮次与新轮次之间。
  */
@@ -38,13 +39,10 @@ export function splitAssistantTurn(
     .map(Number);
   const nextTurn = (turnNumbers.length ? Math.max(...turnNumbers) : 0) + 1;
 
-  const sealed: Message = markInterruptedBySteer({
+  const sealed: Message = sealAssistantBeforeSteer({
     ...messages[assistantIndex],
     id: `${assistantId}#t${nextTurn}`,
     isStreaming: false,
-    parts: clearAllLoadingStates(messages[assistantIndex].parts || [], {
-      preserveAskHuman: true,
-    }),
   });
 
   const freshTurn: Message = {

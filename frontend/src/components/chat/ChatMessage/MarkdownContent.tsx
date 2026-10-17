@@ -151,7 +151,7 @@ function getHeadingAnchorId({
 function InlineCode({ children }: { children: React.ReactNode }) {
   const codeId = useId();
   const { t } = useTranslation();
-  const { copied, failed, copying, copy } = useClipboardCopy(String(children));
+  const { copied, failed, copying, copy } = useClipboardCopy(String(children ?? ""));
   const label = t(copied ? "chat.message.copied" : "chat.message.copyCode");
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [insideLink, setInsideLink] = useState(false);
@@ -205,7 +205,7 @@ function CodeBlock({
   const { t } = useTranslation();
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
-  const codeString = String(children).replace(/\n$/, "");
+  const codeString = String(children ?? "").replace(/\n$/, "");
 
   // Handle mermaid diagrams
   if (language === "mermaid") {
@@ -220,7 +220,7 @@ function CodeBlock({
       data-streaming={isStreaming || undefined}
     >
       {/* Code content */}
-      <div className="ai-code-block__body bg-theme-bg-code [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
+      <div className="ai-code-block__body bg-theme-bg-code [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden">
         <DeferredCodeMirrorViewer
           value={codeString}
           language={language || undefined}

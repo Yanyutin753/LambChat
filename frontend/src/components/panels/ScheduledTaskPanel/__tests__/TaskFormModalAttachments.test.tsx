@@ -143,7 +143,6 @@ test("task configuration fields and trigger choices have accessible names and st
     "intervalSeconds",
     "inputPayload",
     "maxRetries",
-    "timeoutSeconds",
   ]) {
     expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
   }
@@ -168,4 +167,57 @@ test("task configuration fields and trigger choices have accessible names and st
   ]) {
     expect(screen.getByLabelText(i18n.t(`scheduledTask.${key}`))).toBeTruthy();
   }
+});
+
+test("a chat-created schedule defaults to continuing the current conversation", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={null}
+      defaultSessionId="chat-1"
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText(i18n.t("scheduledTask.name")), {
+    target: { value: "Follow up" },
+  });
+  expect(
+    screen.getByText(i18n.t("scheduledTask.inheritContext")),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByLabelText(i18n.t("scheduledTask.agent")),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0]).toMatchObject({
+    execution_mode: "conversation",
+    target_session_id: "chat-1",
+    notification_policy: "meaningful_changes",
+  });
+});
+
+test("legacy task editing shows no execution deadline and saves unlimited duration", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("scheduled.pdf");
+  expect(
+    screen.queryByRole("spinbutton", {
+      name: i18n.t("scheduledTask.timeoutSeconds"),
+    }),
+  ).toBeNull();
+  expect(screen.getByText(i18n.t("scheduledTask.noTimeLimit"))).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].timeout_seconds).toBe(0);
 });

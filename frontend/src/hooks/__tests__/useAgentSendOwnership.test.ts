@@ -50,7 +50,7 @@ test("only the send owner can restore a same-session history snapshot", () => {
   expect(source).toContain(
     "historySnapshot.targetSessionId === sessionIdRef.current",
   );
-  expect(source).toContain("messagesRef.current = historySnapshot.messages");
+  expect(source).toContain("preserveScheduledMessages(historySnapshot.messages, messagesRef.current)");
   expect(source).toContain(
     "historyMessagesSnapshotRef.current?.requestId === requestId",
   );

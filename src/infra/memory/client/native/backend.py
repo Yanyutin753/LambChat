@@ -189,6 +189,7 @@ class NativeMemoryBackend(MemoryBackend):
             return {
                 "success": False,
                 "error": "Content too short (minimum 5 characters)",
+                "retryable": False,
             }
 
         from src.infra.memory.scope import ScopeResolutionError, resolve_retain_scope
@@ -197,12 +198,13 @@ class NativeMemoryBackend(MemoryBackend):
         try:
             scope, project_id = resolve_retain_scope(scope=scope, project_id=project_id)
         except ScopeResolutionError as exc:
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": str(exc), "retryable": False}
 
         if not is_manual_memory_worthy(content, context):
             return {
                 "success": False,
                 "error": "Content rejected: appears transient, noisy, or not durable enough",
+                "retryable": False,
             }
 
         memory_type = _infer_memory_type(context)

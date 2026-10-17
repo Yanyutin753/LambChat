@@ -28,6 +28,66 @@ def _now() -> datetime:
     return datetime(2026, 9, 3, 12, 0, 0, tzinfo=timezone.utc)
 
 
+@pytest.mark.parametrize(
+    ("retryability", "expected_retryable"),
+    [
+        ({"retryable": False}, False),
+        ({}, True),
+        ({"retryable": True}, True),
+        ({"retryable": "false"}, True),
+    ],
+)
+async def test_retain_rejection_only_stops_retry_when_backend_explicitly_forbids_it(
+    monkeypatch, retryability, expected_retryable
+):
+    import src.infra.llm.retry as retry_module
+
+    async def fake_model():
+        return object()
+
+    async def fake_invoke(*args, **kwargs):
+        return SimpleNamespace(
+            content='{"raw_memory":"User prefers SQL for analytics.",'
+            '"rollout_summary":"SQL preference","rollout_slug":"sql"}'
+        )
+
+    monkeypatch.setattr(extraction, "_get_extraction_model", fake_model)
+    monkeypatch.setattr(retry_module, "ainvoke_with_retry", fake_invoke)
+    backend = FakeBackend(
+        {"success": False, "error": "Content rejected: not durable enough", **retryability}
+    )
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db([_started_trace("r1", _now(), "Prefer SQL", "Understood")]),
+        "u1",
+        {"session_id": "s1", "metadata": {}},
+    )
+    assert outcome.status == "failed"
+    assert outcome.retryable is expected_retryable
+    assert outcome.error == "Content rejected: not durable enough"
+    assert not backend._collection.updates
+
+    session = {"session_id": "s1", "updated_at": _now() - timedelta(hours=1)}
+    job = {
+        "_id": "j1",
+        "session_id": "s1",
+        "status": "claimed",
+        "attempts": 1,
+        "lease_expires_at": _now() + timedelta(minutes=15),
+    }
+    jobs, recorded = _patch_pass_env(monkeypatch, claimed=[(session, job)], job_docs=[dict(job)])
+
+    async def fake_extract(*args, **kwargs):
+        return outcome
+
+    monkeypatch.setattr(extraction, "extract_session_memory", fake_extract)
+    result = await extraction.run_extraction_pass("u1", backend=backend)
+    assert result["failed"] == 1 and result["succeeded"] == 0
+    assert jobs.docs["j1"]["status"] == ("failed" if expected_retryable else "exhausted")
+    assert (jobs.docs["j1"]["next_retry_at"] is not None) is expected_retryable
+    assert recorded["records"] == 0
+
+
 # ---------------------------------------------------------------------------
 # 候选查询（codex startup claim rules 的 Mongo 化）
 # ---------------------------------------------------------------------------

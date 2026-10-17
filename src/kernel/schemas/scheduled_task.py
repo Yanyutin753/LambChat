@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from src.kernel.schemas.channel import ChannelType
+
+# Accept historical timeout fields without imposing an execution deadline.
+_LegacyTimeoutSeconds = Annotated[int, AfterValidator(lambda _value: 0)]
 
 # ── Enums ──────────────────────────────────────────
 
@@ -87,6 +90,9 @@ class ChannelDeliveryConfig(BaseModel):
 class ScheduledTaskCreate(BaseModel):
     """Request body for creating a scheduled task."""
 
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str = Field(..., min_length=1, max_length=200)
     agent_id: str = Field(..., min_length=1)
     trigger_type: TriggerType
@@ -100,7 +106,7 @@ class ScheduledTaskCreate(BaseModel):
     enabled: bool = Field(True)
     run_on_start: bool = Field(False)
     max_retries: int = Field(0, ge=0, le=10)
-    timeout_seconds: int = Field(3600, ge=10, le=7200)
+    timeout_seconds: _LegacyTimeoutSeconds = Field(0, deprecated=True)
     source_session_id: Optional[str] = Field(
         None, description="Conversation session where the task was created"
     )
@@ -115,6 +121,9 @@ class ScheduledTaskCreate(BaseModel):
 class ScheduledTaskUpdate(BaseModel):
     """Request body for updating a scheduled task."""
 
+    execution_mode: Literal["conversation", "standalone"] | None = None
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] | None = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     agent_id: Optional[str] = Field(None, min_length=1)
     trigger_type: Optional[TriggerType] = None
@@ -125,7 +134,7 @@ class ScheduledTaskUpdate(BaseModel):
     enabled: Optional[bool] = None
     run_on_start: Optional[bool] = None
     max_retries: Optional[int] = Field(None, ge=0, le=10)
-    timeout_seconds: Optional[int] = Field(None, ge=10, le=7200)
+    timeout_seconds: Optional[_LegacyTimeoutSeconds] = Field(None, deprecated=True)
     delivery: Optional[ChannelDeliveryConfig] = None
 
 
@@ -135,6 +144,9 @@ class ScheduledTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(..., alias="_id")
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str
     description: Optional[str] = None
     agent_id: str
@@ -146,7 +158,7 @@ class ScheduledTask(BaseModel):
     enabled: bool = True
     run_on_start: bool = False
     max_retries: int = 0
-    timeout_seconds: int = 3600
+    timeout_seconds: _LegacyTimeoutSeconds = Field(0, deprecated=True)
     owner_id: str = Field(..., description="Creator user_id")
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
@@ -192,6 +204,9 @@ class ScheduledTaskResponse(BaseModel):
     """API response for a scheduled task."""
 
     id: str
+    execution_mode: Literal["conversation", "standalone"] = "standalone"
+    target_session_id: Optional[str] = None
+    notification_policy: Literal["always", "meaningful_changes"] = "always"
     name: str
     description: Optional[str] = None
     agent_id: str
@@ -203,7 +218,7 @@ class ScheduledTaskResponse(BaseModel):
     enabled: bool
     run_on_start: bool
     max_retries: int
-    timeout_seconds: int
+    timeout_seconds: _LegacyTimeoutSeconds = Field(0, deprecated=True)
     owner_id: str
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None

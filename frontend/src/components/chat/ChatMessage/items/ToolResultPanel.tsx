@@ -472,7 +472,7 @@ export function ToolResultPanel({
 
               {/* Title */}
               {title && (
-                <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1 font-serif">
+                <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1">
                   <h3
                     id={titleId}
                     className="tool-console-title min-w-0 max-w-full truncate leading-6 font-medium text-14 text-theme-text"
@@ -482,7 +482,7 @@ export function ToolResultPanel({
                   </h3>
                   {subtitle && (
                     <span
-                      className="tool-console-subtitle-pill min-w-0 max-w-full truncate font-sans text-12 font-normal leading-5 text-theme-text-tertiary"
+                      className="tool-console-subtitle-pill min-w-0 max-w-full truncate text-12 font-normal leading-5 text-theme-text-tertiary"
                       title={subtitle}
                     >
                       {subtitle}
@@ -514,7 +514,7 @@ export function ToolResultPanel({
             aria-busy={!contentReady}
           >
             <div
-              className={`tool-console-body__content tool-readable font-serif h-full min-h-full transition-opacity duration-150 ${
+              className={`tool-console-body__content tool-readable h-full min-h-full transition-opacity duration-150 ${
                 contentReady ? "opacity-100" : "opacity-0"
               }`}
               aria-hidden={!contentReady}

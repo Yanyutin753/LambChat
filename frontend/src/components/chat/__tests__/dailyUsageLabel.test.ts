@@ -70,3 +70,18 @@ test("rounds the converted amount to three decimals before the plus suffix", () 
     ),
   ).toBe("¥0.532+");
 });
+
+test("all unpriced requests display unknown rather than a zero cost", () => {
+  expect(buildDailyUsageAmount(stats({ total_cost_usd: 0, priced_requests: 0,
+    unpriced_requests: 3 }), { language: "en" })).toBe("—");
+});
+
+test("missing monetary totals stay unknown", () => {
+  expect(buildDailyUsageAmount(stats({ total_cost_usd: undefined }),
+    { language: "en" })).toBe("—");
+});
+
+test("explicit priced free requests still display zero", () => {
+  expect(buildDailyUsageAmount(stats({ total_cost_usd: 0, priced_requests: 3,
+    unpriced_requests: 0 }), { language: "en" })).toBe("$0.000");
+});

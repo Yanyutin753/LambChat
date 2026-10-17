@@ -7,6 +7,7 @@ from importlib import import_module
 from typing import Any
 
 from arq import Retry, cron
+from arq.typing import WorkerCoroutine
 
 from src.infra.distributed_validation import validate_distributed_runtime_settings
 from src.infra.goal_continuation import continue_persistent_goal, scan_persistent_goals
@@ -124,10 +125,18 @@ async def worker_shutdown(ctx: dict[str, Any]) -> None:
 
 
 def _resolve_executor(executor_key: str) -> Any:
+    if executor_key == "scheduled_agent_stream":
+        from src.infra.scheduler.runner import execute_standalone_schedule
+
+        return execute_standalone_schedule
     executor_fn = get_registered_executor(executor_key)
     if executor_fn is not None:
         return executor_fn
 
+    if executor_key == "conversation_schedule":
+        from src.infra.scheduler.conversation import execute_conversation_schedule
+
+        return execute_conversation_schedule
     if executor_key == "background_agent_stream":
         from .background_tasks import execute_background_stream
 
@@ -178,6 +187,85 @@ def _run_watchdog_timeout() -> float | None:
     return timeout if timeout and timeout > 0 else None
 
 
+async def _validate_standalone_scheduled_admission(payload: dict, run_id: str) -> None:
+    from src.infra.goal_runtime import GoalRunAdmissionError
+    from src.kernel.errors import AppError
+
+    from .background_tasks import apply_background_restrictions, validate_background_execution
+
+    session = await get_task_manager().storage.get_by_session_id(payload["session_id"])
+    metadata = (session.metadata or {}) if session else {}
+    status = metadata.get("task_status")
+    if (
+        not session
+        or session.user_id != payload["user_id"]
+        or metadata.get("current_run_id") != run_id
+        or metadata.get("task_error_code") == "cancelled"
+        or status in {"completed", "cancelled", "cancelling", "expired"}
+        or (
+            status == "failed"
+            and not (payload.get("interrupted_resume") and metadata.get("task_recoverable") is True)
+        )
+        or (status == "waiting_human" and not payload.get("hitl_resume"))
+    ):
+        raise GoalRunAdmissionError("Scheduled task no longer owns a runnable conversation")
+    try:
+        request = await validate_background_execution(
+            payload["session_id"],
+            payload["agent_id"],
+            payload["user_id"],
+            payload.get("agent_options") or {},
+        )
+        apply_background_restrictions(request, payload)
+    except AppError as error:
+        if error.http_status >= 500:
+            raise
+        executor = get_task_manager()._ensure_executor()
+        await executor._update_session_status(
+            payload["session_id"],
+            TaskStatus.FAILED,
+            "Scheduled task authorization is no longer valid",
+            run_id=run_id,
+            expected_run_id=run_id,
+        )
+        try:
+            if payload.get("trace_id"):
+                from src.infra.writer.present import Presenter, PresenterConfig
+
+                presenter = Presenter(
+                    PresenterConfig(
+                        session_id=payload["session_id"],
+                        agent_id=payload["agent_id"],
+                        user_id=payload["user_id"],
+                        run_id=run_id,
+                        trace_id=payload["trace_id"],
+                    )
+                )
+                presenter._trace_created = True
+                await executor._handle_generic_error(
+                    payload["session_id"], run_id, payload["user_id"], error, None, presenter
+                )
+                done = presenter.done()
+                done["data"]["status"] = "error"
+                await presenter.emit(done)
+                writer = await presenter._get_dual_writer()
+                await writer.flush_mongo_buffer(require_empty=True)
+        finally:
+            await _release_concurrency_slot(payload["user_id"], run_id, dequeue=True)
+        raise GoalRunAdmissionError("Scheduled task authorization is no longer valid") from error
+    payload["agent_options"] = request.agent_options
+    for field in (
+        "persona_system_prompt",
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+        "team_id",
+    ):
+        payload[field] = getattr(request, field)
+
+
 async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     """Run a previously persisted LambChat task from an arq worker."""
     payload_store: TaskArqPayloadStore = ctx.get("payload_store") or TaskArqPayloadStore()
@@ -198,17 +286,26 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     try:
         background = (
             (payload["user_id"], payload["session_id"])
-            if payload.get("executor_key") == "background_agent_stream"
+            if payload.get("executor_key")
+            in {"background_agent_stream", "conversation_schedule", "scheduled_agent_stream"}
             else None
         )
         async with goal_run_lease(
             payload.get("active_goal"), run_id, background_identity=background
         ):
+            if payload.get("executor_key") == "scheduled_agent_stream":
+                await _validate_standalone_scheduled_admission(payload, run_id)
             await validate_goal_admission({**payload, "run_id": run_id})
             if payload.get("executor_key") == "background_agent_stream":
                 from .background_admission import validate_background_run_admission
 
                 await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            if payload.get("executor_key") == "conversation_schedule":
+                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                await validate_scheduled_run_admission(
                     payload["session_id"], payload["user_id"], run_id
                 )
             await _run_agent_payload(payload_store, payload, dispatch_id, run_id)
@@ -233,13 +330,17 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
         await payload_store.delete(dispatch_id)
         return
 
+    if payload.get("executor_key") == "scheduled_agent_stream":
+        await _validate_standalone_scheduled_admission(payload, run_id)
+
     task_manager = get_task_manager()
     task_executor = task_manager._ensure_executor()
 
     interrupted_resume = bool(payload.get("interrupted_resume"))
     persistent_goal = bool((payload.get("active_goal") or {}).get("_persistent_id"))
     background_run = payload.get("executor_key") == "background_agent_stream"
-    fenced_resume = persistent_goal or background_run
+    scheduled_run = payload.get("executor_key") == "conversation_schedule"
+    fenced_resume = persistent_goal or background_run or scheduled_run
 
     async def admit_goal_resume():
         if fenced_resume:
@@ -250,6 +351,12 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
                 from .background_admission import validate_background_run_admission
 
                 await validate_background_run_admission(
+                    payload["session_id"], payload["user_id"], run_id
+                )
+            if scheduled_run:
+                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                await validate_scheduled_run_admission(
                     payload["session_id"], payload["user_id"], run_id
                 )
             await task_executor._update_session_status(
@@ -365,7 +472,11 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
             interrupted_resume=interrupted_resume,
             base_url=str(payload.get("base_url") or ""),
         )
-        watchdog_timeout = _run_watchdog_timeout()
+        watchdog_timeout = (
+            None
+            if executor_key in {"conversation_schedule", "scheduled_agent_stream"}
+            else _run_watchdog_timeout()
+        )
         if watchdog_timeout is None:
             suspended = await task_executor.run_task(**run_kwargs)
         else:
@@ -446,8 +557,43 @@ async def update_user_message_search_index(ctx: dict[str, Any], run_id: str) -> 
     await payload_store.delete(run_id)
 
 
+_SCHEDULED_RENEW_INTERVAL = 30
+
+
+async def run_scheduled_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
+    """Keep ARQ ownership and recovery data alive without a total execution deadline."""
+    from arq.constants import in_progress_key_prefix
+
+    owner = asyncio.current_task()
+
+    async def renew():
+        try:
+            while True:
+                if not await ctx["redis"].expire(in_progress_key_prefix + ctx["job_id"], 90):
+                    raise RuntimeError("Scheduled ARQ execution ownership was lost")
+                await asyncio.sleep(_SCHEDULED_RENEW_INTERVAL)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Scheduled ARQ ownership renewal failed: dispatch=%s", dispatch_id)
+            if owner:
+                owner.cancel()
+
+    renewal = asyncio.create_task(renew())
+    try:
+        await run_agent_task(ctx, dispatch_id)
+    finally:
+        renewal.cancel()
+        await asyncio.gather(renewal, return_exceptions=True)
+
+
 class WorkerSettings:
-    functions = [run_agent_task, update_user_message_search_index, continue_persistent_goal]
+    functions: list[WorkerCoroutine] = [
+        run_scheduled_agent_task,
+        run_agent_task,
+        update_user_message_search_index,
+        continue_persistent_goal,
+    ]
     cron_jobs = [
         cron(scan_persistent_goals, second={0, 10, 20, 30, 40, 50}, run_at_startup=True),
         cron(scan_background_tasks, second={5, 15, 25, 35, 45, 55}, run_at_startup=True),

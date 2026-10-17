@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from io import StringIO
 from typing import Any
 
-from src.infra.agent.events.buffers import BufferKey, TextChunkBuffer
+from src.infra.agent.events.buffers import (
+    ActivityReferenceFilter,
+    ActivityStreamKey,
+    BufferKey,
+    TextChunkBuffer,
+)
 from src.infra.agent.events.types import StreamEvent, get_value
 
 # 工具生命周期不走标准 tool:start 通道（由专用事件渲染），参数流式会悬空
-TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "task", "write_todos"))
+TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "task", "write_todos", "handoff_to_search"))
 
 
 def _first_int(*values: Any) -> int | None:
@@ -76,7 +82,52 @@ class StreamEventMixin:
     total_tokens: int
     total_cache_creation_tokens: int
     total_cache_read_tokens: int
+    _usage_unknown_fields: set[str]
+    _usage_observed: bool
+    _input_includes_cache: bool
     _output_buffer_chars: int
+    _activity_reference_filters: dict[ActivityStreamKey, tuple[ActivityReferenceFilter, BufferKey]]
+
+    def _filter_activity_reference(
+        self,
+        text: str,
+        event: StreamEvent,
+        key: BufferKey,
+        *,
+        thinking: bool = False,
+        summary: bool = False,
+    ) -> str:
+        stream_key = (
+            key[1],
+            event.get("run_id"),
+            "summary" if summary else "thinking" if thinking else "body",
+        )
+        entry = self._activity_reference_filters.get(stream_key)
+        stream_filter = entry[0] if entry is not None else ActivityReferenceFilter()
+        self._activity_reference_filters[stream_key] = (stream_filter, key)
+        return stream_filter.feed(text)
+
+    async def _finish_activity_reference(self, stream_key: ActivityStreamKey) -> None:
+        entry = self._activity_reference_filters.pop(stream_key, None)
+        if entry is None:
+            return
+        stream_filter, key = entry
+        text = stream_filter.finish()
+        if text:
+            kind = stream_key[2]
+            buffer: Callable[
+                [str, int, str | None, str | None], list[tuple[str, BufferKey | None]] | None
+            ]
+            if kind == "summary":
+                buffer, emit = self._buffer_summary_chunk, self._emit_summary_flush
+            elif kind == "thinking":
+                buffer, emit = self._buffer_thinking_chunk, self._emit_thinking_flush
+            else:
+                if key[0] == 0:
+                    self._append_output_text(text)
+                buffer, emit = self._buffer_text_chunk, self._emit_text_flush
+            for ready in buffer(text, *key) or []:
+                await emit(*ready)
 
     def _append_output_text(self, text: str) -> None:
         from src.infra.agent.events.processor import OUTPUT_TEXT_COPY_MAX_CHARS
@@ -298,9 +349,8 @@ class StreamEventMixin:
         if not response:
             return
 
+        self._usage_observed = True
         usage_sources = _usage_sources(response)
-        if not usage_sources:
-            return
 
         input_tok = _first_usage_int(
             usage_sources,
@@ -320,6 +370,8 @@ class StreamEventMixin:
         if isinstance(output_tok, int):
             self.total_output_tokens += output_tok
         if not isinstance(total_tok, int):
+            if input_tok is None or output_tok is None:
+                self._usage_unknown_fields.add("total_tokens")
             total_tok = (input_tok or 0) + (output_tok or 0)
         self.total_tokens += total_tok
 
@@ -339,10 +391,48 @@ class StreamEventMixin:
             ),
         )
 
+        normalized = getattr(response, "usage_metadata", None)
+        normalized_input = get_value(normalized, "input_tokens", None)
+        normalized_read = _first_cache_usage_int([normalized], ("cache_read",))
+        # Raw provider input may exclude cached tokens; never certify that fallback.
+        self._input_includes_cache &= (
+            isinstance(normalized_input, int)
+            and not isinstance(normalized_input, bool)
+            and normalized_input == input_tok
+            and isinstance(normalized_read, int)
+            and not isinstance(normalized_read, bool)
+            and normalized_read == cache_read
+            and 0 <= normalized_read <= normalized_input
+            and (
+                cache_creation is None or 0 <= cache_creation <= normalized_input - normalized_read
+            )
+        )
+
         if cache_creation is not None:
             self.total_cache_creation_tokens += cache_creation
         if cache_read is not None:
             self.total_cache_read_tokens += cache_read
+        for field, value in (
+            ("input_tokens", input_tok),
+            ("output_tokens", output_tok),
+            ("cache_creation_tokens", cache_creation),
+            ("cache_read_tokens", cache_read),
+        ):
+            if value is None:
+                self._usage_unknown_fields.add(field)
+
+    def _mark_unknown_model_usage(self) -> None:
+        self._usage_observed = True
+        self._input_includes_cache = False
+        self._usage_unknown_fields.update(
+            (
+                "input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "cache_creation_tokens",
+                "cache_read_tokens",
+            )
+        )
 
     async def _handle_summary_stream(
         self,
@@ -359,6 +449,9 @@ class StreamEventMixin:
         summary_id = chunk.id
 
         if isinstance(content, str) and content:
+            content = self._filter_activity_reference(
+                content, event, (current_depth, current_agent_id, summary_id), summary=True
+            )
             ready_flushes = self._buffer_summary_chunk(
                 content,
                 current_depth,
@@ -376,6 +469,9 @@ class StreamEventMixin:
                     continue
                 text = block.get("text", "")
                 if text:
+                    text = self._filter_activity_reference(
+                        text, event, (current_depth, current_agent_id, summary_id), summary=True
+                    )
                     ready_flushes = self._buffer_summary_chunk(
                         text,
                         current_depth,
@@ -405,6 +501,9 @@ class StreamEventMixin:
         chunk_id = chunk.id
 
         if isinstance(content, str) and content:
+            content = self._filter_activity_reference(
+                content, event, (current_depth, current_agent_id, chunk_id)
+            )
             await self._flush_thinking_chunk_buffer()
             if current_depth == 0:
                 self._append_output_text(content)
@@ -420,6 +519,9 @@ class StreamEventMixin:
         elif isinstance(content, str):
             rc = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
             if rc:
+                rc = self._filter_activity_reference(
+                    rc, event, (current_depth, current_agent_id, chunk_id), thinking=True
+                )
                 ready_flushes = self._buffer_thinking_chunk(
                     rc,
                     current_depth,
@@ -437,6 +539,12 @@ class StreamEventMixin:
                 if block_type in ("thinking", "reasoning"):
                     reasoning_text = block.get("thinking") or block.get("reasoning", "")
                     if reasoning_text:
+                        reasoning_text = self._filter_activity_reference(
+                            reasoning_text,
+                            event,
+                            (current_depth, current_agent_id, chunk_id),
+                            thinking=True,
+                        )
                         ready_flushes = self._buffer_thinking_chunk(
                             reasoning_text,
                             current_depth,
@@ -449,6 +557,9 @@ class StreamEventMixin:
                 elif block_type == "text":
                     text = block.get("text", "")
                     if text:
+                        text = self._filter_activity_reference(
+                            text, event, (current_depth, current_agent_id, chunk_id)
+                        )
                         await self._flush_thinking_chunk_buffer()
                         self.thinking_ids[current_agent_id] = None
                         if current_depth == 0:

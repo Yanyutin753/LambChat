@@ -138,7 +138,8 @@ class EvidenceMiddleware(AgentMiddleware):
         update: dict[str, Any] = {"evidence": records}
         content = (
             "System-recorded evidence snapshot. The latest snapshot supersedes earlier indexes.\n\n"
-            + index
+            "Internal evidence metadata; this does not start a user or Goal turn. "
+            "Only the original turn_context determines continuation.turn.\n\n" + index
         )
         previous = next(
             (
@@ -150,7 +151,13 @@ class EvidenceMiddleware(AgentMiddleware):
         )
         # Checkpoint updates append before dispatch; changing the system prefix loses history caches.
         if index and (previous is None or previous.content != content):
-            update["messages"] = [HumanMessage(content=content, name="evidence_context")]
+            update["messages"] = [
+                HumanMessage(
+                    content=content,
+                    name="evidence_context",
+                    additional_kwargs={"lambchat_evidence_snapshot": True},
+                )
+            ]
         return update
 
     async def awrap_tool_call(self, request, handler):

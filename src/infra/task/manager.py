@@ -19,6 +19,7 @@ from src.infra.session.storage import SessionStorage
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 
+from . import arq_payloads
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
 from .cancellation import TaskCancellation
@@ -135,11 +136,13 @@ class BackgroundTaskManager:
         run_modes: Optional[List[str]] = None,
         assistant_identity: Optional[Dict[str, Any]] = None,
         agent_options: Optional[Dict[str, Any]] = None,
+        goal_continuation: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
         from src.infra.writer.present import Presenter, PresenterConfig
 
+        trace_prepared = False
         try:
             presenter = Presenter(
                 PresenterConfig(
@@ -155,22 +158,33 @@ class BackgroundTaskManager:
                 )
             )
             await presenter._ensure_trace()
-        except Exception:
-            await self._release_preclaimed_attachment_references(
-                attachments,
-                user_id,
-                attachment_references_claimed,
+            trace_prepared = True
+            await presenter.emit_user_message(
+                display_message or message,
+                attachments=attachments,
+                enabled_skills=enabled_skills,
+                attachment_references_claimed=attachment_references_claimed,
+                schedule_search_index=schedule_search_index,
+                run_modes=run_modes,
+                assistant_identity=assistant_identity,
+                goal_continuation=goal_continuation,
+            )
+        except BaseException as error:
+            if not trace_prepared:
+                await self._release_preclaimed_attachment_references(
+                    attachments,
+                    user_id,
+                    attachment_references_claimed,
+                )
+            await self._ensure_executor()._update_session_status(
+                session_id,
+                TaskStatus.CANCELLED
+                if isinstance(error, asyncio.CancelledError)
+                else TaskStatus.FAILED,
+                "User message could not be persisted",
+                run_id=run_id,
             )
             raise
-        await presenter.emit_user_message(
-            display_message or message,
-            attachments=attachments,
-            enabled_skills=enabled_skills,
-            attachment_references_claimed=attachment_references_claimed,
-            schedule_search_index=schedule_search_index,
-            run_modes=run_modes,
-            assistant_identity=assistant_identity,
-        )
         return presenter.trace_id
 
     @staticmethod
@@ -300,19 +314,11 @@ class BackgroundTaskManager:
         trace_id = trace_id or ""
         background_resume = False
         if hitl_resume or interrupted_resume:
-            from .background_admission import (
-                validate_background_resume,
-                validate_background_run_admission,
-            )
-            from .background_tasks import execute_background_stream
+            from .background_admission import validate_resume_admission
 
-            if executor is execute_background_stream:
-                await validate_background_run_admission(session_id, user_id, run_id)
-                background_resume = True
-            else:
-                background_resume = await validate_background_resume(
-                    self.storage, session_id, user_id, run_id
-                )
+            background_resume = await validate_resume_admission(
+                self.storage, executor, session_id, user_id, run_id
+            )
 
         async with self._lock:
             existing_task = self._tasks.get(run_id)
@@ -372,6 +378,7 @@ class BackgroundTaskManager:
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    goal_continuation=(active_goal or {}).get("_continuation"),
                     assistant_identity=assistant_identity,
                     agent_options=agent_options,
                 )
@@ -513,6 +520,7 @@ class BackgroundTaskManager:
                     attachment_references_claimed=attachment_references_claimed,
                     schedule_search_index=False,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    goal_continuation=(active_goal or {}).get("_continuation"),
                     assistant_identity=assistant_identity,
                     agent_options=agent_options,
                 )
@@ -560,7 +568,9 @@ class BackgroundTaskManager:
         if arq_pool is None:
             arq_pool = await self._get_arq_pool()
         enqueue_operations = [
-            arq_pool.enqueue_job("run_agent_task", dispatch_id, _job_id=dispatch_id),
+            arq_payloads.enqueue_scheduled_job(arq_pool, dispatch_id)
+            if executor_key in {"conversation_schedule", "scheduled_agent_stream"}
+            else arq_pool.enqueue_job("run_agent_task", dispatch_id, _job_id=dispatch_id),
         ]
         if should_index_user_message and search_index_content:
             enqueue_operations.append(
@@ -661,21 +671,7 @@ class BackgroundTaskManager:
         return self._status_queries().get_trace_id(run_id)
 
     async def cancel(self, session_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        取消任务（支持分布式）
-
-        Args:
-            session_id: 会话 ID
-            user_id: 取消任务的用户 ID
-
-        Returns:
-            {
-                "success": bool,  # 中断信号是否成功设置
-                "cancelled_locally": bool,  # 是否在本地实例取消
-                "run_id": str | None,  # 被取消的 run_id
-                "message": str  # 状态信息
-            }
-        """
+        """取消会话当前运行或排队任务，返回中断信号、本地取消和 run_id。"""
         # 获取 current_run_id
         try:
             session = await self.storage.get_by_session_id(session_id)

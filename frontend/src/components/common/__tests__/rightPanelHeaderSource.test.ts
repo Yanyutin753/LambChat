@@ -20,9 +20,36 @@ test("editor, tool and document panels share fixed header geometry without works
     "utf8",
   );
   expect(tabs).toMatch(/\.right-panel-tabs\s*\{[^}]*flex-wrap: nowrap;/);
-  expect(tabs).toContain("overflow-x: auto");
-  expect(tabs).toMatch(/\.right-panel-tab\s*\{[^}]*min-width: 80px;/);
+  expect(tabs).toMatch(/\.right-panel-tabs\s*\{[^}]*overflow: clip;/);
+  expect(tabs).toMatch(/\.right-panel-tab\s*\{[^}]*min-width: 0;/);
+  expect(tabs).not.toMatch(/overflow-y: (auto|scroll)/);
+  const component = readFileSync(
+    new URL("../RightPanelTabs.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(component).toContain("if (window.innerWidth >= 640) return;");
+  expect(tabs).toMatch(
+    /\.right-panel-tab\[data-selected="true"\]\s*\{[^}]*min-width: 4\.75rem;/,
+  );
+  expect(tabs).toMatch(
+    /@container right-panel-tab \(max-width: 6rem\)\s*\{\s*\.right-panel-tab:not\(\[data-selected="true"\]\) > \.right-panel-tab-close\s*\{\s*display: none;/,
+  );
   expect(workspace).not.toContain("[&_.tool-console-header]");
+});
+
+test("phone tabs scroll horizontally while the strip blocks vertical scrolling", () => {
+  const tabs = readFileSync(
+    new URL("../rightPanelTabs.css", import.meta.url),
+    "utf8",
+  );
+  const phone = tabs.slice(tabs.lastIndexOf("@media (max-width: 639px)"));
+  expect(phone).toMatch(
+    /\.right-panel-tab-scroll\s*\{[^}]*overflow-x: auto;[^}]*overflow-y: hidden;/,
+  );
+  expect(phone).toMatch(/\.right-panel-tab\s*\{[^}]*flex: 1 0 10rem;/);
+  expect(phone).toMatch(
+    /\.right-panel-tab-scroll > \.right-panel-tabs\s*\{[^}]*flex: 1 0 auto;/,
+  );
 });
 
 test("compact document toolbars keep touch actions and close reachable without squeezing the title", () => {

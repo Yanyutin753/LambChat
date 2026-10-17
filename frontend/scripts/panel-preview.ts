@@ -2350,6 +2350,7 @@ const server = await createServer({
             if (userMessage) {
               userMessage.data.content =
                 "请整理这份研究资料，给出简洁的交付计划。";
+              userMessage.data.run_modes = ["auto", "goal"];
               userMessage.data.attachments = [
                 {
                   id: "ui-report",
@@ -2499,8 +2500,29 @@ const server = await createServer({
                   required: true,
                 },
               ],
-              metadata: { mode: "interrupt" },
+              metadata: previewParams.get("composer-stack") === "scheduled"
+                ? {
+                    approval_type: "scheduled_task_create",
+                    preview: {
+                      name: "每分钟发数字",
+                      agent_id: "search",
+                      schedule: "every 1 minute(s)",
+                      run_on_start: true,
+                      timeout_seconds: 0,
+                      execution_mode: "conversation",
+                      message: "这是“每分钟发数字”定时任务的一次运行。请先查看本对话上下文，收集此前所有已发出的数字，然后回复一个 1–1000 之间、且与之前任何一次都不重复的随机整数。格式：一行“第 N 个数字：X”（N 从上文累计），不要输出其他内容。",
+                    },
+                  }
+                : { mode: "interrupt" },
             };
+            if (previewParams.get("composer-stack") === "scheduled") {
+              approval.fields = [];
+            }
+            if (previewParams.get("composer-stack") === "sandbox") {
+              approval.message =
+                '确认在本机执行 1 项操作\n1. 执行命令：n=$((RANDOM % 1000 + 1)); while [ "$n" = "692" ] || [ "$n" = "891" ]; do n=$((RANDOM % 1000 + 1)); done; echo "$n"';
+              approval.fields = [];
+            }
             if (url.pathname === "/api/sessions/preview-report") {
               const session = data as { metadata: Record<string, unknown> };
               session.metadata.agent_options = {
@@ -2515,7 +2537,7 @@ const server = await createServer({
             }
             if (
               url.pathname === "/api/sessions/preview-report/events" &&
-              previewParams.get("composer-stack") === "human"
+              ["human", "scheduled", "sandbox"].includes(previewParams.get("composer-stack") ?? "")
             ) {
               const history = data as { events: object[] };
               history.events = [
@@ -2532,7 +2554,7 @@ const server = await createServer({
             if (url.pathname === "/api/human/preview-human") data = approval;
             if (
               url.pathname === "/api/human/pending" &&
-              previewParams.get("composer-stack") === "human"
+              ["human", "scheduled", "sandbox"].includes(previewParams.get("composer-stack") ?? "")
             )
               data = { approvals: [approval] };
           }

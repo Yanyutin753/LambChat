@@ -18,7 +18,6 @@ from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
 from src.infra.storage.redis import get_redis_client
 from src.infra.utils.datetime import utc_now_iso
-from src.kernel.schemas.session import SessionUpdate
 
 from .constants import CANCEL_CHANNEL, INTERRUPT_PREFIX
 from .exceptions import TaskInterruptedError
@@ -127,14 +126,10 @@ class TaskCancellation:
             session_id = run_info.get("session_id")
             if session_id:
                 try:
-                    await SessionStorage().update(
+                    await SessionStorage().update_metadata_for_run(
                         session_id,
-                        SessionUpdate(
-                            metadata={
-                                "task_recoverable": False,
-                                "task_error_code": "cancelled",
-                            }
-                        ),
+                        run_id,
+                        {"task_recoverable": False, "task_error_code": "cancelled"},
                     )
                 except Exception as e:
                     logger.warning(f"Failed to persist cancel recovery metadata: {e}")
@@ -197,7 +192,11 @@ class TaskCancellation:
                     logger.info(f"Task cancelled locally: run_id={run_id}")
                     await asyncio.gather(task, return_exceptions=True)
             except asyncio.CancelledError:
-                raise
+                caller = asyncio.current_task()
+                if caller is None or caller.cancelling() or not task_to_cancel.cancelled():
+                    raise
+                # A cancelled child is the requested outcome; caller cancellation must propagate.
+                cancelled_locally = True
             except Exception:
                 # The task may finish with TaskInterruptedError or another terminal error
                 # during the graceful window; run_task handles persistence and status.

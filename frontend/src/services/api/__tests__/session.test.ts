@@ -40,6 +40,13 @@ test("builds compact chat history event urls only when requested", () => {
   );
 });
 
+test("opts into active execution events only for the requested run", () => {
+  expect(buildSessionEventsUrl("execution", { run_id: "scheduled-1", include_active_events: true }))
+    .toBe("/api/sessions/execution/events?run_id=scheduled-1&include_active_events=true");
+  expect(buildSessionEventsUrl("execution", { run_id: "scheduled-1" }))
+    .toBe("/api/sessions/execution/events?run_id=scheduled-1");
+});
+
 test("builds trace-window history event urls for paginated first loads", () => {
   expect(
     buildSessionEventsUrl("session-1", {

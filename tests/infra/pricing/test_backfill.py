@@ -1,12 +1,44 @@
 """usage_logs 历史费用回填测试。"""
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.infra.pricing import backfill as pricing_backfill
 from src.infra.pricing import service as pricing_service
 from src.infra.pricing.storage import PricingStorage
+
+
+async def test_backfill_does_not_price_incomplete_quantities(monkeypatch):
+    usage = _FakeUsageStorage(
+        [
+            {
+                "trace_id": "incomplete",
+                "model": "test-model",
+                "input_tokens": 100,
+                "output_tokens": 10,
+                "cache_read_tokens": 0,
+                "cache_creation_tokens": 0,
+                "usage_incomplete": True,
+                "cost_available": False,
+            }
+        ]
+    )
+    price = AsyncMock(
+        return_value=SimpleNamespace(
+            rates=pricing_service.PriceRates(input=1, output=2, cache_read=0, cache_write=0)
+        )
+    )
+    monkeypatch.setattr(pricing_backfill, "resolve_price", price)
+    monkeypatch.setattr(
+        pricing_backfill, "_resolve_config_id_by_value", AsyncMock(return_value=None)
+    )
+    result = await pricing_backfill._backfill_locked(usage=usage, dry_run=False, batch_size=10)
+    assert result["priced"] == 0
+    assert usage.collection.docs["incomplete"]["cost_available"] is False
+    price.assert_not_awaited()
 
 
 class _FakeUsageCollection:
@@ -67,11 +99,15 @@ class _FakeUsageStorage:
     def __init__(self, docs):
         self.collection = _FakeUsageCollection(docs)
 
-    async def list_unpriced_usage_logs(self, *, limit=500):
+    async def list_unpriced_usage_logs(self, *, limit=500, exclude_trace_ids=None):
         cursor = self.collection.find({"cost_available": {"$ne": True}})
-        return await cursor.to_list(length=limit)
+        return [
+            doc
+            for doc in await cursor.to_list(length=None)
+            if doc["trace_id"] not in (exclude_trace_ids or set())
+        ][:limit]
 
-    async def update_usage_cost(self, trace_id, cost_usd):
+    async def update_usage_cost(self, trace_id, cost_usd, *, expected_usage=None):
         await self.collection.update_one(
             {"trace_id": trace_id},
             {"$set": {"cost_usd": cost_usd, "cost_available": True}},
@@ -91,8 +127,8 @@ class _PricingFakeCollection:
                         "rates": {
                             "input": 1.4,
                             "output": 4.4,
-                            "cache_read": None,
-                            "cache_write": None,
+                            "cache_read": 0,
+                            "cache_write": 0,
                         },
                     }
                 ],
@@ -122,7 +158,7 @@ def _pricing_storage():
 
 
 def _logs():
-    return [
+    docs = [
         {
             "trace_id": "t-priced",
             "model": "glm-5.3",
@@ -166,10 +202,14 @@ def _logs():
             "started_at": "2026-08-04T00:00:00",
         },
     ]
+    return [{**doc, "usage_incomplete": False} for doc in docs]
 
 
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
+    monkeypatch.setattr(
+        pricing_backfill, "_resolve_config_id_by_value", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(pricing_service, "get_pricing_storage", _pricing_storage)
     pricing_service.reset_runtime_cache()
 
@@ -213,7 +253,7 @@ class TestBackfillUsageCosts:
         assert summary["priced"] == 1
         assert "cost_usd" not in usage.collection.docs["t-open"]
 
-    def test_model_config_override_by_value_applies(self, monkeypatch):
+    def test_original_model_config_override_applies(self, monkeypatch):
         from src.infra.pricing.calculator import PriceRates
         from src.kernel.schemas.model import ModelConfig
 
@@ -224,16 +264,16 @@ class TestBackfillUsageCosts:
                 )
             if value == "glm-5.3":
                 return pricing_service.ResolvedPrice(
-                    rates=PriceRates(input=1.4, output=4.4), source="models_dev"
+                    rates=PriceRates(input=1.4, output=4.4, cache_read=0), source="models_dev"
                 )
             return None
 
         lookup_values = []
 
-        async def _fake_get_by_value(value):
-            lookup_values.append(value)
-            if value == "relay/custom-x":
-                return ModelConfig(id="cfg-1", value=value, label="Relay")
+        async def _fake_get(model_id):
+            lookup_values.append(model_id)
+            if model_id == "cfg-1":
+                return ModelConfig(id="cfg-1", value="relay/custom-x", label="Relay")
             return None
 
         import src.infra.agent.model_storage as model_storage_module
@@ -242,11 +282,12 @@ class TestBackfillUsageCosts:
         monkeypatch.setattr(
             model_storage_module,
             "get_model_storage",
-            lambda: type("S", (), {"get_by_value": staticmethod(_fake_get_by_value)})(),
+            lambda: type("S", (), {"get": staticmethod(_fake_get)})(),
         )
         usage = _FakeUsageStorage(_logs())
+        usage.collection.docs["t-unknown"]["model_id"] = "cfg-1"
         summary = asyncio.run(pricing_backfill.backfill_usage_costs(usage_storage=usage))
         assert summary["priced"] == 2  # t-open（快照价）+ t-unknown（覆盖价）
-        assert "relay/custom-x" in lookup_values
+        assert "cfg-1" in lookup_values
         doc = usage.collection.docs["t-unknown"]
         assert doc["cost_usd"] == pytest.approx(100 * 0.5 / 1e6 + 50 * 1.0 / 1e6)

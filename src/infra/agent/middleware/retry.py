@@ -23,7 +23,7 @@ from src.infra.agent.middleware.dead_attachment import (
     DeadAttachmentFilterMiddleware,
     HistoricalImageCapMiddleware,
 )
-from src.infra.llm.retry import is_retryable_model_error
+from src.infra.llm.retry import _is_output_limit_response, is_retryable_model_error
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -68,6 +68,8 @@ def _is_truncated_response(aimessage: AIMessage) -> bool:
     - stop_reason is absent but the text ends with an incomplete cue (colon, ellipsis)
       and there are no tool_calls (heuristic for connection-drop truncation).
     """
+    if _is_output_limit_response(aimessage):
+        return True
     # Explicit stop_reason check
     metadata = getattr(aimessage, "response_metadata", None)
     if isinstance(metadata, dict):
@@ -268,6 +270,11 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
                 break
 
             if not _is_empty_content(messages[0]) and not _is_truncated_response(messages[0]):
+                return response
+
+            # The same output ceiling is not a transient failure; retain it for fallback/finalization.
+            if _is_output_limit_response(messages[0]):
+                logger.warning("Model output limit reached; not retrying the identical request")
                 return response
 
             reason = "truncated" if _is_truncated_response(messages[0]) else "empty"

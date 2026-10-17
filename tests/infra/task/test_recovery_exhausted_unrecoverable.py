@@ -113,7 +113,7 @@ def _make_service(storage, mark_calls: list[dict]) -> TaskRecoveryService:
 
 @pytest.mark.asyncio
 async def test_mark_run_failed_defaults_to_recoverable(monkeypatch: pytest.MonkeyPatch) -> None:
-    storage = _FakeStorage()
+    storage = _FakeStorage(SimpleNamespace(metadata={"current_run_id": "run-1"}))
     service = TaskRecoveryService(
         storage=storage,
         run_info={},
@@ -132,7 +132,7 @@ async def test_mark_run_failed_defaults_to_recoverable(monkeypatch: pytest.Monke
 
 @pytest.mark.asyncio
 async def test_mark_run_failed_can_persist_unrecoverable(monkeypatch: pytest.MonkeyPatch) -> None:
-    storage = _FakeStorage()
+    storage = _FakeStorage(SimpleNamespace(metadata={"current_run_id": "run-1"}))
     service = TaskRecoveryService(
         storage=storage,
         run_info={},
@@ -194,5 +194,5 @@ async def _noop_mark(*_args, **_kwargs):
     return None
 
 
-async def _raise_trace_storage_unavailable():
+def _raise_trace_storage_unavailable():
     raise RuntimeError("trace storage unavailable in test")

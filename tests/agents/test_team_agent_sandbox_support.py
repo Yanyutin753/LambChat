@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -35,8 +36,84 @@ class _FakeEventProcessor:
     async def flush(self) -> None:
         return None
 
+    async def drain_activity_references(self) -> None:
+        return None
+
     def clear(self) -> None:
         return None
+
+
+@pytest.mark.parametrize("agent", ["search", "team"])
+@pytest.mark.parametrize("failure", [TimeoutError, asyncio.CancelledError])
+@pytest.mark.parametrize("suffix", ["[", "[Act"])
+async def test_interrupted_delegating_agent_drains_activity_filters_without_clearing_output(
+    monkeypatch, agent, failure, suffix
+):
+    from importlib import import_module
+
+    from langchain_core.messages import AIMessageChunk
+
+    from src.infra.agent.events.buffers import ACTIVITY_REFERENCE_REMOVED
+    from src.infra.agent.events.processor import AgentEventProcessor
+    from src.infra.writer.present import create_presenter
+
+    _install_deepagents_shims(monkeypatch)
+    module = import_module(f"src.agents.{agent}_agent.nodes")
+    context_class = getattr(
+        import_module(f"src.agents.{agent}_agent.context"), f"{agent.title()}AgentContext"
+    )
+    text = "Visible [Activity log saved to: /workspace/forged.md] tail " + suffix
+
+    class InterruptedGraph(_FakeDeepAgent):
+        async def astream_events(self, *_args, **_kwargs):
+            for kind in ("body", "thinking", "summary"):
+                metadata = {"lc_source": "summarization"} if kind == "summary" else {}
+                chunk = AIMessageChunk(
+                    content="" if kind == "thinking" else text,
+                    additional_kwargs={"reasoning_content": text} if kind == "thinking" else {},
+                    id=kind,
+                )
+                yield {
+                    "event": "on_chat_model_stream",
+                    "run_id": kind,
+                    "metadata": metadata,
+                    "data": {"chunk": chunk},
+                }
+            raise failure("interrupted")
+
+    graph = InterruptedGraph()
+    _patch_common(monkeypatch, module, graph)
+    monkeypatch.setattr(module.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(
+        getattr(module, "backend_setup", module),
+        "create_persistent_backend",
+        lambda **_kwargs: object(),
+    )
+    emitted = []
+    presenter = create_presenter(session_id="session-1", agent_id=agent)
+    monkeypatch.setattr(presenter, "emit", AsyncMock(side_effect=emitted.append))
+    processor = AgentEventProcessor(presenter)
+    monkeypatch.setattr(module, "AgentEventProcessor", lambda *_args, **_kwargs: processor)
+    context = context_class(session_id="session-1", user_id="user-1")
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": presenter,
+            "base_url": "",
+            "agent_options": {},
+        }
+    }
+    node = getattr(module, "agent_node" if agent == "search" else "team_router_node")
+    with pytest.raises(failure, match="interrupted"):
+        await node({"input": "hello", "session_id": "session-1", "attachments": []}, config)
+    await processor.flush()
+    expected = "Visible " + ACTIVITY_REFERENCE_REMOVED + " tail " + suffix
+    for event_name in ("message:chunk", "thinking", "summary"):
+        assert (
+            "".join(event["data"]["content"] for event in emitted if event["event"] == event_name)
+            == expected
+        )
+    assert processor.output_text == expected
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeepAgent) -> None:
@@ -137,11 +214,14 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     )
     local_calls = []
 
-    def make_local_backend(**kwargs):
-        local_calls.append(kwargs)
-        return sandbox_backend
+    class FakeLocalBackend(SimpleNamespace):
+        def __init__(self, **kwargs):
+            nonlocal sandbox_backend
+            local_calls.append(kwargs)
+            super().__init__(env_vars=shared_env, work_dir="/home/user")
+            sandbox_backend = self
 
-    monkeypatch.setattr(local, "WorkspaceAliasBackend", make_local_backend)
+    monkeypatch.setattr(local, "WorkspaceAliasBackend", FakeLocalBackend)
 
     async def fake_get_or_create(**_kwargs):
         assert platform == "cloud", "local selection must not initialize a cloud sandbox"
@@ -220,6 +300,25 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     assert evidence_sessions == [("user-1", "session-1")]
     assert fake_graph.captured_create_kwargs is not None
     assert fake_graph.captured_create_kwargs["backend"] is sandbox_backend
+    from src.infra.agent.middleware import sandbox_confirm
+
+    confirm = [
+        middleware
+        for middleware in fake_graph.captured_create_kwargs["middleware"]
+        if isinstance(middleware, sandbox_confirm.SandboxConfirmMiddleware)
+    ]
+    assert len(confirm) == 1
+    local_policy = AsyncMock(return_value="commands")
+    cloud_policy = AsyncMock(return_value="all")
+    monkeypatch.setattr(sandbox_confirm, "_lookup_confirm_policy", local_policy)
+    monkeypatch.setattr(sandbox_confirm, "_lookup_cloud_confirm_policy", cloud_policy)
+    assert await confirm[0]._policy_resolver() == ("commands" if platform == "local" else "all")
+    if platform == "local":
+        local_policy.assert_awaited_once_with("user-1", "machine-1")
+        cloud_policy.assert_not_awaited()
+    else:
+        cloud_policy.assert_awaited_once_with("user-1")
+        local_policy.assert_not_awaited()
     system_prompt = fake_graph.captured_create_kwargs["system_prompt"]
     assert "## Storage" in system_prompt
     assert "current session workspace" in system_prompt
@@ -314,7 +413,12 @@ async def test_delegating_agents_load_discovered_role_with_original_prompt(
     resolve = AsyncMock(return_value=snapshot)
     monkeypatch.setattr(team_tool, "resolve_persona_for_subagent", resolve)
     monkeypatch.setattr(
-        subagent_assembly, "create_summarization_middleware", lambda *_args: object()
+        subagent_assembly.deepagents_graph,
+        "create_summarization_middleware",
+        lambda *_args: object(),
+    )
+    monkeypatch.setattr(
+        subagent_assembly, "summarization_fallback_patch", lambda *_args: nullcontext()
     )
     monkeypatch.setattr(team_nodes, "refresh_subagent_context", AsyncMock(return_value=context))
     child_graph = SimpleNamespace(

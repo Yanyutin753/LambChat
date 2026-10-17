@@ -18,9 +18,10 @@ export interface TodayUsageSnapshot {
   amount: string | null;
   requests: number;
   totalTokens: number;
-  /** 缓存命中率 = 缓存读取 / 有效 prompt 输入（兼容 provider 两种口径） */
+  /** 缓存命中率 = 缓存读取 / 已认证包含缓存的 prompt 输入 */
   cacheHitRate: number | null;
   shares: TokenShareRow[];
+  sharesKnown: boolean;
 }
 
 /**
@@ -35,15 +36,20 @@ export function effectivePromptInput(
   return Math.max(input, cacheRead + cacheWrite);
 }
 
-/** 缓存命中率（0-1）：分母为有效 prompt 输入并 clamp ≤1；无 token 返回 null。 */
+/** 正缓存率需要 inclusive input 认证；明确零读取不依赖写入量。 */
 export function cacheHitRateFromTokens(
-  input: number,
-  cacheRead: number,
-  cacheWrite: number,
+  input: number | undefined,
+  cacheRead: number | undefined,
+  _cacheWrite: number | undefined,
+  unknownFields: readonly string[] = [],
+  inputIncludesCache = false,
 ): number | null {
-  const effectiveInput = effectivePromptInput(input, cacheRead, cacheWrite);
-  if (effectiveInput <= 0) return null;
-  return Math.min(cacheRead / effectiveInput, 1);
+  if (unknownFields.some((field) => ["input_tokens", "cache_read_tokens"].includes(field))) return null;
+  // Zero reads stay zero for every positive denominator, even when writes are unreported.
+  if (typeof input === "number" && Number.isFinite(input) && input > 0 && cacheRead === 0) return 0;
+  if (!inputIncludesCache || typeof input !== "number" || !Number.isFinite(input) || input <= 0
+    || typeof cacheRead !== "number" || !Number.isFinite(cacheRead) || cacheRead < 0 || cacheRead > input) return null;
+  return cacheRead / input;
 }
 
 /** 无统计数据时返回 null，调用方据此隐藏入口。 */
@@ -68,7 +74,9 @@ export function buildTodayUsageSnapshot(
     amount: buildDailyUsageAmount(stats, opts),
     requests: stats.total_requests ?? 0,
     totalTokens: stats.total_tokens ?? 0,
-    cacheHitRate: cacheHitRateFromTokens(input, cacheRead, cacheWrite),
+    sharesKnown: (stats.usage_unknown_requests ?? stats.cache_unknown_requests ?? 0) === 0,
+    cacheHitRate: (stats.cache_unknown_requests ?? 0) > 0
+      ? null : cacheHitRateFromTokens(input, cacheRead, cacheWrite, [], stats.cache_unknown_requests === 0),
     shares: [
       { key: "input", tokens: uncachedInput, share: pct(uncachedInput) },
       { key: "output", tokens: output, share: pct(output) },

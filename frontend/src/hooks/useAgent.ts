@@ -31,6 +31,7 @@ import {
   createScheduledTaskApprovalLookup,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
+import { settleRunMessages } from "./useAgent/settleStream";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
 import {
   connectToSSE,
@@ -59,6 +60,7 @@ import {
 } from "./useAgent/submissionNotifications";
 import {
   applyFeedbackToMessages,
+  preserveScheduledMessages,
   resolveHistoryStreamRunId,
 } from "./useAgent/historyLoadState";
 import { HISTORY_TRACE_PAGE_SIZE } from "./useAgent/historyPagination";
@@ -67,10 +69,11 @@ import { extractSessionConfig } from "./useAgent/sessionConfig";
 import { getGoalControlScope } from "./useAgent/goalControlScope";
 import { selectPersistentGoal } from "./useAgent/persistentGoalState";
 import { usePersistentGoalRuntime } from "./useAgent/persistentGoalRuntime";
+import { useScheduledResults } from "./useAgent/useScheduledResults";
 import { useAutoModeSetting } from "./useAgent/autoModeSetting";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
-  const { hasAnyPermission } = useAuth();
+  const { hasAnyPermission, user } = useAuth();
   const canReadFeedback = hasAnyPermission([
     Permission.FEEDBACK_READ,
     Permission.FEEDBACK_WRITE,
@@ -116,7 +119,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   } = useChatRuntimeStates();
   const [autoModeEnabled, setAutoModeEnabled] = useAutoModeSetting();
 
-  // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
   const historyAbortControllerRef = useRef<AbortController | null>(null);
   const sseGenerationRef = useRef(0);
@@ -135,64 +137,46 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     null,
   );
   const retryCountRef = useRef(0);
-
-  // Track processed event IDs to prevent duplicates
   const processedEventIdsRef = useRef<Set<string>>(new Set());
-
-  // Track last event timestamp from history
   const lastHistoryTimestampRef = useRef<Date | null>(null);
-
-  // Subagent tracking stack
   const activeSubagentStackRef = useRef<SubagentStackItem[]>([]);
-
-  // Current streaming message ID
   const streamingMessageIdRef = useRef<string | null>(null);
-
   // 最近一次流事件（含 ping）时刻：回前台对账/看门狗的存活信号
   const lastStreamActivityAtRef = useRef<number | null>(null);
-
   // 最新 loadHistory 的稳定引用：SSE 层发现「run 已终结但本地空壳」时
   // 拉起历史重载（定义在下方，渲染期回填，避免 useCallback 依赖环）
   const loadHistoryRef = useRef<
     ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
   >(null);
 
-  // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
-
   // Stream version to invalidate stale SSE events after clearMessages
   const streamVersionRef = useRef(0);
-
-  // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const accountIdRef = useRef(user?.id);
+  accountIdRef.current = user?.id;
+  const previousAccountIdRef = useRef(user?.id);
   const historyMessagesSnapshotRef = useRef<{
     requestId: number;
     sourceSessionId: string | null;
     targetSessionId: string;
+    accountId: string | undefined;
     messages: Message[];
   } | null>(null);
   const sendMessageRef = useRef<
-    | ((content: string, attachments?: MessageAttachment[]) => Promise<void>)
+    | ((content: string, attachments?: MessageAttachment[], callbacks?: ChatSubmissionCallbacks) => Promise<void>)
     | null
   >(null);
-  const deferredSteersRef = useRef<
-    Array<{ content: string; id: string; attachments?: MessageAttachment[] }>
-  >([]);
   const followUpSteerIdsRef = useRef(new Set<string>());
   const cancelledSteerIdsRef = useRef(new Set<string>());
 
   const removeDeferredSteer = useCallback(
-    (content: string, messageId?: string) => {
-      const id = messageId;
-      if (id) {
-        cancelledSteerIdsRef.current.add(id);
-        followUpSteerIdsRef.current.delete(id);
-      }
-      deferredSteersRef.current = deferredSteersRef.current.filter((item) =>
-        id ? item.id !== id : item.content !== content,
-      );
+    (_content: string, messageId?: string) => {
+      if (!messageId) return;
+      cancelledSteerIdsRef.current.add(messageId);
+      followUpSteerIdsRef.current.delete(messageId);
     },
     [],
   );
@@ -200,15 +184,22 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+  const discardQuietSnapshot = useCallback((target: string, id: string, accountId: string) => {
+    if (accountIdRef.current !== accountId) return;
+    if (sessionIdRef.current === target) messagesRef.current = messagesRef.current.filter(message => message.id !== id);
+    const snapshot = historyMessagesSnapshotRef.current;
+    if (snapshot?.sourceSessionId === target && snapshot.accountId === accountId &&
+      snapshot.requestId === loadHistoryRequestIdRef.current)
+      snapshot.messages = snapshot.messages.filter(message => message.id !== id);
+  }, []);
+  useScheduledResults(sessionId, user?.id, setMessages, messages, discardQuietSnapshot, options);
   const steerQueue = useSteerQueue({
     sessionIdRef,
-    deferSteer: (content, id, attachments) => {
-      deferredSteersRef.current.push({ content, id, attachments });
-    },
     removeDeferredSteer,
   });
   const {
     markSteerDelivered,
+    steerMessage,
     clearSteerMessages,
     clearSteer,
     hydrateSteers,
@@ -230,6 +221,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     persistentMutationRef,
     persistentMutationEpochRef,
     controlPersistentGoal,
+    updatePersistentGoal,
   } = usePersistentGoalRuntime({
     sessionId,
     persistentGoal,
@@ -273,11 +265,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     onApprovalLookup,
     loadHistoryRequestIdRef,
     historyAbortControllerRef,
+    accountIdRef,
     setIsLoadingHistory,
     setError,
   });
 
-  // Create event handler context
   const createEventHandlerContext = useCallback(
     (historyRunId?: string): EventHandlerContext => ({
       ...createHistoryReplayContext(
@@ -330,7 +322,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ],
   );
 
-  // Create SSE connection context
   const createSSEContext = useCallback(
     (historyRunId?: string): SSEConnectionContext => ({
       ...createEventHandlerContext(historyRunId),
@@ -387,11 +378,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         return loadTargetHistory(targetSessionId, targetRunId);
       }
       const previousSnapshot = historyMessagesSnapshotRef.current;
+      const accountId = accountIdRef.current;
+      const sourceSessionId = sessionIdRef.current;
       const snapshotMessages =
-        messagesRef.current.length === 0 &&
+        messagesRef.current.every(message => Boolean(message.metadata?.scheduledTaskId)) &&
         previousSnapshot?.requestId === loadHistoryRequestIdRef.current &&
-        previousSnapshot.sourceSessionId === sessionIdRef.current
-          ? previousSnapshot.messages
+        previousSnapshot.sourceSessionId === sessionIdRef.current &&
+        previousSnapshot.accountId === accountId
+          ? preserveScheduledMessages(previousSnapshot.messages, messagesRef.current)
           : messagesRef.current;
       sendSeqRef.current += 1;
       submitInFlightRef.current = false;
@@ -401,7 +395,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       const requestId = loadHistoryRequestIdRef.current;
       setHistoryLoadGeneration(requestId);
       const isStaleHistoryLoad = () =>
-        requestId !== loadHistoryRequestIdRef.current || signal.aborted;
+        requestId !== loadHistoryRequestIdRef.current || signal.aborted || accountIdRef.current !== accountId;
 
       historyAbortControllerRef.current?.abort();
       const historyAbortController = new AbortController();
@@ -431,12 +425,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         requestId,
         sourceSessionId: sessionIdRef.current,
         targetSessionId,
+        accountId,
         messages: snapshotMessages,
       };
       setMessages([]);
       // Clear the previous view; restore this session's local follow-ups after access is verified.
       clearSteerMessages();
-      deferredSteersRef.current = [];
       followUpSteerIdsRef.current.clear();
       cancelledSteerIdsRef.current.clear();
       setError(null);
@@ -504,6 +498,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           };
         }
 
+        const targetChatRunId = eventsData.events.some(event =>
+          event.run_id === targetRunId && event.event_type === "scheduled:result",
+        ) ? undefined : targetRunId;
+
         if (sessionData) {
           restoreSteerMessages(targetSessionId);
           if (sessionData.name) {
@@ -520,7 +518,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           const currentRunId =
             (supersedesSameSessionLoad &&
               (sessionData.metadata?.current_run_id as string)) ||
-            targetRunId ||
+            targetChatRunId ||
             (sessionData.metadata?.current_run_id as string) ||
             null;
 
@@ -545,39 +543,44 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
           const restoredGoal = extractGoalFromEvents(historyEvents);
           const restoredGoalsByRun = extractGoalsByRunFromEvents(historyEvents);
-          const streamRunId = resolveHistoryStreamRunId(
-            eventsData.stream_run_id,
-            supersedesSameSessionLoad ? undefined : targetRunId,
-          );
-          let streamingMessageId: string | null = null;
-          if (streamRunId) {
-            const prepared = prepareMessagesForRunningRun(
-              reconstructedMessages,
-              streamRunId,
-              undefined,
-              messagesRef.current,
-            );
-            reconstructedMessages = prepared.messages;
-            streamingMessageId = prepared.streamingMessageId;
-          }
-
           if (isStaleHistoryLoad()) {
             return null;
           }
           setCurrentRunId(currentRunId);
           setActiveGoal(restoredGoal);
           setGoalsByRunId(restoredGoalsByRun);
-          setMessages(reconstructedMessages);
+          const primarySnapshot = historyMessagesSnapshotRef.current;
+          setMessages(previous => isStaleHistoryLoad() ? previous : preserveScheduledMessages(
+            reconstructedMessages,
+            sourceSessionId === targetSessionId ? [...(primarySnapshot?.messages || []), ...previous] : [],
+          ));
           if (historyMessagesSnapshotRef.current?.requestId === requestId) {
             historyMessagesSnapshotRef.current = null;
           }
 
           // Show full primary history before optional reads; keep hydration before SSE.
-          const pendingSteersData = await pendingSteersPromise;
+          const [pendingSteersData, persistentSnapshot] = await Promise.all([
+            pendingSteersPromise, persistentGoalPromise,
+          ]);
           if (isStaleHistoryLoad()) return null;
           hydrateSteers(pendingSteersData.items);
-          const persistentSnapshot = await persistentGoalPromise;
-          if (isStaleHistoryLoad()) return null;
+          const streamRunId = resolveHistoryStreamRunId(
+            eventsData.stream_run_id,
+            supersedesSameSessionLoad ? undefined : targetChatRunId,
+            persistentSnapshot?.goal,
+          );
+          let streamingMessageId: string | null = null;
+          if (streamRunId) {
+            const prepared = prepareMessagesForRunningRun(
+              reconstructedMessages, streamRunId, undefined, messagesRef.current,
+              persistentSnapshot?.goal?.current_run_id === streamRunId,
+            );
+            reconstructedMessages = prepared.messages;
+            streamingMessageId = prepared.streamingMessageId;
+            setCurrentRunId(streamRunId);
+            setMessages(previous => isStaleHistoryLoad() ? previous
+              : preserveScheduledMessages(reconstructedMessages, previous));
+          }
           setPersistentGoal((previous) =>
             selectPersistentGoal(
               previous,
@@ -671,7 +674,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ],
   );
 
-  // Send message
   const sendMessage = useCallback(
     async (
       content: string,
@@ -693,10 +695,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         historySnapshot?.requestId === loadHistoryRequestIdRef.current &&
         historySnapshot.sourceSessionId === sessionIdRef.current &&
         historySnapshot.targetSessionId === sessionIdRef.current &&
-        messagesRef.current.length === 0
+        historySnapshot.accountId === accountIdRef.current &&
+        messagesRef.current.every(message => Boolean(message.metadata?.scheduledTaskId))
       ) {
-        messagesRef.current = historySnapshot.messages;
-        setMessages(historySnapshot.messages);
+        messagesRef.current = preserveScheduledMessages(historySnapshot.messages, messagesRef.current);
+        setMessages(previous => preserveScheduledMessages(messagesRef.current, previous));
       }
       // 顶掉在途 loadHistory：同步释放其加载标志，否则该加载被 stale 后
       // 无人复位，isLoadingHistory 会永久卡死
@@ -706,7 +709,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsLoadingHistory(false);
       isLoadingHistoryRef.current = false;
 
-      const command = parseFrontendGoalCommand(content);
+      const command = parseFrontendGoalCommand(content) ??
+        (goalModeEnabled && !["active", "waiting_human"].includes(persistentGoal?.status ?? "")
+          ? parseFrontendGoalCommand(`/goal ${content}`)
+          : null);
       if (
         command &&
         (command.action === "persist" ||
@@ -741,6 +747,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
                   : undefined,
               metadata: {
                 agent_id: currentAgent,
+                auto_mode: autoModeEnabled,
                 agent_options: {
                   ...options?.getAgentOptions?.(),
                   ...agentOptions,
@@ -822,7 +829,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         }
         return;
       }
-      const goalPlan = planGoalSubmission(content, goalModeEnabled);
+      const goalPlan = planGoalSubmission(content, false);
       if (goalPlan.handledWithoutSend) {
         if (goalPlan.errorKey) {
           setError(i18n.t(goalPlan.errorKey, "Please enter a goal"));
@@ -885,7 +892,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           runModes: runOptions?.runModes,
         });
 
-      setMessages(optimisticMessages);
+      setMessages(previous => preserveScheduledMessages(optimisticMessages, previous));
       setCurrentRunId(null);
       setIsLoading(true);
       setError(null);
@@ -1169,19 +1176,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           submitInFlightRef.current = false;
           setIsLoading(false);
           isSendingRef.current = false;
-          const deferredSteers = deferredSteersRef.current.splice(0);
-          if (deferredSteers.length > 0) {
-            setTimeout(() => {
-              for (const deferred of deferredSteers) {
-                if (cancelledSteerIdsRef.current.has(deferred.id)) continue;
-                clearSteer(deferred.content, deferred.id);
-                sendMessageRef.current?.(
-                  deferred.content,
-                  deferred.attachments,
-                );
-              }
-            }, 0);
-          }
         }
       }
     },
@@ -1196,13 +1190,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       options,
       selectedTeamId,
       goalModeEnabled,
+      autoModeEnabled,
       persistentGoal,
       persistentMutationEpochRef,
       persistentMutationRef,
       activeGoal,
       setPersistentGoal,
       setPersistentGoalBusy,
-      clearSteer,
       bindSteerSession,
       setActiveGoal,
       setConnectionStatus,
@@ -1221,8 +1215,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   sendMessageRef.current = (
     content: string,
     attachments?: MessageAttachment[],
+    callbacks?: ChatSubmissionCallbacks,
   ) => {
-    return sendMessage(content, undefined, attachments);
+    return sendMessage(content, undefined, attachments, undefined, callbacks);
   };
 
   // SSE 层 onStaleRunStateDetected 回调经此拿到最新 loadHistory
@@ -1243,7 +1238,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sendMessageRef,
   });
 
-  const stopGeneration = useCallback(async () => {
+  const stopGeneration = useCallback(async (requireCancellation = false) => {
     // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
     // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
     sendSeqRef.current += 1;
@@ -1256,14 +1251,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
     options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
 
-    // Clear loading states on all messages and their parts
-    setMessages((prev) =>
-      prev.map((m) => ({
-        ...m,
-        isStreaming: false,
-        parts: clearAllLoadingStates(m.parts || []),
-      })),
-    );
+    setMessages(previous => settleRunMessages(previous, currentRunIdRef.current));
 
     const currentSessionId = sessionIdRef.current;
     if (currentSessionId) {
@@ -1274,6 +1262,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           "[stopGeneration] Failed to call backend cancel API:",
           error,
         );
+        if (requireCancellation) throw error;
       }
     }
   }, [options, setIsInitializingSandbox, setIsLoading, setSandboxError]);
@@ -1290,10 +1279,27 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         queueFollowUp(text, attachments);
         return;
       }
-      await stopGeneration();
+      if (persistentGoal?.status === "active") {
+        await steerMessage(text, attachments);
+        return;
+      }
+      const targetSession = sessionIdRef.current;
+      const targetVersion = streamVersionRef.current;
+      const stopSequence = sendSeqRef.current + 1;
+      const isCurrentSupplement = () =>
+        sessionIdRef.current === targetSession &&
+        streamVersionRef.current === targetVersion &&
+        sendSeqRef.current === stopSequence;
+      try {
+        await stopGeneration(true);
+      } catch {
+        if (isCurrentSupplement()) queueFollowUp(text, attachments);
+        return;
+      }
+      if (!isCurrentSupplement()) return;
       await sendMessageRef.current?.(text, attachments);
     },
-    [queueFollowUp, stopGeneration],
+    [queueFollowUp, stopGeneration, persistentGoal?.status, steerMessage],
   );
 
   const clearMessages = useCallback(() => {
@@ -1309,7 +1315,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     historyAbortControllerRef.current = null;
     setMessages([]);
     clearSteerMessages();
-    deferredSteersRef.current = [];
     setIsLoading(false);
     setIsLoadingHistory(false);
     isLoadingHistoryRef.current = false;
@@ -1349,6 +1354,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setIsLoadingHistory,
     setSessionId,
   ]);
+
+  useEffect(() => {
+    if (previousAccountIdRef.current === user?.id) return;
+    previousAccountIdRef.current = user?.id;
+    clearMessages();
+  }, [user?.id, clearMessages]);
 
   const clearActiveGoal = useCallback(() => {
     setGoalModeEnabled(false);
@@ -1432,6 +1443,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     persistentGoal,
     persistentGoalBusy,
     controlPersistentGoal,
+    updatePersistentGoal,
     goalsByRunId,
     isInitializingSandbox,
     sandboxError,

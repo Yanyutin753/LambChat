@@ -458,6 +458,43 @@ async def test_flush_mongo_buffer_drains_pending_delayed_flush_task(
 
 
 @pytest.mark.asyncio
+async def test_terminal_barrier_flushes_events_added_during_scheduled_flush() -> None:
+    from unittest.mock import AsyncMock
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = type(
+        "Trace",
+        (),
+        {
+            "acquire_session_trace_write": AsyncMock(return_value=True),
+            "release_session_trace_write": AsyncMock(),
+        },
+    )()
+    old = ("old", "message:chunk", {}, "s1", "r1", datetime.now())
+    current = ("current", "token:usage", {}, "s2", "r2", datetime.now())
+    writer._mongo_buffer = [old]
+    started = asyncio.Event()
+    release = asyncio.Event()
+    persisted = []
+
+    async def flush_batch(batch):
+        if not started.is_set():
+            started.set()
+            await release.wait()
+        persisted.extend(batch)
+
+    writer._flush_mongo_batch = flush_batch
+    writer._flush_task = asyncio.create_task(writer._do_flush())
+    await started.wait()
+    writer._mongo_buffer.append(current)
+    barrier = asyncio.create_task(writer.flush_mongo_buffer(require_trace_id="current"))
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.wait_for(barrier, 1)
+    assert persisted == [old, current]
+
+
+@pytest.mark.asyncio
 async def test_flush_mongo_buffer_offloads_bulk_operation_building(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1544,3 +1581,22 @@ async def test_terminal_stream_waits_for_inflight_manual_flush() -> None:
         await flushing
         await expiring
     assert fake_redis.expire_calls == []
+
+
+@pytest.mark.asyncio
+async def test_direct_scheduled_errors_reach_the_same_progress_relay(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    relay = AsyncMock()
+    monkeypatch.setattr("src.infra.scheduler.results.relay_stored_event", relay)
+    writer = dual_writer.DualEventWriter()
+    writer._redis = _FakeRedis()
+    await writer.write_event(
+        session_id="sch_conversation_task",
+        run_id="scheduled-1",
+        event_type="error",
+        data={"error": "Permission denied", "code": "permission_missing"},
+    )
+    relay.assert_awaited_once()
+    assert relay.call_args.kwargs["event_type"] == "error"
+    assert relay.call_args.kwargs["data"]["code"] == "permission_missing"

@@ -12,7 +12,6 @@ from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import get_concurrency_limiter, get_registered_executor
 from .recovery_texts import build_recovery_message, normalize_recovery_language
@@ -94,9 +93,12 @@ def _registered_agent_ids() -> set[str]:
 
 def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -> str:
     from src.agents.core.base import normalize_agent_id
+    from src.infra.agent.handoff import resolve_execution_agent_id
 
     candidate = str(
-        session_metadata.get("agent_id") or getattr(session, "agent_id", "") or ""
+        resolve_execution_agent_id(session_metadata)
+        if session_metadata.get("agent_id")
+        else getattr(session, "agent_id", "") or ""
     ).strip()
     candidate = normalize_agent_id(candidate)
     registered_ids = _registered_agent_ids()
@@ -198,15 +200,14 @@ class TaskRecoveryService:
             reason,
             run_id=run_id,
         )
-        await self._storage.update(
+        await self._storage.update_metadata_for_run(
             session.id,
-            SessionUpdate(
-                metadata={
-                    "task_recoverable": recoverable,
-                    "task_error_code": "server_restart",
-                    "interrupted_run_id": run_id,
-                }
-            ),
+            run_id,
+            {
+                "task_recoverable": recoverable,
+                "task_error_code": "server_restart",
+                "interrupted_run_id": run_id,
+            },
         )
         try:
             trace_storage = get_trace_storage()
@@ -301,15 +302,10 @@ class TaskRecoveryService:
             error_message,
             run_id=run_id,
         )
-        await self._storage.update(
+        await self._storage.update_metadata_for_run(
             session_id,
-            SessionUpdate(
-                metadata={
-                    "task_recoverable": True,
-                    "task_error_code": error_code,
-                    "interrupted_run_id": run_id,
-                }
-            ),
+            run_id,
+            {"task_recoverable": True, "task_error_code": error_code, "interrupted_run_id": run_id},
         )
 
     async def submit_seamless_resume(
@@ -329,7 +325,11 @@ class TaskRecoveryService:
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
         executor_fn = get_registered_executor(executor_key)
-        if executor_fn is None and executor_key == "agent_stream":
+        if executor_fn is None and executor_key in {
+            "agent_stream",
+            "scheduled_agent_stream",
+            "conversation_schedule",
+        }:
             from importlib import import_module
 
             import_module("src.api.routes.chat")
@@ -348,18 +348,33 @@ class TaskRecoveryService:
         from src.infra.goal_runtime import restore_goal_for_run
 
         active_goal = await restore_goal_for_run(session, source_run_id)
+        from src.infra.agent.handoff import get_run_handoff, restore_handoff_usage
+
+        agent_options = session_metadata.get("agent_options") or None
+        handoff = get_run_handoff(session_metadata)
+        if handoff:
+            usage_trace_id = trace_id or handoff.get("trace_id")
+            last_usage = (
+                await get_trace_storage().get_last_trace_event(usage_trace_id, ["token:usage"])
+                if usage_trace_id else None
+            )
+            agent_options = {
+                **(agent_options or {}),
+                "_handoff_usage": restore_handoff_usage(handoff, (last_usage or {}).get("data") or {}),
+            }
         common_kwargs: dict[str, Any] = {
-            "disabled_tools": session_metadata.get("disabled_tools") or None,
-            "agent_options": session_metadata.get("agent_options") or None,
-            "disabled_skills": session_metadata.get("disabled_skills") or None,
+            "disabled_tools": session_metadata.get("disabled_tools"),
+            "agent_options": agent_options,
+            **({"attachments": handoff.get("attachments")} if handoff else {}),
+            "disabled_skills": session_metadata.get("disabled_skills"),
             "enabled_skills": _get_enabled_skills_from_metadata(session_metadata),
             "persona_system_prompt": (
                 (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(session_metadata.get("persona_snapshot"), dict)
                 else None
             ),
-            "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
-            "enabled_mcp_servers": session_metadata.get("enabled_mcp_servers") or None,
+            "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools"),
+            "enabled_mcp_servers": session_metadata.get("enabled_mcp_servers"),
             "project_id": session_metadata.get("project_id"),
             "session_name": getattr(session, "name", None),
             "user_message_written": True,

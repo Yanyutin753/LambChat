@@ -10,7 +10,7 @@ export interface ChatInputSlashCommand {
   fallbackLabel: string;
   descriptionKey?: string;
   fallbackDescription?: string;
-  kind: "insert" | "panel";
+  kind: "mode" | "panel";
   icon: LucideIcon;
 }
 
@@ -22,7 +22,7 @@ export const CHAT_INPUT_SLASH_COMMANDS: ChatInputSlashCommand[] = [
     fallbackLabel: "Goal",
     descriptionKey: "chat.goal.description",
     fallbackDescription: "Set conversation goal",
-    kind: "insert",
+    kind: "mode",
     icon: Target,
   },
   {
@@ -169,24 +169,6 @@ export function getSlashDropdownSections(
 }
 
 // ── Input mutation helpers ──────────────────────────────────────────
-
-export function applySlashCommandSelection(
-  input: string,
-  cursorPosition: number,
-  command: ChatInputSlashCommand,
-): { input: string; cursorPosition: number } {
-  const trigger = findSlashTrigger(input, cursorPosition);
-  if (!trigger) return { input, cursorPosition };
-  const afterCursor = input.slice(trigger.to);
-  const normalizedAfterCursor = afterCursor.startsWith(" ")
-    ? afterCursor.slice(1)
-    : afterCursor;
-  const nextInput = `${input.slice(0, trigger.from)}${
-    command.command
-  } ${normalizedAfterCursor}`;
-  const nextCursorPosition = trigger.from + command.command.length + 1;
-  return { input: nextInput, cursorPosition: nextCursorPosition };
-}
 
 /**
  * Clears the `/query` prefix from the input (used when selecting a skill).

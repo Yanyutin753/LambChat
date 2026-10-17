@@ -38,7 +38,9 @@ async def test_local_two_turn_todo_memory_workflow(monkeypatch):
         "src.infra.memory.scope.resolve_session_project_id",
         lambda session_id: _project_id(session_id),
     )
-    middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+    middleware = pi.MemoryRecallIndexMiddleware(
+        user_id="u1", session_id="s1", recall_available=True
+    )
 
     class RecallTool(BaseTool):
         name: str = "memory_recall"
@@ -66,9 +68,12 @@ async def test_local_two_turn_todo_memory_workflow(monkeypatch):
 
     await middleware.awrap_model_call(Request(), handler)
     description = captured["request"].tools[0].description
-    assert "Apply the implementation" in description
-    assert "checkpoint" in description
-    assert "project deployment decision" in description
+    update = await middleware.abefore_agent({"messages": Request.messages, "todos": todos}, None)
+    assert "Apply the implementation" in update["messages"][0].content
+    assert "checkpoint" in update["messages"][0].content
+    assert "Apply the implementation" not in description
+    assert "project deployment decision" in update["messages"][0].content
+    assert "project deployment decision" not in description
 
     ranked = prioritize_sources(
         [

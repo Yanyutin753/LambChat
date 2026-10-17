@@ -28,3 +28,10 @@ test("ChatAppContent wires the reconcile callback into websocket notifications",
   expect(appContentSource).toMatch(/onCurrentSessionTaskComplete:/);
   expect(appContentSource).toMatch(/reconcileActiveRun/);
 });
+
+
+test("task status updates also reconcile the open conversation", () => {
+  const statusHandler = appContentSource.split("onSessionTaskStatus: (data) => {")[1]?.split("onCurrentSessionTaskComplete:")[0];
+  expect(statusHandler).toMatch(/data.session_id === sessionId/);
+  expect(statusHandler).toMatch(/reconcileActiveRun\(\)/);
+});

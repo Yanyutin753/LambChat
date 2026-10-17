@@ -320,13 +320,11 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           onDrop={handleDrop}
           data-project-drop={favoritesOnly ? undefined : true}
           data-project-id={favoritesOnly ? undefined : project.id}
-          className={`sidebar-action-row group relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
+          className={`sidebar-project-row sidebar-action-row group/project relative flex cursor-pointer items-center gap-2 h-8 max-sm:h-10 rounded-[10px] px-[9px] transition-colors ${
             (!favoritesOnly && isDragOver) ||
             (!favoritesOnly && draggingSessionId)
               ? "bg-stone-200/60 dark:bg-stone-700/40 ring-1 ring-inset ring-stone-300 dark:ring-stone-600"
-              : isExpanded
-                ? "bg-stone-100 dark:bg-stone-700/50"
-                : ""
+              : ""
           }`}
         >
           {/* Project icon */}
@@ -363,7 +361,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 type="button"
                 onClick={handleToggle}
                 aria-expanded={isExpanded}
-                className="block h-8 max-sm:h-10 w-full rounded text-left truncate text-13 font-serif text-stone-700 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+                className="block h-8 max-sm:h-10 w-full rounded text-left truncate text-13 font-serif text-stone-700 dark:text-stone-300 transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
               >
                 {isFavorites ? t("sidebar.favorites") : project.name}
               </button>
@@ -372,7 +370,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           {/* Project actions */}
           <div
             className="flex shrink-0 items-center gap-1 sidebar-action-reveal sidebar-action-controls"
-            style={isTouched || isMenuOpen ? { opacity: 1 } : undefined}
+            data-revealed={isTouched || isMenuOpen || undefined}
           >
             {!isEditing && project.workspace && (
               <ProjectWorkspaceDetails value={project.workspace} />

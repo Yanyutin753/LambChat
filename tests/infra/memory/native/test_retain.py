@@ -105,6 +105,23 @@ def test_is_manual_memory_worthy_rejects_transient_code_like_content():
     assert is_manual_memory_worthy("The user prefers raw SQL for all analytics queries.")
 
 
+@pytest.mark.parametrize(
+    ("content", "scope", "error"),
+    [
+        ("让我先看看 src/app.py 里这个 traceback error", None, "not durable enough"),
+        ("x", None, "Content too short"),
+        ("User prefers SQL for analytics.", "global", "Invalid scope"),
+        ("User prefers SQL for analytics.", "project", "requires a project_id"),
+    ],
+)
+async def test_retain_marks_deterministic_validation_rejection_non_retryable(content, scope, error):
+    result = await NativeMemoryBackend().retain("u1", content, scope=scope)
+
+    assert result["success"] is False
+    assert result["retryable"] is False
+    assert error in result["error"]
+
+
 @pytest.mark.asyncio
 async def test_find_existing_memory_match_returns_best_existing_match():
     now = datetime.now(timezone.utc)

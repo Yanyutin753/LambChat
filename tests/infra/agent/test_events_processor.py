@@ -237,12 +237,14 @@ class FakePresenter:
         output_tokens: int = 0,
         total_tokens: int = 0,
         duration: float = 0.0,
-        cache_creation_tokens: int = 0,
-        cache_read_tokens: int = 0,
+        cache_creation_tokens: int | None = 0,
+        cache_read_tokens: int | None = 0,
         model_id: str | None = None,
         model: str | None = None,
         cost: Any = None,
         rates: Any = None,
+        unknown_usage_fields: list[str] | None = None,
+        input_includes_cache: bool = False,
     ) -> dict[str, Any]:
         data: dict[str, Any] = {
             "input_tokens": input_tokens,
@@ -250,10 +252,15 @@ class FakePresenter:
             "total_tokens": total_tokens,
             "duration": duration,
         }
-        if cache_creation_tokens:
+        if input_includes_cache:
+            data["input_includes_cache"] = True
+        if cache_creation_tokens is not None:
             data["cache_creation_tokens"] = cache_creation_tokens
-        if cache_read_tokens:
+        if cache_read_tokens is not None:
             data["cache_read_tokens"] = cache_read_tokens
+        if unknown_usage_fields:
+            data["unknown_usage_fields"] = unknown_usage_fields
+            data["usage_incomplete"] = True
         if model_id:
             data["model_id"] = model_id
         if model:

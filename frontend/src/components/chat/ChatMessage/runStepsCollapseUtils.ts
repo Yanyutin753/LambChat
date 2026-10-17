@@ -18,7 +18,7 @@ export type RunPartGroup =
 
 /**
  * 将分组后的 parts 切成 head（可折叠的中间过程）与 tail（始终可见的收尾）。
- * tail 从最后一个 text part（最终 output_text）开始，包含其后的所有分组；
+ * tail 从最后一个 text part（最终 output_text）开始，保留其后的实际执行顺序；
  * 若没有任何 text part，则只有末尾连续的 cancelled 分组保留可见。
  */
 export function splitRunTailGroups<T extends RunPartGroup>(
@@ -63,6 +63,7 @@ const RUN_STEP_PART_TYPES = new Set([
   "subagent",
   "todo",
   "summary",
+  "agentHandoff",
 ]);
 
 export function countRunSteps(parts: MessagePart[]): number {

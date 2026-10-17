@@ -6,7 +6,6 @@ import i18n from "../../../i18n";
 import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import {
   Clock,
-  Cpu,
   History,
   Pause,
   Pencil,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import { SkillBaseCard } from "../../common/SkillBaseCard";
 import { AgentAvatar } from "../../common/AgentAvatar";
+import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
 import { nameToGradient } from "../../common/cardUtils";
@@ -223,6 +223,12 @@ export function ScheduledTaskPanel({
     }
     try {
       const updateData: ScheduledTaskUpdate = {};
+      if (data.execution_mode !== editingTask.execution_mode)
+        updateData.execution_mode = data.execution_mode;
+      if (data.target_session_id !== editingTask.target_session_id)
+        updateData.target_session_id = data.target_session_id;
+      if (data.notification_policy !== editingTask.notification_policy)
+        updateData.notification_policy = data.notification_policy;
       if (data.name !== editingTask.name) updateData.name = data.name;
       if (data.agent_id !== editingTask.agent_id)
         updateData.agent_id = data.agent_id;
@@ -363,16 +369,20 @@ export function ScheduledTaskPanel({
     return `${t("scheduledTask.cron")}: ${parts.join(" ")}`;
   };
 
-  const formatTaskModel = (task: ScheduledTask): string | null => {
+  const resolveTaskModel = (task: ScheduledTask): AvailableModel | null => {
     const options = getAgentOptionsFromScheduledTaskPayload(task.input_payload);
     const modelId =
       typeof options.model_id === "string" ? options.model_id : "";
     const modelValue = typeof options.model === "string" ? options.model : "";
     if (!modelId && !modelValue) return null;
-    const model = effectiveAvailableModels?.find(
-      (item) => item.id === modelId || item.value === modelValue,
+    return (
+      effectiveAvailableModels?.find((item) => item.id === modelId) ||
+      effectiveAvailableModels?.find((item) => item.value === modelValue) || {
+        id: modelId,
+        value: modelValue || modelId,
+        label: modelValue || modelId,
+      }
     );
-    return model?.label || modelValue || modelId;
   };
 
   // Show skeleton during initial data loading — consistent with other panels
@@ -444,17 +454,22 @@ export function ScheduledTaskPanel({
             ) : (
               <div className="grid auto-grid-cols gap-3">
                 {tasks.map((task) => {
-                  const modelName = formatTaskModel(task);
-                  const agent = agents.find((item) => item.id === task.agent_id);
-                  const contextId = task.agent_id === "team"
-                    ? getScheduledTaskTeamId(task.input_payload)
-                    : getScheduledTaskPersonaPresetId(task.input_payload);
-                  const team = task.agent_id === "team"
-                    ? teams.find((item) => item.id === contextId)
-                    : undefined;
-                  const persona = task.agent_id !== "team"
-                    ? personaPresets.find((item) => item.id === contextId)
-                    : undefined;
+                  const model = resolveTaskModel(task);
+                  const agent = agents.find(
+                    (item) => item.id === task.agent_id,
+                  );
+                  const contextId =
+                    task.agent_id === "team"
+                      ? getScheduledTaskTeamId(task.input_payload)
+                      : getScheduledTaskPersonaPresetId(task.input_payload);
+                  const team =
+                    task.agent_id === "team"
+                      ? teams.find((item) => item.id === contextId)
+                      : undefined;
+                  const persona =
+                    task.agent_id !== "team"
+                      ? personaPresets.find((item) => item.id === contextId)
+                      : undefined;
                   const contextName = team?.name || persona?.name || contextId;
                   const contextAvatar = team
                     ? team.avatar ?? getTeamFallbackAvatar(team)
@@ -469,7 +484,11 @@ export function ScheduledTaskPanel({
                       title={task.name}
                       gradient={nameToGradient(task.name)}
                       icon={
-                        <AgentAvatar avatar={avatar} seed={avatarSeed} size={36} />
+                        <AgentAvatar
+                          avatar={avatar}
+                          seed={avatarSeed}
+                          size={36}
+                        />
                       }
                       iconClassName=""
                       className="cursor-pointer"
@@ -487,21 +506,60 @@ export function ScheduledTaskPanel({
                             {formatTriggerInfo(task)}
                           </span>
                           <span className="skill-meta-pill">
-                            <AgentIcon icon={agent?.icon} seed={task.agent_id} size={14} />
-                            {resolveAgentReferenceName(task.agent_id, "", agents, i18n.language, t)}
+                            <AgentIcon
+                              icon={agent?.icon}
+                              seed={task.agent_id}
+                              size={14}
+                            />
+                            {resolveAgentReferenceName(
+                              task.agent_id,
+                              "",
+                              agents,
+                              i18n.language,
+                              t,
+                            )}
                           </span>
-                          {modelName && (
+                          {model && (
                             <span className="skill-meta-pill">
-                              <Cpu size={12} />
-                              {modelName}
+                              <ModelIconImg
+                                model={model.value}
+                                provider={model.provider}
+                                icon={model.icon}
+                                size={14}
+                              />
+                              {model.label}
                             </span>
                           )}
                           {contextName && (
                             <span className="skill-meta-pill">
-                              <AgentAvatar avatar={contextAvatar} seed={contextSeed} size={14} />
+                              <AgentAvatar
+                                avatar={contextAvatar}
+                                seed={contextSeed}
+                                size={14}
+                              />
                               {contextName}
                             </span>
                           )}
+                          <span className="skill-meta-pill">
+                            {t(
+                              task.execution_mode === "conversation"
+                                ? "scheduledTask.conversationMode"
+                                : "scheduledTask.standaloneMode",
+                            )}
+                          </span>
+                          {task.execution_mode === "conversation" &&
+                            task.target_session_id && (
+                              <button
+                                type="button"
+                                className="skill-meta-pill hover:text-theme-text"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  navigate(`/chat/${task.target_session_id}`);
+                                }}
+                              >
+                                {t("scheduledTask.openConversation")}
+                              </button>
+                            )}
                           {task.total_runs > 0 && (
                             <span className="skill-meta-pill">
                               <History size={12} />
@@ -595,6 +653,7 @@ export function ScheduledTaskPanel({
           {isCreating && canWrite && (
             <TaskFormModal
               task={null}
+              defaultSessionId={searchParams.get("session") || undefined}
               agents={agents}
               availableModels={effectiveAvailableModels}
               defaultAgentId={effectiveDefaultAgentId}

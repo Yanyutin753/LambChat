@@ -315,6 +315,9 @@ async def get_session_events(
         False,
         description="包含活动 run 的用户消息，并返回是否需要继续 SSE 回放",
     ),
+    include_active_events: bool = Query(
+        False, description="包含指定 run 的活动执行事件；必须同时提供 run_id"
+    ),
     trace_limit: Optional[int] = Query(
         None,
         ge=1,
@@ -347,6 +350,14 @@ async def get_session_events(
         raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
+
+    active_events_requested = include_active_events is True
+    if active_events_requested and (
+        not isinstance(run_id, str)
+        or not run_id.strip()
+        or isinstance(exclude_run_id, str)
+    ):
+        raise AppError(ErrorCode.BAD_REQUEST)
 
     dual_writer = get_dual_writer()
 
@@ -386,9 +397,13 @@ async def get_session_events(
                 types_list,
                 run_id=run_id,
                 exclude_run_id=exclude_run_id,
-                completed_only=True,
+                completed_only=not active_events_requested,
                 max_events=events_probe_limit,
-                active_run_id=current_run_id if include_active_user_message else None,
+                active_run_id=(
+                    current_run_id
+                    if include_active_user_message and not active_events_requested
+                    else None
+                ),
                 trace_limit=trace_limit_value,
                 before_trace_started_at=before_trace_started_at_dt,
                 before_trace_id=before_trace_id_param,
@@ -409,7 +424,7 @@ async def get_session_events(
                 types_list,
                 run_id=run_id,
                 exclude_run_id=exclude_run_id,
-                completed_only=True,
+                completed_only=not active_events_requested,
                 max_events=events_probe_limit,
             )
     # 预算按 trace 整轮消费：每个 run 的事件完整返回（最新单轮超预算也完整），

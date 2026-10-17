@@ -1,3 +1,5 @@
+@reference "./tailwind.css";
+
 /* Hide scrollbar utility for toolbar overflow */
 .no-scrollbar {
   scrollbar-width: none;
@@ -6,9 +8,125 @@
   display: none;
 }
 
+/* Size against the available chat pane, including docked-panel layouts. */
+.chat-view-content-region {
+  container-type: inline-size;
+}
+
+.chat-content-column {
+  --chat-column-gutter: clamp(0.5rem, 3cqi, 2rem);
+  --chat-content-inset: 1.5rem;
+  width: calc(100% - 2 * var(--chat-column-gutter));
+  max-width: 60rem;
+  margin-inline: auto;
+}
+
+.chat-message-content {
+  padding-inline: var(--chat-content-inset);
+}
+
+.chat-message-spacing {
+  padding-top: clamp(1.25rem, 3cqi, 2rem);
+}
+
+@container (max-width: 40rem) {
+  .chat-content-column {
+    --chat-column-gutter: 0.5rem;
+    --chat-content-inset: 0.75rem;
+  }
+
+  .chat-message-spacing {
+    padding-top: 1rem;
+  }
+
+  .chat-message-content .user-message-bubble {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Match the text edge to the message inset without stacking editor padding. */
+.chat-conversation-composer .chat-input-container:not([data-composer-expanded]) {
+  padding-inline: 0;
+}
+
+.chat-conversation-composer
+  .chat-input-container:not([data-composer-expanded])
+  .chat-composer-editor-wrap {
+  padding-inline: calc(var(--chat-content-inset) - 1px);
+}
+
+.chat-conversation-composer
+  .chat-input-container:not([data-composer-expanded])
+  .rich-chat-composer__editor {
+  min-height: 2.5rem;
+  padding: 0.5rem 0;
+}
+
+.chat-conversation-composer
+  .chat-input-container:not([data-composer-expanded])
+  .rich-chat-composer__placeholder {
+  top: 0.5rem;
+  left: 0;
+  right: 0;
+}
+
+.chat-conversation-composer
+  .chat-input-container:not([data-composer-expanded])
+  .chat-input-toolbar {
+  margin-inline: 0;
+  padding-block: 0.375rem;
+  padding-inline: max(0rem, calc(var(--chat-content-inset) - 1.25rem));
+}
+
 .chat-message-scroller {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Keep navigation feedback on the content, outside the full-width scroll anchor. */
+[data-outline-anchor][tabindex="-1"]:focus {
+  outline: none;
+}
+
+[data-outline-anchor]
+  :is(.user-message-bubble, .attachment-card, .chat-assistant-heading) {
+  position: relative;
+}
+
+[data-outline-anchor] .chat-assistant-heading {
+  width: fit-content;
+  max-width: 100%;
+}
+
+[data-outline-anchor]
+  :is(.user-message-bubble, .attachment-card, .chat-assistant-heading)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease-out;
+}
+
+[data-outline-anchor] .chat-assistant-heading::after {
+  inset: auto 0 -0.25rem;
+  height: 2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--theme-text) 30%, transparent);
+}
+
+[data-outline-anchor][data-external-navigation-highlighted="true"]
+  :is(.user-message-bubble, .attachment-card, .chat-assistant-heading)::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-outline-anchor]
+    :is(.user-message-bubble, .attachment-card, .chat-assistant-heading)::after {
+    transition: none;
+  }
 }
 
 .chat-message-scroller::-webkit-scrollbar {
@@ -248,7 +366,7 @@ html[data-mobile-keyboard="true"]
 /* Keep leading chips on the text inset; only trailing space separates them. */
 .run-mode-chip-node {
   margin: 0 0.25em 0 0;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 .skill-chip-node[role="button"] {
   cursor: pointer;
@@ -307,6 +425,7 @@ html[data-mobile-keyboard="true"]
 .rich-chat-composer {
   position: relative;
   width: 100%;
+  font-family: var(--chat-font-family);
   font-size: var(--chat-font-size);
 }
 
@@ -432,6 +551,7 @@ html[data-mobile-keyboard="true"]
 }
 
 .user-message-inline-markdown {
+  font-family: var(--chat-font-family);
   font-size: var(--chat-font-size);
 }
 
@@ -1314,9 +1434,28 @@ html[data-mobile-keyboard="true"]
 
 /* Keep phone controls distinct while preserving a single toolbar row. */
 @media (max-width: 639px) {
+  .chat-conversation-composer
+    .chat-input-container:not([data-composer-expanded])
+    .chat-composer-editor-wrap {
+    padding-top: 0.5rem;
+  }
+  .chat-conversation-composer
+    .chat-input-container:not([data-composer-expanded])
+    .rich-chat-composer__editor {
+    min-height: 3rem;
+  }
+  .chat-conversation-composer
+    .chat-input-container:not([data-composer-expanded])
+    .chat-input-toolbar {
+    padding-block: 0.625rem;
+    padding-inline: 0.25rem;
+  }
   .chat-input-container .chat-input-toolbar {
     flex-wrap: nowrap;
-    gap: 0;
+    gap: 0.5rem;
+  }
+  .chat-input-container .chat-input-toolbar > div {
+    gap: 0.5rem;
   }
   .chat-input-toolbar > div:first-child {
     min-width: 4.5rem;
@@ -1324,8 +1463,6 @@ html[data-mobile-keyboard="true"]
   .composer-toolbar-chip {
     min-width: 2.25rem;
   }
-  .chat-input-toolbar,
-  .chat-input-toolbar > div,
   .chat-message-actions {
     gap: 0;
   }
@@ -1377,6 +1514,18 @@ html[data-mobile-keyboard="true"]
 .chat-tool-category .chat-tool-call-group:hover {
   border-color: var(--theme-border-subtle);
 }
+.chat-process-todo {
+  font-family: var(--chat-font-family);
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
+}
+.chat-process-todo__header .interactive-action-icon > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+}
+
 .chat-tool-category .chat-tool-call-group__header {
   margin: 0;
   background: transparent;
@@ -1392,10 +1541,10 @@ html[data-mobile-keyboard="true"]
 }
 .chat-tool-category .chat-tool-call-group__toggle {
   color: var(--theme-text-secondary);
-  font-family: theme("fontFamily.sans");
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.25rem;
+  font-family: var(--chat-font-family);
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-weight: 400;
+  line-height: 1.5rem;
   cursor: pointer;
 }
 .chat-tool-call-group__chevron {

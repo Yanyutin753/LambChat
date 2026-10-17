@@ -100,6 +100,22 @@ function SessionScheduledTaskPanelBody({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {canWrite && (
+        <button
+          type="button"
+          className="scheduled-task-button m-3"
+          onClick={() => {
+            closePersistentToolPanel(SESSION_TASK_PANEL_KEY);
+            navigate(
+              `/scheduled-tasks?create=1&session=${encodeURIComponent(
+                sessionId,
+              )}`,
+            );
+          }}
+        >
+          {t("scheduledTask.create")}
+        </button>
+      )}
       {isLoading && tasks.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <LoadingSpinner
@@ -312,7 +328,7 @@ export function SessionScheduledTasksButton({
     );
   }, [count, panelContent]);
 
-  if (!sessionId || !canRead || count === 0) return null;
+  if (!sessionId || !canRead) return null;
 
   const togglePanel = () => {
     if (isPersistentToolPanelActive(SESSION_TASK_PANEL_KEY)) {
@@ -332,6 +348,7 @@ export function SessionScheduledTasksButton({
   return (
     <button
       onClick={togglePanel}
+      aria-label={t("scheduledTask.conversationTasks", "会话定时任务")}
       className={
         className ??
         "absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
@@ -341,9 +358,11 @@ export function SessionScheduledTasksButton({
       <InteractiveIcon>
         <CalendarClock size={17} />
       </InteractiveIcon>
-      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-10 font-semibold leading-none text-white">
-        {count > 99 ? "99+" : count}
-      </span>
+      {count > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-10 font-semibold leading-none text-white">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
     </button>
   );
 }

@@ -846,3 +846,34 @@ async def test_real_child_checkpoint_retains_terminal_timeout_and_parallel_tool_
         assert not other.jobs
     finally:
         await sessions.close()
+
+
+async def test_subagent_status_changes_keep_system_prefix_and_append_checkpoint_context():
+    from types import SimpleNamespace
+
+    from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    class Request(SimpleNamespace):
+        def override(self, **updates):
+            return Request(**(vars(self) | updates))
+
+    async def handler(request):
+        return request
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=None, checkpointer=InMemorySaver()
+    )
+    middleware = SubagentSessionMiddleware(sessions)
+    state = {"messages": [HumanMessage(content="Review")], "subagent_sessions": {}}
+    request = Request(state=state, system_message=None)
+    first = await middleware.awrap_model_call(request, handler)
+    state["subagent_sessions"] = {"child": {"subagent_type": "reviewer", "status": "completed"}}
+    update = await middleware.abefore_model(state, None)
+    state["messages"].extend(update["messages"])
+    state["subagent_sessions"] = update["subagent_sessions"]
+    second = await middleware.awrap_model_call(request, handler)
+    assert first.system_message == second.system_message
+    assert '"subagent_id": "child"' in state["messages"][-1].content
+    assert '"status": "completed"' in state["messages"][-1].content
+    assert await middleware.abefore_model(state, None) is None

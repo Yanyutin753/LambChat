@@ -13,6 +13,7 @@ import { RightPanelActiveContext } from "../../common/useRightPanelEntry";
 import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ChatMessage } from "./index";
+import { formatSubagentName } from "./subagentRoleMeta";
 import { buildSubagentConversation } from "./subagentPanelState";
 import {
   subagentPanelStore,
@@ -47,8 +48,8 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
   const stopAutoScrollRef = useRef<(() => void) | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const messages = useMemo(
-    () => (data ? buildSubagentConversation(data) : []),
-    [data],
+    () => (data ? buildSubagentConversation(data, t) : []),
+    [data, t],
   );
 
   const markProgrammaticScroll = useCallback(() => {
@@ -164,7 +165,8 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
             <ChatMessage
               key={message.id}
               message={message}
-              personaName={data.agentName}
+              personaName={formatSubagentName(data.agentName)}
+              personaSeed={data.agentName}
               personaAvatar={data.agentAvatar}
               isFirst={index === 0}
               isLastMessage={index === messages.length - 1}

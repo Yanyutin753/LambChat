@@ -93,3 +93,8 @@ describe("isInterruptedRunMessage", () => {
     ).toBe(false);
   });
 });
+
+test("a process-only segment continued by steer is not a disconnected answer", () => {
+  const message = assistantMessage([subagentPart], { metadata: { continuedBySteer: true } });
+  expect(isInterruptedRunMessage(message)).toBe(false);
+});

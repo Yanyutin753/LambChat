@@ -38,12 +38,16 @@ def _middleware(hard=10, keep=5):
     return HistoricalImageCapMiddleware(hard_limit=hard, keep_limit=keep)
 
 
-def test_evidence_snapshot_keeps_current_turn_images_protected():
+@pytest.mark.parametrize(
+    "name",
+    ["evidence_context", "task_context", "subagent_context", "subagent_message", "subagent_update"],
+)
+def test_context_snapshot_keeps_current_turn_images_protected(name):
     current = _image_message([f"current{i}" for i in range(12)])
     messages = [
         _image_message(["historical"]),
         current,
-        HumanMessage(content="Evidence snapshot", name="evidence_context"),
+        HumanMessage(content="Context snapshot", name=name),
     ]
 
     out = _middleware(hard=10, keep=5)._cap_messages(messages)

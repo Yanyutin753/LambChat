@@ -14,7 +14,7 @@ test.each(["cleared", "paused", "completed"] as const)("composer clears ordinary
   const controlPersistent = vi.fn();
   const persistentGoal: PersistentGoal = {
     id: "old-goal", session_id: "s1", user_id: "u1", objective: "Old objective", rubric: "old rubric",
-    version: 1, revision: 2, status, limits: { max_turns: 10, max_tokens: 1000, max_seconds: 60 },
+    version: 1, revision: 2, status,
     accounting: { turns: 1, tokens: 10 }, started_at: null, current_run_id: "old-run",
   };
   render(<ChatInput onSend={vi.fn()} onStop={vi.fn()} isLoading={false}
@@ -27,4 +27,18 @@ test.each(["cleared", "paused", "completed"] as const)("composer clears ordinary
   fireEvent.animationEnd(button.parentElement!);
   expect(clearOrdinary).toHaveBeenCalledOnce();
   expect(controlPersistent).not.toHaveBeenCalled();
+});
+
+test("persistent Goal is a compact header above the composer", () => {
+  const persistentGoal: PersistentGoal = {
+    id: "g", session_id: "s", user_id: "u", objective: "Release checklist", rubric: "verified",
+    version: 1, revision: 1, status: "active", accounting: { turns: 3, tokens: 131223 },
+    started_at: null, current_run_id: "r",
+  };
+  render(<ChatInput onSend={vi.fn()} onStop={vi.fn()} isLoading={false}
+    persistentGoal={persistentGoal} onControlPersistentGoal={vi.fn()} />);
+  const objective = screen.getByText("Release checklist");
+  expect(objective.closest(".chat-input-container")).toBeNull();
+  expect(objective.closest("form")).toBeTruthy();
+  expect(screen.queryByText(/131223/)).toBeNull();
 });

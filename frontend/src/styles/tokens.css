@@ -12,6 +12,7 @@
   text-rendering: optimizeLegibility;
   line-height: 1.6;
   font-weight: 400;
+  --chat-font-family: Inter, system-ui, -apple-system, sans-serif;
   --chat-font-size: 0.9375rem;
   --theme-primary: #78716c;
   --theme-primary-hover: #57534e;

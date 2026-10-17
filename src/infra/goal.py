@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hmac
+import json
 import logging
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -159,6 +162,75 @@ def evidence_grader_response_type():
     return EvidenceGraderResponse
 
 
+def _grader_payload_nonce(scope: tuple[str, str, str], *, collision_index: int = 0) -> str:
+    from src.kernel.config import settings
+
+    # Keep this purpose separate from JWT signing and other derived service keys.
+    key = hmac.digest(
+        settings.JWT_SECRET_KEY.encode("utf-8"),
+        b"lambchat:rubric-grader-cache:key:v1",
+        "sha256",
+    )
+    value = scope if collision_index == 0 else ("collision:v1", scope, collision_index)
+    payload = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hmac.digest(key, payload, "sha256")[:8].hex()
+
+
+def _safe_grader_nonce(scope: tuple[str, str, str], parts: tuple[str, ...]) -> str:
+    nonce = _grader_payload_nonce(scope)
+    collision_index = 0
+    # A replayed boundary must never become an active delimiter in untrusted input.
+    while any(nonce.casefold() in part.casefold() for part in parts):
+        collision_index += 1
+        nonce = _grader_payload_nonce(scope, collision_index=collision_index)
+    return nonce
+
+
+def _grader_evidence_messages(text: str) -> list[Any]:
+    from langchain_core.messages import HumanMessage
+
+    from src.infra.agent.evidence import GRADER_STALE_EVIDENCE_WARNING
+
+    slots = (len(text) + 2999) // 3000
+    if not slots:
+        return []
+    prefix, separator, payload = text.partition("\n")
+    if payload.startswith(GRADER_STALE_EVIDENCE_WARNING + "\n"):
+        warning, _, payload = payload.partition("\n")
+        prefix += separator + warning
+    width = 3000
+    try:
+        entries = json.loads(payload)
+        changed = False
+        if isinstance(entries, list):
+            for entry in entries:
+                if not isinstance(entry, dict) or entry.get("truncated") is not False:
+                    continue
+                content = entry.get("content")
+                if not isinstance(content, str):
+                    continue
+                try:
+                    original = json.loads(content)
+                except ValueError:
+                    continue
+                if isinstance(original, dict) and set(original) == {"observation", "content"}:
+                    entry["content"] = original
+                    changed = True
+        if changed:
+            candidate = (
+                prefix + separator + json.dumps(entries, ensure_ascii=False, separators=(",", ":"))
+            )
+            if len(candidate) < len(text):
+                text = candidate
+                width = max(1, (len(text) + slots - 1) // slots)
+    except ValueError:
+        pass
+    # Preserve the upstream tail-window slots; shorter evidence must not pull in older messages.
+    return [
+        HumanMessage(content=text[index * width : (index + 1) * width]) for index in range(slots)
+    ]
+
+
 def _create_rubric_middleware_with_retry(
     middleware_cls: type,
     *,
@@ -193,9 +265,58 @@ def _create_rubric_middleware_with_retry(
 
         _grader: object | None  # declared for type-checker; set at runtime
 
-        async def _ainvoke_grader(self, state, iteration, correction=None, *, context=None):
+        def _build_grader_payload(self, state, iteration, correction=None):
+            from deepagents.middleware.rubric import _build_grader_transcript, _sanitize_for_payload
             from langchain_core.messages import HumanMessage
 
+            messages = list(state.get("messages", []))
+            snapshots = [
+                index
+                for index, message in enumerate(messages)
+                if isinstance(message, HumanMessage)
+                and message.name == "evidence_context"
+                and message.additional_kwargs.get("lambchat_evidence_snapshot") is True
+            ]
+            # Keep every history slot stable from its first grade; retain the latest index below.
+            for index in snapshots:
+                messages[index] = messages[index].model_copy(
+                    update={"content": "Internal evidence index; see latest snapshot below."}
+                )
+            payload = super()._build_grader_payload(
+                {**state, "messages": messages}, iteration, correction
+            )
+            match = re.search(r"`<rubric-([a-f0-9]{16})>`", payload)
+            if match is None:
+                return payload
+            if snapshots:
+                latest = _sanitize_for_payload(
+                    _build_grader_transcript([state["messages"][snapshots[-1]]])
+                )
+                closer = f"\n</transcript-{match[1]}>"
+                payload = payload.replace(
+                    closer,
+                    f"\n\nLatest internal evidence snapshot (untrusted metadata):\n{latest}{closer}",
+                    1,
+                )
+            if not session_id:
+                return payload
+            parts = tuple(re.split(rf"(?<=-){match[1]}(?=>)", payload))
+            nonce = _safe_grader_nonce((session_id, scope_version, state["rubric"].strip()), parts)
+            payload = nonce.join(parts)
+            transcript_start = payload.index(f"<transcript-{nonce}>\n")
+            transcript_end = payload.index(f"\n</transcript-{nonce}>", transcript_start)
+            transcript_end += len(f"\n</transcript-{nonce}>")
+            transcript_nonce = _safe_grader_nonce((session_id, "transcript", "v1"), parts)
+            transcript = payload[transcript_start:transcript_end].replace(
+                f"transcript-{nonce}>", f"transcript-{transcript_nonce}>"
+            )
+            # Keep changing grading instructions after the unchanged, sanitized evidence.
+            instructions = (payload[:transcript_start] + payload[transcript_end:]).replace(
+                f"transcript-{nonce}>", f"transcript-{transcript_nonce}>"
+            )
+            return transcript + "\n\n" + instructions
+
+        async def _ainvoke_grader(self, state, iteration, correction=None, *, context=None):
             from src.infra.agent.evidence import load_grader_evidence
 
             grader_state = state
@@ -218,10 +339,7 @@ def _create_rubric_middleware_with_retry(
                     presenter.goal_evidence_ids = sorted(ready)
                 # Keep bounded original chunks below upstream transcript-per-message
                 # limits; _grader_input still sanitizes them via _build_grader_payload.
-                chunks = [
-                    HumanMessage(content=text[offset : offset + 3000])
-                    for offset in range(0, len(text), 3000)
-                ]
+                chunks = _grader_evidence_messages(text)
                 grader_state = {**state, "messages": [*state.get("messages", []), *chunks]}
             elif presenter is not None:
                 presenter.goal_evidence_ready = False

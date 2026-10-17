@@ -38,6 +38,11 @@ describe("pct", () => {
     expect(pct(0.1234)).toBe("12%");
     expect(pct(0.005)).toBe("1%");
   });
+  test("unknown percentages are not zero cache hits", () => {
+    expect(pct(null)).toBe("—");
+    expect(pct(Number.NaN)).toBe("—");
+    expect(pct(0)).toBe("0%");
+  });
 });
 
 describe("precise", () => {
@@ -63,8 +68,14 @@ describe("fmtCostUsd", () => {
     expect(fmtCostUsd(undefined, false, { language: "en" })).toBe("—");
   });
 
-  test("priced log with missing amount formats zero", () => {
-    expect(fmtCostUsd(undefined, true, { language: "en" })).toBe("$0.00");
+  test("missing amounts stay unknown even with a legacy priced flag", () => {
+    expect(fmtCostUsd(undefined, true, { language: "en" })).toBe("—");
+  });
+  test("aggregate fees retain unknown requests without inventing a zero total", () => {
+    expect(fmtCostUsd(0, true, { language: "en", pricedRequests: 0,
+      unpricedRequests: 2 })).toBe("—");
+    expect(fmtCostUsd(0.2, true, { language: "en", pricedRequests: 1,
+      unpricedRequests: 2 })).toMatch(/\+$/);
   });
 
   test("maxDecimals caps tiny cost precision for mobile", () => {

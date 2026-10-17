@@ -14,6 +14,7 @@ import sys
 import uuid
 from datetime import timedelta
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import pytest
@@ -50,7 +51,8 @@ async def process_resources(tmp_path, monkeypatch):
     name = "process_" + uuid.uuid4().hex
     collection = mongo[DATABASE][name]
     audit = mongo[DATABASE][name + "_audit"]
-    socket = str(tmp_path / "redis.sock")
+    socket_dir = TemporaryDirectory(prefix="lc-redis-")
+    socket = str(Path(socket_dir.name) / "redis.sock")
     server = subprocess.Popen(
         [binary, "--port", "0", "--unixsocket", socket, "--save", "", "--appendonly", "no"],
         stdout=subprocess.DEVNULL,
@@ -87,6 +89,7 @@ async def process_resources(tmp_path, monkeypatch):
         await redis.aclose()
         server.terminate()
         await asyncio.to_thread(server.wait, timeout=5)
+        socket_dir.cleanup()
 
 
 def spawn_child(resources, mode, suffix):

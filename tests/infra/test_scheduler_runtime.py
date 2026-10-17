@@ -22,7 +22,11 @@ class _FakeAsyncIOScheduler:
         self.started = False
         self.shutdown_wait: bool | None = None
         self.running = False
+        self.listeners: list[tuple[Any, int]] = []
         _FakeAsyncIOScheduler.instances.append(self)
+
+    def add_listener(self, listener: Any, mask: int) -> None:
+        self.listeners.append((listener, mask))
 
     def add_job(self, func: Any, trigger: Any, **kwargs: Any) -> _FakeJob:
         self.added_jobs.append({"func": func, "trigger": trigger, "kwargs": kwargs})
@@ -67,6 +71,7 @@ def test_start_registers_interval_job_with_apscheduler(monkeypatch: pytest.Monke
 
     fake = _FakeAsyncIOScheduler.instances[-1]
     assert fake.started is True
+    assert len(fake.listeners) == 1
     assert len(fake.added_jobs) == 1
     added = fake.added_jobs[0]
     assert added["kwargs"]["id"] == "memory.compaction"

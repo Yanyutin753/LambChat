@@ -7,6 +7,7 @@ import pytest
 
 from src.api.routes import chat
 from src.kernel.errors import AppError, ErrorCode
+from tests.infra.agent.test_goal_runtime import runtime_redis  # noqa: F401
 
 
 @pytest.mark.asyncio

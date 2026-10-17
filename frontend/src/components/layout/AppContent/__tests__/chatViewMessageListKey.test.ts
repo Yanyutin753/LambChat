@@ -54,7 +54,7 @@ test("anchors floating scroll buttons to the chat input", () => {
     chatViewSource.match(/\$\{FLOATING_SCROLL_BUTTON_OFFSET_CLASS\}/g)?.length,
   ).toBe(1);
   expect(chatViewSource).toMatch(
-    /\{messages\.length > 0 && \(\s*<div className="relative">[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
+    /\{\(messages\.length > 0 \|\| hasPendingApproval\) && \(\s*<div className="relative">[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
   );
   expect(chatViewSource).not.toMatch(/bottom-[1-9]\d*/);
 });

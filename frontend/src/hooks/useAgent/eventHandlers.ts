@@ -224,6 +224,8 @@ export function handleStreamEvent(
 
   // Events handled entirely by side effects (no message transformation)
   switch (eventType) {
+    case "goal:continuation":
+      return;
     case "metadata": {
       if (
         data.session_id &&
@@ -329,9 +331,6 @@ export function handleStreamEvent(
           },
         }));
       }
-      // Auto-dismiss the goal chip after a short delay so the user sees
-      // the completed state briefly before it disappears.
-      if (!ctx.replayOnly) setTimeout(() => ctx.setActiveGoal(null), 2000);
       return;
     }
 
@@ -504,7 +503,7 @@ export function handleStreamEvent(
 
     case "approval_required": {
       appendAskHumanToolPart(data, messageId, eventTimestamp, ctx);
-      handleApprovalRequired(data, ctx);
+      handleApprovalRequired(data, ctx, eventTimestamp);
       return;
     }
 
@@ -731,7 +730,7 @@ function handleUserMessage(
         // 误命中上一轮的同内容消息，把流式助手插到旧消息下面。
         for (let index = prev.length - 1; index >= 0; index -= 1) {
           const candidate = prev[index];
-          if (candidate?.role === "user" && candidate.content === userContent) {
+          if (candidate?.role === "user" && !candidate.runId && candidate.content === userContent) {
             existingUserIndex = index;
             break;
           }
@@ -744,6 +743,7 @@ function handleUserMessage(
           const candidate = prev[index];
           if (
             candidate?.role === "user" &&
+            !candidate.runId &&
             candidate.content === optimisticContent
           ) {
             existingUserIndex = index;
@@ -930,8 +930,19 @@ function appendAskHumanToolPart(
 function handleApprovalRequired(
   data: EventData,
   ctx: EventHandlerContext,
+  eventTimestamp: string | undefined,
 ): void {
   if (!data.id || !ctx.options?.onApprovalRequired) return;
+
+  const fallbackDeadline =
+    eventTimestamp && typeof data.timeout === "number" && data.timeout > 0
+      ? new Date(parseDate(eventTimestamp).getTime() + data.timeout * 1000)
+      : null;
+  const expiresAt =
+    data.expires_at ||
+    (fallbackDeadline && Number.isFinite(fallbackDeadline.getTime())
+      ? fallbackDeadline.toISOString()
+      : null);
 
   // The SSE event is emitted after the approval is created and already carries
   // the complete form payload. Render it immediately instead of making the UI
@@ -941,7 +952,8 @@ function handleApprovalRequired(
     message: data.message || "",
     type: data.type || "form",
     fields: data.fields || [],
-    expires_at: data.expires_at || null,
+    expires_at: expiresAt,
+    timeout: data.timeout,
     metadata:
       data.metadata || (data.interrupt_id ? { mode: "interrupt" } : undefined),
   });

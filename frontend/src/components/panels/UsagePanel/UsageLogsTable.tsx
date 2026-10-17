@@ -218,7 +218,7 @@ function DesktopTable({
                     <div
                       className={`${numericCellClass} text-theme-text-tertiary`}
                     >
-                      {fmt(log.cache_read_tokens)}
+                      {log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—"}
                     </div>
                   )}
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 font-semibold tabular-nums text-[var(--theme-primary)]">
@@ -317,7 +317,7 @@ function TabletRow({
         {[
           [t("usage.inTokens"), fmt(log.input_tokens), false],
           [t("usage.outTokens"), fmt(log.output_tokens), false],
-          [t("usage.cache"), fmt(log.cache_read_tokens), false],
+          [t("usage.cache"), log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—", false],
           [t("usage.total"), fmt(log.total_tokens), true],
           [
             t("usage.cost"),
@@ -420,7 +420,7 @@ function MobileCard({
           {[
             [t("usage.inTokens"), fmt(log.input_tokens), false],
             [t("usage.outTokens"), fmt(log.output_tokens), false],
-            [t("usage.cacheRead"), fmt(log.cache_read_tokens), false],
+            [t("usage.cacheRead"), log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—", false],
             [t("usage.totalTokens"), fmt(log.total_tokens), true],
             [
               t("usage.cost"),

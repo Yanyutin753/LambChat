@@ -222,6 +222,20 @@ def _version_tuple(match: "re.Match[str]") -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2) or 0)
 
 
+def _resolve_glm_effort(model_name: str, thinking: dict[str, Any]) -> Optional[str]:
+    match = re.match(r"glm-5[.-]([23])(?:[-\[]|$)", model_name.lower())
+    if match is None or thinking.get("level") is None:
+        return None
+    level = str(thinking["level"])
+    # GLM-5.2 folds low into high; GLM-5.3 supports low/high/max on both protocols.
+    return {
+        "low": "high" if match[1] == "2" else "low",
+        "medium": "high",
+        "high": "high",
+        "max": "max",
+    }.get(level)
+
+
 def _resolve_reasoning_effort(
     provider: str,
     model_name: str,
@@ -234,6 +248,9 @@ def _resolve_reasoning_effort(
     """
     provider = normalize_provider(provider)
     name = model_name.lower()
+    glm_effort = _resolve_glm_effort(name, thinking)
+    if glm_effort is not None:
+        return glm_effort
     if is_deepseek_thinking_model(name):
         level = str(thinking.get("level") or "medium")
         return {"low": "low", "medium": "high", "high": "high", "max": "max"}.get(level, "high")
@@ -267,7 +284,7 @@ def _resolve_zhipu_thinking_body(
 ) -> Optional[dict[str, Any]]:
     """Map a thinking config to zhipu's `thinking` request-body field."""
     # 全渠道支持：任意 OpenAI 协议渠道上托管的 GLM 思考系都发送（中转对未知
-    # body 字段透传或忽略）；GLM 无档位语义，任何强度都只是 enabled。
+    # body 字段透传或忽略）；强度由独立的 reasoning_effort 字段控制。
     name = model_name.lower()
     if not _is_zhipu_thinking_model(name):
         return None
@@ -295,13 +312,13 @@ def _resolve_anthropic_thinking(
         return None, None, None
     name = model_name.lower()
     # GLM 思考系挂在 Anthropic 协议渠道（zai 等）：注入 Claude Code 同款 thinking
-    # 体（智谱 Anthropic 兼容端点直接接受）。GLM 无档位语义，任何强度都只是
-    # enabled；budget_tokens 纯透传无实效。不覆盖 temperature（智谱无 Claude
+    # 体（智谱 Anthropic 兼容端点直接接受）。5.2/5.3 同时传 output_config.effort；
+    # 老家族保持原有行为。不覆盖 temperature（智谱无 Claude
     # manual thinking 的 temp=1 约束）。
     if _is_zhipu_thinking_model(name):
         glm_thinking: dict[str, Any] = {"type": "enabled"}
         glm_thinking["budget_tokens"] = thinking.get("budget_tokens") or 1024
-        return glm_thinking, None, None
+        return glm_thinking, _resolve_glm_effort(name, thinking), None
     match = _CLAUDE_VERSION_RE.search(name)
     if match is None:
         return None, None, None

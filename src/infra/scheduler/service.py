@@ -67,6 +67,17 @@ class ScheduledTaskService:
         self._active_tasks_marker: int | None = None
         self._active_task_count = 0
 
+    @staticmethod
+    async def _validate_conversation(mode, target, owner_id):
+        if mode != "conversation":
+            return
+        from src.infra.session.manager import SessionManager
+        from src.kernel.errors import AppError, ErrorCode
+
+        session = await SessionManager().get_session(target) if target else None
+        if session is None or session.user_id != owner_id:
+            raise AppError(ErrorCode.SCHEDULED_TASK_ERROR)
+
     # ── CRUD ───────────────────────────────────────
 
     async def create_task(
@@ -75,6 +86,9 @@ class ScheduledTaskService:
         owner_id: str,
     ) -> ScheduledTask:
         """Validate, persist, and register a new scheduled task."""
+        await self._validate_conversation(
+            request.execution_mode, request.target_session_id, owner_id
+        )
         # Validate trigger config
         self._build_trigger(request.trigger_type, request.trigger_config, request.timezone)
 
@@ -83,6 +97,9 @@ class ScheduledTaskService:
         task = ScheduledTask.model_validate(
             {
                 "_id": task_id,
+                "execution_mode": request.execution_mode,
+                "target_session_id": request.target_session_id,
+                "notification_policy": request.notification_policy,
                 "name": request.name,
                 "description": request.description,
                 "agent_id": request.agent_id,
@@ -130,6 +147,23 @@ class ScheduledTaskService:
 
         updates: dict[str, Any] = request.model_dump(exclude_unset=True)
 
+        if {"execution_mode", "target_session_id"} & updates.keys():
+            from src.kernel.errors import AppError, ErrorCode
+
+            if await storage.has_open_conversation_runs(task_id):
+                raise AppError(ErrorCode.CONFLICT)
+        await self._validate_conversation(
+            updates.get("execution_mode", task.execution_mode),
+            updates.get("target_session_id", task.target_session_id),
+            task.owner_id,
+        )
+
+        if any(
+            key in updates and updates[key] is None
+            for key in ("execution_mode", "notification_policy")
+        ):
+            raise ValueError("Execution mode and notification policy cannot be null")
+
         # Validate trigger changes as one atomic pair. This also supports changing
         # trigger_type and trigger_config in a single update request.
         if "trigger_type" in updates or "trigger_config" in updates or "timezone" in updates:
@@ -144,6 +178,8 @@ class ScheduledTaskService:
             return task
 
         await storage.update_task(task_id, updates)
+        if updates.get("enabled") is False and task.execution_mode == "conversation":
+            await storage.cancel_pending_conversation_runs(task_id)
         updated_task = await storage.get_task(task_id)
         if updated_task is None:
             return None
@@ -163,6 +199,8 @@ class ScheduledTaskService:
         if task is None:
             return None
         await storage.update_task(task_id, {"status": ScheduledTaskStatus.PAUSED, "enabled": False})
+        if task.execution_mode == "conversation":
+            await storage.cancel_pending_conversation_runs(task_id)
         self._unregister_managed_task(task_id)
         logger.info("[Service] paused task %s", task_id)
         return await storage.get_task(task_id)
@@ -184,6 +222,7 @@ class ScheduledTaskService:
         """Physically delete a task."""
         self._unregister_managed_task(task_id)
         storage = get_scheduled_task_storage()
+        await storage.cancel_pending_conversation_runs(task_id)
         deleted = await storage.delete_task(task_id)
         if deleted:
             logger.info("[Service] deleted task %s", task_id)
@@ -224,6 +263,14 @@ class ScheduledTaskService:
             user_id=owner_id,
             scheduled_task_ids=[task.id for task in tasks],
         )
+        unread_counts.update(
+            await storage.conversation_unread_counts(
+                owner_id,
+                [task.id for task in tasks if task.execution_mode == "conversation"],
+            )
+            if any(task.execution_mode == "conversation" for task in tasks)
+            else {}
+        )
         responses = [self.to_response(t, unread_count=unread_counts.get(t.id, 0)) for t in tasks]
         return responses, total
 
@@ -233,6 +280,12 @@ class ScheduledTaskService:
             user_id=task.owner_id,
             scheduled_task_ids=[task.id],
         )
+        if task.execution_mode == "conversation":
+            unread_counts.update(
+                await get_scheduled_task_storage().conversation_unread_counts(
+                    task.owner_id, [task.id]
+                )
+            )
         return self.to_response(task, unread_count=unread_counts.get(task.id, 0))
 
     # ── Execution ──────────────────────────────────
@@ -276,6 +329,17 @@ class ScheduledTaskService:
 
         Called once during process startup.
         """
+        from src.infra.scheduler.conversation import dispatch_pending
+
+        scheduler = get_runtime_scheduler()
+        if not scheduler.has_job("conversation-schedules"):
+            scheduler.register_interval_job(
+                ScheduledJob.from_interval(
+                    id="conversation-schedules",
+                    interval_seconds=10,
+                    handler=dispatch_pending,
+                )
+            )
         storage = get_scheduled_task_storage()
         marker = await storage.get_active_tasks_marker()
         if self._active_tasks_marker == marker:
@@ -286,6 +350,10 @@ class ScheduledTaskService:
         now = utc_now()
         active_task_ids: set[str] = set()
         for task in tasks:
+            if self._is_expired_date_task(task, now) and task.execution_mode == "conversation":
+                await get_scheduled_task_runner().run(task.id, trigger_type="date")
+                active_task_ids.add(task.id)
+                continue
             if self._is_expired_date_task(task, now):
                 await storage.update_task(
                     task.id,
@@ -314,6 +382,9 @@ class ScheduledTaskService:
         """Convert a ScheduledTask model to an API response."""
         return ScheduledTaskResponse(
             id=task.id,
+            execution_mode=task.execution_mode,
+            target_session_id=task.target_session_id,
+            notification_policy=task.notification_policy,
             name=task.name,
             description=task.description,
             agent_id=task.agent_id,
@@ -389,7 +460,6 @@ class ScheduledTaskService:
                 "status": task.status.value,
                 "run_on_start": task.run_on_start,
                 "name": task.name,
-                "last_run_at": task.last_run_at,
                 "created_at": task.created_at,
             },
             default=str,
@@ -406,7 +476,7 @@ class ScheduledTaskService:
         """
         if task.trigger_type == TriggerType.INTERVAL:
             interval_cfg = IntervalTriggerConfig(**task.trigger_config)
-            anchor = task.last_run_at or task.created_at
+            anchor = task.created_at
             start_date = (
                 ensure_utc(anchor) + timedelta(seconds=interval_cfg.seconds)
                 if anchor is not None

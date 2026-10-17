@@ -52,11 +52,18 @@ export type MessagePart =
   | ThinkingPart
   | SandboxPart
   | MemoryStatusPart
+  | AgentHandoffPart
   | TokenUsagePart
   | CancelledPart
   | TodoPart
   | SummaryPart
   | RecommendQuestionsPart;
+
+export interface AgentHandoffPart {
+  type: "agentHandoff";
+  agentId: string;
+  timestamp?: string;
+}
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -87,6 +94,9 @@ export interface TokenUsagePart {
   total_tokens: number;
   cache_creation_tokens?: number;
   cache_read_tokens?: number;
+  usage_incomplete?: boolean;
+  unknown_usage_fields?: string[];
+  input_includes_cache?: boolean;
   model_id?: string;
   model?: string;
   // USD 金额（models.dev 计价；undefined 表示该模型未匹配到价格）

@@ -35,6 +35,9 @@ export interface DateTriggerConfig {
 
 // Scheduled task (full response)
 export interface ScheduledTask {
+  execution_mode?: "conversation" | "standalone";
+  target_session_id?: string | null;
+  notification_policy?: "always" | "meaningful_changes";
   id: string;
   name: string;
   description: string | null;
@@ -63,6 +66,9 @@ export interface ScheduledTask {
 
 // Create request
 export interface ScheduledTaskCreate {
+  execution_mode?: "conversation" | "standalone";
+  target_session_id?: string | null;
+  notification_policy?: "always" | "meaningful_changes";
   name: string;
   agent_id: string;
   trigger_type: TriggerType;
@@ -81,6 +87,9 @@ export interface ScheduledTaskCreate {
 
 // Update request
 export interface ScheduledTaskUpdate {
+  execution_mode?: "conversation" | "standalone";
+  target_session_id?: string | null;
+  notification_policy?: "always" | "meaningful_changes";
   name?: string;
   agent_id?: string;
   trigger_type?: TriggerType;
