@@ -30,6 +30,7 @@ function makeState(overrides: Partial<UpdateState> = {}): UpdateState {
     readyToInstall: false,
     error: null,
     linuxInstallSource: null,
+    linuxPackageAssetMissing: false,
     ...overrides,
   };
 }
@@ -127,6 +128,16 @@ test("linux deb/rpm source swaps the primary action to download-and-install", ()
   fireEvent.click(screen.getByRole("button", { name: /发现新版本/ }));
   expect(screen.getByRole("button", { name: /下载并安装/ })).toBeTruthy();
   expect(screen.queryByRole("button", { name: /重启并安装/ })).toBeNull();
+});
+
+test("deb source without a located asset falls back to go-to-download", () => {
+  // 与 UpdateDialog 同款分流：资产缺失时实际动作是 openDownloadPage
+  renderIndicator(
+    makeState({ linuxInstallSource: "deb", linuxPackageAssetMissing: true }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /发现新版本/ }));
+  expect(screen.getByRole("button", { name: /前往下载/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /下载并安装/ })).toBeNull();
 });
 
 test("error phase surfaces the message with a retry action", () => {

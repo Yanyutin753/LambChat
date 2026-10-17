@@ -98,7 +98,9 @@ mod macos {
                 let window = window.clone();
                 let callback = RcBlock::new(move |_| {
                     if let Err(error) = align(&window) {
-                        eprintln!("[lambchat-titlebar] alignment failed: {error}");
+                        crate::daemon::emit_stderr_line(&format!(
+                            "[lambchat-titlebar] alignment failed: {error}"
+                        ));
                     }
                 });
                 // Window notifications are scoped to this NSWindow; the Send

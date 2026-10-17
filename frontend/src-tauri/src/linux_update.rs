@@ -192,21 +192,39 @@ fn ensure_rustls_provider() {
 }
 
 /// 更新包缓存目录：`$XDG_CACHE_HOME/lambchat/updates`（默认
-/// `~/.cache/lambchat/updates`），取不到家目录时回落系统临时目录。
-/// 版本化资产名即缓存键——同一版本只下载一次，装完清空。
-fn update_cache_dir() -> PathBuf {
+/// `~/.cache/lambchat/updates`）。取不到家目录时**报错而非回落 /tmp**：
+/// 共享临时目录可被同机其他用户预占（目录属主攻击），叠加安装链路即
+/// 无需任何代码执行也能投毒。unix 下再校验已存在目录的属主——不是
+/// 当前 euid 即拒绝使用。版本化资产名即缓存键——同一版本只下载一次，
+/// 装完清空。
+fn update_cache_dir() -> Result<PathBuf, String> {
     let base = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| PathBuf::from(h).join(".cache"))
-        })
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("lambchat").join("updates")
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
+        .ok_or_else(|| {
+            "cannot locate update cache: neither XDG_CACHE_HOME nor HOME is set".to_string()
+        })?;
+    let dir = base.join("lambchat").join("updates");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::metadata(&dir) {
+            let euid = unsafe { libc::geteuid() };
+            if meta.uid() != euid {
+                return Err(format!(
+                    "update cache {} is owned by uid {} (not this user); refusing to use it",
+                    dir.display(),
+                    meta.uid()
+                ));
+            }
+        }
+    }
+    Ok(dir)
 }
 
 /// 清空缓存目录里的更新包（安装成功后调用；目录不存在为幂等成功）。
+/// 同时清掉安装暂存目录（`stage_verified_copy` 的 `.install-*`）。
 fn clear_update_cache(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -215,6 +233,8 @@ fn clear_update_cache(dir: &Path) {
         let path = entry.path();
         if path.is_file() {
             let _ = std::fs::remove_file(&path);
+        } else if path.is_dir() {
+            let _ = std::fs::remove_dir_all(&path);
         }
     }
 }
@@ -404,13 +424,16 @@ where
 /// 调起安装器（argv[0] 为程序名：pkcon 直接跑，apt/dnf 等由 pkexec 拉起）。
 ///
 /// stderr 由独立线程持续排空（dnf 进度输出可超管道缓冲，不排空会写阻塞
-/// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时 kill 兜底。
+/// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时**按进程组** kill：
+/// pkexec 拉起的 root 目标命令是孙进程，只杀 pkcon/pkexec 本体会让 root
+/// apt/dnf 变孤儿——与下一级回退并发抢包管理器锁，报出费解的锁冲突。
 fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
+    use command_group::CommandGroup;
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .spawn()
+        .group_spawn()
         .map_err(|e| {
             format!(
                 "failed to spawn {} ({e}); 系统缺少 polkit 授权组件，\
@@ -421,6 +444,7 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
 
     // stderr 排空线程：try_wait 轮询期间子进程的输出不能积压在管道里
     let mut stderr_pipe = child
+        .inner()
         .stderr
         .take()
         .expect("stderr piped above");
@@ -494,10 +518,11 @@ pub async fn download_linux_package(
     let manifest = fetch_release_metadata(&client, manifest_url, MAX_MANIFEST_BYTES).await?;
     let signature = fetch_release_metadata(&client, signature_url, 64).await?;
     let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
+    let cache_dir = update_cache_dir()?;
     let app_for_progress = app.clone();
-    let (_path, downloaded) = download_update_package(
+    let first = download_update_package(
         &url,
-        &update_cache_dir(),
+        &cache_dir,
         &asset_name,
         &signed,
         move |downloaded, content_length| {
@@ -510,8 +535,39 @@ pub async fn download_linux_package(
             );
         },
     )
-    .await?;
-    let cache = update_cache_dir();
+    .await;
+    let (_path, downloaded) = match first {
+        Ok(ok) => ok,
+        Err(first_err) => {
+            // 百 MB 级包在慢网/抖动下「一次失败即全量作废」会把长尾用户
+            // 永远留在旧版本（下次自动尝试要等最长 12h 周期）：退避 2s
+            // 重试一次，再失败才上抛（两次的错误都保留）。
+            tauri::async_runtime::spawn_blocking(|| {
+                std::thread::sleep(Duration::from_secs(2))
+            })
+            .await
+            .ok();
+            let app_retry = app.clone();
+            download_update_package(
+                &url,
+                &cache_dir,
+                &asset_name,
+                &signed,
+                move |downloaded, content_length| {
+                    let _ = app_retry.emit(
+                        PROGRESS_EVENT,
+                        ProgressPayload {
+                            downloaded,
+                            content_length,
+                        },
+                    );
+                },
+            )
+            .await
+            .map_err(|retry_err| format!("{first_err}; retry also failed: {retry_err}"))?
+        }
+    };
+    let cache = update_cache_dir()?;
     std::fs::write(cache.join(format!("{asset_name}.security.json")), manifest).map_err(|_| "Cannot cache release signature")?;
     std::fs::write(cache.join(format!("{asset_name}.security.sig")), signature).map_err(|_| "Cannot cache release signature")?;
     Ok(downloaded)
@@ -521,8 +577,54 @@ fn requires_package_replacement(target: &str, current: &str) -> bool {
     target.split("-dev.").next() == current.split("-dev.").next()
 }
 
+/// 目录权限收紧到仅属主（unix 0700；Windows 缓存本就在用户 Profile 下）。
+fn set_dir_private(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+/// 安装前私有副本（TOCTOU 缓解）：缓存目录是用户可写的，「哈希校验通过」
+/// 与「包管理器以 root 读取」之间隔着整个 polkit 授权窗口（最长 20min），
+/// 同用户恶意进程可在窗口内调包——校验过的和被安装的不是同一个文件。
+/// 把已校验的包复制到全新 0700 随名目录并**立刻**重验，随后马上交给
+/// 安装器：窗口从分钟级压到毫秒级。残留风险（同用户进程仍可赢毫秒级
+/// 竞速）的根治需要 root 属主的提权侧 helper 先验后装（打包链改造，
+/// 上游 issue 跟进）。
+fn stage_verified_copy(
+    cache: &Path,
+    verified: &Path,
+    signed: &SignedAsset,
+) -> Result<PathBuf, String> {
+    let staging_dir = cache.join(format!(".install-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&staging_dir)
+        .and_then(|_| set_dir_private(&staging_dir))
+        .map_err(|e| format!("create {}: {e}", staging_dir.display()))?;
+    let staged = staging_dir.join(
+        verified
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("package")),
+    );
+    std::fs::copy(verified, &staged)
+        .map_err(|e| format!("stage {}: {e}", staged.display()))?;
+    if let Err(e) = verify_package(&staged, signed) {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+        return Err(e);
+    }
+    Ok(staged)
+}
+
 /// 从缓存安装 deb/rpm 更新包（pkcon → pkexec 包管理器 → 底层工具三级
-/// 回退；成功后清空缓存，调用方 relaunch 进新版）。
+/// 回退；成功后清空缓存，调用方 relaunch 进新版）。逐级失败原因全部
+/// 收集返回——pkcon 阶段的错误（依赖冲突/磁盘满）往往最能说明问题，
+/// 只报最后一级会让用户对着「授权被取消？」的猜测文案排查错方向。
 #[tauri::command]
 pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(), String> {
     if kind != SOURCE_DEB && kind != SOURCE_RPM {
@@ -531,22 +633,24 @@ pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(
     let arch = release_asset_arch().ok_or("Unsupported Linux architecture")?;
     let version = package_version(&asset_name, arch)?;
     if !asset_name.ends_with(&format!(".{kind}")) { return Err("Update package kind mismatch".into()); }
-    let cache = update_cache_dir();
+    let cache = update_cache_dir()?;
     let manifest = read_cached_metadata(&cache.join(format!("{asset_name}.security.json")), MAX_MANIFEST_BYTES)?;
     let signature = read_cached_metadata(&cache.join(format!("{asset_name}.security.sig")), 64)?;
     let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
     let path = cache.join(&asset_name);
     verify_package(&path, &signed)?;
+    let install_path = stage_verified_copy(&cache, &path, &signed)?;
 
-    let chains = installer_argv_chain(&kind, &path)
+    let chains = installer_argv_chain(&kind, &install_path)
         .ok_or_else(|| format!("unsupported package kind: {kind}"))?;
     // Package managers may report success without installing another same-core dev build.
     let chains = if requires_package_replacement(&version, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))) {
         chains.into_iter().rev().take(1).collect()
     } else { chains };
-    let mut last_err = String::new();
+    let mut attempts: Vec<(String, String)> = Vec::new();
     for argv in chains {
         // pkexec/pkcon 授权是阻塞轮询（≤20min 授权窗口），挪出 async 线程
+        let tool = argv.first().cloned().unwrap_or_else(|| "installer".into());
         let argv_clone = argv.clone();
         let result =
             tauri::async_runtime::spawn_blocking(move || run_pkexec_installer(&argv_clone))
@@ -554,14 +658,24 @@ pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(
         match result {
             Ok(Ok(())) => {
                 // 装完即清：新版本已生效，缓存使命完成
-                clear_update_cache(&update_cache_dir());
+                clear_update_cache(&update_cache_dir()?);
                 return Ok(());
             }
-            Ok(Err(e)) => last_err = e,
-            Err(e) => last_err = format!("installer task failed: {e}"),
+            Ok(Err(e)) => attempts.push((tool, e)),
+            Err(e) => attempts.push((tool, format!("installer task failed: {e}"))),
         }
     }
-    Err(format!("all install attempts failed; last: {last_err}"))
+    let _ = std::fs::remove_dir_all(
+        install_path
+            .parent()
+            .unwrap_or(Path::new("/")),
+    );
+    let details = attempts
+        .iter()
+        .map(|(tool, e)| format!("{tool}: {e}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(format!("all install attempts failed: {details}"))
 }
 
 #[cfg(test)]
