@@ -10,10 +10,10 @@ test("chats header exposes a dedicated select-mode button outside the more menu"
     "utf8",
   );
 
-  // ⋯ 菜单里的 menuItems 入口之外，头部操作行还要有常驻多选按钮
+  // ⋯ 菜单里的 menuItems 入口之外，头部操作行还要有独立多选按钮
   expect(source).toMatch(/aria-label=\{t\("sidebar\.selectMode"\)\}/);
   expect(source).toMatch(/<ListChecks size=\{14\} \/>/);
-  // 按钮复用 SidebarSectionHeader 导出的 hover 显隐样式，触屏常显
+  // 按钮复用 SidebarSectionHeader 的显隐样式，触屏按当前分组显示
   expect(source).toMatch(
     /import \{[\s\S]*?sectionActionClass[\s\S]*?sectionRevealClass[\s\S]*?\} from "\.\/SidebarSectionHeader"/,
   );

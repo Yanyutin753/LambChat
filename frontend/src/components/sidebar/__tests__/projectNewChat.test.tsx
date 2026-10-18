@@ -1,6 +1,13 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ProjectItem } from "../ProjectItem";
 import { sessionApi } from "../../../services/api";
 import type { Project } from "../../../types";
@@ -23,6 +30,12 @@ beforeEach(async () => {
     has_more: false,
     total: 0,
   });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 function renderProject(value = project) {
@@ -74,4 +87,44 @@ test("favorites offer no project-scoped creation action", () => {
   expect(
     screen.queryByRole("button", { name: /New chat in/ }),
   ).not.toBeInTheDocument();
+});
+
+test("touch reveals only the current project's actions and renews their timeout", () => {
+  vi.useFakeTimers();
+  renderProject();
+  renderProject({ ...project, id: "project-2", name: "Other project" });
+  const row = screen
+    .getByRole("button", { name: "LambChat" })
+    .closest(".sidebar-action-row")!;
+  const current = row.querySelector(".sidebar-action-reveal")!;
+  const other = screen
+    .getByRole("button", { name: "Other project" })
+    .closest(".sidebar-action-row")!
+    .querySelector(".sidebar-action-reveal")!;
+  expect(current).not.toHaveAttribute("data-revealed", "true");
+  fireEvent.touchStart(row);
+  expect(current).toHaveAttribute("data-revealed", "true");
+  expect(other).not.toHaveAttribute("data-revealed", "true");
+  act(() => vi.advanceTimersByTime(2000));
+  fireEvent.touchStart(row);
+  act(() => vi.advanceTimersByTime(2999));
+  expect(current).toHaveAttribute("data-revealed", "true");
+  act(() => vi.advanceTimersByTime(1));
+  expect(current).not.toHaveAttribute("data-revealed", "true");
+});
+
+test("an open project menu keeps actions revealed after the touch timeout", () => {
+  vi.useFakeTimers();
+  renderProject();
+  const row = screen
+    .getByRole("button", { name: "LambChat" })
+    .closest(".sidebar-action-row")!;
+  const actions = row.querySelector(".sidebar-action-reveal")!;
+  fireEvent.touchStart(row);
+  fireEvent.click(screen.getByRole("button", { name: "More options" }));
+  act(() => vi.advanceTimersByTime(3000));
+  expect(actions).toHaveAttribute("data-revealed", "true");
+  expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(actions).not.toHaveAttribute("data-revealed", "true");
 });

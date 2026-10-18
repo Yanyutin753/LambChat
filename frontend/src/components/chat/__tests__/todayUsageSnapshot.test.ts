@@ -29,20 +29,20 @@ test("returns null when stats are unavailable", () => {
   ).toBeNull();
 });
 
-test("unknown cache observations do not become a measured hit rate", () => {
+test("available cache totals produce a rate despite incomplete observations", () => {
   expect(
     buildTodayUsageSnapshot(stats({ cache_unknown_requests: 1 }), {
       language: "en",
     })!.cacheHitRate,
-  ).toBeNull();
+  ).toBe(0.3);
 });
 
-test("an incomplete token partition cannot be displayed as measured percentages", () => {
+test("available totals produce shares despite incomplete observation flags", () => {
   expect(
     buildTodayUsageSnapshot(stats({ usage_unknown_requests: 1 }), {
       language: "en",
     })!.sharesKnown,
-  ).toBe(false);
+  ).toBe(true);
   expect(
     buildTodayUsageSnapshot(stats({ usage_unknown_requests: 0 }), {
       language: "en",
@@ -107,12 +107,12 @@ test("positive cache reads require inclusive input certification even with compl
   expect(cacheHitRateFromTokens(100, 80, 0, [], true)).toBe(0.8);
 });
 
-test("legacy aggregate counts do not certify a positive cache rate", () => {
+test("legacy aggregate counts still produce a rate from reported totals", () => {
   expect(
     buildTodayUsageSnapshot(stats({ cache_unknown_requests: undefined }), {
       language: "en",
     })!.cacheHitRate,
-  ).toBeNull();
+  ).toBe(0.3);
   expect(
     buildTodayUsageSnapshot(stats({ cache_unknown_requests: 0 }), {
       language: "en",
@@ -141,7 +141,7 @@ test("token shares partition prompt input without double-counting cache tokens",
   expect(total).toBeCloseTo(100, 5);
 });
 
-test("uncertified provider input cannot produce a positive rate", () => {
+test("provider input excluding cache uses the larger prompt total", () => {
   const snap = buildTodayUsageSnapshot(
     stats({
       total_input_tokens: 108,
@@ -152,11 +152,11 @@ test("uncertified provider input cannot produce a positive rate", () => {
     { language: "zh", rates },
   );
 
-  expect(snap!.cacheHitRate).toBeNull();
+  expect(snap!.cacheHitRate).toBeCloseTo(14813 / 26813);
   const byKey = Object.fromEntries(snap!.shares.map((s) => [s.key, s]));
-  expect(byKey.input.tokens).toBe(108);
-  expect(byKey.input.reported).toBe(true);
-  expect(snap!.sharesKnown).toBe(false);
+  expect(byKey.input.tokens).toBe(0);
+  expect(byKey.input.reported).toBe(false);
+  expect(snap!.sharesKnown).toBe(true);
   expect(byKey.cacheRead.tokens).toBe(14813);
 });
 
@@ -185,7 +185,7 @@ test("cacheHitRateFromTokens rejects ambiguous or inconsistent provider counts",
   expect(cacheHitRateFromTokens(0, 0, 0)).toBeNull();
 });
 
-test("56 historical requests retain reportable rows when only cache writes are unknown", () => {
+test("56 requests use reported totals when cache writes are missing", () => {
   const snap = buildTodayUsageSnapshot(
     stats({
       total_requests: 56,
@@ -200,16 +200,16 @@ test("56 historical requests retain reportable rows when only cache writes are u
     { language: "en" },
   )!;
   const byKey = Object.fromEntries(snap.shares.map((row) => [row.key, row]));
-  expect(byKey.input.tokens).toBe(100);
-  expect(byKey.input.reported).toBe(true);
+  expect(byKey.input.tokens).toBe(70);
+  expect(byKey.input.reported).toBe(false);
   expect(byKey.output.tokens).toBe(50);
   expect(byKey.cacheRead.tokens).toBe(30);
-  expect(byKey.cacheWrite.tokens).toBeNull();
-  expect(snap.sharesKnown).toBe(false);
-  expect(snap.cacheHitRate).toBeNull();
+  expect(byKey.cacheWrite.tokens).toBe(0);
+  expect(snap.sharesKnown).toBe(true);
+  expect(snap.cacheHitRate).toBe(0.3);
 });
 
-test("field metadata preserves measured zero while invalid counters stay unknown", () => {
+test("invalid counters are skipped while reported zeros stay visible", () => {
   const snap = buildTodayUsageSnapshot(
     stats({
       total_input_tokens: Number.NaN,
@@ -223,20 +223,84 @@ test("field metadata preserves measured zero while invalid counters stay unknown
     { language: "en" },
   )!;
   const byKey = Object.fromEntries(snap.shares.map((row) => [row.key, row]));
-  expect(byKey.input.tokens).toBeNull();
+  expect(byKey.input.tokens).toBe(0);
   expect(byKey.output.tokens).toBe(0);
   expect(byKey.cacheRead.tokens).toBe(0);
   expect(byKey.cacheWrite.tokens).toBeNull();
-  expect(snap.sharesKnown).toBe(false);
+  expect(snap.sharesKnown).toBe(true);
 });
 
-test("legacy valid counters are reportable without certifying a token partition", () => {
+test("legacy valid counters produce a token partition", () => {
   const snap = buildTodayUsageSnapshot(
     stats({ cache_unknown_requests: undefined }),
     { language: "en" },
   )!;
-  expect(snap.sharesKnown).toBe(false);
-  expect(snap.shares.find((row) => row.key === "input")?.tokens).toBe(100);
-  expect(snap.shares.find((row) => row.key === "input")?.reported).toBe(true);
+  expect(snap.sharesKnown).toBe(true);
+  expect(snap.shares.find((row) => row.key === "input")?.tokens).toBe(50);
+  expect(snap.shares.find((row) => row.key === "input")?.reported).toBe(false);
   expect(snap.shares.find((row) => row.key === "output")?.tokens).toBe(50);
+});
+
+test("one incomplete request does not hide the day's reported totals", () => {
+  const snap = buildTodayUsageSnapshot(
+    stats({
+      total_requests: 60,
+      total_input_tokens: 11285204,
+      total_output_tokens: 529631,
+      total_cache_read_tokens: 9121344,
+      total_cache_creation_tokens: 0,
+      usage_unknown_requests: 60,
+      cache_unknown_requests: 2,
+      unknown_usage_fields: [
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+      ],
+    }),
+    { language: "en" },
+  )!;
+  const rows = Object.fromEntries(snap.shares.map((row) => [row.key, row]));
+  expect(rows.input).toMatchObject({ tokens: 2163860, reported: false });
+  expect(rows.output).toMatchObject({ tokens: 529631 });
+  expect(rows.cacheRead).toMatchObject({ tokens: 9121344 });
+  expect(rows.cacheWrite.tokens).toBe(0);
+  expect(snap.sharesKnown).toBe(true);
+  expect(snap.cacheHitRate).toBeCloseTo(9121344 / 11285204);
+});
+
+test("missing or invalid values for all four counters do not invent an input zero", () => {
+  for (const value of [undefined, null, false, Number.NaN, -1]) {
+    const snap = buildTodayUsageSnapshot(
+      stats({
+        total_input_tokens: value as number,
+        total_output_tokens: value as number,
+        total_cache_read_tokens: value as number,
+        total_cache_creation_tokens: value as number,
+      }),
+      { language: "en" },
+    )!;
+    expect(snap.sharesKnown).toBe(false);
+    expect(snap.shares.find((row) => row.key === "input")?.tokens).toBeNull();
+    expect(snap.shares.every((row) => row.tokens === null)).toBe(true);
+    expect(snap.cacheHitRate).toBeNull();
+  }
+});
+
+test("four reported zeros remain usable counts rather than missing values", () => {
+  const snap = buildTodayUsageSnapshot(
+    stats({
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_read_tokens: 0,
+      total_cache_creation_tokens: 0,
+    }),
+    { language: "en" },
+  )!;
+  expect(snap.sharesKnown).toBe(true);
+  expect(snap.shares.every((row) => row.tokens === 0 && row.share === 0)).toBe(
+    true,
+  );
+  expect(snap.cacheHitRate).toBeNull();
 });
