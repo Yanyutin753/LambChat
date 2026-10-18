@@ -2,15 +2,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
-mod daemon;
 mod commands;
+mod daemon;
 mod linux_update;
 mod release_signature;
+#[cfg(target_os = "macos")]
+mod titlebar;
 mod tray;
 #[cfg(windows)]
 mod windows_acl;
-#[cfg(target_os = "macos")]
-mod titlebar;
 
 /// SIGTERM 停机旗标：信号处理器只做原子置位（async-signal-safe 的唯一动作），
 /// 专用线程轮询后经 `app.exit(0)` 走正常退出路径（M4 T8）。
@@ -32,9 +32,7 @@ fn arm_sigterm_handler() {
         action.sa_flags = libc::SA_RESTART;
         if libc::sigaction(libc::SIGTERM, &action, std::ptr::null_mut()) != 0 {
             let err = std::io::Error::last_os_error();
-            daemon::emit_stderr_line(&format!(
-                "[lambchat] failed to arm SIGTERM handler: {err}"
-            ));
+            daemon::emit_stderr_line(&format!("[lambchat] failed to arm SIGTERM handler: {err}"));
         }
     }
 }
@@ -167,13 +165,16 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new()
-            .default_version_comparator(|current, update| {
-                let installed = option_env!("LAMBCHAT_RELEASE_VERSION")
-                    .and_then(|version| version.parse().ok())
-                    .unwrap_or(current.clone());
-                update.version > installed
-            }).build())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .default_version_comparator(|current, update| {
+                    let installed = option_env!("LAMBCHAT_RELEASE_VERSION")
+                        .and_then(|version| version.parse().ok())
+                        .unwrap_or(current.clone());
+                    update.version > installed
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         // process 插件：updater 安装完成后前端 `relaunch()` 重启壳

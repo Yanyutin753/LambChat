@@ -198,7 +198,15 @@ impl DaemonManager {
             return None;
         }
         let taken = slot.take();
-        self.running.store(taken.is_some(), Ordering::SeqCst);
+        self.running.store(false, Ordering::SeqCst);
+        taken
+    }
+
+    fn take_for_stop(&self) -> Option<DaemonChild> {
+        let mut slot = lock_ok(&self.child);
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        let taken = slot.take();
+        self.running.store(false, Ordering::SeqCst);
         taken
     }
 
@@ -461,13 +469,7 @@ pub fn stop(app: &AppHandle) {
     // 期间 status() 仍报 running 属状态契约违例（「写点与槽位变更同锁内」，
     // 见 running 字段注释）——先如实报 stopped，终止流程在「已停止」语义
     // 下进行（B7）。
-    let child = {
-        let mut slot = lock_ok(&manager.child);
-        manager.generation.fetch_add(1, Ordering::SeqCst);
-        let taken = slot.take();
-        manager.running.store(taken.is_some(), Ordering::SeqCst);
-        taken
-    };
+    let child = manager.take_for_stop();
     emit_status(app);
     if let Some(DaemonChild::Group(mut child)) = child {
         warn_log!("stopping daemon group (pid {})", child.id());
@@ -1174,9 +1176,7 @@ fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, Strin
         Ok(entries) => entries,
         Err(_) => return Ok(0), // 旧根不存在：无需迁移
     };
-    // 同一时刻只有一条 set_sandbox_data_location 在跑：上次失败残留的
-    // 暂存区直接清除（存在即代表上次迁移中止，内容不作为正式数据）。
-    cleanup_stale_staging(new_root);
+    // 目录前缀无法证明所有权；只清理本次创建的暂存区。
     let staging = new_root.join(format!(".migrating-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&staging)
         .map_err(|e| format!("failed to create {}: {e}", staging.display()))?;
@@ -1198,7 +1198,11 @@ fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, Strin
             copy_dir_recursive(&from, &staged_path)
         } else {
             std::fs::copy(&from, &staged_path).map(|_| ()).map_err(|e| {
-                format!("failed to copy {} -> {}: {e}", from.display(), staged_path.display())
+                format!(
+                    "failed to copy {} -> {}: {e}",
+                    from.display(),
+                    staged_path.display()
+                )
             })
         };
         if let Err(e) = stage_result {
@@ -1229,17 +1233,6 @@ fn migrate_root_entries(old_root: &Path, new_root: &Path) -> Result<usize, Strin
     }
     let _ = std::fs::remove_dir_all(&staging);
     Ok(moved)
-}
-
-/// 清除新根内上次迁移失败残留的暂存区（`.migrating-*`，尽力而为）。
-fn cleanup_stale_staging(new_root: &Path) {
-    if let Ok(entries) = std::fs::read_dir(new_root) {
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with(".migrating-") {
-                let _ = std::fs::remove_dir_all(entry.path());
-            }
-        }
-    }
 }
 
 /// 沙箱数据根状态（设置页"数据位置"卡片）。
@@ -1408,33 +1401,46 @@ mod sandbox_home_override_tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
-    /// 上次迁移失败残留的暂存区必须被清掉，成功迁移后新根不留 `.migrating-*`。
+    /// 前缀不能证明目录归本次迁移所有，其他数据与迁移暂存内容都必须保留。
     #[test]
-    fn migration_cleans_stale_staging_and_leaves_no_residue() {
+    fn migration_preserves_unowned_staging_and_cleans_only_its_own() {
         let tmp = std::env::temp_dir().join(format!("lc-migrate-stale-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let old_root = tmp.join("old");
         let new_root = tmp.join("new");
-        std::fs::create_dir_all(new_root.join(".migrating-stale-run")).unwrap();
-        std::fs::write(
-            new_root.join(".migrating-stale-run").join("partial.bin"),
-            "half",
-        )
-        .unwrap();
+        let existing = [
+            (".migrating-project", "user-owned data"),
+            (
+                ".migrating-123e4567-e89b-42d3-a456-426614174000",
+                "another active copy",
+            ),
+        ];
+        for (name, contents) in existing {
+            std::fs::create_dir_all(new_root.join(name)).unwrap();
+            std::fs::write(new_root.join(name).join("payload.bin"), contents).unwrap();
+        }
         std::fs::create_dir_all(old_root.join("audit")).unwrap();
         std::fs::write(old_root.join("audit").join("b.jsonl"), "log2").unwrap();
 
         let moved = migrate_root_entries(&old_root, &new_root).unwrap();
         assert_eq!(moved, 1);
         assert!(new_root.join("audit").join("b.jsonl").exists());
-        // 残留暂存区被清除；本轮自己的暂存区也已收尾
-        assert!(!new_root.join(".migrating-stale-run").exists());
+        for (name, contents) in existing {
+            assert_eq!(
+                std::fs::read_to_string(new_root.join(name).join("payload.bin")).unwrap(),
+                contents,
+            );
+        }
         let leftovers: Vec<_> = std::fs::read_dir(&new_root)
             .unwrap()
             .flatten()
             .filter(|e| e.file_name().to_string_lossy().starts_with(".migrating-"))
             .collect();
-        assert!(leftovers.is_empty(), "staging residue left behind");
+        assert_eq!(
+            leftovers.len(),
+            2,
+            "only the pre-existing directories may remain"
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -1615,6 +1621,60 @@ mod tests {
         manager.running.store(true, Ordering::SeqCst);
         assert!(manager.take_if_current(999).is_none());
         assert!(manager.running.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn taking_an_occupied_slot_clears_the_running_mirror() {
+        let manager = DaemonManager::default();
+        *lock_ok(&manager.child) = Some(DaemonChild::Group(spawn_sleeper()));
+        manager.generation.store(1, Ordering::SeqCst);
+        manager.running.store(true, Ordering::SeqCst);
+
+        let taken = manager.take_if_current(1);
+        let stopped = !manager.running.load(Ordering::SeqCst);
+        let empty = lock_ok(&manager.child).is_none();
+        let reaped = match taken {
+            Some(DaemonChild::Group(mut child)) => {
+                let _ = child.kill();
+                reap_bounded(&mut child, REAP_GRACE)
+            }
+            None => false,
+        };
+
+        assert!(reaped, "the detached test child must be cleaned up");
+        assert!(empty, "the current child must be removed");
+        assert!(
+            stopped,
+            "an empty child slot must immediately report stopped"
+        );
+    }
+
+    #[test]
+    fn manual_stop_clears_running_and_revokes_restart_authority() {
+        let manager = DaemonManager::default();
+        *lock_ok(&manager.child) = Some(DaemonChild::Group(spawn_sleeper()));
+        manager.generation.store(1, Ordering::SeqCst);
+        manager.running.store(true, Ordering::SeqCst);
+
+        let taken = manager.take_for_stop();
+        let stopped = !manager.running.load(Ordering::SeqCst);
+        let cancelled = manager.backoff_restart_cancelled(1);
+        let empty = lock_ok(&manager.child).is_none();
+        let reaped = match taken {
+            Some(DaemonChild::Group(mut child)) => {
+                let _ = child.kill();
+                reap_bounded(&mut child, REAP_GRACE)
+            }
+            None => false,
+        };
+
+        assert!(reaped, "the detached test child must be cleaned up");
+        assert!(empty);
+        assert!(stopped, "manual stop must immediately report stopped");
+        assert!(
+            cancelled,
+            "manual stop must invalidate pending automatic restarts"
+        );
     }
 
     /// 有界收尸（v2.9.1 偏好设置卡死回归锚点）：kill 后快速等到退出。
@@ -1892,7 +1952,7 @@ mod tests {
     #[test]
     fn take_if_current_never_takes_slot_of_newer_generation() {
         let manager = Arc::new(DaemonManager::default());
-        let mut child_gen1 = spawn_sleeper();
+        let child_gen1 = spawn_sleeper();
         let pid_gen1 = child_gen1.id();
         let child_gen3 = spawn_sleeper();
 

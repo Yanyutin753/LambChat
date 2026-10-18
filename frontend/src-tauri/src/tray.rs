@@ -156,9 +156,7 @@ fn open_sandbox_dir(app: &AppHandle, name: &str) {
                 ));
             }
         }
-        Err(e) => daemon::emit_stderr_line(&format!(
-            "[lambchat-tray] refused to open {name}: {e}"
-        )),
+        Err(e) => daemon::emit_stderr_line(&format!("[lambchat-tray] refused to open {name}: {e}")),
     }
 }
 
