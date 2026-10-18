@@ -7,13 +7,16 @@ Background Task Manager - 后台任务管理器
 """
 
 import asyncio
-import inspect
 from collections.abc import Awaitable
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from arq.connections import create_pool
 
-from src.infra.goal_runtime import GoalRunAlreadyOwnedError, with_goal_submission_lease
+from src.infra.goal_runtime import (
+    GoalRunAdmissionError,
+    GoalRunAlreadyOwnedError,
+    with_goal_submission_lease,
+)
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.writer.presenter_events import derive_user_message_run_modes
@@ -21,7 +24,7 @@ from src.kernel.config import settings
 
 from . import arq_payloads
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
-from .arq_settings import build_arq_redis_settings
+from .arq_settings import build_arq_redis_settings, close_arq_pool
 from .cancellation import TaskCancellation
 from .exceptions import TaskInterruptedError
 from .executor import TaskExecutor
@@ -105,19 +108,7 @@ class BackgroundTaskManager:
         """Close the manager-owned arq pool if it was created."""
         arq_pool = self._arq_pool
         self._arq_pool = None
-        if arq_pool is None:
-            return
-
-        close = getattr(arq_pool, "close", None)
-        if close is not None:
-            result = close()
-            if inspect.isawaitable(result):
-                await result
-        wait_closed = getattr(arq_pool, "wait_closed", None)
-        if wait_closed is not None:
-            result = wait_closed()
-            if inspect.isawaitable(result):
-                await result
+        await close_arq_pool(arq_pool)
 
     async def _persist_initial_user_message(
         self,
@@ -256,12 +247,7 @@ class BackgroundTaskManager:
         )
 
     async def _load_session_record(self, raw_session: dict[str, Any]) -> Any | None:
-        """Load a normalized session model from a raw MongoDB session document."""
-        session_id = raw_session.get("session_id") or str(raw_session.get("_id"))
-        session = await self.storage.get_by_session_id(session_id)
-        if session is not None:
-            return session
-        return await self.storage.get_by_id(session_id)
+        return await self._status_queries().load_session_record(raw_session)
 
     async def _release_recovery_lock(self, lock_key: str, token: str) -> None:
         await self._recovery_service().release_recovery_lock(lock_key, token)
@@ -299,6 +285,7 @@ class BackgroundTaskManager:
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
         base_url: str = "",
+        recovery_claim: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -342,13 +329,28 @@ class BackgroundTaskManager:
                     and active_goal.get("_persistent_id")
                     and (hitl_resume or interrupted_resume)
                 )
-                if interrupted_resume and not hitl_resume and not fenced_resume:
+                if interrupted_resume and not hitl_resume:
                     if not await self.storage.claim_run_recovery(
                         session_id,
                         run_id,
-                        self._state_machine.build_metadata(TaskStatus.PENDING, run_id=run_id),
+                        {
+                            **self._state_machine.build_metadata(TaskStatus.PENDING, run_id=run_id),
+                            **(
+                                {
+                                    key: recovery_claim["metadata"].get(key)
+                                    for key in ("task_error", "task_error_code")
+                                }
+                                if recovery_claim
+                                else {}
+                            ),
+                        },
+                        **(
+                            {"expected_recovery_token": recovery_claim["token"]}
+                            if recovery_claim
+                            else {}
+                        ),
                     ):
-                        raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+                        raise GoalRunAdmissionError("Interrupted run no longer authorizes recovery")
                 else:
                     await task_executor._update_session_status(
                         session_id,
@@ -420,6 +422,7 @@ class BackgroundTaskManager:
                     attachment_references_claimed=attachment_references_claimed,
                     hitl_resume=hitl_resume,
                     interrupted_resume=interrupted_resume,
+                    recovery_claim=recovery_claim,
                     base_url=base_url,
                 )
             )
@@ -469,6 +472,7 @@ class BackgroundTaskManager:
         interrupted_resume: bool = False,
         initial_status: TaskStatus | None = TaskStatus.QUEUED,
         base_url: str = "",
+        recovery_claim: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
         task_executor = self._ensure_executor()
@@ -553,6 +557,7 @@ class BackgroundTaskManager:
                     "auto_mode": auto_mode,
                     "hitl_resume": hitl_resume,
                     "interrupted_resume": interrupted_resume,
+                    "recovery_claim": recovery_claim,
                     "base_url": base_url,
                 },
             )
@@ -745,22 +750,7 @@ class BackgroundTaskManager:
         return run_info
 
     async def _lookup_trace_id_for_run(self, run_id: str) -> Optional[str]:
-        try:
-            from src.infra.session.trace_storage import get_trace_storage
-
-            trace_storage = get_trace_storage()
-            cursor = (
-                trace_storage.collection.find({"run_id": run_id}, {"trace_id": 1, "_id": 0})
-                .sort("started_at", -1)
-                .limit(1)
-            )
-            traces = await cursor.to_list(length=1)
-            if traces:
-                trace_id = traces[0].get("trace_id")
-                return str(trace_id) if trace_id else None
-        except Exception as e:
-            logger.warning("Failed to lookup trace_id for run %s: %s", run_id, e)
-        return None
+        return await self._status_queries().lookup_trace_id_for_run(run_id)
 
     async def resume_session(
         self,

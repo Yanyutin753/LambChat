@@ -773,9 +773,7 @@ export function ApprovalPanel({
                   className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span>
-                    {isAskHuman
-                      ? t("approvals.ignore")
-                      : t("approvals.cancel")}
+                    {isAskHuman ? t("approvals.ignore") : t("approvals.cancel")}
                   </span>
                 </button>
                 <button

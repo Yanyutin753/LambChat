@@ -261,7 +261,9 @@ async def relay_progress(presenter, event):
             "quiet_policy": task.notification_policy == "meaningful_changes",
         }
         if kind in {"approval_resolved", "human_resume_started"}:
-            history = await get_trace_storage().get_run_events(session_id, run_id)
+            history = await get_trace_storage().get_session_events(
+                session_id, run_id=run_id, completed_only=False
+            )
             suspended = max(
                 (
                     index
@@ -297,6 +299,12 @@ async def relay_progress(presenter, event):
             for approval in approvals
             if (approval.metadata or {}).get("run_id") == run_id
         ]
+    elif kind == "approval_resolved":
+        payload["approvals"] = [
+            approval
+            for approval in payload.get("approvals", [])
+            if approval["id"] != data.get("id")
+        ]
     if kind not in PRIVATE_PROGRESS_EVENTS:
         payload["events"].append(
             {
@@ -313,9 +321,11 @@ async def relay_progress(presenter, event):
         payload["content"] = (payload["content"] + content)[:100_000]
     if data.get("assistant_identity") and not data.get("depth"):
         payload["assistant_identity"] = data["assistant_identity"]
-    status = "running"
+    status = state.get("status", "running")
     if kind in {"hitl:suspended", "approval_required"}:
         status = "waiting_human"
+    elif kind in {"approval_resolved", "human_resume_started"}:
+        status = "waiting_human" if payload.get("approvals") else "running"
     elif kind == "done" and not data.get("depth"):
         status = (
             "quiet"
@@ -324,6 +334,7 @@ async def relay_progress(presenter, event):
         )
     elif kind in {"error", "user:cancel"} and not data.get("depth"):
         status = "failed"
+    state["status"] = status
     now = time.monotonic()
     if kind in {"message:chunk", "thinking", "tool:args:chunk"} and now - state["last_sent"] < 0.2:
         return
@@ -347,8 +358,8 @@ async def relay_progress(presenter, event):
     await get_connection_manager().send_to_user_with_broadcast(presenter.config.user_id, progress)
 
 
-async def get_session_progress(session_id, owner_id):
-    """Restore active independent runs when their parent conversation is opened."""
+async def get_session_progress(session_id, owner_id, *, run_ids=()):
+    """Restore active runs and reconcile named visible runs with their terminal state."""
     from src.infra.scheduler.storage import get_scheduled_task_storage
     from src.infra.session.manager import SessionManager
     from src.infra.task.manager import get_task_manager
@@ -363,7 +374,10 @@ async def get_session_progress(session_id, owner_id):
         {
             "target_session_id": session_id,
             "owner_id": owner_id,
-            "conversation_state": {"$in": ["submitting", "submitted"]},
+            "$or": [
+                {"conversation_state": {"$in": ["submitting", "submitted"]}},
+                {"_id": {"$in": list(run_ids)}},
+            ],
         }
     )
     progress = []
@@ -372,18 +386,47 @@ async def get_session_progress(session_id, owner_id):
         task = await storage.get_task(record["task_id"])
         if not source or source.user_id != owner_id or not task or task.owner_id != owner_id:
             continue
-        status = await get_task_manager().get_run_status(record["session_id"], record["_id"])
-        if status is None or status.value not in {
+        run_status = await get_task_manager().get_run_status(record["session_id"], record["_id"])
+        status: str | None = getattr(run_status, "value", run_status)
+        if record.get("conversation_state") == "finished":
+            status = {"success": "completed", "failed": "failed", "timeout": "failed"}.get(
+                record.get("status"), status
+            )
+        if status not in {
             "running",
             "starting",
             "pending",
             "queued",
             "recovering",
             "waiting_human",
+            "cancelling",
+            "completed",
+            "failed",
+            "cancelled",
+            "expired",
         }:
             continue
-        events = await get_trace_storage().get_run_events(record["session_id"], record["_id"])
+        events = await get_trace_storage().get_session_events(
+            record["session_id"], run_id=record["_id"], completed_only=False
+        )
         public = [event for event in events if event["event_type"] not in PRIVATE_PROGRESS_EVENTS]
+        display_status = "waiting_human" if status == "waiting_human" else "running"
+        if status == "completed":
+            completed_events = await get_trace_storage().get_run_events(
+                record["session_id"], record["_id"]
+            )
+            content = extract_delivery_text(completed_events, max_chars=100_000)
+            display_status = (
+                "quiet"
+                if not content
+                or (
+                    task.notification_policy == "meaningful_changes"
+                    and content.strip() == "NO_UPDATE"
+                )
+                else "finishing"
+            )
+        elif status in {"failed", "cancelled", "expired"}:
+            display_status = "failed"
         progress.append(
             {
                 "session_id": session_id,
@@ -395,7 +438,7 @@ async def get_session_progress(session_id, owner_id):
                 "content": "",
                 "timestamp": record["created_at"].isoformat(),
                 "updated_at": utc_now().isoformat(),
-                "status": "waiting_human" if status.value == "waiting_human" else "running",
+                "status": display_status,
                 "events": public,
                 "assistant_identity": next(
                     (

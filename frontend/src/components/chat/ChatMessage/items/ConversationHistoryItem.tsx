@@ -122,7 +122,9 @@ function HistoryQueryChip({
         />
       )}
       <span
-        className={`text-sky-600 dark:text-sky-400 ${isSearch ? "" : "font-mono"} font-medium min-w-0 truncate`}
+        className={`text-sky-600 dark:text-sky-400 ${
+          isSearch ? "" : "font-mono"
+        } font-medium min-w-0 truncate`}
       >
         {isSearch ? truncate(value, 80) : truncate(value, 36)}
       </span>

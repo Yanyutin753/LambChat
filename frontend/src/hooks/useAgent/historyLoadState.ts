@@ -1,29 +1,45 @@
 import type { Feedback, Message } from "../../types";
 
 /** Independent scheduled results can arrive after a history request's snapshot. */
-export function preserveScheduledMessages(messages: Message[], current: Message[]): Message[] {
+export function preserveScheduledMessages(
+  messages: Message[],
+  current: Message[],
+): Message[] {
   const live = new Map<string, Message>();
   for (const message of current) {
-    if (message.metadata?.scheduledTaskId &&
-      (!live.get(message.id)?.metadata?.scheduledFinal || message.metadata.scheduledFinal)) {
+    if (
+      message.metadata?.scheduledTaskId &&
+      (!live.get(message.id)?.metadata?.scheduledFinal ||
+        message.metadata.scheduledFinal)
+    ) {
       live.set(message.id, message);
     }
   }
   let changed = false;
-  const next = messages.map(message => {
+  const next = messages.map((message) => {
     const latest = live.get(message.id);
-    if (latest && (latest.metadata?.scheduledFinal === true ||
-      (message.metadata?.scheduledFinal !== true &&
-        Date.parse(String(latest.metadata?.scheduledUpdatedAt)) > Date.parse(String(message.metadata?.scheduledUpdatedAt || "1970-01-01"))))) {
+    if (
+      latest &&
+      (latest.metadata?.scheduledFinal === true ||
+        (message.metadata?.scheduledFinal !== true &&
+          Date.parse(String(latest.metadata?.scheduledUpdatedAt)) >
+            Date.parse(
+              String(message.metadata?.scheduledUpdatedAt || "1970-01-01"),
+            )))
+    ) {
       changed = true;
       return latest;
     }
     return message;
   });
-  const ids = new Set(messages.map(message => message.id));
-  const additions = [...live.values()].filter(message => !ids.has(message.id));
+  const ids = new Set(messages.map((message) => message.id));
+  const additions = [...live.values()].filter(
+    (message) => !ids.has(message.id),
+  );
   return changed || additions.length
-    ? [...next, ...additions].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+    ? [...next, ...additions].sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+      )
     : messages;
 }
 

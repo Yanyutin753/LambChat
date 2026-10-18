@@ -8,12 +8,15 @@ test.each([
   ["glm-5.3", "openai", "zhipu"],
   ["gpt-4o", "azure", "openai"],
 ])("%s uses its model brand through %s", (model, provider, brand) => {
-  expect(getModelIconUrl(model, provider)).toBe(getModelIconUrl("", undefined, brand));
+  expect(getModelIconUrl(model, provider)).toBe(
+    getModelIconUrl("", undefined, brand),
+  );
 });
 
 test("explicit icons accept picker aliases and override model inference", () => {
-  expect(getModelIconUrl("gpt-4o", "openai", "lobe:claude"))
-    .toBe(getModelIconUrl("claude-sonnet-4"));
+  expect(getModelIconUrl("gpt-4o", "openai", "lobe:claude")).toBe(
+    getModelIconUrl("claude-sonnet-4"),
+  );
   expect(getModelIconUrl("custom", " OpenAI ")).toBe(getModelIconUrl("gpt-4o"));
 });
 
@@ -22,7 +25,9 @@ test("Kimi uses its own mark instead of the Moonshot company logo", () => {
 });
 
 test("unknown models retain provider fallback and missing brands return null", () => {
-  expect(getModelIconUrl("custom", "openrouter")).toBe(getModelIconUrl("", undefined, "openrouter"));
+  expect(getModelIconUrl("custom", "openrouter")).toBe(
+    getModelIconUrl("", undefined, "openrouter"),
+  );
   expect(getModelIconUrl("custom")).toBeNull();
 });
 

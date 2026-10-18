@@ -27,6 +27,7 @@ export interface UsageLog {
   cost_usd?: number;
   cost_available?: boolean;
   usage_incomplete?: boolean;
+  unknown_usage_fields?: string[] | null;
   cache_metrics_available?: boolean;
   duration: number;
   started_at: string | null;

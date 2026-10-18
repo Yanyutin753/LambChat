@@ -230,7 +230,10 @@ export function processMessageEvent(
           messageId,
         );
       } else {
-        result.parts = mergeThinkingPart(parts, thinkingPart, isStreaming) ?? [...parts, thinkingPart];
+        result.parts = mergeThinkingPart(parts, thinkingPart, isStreaming) ?? [
+          ...parts,
+          thinkingPart,
+        ];
       }
       break;
     }
@@ -359,6 +362,15 @@ export function processMessageEvent(
           ? data.result
           : { status: data.success === false ? "rejected" : "success" };
       if (batchToolCallIds.length > 0) {
+        // Approval resumes the command; only its real tool result completes it.
+        if (data.success !== false) {
+          result.parts = markPendingToolsAwaiting(
+            parts,
+            false,
+            new Set(batchToolCallIds),
+          );
+          break;
+        }
         // 沙箱确认门整批：执行卡（等待确认→结果）按 tool_call_ids 批量转终态；
         // 确认门不合成 ask_human 卡（保持 Codex 式执行卡体验）
         let updatedParts = parts;
@@ -533,12 +545,21 @@ export function processMessageEvent(
 
     case "status": {
       if (data.stage === "agent_handoff" && data.target_agent_id === "search") {
-        if (!parts.some((part) => part.type === "agentHandoff" && part.agentId === data.target_agent_id)) {
-          result.parts = [...parts, {
-            type: "agentHandoff",
-            agentId: data.target_agent_id,
-            timestamp: data.timestamp,
-          }];
+        if (
+          !parts.some(
+            (part) =>
+              part.type === "agentHandoff" &&
+              part.agentId === data.target_agent_id,
+          )
+        ) {
+          result.parts = [
+            ...parts,
+            {
+              type: "agentHandoff",
+              agentId: data.target_agent_id,
+              timestamp: data.timestamp,
+            },
+          ];
         }
       } else if (data.stage === "memory") {
         result.parts = upsertMemoryStatusPart(parts, {
@@ -598,8 +619,17 @@ export function processMessageEvent(
 
     case "token:usage": {
       const unknownUsageFields = new Set(data.unknown_usage_fields ?? []);
-      for (const field of ["input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens"] as const) {
-        if (typeof data[field] !== "number" || !Number.isFinite(data[field]) || data[field]! < 0) {
+      for (const field of [
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_tokens",
+        "cache_read_tokens",
+      ] as const) {
+        if (
+          typeof data[field] !== "number" ||
+          !Number.isFinite(data[field]) ||
+          data[field]! < 0
+        ) {
           unknownUsageFields.add(field);
         }
       }
@@ -608,11 +638,20 @@ export function processMessageEvent(
         input_tokens: data.input_tokens || 0,
         output_tokens: data.output_tokens || 0,
         total_tokens: data.total_tokens || 0,
-        cache_creation_tokens: unknownUsageFields.has("cache_creation_tokens") ? undefined : data.cache_creation_tokens,
-        cache_read_tokens: unknownUsageFields.has("cache_read_tokens") ? undefined : data.cache_read_tokens,
-        usage_incomplete: data.usage_incomplete !== false || unknownUsageFields.size > 0,
-        ...(unknownUsageFields.size > 0 ? { unknown_usage_fields: [...unknownUsageFields] } : {}),
-        ...(data.input_includes_cache === true ? { input_includes_cache: true } : {}),
+        cache_creation_tokens: unknownUsageFields.has("cache_creation_tokens")
+          ? undefined
+          : data.cache_creation_tokens,
+        cache_read_tokens: unknownUsageFields.has("cache_read_tokens")
+          ? undefined
+          : data.cache_read_tokens,
+        usage_incomplete:
+          data.usage_incomplete !== false || unknownUsageFields.size > 0,
+        ...(unknownUsageFields.size > 0
+          ? { unknown_usage_fields: [...unknownUsageFields] }
+          : {}),
+        ...(data.input_includes_cache === true
+          ? { input_includes_cache: true }
+          : {}),
         model_id: data.model_id,
         model: data.model,
         cost_usd: data.cost_usd,

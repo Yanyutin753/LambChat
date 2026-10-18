@@ -11,7 +11,9 @@ import pytest
 @pytest.mark.parametrize("agent", ["search_agent", "team_agent"])
 @pytest.mark.parametrize("failure_stage", ["close", "flush"])
 @pytest.mark.parametrize("error_type", [RuntimeError, asyncio.CancelledError])
-async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(agent, failure_stage, error_type):
+async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
+    agent, failure_stage, error_type
+):
     source = Path(__file__).parents[3] / "src" / "agents" / agent / "nodes.py"
     tree = ast.parse(source.read_text())
     cleanup = next(
@@ -39,28 +41,29 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(agent, f
     namespace = {
         "asyncio": asyncio,
         "subagent_sessions": SimpleNamespace(close=AsyncMock()),
-        "event_processor": SimpleNamespace(drain_activity_references=AsyncMock(), flush=AsyncMock()),
+        "event_processor": SimpleNamespace(
+            drain_activity_references=AsyncMock(), flush=AsyncMock()
+        ),
         "emit_token_usage": AsyncMock(),
         "presenter": object(),
         "run_started_at": 0,
         "model_id": "model",
         "selected_model": "model",
     }
-    target = namespace["subagent_sessions"].close if failure_stage == "close" else namespace["event_processor"].flush
+    target = (
+        namespace["subagent_sessions"].close
+        if failure_stage == "close"
+        else namespace["event_processor"].flush
+    )
     target.side_effect = error_type("interrupted cleanup")
-    exec(compile(ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[])), str(source), "exec"), namespace)
+    exec(
+        compile(
+            ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[])),
+            str(source),
+            "exec",
+        ),
+        namespace,
+    )
     with pytest.raises(error_type, match="interrupted cleanup"):
         await namespace["cleanup"]()
     namespace["emit_token_usage"].assert_awaited_once()
-
-
-async def test_inner_usage_emission_claims_ownership_only_after_an_event_is_emitted():
-    from src.agents.core.node_utils import emit_token_usage
-
-    presenter = SimpleNamespace()
-    processor = SimpleNamespace(emit_token_usage=AsyncMock(return_value=False))
-    await emit_token_usage(processor, presenter, 0)
-    assert not getattr(presenter, "_nested_token_usage_recorded", False)
-    processor.emit_token_usage.return_value = True
-    await emit_token_usage(processor, presenter, 0)
-    assert presenter._nested_token_usage_recorded is True

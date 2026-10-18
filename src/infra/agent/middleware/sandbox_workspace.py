@@ -13,6 +13,7 @@ from langchain.agents.middleware.types import (
 )
 
 from src.infra.agent.middleware._helpers import (
+    _SANDBOX_WORKSPACE_FRAME,
     _append_system_text_block,
     _normalize_prompt_text,
     _system_message_to_blocks,
@@ -23,7 +24,7 @@ from src.infra.memory.control_frames import escape_control_frame_tags
 class SandboxWorkspaceMiddleware(AgentMiddleware):
     """Keep per-session paths out of the leading tool definitions."""
 
-    _FRAME_MARKER = "<sandbox_workspace_context>"
+    _FRAME_MARKER = _SANDBOX_WORKSPACE_FRAME
 
     def __init__(self, *, policy_text: str) -> None:
         super().__init__()

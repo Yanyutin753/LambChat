@@ -187,7 +187,6 @@ class SearchAgent(BaseGraphAgent):
 
         # 构建 config
         agent_options = kwargs.get("agent_options", {})
-        logger.info(f"[SearchAgent] agent_options: {agent_options}")
 
         langsmith_context = {
             "agent_options": agent_options,

@@ -256,8 +256,9 @@ async def list_task_sessions(
 @router.get("/session/{session_id}/progress")
 async def get_scheduled_session_progress(
     session_id: str,
+    run_id: list[str] | None = Query(None, max_length=100),
     user: TokenPayload = Depends(require_permissions(Permission.CHAT_WRITE.value)),
 ):
     from src.infra.scheduler.results import get_session_progress
 
-    return {"progress": await get_session_progress(session_id, user.sub)}
+    return {"progress": await get_session_progress(session_id, user.sub, run_ids=run_id or [])}

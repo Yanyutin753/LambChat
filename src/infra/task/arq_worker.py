@@ -310,6 +310,16 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
                 )
             await _run_agent_payload(payload_store, payload, dispatch_id, run_id)
     except GoalRunAdmissionError:
+        if payload.get("recovery_claim"):
+            from .recovery import restore_recovery_claim
+
+            await restore_recovery_claim(
+                get_task_manager().storage,
+                payload["session_id"],
+                run_id,
+                payload["recovery_claim"],
+                recoverable=False,
+            )
         await payload_store.delete(dispatch_id)
         logger.info("Discarded stale Goal admission: run_id=%s", run_id)
     except GoalRunAlreadyOwnedError:
@@ -318,6 +328,20 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             logger.info("Deferred task resume while execution lease is owned: run_id=%s", run_id)
             raise Retry(defer=GOAL_LEASE_TTL_SECONDS)
         logger.info("Ignored duplicate Goal runner: run_id=%s", run_id)
+    except Retry:
+        raise
+    except Exception:
+        if payload.get("recovery_claim"):
+            from .recovery import restore_recovery_claim
+
+            await restore_recovery_claim(
+                get_task_manager().storage,
+                payload["session_id"],
+                run_id,
+                payload["recovery_claim"],
+                recoverable=True,
+            )
+        raise
 
 
 async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: str) -> None:
@@ -359,9 +383,10 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
                 await validate_scheduled_run_admission(
                     payload["session_id"], payload["user_id"], run_id
                 )
-            await task_executor._update_session_status(
-                payload["session_id"], TaskStatus.PENDING, run_id=run_id, expected_run_id=run_id
-            )
+            if not interrupted_resume:
+                await task_executor._update_session_status(
+                    payload["session_id"], TaskStatus.PENDING, run_id=run_id, expected_run_id=run_id
+                )
 
     hitl_slot_acquired = False
     resume_slot_acquired = False
@@ -397,18 +422,32 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
         if not await TaskHeartbeat().is_stale(run_id):
             logger.info("Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id)
             raise Retry(defer=5)
-        if not fenced_resume:
-            admitted = await task_manager.storage.claim_run_recovery(
-                payload["session_id"],
-                run_id,
-                TaskStateMachine().build_metadata(TaskStatus.PENDING, run_id=run_id),
-            )
-            if not admitted:
-                # Heartbeat I/O and queue delivery can outlive this run. Discard
-                # only this dispatch without disturbing its completed/new owner.
-                await payload_store.delete(dispatch_id)
-                logger.info("Discarded stale interrupted resume: run_id=%s", run_id)
-                return
+        admitted = await task_manager.storage.claim_run_recovery(
+            payload["session_id"],
+            run_id,
+            {
+                **TaskStateMachine().build_metadata(TaskStatus.PENDING, run_id=run_id),
+                **(
+                    {
+                        key: payload["recovery_claim"]["metadata"].get(key)
+                        for key in ("task_error", "task_error_code")
+                    }
+                    if payload.get("recovery_claim")
+                    else {}
+                ),
+            },
+            **(
+                {"expected_recovery_token": payload["recovery_claim"]["token"]}
+                if payload.get("recovery_claim")
+                else {}
+            ),
+        )
+        if not admitted:
+            # Heartbeat I/O and queue delivery can outlive this run. Discard
+            # only this dispatch without disturbing its completed/new owner.
+            await payload_store.delete(dispatch_id)
+            logger.info("Discarded stale interrupted resume: run_id=%s", run_id)
+            return
         await admit_goal_resume()
         limiter = get_concurrency_limiter()
         if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
@@ -470,6 +509,7 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
             attachment_references_claimed=bool(payload.get("attachment_references_claimed", False)),
             hitl_resume=payload.get("hitl_resume"),
             interrupted_resume=interrupted_resume,
+            recovery_claim=payload.get("recovery_claim"),
             base_url=str(payload.get("base_url") or ""),
         )
         watchdog_timeout = (

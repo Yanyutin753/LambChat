@@ -100,7 +100,8 @@ export function RankingList({
                   {t("usage.ranking.countSuffix", { count: item.requests })}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  {(item.cost_usd !== undefined || (item.unpriced_requests ?? 0) > 0) && (
+                  {(item.cost_usd !== undefined ||
+                    (item.unpriced_requests ?? 0) > 0) && (
                     <span className="tabular-nums">
                       {fmtCostUsd(item.cost_usd, true, {
                         language: i18n.language,
@@ -122,7 +123,9 @@ export function RankingList({
                     {t("usage.cacheRead")}: {fmt(item.cache_read_tokens)}
                   </span>
                   {pct(item.cache_read_share) === "—" && (
-                    <span className="basis-full">{t("usage.cacheRateUnknown")}</span>
+                    <span className="basis-full">
+                      {t("usage.cacheRateUnknown")}
+                    </span>
                   )}
                 </div>
               )}
@@ -179,7 +182,10 @@ export function DistributionList({
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-11 font-medium text-theme-text-secondary sm:text-12">
                     {nameKeyPrefix
-                      ? t(`${nameKeyPrefix}.${item.id}`, item.name || item.id || "-")
+                      ? t(
+                          `${nameKeyPrefix}.${item.id}`,
+                          item.name || item.id || "-",
+                        )
                       : item.name || item.id || "-"}
                   </span>
                   <span className="shrink-0 text-11 font-bold tabular-nums text-theme-text sm:text-12">

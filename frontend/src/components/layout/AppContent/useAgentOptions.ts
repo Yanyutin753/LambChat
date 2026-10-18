@@ -2,8 +2,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentInfo } from "../../../types";
 export const SANDBOX_ONLINE_CHANGED_EVENT = "sandbox-online-changed";
 
-import { DEFAULT_THINKING_LEVEL_STORAGE_KEY, normalizeThinkingOptionValue } from "../../../utils/thinkingLevel";
-export { DEFAULT_THINKING_LEVEL_STORAGE_KEY, normalizeThinkingOptionValue } from "../../../utils/thinkingLevel";
+import {
+  DEFAULT_THINKING_LEVEL_STORAGE_KEY,
+  normalizeThinkingOptionValue,
+} from "../../../utils/thinkingLevel";
+export {
+  DEFAULT_THINKING_LEVEL_STORAGE_KEY,
+  normalizeThinkingOptionValue,
+} from "../../../utils/thinkingLevel";
 
 const THINKING_LEVEL_OPTION_DEFS = [
   { value: "low", label_key: "agentOptions.enableThinking.options.low" },
@@ -41,7 +47,6 @@ export function injectSandboxOption(
     },
   };
 }
-
 
 export function normalizeAgentOptionValues(
   values?: Record<string, boolean | string | number>,
@@ -410,4 +415,24 @@ export function useAgentOptions(
     restoreAgentOptions,
     resetAgentOptionDefaults,
   };
+}
+
+const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
+
+export function useScheduledTaskDefaults(
+  currentAgent: string,
+  currentModelId: string,
+  currentModelValue: string,
+) {
+  useEffect(() => {
+    if (!currentAgent && !currentModelId && !currentModelValue) return;
+    localStorage.setItem(
+      SCHEDULED_TASK_DEFAULTS_KEY,
+      JSON.stringify({
+        agentId: currentAgent,
+        modelId: currentModelId,
+        modelValue: currentModelValue,
+      }),
+    );
+  }, [currentAgent, currentModelId, currentModelValue]);
 }

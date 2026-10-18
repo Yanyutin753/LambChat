@@ -117,10 +117,7 @@ export function ChatInputSteerQueue({
   if (items.length === 0) return null;
 
   return (
-    <div
-      className="chat-content-column"
-      aria-label={t("chat.steerQueue")}
-    >
+    <div className="chat-content-column" aria-label={t("chat.steerQueue")}>
       <div className="-mb-5 rounded-t-3xl border border-b-0 border-[var(--theme-border)] bg-[var(--theme-bg-card)] pb-5 text-[var(--theme-text-secondary)]">
         {items.map((item) => (
           <QueueRow key={item.id} item={item} {...actions} />

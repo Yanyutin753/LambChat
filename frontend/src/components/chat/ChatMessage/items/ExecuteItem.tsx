@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import {
   Terminal,
+  Clock,
   MonitorCog,
   SquareTerminal,
   CheckCircle2,
@@ -28,12 +29,24 @@ function ExecuteStatusLine({
   status,
   exitCode,
   truncated,
+  awaitingConfirmation,
 }: {
   status: CollapsibleStatus;
   exitCode: number | null;
   truncated: boolean;
+  awaitingConfirmation?: boolean;
 }) {
   const { t } = useTranslation();
+  if (awaitingConfirmation)
+    return (
+      <div
+        role="status"
+        className="flex min-h-9 items-center gap-2 text-13 text-theme-text-secondary"
+      >
+        <Clock size={14} />
+        {t("chat.message.waitingConfirm")}
+      </div>
+    );
   if (status === "idle") return null;
   const Icon =
     status === "success"
@@ -83,6 +96,7 @@ function ExecuteDetail({
   result,
   success,
   isPending,
+  awaitingConfirmation,
   cancelled,
   startedAt: _startedAt,
   completedAt: _completedAt,
@@ -91,7 +105,13 @@ function ExecuteDetail({
   const command = (args.command as string) || "";
   const timeout = args.timeout as number | undefined;
   const parsed = useMemo(() => parseExecuteResult(result), [result]);
-  const status = deriveExecuteStatus({ isPending, cancelled, success, result });
+  const status = deriveExecuteStatus({
+    isPending,
+    awaitingConfirmation,
+    cancelled,
+    success,
+    result,
+  });
 
   return (
     <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
@@ -146,6 +166,7 @@ function ExecuteDetail({
         status={status}
         exitCode={parsed.exitCode}
         truncated={parsed.truncated}
+        awaitingConfirmation={isPending && awaitingConfirmation}
       />
     </div>
   );
@@ -157,6 +178,7 @@ const ExecuteItem = memo(function ExecuteItem({
   result,
   success,
   isPending,
+  awaitingConfirmation,
   cancelled,
   startedAt,
   completedAt,
@@ -166,6 +188,7 @@ const ExecuteItem = memo(function ExecuteItem({
   result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
+  awaitingConfirmation?: boolean;
   cancelled?: boolean;
   startedAt?: string;
   completedAt?: string;
@@ -180,7 +203,13 @@ const ExecuteItem = memo(function ExecuteItem({
   const parsed = useMemo(() => parseExecuteResult(result), [result]);
 
   const canExpand = !!command || !!parsed.output;
-  const status = deriveExecuteStatus({ isPending, cancelled, success, result });
+  const status = deriveExecuteStatus({
+    isPending,
+    awaitingConfirmation,
+    cancelled,
+    success,
+    result,
+  });
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
@@ -188,7 +217,7 @@ const ExecuteItem = memo(function ExecuteItem({
       ? `${t("chat.message.toolExecute")} ${command}`
       : t("chat.message.toolExecute"),
     args,
-    { isPending, result },
+    { isPending: isPending && !awaitingConfirmation, result },
   );
 
   const detailContent = canExpand && (
@@ -197,6 +226,7 @@ const ExecuteItem = memo(function ExecuteItem({
       result={result}
       success={success}
       isPending={isPending}
+      awaitingConfirmation={awaitingConfirmation}
       cancelled={cancelled}
       startedAt={startedAt}
       completedAt={completedAt}
@@ -207,7 +237,18 @@ const ExecuteItem = memo(function ExecuteItem({
     <>
       <CollapsiblePill
         status={status}
-        icon={<Terminal size={12} className="shrink-0 opacity-50" />}
+        icon={
+          isPending && awaitingConfirmation ? (
+            <Clock size={12} className="shrink-0 opacity-50" />
+          ) : (
+            <Terminal size={12} className="shrink-0 opacity-50" />
+          )
+        }
+        suffix={
+          isPending && awaitingConfirmation
+            ? t("chat.message.waitingConfirm")
+            : undefined
+        }
         label={label}
         animatedDots={isStreamingLabel}
         variant="tool"
@@ -266,6 +307,7 @@ const ExecuteItem = memo(function ExecuteItem({
               status={status}
               exitCode={parsed.exitCode}
               truncated={parsed.truncated}
+              awaitingConfirmation={isPending && awaitingConfirmation}
             />
           </ToolInlineDetails>
         )}

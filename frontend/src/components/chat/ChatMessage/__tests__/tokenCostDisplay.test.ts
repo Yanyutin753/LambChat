@@ -22,6 +22,7 @@ function usage(overrides: Partial<TokenUsagePart> = {}): TokenUsagePart {
     cache_read_tokens: 200_000,
     cache_creation_tokens: 100_000,
     usage_incomplete: false,
+    input_includes_cache: true,
     cost_usd: 0.0371,
     cost_breakdown: {
       input: 0.007,
@@ -50,12 +51,24 @@ describe("hasPricedCost", () => {
   });
 
   test("missing cache metrics are unknown even with a stored legacy estimate", () => {
-    expect(hasPricedCost(usage({ cache_creation_tokens: undefined }))).toBe(false);
+    expect(hasPricedCost(usage({ cache_creation_tokens: undefined }))).toBe(
+      false,
+    );
   });
 
   test("positive cache usage with an explicitly unknown price is not free", () => {
-    expect(hasPricedCost(usage({ cost_rates: { input: 2.5, output: 10,
-      cache_read: null, cache_write: 0 } }))).toBe(false);
+    expect(
+      hasPricedCost(
+        usage({
+          cost_rates: {
+            input: 2.5,
+            output: 10,
+            cache_read: null,
+            cache_write: 0,
+          },
+        }),
+      ),
+    ).toBe(false);
   });
 
   test("legacy counters without completeness evidence are not a certified cost", () => {
@@ -144,4 +157,9 @@ describe("formatCostDetailRow", () => {
     expect(formatted.cost).toBe("—");
     expect(formatted.rate).toBeNull();
   });
+});
+
+test("an old cost estimate needs an inclusive input certificate", () => {
+  expect(hasPricedCost(usage({ input_includes_cache: undefined }))).toBe(false);
+  expect(hasPricedCost(usage({ input_includes_cache: false }))).toBe(false);
 });

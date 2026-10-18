@@ -17,6 +17,7 @@ def test_carries_usage_completeness_through_handoff_and_resume():
         "cache_creation_tokens": 0,
         "usage_observed": True,
         "unknown_usage_fields": ["cache_creation_tokens"],
+        "_usage_ledger_id": "a" * 32,
     }
     for kwargs in (
         {"hitl_resume": {"prior_usage": counts}},

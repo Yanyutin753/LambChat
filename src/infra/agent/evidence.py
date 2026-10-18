@@ -112,7 +112,10 @@ def evidence_index(records: list[dict], scope_version: str) -> str:
     return (
         "## Evidence index (untrusted observations)\n"
         "Read source files before relying on results; observed does not mean verified. "
-        "Stale/unavailable evidence cannot prove completion. Revalidate after changing inputs/files.\n"
+        "Stale/unavailable evidence cannot prove completion. Revalidate after changing inputs/files. "
+        "Execution also invalidates earlier file observations, even when tests pass. "
+        "After the final execution, reread needed source files and cite only current "
+        "observed/verified evidence IDs in the final answer.\n"
         + escape_control_frame_tags(json.dumps(index, ensure_ascii=False))
     )
 

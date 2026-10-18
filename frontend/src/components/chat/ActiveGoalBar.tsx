@@ -1,6 +1,15 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useEffect, useId, useRef, useState } from "react";
-import { Target, X, Pause, Play, Trash2, Maximize2, Minimize2, Pencil } from "lucide-react";
+import {
+  Target,
+  X,
+  Pause,
+  Play,
+  Trash2,
+  Maximize2,
+  Minimize2,
+  Pencil,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { PersistentGoal } from "../../services/api/session";
 import { getGoalControlScope } from "../../hooks/useAgent/goalControlScope";
@@ -13,7 +22,11 @@ interface ActiveGoalBarProps {
   goal: ActiveGoalSpec | null;
   persistentGoal?: PersistentGoal | null;
   onClearPersistentGoal?: () => void;
-  onUpdatePersistentGoal?: (objective: string, rubric: string, expectedRevision: number) => Promise<boolean>;
+  onUpdatePersistentGoal?: (
+    objective: string,
+    rubric: string,
+    expectedRevision: number,
+  ) => Promise<boolean>;
   persistentDisabled?: boolean;
   onPause?: () => void;
   onResume?: () => void;
@@ -192,10 +205,13 @@ function PersistentGoalStrip({
     setEditing(true);
   };
   const saveEdit = async () => {
-    if (!onUpdate || saving || !draftObjective.trim() || !draftRubric.trim()) return;
+    if (!onUpdate || saving || !draftObjective.trim() || !draftRubric.trim())
+      return;
     setSaving(true);
     try {
-      if (await onUpdate(draftObjective.trim(), draftRubric.trim(), editRevision))
+      if (
+        await onUpdate(draftObjective.trim(), draftRubric.trim(), editRevision)
+      )
         setEditing(false);
     } finally {
       setSaving(false);
@@ -203,8 +219,7 @@ function PersistentGoalStrip({
   };
   const status = goal.status === "budget_limited" ? "paused" : goal.status;
   const canPause = status === "active" || status === "waiting_human";
-  const canResume =
-    status === "paused" || status === "blocked";
+  const canResume = status === "paused" || status === "blocked";
   const [now, setNow] = useState(Date.now());
   const startedAt = runGoal?.started_at;
   const endedAt = runGoal?.ended_at;
@@ -218,7 +233,8 @@ function PersistentGoalStrip({
       ? Math.max(
           0,
           Math.floor(
-            ((endedAt ? Date.parse(endedAt) : now) - Date.parse(startedAt)) / 1000,
+            ((endedAt ? Date.parse(endedAt) : now) - Date.parse(startedAt)) /
+              1000,
           ),
         )
       : NaN;
@@ -247,15 +263,20 @@ function PersistentGoalStrip({
       }
     >
       <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-1.5 font-medium text-theme-text-secondary">
-        <Target className="size-3.5 shrink-0 text-theme-text-tertiary" aria-hidden="true" />
+        <Target
+          className="size-3.5 shrink-0 text-theme-text-tertiary"
+          aria-hidden="true"
+        />
         {t("chat.goalPersistent.label", "Goal")}
       </span>
       <span
         id={objectiveId}
         className={`min-w-0 text-theme-text-secondary ${
-          editing ? "hidden" : expanded
-            ? "col-span-3 row-start-2 max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-theme-border-subtle py-2 text-14 leading-relaxed [overflow-wrap:anywhere]"
-            : "col-start-2 row-start-1 truncate"
+          editing
+            ? "hidden"
+            : expanded
+              ? "col-span-3 row-start-2 max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-theme-border-subtle py-2 text-14 leading-relaxed [overflow-wrap:anywhere]"
+              : "col-start-2 row-start-1 truncate"
         }`}
         title={expanded ? undefined : goal.objective}
       >
@@ -270,9 +291,17 @@ function PersistentGoalStrip({
           {duration}
         </span>
         {onUpdate && (
-          <button type="button" onClick={beginEdit} disabled={disabled || saving}
-            aria-label={t("chat.goalPersistent.edit")} title={t("chat.goalPersistent.edit")} className={buttonClass}>
-            <InteractiveIcon><Pencil className="size-3.5" aria-hidden="true" /></InteractiveIcon>
+          <button
+            type="button"
+            onClick={beginEdit}
+            disabled={disabled || saving}
+            aria-label={t("chat.goalPersistent.edit")}
+            title={t("chat.goalPersistent.edit")}
+            className={buttonClass}
+          >
+            <InteractiveIcon>
+              <Pencil className="size-3.5" aria-hidden="true" />
+            </InteractiveIcon>
           </button>
         )}
         {onClear && (
@@ -319,7 +348,10 @@ function PersistentGoalStrip({
         )}
         <button
           type="button"
-          onClick={() => { setEditing(false); setExpanded((value) => !value); }}
+          onClick={() => {
+            setEditing(false);
+            setExpanded((value) => !value);
+          }}
           aria-label={t(expanded ? "common.collapse" : "common.expand")}
           title={t(expanded ? "common.collapse" : "common.expand")}
           aria-expanded={expanded}
@@ -336,26 +368,57 @@ function PersistentGoalStrip({
         </button>
       </div>
       {editing && (
-        <div className="col-span-3 row-start-2 space-y-3 border-t border-theme-border-subtle py-3"
-          onKeyDown={event => {
+        <div
+          className="col-span-3 row-start-2 space-y-3 border-t border-theme-border-subtle py-3"
+          onKeyDown={(event) => {
             if (event.key === "Escape" && !saving) {
-              event.preventDefault(); event.stopPropagation(); setEditing(false);
+              event.preventDefault();
+              event.stopPropagation();
+              setEditing(false);
             }
-          }}>
+          }}
+        >
           <label className="block space-y-1 text-theme-text-secondary">
             <span>{t("chat.goalPersistent.label")}</span>
-            <Textarea autoFocus rows={3} maxLength={8000} value={draftObjective}
-              disabled={saving} onChange={event => setDraftObjective(event.target.value)} />
+            <Textarea
+              autoFocus
+              rows={3}
+              maxLength={8000}
+              value={draftObjective}
+              disabled={saving}
+              onChange={(event) => setDraftObjective(event.target.value)}
+            />
           </label>
           <label className="block space-y-1 text-theme-text-secondary">
             <span>{t("chat.goalPersistent.criteria")}</span>
-            <Textarea rows={2} maxLength={16000} value={draftRubric}
-              disabled={saving} onChange={event => setDraftRubric(event.target.value)} />
+            <Textarea
+              rows={2}
+              maxLength={16000}
+              value={draftRubric}
+              disabled={saving}
+              onChange={(event) => setDraftRubric(event.target.value)}
+            />
           </label>
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" disabled={saving} onClick={() => setEditing(false)}>{t("common.cancel")}</Button>
-            <Button size="sm" variant="primary" loading={saving}
-              disabled={disabled || !draftObjective.trim() || !draftRubric.trim()} onClick={() => void saveEdit()}>{t("common.save")}</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={saving}
+              disabled={
+                disabled || !draftObjective.trim() || !draftRubric.trim()
+              }
+              onClick={() => void saveEdit()}
+            >
+              {t("common.save")}
+            </Button>
           </div>
         </div>
       )}
@@ -473,23 +536,24 @@ export function ActiveGoalBar(props: ActiveGoalBarProps) {
   const scope = getGoalControlScope(goal, persistentGoal);
   return (
     <>
-      {persistentGoal && !["cleared", "completed"].includes(persistentGoal.status) && (
-        <PersistentGoalStrip
-          key={persistentGoal.id}
-          goal={persistentGoal}
-          runGoal={goal?._persistent_id === persistentGoal.id ? goal : null}
-          onUpdate={props.onUpdatePersistentGoal}
-          onPause={props.onPause}
-          onResume={props.onResume}
-          onClear={
-            props.onClearPersistentGoal ??
-            (scope === "persistent" ? props.onClear : undefined)
-          }
-          disabled={props.persistentDisabled ?? disabled}
-          embedded={embedded}
-          className={className}
-        />
-      )}
+      {persistentGoal &&
+        !["cleared", "completed"].includes(persistentGoal.status) && (
+          <PersistentGoalStrip
+            key={persistentGoal.id}
+            goal={persistentGoal}
+            runGoal={goal?._persistent_id === persistentGoal.id ? goal : null}
+            onUpdate={props.onUpdatePersistentGoal}
+            onPause={props.onPause}
+            onResume={props.onResume}
+            onClear={
+              props.onClearPersistentGoal ??
+              (scope === "persistent" ? props.onClear : undefined)
+            }
+            disabled={props.persistentDisabled ?? disabled}
+            embedded={embedded}
+            className={className}
+          />
+        )}
       {scope === "ordinary" && (
         <OrdinaryGoalBar {...props} goal={goal ?? null} />
       )}

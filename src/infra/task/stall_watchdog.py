@@ -25,8 +25,19 @@ from collections.abc import AsyncIterable, AsyncIterator, Callable
 from typing import TypeVar
 
 from src.infra.task.exceptions import TaskStalledError
+from src.kernel.config import settings
 
 T = TypeVar("T")
+_DEFAULT_RUN_STALL_TIMEOUT_SECONDS = 3600
+
+
+def run_stall_timeout_seconds() -> float:
+    """Watchdog deadline between executor events; 0/negative disables it."""
+    value = getattr(settings, "TASK_RUN_STALL_TIMEOUT", _DEFAULT_RUN_STALL_TIMEOUT_SECONDS)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return _DEFAULT_RUN_STALL_TIMEOUT_SECONDS
 
 
 def _probe_recent(progress_probe: Callable[[], float], timeout: float) -> bool:

@@ -68,7 +68,10 @@ import { useHistoryTracePagination } from "./useAgent/historyTracePagination";
 import { extractSessionConfig } from "./useAgent/sessionConfig";
 import { getGoalControlScope } from "./useAgent/goalControlScope";
 import { selectPersistentGoal } from "./useAgent/persistentGoalState";
-import { usePersistentGoalRuntime } from "./useAgent/persistentGoalRuntime";
+import {
+  submitPersistentGoalCommand,
+  usePersistentGoalRuntime,
+} from "./useAgent/persistentGoalRuntime";
 import { useScheduledResults } from "./useAgent/useScheduledResults";
 import { useAutoModeSetting } from "./useAgent/autoModeSetting";
 
@@ -154,6 +157,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const streamVersionRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
+  const historyTargetRunIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const accountIdRef = useRef(user?.id);
   accountIdRef.current = user?.id;
@@ -166,7 +170,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     messages: Message[];
   } | null>(null);
   const sendMessageRef = useRef<
-    | ((content: string, attachments?: MessageAttachment[], callbacks?: ChatSubmissionCallbacks) => Promise<void>)
+    | ((
+        content: string,
+        attachments?: MessageAttachment[],
+        callbacks?: ChatSubmissionCallbacks,
+      ) => Promise<void>)
     | null
   >(null);
   const followUpSteerIdsRef = useRef(new Set<string>());
@@ -184,15 +192,33 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
-  const discardQuietSnapshot = useCallback((target: string, id: string, accountId: string) => {
-    if (accountIdRef.current !== accountId) return;
-    if (sessionIdRef.current === target) messagesRef.current = messagesRef.current.filter(message => message.id !== id);
-    const snapshot = historyMessagesSnapshotRef.current;
-    if (snapshot?.sourceSessionId === target && snapshot.accountId === accountId &&
-      snapshot.requestId === loadHistoryRequestIdRef.current)
-      snapshot.messages = snapshot.messages.filter(message => message.id !== id);
-  }, []);
-  useScheduledResults(sessionId, user?.id, setMessages, messages, discardQuietSnapshot, options);
+  const discardQuietSnapshot = useCallback(
+    (target: string, id: string, accountId: string) => {
+      if (accountIdRef.current !== accountId) return;
+      if (sessionIdRef.current === target)
+        messagesRef.current = messagesRef.current.filter(
+          (message) => message.id !== id,
+        );
+      const snapshot = historyMessagesSnapshotRef.current;
+      if (
+        snapshot?.sourceSessionId === target &&
+        snapshot.accountId === accountId &&
+        snapshot.requestId === loadHistoryRequestIdRef.current
+      )
+        snapshot.messages = snapshot.messages.filter(
+          (message) => message.id !== id,
+        );
+    },
+    [],
+  );
+  useScheduledResults(
+    sessionId,
+    user?.id,
+    setMessages,
+    messages,
+    discardQuietSnapshot,
+    options,
+  );
   const steerQueue = useSteerQueue({
     sessionIdRef,
     removeDeferredSteer,
@@ -368,6 +394,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
+      if (targetRunId || sessionIdRef.current !== targetSessionId)
+        historyTargetRunIdRef.current = targetRunId ?? null;
       const supersedesSameSessionLoad =
         sessionIdRef.current === targetSessionId && isLoadingHistoryRef.current;
       if (
@@ -381,11 +409,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       const accountId = accountIdRef.current;
       const sourceSessionId = sessionIdRef.current;
       const snapshotMessages =
-        messagesRef.current.every(message => Boolean(message.metadata?.scheduledTaskId)) &&
+        messagesRef.current.every((message) =>
+          Boolean(message.metadata?.scheduledTaskId),
+        ) &&
         previousSnapshot?.requestId === loadHistoryRequestIdRef.current &&
         previousSnapshot.sourceSessionId === sessionIdRef.current &&
         previousSnapshot.accountId === accountId
-          ? preserveScheduledMessages(previousSnapshot.messages, messagesRef.current)
+          ? preserveScheduledMessages(
+              previousSnapshot.messages,
+              messagesRef.current,
+            )
           : messagesRef.current;
       sendSeqRef.current += 1;
       submitInFlightRef.current = false;
@@ -395,7 +428,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       const requestId = loadHistoryRequestIdRef.current;
       setHistoryLoadGeneration(requestId);
       const isStaleHistoryLoad = () =>
-        requestId !== loadHistoryRequestIdRef.current || signal.aborted || accountIdRef.current !== accountId;
+        requestId !== loadHistoryRequestIdRef.current ||
+        signal.aborted ||
+        accountIdRef.current !== accountId;
 
       historyAbortControllerRef.current?.abort();
       const historyAbortController = new AbortController();
@@ -498,9 +533,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           };
         }
 
-        const targetChatRunId = eventsData.events.some(event =>
-          event.run_id === targetRunId && event.event_type === "scheduled:result",
-        ) ? undefined : targetRunId;
+        const targetChatRunId = eventsData.events.some(
+          (event) =>
+            event.run_id === targetRunId &&
+            event.event_type === "scheduled:result",
+        )
+          ? undefined
+          : targetRunId;
 
         if (sessionData) {
           restoreSteerMessages(targetSessionId);
@@ -550,17 +589,24 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           setActiveGoal(restoredGoal);
           setGoalsByRunId(restoredGoalsByRun);
           const primarySnapshot = historyMessagesSnapshotRef.current;
-          setMessages(previous => isStaleHistoryLoad() ? previous : preserveScheduledMessages(
-            reconstructedMessages,
-            sourceSessionId === targetSessionId ? [...(primarySnapshot?.messages || []), ...previous] : [],
-          ));
+          setMessages((previous) =>
+            isStaleHistoryLoad()
+              ? previous
+              : preserveScheduledMessages(
+                  reconstructedMessages,
+                  sourceSessionId === targetSessionId
+                    ? [...(primarySnapshot?.messages || []), ...previous]
+                    : [],
+                ),
+          );
           if (historyMessagesSnapshotRef.current?.requestId === requestId) {
             historyMessagesSnapshotRef.current = null;
           }
 
           // Show full primary history before optional reads; keep hydration before SSE.
           const [pendingSteersData, persistentSnapshot] = await Promise.all([
-            pendingSteersPromise, persistentGoalPromise,
+            pendingSteersPromise,
+            persistentGoalPromise,
           ]);
           if (isStaleHistoryLoad()) return null;
           hydrateSteers(pendingSteersData.items);
@@ -572,14 +618,20 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           let streamingMessageId: string | null = null;
           if (streamRunId) {
             const prepared = prepareMessagesForRunningRun(
-              reconstructedMessages, streamRunId, undefined, messagesRef.current,
+              reconstructedMessages,
+              streamRunId,
+              undefined,
+              messagesRef.current,
               persistentSnapshot?.goal?.current_run_id === streamRunId,
             );
             reconstructedMessages = prepared.messages;
             streamingMessageId = prepared.streamingMessageId;
             setCurrentRunId(streamRunId);
-            setMessages(previous => isStaleHistoryLoad() ? previous
-              : preserveScheduledMessages(reconstructedMessages, previous));
+            setMessages((previous) =>
+              isStaleHistoryLoad()
+                ? previous
+                : preserveScheduledMessages(reconstructedMessages, previous),
+            );
           }
           setPersistentGoal((previous) =>
             selectPersistentGoal(
@@ -690,16 +742,24 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         return;
       }
       const historySnapshot = historyMessagesSnapshotRef.current;
+      historyTargetRunIdRef.current = null;
       historyMessagesSnapshotRef.current = null;
       if (
         historySnapshot?.requestId === loadHistoryRequestIdRef.current &&
         historySnapshot.sourceSessionId === sessionIdRef.current &&
         historySnapshot.targetSessionId === sessionIdRef.current &&
         historySnapshot.accountId === accountIdRef.current &&
-        messagesRef.current.every(message => Boolean(message.metadata?.scheduledTaskId))
+        messagesRef.current.every((message) =>
+          Boolean(message.metadata?.scheduledTaskId),
+        )
       ) {
-        messagesRef.current = preserveScheduledMessages(historySnapshot.messages, messagesRef.current);
-        setMessages(previous => preserveScheduledMessages(messagesRef.current, previous));
+        messagesRef.current = preserveScheduledMessages(
+          historySnapshot.messages,
+          messagesRef.current,
+        );
+        setMessages((previous) =>
+          preserveScheduledMessages(messagesRef.current, previous),
+        );
       }
       // 顶掉在途 loadHistory：同步释放其加载标志，否则该加载被 stale 后
       // 无人复位，isLoadingHistory 会永久卡死
@@ -709,8 +769,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsLoadingHistory(false);
       isLoadingHistoryRef.current = false;
 
-      const command = parseFrontendGoalCommand(content) ??
-        (goalModeEnabled && !["active", "waiting_human"].includes(persistentGoal?.status ?? "")
+      const command =
+        parseFrontendGoalCommand(content) ??
+        (goalModeEnabled &&
+        !["active", "waiting_human"].includes(persistentGoal?.status ?? "")
           ? parseFrontendGoalCommand(`/goal ${content}`)
           : null);
       if (
@@ -721,112 +783,32 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           (command.action === "clear" &&
             getGoalControlScope(activeGoal, persistentGoal) === "persistent"))
       ) {
-        if (attachments?.length) {
-          setError(i18n.t("chat.goalPersistent.attachmentsUnsupported"));
-          notifySubmissionRejected(submissionCallbacks);
-          return;
-        }
-        if (persistentMutationRef.current || submitInFlightRef.current) {
-          notifySubmissionRejected(submissionCallbacks);
-          return;
-        }
-        persistentMutationRef.current = true;
-        persistentMutationEpochRef.current += 1;
-        setPersistentGoalBusy(true);
-        const originSession = sessionIdRef.current;
-        const originStreamVersion = streamVersionRef.current;
-        let target = originSession;
-        try {
-          if (command.action !== "persist" && !target)
-            throw new Error(i18n.t("chat.goalPersistent.noGoal"));
-          if (!target) {
-            const created = await sessionApi.create({
-              name:
-                command.action === "persist"
-                  ? command.goal.objective
-                  : undefined,
-              metadata: {
-                agent_id: currentAgent,
-                auto_mode: autoModeEnabled,
-                agent_options: {
-                  ...options?.getAgentOptions?.(),
-                  ...agentOptions,
-                },
-                team_id: currentAgent === "team" ? selectedTeamId : null,
-                persona_preset_id: options?.getPersonaPresetId?.() || null,
-                disabled_skills: options?.getDisabledSkills?.() || [],
-                enabled_skills: resolveRunEnabledSkills({
-                  personaPresetId: options?.getPersonaPresetId?.() || null,
-                  personaEnabledSkills: options?.getEnabledSkills?.(),
-                  runEnabledSkills: runOptions?.enabledSkills,
-                }),
-                disabled_mcp_tools: options?.getDisabledMcpTools?.() || [],
-                project_id: pendingProjectIdRef.current,
-              },
-            });
-            if (
-              sessionIdRef.current !== originSession ||
-              streamVersionRef.current !== originStreamVersion
-            ) {
-              notifySubmissionRejected(submissionCallbacks);
-              return;
-            }
-            target = created.id;
-            sessionIdRef.current = target;
-            setSessionId(target);
-            setNewlyCreatedSession(created);
-            setCurrentProjectId(pendingProjectIdRef.current);
-            bindSteerSession(target);
-          }
-          const response =
-            command.action === "persist"
-              ? await sessionApi.putPersistentGoal(target, {
-                  objective: command.goal.objective,
-                  rubric: command.goal.rubric!,
-                  ...(persistentGoal
-                    ? { expected_revision: persistentGoal.revision }
-                    : {}),
-                })
-              : await sessionApi.controlPersistentGoal(target, command.action);
-          if (
-            sessionIdRef.current !== target ||
-            streamVersionRef.current !== originStreamVersion
-          ) {
-            notifySubmissionRejected(submissionCallbacks);
-            return;
-          }
-          if (command.action === "persist" && !response.goal)
-            throw new Error(i18n.t("chat.goalPersistent.noGoal"));
-          if (response.goal && response.goal.session_id !== target)
-            throw new Error(i18n.t("chat.goalPersistent.noGoal"));
-          setPersistentGoal((previous) =>
-            selectPersistentGoal(previous, response.goal, target),
-          );
-          setGoalModeEnabled(false);
-          setError(null);
-          notifySubmissionAccepted(submissionCallbacks);
-        } catch (error) {
-          const apiError = error as Error & {
-            code?: string;
-            args?: Record<string, unknown>;
-          };
-          if (
-            sessionIdRef.current === target &&
-            streamVersionRef.current === originStreamVersion
-          )
-            setError(
-              translateApiError(
-                apiError.code,
-                apiError.message,
-                apiError.args,
-                i18n.t,
-              ),
-            );
-          notifySubmissionRejected(submissionCallbacks);
-        } finally {
-          persistentMutationRef.current = false;
-          setPersistentGoalBusy(false);
-        }
+        await submitPersistentGoalCommand({
+          command,
+          attachments,
+          submissionCallbacks,
+          persistentMutationRef,
+          submitInFlightRef,
+          persistentMutationEpochRef,
+          setPersistentGoalBusy,
+          sessionIdRef,
+          streamVersionRef,
+          currentAgent,
+          autoModeEnabled,
+          options,
+          agentOptions,
+          selectedTeamId,
+          pendingProjectIdRef,
+          setSessionId,
+          setNewlyCreatedSession,
+          setCurrentProjectId,
+          bindSteerSession,
+          persistentGoal,
+          setPersistentGoal,
+          setGoalModeEnabled,
+          setError,
+          runEnabledSkills: runOptions?.enabledSkills,
+        });
         return;
       }
       const goalPlan = planGoalSubmission(content, false);
@@ -892,7 +874,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           runModes: runOptions?.runModes,
         });
 
-      setMessages(previous => preserveScheduledMessages(optimisticMessages, previous));
+      setMessages((previous) =>
+        preserveScheduledMessages(optimisticMessages, previous),
+      );
       setCurrentRunId(null);
       setIsLoading(true);
       setError(null);
@@ -1238,34 +1222,39 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sendMessageRef,
   });
 
-  const stopGeneration = useCallback(async (requireCancellation = false) => {
-    // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
-    // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
-    sendSeqRef.current += 1;
-    submitInFlightRef.current = false;
-    isSendingRef.current = false;
-    setIsLoading(false);
-    setIsInitializingSandbox(false);
-    setSandboxError(null);
+  const stopGeneration = useCallback(
+    async (requireCancellation = false) => {
+      // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
+      // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
+      sendSeqRef.current += 1;
+      submitInFlightRef.current = false;
+      isSendingRef.current = false;
+      setIsLoading(false);
+      setIsInitializingSandbox(false);
+      setSandboxError(null);
 
-    // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
-    options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
+      // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
+      options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
 
-    setMessages(previous => settleRunMessages(previous, currentRunIdRef.current));
+      setMessages((previous) =>
+        settleRunMessages(previous, currentRunIdRef.current),
+      );
 
-    const currentSessionId = sessionIdRef.current;
-    if (currentSessionId) {
-      try {
-        await sessionApi.cancel(currentSessionId);
-      } catch (error) {
-        console.error(
-          "[stopGeneration] Failed to call backend cancel API:",
-          error,
-        );
-        if (requireCancellation) throw error;
+      const currentSessionId = sessionIdRef.current;
+      if (currentSessionId) {
+        try {
+          await sessionApi.cancel(currentSessionId);
+        } catch (error) {
+          console.error(
+            "[stopGeneration] Failed to call backend cancel API:",
+            error,
+          );
+          if (requireCancellation) throw error;
+        }
       }
-    }
-  }, [options, setIsInitializingSandbox, setIsLoading, setSandboxError]);
+    },
+    [options, setIsInitializingSandbox, setIsLoading, setSandboxError],
+  );
 
   // 补充当前问题：打断进行中的 run，把补充内容并入这轮思考重新生成
   // （原问题与已生成部分保留在历史，新一轮自动携带完整上下文）
@@ -1412,6 +1401,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isSendingRef,
     isLoadingHistoryRef,
     loadHistoryRef,
+    historyTargetRunIdRef,
   });
 
   return {

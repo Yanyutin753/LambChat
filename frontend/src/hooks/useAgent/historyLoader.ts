@@ -402,12 +402,17 @@ export function reconstructMessagesFromEvents(
     opts.activeSubagentStack.length = 0;
     for (const runEvents of eventsByRun.values()) {
       const activeSubagentStack: SubagentStackItem[] = [];
-      messages.push(...reconstructMessagesFromEvents(runEvents, processedEventIds, {
-        ...opts, activeSubagentStack,
-      }));
+      messages.push(
+        ...reconstructMessagesFromEvents(runEvents, processedEventIds, {
+          ...opts,
+          activeSubagentStack,
+        }),
+      );
       opts.activeSubagentStack.push(...activeSubagentStack);
     }
-    return messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return messages.sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
   }
 
   const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
@@ -506,7 +511,9 @@ export function reconstructMessagesFromEvents(
       const steerId =
         typeof steerData.message_id === "string" && steerData.message_id.trim()
           ? steerData.message_id
-          : `steer-h-${event.run_id || "unknown"}-${sortedEventIndexes.get(event) ?? -1}`;
+          : `steer-h-${event.run_id || "unknown"}-${
+              sortedEventIndexes.get(event) ?? -1
+            }`;
       // 模型调用失败后消息原 ID 回队，重试送达会再次写出同
       // message_id 事件；按 ID 去重只渲染第一次（即用户发送位置）
       if (
@@ -733,7 +740,8 @@ export function reconstructMessagesFromEvents(
   // happens when an active-run snapshot synthesizes a recommend event next to
   // a withheld content stream).
   replayOptions.replayStack?.flush();
-  return scheduledResults.reduce(mergeScheduledResult, reconstructedMessages)
+  return scheduledResults
+    .reduce(mergeScheduledResult, reconstructedMessages)
     .map((message) =>
       message.role === "assistant" &&
       message.runId &&
@@ -906,7 +914,8 @@ export function extractGoalFromEvents(
     goal = next;
   }
 
-  if (!goal || !goal.objective || (goal.ended_at && !goal._persistent_id)) return null;
+  if (!goal || !goal.objective || (goal.ended_at && !goal._persistent_id))
+    return null;
   return goal;
 }
 

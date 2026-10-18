@@ -89,7 +89,12 @@ export function TeamMemberCard({
       value: model.id,
       label: (
         <span className="inline-flex min-w-0 items-center gap-2 font-serif">
-          <ModelIconImg model={model.value} provider={model.provider} icon={model.icon} size={18} />
+          <ModelIconImg
+            model={model.value}
+            provider={model.provider}
+            icon={model.icon}
+            size={18}
+          />
           {model.label || model.value}
         </span>
       ),
@@ -156,7 +161,12 @@ export function TeamMemberCard({
                 </span>
                 <span className="team-member-card__model" title={modelLabel}>
                   {selectedModel ? (
-                    <ModelIconImg model={selectedModel.value} provider={selectedModel.provider} icon={selectedModel.icon} size={14} />
+                    <ModelIconImg
+                      model={selectedModel.value}
+                      provider={selectedModel.provider}
+                      icon={selectedModel.icon}
+                      size={14}
+                    />
                   ) : (
                     <Cpu size={11} />
                   )}

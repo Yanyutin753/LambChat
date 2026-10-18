@@ -188,24 +188,51 @@ test("dispatches account read scopes and rejects malformed scopes", () => {
 test("scheduled results bypass task completion and active-run reconciliation", () => {
   const onTaskComplete = vi.fn();
   const onScheduledResult = vi.fn();
-  const data = { session_id: "parent", run_id: "scheduled-1", message_id: "scheduled-result:1",
-    task_id: "t", task_name: "Numbers", content: "748196", timestamp: "2026-10-16T17:46:50Z" };
-  dispatchWebSocketMessage({type: "scheduled:result", data}, {onTaskComplete, onScheduledResult});
+  const data = {
+    session_id: "parent",
+    run_id: "scheduled-1",
+    message_id: "scheduled-result:1",
+    task_id: "t",
+    task_name: "Numbers",
+    content: "748196",
+    timestamp: "2026-10-16T17:46:50Z",
+  };
+  dispatchWebSocketMessage(
+    { type: "scheduled:result", data },
+    { onTaskComplete, onScheduledResult },
+  );
   expect(onScheduledResult).toHaveBeenCalledWith(data);
   expect(onTaskComplete).not.toHaveBeenCalled();
-  dispatchWebSocketMessage({type: "scheduled:result", data: {session_id: "parent"}}, {onScheduledResult});
+  dispatchWebSocketMessage(
+    { type: "scheduled:result", data: { session_id: "parent" } },
+    { onScheduledResult },
+  );
   expect(onScheduledResult).toHaveBeenCalledTimes(1);
 });
 
 test("scheduled startup progress accepts empty content and bypasses human task completion", () => {
   const onTaskComplete = vi.fn();
   const onScheduledProgress = vi.fn();
-  const data = {session_id: "parent", run_id: "scheduled-1", message_id: "scheduled-result:scheduled-1",
-    task_id: "task", task_name: "Numbers", content: "", timestamp: "2026-10-16T17:46:50Z",
-    updated_at: "2026-10-16T17:46:50Z", status: "running"};
-  dispatchWebSocketMessage({type: "scheduled:progress", data}, {onScheduledProgress, onTaskComplete});
+  const data = {
+    session_id: "parent",
+    run_id: "scheduled-1",
+    message_id: "scheduled-result:scheduled-1",
+    task_id: "task",
+    task_name: "Numbers",
+    content: "",
+    timestamp: "2026-10-16T17:46:50Z",
+    updated_at: "2026-10-16T17:46:50Z",
+    status: "running",
+  };
+  dispatchWebSocketMessage(
+    { type: "scheduled:progress", data },
+    { onScheduledProgress, onTaskComplete },
+  );
   expect(onScheduledProgress).toHaveBeenCalledWith(data);
   expect(onTaskComplete).not.toHaveBeenCalled();
-  dispatchWebSocketMessage({type: "scheduled:progress", data: {...data, status: "invalid"}}, {onScheduledProgress});
+  dispatchWebSocketMessage(
+    { type: "scheduled:progress", data: { ...data, status: "invalid" } },
+    { onScheduledProgress },
+  );
   expect(onScheduledProgress).toHaveBeenCalledTimes(1);
 });

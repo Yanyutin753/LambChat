@@ -291,7 +291,8 @@ export const sessionApi = {
     payload: PersistentGoalRequest & { expected_revision: number },
   ): Promise<{ goal: PersistentGoal }> {
     return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/goal`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   },
@@ -366,8 +367,20 @@ export const sessionApi = {
   /**
    * Get all session events
    */
-  async getScheduledProgress(sessionId: string, signal?: AbortSignal): Promise<{ progress: unknown[] }> {
-    return authFetch(`${API_BASE}/api/scheduled-tasks/session/${encodeURIComponent(sessionId)}/progress`, { signal });
+  async getScheduledProgress(
+    sessionId: string,
+    signal?: AbortSignal,
+    runIds: string[] = [],
+  ): Promise<{ progress: unknown[] }> {
+    const query = new URLSearchParams();
+    runIds.forEach((runId) => query.append("run_id", runId));
+    const suffix = query.size ? `?${query}` : "";
+    return authFetch(
+      `${API_BASE}/api/scheduled-tasks/session/${encodeURIComponent(
+        sessionId,
+      )}/progress${suffix}`,
+      { signal },
+    );
   },
 
   async getEvents(

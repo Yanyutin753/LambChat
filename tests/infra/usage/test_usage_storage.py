@@ -295,7 +295,13 @@ async def test_upsert_usage_log_normalizes_token_numbers_and_metadata() -> None:
 
     assert inserted is True
     query, update, kwargs = collection.update_calls[0]
-    assert query == {"trace_id": "trace-1"}
+    assert query == {
+        "trace_id": "trace-1",
+        "$or": [
+            {"trace_event_revision": {"$exists": False}},
+            {"trace_event_revision": {"$lte": 0}},
+        ],
+    }
     assert kwargs == {"upsert": True}
     doc = update["$set"]
     assert doc["username"] == "Ada"
@@ -980,7 +986,13 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(
     await storage.upsert_usage_log(trace)
 
     for query, update, options in collection.update_calls:
-        assert query == {"trace_id": "same-trace"}
+        assert query == {
+            "trace_id": "same-trace",
+            "$or": [
+                {"trace_event_revision": {"$exists": False}},
+                {"trace_event_revision": {"$lte": 0}},
+            ],
+        }
         assert options["upsert"] is True
         doc = update["$set"]
         assert doc["input_tokens"] == 350
@@ -988,3 +1000,45 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(
         assert doc["total_tokens"] == 385
         assert doc["cache_read_tokens"] == 60
         assert doc["cost_usd"] == pytest.approx(0.000366)
+
+
+@pytest.mark.parametrize("certificate", [None, False, 1, True])
+async def test_cost_snapshot_requires_inclusive_input_certificate(certificate):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 5,
+        "total_tokens": 105,
+        "cache_read_tokens": 70,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.9,
+        "usage_incomplete": False,
+        "unknown_usage_fields": [],
+    }
+    if certificate is not None:
+        usage["input_includes_cache"] = certificate
+    await storage.upsert_usage_log_from_trace_metadata({"trace_id": "raw-cost"}, usage)
+    stored = collection.update_calls[0][1]["$set"]
+    assert stored["cost_usd"] == 0.9
+    assert stored["cost_available"] is (certificate is True)
+
+
+@pytest.mark.parametrize("certificate", [None, False, 1, True])
+async def test_usage_listing_does_not_recertify_legacy_cost(certificate):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    doc = {
+        "trace_id": "legacy-cost",
+        "cost_usd": 0.9,
+        "cost_available": True,
+        "usage_incomplete": False,
+    }
+    if certificate is not None:
+        doc["input_includes_cache"] = certificate
+    collection.find = lambda *args, **kwargs: _FakeCursor([doc])
+    [stored] = await storage._fetch_items({}, 0, 10)
+    assert stored["cost_usd"] == 0.9
+    assert stored["cost_available"] is (certificate is True)

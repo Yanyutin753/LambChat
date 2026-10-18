@@ -97,7 +97,13 @@ def _reuse_summary_prefix(
         try:
             model = (
                 request.model.bind_tools(
-                    request.tools, tool_choice=request.tool_choice, **request.model_settings
+                    request.tools,
+                    tool_choice=(
+                        {"type": "none"}
+                        if request.model._llm_type.startswith("anthropic")
+                        else "none"
+                    ),
+                    **request.model_settings,
                 )
                 if request.tools
                 else request.model.bind(**request.model_settings)
@@ -116,7 +122,7 @@ def _reuse_summary_prefix(
             )
         except (ContextOverflowError, ModelInvalidRequestError):
             return await original_summary(messages)
-        # Binding schemas never executes tools; discard attempted calls instead.
+        # Reject noncompliant tool calls even when the provider ignores the no-tool policy.
         if response.tool_calls or response.invalid_tool_calls or not response.text.strip():
             return await original_summary(messages)
         return response.text.strip()
@@ -170,6 +176,9 @@ def _reuse_summary_prefix(
                 "system": request.system_message.model_dump() if request.system_message else None,
                 "tools": request.tools,
                 "tool_choice": request.tool_choice,
+                "summary_tool_choice": {"type": "none"}
+                if request.model._llm_type.startswith("anthropic")
+                else "none",
                 "settings": request.model_settings,
                 "prompt": helper.summary_prompt,
                 "messages": [message.model_dump() for message in messages],

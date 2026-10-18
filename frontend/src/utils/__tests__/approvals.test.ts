@@ -28,9 +28,17 @@ describe("filterApprovalsBySession", () => {
   });
 
   test("scheduled approvals appear in their parent and keep the source session for resume", () => {
-    const scheduled = approval({ id: "scheduled", session_id: "sch_conversation_task",
-      metadata: { scheduled_target_session_id: "parent", run_id: "scheduled-1" } });
-    expect(filterApprovalsBySession([scheduled], "parent")).toEqual([scheduled]);
+    const scheduled = approval({
+      id: "scheduled",
+      session_id: "sch_conversation_task",
+      metadata: {
+        scheduled_target_session_id: "parent",
+        run_id: "scheduled-1",
+      },
+    });
+    expect(filterApprovalsBySession([scheduled], "parent")).toEqual([
+      scheduled,
+    ]);
     expect(filterApprovalsBySession([scheduled], "unrelated")).toEqual([]);
     expect(filterApprovalsBySession([scheduled], null)).toEqual([]);
     expect(scheduled.session_id).toBe("sch_conversation_task");

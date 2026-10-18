@@ -85,6 +85,9 @@ test("known zero rate remains visible and unknown rate explains the missing obse
   expect(source).toMatch(/input_includes_cache/);
   expect(source).toMatch(/usage\.cacheRateUnknown/);
   for (const locale of ["en", "zh", "ja", "ko", "ru"]) {
-    expect(readJson(resolve(frontendSrc, "i18n", "locales", `${locale}.json`)).usage.cacheRateUnknown).toBeTruthy();
+    expect(
+      readJson(resolve(frontendSrc, "i18n", "locales", `${locale}.json`)).usage
+        .cacheRateUnknown,
+    ).toBeTruthy();
   }
 });

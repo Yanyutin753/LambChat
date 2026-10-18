@@ -32,11 +32,13 @@ async def _write_usage_log(trace_id: str) -> None:
                 trace_id,
                 ["error"],
             )
-            await storage.upsert_usage_log_from_trace_metadata(
+            saved = await storage.upsert_usage_log_from_trace_metadata(
                 trace_doc,
                 (usage_event or {}).get("data", {}),
                 error_data=(error_event or {}).get("data", {}),
             )
+            if not saved:
+                return
             # 落库完成后通过 WS 通知前端刷新当日用量；消息到达时数据已可查
             user_id = trace_doc.get("user_id")
             if user_id:

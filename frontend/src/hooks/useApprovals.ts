@@ -9,7 +9,10 @@ import {
 
 interface UseApprovalsOptions {
   sessionId: string | null;
-  onInterruptResume?: (runId?: string | null, sourceSessionId?: string | null) => void;
+  onInterruptResume?: (
+    runId?: string | null,
+    sourceSessionId?: string | null,
+  ) => void;
 }
 
 export function useApprovals({
@@ -100,7 +103,11 @@ export function useApprovals({
         if (isApprovalResponseAccepted(res)) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
           if (res?.hitl_resume?.submitted) {
-            onInterruptResume?.(res.hitl_resume.run_id, approvals.find(approval => approval.id === approvalId)?.session_id);
+            onInterruptResume?.(
+              res.hitl_resume.run_id,
+              approvals.find((approval) => approval.id === approvalId)
+                ?.session_id,
+            );
           }
           return true;
         }
@@ -130,4 +137,25 @@ export function useApprovals({
     clearApprovals,
     refresh: fetchApprovals,
   };
+}
+
+export function useApprovalRefresh(
+  sessionId: string | null,
+  refreshApprovals: () => Promise<void>,
+) {
+  useEffect(() => {
+    if (!sessionId) return;
+    const refresh = () => {
+      if (document.visibilityState !== "hidden") void refreshApprovals();
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [sessionId, refreshApprovals]);
 }

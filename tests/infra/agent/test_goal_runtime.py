@@ -828,3 +828,74 @@ async def test_terminal_usage_tracks_started_models_without_relying_on_error_cal
         == {"completed": 10, "cancelled": None, "denied_before_start": 5}[outcome]
     )
     assert presenter.persistent_goal_metrics.tokens == (10 if outcome == "completed" else 5)
+
+
+@pytest.mark.parametrize(
+    "source", ["main", "grader", "summary", "recommendation", "child", "fallback", "tools"]
+)
+async def test_reasoning_only_output_limit_stops_only_unrecovered_main_goal(monkeypatch, source):
+    from unittest.mock import AsyncMock
+
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+
+    from src.infra.goal_runtime import GoalUsageCallback, guarded_goal_stream
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    presenter = kwargs["presenter"]
+    enqueue = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", enqueue)
+    metadata = {
+        "grader": {"rubric_grader_configured_model": "grader"},
+        "summary": {"lc_source": "summarization"},
+        "recommendation": {"lc_source": "recommendation"},
+        "child": {"lambchat_subagent_id": "child-1"},
+    }.get(source, {})
+
+    def result(content, **meta):
+        return LLMResult(
+            generations=[
+                [
+                    ChatGeneration(
+                        message=AIMessage(
+                            content=content,
+                            response_metadata=meta,
+                            usage_metadata={
+                                "input_tokens": 3,
+                                "output_tokens": 2,
+                                "total_tokens": 5,
+                            },
+                        )
+                    )
+                ]
+            ]
+        )
+
+    async def stream():
+        callback = GoalUsageCallback(presenter.persistent_goal_metrics)
+        await callback.on_chat_model_start({}, [[]], run_id="limited", metadata=metadata)
+        await callback.on_llm_end(
+            result([{"type": "thinking", "thinking": "incomplete"}], stop_reason="max_tokens"),
+            run_id="limited",
+        )
+        if source == "fallback":
+            await callback.on_chat_model_start({}, [[]], run_id="fallback", metadata={})
+            await callback.on_llm_end(
+                result("Recovered answer", stop_reason="end_turn"), run_id="fallback"
+            )
+        if source == "tools":
+            yield {
+                "event": "tool:result",
+                "data": {"tool_call_id": "tool-1", "result": "new artifact and passing check"},
+            }
+        yield {"event": "thinking", "data": {"content": "finished"}}
+
+    async for _ in guarded_goal_stream(stream(), **kwargs):
+        pass
+    saved = await service.get("s", "u")
+    assert saved.accounting.tokens == (10 if source == "fallback" else 5)
+    if source == "main":
+        assert saved.status == "blocked" and saved.stop_reason == "model_output_limit"
+        enqueue.assert_not_awaited()
+    else:
+        assert saved.status == "active" and saved.stop_reason != "model_output_limit"

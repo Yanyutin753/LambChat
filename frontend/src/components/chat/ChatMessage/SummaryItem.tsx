@@ -47,7 +47,10 @@ export function SummaryItem({
         subtitle,
         children: (
           <div className="p-3 sm:p-4">
-            <MarkdownContent content={visibleContent} isStreaming={isStreaming} />
+            <MarkdownContent
+              content={visibleContent}
+              isStreaming={isStreaming}
+            />
           </div>
         ),
       }),
@@ -72,7 +75,10 @@ export function SummaryItem({
           panelKey,
           children: (
             <div className="p-3 sm:p-4">
-              <MarkdownContent content={visibleContent} isStreaming={isStreaming} />
+              <MarkdownContent
+                content={visibleContent}
+                isStreaming={isStreaming}
+              />
             </div>
           ),
         });

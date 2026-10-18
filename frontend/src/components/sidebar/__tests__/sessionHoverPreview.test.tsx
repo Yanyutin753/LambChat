@@ -118,13 +118,14 @@ test.each([
   [1, "1"],
   [12, "12"],
   [100, "99+"],
-] as const)(
-  "sidebar shows unread count %s as %s",
-  (count, label) => {
-    render(<SessionItem {...props} session={{ ...session, unread_count: count }} />);
-    expect(screen.getByLabelText("sidebar.unreadMessages")).toHaveTextContent(label);
-  },
-);
+] as const)("sidebar shows unread count %s as %s", (count, label) => {
+  render(
+    <SessionItem {...props} session={{ ...session, unread_count: count }} />,
+  );
+  expect(screen.getByLabelText("sidebar.unreadMessages")).toHaveTextContent(
+    label,
+  );
+});
 
 test.each([
   "queued",
@@ -158,6 +159,8 @@ test.each([
 );
 
 test.each([0, undefined])("sidebar hides empty unread count %s", (count) => {
-  render(<SessionItem {...props} session={{ ...session, unread_count: count }} />);
+  render(
+    <SessionItem {...props} session={{ ...session, unread_count: count }} />,
+  );
   expect(screen.queryByLabelText("sidebar.unreadMessages")).toBeNull();
 });

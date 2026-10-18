@@ -11,7 +11,10 @@ import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
  * 后判定自然消失，无需与重载结果做合并。
  */
 export function isInterruptedRunMessage(
-  message: Pick<Message, "isStreaming" | "cancelled" | "content" | "parts" | "metadata">,
+  message: Pick<
+    Message,
+    "isStreaming" | "cancelled" | "content" | "parts" | "metadata"
+  >,
 ): boolean {
   if (message.isStreaming) return false;
   if (message.cancelled) return false;

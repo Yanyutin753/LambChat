@@ -74,6 +74,8 @@ test("conversation task approval explains independent execution and result deliv
   };
   render(<ScheduledTaskApprovalContent preview={conversationPreview} />);
   expect(await screen.findByText("结果发回此对话")).toBeVisible();
-  expect(screen.getByText("独立运行并保留任务历史，结果发送到此对话。")).toBeVisible();
+  expect(
+    screen.getByText("独立运行并保留任务历史，结果发送到此对话。"),
+  ).toBeVisible();
   expect(screen.queryByText(/每次执行会启动一个新会话/)).toBeNull();
 });

@@ -34,7 +34,9 @@ describe("CollapsiblePill alignment", () => {
     expect(chatSource).toMatch(
       /\.chat-tool-category \.chat-tool-call-group__toggle\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*calc\(var\(--chat-font-size\) - 0\.0625rem\)/,
     );
-    expect(animationSource).not.toContain('font-family: theme("fontFamily.sans")');
+    expect(animationSource).not.toContain(
+      'font-family: theme("fontFamily.sans")',
+    );
     expect(animationSource).toMatch(
       /\.pill-btn > span\s*\{\s*line-height: inherit;/,
     );

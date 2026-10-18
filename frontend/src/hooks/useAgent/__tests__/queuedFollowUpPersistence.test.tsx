@@ -106,8 +106,12 @@ test("late admission removes the original session queue without changing the ope
     current.result.current.restoreSteerMessages("session-b");
     current.result.current.queueFollowUp("B queued");
   });
-  act(() => current.result.current.clearSteer(item.content, item.id, "session-a"));
-  expect(current.result.current.steerMessages.map(message => message.content)).toEqual(["B queued"]);
+  act(() =>
+    current.result.current.clearSteer(item.content, item.id, "session-a"),
+  );
+  expect(
+    current.result.current.steerMessages.map((message) => message.content),
+  ).toEqual(["B queued"]);
   act(() => current.result.current.restoreSteerMessages("session-a"));
   expect(current.result.current.steerMessages).toEqual([]);
 });

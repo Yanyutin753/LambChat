@@ -471,11 +471,12 @@ export function ChatView({
     () => getVisibleActiveGoalForMessages(activeGoal, messages),
     [activeGoal, messages],
   );
-  const composerGoal = visibleActiveGoal ?? (
-    activeGoal?._persistent_id && activeGoal._persistent_id === persistentGoal?.id
+  const composerGoal =
+    visibleActiveGoal ??
+    (activeGoal?._persistent_id &&
+    activeGoal._persistent_id === persistentGoal?.id
       ? activeGoal
-      : null
-  );
+      : null);
   const isMobileViewport =
     typeof window !== "undefined" ? window.innerWidth < 640 : false;
 
@@ -776,53 +777,52 @@ export function ChatView({
             }}
           />
           {messages.length === 0 ? (
-            !hasPendingApproval && (
-              isLoading ? (
-                <ChatSkeleton count={8} />
-              ) : (
-                <WelcomePage
-                  greeting={greeting}
-                  subtitle={t(
-                    "chat.welcomeSubtitle",
-                    "How can I help you today?",
-                  )}
-                  refreshLabel={t("chat.welcomeRefresh", "Refresh")}
-                  personasLabel={t("personaPresets.title", "Personas")}
-                  starterPromptsLabel={t(
-                    "personaPresets.starterPrompts",
-                    "Start a conversation",
-                  )}
-                  changePersonaLabel={t(
-                    "personaPresets.change",
-                    "Change persona",
-                  )}
-                  personaPresets={personaPresets}
-                  personaPresetsLoaded={personaPresetsLoaded}
-                  hasMorePersonaPresets={hasMorePersonaPresets}
-                  isLoadingMorePersonaPresets={isLoadingMorePersonaPresets}
-                  onLoadMorePersonaPresets={onLoadMorePersonaPresets}
-                  selectedPersonaPresetId={selectedPersonaPresetId}
-                  selectedPersonaSnapshot={selectedPersonaSnapshot}
-                  personaPresetsLoading={personaPresetsLoading}
-                  personaPresetsError={personaPresetsError}
-                  onRetryPersonaPresets={onRetryPersonaPresets}
-                  personaPresetsMutating={personaPresetsMutating}
-                  currentAgent={currentAgent}
-                  selectedTeamId={selectedTeamId}
-                  canSendMessage={canSendMessage}
-                  chatInputProps={chatInputProps}
-                  activeGoal={composerGoal}
-                  persistentGoal={persistentGoal}
-                  onUpdatePersistentGoal={onUpdatePersistentGoal}
-                  persistentGoalBusy={persistentGoalBusy}
-                  onControlPersistentGoal={onControlPersistentGoal}
-                  onClearActiveGoal={onClearActiveGoal}
-                  onUsePersonaPreset={onUsePersonaPreset}
-                  onClearPersonaPreset={onClearPersonaPreset}
-                  onSelectTeam={onSelectTeam}
-                />
-              )
-            )
+            !hasPendingApproval &&
+            (isLoading ? (
+              <ChatSkeleton count={8} />
+            ) : (
+              <WelcomePage
+                greeting={greeting}
+                subtitle={t(
+                  "chat.welcomeSubtitle",
+                  "How can I help you today?",
+                )}
+                refreshLabel={t("chat.welcomeRefresh", "Refresh")}
+                personasLabel={t("personaPresets.title", "Personas")}
+                starterPromptsLabel={t(
+                  "personaPresets.starterPrompts",
+                  "Start a conversation",
+                )}
+                changePersonaLabel={t(
+                  "personaPresets.change",
+                  "Change persona",
+                )}
+                personaPresets={personaPresets}
+                personaPresetsLoaded={personaPresetsLoaded}
+                hasMorePersonaPresets={hasMorePersonaPresets}
+                isLoadingMorePersonaPresets={isLoadingMorePersonaPresets}
+                onLoadMorePersonaPresets={onLoadMorePersonaPresets}
+                selectedPersonaPresetId={selectedPersonaPresetId}
+                selectedPersonaSnapshot={selectedPersonaSnapshot}
+                personaPresetsLoading={personaPresetsLoading}
+                personaPresetsError={personaPresetsError}
+                onRetryPersonaPresets={onRetryPersonaPresets}
+                personaPresetsMutating={personaPresetsMutating}
+                currentAgent={currentAgent}
+                selectedTeamId={selectedTeamId}
+                canSendMessage={canSendMessage}
+                chatInputProps={chatInputProps}
+                activeGoal={composerGoal}
+                persistentGoal={persistentGoal}
+                onUpdatePersistentGoal={onUpdatePersistentGoal}
+                persistentGoalBusy={persistentGoalBusy}
+                onControlPersistentGoal={onControlPersistentGoal}
+                onClearActiveGoal={onClearActiveGoal}
+                onUsePersonaPreset={onUsePersonaPreset}
+                onClearPersonaPreset={onClearPersonaPreset}
+                onSelectTeam={onSelectTeam}
+              />
+            ))
           ) : (
             <Virtuoso
               key={messageListSessionKey}
@@ -959,32 +959,31 @@ export function ChatView({
                 helpMenuClassName="hidden sm:block"
               />
             )}
-            {hasPendingApproval &&
-              (persistentGoal || composerGoal) && (
-                <ActiveGoalBar
-                  goal={composerGoal}
-                  persistentGoal={persistentGoal}
+            {hasPendingApproval && (persistentGoal || composerGoal) && (
+              <ActiveGoalBar
+                goal={composerGoal}
+                persistentGoal={persistentGoal}
                 onUpdatePersistentGoal={onUpdatePersistentGoal}
-                  disabled={isLoading || !canSendMessage}
-                  persistentDisabled={persistentGoalBusy || !canSendMessage}
-                  onClear={onClearActiveGoal}
-                  onPause={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("pause")
-                      : undefined
-                  }
-                  onResume={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("resume")
-                      : undefined
-                  }
-                  onClearPersistentGoal={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("clear")
-                      : undefined
-                  }
-                />
-              )}
+                disabled={isLoading || !canSendMessage}
+                persistentDisabled={persistentGoalBusy || !canSendMessage}
+                onClear={onClearActiveGoal}
+                onPause={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("pause")
+                    : undefined
+                }
+                onResume={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("resume")
+                    : undefined
+                }
+                onClearPersistentGoal={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("clear")
+                    : undefined
+                }
+              />
+            )}
           </div>
         )}
       </div>

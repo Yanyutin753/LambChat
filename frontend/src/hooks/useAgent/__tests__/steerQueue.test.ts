@@ -278,9 +278,16 @@ describe("promoteSteerFollowUps", () => {
     const cleared: string[] = [];
     const promoting = promoteSteerFollowUps([item("s1", "A 的补充")], {
       sessionId: "session-a",
-      cancelSteer: () => new Promise<void>((resolve) => { release = resolve; }),
-      sendMessage: async (content) => { sent.push(content); },
-      clearSteer: (_content, id) => { cleared.push(id); },
+      cancelSteer: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      sendMessage: async (content) => {
+        sent.push(content);
+      },
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
       isCancelled: () => cancelled,
     });
     cancelled = true;
@@ -297,9 +304,16 @@ describe("promoteSteerFollowUps", () => {
     const cleared: string[] = [];
     const promoting = promoteSteerFollowUps([item("s1", "保留补充")], {
       sessionId: "session-a",
-      cancelSteer: () => new Promise<void>((resolve) => { release = resolve; }),
-      sendMessage: async (content) => { sent.push(content); },
-      clearSteer: (_content, id) => { cleared.push(id); },
+      cancelSteer: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      sendMessage: async (content) => {
+        sent.push(content);
+      },
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
       isSending: () => sending,
     });
     sending = true;
@@ -315,7 +329,9 @@ describe("promoteSteerFollowUps", () => {
       sessionId: "session-a",
       cancelSteer: async () => undefined,
       sendMessage: async () => false,
-      clearSteer: (_content, id) => { cleared.push(id); },
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
     });
     expect(result).toEqual({ promoted: 0, skippedActive: 1 });
     expect(cleared).toEqual([]);
@@ -330,9 +346,13 @@ describe("promoteSteerFollowUps", () => {
       cancelSteer: async () => undefined,
       sendMessage: (_content, _attachments, onAccepted) => {
         accept = onAccepted!;
-        return new Promise<void>(resolve => { finish = resolve; });
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
       },
-      clearSteer: (_content, id, sessionId) => { cleared.push(`${sessionId}:${id}`); },
+      clearSteer: (_content, id, sessionId) => {
+        cleared.push(`${sessionId}:${id}`);
+      },
     });
     await Promise.resolve();
     expect(cleared).toEqual([]);

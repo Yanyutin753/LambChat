@@ -42,6 +42,7 @@ def advance_goal(
     evidence_ready: bool = False,
     progress_signature: str = "",
     evidence_ids: Sequence[str] = (),
+    main_output_limited: bool = False,
 ) -> PersistentGoal:
     result = goal.model_copy(deep=True)
     if result.current_run_id:
@@ -85,10 +86,19 @@ def advance_goal(
     ):
         result.status = "completed"
         result.stop_reason = None
-    elif result.stagnant_turns >= 3 or (verdict and verdict.get("result") == "failed"):
+    elif (
+        main_output_limited
+        and not progress
+        or result.stagnant_turns >= 3
+        or (verdict and verdict.get("result") == "failed")
+    ):
         result.status = "blocked"
         result.stop_reason = (
-            "invalid_rubric" if verdict and verdict.get("result") == "failed" else "no_progress"
+            "invalid_rubric"
+            if verdict and verdict.get("result") == "failed"
+            else "model_output_limit"
+            if main_output_limited and not progress
+            else "no_progress"
         )
     result.current_run_id = None
     result.intent_submitted = False

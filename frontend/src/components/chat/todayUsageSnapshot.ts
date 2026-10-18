@@ -44,11 +44,31 @@ export function cacheHitRateFromTokens(
   unknownFields: readonly string[] = [],
   inputIncludesCache = false,
 ): number | null {
-  if (unknownFields.some((field) => ["input_tokens", "cache_read_tokens"].includes(field))) return null;
+  if (
+    unknownFields.some((field) =>
+      ["input_tokens", "cache_read_tokens"].includes(field),
+    )
+  )
+    return null;
   // Zero reads stay zero for every positive denominator, even when writes are unreported.
-  if (typeof input === "number" && Number.isFinite(input) && input > 0 && cacheRead === 0) return 0;
-  if (!inputIncludesCache || typeof input !== "number" || !Number.isFinite(input) || input <= 0
-    || typeof cacheRead !== "number" || !Number.isFinite(cacheRead) || cacheRead < 0 || cacheRead > input) return null;
+  if (
+    typeof input === "number" &&
+    Number.isFinite(input) &&
+    input > 0 &&
+    cacheRead === 0
+  )
+    return 0;
+  if (
+    !inputIncludesCache ||
+    typeof input !== "number" ||
+    !Number.isFinite(input) ||
+    input <= 0 ||
+    typeof cacheRead !== "number" ||
+    !Number.isFinite(cacheRead) ||
+    cacheRead < 0 ||
+    cacheRead > input
+  )
+    return null;
   return cacheRead / input;
 }
 
@@ -74,9 +94,18 @@ export function buildTodayUsageSnapshot(
     amount: buildDailyUsageAmount(stats, opts),
     requests: stats.total_requests ?? 0,
     totalTokens: stats.total_tokens ?? 0,
-    sharesKnown: (stats.usage_unknown_requests ?? stats.cache_unknown_requests ?? 0) === 0,
-    cacheHitRate: (stats.cache_unknown_requests ?? 0) > 0
-      ? null : cacheHitRateFromTokens(input, cacheRead, cacheWrite, [], stats.cache_unknown_requests === 0),
+    sharesKnown:
+      (stats.usage_unknown_requests ?? stats.cache_unknown_requests ?? 0) === 0,
+    cacheHitRate:
+      (stats.cache_unknown_requests ?? 0) > 0
+        ? null
+        : cacheHitRateFromTokens(
+            input,
+            cacheRead,
+            cacheWrite,
+            [],
+            stats.cache_unknown_requests === 0,
+          ),
     shares: [
       { key: "input", tokens: uncachedInput, share: pct(uncachedInput) },
       { key: "output", tokens: output, share: pct(output) },

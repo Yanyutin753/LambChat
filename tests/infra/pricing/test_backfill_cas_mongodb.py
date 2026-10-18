@@ -84,6 +84,7 @@ async def test_backfill_uses_original_model_config_without_guessing_same_value(
             "cache_read_tokens": 0,
             "cache_creation_tokens": 0,
             "usage_incomplete": False,
+            "input_includes_cache": True,
             "cost_available": False,
         }
         if identity == "unique":
@@ -127,6 +128,7 @@ async def test_backfill_advances_past_unknown_first_batch(monkeypatch):
                     "started_at": "2",
                     "model": "synthetic",
                     "usage_incomplete": False,
+                    "input_includes_cache": True,
                     "input_tokens": 100,
                     "output_tokens": 10,
                     "cache_read_tokens": 0,
@@ -156,7 +158,9 @@ async def test_backfill_advances_past_unknown_first_batch(monkeypatch):
 @pytest.mark.skipif(
     os.environ.get("TEST_MEMORY_MONGODB") != "1", reason="Enable configured local MongoDB tests"
 )
-@pytest.mark.parametrize("change", ["counts", "incomplete", "priced", "model", "model_id"])
+@pytest.mark.parametrize(
+    "change", ["counts", "incomplete", "priced", "model", "model_id", "certificate"]
+)
 async def test_backfill_cannot_overwrite_a_trace_changed_during_price_resolution(
     monkeypatch, change
 ):
@@ -176,12 +180,15 @@ async def test_backfill_cannot_overwrite_a_trace_changed_during_price_resolution
                 "cache_creation_tokens": 0,
                 "cost_available": False,
                 "usage_incomplete": False,
+                "input_includes_cache": True,
             }
         )
 
         async def resolve(**kwargs):
             updates = (
-                {"model_id": "changed-config"}
+                {"input_includes_cache": False}
+                if change == "certificate"
+                else {"model_id": "changed-config"}
                 if change == "model_id"
                 else {"model": "changed-model"}
                 if change == "model"
@@ -236,8 +243,22 @@ async def test_usage_aggregates_only_certified_costs_and_keeps_free_zero(monkeyp
     try:
         await collection.insert_many(
             [
-                {**base, "trace_id": "free", "cost_usd": 0, "usage_incomplete": False},
-                {**base, "trace_id": "priced", "cost_usd": 0.2, "usage_incomplete": False},
+                {
+                    **base,
+                    "trace_id": "free",
+                    "cost_usd": 0,
+                    "usage_incomplete": False,
+                    "input_includes_cache": True,
+                    "cache_metrics_available": True,
+                },
+                {
+                    **base,
+                    "trace_id": "priced",
+                    "cost_usd": 0.2,
+                    "usage_incomplete": False,
+                    "input_includes_cache": True,
+                    "cache_metrics_available": True,
+                },
                 {**base, "trace_id": "incomplete", "cost_usd": 0.5, "usage_incomplete": True},
                 {**base, "trace_id": "legacy", "cost_usd": 0.3},
             ]
@@ -259,4 +280,46 @@ async def test_usage_aggregates_only_certified_costs_and_keeps_free_zero(monkeyp
         assert dashboard["daily"][0]["unpriced_requests"] == 2
     finally:
         await client[settings.MONGODB_DB].drop_collection(name)
+        await client.close()
+
+
+@pytest.mark.skipif(
+    os.environ.get("TEST_MEMORY_MONGODB") != "1", reason="Enable configured local MongoDB tests"
+)
+async def test_legacy_cost_certificate_is_required_by_every_cost_aggregate():
+    from datetime import datetime, timezone
+
+    client = AsyncMongoClient(build_mongo_connection_string(), tz_aware=True)
+    collection = client[settings.MONGODB_DB][f"test_raw_cost_{uuid4().hex}"]
+    usage = UsageStorage()
+    usage._collection = collection
+    try:
+        for index, certificate in enumerate([None, False, 1, True]):
+            doc = {
+                "trace_id": str(index),
+                "user_id": "owner",
+                "agent_name": "Agent",
+                "model": "raw",
+                "started_at": datetime.now(timezone.utc),
+                "input_tokens": 100,
+                "output_tokens": 10,
+                "total_tokens": 110,
+                "cost_available": True,
+                "usage_incomplete": False,
+                "cost_usd": 0.2,
+            }
+            if certificate is not None:
+                doc["input_includes_cache"] = certificate
+            await collection.insert_one(doc)
+        stats = await usage.get_usage_stats_only()
+        assert stats["total_cost_usd"] == 0.2
+        assert stats["priced_requests"] == 1 and stats["unpriced_requests"] == 3
+        listing = await usage.list_usage_logs()
+        assert sum(row["cost_available"] for row in listing[0]) == 1
+        dashboard = await usage.get_usage_dashboard()
+        for row in [dashboard["summary"], *dashboard["daily"], *dashboard["top_models"]]:
+            assert row.get("total_cost_usd", row.get("cost_usd")) == 0.2
+            assert row["unpriced_requests"] == 3
+    finally:
+        await collection.drop()
         await client.close()

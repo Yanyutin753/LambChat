@@ -121,7 +121,9 @@ test("switches live thinking from seconds to minutes", () => {
     "chat.message.thinking 59 秒",
   );
   act(() => vi.advanceTimersByTime(1000));
-  expect(screen.getByRole("button")).toHaveTextContent("chat.message.thinking 1 分");
+  expect(screen.getByRole("button")).toHaveTextContent(
+    "chat.message.thinking 1 分",
+  );
 });
 
 test.each(["en", "ja", "ko", "ru"])(

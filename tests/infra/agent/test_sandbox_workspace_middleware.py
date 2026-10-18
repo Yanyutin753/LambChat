@@ -105,3 +105,59 @@ async def test_policy_line_whitespace_does_not_duplicate_workspace_context() -> 
     second = await middleware.awrap_model_call(first, _handler)
     assert second is first
     assert str(second.system_message.content).count("<sandbox_workspace_context>") == 1
+
+
+async def test_later_parent_and_child_prompt_hooks_keep_workspace_after_stable_sections():
+    from types import SimpleNamespace
+
+    from src.infra.agent.middleware.persona_subagent import PERSONA_DISPATCH_POLICY
+    from src.infra.agent.middleware.prompt_injection import SectionPromptMiddleware
+    from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
+    from src.infra.agent.subagent_sessions import SubagentInboxMiddleware
+
+    parent = object.__new__(SubagentSessionMiddleware)
+    parent.sessions = SimpleNamespace(restore=lambda state: None)
+    child = object.__new__(SubagentInboxMiddleware)
+    role = SectionPromptMiddleware(sections=[PERSONA_DISPATCH_POLICY])
+    for tail in (parent, child):
+        results = []
+        for path in ("/w/first", "/w/second"):
+
+            async def after_role(request):
+                request.state = {}
+                return await tail.awrap_model_call(request, _handler)
+
+            async def after_workspace(request):
+                return await role.awrap_model_call(request, after_role)
+
+            results.append(
+                await SandboxWorkspaceMiddleware(policy_text="workspace: " + path).awrap_model_call(
+                    _Request(), after_workspace
+                )
+            )
+        first, second = [result.system_message.content for result in results]
+        assert first[:-1] == second[:-1]
+        assert first[-1]["text"].startswith("<sandbox_workspace_context>")
+        assert "/w/first" in first[-1]["text"] and "/w/second" in second[-1]["text"]
+        assert any(PERSONA_DISPATCH_POLICY.strip() == block["text"] for block in first[:-1])
+
+
+async def test_late_static_section_preserves_caller_cache_policy_and_workspace_refresh_order():
+    from src.infra.agent.middleware._helpers import _append_system_text_block
+
+    marked = {
+        "type": "text",
+        "text": "original static instructions",
+        "cache_control": {"type": "ephemeral", "ttl": "1h"},
+    }
+    first = await SandboxWorkspaceMiddleware(policy_text="workspace: /w/first").awrap_model_call(
+        _Request(system_message=SystemMessage(content=[marked])), _handler
+    )
+    system = _append_system_text_block(first.system_message, "later stable instructions")
+    assert system.content[0] == marked
+    assert system.content[-1]["text"].startswith("<sandbox_workspace_context>")
+    second = await SandboxWorkspaceMiddleware(policy_text="workspace: /w/second").awrap_model_call(
+        _Request(system_message=system), _handler
+    )
+    assert "/w/second" in second.system_message.content[-1]["text"]
+    assert system.content[-1]["text"] != second.system_message.content[-1]["text"]

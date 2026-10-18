@@ -511,20 +511,23 @@ test.each([
   ["low", "low"],
   ["high", "high"],
   ["off", "low"],
-])("thinking preference %s keeps the effective default %s without saving", async (stored, expected) => {
-  if (stored !== null) localStorage.setItem("defaultThinkingLevel", stored);
-  await preferences();
-  expect(screen.getByRole("button", { name: "profile.defaultThinking" })).toHaveTextContent(
-    `agentOptions.enableThinking.options.${expected}`,
-  );
-  expect(api.metadata).not.toHaveBeenCalled();
-});
+])(
+  "thinking preference %s keeps the effective default %s without saving",
+  async (stored, expected) => {
+    if (stored !== null) localStorage.setItem("defaultThinkingLevel", stored);
+    await preferences();
+    expect(
+      screen.getByRole("button", { name: "profile.defaultThinking" }),
+    ).toHaveTextContent(`agentOptions.enableThinking.options.${expected}`);
+    expect(api.metadata).not.toHaveBeenCalled();
+  },
+);
 
 test("an unset model preference shows the existing default label without saving", async () => {
   localStorage.removeItem("defaultModelId");
   await preferences();
-  expect(screen.getByRole("button", { name: "profile.defaultModel" })).toHaveTextContent(
-    "common.default",
-  );
+  expect(
+    screen.getByRole("button", { name: "profile.defaultModel" }),
+  ).toHaveTextContent("common.default");
   expect(api.metadata).not.toHaveBeenCalled();
 });

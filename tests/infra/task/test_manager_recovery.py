@@ -31,8 +31,12 @@ class _FakeStorage:
 
     async def update(self, session_id: str, session_update) -> None:
         self.updates.append((session_id, session_update))
+        if self.session is not None:
+            self.session.metadata = {**self.session.metadata, **session_update.metadata}
 
-    async def claim_run_recovery(self, session_id, run_id, metadata):
+    async def claim_run_recovery(
+        self, session_id, run_id, metadata, *, expected_recovery_token=None
+    ):
         previous = self.session.metadata if self.session else {}
         allowed = previous.get("task_status") in {
             "running",
@@ -48,13 +52,28 @@ class _FakeStorage:
             or previous.get("task_error_code") in {"cancelled", "task_recovery_uncertain_effect"}
         ):
             return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
 
     async def update_metadata_for_run(
-        self, session_id, run_id, metadata, *, expected_statuses=None
+        self, session_id, run_id, metadata, *, expected_statuses=None, expected_recovery_token=None
     ):
         if self.session.metadata.get("current_run_id") != run_id:
+            return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
+        if (
+            expected_statuses is not None
+            and self.session.metadata.get("task_status") not in expected_statuses
+        ):
             return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
@@ -410,7 +429,8 @@ async def test_resume_session_uses_arq_submission_when_task_backend_is_arq(
     assert call["initial_status"] is None
     assert call["dispatch_id"].startswith("resume:run-old:")
     assert call["message"] == "请继续处理当前会话中未完成的内容。"
-    assert trace_storage.reopened == ["trace-old"]
+    assert trace_storage.reopened == []  # Worker admission owns trace/stream preparation.
+    assert call["recovery_claim"]["token"]
 
 
 @pytest.mark.asyncio
@@ -826,6 +846,10 @@ async def test_resume_interrupted_run_restores_recoverable_failure_when_submissi
     async def _fake_submit_seamless_resume(*args, **kwargs):
         return {"success": False, "message": "当前并发任务已满，稍后将自动重试恢复"}
 
+    async def no_existing_trace(_run_id):
+        return None
+
+    monkeypatch.setattr(recovery_module, "_lookup_trace_id_for_run", no_existing_trace)
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
     monkeypatch.setattr(

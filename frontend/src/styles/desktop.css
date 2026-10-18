@@ -111,7 +111,8 @@ html:has([data-desktop-activity-rail]) [data-titlebar] {
 }
 
 @media (hover: hover) {
-  [data-desktop-activity-rail] button:not(:disabled):not([aria-pressed="true"]):hover {
+  [data-desktop-activity-rail]
+    button:not(:disabled):not([aria-pressed="true"]):hover {
     background: var(--desktop-hover);
     color: var(--theme-text);
   }

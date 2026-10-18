@@ -16,9 +16,14 @@ test("treats loading or visible streaming messages as an active session", () => 
 });
 
 test("an independent scheduled stream keeps the human composer available", () => {
-  const scheduled = { isStreaming: true, metadata: { scheduledTaskId: "task" } };
+  const scheduled = {
+    isStreaming: true,
+    metadata: { scheduledTaskId: "task" },
+  };
   expect(isSessionRunning([scheduled], false)).toBe(false);
-  expect(isSessionRunning([scheduled, { isStreaming: true }], false)).toBe(true);
+  expect(isSessionRunning([scheduled, { isStreaming: true }], false)).toBe(
+    true,
+  );
 });
 
 test("shows the footer skeleton only when reconnecting after a stream disappears", () => {

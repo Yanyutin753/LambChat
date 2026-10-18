@@ -2,10 +2,23 @@
 import { processMessageEvent } from "../eventProcessor.ts";
 
 test("read denominator certificate survives live and historical event reconstruction without pricing missing writes", () => {
-  const result = processMessageEvent("token:usage", {
-    input_tokens: 100, output_tokens: 5, cache_read_tokens: 80,
-    input_includes_cache: true, unknown_usage_fields: ["cache_creation_tokens"],
-  }, [], "", [], 0, [], false, "certified-rate");
+  const result = processMessageEvent(
+    "token:usage",
+    {
+      input_tokens: 100,
+      output_tokens: 5,
+      cache_read_tokens: 80,
+      input_includes_cache: true,
+      unknown_usage_fields: ["cache_creation_tokens"],
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    false,
+    "certified-rate",
+  );
   expect(result.tokenUsage?.input_includes_cache).toBe(true);
   expect(result.tokenUsage?.cache_creation_tokens).toBeUndefined();
   expect(result.tokenUsage?.usage_incomplete).toBe(true);
@@ -99,9 +112,21 @@ test("token:usage without pricing keeps cost fields undefined", () => {
 test("explicit cache zero remains known zero", () => {
   const result = processMessageEvent(
     "token:usage",
-    { input_tokens: 10, output_tokens: 5, total_tokens: 15,
-      cache_read_tokens: 0, cache_creation_tokens: 0, usage_incomplete: false },
-    [], "", [], 0, [], false, "zero-usage",
+    {
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      usage_incomplete: false,
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    false,
+    "zero-usage",
   );
   expect(result.tokenUsage?.cache_read_tokens).toBe(0);
   expect(result.tokenUsage?.cache_creation_tokens).toBe(0);

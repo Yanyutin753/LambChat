@@ -248,6 +248,7 @@ async def test_parent_reentry_restores_a_scheduled_run_waiting_for_confirmation(
         },
         {"event_type": "hitl:suspended", "data": {}},
     ]
+    active_events = AsyncMock(return_value=events)
     with (
         patch("src.infra.scheduler.storage.get_scheduled_task_storage", return_value=storage),
         patch(
@@ -256,7 +257,10 @@ async def test_parent_reentry_restores_a_scheduled_run_waiting_for_confirmation(
         ),
         patch(
             "src.infra.scheduler.results.get_trace_storage",
-            return_value=SimpleNamespace(get_run_events=AsyncMock(return_value=events)),
+            return_value=SimpleNamespace(
+                get_run_events=AsyncMock(return_value=[]),
+                get_session_events=active_events,
+            ),
         ),
         patch(
             "src.infra.task.manager.get_task_manager",
@@ -266,6 +270,9 @@ async def test_parent_reentry_restores_a_scheduled_run_waiting_for_confirmation(
         ),
     ):
         progress = await get_session_progress("parent", "owner")
+    active_events.assert_awaited_once_with(
+        "sch_conversation_t", run_id="scheduled-1", completed_only=False
+    )
     assert len(progress) == 1
     assert progress[0]["session_id"] == "parent"
     assert progress[0]["status"] == "waiting_human"
@@ -290,3 +297,83 @@ async def test_progress_catchup_rejects_a_foreign_parent_before_reading_runs():
         with pytest.raises(AppError):
             await get_session_progress("parent", "owner")
     storage.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("live_status", "stored_status", "content", "expected"),
+    [
+        ("completed", "success", "NO_UPDATE", "quiet"),
+        ("completed", "success", "", "quiet"),
+        ("failed", "failed", "", "failed"),
+        (None, "failed", "", "failed"),
+        ("pending", "failed", "", "failed"),
+        ("running", "running", "", "running"),
+    ],
+)
+async def test_catchup_restores_known_terminal_run_without_a_delivered_result(
+    live_status, stored_status, content, expected
+):
+    from datetime import datetime, timezone
+    from unittest.mock import Mock
+
+    from src.infra.scheduler.results import get_session_progress
+    from src.infra.task.status import TaskStatus
+
+    record = {
+        "_id": "scheduled-1",
+        "task_id": "t",
+        "session_id": "sch_conversation_t",
+        "target_session_id": "parent",
+        "owner_id": "owner",
+        "created_at": datetime.now(timezone.utc),
+        "conversation_state": "finished" if stored_status != "running" else "submitted",
+        "status": stored_status,
+    }
+
+    class Cursor:
+        def __aiter__(self):
+            async def rows():
+                yield record
+
+            return rows()
+
+    find = Mock(return_value=Cursor())
+    storage = SimpleNamespace(
+        _get_collection=lambda _: SimpleNamespace(find=find),
+        get_task=AsyncMock(
+            return_value=SimpleNamespace(
+                name="Numbers", owner_id="owner", notification_policy="meaningful_changes"
+            )
+        ),
+    )
+    events = [{"event_type": "message:chunk", "data": {"content": content}}] if content else []
+    with (
+        patch("src.infra.scheduler.storage.get_scheduled_task_storage", return_value=storage),
+        patch(
+            "src.infra.session.manager.SessionManager.get_session",
+            AsyncMock(return_value=SimpleNamespace(user_id="owner")),
+        ),
+        patch(
+            "src.infra.scheduler.results.get_trace_storage",
+            return_value=SimpleNamespace(
+                get_session_events=AsyncMock(return_value=events),
+                get_run_events=AsyncMock(return_value=events),
+            ),
+        ),
+        patch(
+            "src.infra.task.manager.get_task_manager",
+            return_value=SimpleNamespace(
+                get_run_status=AsyncMock(
+                    return_value=TaskStatus(live_status) if live_status else None
+                )
+            ),
+        ),
+    ):
+        progress = await get_session_progress("parent", "owner", run_ids=["scheduled-1"])
+    assert len(progress) == 1
+    assert progress[0]["status"] == expected
+    assert progress[0]["run_id"] == "scheduled-1"
+    query = find.call_args.args[0]
+    assert query["owner_id"] == "owner"
+    assert query["target_session_id"] == "parent"
+    assert {"_id": {"$in": ["scheduled-1"]}} in query["$or"]

@@ -864,11 +864,12 @@ async def resume_session(
             raise AppError(ErrorCode.SESSION_NOT_FOUND)
         verify_session_ownership(session, user)
 
-        task_manager = get_task_manager()
-        result = await task_manager.resume_session(session_id)
-        if result.get("code") == ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code:
-            raise AppError(ErrorCode.TASK_RECOVERY_NOT_AVAILABLE)
-        return result
+    # Recovery performs fresh run/Goal admission; release before its executor takes this fence.
+    task_manager = get_task_manager()
+    result = await task_manager.resume_session(session_id)
+    if result.get("code") == ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code:
+        raise AppError(ErrorCode.TASK_RECOVERY_NOT_AVAILABLE)
+    return result
 
 
 class SteerRequest(BaseModel):

@@ -45,7 +45,8 @@
 }
 
 /* Match the text edge to the message inset without stacking editor padding. */
-.chat-conversation-composer .chat-input-container:not([data-composer-expanded]) {
+.chat-conversation-composer
+  .chat-input-container:not([data-composer-expanded]) {
   padding-inline: 0;
 }
 
@@ -124,7 +125,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-outline-anchor]
-    :is(.user-message-bubble, .attachment-card, .chat-assistant-heading)::after {
+    :is(
+      .user-message-bubble,
+      .attachment-card,
+      .chat-assistant-heading
+    )::after {
     transition: none;
   }
 }

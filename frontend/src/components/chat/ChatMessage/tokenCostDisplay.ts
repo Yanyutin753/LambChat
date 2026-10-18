@@ -1,8 +1,32 @@
 // Token 费用明细行构建：把 TokenUsagePart 的金额分解为可渲染的行数据。
 import type { TokenUsagePart } from "../../../types/message";
+import type { UsageLog } from "../../../types/usage";
 import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
 
 export type CostRowKey = "input" | "output" | "cache_read" | "cache_write";
+
+export function formatUsageTokenCount(
+  usage: TokenUsagePart | UsageLog,
+  field:
+    | "input_tokens"
+    | "output_tokens"
+    | "total_tokens"
+    | "cache_read_tokens"
+    | "cache_creation_tokens",
+  formatCount: (value: number) => string = (value) => value.toLocaleString(),
+): string {
+  const value = usage[field];
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    usage.unknown_usage_fields?.includes(field) ||
+    (usage.usage_incomplete === true && !usage.unknown_usage_fields?.length)
+  ) {
+    return "—";
+  }
+  return formatCount(value);
+}
 
 export interface CostDetailRow {
   key: CostRowKey;
@@ -16,14 +40,21 @@ export interface CostDetailRow {
 
 /** 是否有可展示的金额（未匹配价格的模型为 false） */
 export function hasPricedCost(usage: TokenUsagePart | undefined): boolean {
-  const missingCachePrice = usage?.cost_rates && (
-    (usage.cache_read_tokens ?? 0) > 0 && usage.cost_rates.cache_read == null
-    || (usage.cache_creation_tokens ?? 0) > 0 && usage.cost_rates.cache_write == null
+  const missingCachePrice =
+    usage?.cost_rates &&
+    (((usage.cache_read_tokens ?? 0) > 0 &&
+      usage.cost_rates.cache_read == null) ||
+      ((usage.cache_creation_tokens ?? 0) > 0 &&
+        usage.cost_rates.cache_write == null));
+  return (
+    typeof usage?.cost_usd === "number" &&
+    Number.isFinite(usage.cost_usd) &&
+    usage.usage_incomplete === false &&
+    usage.input_includes_cache === true &&
+    !missingCachePrice &&
+    typeof usage.cache_read_tokens === "number" &&
+    typeof usage.cache_creation_tokens === "number"
   );
-  return typeof usage?.cost_usd === "number" && Number.isFinite(usage.cost_usd)
-    && usage.usage_incomplete === false && !missingCachePrice
-    && typeof usage.cache_read_tokens === "number"
-    && typeof usage.cache_creation_tokens === "number";
 }
 
 /**

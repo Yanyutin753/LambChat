@@ -265,7 +265,9 @@ async def _confirm_scheduled_task_creation(
             session_id=ctx.session_id or None,
             run_id=ctx.run_id or None,
             timeout=timeout,
-            expires_at=to_iso(approval.expires_at) if getattr(approval, "expires_at", None) else None,
+            expires_at=to_iso(approval.expires_at)
+            if getattr(approval, "expires_at", None)
+            else None,
             trace_id=ctx.trace_id,
             preview=preview,
         )

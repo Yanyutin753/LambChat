@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-const source = readFileSync(new URL("../TodoBlock.tsx", import.meta.url), "utf8");
+const source = readFileSync(
+  new URL("../TodoBlock.tsx", import.meta.url),
+  "utf8",
+);
 const css = readFileSync(
   new URL("../../../../styles/chat.css", import.meta.url),
   "utf8",

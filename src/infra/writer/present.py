@@ -101,6 +101,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         self._trace_created: bool = False
         self._completed: bool = False
         self._token_usage_recorded: bool = False
+        self._usage_accounting_owner: Any = None
         self._done_recorded: bool = False
         self._goal_end_recorded: bool = False
         self._recommend_questions_recorded: bool = False

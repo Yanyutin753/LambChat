@@ -148,7 +148,9 @@ const monochromeProviders = new Set([
 
 export function isMonochromeIcon(model: string, provider?: string): boolean {
   const url = getModelIconUrl(model, provider);
-  return !!url && [...monochromeProviders].some((slug) => providerMap[slug] === url);
+  return (
+    !!url && [...monochromeProviders].some((slug) => providerMap[slug] === url)
+  );
 }
 
 function resolveIcon(model: string): string | null {
@@ -168,9 +170,14 @@ export function getModelIconUrl(
   provider?: string,
   explicitIcon?: string,
 ): string | null {
-  explicitIcon = explicitIcon?.trim().replace(/^(?:lobe|lobehub):/i, "").toLowerCase();
+  explicitIcon = explicitIcon
+    ?.trim()
+    .replace(/^(?:lobe|lobehub):/i, "")
+    .toLowerCase();
   provider = provider?.trim().toLowerCase();
   if (explicitIcon && providerMap[explicitIcon])
     return providerMap[explicitIcon];
-  return resolveIcon(model) || (provider ? providerMap[provider] : null) || null;
+  return (
+    resolveIcon(model) || (provider ? providerMap[provider] : null) || null
+  );
 }

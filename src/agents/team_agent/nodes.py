@@ -45,14 +45,12 @@ from src.agents.core.subagent_prompts import (
 from src.agents.core.thinking import build_thinking_config
 from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
-from src.agents.search_agent.prompt import (
-    SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
-)
 from src.agents.team_agent import backend_setup
 from src.agents.team_agent.context import TeamAgentContext
 from src.agents.team_agent.member_config import (
     _build_member_agent_mode_sections,
     _safe_member_model_config_dict,
+    build_no_team_fallback_system_prompt,
     resolve_team_member_agent_id,
     resolve_team_member_model_config,
 )
@@ -107,13 +105,6 @@ logger = get_logger(__name__)
 # ============================================================================
 # 节点函数
 # ============================================================================
-
-
-def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
-    """Choose the single-agent fallback prompt when no explicit team is selected."""
-    if sandbox_active:
-        return SEARCH_SANDBOX_SYSTEM_PROMPT
-    return DEFAULT_SYSTEM_PROMPT
 
 
 async def resolve_runtime_team(
@@ -911,18 +902,22 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 hitl_interrupt_supported.reset(token_supported)
     finally:
         current_task = asyncio.current_task()
-        await subagent_sessions.close(
-            preserve_approvals=current_task is None or not current_task.cancelling()
-        )
-        await event_processor.drain_activity_references()
-        await event_processor.flush()
-        await emit_token_usage(
-            event_processor,
-            presenter,
-            run_started_at,
-            model_id=model_id,
-            model=selected_model,
-        )
+        try:
+            await subagent_sessions.close(
+                preserve_approvals=current_task is None or not current_task.cancelling()
+            )
+        finally:
+            try:
+                await event_processor.drain_activity_references()
+                await event_processor.flush()
+            finally:
+                await emit_token_usage(
+                    event_processor,
+                    presenter,
+                    run_started_at,
+                    model_id=model_id,
+                    model=selected_model,
+                )
     logger.info("[TeamAgent] astream_events completed")
 
     # 检测 interrupt 挂起（issue #218）：图存在待恢复任务时标记 WAITING_HUMAN，

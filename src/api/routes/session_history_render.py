@@ -80,3 +80,19 @@ def _render_history_json_bytes(payload: dict[str, Any]) -> bytes:
 async def render_history_response_offloaded(payload: dict[str, Any]) -> Response:
     body = await run_long_blocking_io(_render_history_json_bytes, payload)
     return Response(content=body, media_type="application/json")
+
+
+def parse_event_types_filter(event_types: str | None, limit: int = 100) -> list[str] | None:
+    if not event_types:
+        return None
+    parsed: list[str] = []
+    seen = set()
+    for raw_type in event_types.split(","):
+        event_type = raw_type.strip()
+        if not event_type or event_type in seen:
+            continue
+        seen.add(event_type)
+        parsed.append(event_type)
+        if len(parsed) >= limit:
+            break
+    return parsed or None

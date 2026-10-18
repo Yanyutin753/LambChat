@@ -202,7 +202,7 @@ def _logs():
             "started_at": "2026-08-04T00:00:00",
         },
     ]
-    return [{**doc, "usage_incomplete": False} for doc in docs]
+    return [{**doc, "usage_incomplete": False, "input_includes_cache": True} for doc in docs]
 
 
 @pytest.fixture(autouse=True)
@@ -291,3 +291,32 @@ class TestBackfillUsageCosts:
         assert "cfg-1" in lookup_values
         doc = usage.collection.docs["t-unknown"]
         assert doc["cost_usd"] == pytest.approx(100 * 0.5 / 1e6 + 50 * 1.0 / 1e6)
+
+
+@pytest.mark.parametrize("certificate", [None, False, 1])
+async def test_backfill_never_prices_uncertified_inclusive_input(monkeypatch, certificate):
+    doc = {
+        "trace_id": "raw-input",
+        "model": "raw-model",
+        "input_tokens": 100,
+        "output_tokens": 10,
+        "cache_read_tokens": 70,
+        "cache_creation_tokens": 0,
+        "usage_incomplete": False,
+        "cost_available": False,
+        "cost_usd": 0.9,
+    }
+    if certificate is not None:
+        doc["input_includes_cache"] = certificate
+    usage = _FakeUsageStorage([doc])
+    price = AsyncMock(
+        return_value=SimpleNamespace(
+            rates=pricing_service.PriceRates(input=1, output=2, cache_read=0, cache_write=0)
+        )
+    )
+    monkeypatch.setattr(pricing_backfill, "resolve_price", price)
+    result = await pricing_backfill._backfill_locked(usage=usage, dry_run=False, batch_size=1)
+    assert result["priced"] == 0 and result["still_unpriced"] == 1
+    assert usage.collection.docs["raw-input"]["cost_usd"] == 0.9
+    assert usage.collection.docs["raw-input"]["cost_available"] is False
+    price.assert_not_awaited()

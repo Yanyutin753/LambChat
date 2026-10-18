@@ -64,6 +64,8 @@ class GoalRunMetrics:
         self.observations: set[str] = set()
         self.seen_models: set[str] = set()
         self.pending_models: set[str] = set()
+        self.main_models: set[str] = set()
+        self.main_output_limited = False
         self.model_tokens = 0
         self.unknown_model_usage = False
         self.enforce = None
@@ -131,6 +133,17 @@ class GoalUsageCallback(AsyncCallbackHandler):
         if identity in self.metrics.seen_models:
             return
         self.metrics.seen_models.add(identity)
+        if identity in self.metrics.main_models:
+            from src.infra.llm.retry import _empty_answer, _is_output_limit_response
+
+            for generations in response.generations:
+                for generation in generations:
+                    message = getattr(generation, "message", None)
+                    if message is not None:
+                        if _is_output_limit_response(message) and _empty_answer(message):
+                            self.metrics.main_output_limited = True
+                        elif not _empty_answer(message):
+                            self.metrics.main_output_limited = False
         usages = [
             getattr(getattr(generation, "message", None), "usage_metadata", None)
             for generations in response.generations
@@ -155,10 +168,17 @@ class GoalUsageCallback(AsyncCallbackHandler):
     async def on_chat_model_start(self, serialized, messages, *, run_id, **kwargs):
         await self._enforce()
         self.metrics.pending_models.add(str(run_id))
+        metadata = kwargs.get("metadata") or {}
+        if not (
+            "rubric_grader_configured_model" in metadata
+            or metadata.get("lc_source") in {"summarization", "recommendation"}
+            or metadata.get("lambchat_subagent_id")
+            or metadata.get("internal_tool_call")
+        ):
+            self.metrics.main_models.add(str(run_id))
 
     async def on_llm_start(self, serialized, prompts, *, run_id, **kwargs):
-        await self._enforce()
-        self.metrics.pending_models.add(str(run_id))
+        await self.on_chat_model_start(serialized, [], run_id=run_id, **kwargs)
 
     async def on_tool_start(self, serialized, input_str, **kwargs):
         await self._enforce()
@@ -252,7 +272,7 @@ async def restore_goal_for_run(session, run_id: str, *, service=None):
         or current.current_run_id != run_id
         or current.status not in {"active", "waiting_human"}
     ):
-        raise TaskInterruptedError("Goal was paused or superseded")
+        raise GoalRunAdmissionError("Goal was paused or superseded")
     return _run_goal(current)
 
 
@@ -428,31 +448,47 @@ def with_goal_run_lease(function):
             in (execute_background_stream, execute_conversation_schedule)
             else None
         )
-        async with goal_run_lease(
-            arguments.get("active_goal"),
-            arguments["run_id"],
-            reuse=True,
-            background_identity=background,
-        ):
-            if arguments.get("executor") is execute_conversation_schedule:
-                from src.infra.scheduler.conversation import validate_scheduled_run_admission
+        try:
+            async with goal_run_lease(
+                arguments.get("active_goal"),
+                arguments["run_id"],
+                reuse=True,
+                background_identity=background,
+            ):
+                if arguments.get("executor") is execute_conversation_schedule:
+                    from src.infra.scheduler.conversation import validate_scheduled_run_admission
 
-                await validate_scheduled_run_admission(
-                    arguments["session_id"], arguments["user_id"], arguments["run_id"]
+                    await validate_scheduled_run_admission(
+                        arguments["session_id"], arguments["user_id"], arguments["run_id"]
+                    )
+                await validate_goal_admission(arguments)
+                dispatch_token = GOAL_DISPATCH.set(None)
+                token = (
+                    SCHEDULED_SUBMISSION.set(None)
+                    if arguments.get("executor") is execute_conversation_schedule
+                    else None
                 )
-            await validate_goal_admission(arguments)
-            dispatch_token = GOAL_DISPATCH.set(None)
-            token = (
-                SCHEDULED_SUBMISSION.set(None)
-                if arguments.get("executor") is execute_conversation_schedule
-                else None
-            )
-            try:
-                return await function(*args, **kwargs)
-            finally:
-                GOAL_DISPATCH.reset(dispatch_token)
-                if token is not None:
-                    SCHEDULED_SUBMISSION.reset(token)
+                try:
+                    return await function(*args, **kwargs)
+                finally:
+                    GOAL_DISPATCH.reset(dispatch_token)
+                    if token is not None:
+                        SCHEDULED_SUBMISSION.reset(token)
+        except GoalRunAlreadyOwnedError:
+            raise
+        except Exception as error:
+            claim = arguments.get("recovery_claim")
+            if claim:
+                from src.infra.task.recovery import restore_recovery_claim
+
+                await restore_recovery_claim(
+                    arguments["self"]._storage,
+                    arguments["session_id"],
+                    arguments["run_id"],
+                    claim,
+                    recoverable=not isinstance(error, GoalRunAdmissionError),
+                )
+            raise
 
     return owned
 
@@ -673,6 +709,7 @@ async def _guarded_goal_stream(
                 usage=None if metrics.unknown_model_usage else metrics.tokens,
                 verdict=getattr(presenter, "goal_verdict", None),
                 tools=metrics.tool_count,
+                main_output_limited=metrics.main_output_limited,
                 progress_signature=metrics.progress_signature,
                 evidence_ready=current_proof
                 and bool(getattr(presenter, "goal_evidence_ready", False)),
@@ -680,7 +717,8 @@ async def _guarded_goal_stream(
             )
             if finished:
                 await publish_goal(finished, presenter)
-                await enqueue_goal(finished)
+                if finished.status == "active":
+                    await enqueue_goal(finished)
     finally:
         watchdog_task.cancel()
         await asyncio.gather(watchdog_task, return_exceptions=True)

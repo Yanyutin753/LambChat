@@ -12,7 +12,10 @@ import { SidebarMarkdownContent } from "./SidebarMarkdownContent";
 import { useSmoothStreamText } from "./useSmoothStreamText";
 import { buildPanelSummary } from "./panelSummary";
 import { stripActivityReferences } from "../../../utils/activityReferences";
-import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapseUtils";
+import {
+  formatElapsedCompact,
+  formatElapsedHuman,
+} from "./runStepsCollapseUtils";
 
 export function ThinkingBlock({
   content: rawContent,

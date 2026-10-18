@@ -86,19 +86,31 @@ export function UsagePanel() {
     null,
   );
   const displayLogs = useMemo(
-    () => logs.map((log) => ({
-      ...log,
-      agent_name: resolveAgentReferenceName(
-        log.agent_id, log.agent_name, agents, i18n.language, t,
-      ),
-    })),
+    () =>
+      logs.map((log) => ({
+        ...log,
+        agent_name: resolveAgentReferenceName(
+          log.agent_id,
+          log.agent_name,
+          agents,
+          i18n.language,
+          t,
+        ),
+      })),
     [logs, agents, i18n.language, t],
   );
   const agentRanking = useMemo(
-    () => (dashboard?.top_agents ?? []).map((item) => ({
-      ...item,
-      name: resolveAgentReferenceName(item.id, item.name, agents, i18n.language, t),
-    })),
+    () =>
+      (dashboard?.top_agents ?? []).map((item) => ({
+        ...item,
+        name: resolveAgentReferenceName(
+          item.id,
+          item.name,
+          agents,
+          i18n.language,
+          t,
+        ),
+      })),
     [dashboard, agents, i18n.language, t],
   );
   const [isLoading, setIsLoading] = useState(true);
@@ -331,9 +343,13 @@ export function UsagePanel() {
               icon={DatabaseZap}
               label={t("usage.cacheHitRate")}
               value={cacheHitLabel}
-              hint={cacheHitLabel === "—" ? t("usage.cacheRateUnknown") : t("usage.cacheTokens", {
-                count: fmt(stats.total_cache_read_tokens),
-              })}
+              hint={
+                cacheHitLabel === "—"
+                  ? t("usage.cacheRateUnknown")
+                  : t("usage.cacheTokens", {
+                      count: fmt(stats.total_cache_read_tokens),
+                    })
+              }
             />
             <StatMetric
               icon={ArrowUpFromLine}

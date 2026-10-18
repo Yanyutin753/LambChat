@@ -37,6 +37,7 @@ class UsageLog(BaseModel):
     cost_usd: float = 0.0
     cost_available: bool = False
     usage_incomplete: bool = True
+    unknown_usage_fields: list[str] | None = None
     cache_metrics_available: bool = False
     duration: float = 0.0
     started_at: Optional[datetime] = None

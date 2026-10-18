@@ -66,26 +66,29 @@ afterEach(() => {
 test.each([
   ["rubric_grader", undefined],
   ["code_reviewer", "generated:configured-reviewer"],
-])("panel replies keep %s's original avatar identity", (agentName, agentAvatar) => {
-  subagentPanelStore.set({
-    agentId: "reviewer",
-    agentName,
-    agentAvatar,
-    input: "Review",
-    result: "Report",
-    status: "complete",
-    success: true,
-  });
-  const view = render(
-    <I18nextProvider i18n={i18n}>
-      <SubagentPanelContent agentId="reviewer" />
-    </I18nextProvider>,
-  );
-  const reply = view.getAllByTestId("chat-message")[1];
-  expect(reply.dataset.personaSeed).toBe(agentName);
-  expect(reply.dataset.personaAvatar).toBe(agentAvatar);
-  expect(reply.dataset.persona).not.toBe(agentName);
-});
+])(
+  "panel replies keep %s's original avatar identity",
+  (agentName, agentAvatar) => {
+    subagentPanelStore.set({
+      agentId: "reviewer",
+      agentName,
+      agentAvatar,
+      input: "Review",
+      result: "Report",
+      status: "complete",
+      success: true,
+    });
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <SubagentPanelContent agentId="reviewer" />
+      </I18nextProvider>,
+    );
+    const reply = view.getAllByTestId("chat-message")[1];
+    expect(reply.dataset.personaSeed).toBe(agentName);
+    expect(reply.dataset.personaAvatar).toBe(agentAvatar);
+    expect(reply.dataset.persona).not.toBe(agentName);
+  },
+);
 
 test("the conversation shows initial work, follow-up and resumed replies in order", () => {
   const first = {
@@ -587,7 +590,10 @@ test("separating a streamed revision retains trailing file tools' original ancho
         success: true,
         startedAt,
         completedAt: startedAt + 10000,
-        parts: [{ type: "text", content: "Initial reportRevised report" }, file],
+        parts: [
+          { type: "text", content: "Initial reportRevised report" },
+          file,
+        ],
         result: "Revised report",
       },
       {
@@ -615,16 +621,33 @@ test("separating a streamed revision retains trailing file tools' original ancho
   ]);
 });
 
-
 test("timed-out runs display preserved partial report and error without streaming", () => {
   const messages = buildSubagentConversation({
-    agentId: "reviewer", agentName: "Reviewer", input: "Review",
+    agentId: "reviewer",
+    agentName: "Reviewer",
+    input: "Review",
     result: "Partial result: verified file contents; task unfinished",
-    error: "Execution deadline exceeded", status: "timed_out", isPending: false,
-    parts: [{ type: "tool", name: "read_file", args: {}, result: "verified file contents", isPending: false }],
+    error: "Execution deadline exceeded",
+    status: "timed_out",
+    isPending: false,
+    parts: [
+      {
+        type: "tool",
+        name: "read_file",
+        args: {},
+        result: "verified file contents",
+        isPending: false,
+      },
+    ],
   });
-  const reply = messages.find(message => message.role === "assistant");
-  expect(reply?.parts).toContainEqual({ type: "text", content: "Partial result: verified file contents; task unfinished" });
-  expect(reply?.parts).toContainEqual({ type: "text", content: "Execution deadline exceeded" });
+  const reply = messages.find((message) => message.role === "assistant");
+  expect(reply?.parts).toContainEqual({
+    type: "text",
+    content: "Partial result: verified file contents; task unfinished",
+  });
+  expect(reply?.parts).toContainEqual({
+    type: "text",
+    content: "Execution deadline exceeded",
+  });
   expect(reply).toMatchObject({ isStreaming: false, cancelled: false });
 });

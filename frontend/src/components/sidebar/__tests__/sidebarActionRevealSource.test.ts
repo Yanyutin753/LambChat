@@ -24,7 +24,9 @@ test("sidebar actions share slots and reveal only within their own row", () => {
 
 test("sidebar feedback stays local and hidden actions cannot intercept the pointer", () => {
   const css = read("../../../styles/components.css");
-  expect(css).toMatch(/\.sidebar-action-reveal:where\([^}]+pointer-events: none/s);
+  expect(css).toMatch(
+    /\.sidebar-action-reveal:where\([^}]+pointer-events: none/s,
+  );
   expect(css).toContain('[data-revealed="true"]');
   expect(css).toContain("@media (hover: none), (pointer: coarse)");
   expect(read("../SessionItem.tsx")).toContain("group-hover/session:");

@@ -54,6 +54,7 @@ import { resolveTokenUsageModelDetails } from "./tokenUsageModel";
 import {
   buildCostDetailRows,
   formatCostDetailRow,
+  formatUsageTokenCount,
   hasPricedCost,
 } from "./tokenCostDisplay";
 import { cacheHitRateFromTokens } from "../todayUsageSnapshot";
@@ -233,7 +234,7 @@ function TokenDetailsButton({
                       {t("chat.message.tokenInput")}
                     </span>
                     <span className="font-medium">
-                      {tokenUsage.input_tokens?.toLocaleString()} tokens
+                      {formatUsageTokenCount(tokenUsage, "input_tokens")} tokens
                     </span>
                   </div>
                   <div className="flex justify-between gap-4 text-violet-600 dark:text-violet-400">
@@ -241,7 +242,8 @@ function TokenDetailsButton({
                       {t("chat.message.tokenOutput")}
                     </span>
                     <span className="font-medium">
-                      {tokenUsage.output_tokens?.toLocaleString()} tokens
+                      {formatUsageTokenCount(tokenUsage, "output_tokens")}{" "}
+                      tokens
                     </span>
                   </div>
                   {(tokenUsage.cache_creation_tokens ?? 0) > 0 && (
@@ -250,23 +252,26 @@ function TokenDetailsButton({
                         {t("chat.message.tokenCacheCreation")}
                       </span>
                       <span className="font-medium">
-                        {(
-                          tokenUsage.cache_creation_tokens ?? 0
-                        ).toLocaleString()}{" "}
+                        {formatUsageTokenCount(
+                          tokenUsage,
+                          "cache_creation_tokens",
+                        )}{" "}
                         tokens
                       </span>
                     </div>
                   )}
-                  {(
+                  {
                     <div className="flex justify-between gap-4 text-fuchsia-600 dark:text-fuchsia-400">
                       <span className="text-theme-text-secondary">
                         {t("chat.message.tokenCacheRate")}
                       </span>
                       <span className="font-medium">
-                        {cacheRate === null ? "—" : `${(cacheRate * 100).toFixed(1)}%`}
+                        {cacheRate === null
+                          ? "—"
+                          : `${(cacheRate * 100).toFixed(1)}%`}
                       </span>
                     </div>
-                  )}
+                  }
                   {cacheRate === null && (
                     <p className="max-w-64 whitespace-normal text-11 text-theme-text-muted">
                       {t("usage.cacheRateUnknown")}
@@ -278,7 +283,7 @@ function TokenDetailsButton({
                         {t("chat.message.tokenCacheRead")}
                       </span>
                       <span className="font-medium">
-                        {(tokenUsage.cache_read_tokens ?? 0).toLocaleString()}{" "}
+                        {formatUsageTokenCount(tokenUsage, "cache_read_tokens")}{" "}
                         tokens
                       </span>
                     </div>
@@ -288,7 +293,7 @@ function TokenDetailsButton({
                       {t("chat.message.tokenTotal")}
                     </span>
                     <span className="font-medium">
-                      {tokenUsage.total_tokens?.toLocaleString()} tokens
+                      {formatUsageTokenCount(tokenUsage, "total_tokens")} tokens
                     </span>
                   </div>
                   {priced && (
@@ -646,7 +651,9 @@ export const ChatMessage = memo(function ChatMessage({
 
   // If there are parts, render in order; otherwise fall back to old rendering method
   const hasParts = message.parts && message.parts.length > 0;
-  const isWaitingForHuman = hasPendingAskHuman(message.parts ?? []);
+  const isWaitingForHuman =
+    message.metadata?.scheduledProgressStatus === "waiting_human" ||
+    hasPendingAskHuman(message.parts ?? []);
   // User message: bubble style, right aligned
   if (isUser) {
     return (
@@ -705,7 +712,7 @@ export const ChatMessage = memo(function ChatMessage({
   const runPartGroups = hasParts ? groupPartsForGallery(message.parts!) : [];
   const { head: runHeadGroups, tail: runTailGroups } = splitRunTailGroups(
     runPartGroups,
-    { enabled: !isWaitingForHuman },
+    { enabled: true },
   );
   const renderPartGroups = (
     groups: Array<(typeof runPartGroups)[number]>,
@@ -781,7 +788,9 @@ export const ChatMessage = memo(function ChatMessage({
       {typeof message.metadata?.scheduledTaskName === "string" && (
         <div className="mb-4 sm:mb-6">
           <UserMessageBubble
-            content={`${t("scheduledTask.title")} · ${message.metadata.scheduledTaskName}\n${message.timestamp.toLocaleString()}`}
+            content={`${t("scheduledTask.title")} · ${
+              message.metadata.scheduledTaskName
+            }\n${message.timestamp.toLocaleString()}`}
           />
         </div>
       )}
@@ -820,42 +829,47 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           </div>
 
-          {message.metadata?.scheduledProgressStatus === "waiting_human" && (
-            <div className="mb-2 text-12 text-theme-text-tertiary">{t("chat.goal.waiting_human")}</div>
-          )}
           {message.metadata?.scheduledProgressStatus === "failed" && (
-            <div className="mb-2 text-12 text-theme-text-tertiary">{t("scheduledTask.failed")}</div>
+            <div className="mb-2 text-12 text-theme-text-tertiary">
+              {t("scheduledTask.failed")}
+            </div>
           )}
 
           {/* Run just started, no parts yet: working row stays, loading icon under the divider */}
-          {isStreaming && !hasParts && (
+          {(isStreaming || isWaitingForHuman) && !hasParts && (
             <RunStepsCollapse
               steps={0}
               durationMs={null}
               startedAtMs={getRunStartedAtMs(message)}
               stateKey={message.id}
-              active
-              renderExpanded={() => (
-                <div className="flex justify-start">
-                  <LoadingSpinner
-                    color="text-current"
-                    size={16}
-                    className="text-theme-text-tertiary"
-                  />
-                </div>
-              )}
+              active={isStreaming}
+              awaitingConfirmation={isWaitingForHuman}
+              renderExpanded={() =>
+                isWaitingForHuman ? null : (
+                  <div className="flex justify-start">
+                    <LoadingSpinner
+                      color="text-current"
+                      size={16}
+                      className="text-theme-text-tertiary"
+                    />
+                  </div>
+                )
+              }
             />
           )}
 
           {hasParts ? (
             <div className="flex flex-col gap-3">
-              {(runHeadGroups.length > 0 || message.isStreaming) && (
+              {(runHeadGroups.length > 0 ||
+                message.isStreaming ||
+                isWaitingForHuman) && (
                 <RunStepsCollapse
                   steps={countRunSteps(message.parts!)}
                   durationMs={getRunElapsedMs(message)}
                   startedAtMs={getRunStartedAtMs(message)}
                   stateKey={message.id}
                   active={message.isStreaming}
+                  awaitingConfirmation={isWaitingForHuman}
                   stopped={message.cancelled === true}
                   renderExpanded={() => renderPartGroups(runHeadGroups)}
                 />

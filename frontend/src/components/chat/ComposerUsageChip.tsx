@@ -89,7 +89,9 @@ export function ComposerUsageChip() {
   if (!snapshot) return null;
 
   const label = t("usage.todayShort", { amount: snapshot.amount });
-  const visibleShares = snapshot.sharesKnown ? snapshot.shares.filter((s) => s.share > 0) : [];
+  const visibleShares = snapshot.sharesKnown
+    ? snapshot.shares.filter((s) => s.share > 0)
+    : [];
 
   return (
     <>

@@ -33,6 +33,7 @@ function shallowEqual(a: ToolCallPanelData, b: ToolCallPanelData): boolean {
     a.args === b.args &&
     a.status === b.status &&
     a.isPending === b.isPending &&
+    a.awaitingConfirmation === b.awaitingConfirmation &&
     a.cancelled === b.cancelled &&
     a.success === b.success &&
     a.startedAt === b.startedAt &&
@@ -100,6 +101,8 @@ export function createToolCallPanelStore(): ToolCallPanelStore {
 export const toolCallPanelStore = createToolCallPanelStore();
 
 function deriveToolStatus(part: ToolPart): CollapsibleStatus {
+  if (part.isPending && part.awaitingConfirmation && !part.cancelled)
+    return "idle";
   if (part.name === "execute") return deriveExecuteStatus(part);
   if (part.isPending) return "loading";
   if (part.cancelled) return "cancelled";
@@ -144,6 +147,7 @@ function toToolCallPanelData(part: ToolPart): ToolCallPanelData | null {
     result: part.result,
     success: part.success,
     isPending: part.isPending,
+    awaitingConfirmation: part.awaitingConfirmation,
     cancelled: part.cancelled,
     startedAt: part.startedAt,
     completedAt: part.completedAt,

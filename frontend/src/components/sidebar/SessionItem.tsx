@@ -290,7 +290,9 @@ function SessionItemComponent({
         )
       : null;
   const hasUnread =
-    !isActive && taskIndicator.kind === "idle" && (session.unread_count ?? 0) > 0;
+    !isActive &&
+    taskIndicator.kind === "idle" &&
+    (session.unread_count ?? 0) > 0;
   const unreadLabel = t("sidebar.unreadMessages", {
     count: session.unread_count ?? 0,
   });

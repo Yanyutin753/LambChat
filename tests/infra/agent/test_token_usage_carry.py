@@ -36,6 +36,7 @@ def test_seed_usage_merges_prior_segment_counters():
     processor.total_output_tokens += 10
 
     assert processor.usage_totals() == {
+        "_usage_ledger_id": processor._usage_ledger_id,
         "input_tokens": 1050,
         "output_tokens": 110,
         "total_tokens": 1100,
@@ -59,6 +60,7 @@ def test_seed_usage_ignores_empty_or_malformed_payload():
     processor.seed_usage({"input_tokens": "x"})  # type: ignore[dict-item]
 
     assert processor.usage_totals() == {
+        "_usage_ledger_id": processor._usage_ledger_id,
         "input_tokens": 0,
         "output_tokens": 0,
         "total_tokens": 0,

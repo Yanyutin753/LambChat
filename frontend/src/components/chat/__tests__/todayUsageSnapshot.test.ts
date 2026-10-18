@@ -30,15 +30,24 @@ test("returns null when stats are unavailable", () => {
 });
 
 test("unknown cache observations do not become a measured hit rate", () => {
-  expect(buildTodayUsageSnapshot(stats({ cache_unknown_requests: 1 }),
-    { language: "en" })!.cacheHitRate).toBeNull();
+  expect(
+    buildTodayUsageSnapshot(stats({ cache_unknown_requests: 1 }), {
+      language: "en",
+    })!.cacheHitRate,
+  ).toBeNull();
 });
 
 test("an incomplete token partition cannot be displayed as measured percentages", () => {
-  expect(buildTodayUsageSnapshot(stats({ usage_unknown_requests: 1 }),
-    { language: "en" })!.sharesKnown).toBe(false);
-  expect(buildTodayUsageSnapshot(stats({ usage_unknown_requests: 0 }),
-    { language: "en" })!.sharesKnown).toBe(true);
+  expect(
+    buildTodayUsageSnapshot(stats({ usage_unknown_requests: 1 }), {
+      language: "en",
+    })!.sharesKnown,
+  ).toBe(false);
+  expect(
+    buildTodayUsageSnapshot(stats({ usage_unknown_requests: 0 }), {
+      language: "en",
+    })!.sharesKnown,
+  ).toBe(true);
 });
 
 test("missing cache counts are not interpreted as explicit zero", () => {
@@ -49,17 +58,45 @@ test("missing cache counts are not interpreted as explicit zero", () => {
 });
 
 test("explicit zero reads are zero for every positive denominator without inventing write usage", () => {
-  expect(cacheHitRateFromTokens(633, 0, undefined, ["cache_creation_tokens"])).toBe(0);
-  expect(cacheHitRateFromTokens(633, 0, undefined, ["cache_read_tokens"])).toBeNull();
-  expect(cacheHitRateFromTokens(633, 0, undefined, ["input_tokens"])).toBeNull();
-  expect(cacheHitRateFromTokens(0, 0, undefined, ["cache_creation_tokens"])).toBeNull();
+  expect(
+    cacheHitRateFromTokens(633, 0, undefined, ["cache_creation_tokens"]),
+  ).toBe(0);
+  expect(
+    cacheHitRateFromTokens(633, 0, undefined, ["cache_read_tokens"]),
+  ).toBeNull();
+  expect(
+    cacheHitRateFromTokens(633, 0, undefined, ["input_tokens"]),
+  ).toBeNull();
+  expect(
+    cacheHitRateFromTokens(0, 0, undefined, ["cache_creation_tokens"]),
+  ).toBeNull();
 });
 
 test("certified inclusive input permits a read rate without certifying missing writes", () => {
-  expect(cacheHitRateFromTokens(100, 80, undefined, ["cache_creation_tokens"], true)).toBe(0.8);
-  expect(cacheHitRateFromTokens(100, 0, undefined, ["cache_creation_tokens"], true)).toBe(0);
-  expect(cacheHitRateFromTokens(100, 80, undefined, ["cache_creation_tokens"], false)).toBeNull();
-  expect(cacheHitRateFromTokens(100, undefined, undefined, ["cache_read_tokens"], true)).toBeNull();
+  expect(
+    cacheHitRateFromTokens(100, 80, undefined, ["cache_creation_tokens"], true),
+  ).toBe(0.8);
+  expect(
+    cacheHitRateFromTokens(100, 0, undefined, ["cache_creation_tokens"], true),
+  ).toBe(0);
+  expect(
+    cacheHitRateFromTokens(
+      100,
+      80,
+      undefined,
+      ["cache_creation_tokens"],
+      false,
+    ),
+  ).toBeNull();
+  expect(
+    cacheHitRateFromTokens(
+      100,
+      undefined,
+      undefined,
+      ["cache_read_tokens"],
+      true,
+    ),
+  ).toBeNull();
   expect(cacheHitRateFromTokens(0, 0, undefined, [], true)).toBeNull();
   expect(cacheHitRateFromTokens(10, 100, undefined, [], true)).toBeNull();
 });
@@ -71,9 +108,16 @@ test("positive cache reads require inclusive input certification even with compl
 });
 
 test("legacy aggregate counts do not certify a positive cache rate", () => {
-  expect(buildTodayUsageSnapshot(stats({ cache_unknown_requests: undefined }), { language: "en" })!.cacheHitRate).toBeNull();
-  expect(buildTodayUsageSnapshot(stats({ cache_unknown_requests: 0 }),
-    { language: "en" })!.cacheHitRate).toBe(0.3);
+  expect(
+    buildTodayUsageSnapshot(stats({ cache_unknown_requests: undefined }), {
+      language: "en",
+    })!.cacheHitRate,
+  ).toBeNull();
+  expect(
+    buildTodayUsageSnapshot(stats({ cache_unknown_requests: 0 }), {
+      language: "en",
+    })!.cacheHitRate,
+  ).toBe(0.3);
 });
 
 test("builds amount, requests and cache hit rate from today's stats", () => {

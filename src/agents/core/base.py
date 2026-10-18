@@ -582,8 +582,14 @@ class BaseGraphAgent(ABC):
                 except (asyncio.CancelledError, TaskInterruptedError):
                     pass
                 # Flush pending chunks and clear event_processor memory
-                await event_processor.finalize()
-                await emit_usage_once()
+                try:
+                    await event_processor.finalize()
+                finally:
+                    try:
+                        await emit_usage_once()
+                    finally:
+                        if getattr(presenter, "_usage_accounting_owner", None) is event_processor:
+                            presenter._usage_accounting_owner = None
                 # goal:end 必须在 done 之前发出，保证事件顺序正确
                 if active_goal is not None and agent_handoff is None:
                     goal_end_data = {

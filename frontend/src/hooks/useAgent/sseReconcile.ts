@@ -61,7 +61,10 @@ function resolveStreamingMessageId(ctx: StreamReconcileContext): string | null {
   return (
     [...ctx.messagesRef.current]
       .reverse()
-      .find((message: Message) => message.role === "assistant" && !message.metadata?.scheduledTaskId)?.id ?? null
+      .find(
+        (message: Message) =>
+          message.role === "assistant" && !message.metadata?.scheduledTaskId,
+      )?.id ?? null
   );
 }
 
@@ -141,6 +144,7 @@ export async function reconcileActiveStream(
 
 export interface ReconcileOpenSessionOptions {
   loadHistory: (targetSessionId: string) => Promise<unknown>;
+  targetRunId?: string | null;
   isSending: boolean;
   isLoadingHistory: boolean;
   isBusy?: () => boolean;
@@ -186,8 +190,10 @@ export async function reconcileOpenSession(
   const missingReply =
     taskStatus === "completed" &&
     !ctx.messagesRef.current.some(
-      (message) => message.role === "assistant" && message.runId === serverRunId,
+      (message) =>
+        message.role === "assistant" && message.runId === serverRunId,
     );
+  if (opts.targetRunId && taskStatus === "completed" && !missingReply) return;
   if (
     shouldReloadOpenSession({
       serverRunId,
@@ -215,8 +221,9 @@ export interface StreamReconcileOptions {
   isSendingRef: React.MutableRefObject<boolean>;
   isLoadingHistoryRef: React.MutableRefObject<boolean>;
   loadHistoryRef: React.MutableRefObject<
-    ((targetSessionId: string) => Promise<unknown>) | null
+    ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
   >;
+  historyTargetRunIdRef?: React.MutableRefObject<string | null>;
 }
 
 /**
@@ -237,6 +244,7 @@ export function useStreamReconcile(
     isSendingRef,
     isLoadingHistoryRef,
     loadHistoryRef,
+    historyTargetRunIdRef,
   } = opts;
 
   const connectionStatusRef = useRef(opts.connectionStatus);
@@ -274,9 +282,19 @@ export function useStreamReconcile(
         }
         if (!runStillActive) {
           await reconcileOpenSession(ctx, {
-            loadHistory: (targetSessionId) =>
-              loadHistoryRef.current?.(targetSessionId) ??
-              Promise.resolve(null),
+            loadHistory: async (targetSessionId) => {
+              const targetRunId = historyTargetRunIdRef?.current;
+              await loadHistoryRef.current?.(targetSessionId);
+              if (
+                targetRunId &&
+                sessionIdRef.current === targetSessionId &&
+                historyTargetRunIdRef?.current === targetRunId &&
+                !isSendingRef.current
+              ) {
+                await loadHistoryRef.current?.(targetSessionId, targetRunId);
+              }
+            },
+            targetRunId: historyTargetRunIdRef?.current,
             isSending: isSendingRef.current,
             isLoadingHistory: isLoadingHistoryRef.current,
             isBusy: () => isSendingRef.current || isLoadingHistoryRef.current,
@@ -295,6 +313,7 @@ export function useStreamReconcile(
       isSendingRef,
       isLoadingHistoryRef,
       loadHistoryRef,
+      historyTargetRunIdRef,
     ],
   );
 

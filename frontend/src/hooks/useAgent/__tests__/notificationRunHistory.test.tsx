@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({
   userId: "user-a",
 }));
 vi.mock("../../useAuth", () => ({
-  useAuth: () => ({ hasAnyPermission: () => false, user: { id: mocks.userId } }),
+  useAuth: () => ({
+    hasAnyPermission: () => false,
+    user: { id: mocks.userId },
+  }),
 }));
 vi.mock("../../../services/api", () => ({
   sessionApi: {
@@ -58,7 +61,10 @@ import {
   prepareMessagesForRunningRun,
 } from "../historyLoader";
 import * as historyFetch from "../../../services/api/fetch";
-import { SCHEDULED_PROGRESS_EVENT, SCHEDULED_RESULT_EVENT } from "../scheduledResults";
+import {
+  SCHEDULED_PROGRESS_EVENT,
+  SCHEDULED_RESULT_EVENT,
+} from "../scheduledResults";
 
 function events(run: string, timestamp: string) {
   return [
@@ -126,105 +132,248 @@ beforeEach(() => {
 });
 
 function deliverScheduledResult(sessionId: string, id = "late-result") {
-  window.dispatchEvent(new CustomEvent(SCHEDULED_RESULT_EVENT, { detail: {
-    session_id: sessionId, run_id: id, message_id: id,
-    task_id: "schedule-task", task_name: "Schedule", content: id,
-    timestamp: "2026-10-13T10:01:00Z",
-  } }));
+  window.dispatchEvent(
+    new CustomEvent(SCHEDULED_RESULT_EVENT, {
+      detail: {
+        session_id: sessionId,
+        run_id: id,
+        message_id: id,
+        task_id: "schedule-task",
+        task_name: "Schedule",
+        content: id,
+        timestamp: "2026-10-13T10:01:00Z",
+      },
+    }),
+  );
 }
 
-test.each([false, true])("opening a scheduled result keeps the current human stream (result in first page: %s)", async inFirstPage => {
-  const scheduled = {
-    id: "scheduled-event", run_id: "scheduled-old", event_type: "scheduled:result",
-    timestamp: "2026-10-01T10:00:00Z", data: {
-      session_id: "C", run_id: "scheduled-old", message_id: "scheduled-result:scheduled-old",
-      task_id: "task", task_name: "Task", content: "result", timestamp: "2026-10-01T10:00:00Z",
-    },
-  };
-  mocks.events.mockImplementation(async (_id: string, options: { run_id?: string }) =>
-    options.run_id ? { events: [scheduled] } : {
-      ...latestWindow(), events: [...latestWindow().events, ...(inFirstPage ? [scheduled] : [])],
+test.each([false, true])(
+  "opening a scheduled result keeps the current human stream (result in first page: %s)",
+  async (inFirstPage) => {
+    const scheduled = {
+      id: "scheduled-event",
+      run_id: "scheduled-old",
+      event_type: "scheduled:result",
+      timestamp: "2026-10-01T10:00:00Z",
+      data: {
+        session_id: "C",
+        run_id: "scheduled-old",
+        message_id: "scheduled-result:scheduled-old",
+        task_id: "task",
+        task_name: "Task",
+        content: "result",
+        timestamp: "2026-10-01T10:00:00Z",
+      },
+    };
+    mocks.events.mockImplementation(
+      async (_id: string, options: { run_id?: string }) =>
+        options.run_id
+          ? { events: [scheduled] }
+          : {
+              ...latestWindow(),
+              events: [
+                ...latestWindow().events,
+                ...(inFirstPage ? [scheduled] : []),
+              ],
+            },
+    );
+    const { result } = renderHook(() => useAgent());
+    await act(async () => {
+      await result.current.loadHistory("C", "scheduled-old");
     });
-  const { result } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("C", "scheduled-old"); });
-  expect(result.current.currentRunId).toBe("new-run");
-  expect(mocks.connect).toHaveBeenCalledOnce();
-  expect(mocks.connect.mock.calls[0].slice(0, 2)).toEqual(["C", "new-run"]);
-  expect(result.current.messages.some(message => message.id === "scheduled-result:scheduled-old")).toBe(true);
-});
+    expect(result.current.currentRunId).toBe("new-run");
+    expect(mocks.connect).toHaveBeenCalledOnce();
+    expect(mocks.connect.mock.calls[0].slice(0, 2)).toEqual(["C", "new-run"]);
+    expect(
+      result.current.messages.some(
+        (message) => message.id === "scheduled-result:scheduled-old",
+      ),
+    ).toBe(true);
+  },
+);
 
 test("same-session history replacement retains a scheduled result delivered after its request snapshot", async () => {
   const { result } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("C"); });
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
   let finish!: (value: ReturnType<typeof latestWindow>) => void;
-  mocks.events.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  mocks.events.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
   let pending!: Promise<unknown>;
-  act(() => { pending = result.current.loadHistory("C"); });
+  act(() => {
+    pending = result.current.loadHistory("C");
+  });
   act(() => deliverScheduledResult("C"));
-  await act(async () => { finish(latestWindow()); await pending; });
-  expect(result.current.messages.map(message => message.content)).toEqual([
-    "question-new-run", "answer-new-run", "late-result",
+  await act(async () => {
+    finish(latestWindow());
+    await pending;
+  });
+  expect(result.current.messages.map((message) => message.content)).toEqual([
+    "question-new-run",
+    "answer-new-run",
+    "late-result",
   ]);
-  expect(result.current.messages.filter(message => message.id === "late-result")).toHaveLength(1);
+  expect(
+    result.current.messages.filter((message) => message.id === "late-result"),
+  ).toHaveLength(1);
 });
 
 test("send takeover restores the original history together with a late scheduled result", async () => {
   const { result } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("C"); });
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
   let finish!: (value: ReturnType<typeof latestWindow>) => void;
-  mocks.events.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  mocks.events.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
   let pending!: Promise<unknown>;
-  act(() => { pending = result.current.loadHistory("C"); });
+  act(() => {
+    pending = result.current.loadHistory("C");
+  });
   act(() => deliverScheduledResult("C"));
-  await act(async () => { await result.current.sendMessage("next question"); });
-  await act(async () => { finish(latestWindow()); await pending; });
-  expect(result.current.messages.map(message => message.content)).toEqual(expect.arrayContaining([
-    "question-new-run", "answer-new-run", "late-result", "next question",
-  ]));
-  expect(result.current.messages.filter(message => message.id === "late-result")).toHaveLength(1);
+  await act(async () => {
+    await result.current.sendMessage("next question");
+  });
+  await act(async () => {
+    finish(latestWindow());
+    await pending;
+  });
+  expect(result.current.messages.map((message) => message.content)).toEqual(
+    expect.arrayContaining([
+      "question-new-run",
+      "answer-new-run",
+      "late-result",
+      "next question",
+    ]),
+  );
+  expect(
+    result.current.messages.filter((message) => message.id === "late-result"),
+  ).toHaveLength(1);
 });
 
-test.each([false, true])("a quiet scheduled run cannot return from a history snapshot (send takeover: %s)", async takeover => {
-  const { result } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("C"); });
-  const progress = { session_id: "C", run_id: "scheduled-run", message_id: "scheduled-result:scheduled-run",
-    task_id: "task", task_name: "Quiet task", content: "", timestamp: "2026-10-13T10:01:00Z" };
-  act(() => window.dispatchEvent(new CustomEvent(SCHEDULED_PROGRESS_EVENT, { detail: {
-    ...progress, status: "running", updated_at: "2026-10-13T10:01:01Z",
-  } })));
-  expect(result.current.messages.some(message => message.id === progress.message_id)).toBe(true);
-  let finish!: (value: ReturnType<typeof latestWindow>) => void;
-  mocks.events.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
-  let pending!: Promise<unknown>;
-  act(() => { pending = result.current.loadHistory("C"); });
-  act(() => window.dispatchEvent(new CustomEvent(SCHEDULED_PROGRESS_EVENT, { detail: {
-    ...progress, status: "quiet", updated_at: "2026-10-13T10:01:02Z",
-  } })));
-  if (takeover) await act(async () => { await result.current.sendMessage("next question"); });
-  await act(async () => { finish(latestWindow()); await pending; });
-  expect(result.current.messages.some(message => message.id === progress.message_id)).toBe(false);
-  expect(result.current.messages.some(message => message.content === "answer-new-run")).toBe(true);
-});
+test.each([false, true])(
+  "a quiet scheduled run cannot return from a history snapshot (send takeover: %s)",
+  async (takeover) => {
+    const { result } = renderHook(() => useAgent());
+    await act(async () => {
+      await result.current.loadHistory("C");
+    });
+    const progress = {
+      session_id: "C",
+      run_id: "scheduled-run",
+      message_id: "scheduled-result:scheduled-run",
+      task_id: "task",
+      task_name: "Quiet task",
+      content: "",
+      timestamp: "2026-10-13T10:01:00Z",
+    };
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent(SCHEDULED_PROGRESS_EVENT, {
+          detail: {
+            ...progress,
+            status: "running",
+            updated_at: "2026-10-13T10:01:01Z",
+          },
+        }),
+      ),
+    );
+    expect(
+      result.current.messages.some(
+        (message) => message.id === progress.message_id,
+      ),
+    ).toBe(true);
+    let finish!: (value: ReturnType<typeof latestWindow>) => void;
+    mocks.events.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = result.current.loadHistory("C");
+    });
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent(SCHEDULED_PROGRESS_EVENT, {
+          detail: {
+            ...progress,
+            status: "quiet",
+            updated_at: "2026-10-13T10:01:02Z",
+          },
+        }),
+      ),
+    );
+    if (takeover)
+      await act(async () => {
+        await result.current.sendMessage("next question");
+      });
+    await act(async () => {
+      finish(latestWindow());
+      await pending;
+    });
+    expect(
+      result.current.messages.some(
+        (message) => message.id === progress.message_id,
+      ),
+    ).toBe(false);
+    expect(
+      result.current.messages.some(
+        (message) => message.content === "answer-new-run",
+      ),
+    ).toBe(true);
+  },
+);
 
 test("a scheduled result from A cannot be merged into a later B history load", async () => {
   const { result } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("A"); });
+  await act(async () => {
+    await result.current.loadHistory("A");
+  });
   act(() => deliverScheduledResult("A"));
-  await act(async () => { await result.current.loadHistory("B"); });
-  expect(result.current.messages.some(message => message.metadata?.scheduledTaskId)).toBe(false);
+  await act(async () => {
+    await result.current.loadHistory("B");
+  });
+  expect(
+    result.current.messages.some(
+      (message) => message.metadata?.scheduledTaskId,
+    ),
+  ).toBe(false);
 });
 
 test("changing accounts invalidates pending history and its late scheduled results", async () => {
   const { result, rerender } = renderHook(() => useAgent());
-  await act(async () => { await result.current.loadHistory("A"); });
+  await act(async () => {
+    await result.current.loadHistory("A");
+  });
   let finish!: (value: ReturnType<typeof latestWindow>) => void;
-  mocks.events.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  mocks.events.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
   let pending!: Promise<unknown>;
-  act(() => { pending = result.current.loadHistory("A"); });
+  act(() => {
+    pending = result.current.loadHistory("A");
+  });
   act(() => deliverScheduledResult("A"));
   mocks.userId = "user-b";
   rerender();
-  await act(async () => { finish(latestWindow()); await pending; });
+  await act(async () => {
+    finish(latestWindow());
+    await pending;
+  });
   expect(result.current.sessionId).toBeNull();
   expect(result.current.messages).toEqual([]);
 });

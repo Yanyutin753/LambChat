@@ -4,8 +4,12 @@ import type { Message } from "../../types";
 import type { UseAgentOptions } from "./types";
 import { sessionApi } from "../../services/api/session";
 import {
-  isScheduledProgress, mergeScheduledProgress, SCHEDULED_PROGRESS_EVENT,
-  isScheduledResult, mergeScheduledResult, SCHEDULED_RESULT_EVENT,
+  isScheduledProgress,
+  mergeScheduledProgress,
+  SCHEDULED_PROGRESS_EVENT,
+  isScheduledResult,
+  mergeScheduledResult,
+  SCHEDULED_RESULT_EVENT,
   SCHEDULED_RESULTS_REFRESH_EVENT,
 } from "./scheduledResults";
 
@@ -15,8 +19,13 @@ export function useScheduledResults(
   setMessages: Dispatch<SetStateAction<Message[]>>,
   messages: Message[],
   onQuiet?: (sessionId: string, messageId: string, userId: string) => void,
-  callbacks?: Pick<UseAgentOptions, "onApprovalRequired" | "onApprovalResolved">,
+  callbacks?: Pick<
+    UseAgentOptions,
+    "onApprovalRequired" | "onApprovalResolved"
+  >,
 ) {
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
   useEffect(() => {
@@ -29,21 +38,39 @@ export function useScheduledResults(
         const source = message.metadata?.scheduledExecutionSessionId;
         const taskId = message.metadata?.scheduledTaskId;
         const taskName = message.metadata?.scheduledTaskName;
-        if (!message.metadata?.scheduledFinal || message.metadata.scheduledEventsLoaded ||
-          typeof source !== "string" || !runId || typeof taskId !== "string" || typeof taskName !== "string") continue;
+        if (
+          !message.metadata?.scheduledFinal ||
+          message.metadata.scheduledEventsLoaded ||
+          typeof source !== "string" ||
+          !runId ||
+          typeof taskId !== "string" ||
+          typeof taskName !== "string"
+        )
+          continue;
         try {
           const response = await sessionApi.getEvents(source, {
-            run_id: runId, signal: controller.signal,
+            run_id: runId,
+            signal: controller.signal,
           });
           if (controller.signal.aborted) return;
-          setMessages(previous => controller.signal.aborted ? previous : mergeScheduledResult(previous, {
-            session_id: sessionId, run_id: runId, message_id: message.id,
-            task_id: taskId, task_name: taskName,
-            content: message.content, timestamp: message.timestamp.toISOString(),
-            execution_session_id: source, events: response.events,
-          }));
+          setMessages((previous) =>
+            controller.signal.aborted
+              ? previous
+              : mergeScheduledResult(previous, {
+                  session_id: sessionId,
+                  run_id: runId,
+                  message_id: message.id,
+                  task_id: taskId,
+                  task_name: taskName,
+                  content: message.content,
+                  timestamp: message.timestamp.toISOString(),
+                  execution_session_id: source,
+                  events: response.events,
+                }),
+          );
         } catch (error) {
-          if (!controller.signal.aborted) console.warn("Scheduled execution history deferred", error);
+          if (!controller.signal.aborted)
+            console.warn("Scheduled execution history deferred", error);
         }
       }
     };
@@ -56,24 +83,42 @@ export function useScheduledResults(
     const controller = new AbortController();
     const settledIds = new Set<string>();
     const fetchingProgress = new Set<string>();
-    const restoreProgress = async (data: import("./scheduledResults").ScheduledProgress) => {
-      if (!data.execution_session_id || fetchingProgress.has(data.message_id)) return;
+    const restoreProgress = async (
+      data: import("./scheduledResults").ScheduledProgress,
+    ) => {
+      if (!data.execution_session_id || fetchingProgress.has(data.message_id))
+        return;
       fetchingProgress.add(data.message_id);
       try {
         const response = await sessionApi.getEvents(data.execution_session_id, {
-          run_id: data.run_id, include_active_events: true, signal: controller.signal,
+          run_id: data.run_id,
+          include_active_events: true,
+          signal: controller.signal,
         });
         if (!controller.signal.aborted && !settledIds.has(data.message_id)) {
-          setMessages(previous => controller.signal.aborted ? previous : mergeScheduledProgress(previous, { ...data, events: response.events }));
+          setMessages((previous) =>
+            controller.signal.aborted
+              ? previous
+              : mergeScheduledProgress(previous, {
+                  ...data,
+                  events: response.events,
+                }),
+          );
         }
       } catch (error) {
-        if (!controller.signal.aborted) console.warn("Scheduled execution progress deferred", error);
+        if (!controller.signal.aborted)
+          console.warn("Scheduled execution progress deferred", error);
       } finally {
         fetchingProgress.delete(data.message_id);
       }
     };
     const applyProgress = (data: unknown) => {
-      if (!isScheduledProgress(data) || data.session_id !== sessionId || settledIds.has(data.message_id)) return;
+      if (
+        !isScheduledProgress(data) ||
+        data.session_id !== sessionId ||
+        settledIds.has(data.message_id)
+      )
+        return;
       for (const approval of data.approvals ?? []) {
         callbacksRef.current?.onApprovalRequired?.(approval);
       }
@@ -88,14 +133,23 @@ export function useScheduledResults(
         settledIds.add(data.message_id);
         onQuiet?.(sessionId, data.message_id, userId);
       }
-      setMessages(previous => controller.signal.aborted ? previous : mergeScheduledProgress(previous, data));
+      setMessages((previous) =>
+        controller.signal.aborted
+          ? previous
+          : mergeScheduledProgress(previous, data),
+      );
     };
-    const receiveProgress = (event: Event) => applyProgress((event as CustomEvent).detail);
+    const receiveProgress = (event: Event) =>
+      applyProgress((event as CustomEvent).detail);
     const receive = (event: Event) => {
       const data: unknown = (event as CustomEvent).detail;
       if (isScheduledResult(data) && data.session_id === sessionId) {
         settledIds.add(data.message_id);
-        setMessages(previous => controller.signal.aborted ? previous : mergeScheduledResult(previous, data));
+        setMessages((previous) =>
+          controller.signal.aborted
+            ? previous
+            : mergeScheduledResult(previous, data),
+        );
       }
     };
     let inFlight = false;
@@ -104,20 +158,55 @@ export function useScheduledResults(
       inFlight = true;
       try {
         const response = await sessionApi.getEvents(sessionId, {
-          event_types: ["scheduled:result"], trace_limit: 50, signal: controller.signal,
+          event_types: ["scheduled:result"],
+          trace_limit: 50,
+          signal: controller.signal,
         });
         if (!controller.signal.aborted) {
           for (const event of response.events) {
-            if (isScheduledResult(event.data)) settledIds.add(event.data.message_id);
+            if (isScheduledResult(event.data))
+              settledIds.add(event.data.message_id);
           }
-          setMessages(previous => controller.signal.aborted ? previous : response.events.reduce((messages, event) =>
-            isScheduledResult(event.data) ? mergeScheduledResult(messages, event.data) : messages,
-          previous));
-          const active = await sessionApi.getScheduledProgress(sessionId, controller.signal);
-          if (!controller.signal.aborted) active.progress.forEach(applyProgress);
+          setMessages((previous) =>
+            controller.signal.aborted
+              ? previous
+              : response.events.reduce(
+                  (messages, event) =>
+                    isScheduledResult(event.data)
+                      ? mergeScheduledResult(messages, event.data)
+                      : messages,
+                  previous,
+                ),
+          );
+          const runIds = [
+            ...new Set(
+              messagesRef.current.flatMap((message) =>
+                message.metadata?.scheduledTaskId &&
+                !message.metadata.scheduledFinal &&
+                message.metadata.scheduledProgressStatus !== "failed" &&
+                message.runId
+                  ? [message.runId]
+                  : [],
+              ),
+            ),
+          ];
+          for (
+            let offset = 0;
+            offset < Math.max(runIds.length, 1);
+            offset += 100
+          ) {
+            const active = await sessionApi.getScheduledProgress(
+              sessionId,
+              controller.signal,
+              runIds.slice(offset, offset + 100),
+            );
+            if (controller.signal.aborted) return;
+            active.progress.forEach(applyProgress);
+          }
         }
       } catch (error) {
-        if (!controller.signal.aborted) console.warn("Scheduled result catch-up deferred", error);
+        if (!controller.signal.aborted)
+          console.warn("Scheduled result catch-up deferred", error);
       } finally {
         inFlight = false;
       }

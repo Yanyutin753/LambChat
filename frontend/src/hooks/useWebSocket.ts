@@ -1,4 +1,9 @@
-import { isScheduledProgress, isScheduledResult, type ScheduledProgress, type ScheduledResult } from "./useAgent/scheduledResults";
+import {
+  isScheduledProgress,
+  isScheduledResult,
+  type ScheduledProgress,
+  type ScheduledResult,
+} from "./useAgent/scheduledResults";
 import type { SessionReadScope } from "../services/api/session";
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import {

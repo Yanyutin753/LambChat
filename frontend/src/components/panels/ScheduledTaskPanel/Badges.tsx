@@ -33,6 +33,14 @@ export function RunStatusBadge({ status }: { status: string }) {
   const color = RUN_STATUS_COLOR_MAP[status] ?? "stone";
 
   return (
-    <StatusBadge color={color} label={t(status === "waiting_human" ? "chat.goal.waiting_human" : `scheduledTask.${status}`)} size="sm" />
+    <StatusBadge
+      color={color}
+      label={t(
+        status === "waiting_human"
+          ? "chat.goal.waiting_human"
+          : `scheduledTask.${status}`,
+      )}
+      size="sm"
+    />
   );
 }

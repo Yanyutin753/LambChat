@@ -74,11 +74,7 @@ test("right panel code arguments retain the shared monospace font", () => {
 });
 
 test("natural-language search arguments inherit the body font in compact and detail views", () => {
-  for (const name of [
-    "SkillSearchItem",
-    "ToolSearchItem",
-    "WebSearchItem",
-  ]) {
+  for (const name of ["SkillSearchItem", "ToolSearchItem", "WebSearchItem"]) {
     const source = readSource(`../${name}.tsx`);
     expect(source).toMatch(
       /<span className="[^"]*font-medium[^"]*">\s*\{(?:truncate\(query, \d+\)|query)\}/,

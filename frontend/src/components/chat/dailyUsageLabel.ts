@@ -14,8 +14,14 @@ export function buildDailyUsageAmount(
 ): string | null {
   if (!stats) return null;
   const unpriced = stats.unpriced_requests ?? 0;
-  const priced = stats.priced_requests ?? Math.max(stats.total_requests - unpriced, 0);
-  if (typeof stats.total_cost_usd !== "number" || !Number.isFinite(stats.total_cost_usd) || (unpriced > 0 && priced === 0)) return "—";
+  const priced =
+    stats.priced_requests ?? Math.max(stats.total_requests - unpriced, 0);
+  if (
+    typeof stats.total_cost_usd !== "number" ||
+    !Number.isFinite(stats.total_cost_usd) ||
+    (unpriced > 0 && priced === 0)
+  )
+    return "—";
   const amount = formatCostUsd(stats.total_cost_usd, { ...opts, decimals: 3 });
   return (stats.unpriced_requests ?? 0) > 0 ? `${amount}+` : amount;
 }

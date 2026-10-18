@@ -489,10 +489,17 @@ function PreferencesContent() {
                 const m = availableModels.find((m) => m.id === id);
                 return m ? (
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <ModelIconImg model={m.value} provider={m.provider} icon={m.icon} size={16} />
+                    <ModelIconImg
+                      model={m.value}
+                      provider={m.provider}
+                      icon={m.icon}
+                      size={16}
+                    />
                     {m.label}
                   </span>
-                ) : id;
+                ) : (
+                  id
+                );
               }}
             >
               {renderSaveStatus("model", "profile.defaultModel", true)}

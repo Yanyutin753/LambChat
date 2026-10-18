@@ -56,8 +56,13 @@ async def test_partial_cache_counts_are_not_complete_aggregate_counts(monkeypatc
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 200
-    assert "cache_read_tokens" not in data
+    assert (
+        data["cache_read_tokens"] == 70
+    )  # Preserve the known lower bound, never certify the total.
     assert data["usage_incomplete"] is True
+    assert {"cache_read_tokens", "cache_creation_tokens"} <= set(data["unknown_usage_fields"])
+    assert data.get("input_includes_cache") is not True
+    assert "cost_usd" not in data
     price.assert_not_awaited()
 
 
@@ -160,7 +165,8 @@ async def test_successful_parallel_attempts_do_not_poison_interim_usage(monkeypa
     await model_event(instance, "on_chat_model_start", "first")
     await model_event(instance, "on_chat_model_start", "second")
     await model_event(instance, "on_chat_model_end", "first", complete=True)
-    assert instance.usage_totals()["unknown_usage_fields"] == []
+    assert instance._usage_unknown_fields == set()
+    assert "input_tokens" in instance.usage_totals()["unknown_usage_fields"]
     await model_event(instance, "on_chat_model_end", "second", complete=True)
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
@@ -212,3 +218,65 @@ async def test_duplicate_model_terminal_callbacks_do_not_double_count_usage(monk
     assert data["total_tokens"] == 110
     assert data["usage_incomplete"] is False
     price.assert_awaited_once()
+
+
+@pytest.mark.parametrize("bad_write", [None, True, -1])
+async def test_resume_cannot_certify_missing_or_invalid_cache_write(monkeypatch, bad_write):
+    instance, price = processor(monkeypatch)
+    prior = dict(
+        input_tokens=100,
+        output_tokens=10,
+        total_tokens=110,
+        cache_read_tokens=70,
+        unknown_usage_fields=[],
+        input_includes_cache=True,
+        usage_observed=True,
+    )
+    if bad_write is not None:
+        prior["cache_creation_tokens"] = bad_write
+    instance.seed_usage(prior)
+    assert await instance.emit_token_usage()
+    data = instance._presenter_emit.call_args.args[0]["data"]
+    assert "cache_creation_tokens" in data["unknown_usage_fields"]
+    assert "cache_creation_tokens" not in data
+    assert data["usage_incomplete"] is True and "cost_usd" not in data
+    assert data["input_tokens"] == 100 and data["cache_read_tokens"] == 70
+    price.assert_not_awaited()
+
+
+@pytest.mark.parametrize("invalid", [True, -1])
+async def test_invalid_native_usage_is_unknown_not_a_measured_count(monkeypatch, invalid):
+    instance, price = processor(monkeypatch)
+    record(instance, details={"cache_read": 0, "cache_creation": invalid})
+    assert await instance.emit_token_usage()
+    data = instance._presenter_emit.call_args.args[0]["data"]
+    assert "cache_creation_tokens" in data["unknown_usage_fields"]
+    assert "cache_creation_tokens" not in data
+    price.assert_not_awaited()
+
+
+async def test_raw_provider_counts_without_inclusive_input_cannot_certify_cost(monkeypatch):
+    instance, price = processor(monkeypatch)
+    instance._handle_token_usage(
+        {
+            "data": {
+                "output": SimpleNamespace(
+                    usage_metadata=None,
+                    response_metadata={
+                        "usage": {
+                            "input_tokens": 100,
+                            "output_tokens": 10,
+                            "total_tokens": 110,
+                            "cache_read_input_tokens": 70,
+                            "cache_creation_input_tokens": 0,
+                        }
+                    },
+                )
+            }
+        }
+    )
+    assert await instance.emit_token_usage()
+    assert (
+        instance._presenter_emit.call_args.args[0]["data"].get("input_includes_cache") is not True
+    )
+    price.assert_not_awaited()

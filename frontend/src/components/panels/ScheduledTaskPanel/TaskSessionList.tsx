@@ -58,7 +58,11 @@ export function TaskSessionList({
       }
       inFlight = true;
       try {
-        const response = await scheduledTaskApi.getSessions(taskId, skip, limit);
+        const response = await scheduledTaskApi.getSessions(
+          taskId,
+          skip,
+          limit,
+        );
         if (!disposed) {
           setSessions(response.items);
           setTotal(response.total);

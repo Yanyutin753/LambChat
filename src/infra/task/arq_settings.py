@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -24,3 +25,20 @@ def build_arq_redis_settings(settings: Any) -> RedisSettings:
         password=password,
         ssl=parsed.scheme == "rediss",
     )
+
+
+async def close_arq_pool(arq_pool: Any) -> None:
+    """Close an initialized ARQ pool across sync and async client APIs."""
+    if arq_pool is None:
+        return
+
+    close = getattr(arq_pool, "close", None)
+    if close is not None:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    wait_closed = getattr(arq_pool, "wait_closed", None)
+    if wait_closed is not None:
+        result = wait_closed()
+        if inspect.isawaitable(result):
+            await result

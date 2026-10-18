@@ -730,7 +730,11 @@ function handleUserMessage(
         // 误命中上一轮的同内容消息，把流式助手插到旧消息下面。
         for (let index = prev.length - 1; index >= 0; index -= 1) {
           const candidate = prev[index];
-          if (candidate?.role === "user" && !candidate.runId && candidate.content === userContent) {
+          if (
+            candidate?.role === "user" &&
+            !candidate.runId &&
+            candidate.content === userContent
+          ) {
             existingUserIndex = index;
             break;
           }

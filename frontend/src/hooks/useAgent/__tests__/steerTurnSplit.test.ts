@@ -136,12 +136,29 @@ describe("splitAssistantTurn", () => {
 });
 
 test("delivered steering seals a segment without cancelling its work or pending todos", () => {
-  const result = splitAssistantTurn([msg({
-    id: "a", role: "assistant", content: "已完成第一步", isStreaming: true,
-    parts: [{ type: "todo", items: [{ id: "sign", content: "等待人工签字", status: "pending" }], isStreaming: false }],
-  })], "a");
+  const result = splitAssistantTurn(
+    [
+      msg({
+        id: "a",
+        role: "assistant",
+        content: "已完成第一步",
+        isStreaming: true,
+        parts: [
+          {
+            type: "todo",
+            items: [{ id: "sign", content: "等待人工签字", status: "pending" }],
+            isStreaming: false,
+          },
+        ],
+      }),
+    ],
+    "a",
+  );
   expect(result[0].cancelled).not.toBe(true);
   expect(result[0].metadata?.continuedBySteer).toBe(true);
   expect(result[0].isStreaming).toBe(false);
-  expect(result[0].parts?.[0]).toMatchObject({ type: "todo", items: [{ status: "pending" }] });
+  expect(result[0].parts?.[0]).toMatchObject({
+    type: "todo",
+    items: [{ status: "pending" }],
+  });
 });

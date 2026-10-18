@@ -125,16 +125,26 @@ test("plans bare goal command as invalid local-only action", () => {
 });
 
 test("persistent goal commands stay distinct from run-scoped goals", () => {
-  expect(parseFrontendGoalCommand("/goal persist finish docs\n---\n- docs verified")).toEqual({
+  expect(
+    parseFrontendGoalCommand("/goal persist finish docs\n---\n- docs verified"),
+  ).toEqual({
     action: "persist",
-    goal: { objective: "finish docs", rubric: "- docs verified", max_iterations: 3 },
+    goal: {
+      objective: "finish docs",
+      rubric: "- docs verified",
+      max_iterations: 3,
+    },
     prompt: "finish docs",
   });
   expect(parseFrontendGoalCommand("/goal pause")).toEqual({ action: "pause" });
-  expect(parseFrontendGoalCommand("/goal resume")).toEqual({ action: "resume" });
-  expect(parseFrontendGoalCommand("/goal persist")).toEqual({ action: "invalid" });
+  expect(parseFrontendGoalCommand("/goal resume")).toEqual({
+    action: "resume",
+  });
+  expect(parseFrontendGoalCommand("/goal persist")).toEqual({
+    action: "invalid",
+  });
 });
 
- test("plain goal commands persist across turns", () => {
+test("plain goal commands persist across turns", () => {
   expect(parseFrontendGoalCommand("/goal finish docs")?.action).toBe("persist");
 });

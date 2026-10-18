@@ -93,7 +93,13 @@ export function MessagePartRenderer({
         status="success"
         icon={<ArrowRightLeft size={12} className="shrink-0 opacity-50" />}
         label={t("chat.agentHandoff", {
-          agent: resolveAgentReferenceName(part.agentId, part.agentId, [], i18n.language, t),
+          agent: resolveAgentReferenceName(
+            part.agentId,
+            part.agentId,
+            [],
+            i18n.language,
+            t,
+          ),
         })}
         expandable={false}
         formatLabel={false}
@@ -286,6 +292,7 @@ export function MessagePartRenderer({
           result={part.result}
           success={part.success}
           isPending={part.isPending}
+          awaitingConfirmation={part.awaitingConfirmation}
           cancelled={part.cancelled}
           startedAt={part.startedAt}
           completedAt={part.completedAt}

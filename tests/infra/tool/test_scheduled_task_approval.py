@@ -75,7 +75,15 @@ async def test_confirm_scheduled_task_creation_proceeds_in_interactive_session(
         return _FakeApproval()
 
     async def fake_send(
-        *, approval_id, message, session_id, run_id, timeout, expires_at=None, trace_id=None, preview=None
+        *,
+        approval_id,
+        message,
+        session_id,
+        run_id,
+        timeout,
+        expires_at=None,
+        trace_id=None,
+        preview=None,
     ):
         nonlocal send_called
         send_called = True
@@ -414,7 +422,15 @@ async def test_confirm_scheduled_task_forwards_request_trace_id(
         return _FakeApproval()
 
     async def fake_send(
-        *, approval_id, message, session_id, run_id, timeout, expires_at=None, trace_id=None, preview=None
+        *,
+        approval_id,
+        message,
+        session_id,
+        run_id,
+        timeout,
+        expires_at=None,
+        trace_id=None,
+        preview=None,
     ):
         captured.append({"trace_id": trace_id})
 

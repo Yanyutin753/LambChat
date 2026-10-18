@@ -60,8 +60,13 @@ test("ranking rows show per-model cost", () => {
 });
 
 test("usage log cache counts distinguish unknown from zero at every breakpoint", () => {
-  const source = readFileSync(resolve(currentDir, "../UsageLogsTable.tsx"), "utf8");
-  expect(source.match(/log\.cache_metrics_available === true/g)).toHaveLength(3);
+  const source = readFileSync(
+    resolve(currentDir, "../UsageLogsTable.tsx"),
+    "utf8",
+  );
+  expect(source.match(/log\.cache_metrics_available === true/g)).toHaveLength(
+    3,
+  );
 });
 
 test("usage cost labels are available in every locale", () => {

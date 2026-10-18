@@ -63,10 +63,13 @@ async def test_active_execution_catchup_is_opt_in_and_exact_run_scoped(
     assert {event["trace_id"] for event in events} == {"trace-26"}
 
 
-@pytest.mark.parametrize("params", [
-    {"include_active_events": "true"},
-    {"include_active_events": "true", "run_id": "run-active", "exclude_run_id": "other"},
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"include_active_events": "true"},
+        {"include_active_events": "true", "run_id": "run-active", "exclude_run_id": "other"},
+    ],
+)
 async def test_active_execution_catchup_requires_an_unambiguous_run(monkeypatch, params):
     app = _active_events_app(monkeypatch)
     async with httpx.AsyncClient(
@@ -82,8 +85,12 @@ async def test_active_execution_catchup_rechecks_session_ownership(monkeypatch):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        response = await client.get("/api/sessions/session-1/events", params={
-            "run_id": "run-active", "include_active_events": "true",
-        })
+        response = await client.get(
+            "/api/sessions/session-1/events",
+            params={
+                "run_id": "run-active",
+                "include_active_events": "true",
+            },
+        )
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "session_access_denied"

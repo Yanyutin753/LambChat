@@ -58,7 +58,12 @@ export function isSessionRunning(
   messages: Pick<Message, "isStreaming" | "metadata">[],
   isLoading: boolean,
 ): boolean {
-  return isLoading || messages.some((message) => message.isStreaming && !message.metadata?.scheduledTaskId);
+  return (
+    isLoading ||
+    messages.some(
+      (message) => message.isStreaming && !message.metadata?.scheduledTaskId,
+    )
+  );
 }
 
 export function shouldShowStreamingFooterSkeleton({

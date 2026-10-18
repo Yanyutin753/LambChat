@@ -72,10 +72,20 @@ describe("fmtCostUsd", () => {
     expect(fmtCostUsd(undefined, true, { language: "en" })).toBe("—");
   });
   test("aggregate fees retain unknown requests without inventing a zero total", () => {
-    expect(fmtCostUsd(0, true, { language: "en", pricedRequests: 0,
-      unpricedRequests: 2 })).toBe("—");
-    expect(fmtCostUsd(0.2, true, { language: "en", pricedRequests: 1,
-      unpricedRequests: 2 })).toMatch(/\+$/);
+    expect(
+      fmtCostUsd(0, true, {
+        language: "en",
+        pricedRequests: 0,
+        unpricedRequests: 2,
+      }),
+    ).toBe("—");
+    expect(
+      fmtCostUsd(0.2, true, {
+        language: "en",
+        pricedRequests: 1,
+        unpricedRequests: 2,
+      }),
+    ).toMatch(/\+$/);
   });
 
   test("maxDecimals caps tiny cost precision for mobile", () => {

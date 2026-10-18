@@ -722,7 +722,13 @@ class ErrorCode(Enum):
     MODEL_EMPTY_RESPONSE = (
         "model_empty_response",
         500,
-        "The model returned an empty response after retries, please try again or switch models",
+        "The model returned no usable answer, please try again or switch models",
+    )
+
+    MODEL_OUTPUT_LIMIT = (
+        "model_output_limit",
+        500,
+        "The model exhausted its output limit before returning an answer. Review the progress or use another model.",
     )
 
     # ---------- team：团队 ----------

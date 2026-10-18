@@ -2,7 +2,9 @@
 
 CORRECTNESS_POLICY = (
     "Check guarantees against adversarial counterexamples; "
-    "distinguish necessary from sufficient conditions."
+    "distinguish necessary from sufficient conditions. "
+    "For APIs, test specified error types and unchanged state after invalid inputs, "
+    "including failed conversions and numeric limits."
 )
 
 PERSISTENT_STORAGE_POLICY = """## Storage
@@ -147,7 +149,8 @@ SAFETY_POLICY = """### Safety, Verification, and Privacy
 # 都挂该中间件，这里再复读一遍等于每个请求双份近逐字注入。
 PROGRESS_POLICY = """### Tool Progress
 For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results.
-When slow sandbox work (installs, training, long builds) will verify or demo a conceptual answer, state the key concepts in text first, then run and append results."""
+Tool work: take the next concrete tool action after a short plan; do not draft the entire implementation in private reasoning. Iterate from results.
+For slow sandbox concept checks/demos, state the key concepts in text first; then run and append results."""
 
 WORKFLOW_POLICY = "\n\n".join(
     (

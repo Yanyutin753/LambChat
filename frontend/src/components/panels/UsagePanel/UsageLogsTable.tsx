@@ -1,3 +1,4 @@
+import { formatUsageTokenCount } from "../../chat/ChatMessage/tokenCostDisplay";
 import { EmptyState } from "../../common/EmptyState";
 import { Activity, Bot, FileText, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -209,20 +210,22 @@ function DesktopTable({
                     </span>
                   </div>
                   <div className={numericCellClass}>
-                    {fmt(log.input_tokens)}
+                    {formatUsageTokenCount(log, "input_tokens", fmt)}
                   </div>
                   <div className={numericCellClass}>
-                    {fmt(log.output_tokens)}
+                    {formatUsageTokenCount(log, "output_tokens", fmt)}
                   </div>
                   {hasAnyCache && (
                     <div
                       className={`${numericCellClass} text-theme-text-tertiary`}
                     >
-                      {log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—"}
+                      {log.cache_metrics_available === true
+                        ? fmt(log.cache_read_tokens)
+                        : "—"}
                     </div>
                   )}
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 font-semibold tabular-nums text-[var(--theme-primary)]">
-                    {fmt(log.total_tokens)}
+                    {formatUsageTokenCount(log, "total_tokens", fmt)}
                   </div>
                   <div
                     className={`${numericCellClass} text-theme-text-tertiary`}
@@ -315,10 +318,28 @@ function TabletRow({
       </div>
       <div className="mt-4 grid grid-cols-5 gap-2 rounded-lg bg-[var(--usage-inset-bg)] px-3 py-3 text-right">
         {[
-          [t("usage.inTokens"), fmt(log.input_tokens), false],
-          [t("usage.outTokens"), fmt(log.output_tokens), false],
-          [t("usage.cache"), log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—", false],
-          [t("usage.total"), fmt(log.total_tokens), true],
+          [
+            t("usage.inTokens"),
+            formatUsageTokenCount(log, "input_tokens", fmt),
+            false,
+          ],
+          [
+            t("usage.outTokens"),
+            formatUsageTokenCount(log, "output_tokens", fmt),
+            false,
+          ],
+          [
+            t("usage.cache"),
+            log.cache_metrics_available === true
+              ? fmt(log.cache_read_tokens)
+              : "—",
+            false,
+          ],
+          [
+            t("usage.total"),
+            formatUsageTokenCount(log, "total_tokens", fmt),
+            true,
+          ],
           [
             t("usage.cost"),
             fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),
@@ -418,10 +439,28 @@ function MobileCard({
         {/* Token metrics — segmented bar */}
         <div className="usage-metrics-bar mt-4 grid grid-cols-5 overflow-hidden rounded-xl">
           {[
-            [t("usage.inTokens"), fmt(log.input_tokens), false],
-            [t("usage.outTokens"), fmt(log.output_tokens), false],
-            [t("usage.cacheRead"), log.cache_metrics_available === true ? fmt(log.cache_read_tokens) : "—", false],
-            [t("usage.totalTokens"), fmt(log.total_tokens), true],
+            [
+              t("usage.inTokens"),
+              formatUsageTokenCount(log, "input_tokens", fmt),
+              false,
+            ],
+            [
+              t("usage.outTokens"),
+              formatUsageTokenCount(log, "output_tokens", fmt),
+              false,
+            ],
+            [
+              t("usage.cacheRead"),
+              log.cache_metrics_available === true
+                ? fmt(log.cache_read_tokens)
+                : "—",
+              false,
+            ],
+            [
+              t("usage.totalTokens"),
+              formatUsageTokenCount(log, "total_tokens", fmt),
+              true,
+            ],
             [
               t("usage.cost"),
               fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),

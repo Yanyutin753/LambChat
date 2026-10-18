@@ -35,7 +35,10 @@ import { Button } from "../../common/ui/Button";
 import { SkillChip } from "../SkillChip";
 import { FileReferenceChip } from "../richComposer/FileReferenceChip";
 import type { MessageAttachment } from "../../../types";
-import { rehypeUserMessageReferences, type UserMessageReferences } from "./userMessageFileReferences";
+import {
+  rehypeUserMessageReferences,
+  type UserMessageReferences,
+} from "./userMessageFileReferences";
 
 type MarkdownUserMessageReferences = UserMessageReferences & {
   onOpenAttachment: (attachment: MessageAttachment) => void;
@@ -151,7 +154,9 @@ function getHeadingAnchorId({
 function InlineCode({ children }: { children: React.ReactNode }) {
   const codeId = useId();
   const { t } = useTranslation();
-  const { copied, failed, copying, copy } = useClipboardCopy(String(children ?? ""));
+  const { copied, failed, copying, copy } = useClipboardCopy(
+    String(children ?? ""),
+  );
   const label = t(copied ? "chat.message.copied" : "chat.message.copyCode");
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [insideLink, setInsideLink] = useState(false);
@@ -352,7 +357,7 @@ const markdownComponents: Components = {
       return <SkillChip name={skillName} />;
     }
     const attachment = userMessageReferences?.attachments?.find(
-      file => file.id === node?.properties.dataFileId,
+      (file) => file.id === node?.properties.dataFileId,
     );
     if (attachment && userMessageReferences) {
       return (
@@ -380,10 +385,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h1>
@@ -399,10 +401,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h2>
@@ -418,10 +417,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h3>
@@ -437,10 +433,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h4>
@@ -456,10 +449,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h5>
@@ -475,10 +465,7 @@ const markdownComponents: Components = {
         data-outline-id={id}
         className="scroll-mt-4"
       >
-        <a
-          href={`#${id}`}
-          className="markdown-heading-link"
-        >
+        <a href={`#${id}`} className="markdown-heading-link">
           {children}
         </a>
       </h6>
@@ -573,7 +560,9 @@ const markdownComponents: Components = {
   ),
   tr: ({ children }) => <tr className="ai-data-table__row">{children}</tr>,
   th: ({ children, style }) => (
-    <th className="ai-data-table__header-cell" style={style}>{children}</th>
+    <th className="ai-data-table__header-cell" style={style}>
+      {children}
+    </th>
   ),
   td: ({ children, style }) => {
     const cellText = extractNodeText(children).trim();
@@ -655,9 +644,14 @@ export const MarkdownContent = memo(function MarkdownContent({
       >
         <ReactMarkdown
           remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
-          rehypePlugins={userMessageReferences
-            ? [rehypeKatex, [rehypeUserMessageReferences, userMessageReferences]]
-            : [rehypeKatex]}
+          rehypePlugins={
+            userMessageReferences
+              ? [
+                  rehypeKatex,
+                  [rehypeUserMessageReferences, userMessageReferences],
+                ]
+              : [rehypeKatex]
+          }
           components={markdownComponents}
         >
           {normalizeMarkdownCodeFences(content)}

@@ -329,7 +329,11 @@ export interface UseAgentReturn {
   controlPersistentGoal: (
     action: "pause" | "resume" | "clear",
   ) => Promise<void>;
-  updatePersistentGoal: (objective: string, rubric: string, expectedRevision: number) => Promise<boolean>;
+  updatePersistentGoal: (
+    objective: string,
+    rubric: string,
+    expectedRevision: number,
+  ) => Promise<boolean>;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   isInitializingSandbox: boolean;

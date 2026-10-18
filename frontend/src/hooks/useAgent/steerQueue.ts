@@ -159,7 +159,11 @@ export async function promoteSteerFollowUps(
       accepted = true;
       deps.clearSteer?.(item.content, item.id, sessionId);
     };
-    const result = await deps.sendMessage(item.content, item.attachments, onAccepted);
+    const result = await deps.sendMessage(
+      item.content,
+      item.attachments,
+      onAccepted,
+    );
     if (!accepted && result !== false) onAccepted();
     if (accepted) promoted += 1;
     else deferredBySending += 1;
@@ -189,7 +193,11 @@ export interface SteerFollowUpPromotionOptions {
   followUpSteerIdsRef: RefObject<Set<string>>;
   sessionIdRef: RefObject<string | null>;
   sendMessageRef: RefObject<
-    | ((content: string, attachments?: MessageAttachment[], callbacks?: ChatSubmissionCallbacks) => Promise<void>)
+    | ((
+        content: string,
+        attachments?: MessageAttachment[],
+        callbacks?: ChatSubmissionCallbacks,
+      ) => Promise<void>)
     | null
   >;
 }
@@ -247,7 +255,10 @@ export function useSteerFollowUpPromotion(
         sendMessage: async (content, attachments, onAccepted) => {
           let accepted = false;
           await sendMessageRef.current?.(content, attachments, {
-            onAccepted: () => { accepted = true; onAccepted?.(); },
+            onAccepted: () => {
+              accepted = true;
+              onAccepted?.();
+            },
           });
           return accepted;
         },
@@ -365,10 +376,19 @@ export function useSteerQueue({
         // is safe to preserve the user's intent as a normal next turn;
         // transport/auth/server failures must remain retryable instead.
         if (status === 409) {
-          const deferred: SteerItem = { ...item, queued: true, status: "deferred", deferred: true };
-          setSteerMessages((prev) => prev.some(s => s.id === item.id)
-            ? prev.map(s => s.id === item.id ? deferred : s)
-            : [...prev, deferred], currentSessionId);
+          const deferred: SteerItem = {
+            ...item,
+            queued: true,
+            status: "deferred",
+            deferred: true,
+          };
+          setSteerMessages(
+            (prev) =>
+              prev.some((s) => s.id === item.id)
+                ? prev.map((s) => (s.id === item.id ? deferred : s))
+                : [...prev, deferred],
+            currentSessionId,
+          );
           return;
         }
         setSteerMessages((prev) =>
@@ -407,7 +427,9 @@ export function useSteerQueue({
         removed = result.removed;
         return result.remaining;
       });
-      const pending = pendingSteersRef.current.get(messageId ?? removed?.id ?? "");
+      const pending = pendingSteersRef.current.get(
+        messageId ?? removed?.id ?? "",
+      );
       if (pending) pending.cancelled = true;
       removeDeferredSteer?.(content, messageId ?? removed?.id);
       const currentSessionId = sessionIdRef.current;

@@ -7,7 +7,7 @@ test("streaming run with no parts keeps the working row and shows a loading icon
   expect(source).toMatch(/steps=\{0\}/);
   // 展开区内渲染加载 icon，而不是 null
   expect(source).toMatch(
-    /renderExpanded=\{\(\) => \(\s*<div className="flex justify-start">\s*<LoadingSpinner/,
+    /renderExpanded=\{\(\) =>\s*isWaitingForHuman \? null : \(\s*<div className="flex justify-start">\s*<LoadingSpinner/,
   );
   expect(source).toMatch(/<LoadingSpinner\b/);
 });

@@ -10,7 +10,16 @@ test("handoff remains a single milestone when replayed", () => {
   expect(first.parts).toEqual([
     { type: "agentHandoff", agentId: "search", timestamp: data.timestamp },
   ]);
-  const replay = processMessageEvent("status", data, first.parts, "", [], 0, [], false);
+  const replay = processMessageEvent(
+    "status",
+    data,
+    first.parts,
+    "",
+    [],
+    0,
+    [],
+    false,
+  );
   expect(replay.parts).toEqual(first.parts);
   expect(replay.content).toBe("");
 });
@@ -20,7 +29,11 @@ test("handoff does not remove earlier text or tool results", () => {
     "status",
     { stage: "agent_handoff", target_agent_id: "search" },
     [{ type: "text", content: "已有上下文" }],
-    "已有上下文", [], 0, [], true,
+    "已有上下文",
+    [],
+    0,
+    [],
+    true,
   );
   expect(first.parts).toHaveLength(2);
   expect(first.parts[0]).toEqual({ type: "text", content: "已有上下文" });

@@ -38,7 +38,9 @@ test("all approvals use the full ask-human card with visible actions", () => {
   expect(approvalSource).toMatch(
     /className="approval-card approval-card--composer approval-card--ask-human/,
   );
-  expect(approvalSource).not.toMatch(/isExpanded|approval-compact|aria-expanded/);
+  expect(approvalSource).not.toMatch(
+    /isExpanded|approval-compact|aria-expanded/,
+  );
   expect(approvalSource).toMatch(
     /className="approval-actions approval-ask-human-footer font-serif"/,
   );
@@ -53,7 +55,7 @@ test("all pending approvals replace the composer", () => {
 
 test("pending approvals suppress welcome and loading composers without messages", () => {
   expect(chatViewSource).toMatch(
-    /\{messages\.length === 0 \? \(\s*!hasPendingApproval && \(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,
+    /\{messages\.length === 0 \? \(\s*!hasPendingApproval &&\s*\(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,
   );
   expect(chatViewSource).toMatch(
     /\{\(messages\.length > 0 \|\| hasPendingApproval\) && \(\s*<div className="relative">/,
@@ -127,8 +129,12 @@ test("forwards session-scoped approval clearing from useAgent", () => {
 });
 
 test("forwards the server deadline and timeout into the confirmation card", () => {
-  expect(chatAppSource).toMatch(/addApproval\(\{[^}]*expires_at: approval\.expires_at/);
-  expect(chatAppSource).toMatch(/addApproval\(\{[^}]*timeout: approval\.timeout/);
+  expect(chatAppSource).toMatch(
+    /addApproval\(\{[^}]*expires_at: approval\.expires_at/,
+  );
+  expect(chatAppSource).toMatch(
+    /addApproval\(\{[^}]*timeout: approval\.timeout/,
+  );
 });
 
 test("passes the resumed run id to the stream recovery callback", () => {
@@ -139,6 +145,6 @@ test("passes the resumed run id to the stream recovery callback", () => {
     /ensureResumeStreamRef\.current\s*=\s*\(runId, sourceSessionId\)\s*=>/,
   );
   expect(approvalsHookSource).toMatch(
-    /onInterruptResume\?\.\(res\.hitl_resume\.run_id,/,
+    /onInterruptResume\?\.\(\s*res\.hitl_resume\.run_id,/,
   );
 });

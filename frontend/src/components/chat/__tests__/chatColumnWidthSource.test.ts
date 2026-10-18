@@ -25,7 +25,9 @@ test("message column, composer, skeletons and approval panel share the chat colu
 test("conversation editor spacing does not target the welcome composer", () => {
   const css = read("src/styles/chat.css");
   expect(css).toContain(".chat-conversation-composer");
-  expect(css).not.toMatch(/\.chat-view-content-region\s+\.chat-input-container/);
+  expect(css).not.toMatch(
+    /\.chat-view-content-region\s+\.chat-input-container/,
+  );
   expect(read("src/components/chat/ChatInput.tsx")).toContain(
     'className ?? "chat-content-column chat-conversation-composer"',
   );

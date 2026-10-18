@@ -95,7 +95,8 @@ export function fmtCostUsd(
   available: boolean,
   opts: CostFormatOpts,
 ): string {
-  if (!available || typeof usd !== "number" || !Number.isFinite(usd)) return "—";
+  if (!available || typeof usd !== "number" || !Number.isFinite(usd))
+    return "—";
   const unknown = (opts.unpricedRequests ?? 0) > 0;
   if (unknown && opts.pricedRequests === 0) return "—";
   return `${formatCostUsd(usd, opts)}${unknown ? "+" : ""}`;

@@ -6,6 +6,8 @@ from typing import Any
 
 from langchain_core.messages import SystemMessage
 
+_SANDBOX_WORKSPACE_FRAME = "<sandbox_workspace_context>"
+
 
 def _normalize_prompt_text(text: str) -> str:
     """Normalize injected prompt sections so equivalent content has the same shape."""
@@ -32,9 +34,21 @@ def _system_message_to_blocks(system_message: Any) -> list[Any]:
 
 
 def _append_system_text_block(system_message: Any, text: str) -> SystemMessage:
-    """Append a deterministic text block to the system message."""
+    """Append instructions before the session-specific workspace tail."""
     normalized = _normalize_prompt_text(text)
     blocks = _system_message_to_blocks(system_message)
     if normalized:
-        blocks.append({"type": "text", "text": normalized})
+        position = len(blocks)
+        if not normalized.startswith(_SANDBOX_WORKSPACE_FRAME + "\n"):
+            position = next(
+                (
+                    index
+                    for index, block in enumerate(blocks)
+                    if isinstance(block, dict)
+                    and isinstance(block.get("text"), str)
+                    and block["text"].startswith(_SANDBOX_WORKSPACE_FRAME + "\n")
+                ),
+                position,
+            )
+        blocks.insert(position, {"type": "text", "text": normalized})
     return SystemMessage(content=blocks)

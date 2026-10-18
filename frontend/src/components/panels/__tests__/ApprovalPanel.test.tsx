@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ReactNode } from "react";
 import i18n from "../../../i18n";
@@ -140,16 +146,29 @@ test("a loading confirmation keeps both actions disabled", () => {
 test("restoring a confirmation keeps its original absolute deadline", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-18T00:00:00.000Z"));
-  const pending = approval({ expires_at: "2026-10-18T00:05:00.000Z", timeout: 3600 });
+  const pending = approval({
+    expires_at: "2026-10-18T00:05:00.000Z",
+    timeout: 3600,
+  });
   const onRespond = vi.fn();
   const view = render(
-    <ApprovalPanel approvals={[pending]} onRespond={onRespond} isLoading={false} />,
+    <ApprovalPanel
+      approvals={[pending]}
+      onRespond={onRespond}
+      isLoading={false}
+    />,
   );
   expect(screen.getByText("5:00")).toBeVisible();
   act(() => vi.advanceTimersByTime(61_000));
   expect(screen.getByText("3:59")).toBeVisible();
   view.unmount();
-  render(<ApprovalPanel approvals={[pending]} onRespond={onRespond} isLoading={false} />);
+  render(
+    <ApprovalPanel
+      approvals={[pending]}
+      onRespond={onRespond}
+      isLoading={false}
+    />,
+  );
   expect(screen.getByText("3:59")).toBeVisible();
   expect(onRespond).not.toHaveBeenCalled();
 });

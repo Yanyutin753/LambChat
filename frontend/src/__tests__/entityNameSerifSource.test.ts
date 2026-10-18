@@ -49,6 +49,14 @@ test("subagent and team tool results render member names with font-serif", () =>
   expect(teamItem).toMatch(
     /text-12 text-theme-text font-semibold font-serif truncate/,
   );
+  expect(teamItem).toMatch(
+    /text-14 text-theme-text font-semibold font-serif truncate/,
+  );
+  expect(teamItem).toMatch(/font-bold font-serif text-theme-text truncate/);
+  expect(teamItem).toMatch(/text-10 font-serif text-theme-text-secondary/);
+  expect(teamItem).toMatch(
+    /text-12 text-theme-text font-medium font-serif truncate/,
+  );
   const picker = readComponent("team/TeamPickerModal.tsx");
   expect(picker).toMatch(/className="mt-3 font-serif">\s*<ResourceCardTags/);
 });

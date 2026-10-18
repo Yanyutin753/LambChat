@@ -705,7 +705,12 @@ def resolve_run_usage_carry(
         if isinstance(prior.get(key), int)
     }
     if carried:
-        for key in ("usage_observed", "unknown_usage_fields", "input_includes_cache"):
+        for key in (
+            "usage_observed",
+            "unknown_usage_fields",
+            "input_includes_cache",
+            "_usage_ledger_id",
+        ):
             if key in prior:
                 carried[key] = prior[key]
     return started_at, carried or None

@@ -41,10 +41,18 @@ async def _execute_agent_stream(
     run_id = presenter.run_id if presenter else None
     agent = None
     allow_search_handoff = False
+    if agent_id == "search" and (
+        hitl_resume is not None or "_handoff_usage" in (agent_options or {})
+    ):
+        try:
+            await member_config.resolve_team_member_agent_id("search", user_id=user_id)
+        except ValueError:
+            raise AppError(ErrorCode.FORBIDDEN) from None
     if agent_id == "quick" and presenter is not None and user_id:
         try:
             allow_search_handoff = (
-                await member_config.resolve_team_member_agent_id("search", user_id=user_id) == "search"
+                await member_config.resolve_team_member_agent_id("search", user_id=user_id)
+                == "search"
             )
         except ValueError:
             # An unavailable/unauthorized Search must not become an escalation path.
@@ -104,10 +112,14 @@ async def _execute_agent_stream(
             saved = await SessionStorage().update_metadata_for_run(
                 session_id,
                 run_id,
-                {"agent_handoff": {
-                    **handoff, "run_id": run_id, "trace_id": presenter.trace_id,
-                    "attachments": attachments,
-                }},
+                {
+                    "agent_handoff": {
+                        **handoff,
+                        "run_id": run_id,
+                        "trace_id": presenter.trace_id,
+                        "attachments": attachments,
+                    }
+                },
                 expected_statuses=["running", "starting"],
             )
             if not saved:

@@ -635,7 +635,11 @@ export function SharedPage({
                     <span className={metadataClassName}>
                       <ModelIconImg
                         model={data.session.model}
-                        provider={(data.session as Record<string, unknown>).provider as string | undefined}
+                        provider={
+                          (data.session as Record<string, unknown>).provider as
+                            | string
+                            | undefined
+                        }
                         size={14}
                       />
                       {data.session.model}

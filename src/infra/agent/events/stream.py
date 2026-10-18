@@ -20,7 +20,7 @@ TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "task", "write_todos", "ha
 
 def _first_int(*values: Any) -> int | None:
     for value in values:
-        if isinstance(value, int):
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
             return value
     return None
 
@@ -84,6 +84,7 @@ class StreamEventMixin:
     total_cache_read_tokens: int
     _usage_unknown_fields: set[str]
     _usage_observed: bool
+    _usage_owner: Any
     _input_includes_cache: bool
     _output_buffer_chars: int
     _activity_reference_filters: dict[ActivityStreamKey, tuple[ActivityReferenceFilter, BufferKey]]
@@ -345,6 +346,9 @@ class StreamEventMixin:
         return ready_flushes or None
 
     def _handle_token_usage(self, event: StreamEvent) -> None:
+        if self._usage_owner is not None:
+            self._usage_owner._handle_token_usage(event)
+            return
         response = event.get("data", {}).get("output")
         if not response:
             return
@@ -422,6 +426,9 @@ class StreamEventMixin:
                 self._usage_unknown_fields.add(field)
 
     def _mark_unknown_model_usage(self) -> None:
+        if self._usage_owner is not None:
+            self._usage_owner._mark_unknown_model_usage()
+            return
         self._usage_observed = True
         self._input_includes_cache = False
         self._usage_unknown_fields.update(

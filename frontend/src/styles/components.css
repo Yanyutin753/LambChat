@@ -5047,7 +5047,9 @@
 }
 
 @media (hover: hover) {
-  :is(.sidebar-session-row, .sidebar-project-row, .sidebar-nav-btn):not([data-selected="true"]):not(.ring-1):hover {
+  :is(.sidebar-session-row, .sidebar-project-row, .sidebar-nav-btn):not(
+      [data-selected="true"]
+    ):not(.ring-1):hover {
     background: color-mix(in srgb, var(--theme-text) 5%, transparent);
   }
 }
@@ -5293,7 +5295,6 @@
 .tool-readable .tool-args-block__content .font-mono {
   font-family: theme("fontFamily.mono");
 }
-
 
 /* Animated action SVGs retain each caller's original line weight. */
 .interactive-action-icon svg {

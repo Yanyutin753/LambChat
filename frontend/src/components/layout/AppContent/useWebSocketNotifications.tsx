@@ -1,4 +1,8 @@
-import { SCHEDULED_PROGRESS_EVENT, SCHEDULED_RESULT_EVENT, SCHEDULED_RESULTS_REFRESH_EVENT } from "../../../hooks/useAgent/scheduledResults";
+import {
+  SCHEDULED_PROGRESS_EVENT,
+  SCHEDULED_RESULT_EVENT,
+  SCHEDULED_RESULTS_REFRESH_EVENT,
+} from "../../../hooks/useAgent/scheduledResults";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -681,11 +685,15 @@ export function useWebSocketNotifications({
     },
     onScheduledProgress: (data) => {
       if (!isNotificationScopeActive()) return;
-      window.dispatchEvent(new CustomEvent(SCHEDULED_PROGRESS_EVENT, { detail: data }));
+      window.dispatchEvent(
+        new CustomEvent(SCHEDULED_PROGRESS_EVENT, { detail: data }),
+      );
     },
     onScheduledResult: (data) => {
       if (!isNotificationScopeActive()) return;
-      window.dispatchEvent(new CustomEvent(SCHEDULED_RESULT_EVENT, { detail: data }));
+      window.dispatchEvent(
+        new CustomEvent(SCHEDULED_RESULT_EVENT, { detail: data }),
+      );
     },
     onTaskComplete: (notification) => {
       if (!isNotificationScopeActive()) return;

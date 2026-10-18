@@ -150,7 +150,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
     resolved_model_config = agent_options.get("_resolved_model_config")
     thinking_config = build_thinking_config(agent_options, default_level="medium")
-    logger.info(f"agent_options: {agent_options}")
 
     # 获取附件
     attachments = state.get("attachments", [])
@@ -670,18 +669,22 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 hitl_interrupt_supported.reset(token_supported)
     finally:
         current_task = asyncio.current_task()
-        await subagent_sessions.close(
-            preserve_approvals=current_task is None or not current_task.cancelling()
-        )
-        await event_processor.drain_activity_references()
-        await event_processor.flush()
-        await emit_token_usage(
-            event_processor,
-            presenter,
-            run_started_at,
-            model_id=model_id,
-            model=selected_model,
-        )
+        try:
+            await subagent_sessions.close(
+                preserve_approvals=current_task is None or not current_task.cancelling()
+            )
+        finally:
+            try:
+                await event_processor.drain_activity_references()
+                await event_processor.flush()
+            finally:
+                await emit_token_usage(
+                    event_processor,
+                    presenter,
+                    run_started_at,
+                    model_id=model_id,
+                    model=selected_model,
+                )
     logger.info("[SearchAgent] astream_events completed")
 
     # 检测 interrupt 挂起（issue #218）：图存在待恢复任务时标记 WAITING_HUMAN，

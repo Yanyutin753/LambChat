@@ -137,3 +137,10 @@ def _build_member_agent_mode_sections(
     if agent_id in {"search", "fast"}:
         return [SEARCH_SANDBOX_SYSTEM_PROMPT if sandbox_active else SEARCH_DEFAULT_SYSTEM_PROMPT]
     return []
+
+
+def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
+    """Choose the single-agent fallback prompt when no explicit team is selected."""
+    if sandbox_active:
+        return SEARCH_SANDBOX_SYSTEM_PROMPT
+    return SEARCH_DEFAULT_SYSTEM_PROMPT

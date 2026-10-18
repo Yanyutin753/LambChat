@@ -428,7 +428,9 @@ export function mergeThinkingPart(
 
   if (existingIndex < 0) {
     const anchor = beforeToolDrafts(parts);
-    return anchor < parts.length ? [...parts.slice(0, anchor), part, ...parts.slice(anchor)] : null;
+    return anchor < parts.length
+      ? [...parts.slice(0, anchor), part, ...parts.slice(anchor)]
+      : null;
   }
 
   const newParts = [...parts];
@@ -1072,14 +1074,14 @@ export function isSandboxConfirmApprovalEvent(data: {
 }
 
 /**
- * Whether a message still contains an unanswered ask-human interrupt.
+ * Whether a message still awaits a human response or sandbox confirmation.
  * Ask-human may be nested inside one or more subagent parts.
  */
 export function hasPendingAskHuman(parts: MessagePart[]): boolean {
   return parts.some((part) => {
     if (part.type === "tool") {
       return (
-        part.name === "ask_human" &&
+        (part.name === "ask_human" || part.awaitingConfirmation === true) &&
         part.isPending === true &&
         part.cancelled !== true
       );

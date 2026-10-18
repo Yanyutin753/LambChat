@@ -39,8 +39,13 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     return false;
   }
 
-  const { panelStatus, subtitle, panelKey, formattedAgentName, formattedInput } =
-    buildSubagentPanelState(data);
+  const {
+    panelStatus,
+    subtitle,
+    panelKey,
+    formattedAgentName,
+    formattedInput,
+  } = buildSubagentPanelState(data);
 
   if (isPersistentToolPanelActive(panelKey)) {
     return true;

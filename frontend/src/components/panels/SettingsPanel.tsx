@@ -875,7 +875,12 @@ export function SettingsPanel() {
                                               value: model.id,
                                               label: (
                                                 <span className="inline-flex min-w-0 items-center gap-1.5">
-                                                  <ModelIconImg model={model.value} provider={model.provider} icon={model.icon} size={16} />
+                                                  <ModelIconImg
+                                                    model={model.value}
+                                                    provider={model.provider}
+                                                    icon={model.icon}
+                                                    size={16}
+                                                  />
                                                   {model.label} ({model.value})
                                                 </span>
                                               ),

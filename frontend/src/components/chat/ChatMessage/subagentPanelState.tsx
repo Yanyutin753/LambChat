@@ -39,15 +39,24 @@ export function resolveSubagentControlState(
   const state = typeof parsed?.status === "string" ? parsed.status : "";
   const observedAt = Date.parse(completedAt ?? "");
   if (
-    !agent || !Number.isFinite(observedAt) ||
+    !agent ||
+    !Number.isFinite(observedAt) ||
     !["queued", "running", "waiting_human"].includes(state)
-  ) return state;
+  )
+    return state;
   // Match the execution that was active when this call returned, even after a continuation.
-  const runs = agent.history?.filter((part): part is SubagentPart => part.type === "subagent");
-  const run = (runs?.length ? runs : [agent]).slice().reverse().find((entry) =>
-    entry.startedAt !== undefined && entry.startedAt <= observedAt &&
-    (entry.completedAt === undefined || entry.completedAt >= observedAt),
+  const runs = agent.history?.filter(
+    (part): part is SubagentPart => part.type === "subagent",
   );
+  const run = (runs?.length ? runs : [agent])
+    .slice()
+    .reverse()
+    .find(
+      (entry) =>
+        entry.startedAt !== undefined &&
+        entry.startedAt <= observedAt &&
+        (entry.completedAt === undefined || entry.completedAt >= observedAt),
+    );
   return run?.status === "complete" ? "completed" : run?.status ?? state;
 }
 
@@ -160,13 +169,20 @@ export function buildSubagentConversation(
       part.status ??
       (part.isPending ? "running" : part.success ? "complete" : "error");
     const isStreaming = status === "pending" || status === "running";
-    const project = (parts: MessagePart[]): MessagePart[] => parts.map((item) =>
-      item.type === "thinking"
-        ? { ...item, content: stripActivityReferences(item.content, !!item.isStreaming) }
-        : item.type === "subagent" && item.parts
-          ? { ...item, parts: project(item.parts) }
-          : item,
-    );
+    const project = (parts: MessagePart[]): MessagePart[] =>
+      parts.map((item) =>
+        item.type === "thinking"
+          ? {
+              ...item,
+              content: stripActivityReferences(
+                item.content,
+                !!item.isStreaming,
+              ),
+            }
+          : item.type === "subagent" && item.parts
+            ? { ...item, parts: project(item.parts) }
+            : item,
+      );
     const parts = project(part.parts ?? []);
     let streamedPrefix: MessagePart | undefined;
     if (part.result && ["complete", "timed_out", "error"].includes(status)) {

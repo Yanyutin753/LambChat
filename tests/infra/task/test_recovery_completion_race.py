@@ -121,7 +121,9 @@ async def test_recovery_claim_does_not_reopen_completed_run(monkeypatch, complet
 async def test_recovery_failure_writeback_cannot_override_completion():
     storage = _FakeStorage(_session("completed"))
 
-    async def guarded_update(session_id, run_id, metadata, *, expected_statuses):
+    async def guarded_update(
+        session_id, run_id, metadata, *, expected_statuses, expected_recovery_token
+    ):
         if (
             storage.session.metadata.get("current_run_id") != run_id
             or storage.session.metadata.get("task_status") not in expected_statuses
@@ -131,16 +133,10 @@ async def test_recovery_failure_writeback_cannot_override_completion():
         return True
 
     storage.update_metadata_for_run = AsyncMock(side_effect=guarded_update)
-    service = recovery_module.TaskRecoveryService(
-        storage=storage,
-        run_info={},
-        heartbeat=None,
-        ensure_executor=lambda: None,
-        submit_task=AsyncMock(),
-        mark_run_failed=AsyncMock(),
-    )
 
-    await service._restore_recoverable_failure("session-1", "run-old", "submission failed")
+    await recovery_module.restore_recovery_claim(
+        storage, "session-1", "run-old", {"token": "old", "metadata": {}}, recoverable=True
+    )
 
     assert storage.updates == []
     assert storage.session.metadata["task_status"] == "completed"

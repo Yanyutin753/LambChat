@@ -106,9 +106,15 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
                 "cache_read_tokens",
                 "cache_creation_tokens",
             )
-            if doc.get("usage_incomplete") is not False or any(
-                not isinstance(doc.get(key), int) or isinstance(doc.get(key), bool) or doc[key] < 0
-                for key in token_fields
+            if (
+                doc.get("input_includes_cache") is not True
+                or doc.get("usage_incomplete") is not False
+                or any(
+                    not isinstance(doc.get(key), int)
+                    or isinstance(doc.get(key), bool)
+                    or doc[key] < 0
+                    for key in token_fields
+                )
             ):
                 unpriced_models[model_value] = unpriced_models.get(model_value, 0) + 1
                 continue
@@ -157,12 +163,14 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
                 priced += 1
             else:
                 current = await usage.collection.find_one(
-                    {"trace_id": doc["trace_id"]}, {"cost_available": 1, "usage_incomplete": 1}
+                    {"trace_id": doc["trace_id"]},
+                    {"cost_available": 1, "usage_incomplete": 1, "input_includes_cache": 1},
                 )
                 if (
                     current
                     and current.get("cost_available") is True
                     and current.get("usage_incomplete") is False
+                    and current.get("input_includes_cache") is True
                 ):
                     resolved_elsewhere += 1
                 else:

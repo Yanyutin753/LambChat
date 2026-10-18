@@ -36,11 +36,7 @@ import {
   getMatchingSlashDropdownItems,
   type ChatInputSlashCommand,
 } from "./chatInputSlashCommands";
-import {
-  consumePendingSelectionActionPrompt,
-  SELECTION_ACTION_EVENT,
-  type SelectionActionEventDetail,
-} from "../common/selectionActionPopoverUtils";
+import { subscribeSelectionActionPrompts } from "../common/selectionActionPopoverUtils";
 import type { ChatInputProps } from "./chatInputTypes";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type { MessageAttachment, PersonaPreset } from "../../types";
@@ -58,7 +54,10 @@ import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
 import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
 import { ChatInputDialogLayer } from "./ChatInputDialogLayer";
 import { areAttachmentsSendable } from "./attachmentValidation";
-import { createRunningSendToolkit, handleEnterSubmit } from "./chatInputRunningSend";
+import {
+  createRunningSendToolkit,
+  handleEnterSubmit,
+} from "./chatInputRunningSend";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
@@ -274,24 +273,11 @@ export const ChatInput = memo(function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on selection
   }, [selectedPersonaPresetId, selectedTeamId, setComposerPlainText]);
   useEffect(() => {
-    const applySelectionActionPrompt = (prompt: string) => {
+    return subscribeSelectionActionPrompts((prompt) => {
       const separator = inputValueRef.current.trim() ? "\n\n" : "";
       composerRef.current?.focus({ atEnd: true });
       composerRef.current?.insertText(`${separator}${prompt}`);
-    };
-    const pendingPrompt = consumePendingSelectionActionPrompt();
-    if (pendingPrompt) {
-      applySelectionActionPrompt(pendingPrompt);
-    }
-    const handleSelectionAction = (event: Event) => {
-      const detail = (event as CustomEvent<SelectionActionEventDetail>).detail;
-      if (!detail?.prompt) return;
-      applySelectionActionPrompt(detail.prompt);
-    };
-    window.addEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
-    return () => {
-      window.removeEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
-    };
+    });
   }, []);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -656,7 +642,9 @@ export const ChatInput = memo(function ChatInput({
         activeGoal?.ended_at
           ? () =>
               onSend(
-                `/goal run ${activeGoal.objective}${activeGoal.rubric ? `\n---\n${activeGoal.rubric}` : ""}`,
+                `/goal run ${activeGoal.objective}${
+                  activeGoal.rubric ? `\n---\n${activeGoal.rubric}` : ""
+                }`,
               )
           : undefined
       }
@@ -690,7 +678,9 @@ export const ChatInput = memo(function ChatInput({
         }
       />
       <div
-        className={className ?? "chat-content-column chat-conversation-composer"}
+        className={
+          className ?? "chat-content-column chat-conversation-composer"
+        }
       >
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&

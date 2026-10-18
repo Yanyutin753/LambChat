@@ -19,7 +19,11 @@ function assistant(overrides: Partial<Message> = {}): Message {
 
 test("stopping the main run preserves other run and scheduled progress loading states", () => {
   const main = assistant({ runId: "main" });
-  const scheduled = assistant({ id: "scheduled-result:task", runId: "task", metadata: { scheduledTaskId: "task" } });
+  const scheduled = assistant({
+    id: "scheduled-result:task",
+    runId: "task",
+    metadata: { scheduledTaskId: "task" },
+  });
   const other = assistant({ id: "other", runId: "other" });
   const result = settleRunMessages([main, scheduled, other], "main");
   expect(result[0].isStreaming).toBe(false);

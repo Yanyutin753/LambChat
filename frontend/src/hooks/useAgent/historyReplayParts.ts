@@ -41,6 +41,7 @@ const approvalToolIds = (data: EventData): string[] => {
     : [];
   return ids.length ? ids : data.tool_call_id ? [data.tool_call_id] : [];
 };
+
 const approvalResult = (data: EventData) =>
   typeof data.result === "object" && data.result !== null
     ? data.result
@@ -316,7 +317,10 @@ export class HistoryPartReplay {
       // Fallback placement at the root uses the same thinking/text/summary merge helpers.
       const merged =
         part.type === "thinking" && target.slot.part.type === "thinking"
-          ? mergeThinkingPart([target.slot.part], part, this.streaming) || [target.slot.part, part]
+          ? mergeThinkingPart([target.slot.part], part, this.streaming) || [
+              target.slot.part,
+              part,
+            ]
           : part.type === "summary"
             ? mergeSummaryPart([target.slot.part], part) || [
                 target.slot.part,
@@ -382,16 +386,24 @@ export class HistoryPartReplay {
           if (ref)
             index.replace(
               ref,
-              updateToolResultInDepth(
-                [ref.slot.part],
-                toolId,
-                approvalResult(data),
-                data.success !== false,
-                data.error,
-                (ref.slot.part as ToolPart).depth || 0,
-                data.agent_id,
-                data.timestamp,
-              )[0],
+              (Array.isArray(data.tool_call_ids) &&
+              data.tool_call_ids.length > 0 &&
+              data.success !== false
+                ? markPendingToolsAwaiting(
+                    [ref.slot.part],
+                    false,
+                    new Set([toolId]),
+                  )
+                : updateToolResultInDepth(
+                    [ref.slot.part],
+                    toolId,
+                    approvalResult(data),
+                    data.success !== false,
+                    data.error,
+                    (ref.slot.part as ToolPart).depth || 0,
+                    data.agent_id,
+                    data.timestamp,
+                  ))[0],
             );
         }
       return true;

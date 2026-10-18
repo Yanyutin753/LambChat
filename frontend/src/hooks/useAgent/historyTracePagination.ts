@@ -11,7 +11,10 @@ import type { SessionApprovalStatus } from "../../types/session";
 import { sessionApi } from "../../services/api";
 import i18n from "../../i18n";
 import type { ActiveGoalSpec, HistoryEvent, UseAgentOptions } from "./types";
-import { applyFeedbackToMessages, preserveScheduledMessages } from "./historyLoadState";
+import {
+  applyFeedbackToMessages,
+  preserveScheduledMessages,
+} from "./historyLoadState";
 import {
   historyCoverage,
   historySourceIds,
@@ -414,13 +417,20 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       if (!isCurrent()) return;
       const streaming = replayed.messages.find(
         (message) =>
-          message.role === "assistant" && !message.metadata?.scheduledTaskId && message.isStreaming && message.runId,
+          message.role === "assistant" &&
+          !message.metadata?.scheduledTaskId &&
+          message.isStreaming &&
+          message.runId,
       );
       if (streaming) streamingMessageIdRef.current = streaming.id;
       setGoalsByRunId((current) =>
         isCurrent() ? { ...current, ...replayed.goals } : current,
       );
-      setMessages((current) => (isCurrent() ? preserveScheduledMessages(replayed.messages, current) : current));
+      setMessages((current) =>
+        isCurrent()
+          ? preserveScheduledMessages(replayed.messages, current)
+          : current,
+      );
     } catch (err) {
       if (isCurrent())
         console.warn("[loadOlderHistory] Failed to load older history:", err);

@@ -71,7 +71,8 @@ async def test_summary_reuses_native_system_tools_and_history_without_execution(
     [messages, kwargs] = model.calls[0]
     assert messages[:-1] == [request.system_message, *request.messages[:-1]]
     assert kwargs["tools"] == request.tools
-    assert kwargs["tool_choice"] == request.tool_choice
+    assert kwargs["tool_choice"] == "none"
+    assert request.tool_choice is None
     assert "SESSION INTENT" in messages[-1].content
     assert "ARTIFACTS" in messages[-1].content
     assert "media_reference_information" in messages[-1].content
@@ -103,7 +104,7 @@ async def test_native_summary_recovers_with_original_summary_path(tmp_path, fail
     middleware = build(model, tmp_path)
     result = await middleware.awrap_model_call(request_for(model), continued)
     assert len(model.calls) == 2
-    assert model.calls[0][1]["tool_choice"] is None
+    assert model.calls[0][1]["tool_choice"] == "none"
     assert not model.calls[1][1].get("tools")
     fallback_instructions = model.calls[1][0][-1].content.split("</messages>")[-1]
     assert "do not execute tools" in fallback_instructions
@@ -311,7 +312,8 @@ async def test_deep_agent_summary_uses_the_fully_assembled_model_prefix(tmp_path
     assert summary_messages[0] == main_messages[0]
     assert "Required project rules" in summary_messages[0].text
     assert summary_kwargs["tools"] == main_kwargs["tools"]
-    assert summary_kwargs["tool_choice"] == main_kwargs["tool_choice"]
+    assert summary_kwargs["tool_choice"] == "none"
+    assert main_kwargs["tool_choice"] is None
 
 
 async def test_persistent_child_summary_uses_its_complete_system_tools_and_history(tmp_path):
@@ -361,7 +363,8 @@ async def test_persistent_child_summary_uses_its_complete_system_tools_and_histo
     assert "Required child rules" in summary_messages[0].text
     assert "Parent communication" in summary_messages[0].text
     assert summary_kwargs["tools"] == main_kwargs["tools"]
-    assert summary_kwargs["tool_choice"] == main_kwargs["tool_choice"]
+    assert summary_kwargs["tool_choice"] == "none"
+    assert main_kwargs["tool_choice"] is None
 
 
 @pytest.mark.parametrize("mode", ["native", "manual", "fallback", "retry"])
@@ -410,3 +413,83 @@ async def test_generated_summary_redacts_receipts_before_checkpoint_but_retains_
         and "summary_fake.md" in raw.content[1]["text"]
     )
     assert len(model.calls) == (2 if mode == "fallback" else 1)
+
+
+async def test_native_summary_disables_tool_selection_without_changing_main_request(tmp_path):
+    class ToolSelectingModel(RecordingModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            if kwargs.get("tools") and kwargs.get("tool_choice") != "none":
+                self.calls.append((messages, kwargs))
+                from langchain_core.outputs import ChatGeneration, ChatResult
+
+                return ChatResult(
+                    generations=[
+                        ChatGeneration(
+                            message=AIMessage(
+                                "",
+                                tool_calls=[
+                                    {
+                                        "id": "unsafe",
+                                        "name": "execute",
+                                        "args": {"command": "should never run"},
+                                    }
+                                ],
+                            )
+                        )
+                    ]
+                )
+            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    model = ToolSelectingModel(messages=iter([AIMessage("Safe replacement context")]))
+    request = request_for(model)
+    response = await build(model, tmp_path).awrap_model_call(request, continued)
+    assert len(model.calls) == 1
+    assert model.calls[0][1]["tool_choice"] == "none"
+    assert request.tool_choice is None
+    assert (
+        "Safe replacement context"
+        in response.command.update["_summarization_event"]["summary_message"].content
+    )
+
+
+@pytest.mark.parametrize("protocol", ["anthropic", "openai_chat", "openai_responses"])
+@pytest.mark.parametrize("original_choice", [None, "auto", "required"])
+async def test_summary_no_tools_survives_actual_protocol_payload(
+    tmp_path, monkeypatch, protocol, original_choice
+):
+    from langchain_core.outputs import ChatGeneration, ChatResult
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+    from src.infra.llm.openai_chat import LambChatOpenAIChatModel
+
+    model = (
+        LambChatAnthropicChatModel(
+            model="glm-5.3",
+            api_key="offline-test",
+            max_tokens=4096,
+            thinking={"type": "enabled", "budget_tokens": 1024},
+        )
+        if protocol == "anthropic"
+        else LambChatOpenAIChatModel(
+            model="gpt-5.4",
+            api_key="offline-test",
+            use_responses_api=protocol == "openai_responses",
+        )
+    )
+    payloads = []
+
+    async def capture(self, messages, stop=None, run_manager=None, **kwargs):
+        payloads.append(self._get_request_payload(messages, stop=stop, **kwargs))
+        return ChatResult(generations=[ChatGeneration(message=AIMessage("Verified summary"))])
+
+    monkeypatch.setattr(type(model), "_agenerate", capture)
+    middleware = build(model, tmp_path)
+    request = request_for(model).override(tool_choice=original_choice)
+    await middleware.awrap_model_call(request, continued)
+    assert len(payloads) == 1
+    assert payloads[0]["tool_choice"] == ({"type": "none"} if protocol == "anthropic" else "none")
+    assert payloads[0]["tools"]
+    assert request.tool_choice == original_choice
+    assert request.model_settings == {}
+    if protocol == "anthropic":
+        assert payloads[0]["thinking"] == {"type": "enabled", "budget_tokens": 1024}
