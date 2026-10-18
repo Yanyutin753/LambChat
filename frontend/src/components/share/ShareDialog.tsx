@@ -527,14 +527,14 @@ export function ShareDialog({
           {editingShare && (
             <button
               onClick={handleCancelEditShare}
-              className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
+              className="px-4 py-2 text-14 font-medium text-theme-text-secondary bg-theme-bg-card border border-theme-border rounded-lg hover:bg-theme-bg-hover transition-colors"
             >
               {t("share.cancelEdit")}
             </button>
           )}
           <button
             onClick={onClose}
-            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
+            className="px-4 py-2 text-14 font-medium text-theme-text-secondary bg-theme-bg-card border border-theme-border rounded-lg hover:bg-theme-bg-hover transition-colors"
           >
             {t("common.close")}
           </button>

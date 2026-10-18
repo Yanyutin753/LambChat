@@ -423,6 +423,21 @@
   --theme-text-secondary: #6d634e;
   --theme-text-tertiary: #a89e88;
 
+  /* Neutral scale for legacy stone utilities: 与上方既有变量对齐
+     （200=border、300=border-hover、400=text-tertiary、600=text-secondary，
+     700+ 为深底表面的暖褐），否则 stone 类走 fallback 原生冷灰不随 sepia 变暖。 */
+  --theme-neutral-50: #faf6ea;
+  --theme-neutral-100: #f3edde;
+  --theme-neutral-200: #ddd2b8;
+  --theme-neutral-300: #cbc0a4;
+  --theme-neutral-400: #a89e88;
+  --theme-neutral-500: #8d8371;
+  --theme-neutral-600: #6d634e;
+  --theme-neutral-700: #55493a;
+  --theme-neutral-800: #3a332a;
+  --theme-neutral-900: #2a241c;
+  --theme-neutral-950: #1c1812;
+
   /* ── Overlays ── */
   --theme-overlay-panel: rgba(250, 246, 234, 0.7);
 

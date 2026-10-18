@@ -447,7 +447,7 @@ export function ShareProjectDialog({
         <div className="safe-area-bottom flex flex-wrap items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] [&>button]:min-h-11 bg-theme-bg-card border-t border-theme-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-14 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover transition-colors"
+            className="px-4 py-2 text-14 font-medium text-theme-text-secondary bg-theme-bg-card border border-theme-border rounded-lg hover:bg-theme-bg-hover transition-colors"
           >
             {t("common.close")}
           </button>

@@ -46,7 +46,7 @@ export function CollapsibleSection({
         className,
         expanded && expandedClassName,
         isError
-          ? "collapsible-section-card--error bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50"
+          ? "collapsible-section-card--error bg-[color-mix(in_srgb,var(--theme-error)_8%,transparent)] border border-[color-mix(in_srgb,var(--theme-error)_25%,transparent)]"
           : "collapsible-section-card--default bg-theme-bg-card border border-theme-border shadow-sm",
       )}
     >
@@ -65,7 +65,7 @@ export function CollapsibleSection({
               className={clsx(
                 "transition-transform duration-200",
                 isError
-                  ? "text-red-500 dark:text-red-400"
+                  ? "text-theme-error"
                   : "text-theme-text-secondary",
                 !expanded && "-rotate-90",
               )}
@@ -80,7 +80,7 @@ export function CollapsibleSection({
             className={clsx(
               "min-w-0 truncate text-12 uppercase tracking-wider font-medium",
               isError
-                ? "text-red-600 dark:text-red-400"
+                ? "text-theme-error"
                 : "text-theme-text-secondary",
             )}
           >
