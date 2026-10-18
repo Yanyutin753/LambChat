@@ -4346,6 +4346,7 @@
     "historicalEstimate": "Historical estimate",
     "partialCostHint": "Known amount only; the remaining cost is unknown.",
     "sources": {
+      "auxiliary": "Auxiliary calls",
       "chat": "Chat",
       "scheduled_task": "Scheduled task"
     },

@@ -4346,6 +4346,7 @@
     "historicalEstimate": "历史估算",
     "partialCostHint": "仅含已知金额，其余费用未知。",
     "sources": {
+      "auxiliary": "辅助调用",
       "chat": "对话",
       "scheduled_task": "定时任务"
     },

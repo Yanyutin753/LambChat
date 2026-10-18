@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import sys
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -176,6 +177,23 @@ def _receipt(reservation, settlement):
     }
 
 
+def _usage_context():
+    from src.infra.logging.context import TraceContext
+
+    config = (var_child_runnable_config.get() or {}).get("configurable") or {}
+    payer = quota_user_id()
+    if any(
+        owner and payer and owner != payer
+        for owner in (TraceContext.get_user_id(), config.get("user_id"))
+    ):
+        return {}
+    return {
+        "trace_id": TraceContext.get().trace_id or config.get("trace_id"),
+        "session_id": TraceContext.get_session_id() or config.get("session_id"),
+        "run_id": TraceContext.get_run_id() or config.get("run_id"),
+    }
+
+
 def quota_user_id() -> str | None:
     from src.infra.backend.context import current_user_id
     from src.infra.logging.context import TraceContext
@@ -227,7 +245,7 @@ async def unpriced_usage():
         raise AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE)
     budgets = await user_budgets(user_id)
     ledger = UsageQuota()
-    reservation = await _reserve_call(ledger, user_id, budgets, None)
+    reservation = await _reserve_call(ledger, user_id, budgets, None, context=_usage_context())
     owner = _usage_owner()
     if owner is not None:
         owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
@@ -239,7 +257,19 @@ async def unpriced_usage():
             settlement = await ledger.settle(reservation, None)
             if owner is not None and isinstance(settlement, dict):
                 await owner.record_usage_receipt(_receipt(reservation, settlement))
+            elif isinstance(settlement, dict):
+                from src.infra.usage.auxiliary import write_auxiliary_usage
 
+                await write_auxiliary_usage(reservation, settlement, status=status)
+
+        error = sys.exception()
+        status = (
+            "cancelled"
+            if isinstance(error, (asyncio.CancelledError, GeneratorExit))
+            else "error"
+            if error
+            else "completed"
+        )
         _, cancelled = await _complete_storage(settle_and_publish())
         if cancelled is not None:
             raise cancelled
@@ -450,17 +480,13 @@ class QuotaChatMixin:
         if not usage_price_supported(self, messages, kwargs):
             rates = PriceRates()
         quota = UsageQuota()
-        from src.infra.logging.context import TraceContext
-
         reservation = await _reserve_call(
             quota,
             user_id,
             budgets,
             0,
             context={
-                "trace_id": TraceContext.get().trace_id,
-                "session_id": TraceContext.get_session_id(),
-                "run_id": TraceContext.get_run_id(),
+                **_usage_context(),
                 "model": getattr(self, "model_name", None) or getattr(self, "model", None),
                 "model_config_id": self.quota_model_config_id,
                 "provider": self.quota_provider,
@@ -474,7 +500,9 @@ class QuotaChatMixin:
             self.root_async_client = _QuotaResource(root)
         return quota, reservation, rates, owner
 
-    async def _quota_finish(self, ticket, message, *, usage_valid=True, partial=False):
+    async def _quota_finish(
+        self, ticket, message, *, usage_valid=True, partial=False, status="completed"
+    ):
         if ticket is not None:
             quota, reservation, rates = ticket[:3]
             owner = ticket[3] if len(ticket) > 3 else _usage_owner()
@@ -488,6 +516,12 @@ class QuotaChatMixin:
                 # Native model-end callbacks may never arrive after cancellation.
                 if owner is not None and isinstance(settlement, dict):
                     await owner.record_usage_receipt(_receipt(reservation, settlement))
+                elif isinstance(settlement, dict):
+                    from src.infra.usage.auxiliary import write_auxiliary_usage
+
+                    await write_auxiliary_usage(
+                        reservation, settlement, message if usage_valid else None, status=status
+                    )
 
             _, cancelled = await _complete_storage(settle_and_publish())
             if cancelled is not None:
@@ -502,18 +536,27 @@ class QuotaChatMixin:
         observation: list[bool | None] = [None]
         raw_token = _raw_usage.set(observation)
         message = None
+        completed = False
         try:
             result = await super()._agenerate(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
             )
             if ticket is not None and len(result.generations) == 1:
                 message = result.generations[0].message
+            completed = True
             return result
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
             await self._quota_finish(
-                ticket, message, usage_valid=message is not None and observation[0] is not False
+                ticket,
+                message,
+                usage_valid=message is not None and observation[0] is not False,
+                status="completed"
+                if completed
+                else "cancelled"
+                if isinstance(sys.exception(), (asyncio.CancelledError, GeneratorExit))
+                else "error",
             )
 
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
@@ -553,4 +596,9 @@ class QuotaChatMixin:
                 message,
                 usage_valid=(completed or message is not None) and observation[0] is not False,
                 **({"partial": True} if not completed and message is not None else {}),
+                status="completed"
+                if completed
+                else "cancelled"
+                if isinstance(sys.exception(), (asyncio.CancelledError, GeneratorExit))
+                else "error",
             )

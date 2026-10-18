@@ -4346,6 +4346,7 @@
     "historicalEstimate": "過去の概算",
     "partialCostHint": "判明している金額のみです。残りの費用は不明です。",
     "sources": {
+      "auxiliary": "補助呼び出し",
       "chat": "チャット",
       "scheduled_task": "定期タスク"
     },

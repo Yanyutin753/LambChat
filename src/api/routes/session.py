@@ -892,7 +892,15 @@ async def generate_session_title(
         )
         prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 
-        response = await ainvoke_with_retry(model, prompt, operation="session-title")
+        response = await ainvoke_with_retry(
+            model,
+            prompt,
+            operation="session-title",
+            config={
+                "configurable": {"user_id": user.sub, "session_id": session_id},
+                "metadata": {"lc_source": "session_title"},
+            },
+        )
         logger.debug("LLM 生成标题响应: %s", response)
 
         # 提取标题，兼容新旧格式

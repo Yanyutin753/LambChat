@@ -4346,6 +4346,7 @@
     "historicalEstimate": "과거 추정액",
     "partialCostHint": "확인된 금액만 포함하며 나머지 비용은 알 수 없습니다.",
     "sources": {
+      "auxiliary": "보조 호출",
       "chat": "대화",
       "scheduled_task": "예약 작업"
     },

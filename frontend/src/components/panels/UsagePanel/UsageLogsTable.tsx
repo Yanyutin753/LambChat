@@ -231,7 +231,10 @@ function DesktopTable({
                   </div>
                   <div className={textCellClass}>
                     <span className="block truncate font-medium">
-                      {log.agent_name || "-"}
+                      {log.agent_name ||
+                        (log.source === "auxiliary"
+                          ? t("usage.sources.auxiliary")
+                          : "-")}
                     </span>
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-12 text-theme-text-tertiary">
@@ -308,7 +311,8 @@ function TabletRow({
             <StatusPill status={log.status} title={log.error_message} />
           </div>
           <p className="mt-1 truncate text-11 font-medium text-theme-text-secondary">
-            {log.agent_name || "-"}
+            {log.agent_name ||
+              (log.source === "auxiliary" ? t("usage.sources.auxiliary") : "-")}
           </p>
           <p className="mt-0.5 truncate text-10 text-theme-text-tertiary">
             {personaOrTeam || "-"}
@@ -429,7 +433,10 @@ function MobileCard({
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">
-                  {log.agent_name || "-"}
+                  {log.agent_name ||
+                    (log.source === "auxiliary"
+                      ? t("usage.sources.auxiliary")
+                      : "-")}
                 </span>
                 {personaOrTeam && (
                   <span className="usage-soft-pill text-10 text-theme-text-tertiary">

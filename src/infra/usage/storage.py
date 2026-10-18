@@ -372,9 +372,15 @@ class UsageStorage:
         doc["partial_cost_usd"] = classified["partial_cost_usd"]
 
         try:
+            auxiliary_fence: dict[str, Any] = {}
+            if doc["source"] == "auxiliary":
+                auxiliary_fence["cost_complete"] = {"$ne": True}
+                if not doc["cost_complete"]:
+                    auxiliary_fence["cost_units"] = {"$not": {"$gt": doc.get("cost_units", 0)}}
             await self.collection.update_one(
                 {
                     "trace_id": trace_id,
+                    **auxiliary_fence,
                     "$or": [
                         {"trace_event_revision": {"$exists": False}},
                         {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
