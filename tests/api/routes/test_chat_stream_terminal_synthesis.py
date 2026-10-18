@@ -189,3 +189,29 @@ async def test_terminal_status_from_other_run_not_trusted(monkeypatch):
     body = await _collect(response)
     assert "event: done" not in body
     assert "event: error" not in body
+
+
+async def test_partial_stream_closes_after_early_cancel_using_fresh_run_state(monkeypatch):
+    _install(
+        monkeypatch,
+        stream_len=1,
+        metadata={},
+        replay=[
+            {"event_type": "user:message", "data": {"content": "hello"}, "id": "e1"},
+            {"event_type": "heartbeat"},
+        ],
+    )
+    get_session = AsyncMock(
+        side_effect=[
+            _session({"current_run_id": "r1", "task_status": "running"}),
+            _session({"current_run_id": "r1", "task_status": "cancelled"}),
+        ]
+    )
+    monkeypatch.setattr(
+        "src.api.routes.chat.SessionManager", lambda: SimpleNamespace(get_session=get_session)
+    )
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+    assert "event: user:message" in body
+    assert '"type":"task_cancelled"' in body.replace(" ", "")
+    assert "event: ping" not in body
+    assert get_session.await_count == 2
