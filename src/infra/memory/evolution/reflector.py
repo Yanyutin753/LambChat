@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from src.infra.llm.quota import bind_quota_user, is_quota_error
 from src.infra.memory.control_frames import CONTROL_FRAME_BLOCK_RE, escape_control_frame_tags
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
@@ -424,6 +425,7 @@ existing_memory_id set to that lesson's memory id (update instead of duplicate).
 If nothing worth extracting, call no tool."""
 
 
+@bind_quota_user
 async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
     """对单个信号 run 跑反思 LLM，产出教训则 retain（至多 1 条）。"""
     try:
@@ -468,6 +470,8 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
                 for m in (similar.get("memories") or [])
             )
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.debug("[MemoryEvolution] similar-lesson lookup failed: %s", e)
 
     try:
@@ -498,6 +502,8 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
             operation="memory-evolution-reflect",
         )
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.info("[MemoryEvolution] reflect LLM failed for run %s: %s", signal.run_id, e)
         return {"stored": 0, "skipped": True}
 
@@ -530,6 +536,8 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
                 existing_memory_id=args.get("existing_memory_id"),
             )
         except Exception as e:
+            if is_quota_error(e):
+                raise
             logger.warning("[MemoryEvolution] retain raised for run %s: %s", signal.run_id, e)
             continue  # I5: 单个 retain 失败不中断，继续处理
 
@@ -556,6 +564,7 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
     return {"stored": stored}
 
 
+@bind_quota_user
 async def evolve_user(backend, user_id: str, *, max_per_night: Optional[int] = None) -> dict:
     """单用户一晚的进化：差评/失败优先，正反馈采样，跨调度运行的每日配额。"""
     from src.infra.memory.user_pref import user_memory_enabled
@@ -585,6 +594,10 @@ async def evolve_user(backend, user_id: str, *, max_per_night: Optional[int] = N
             if not r.get("skipped"):
                 await _mark_signal_processed(sig, user_id)
         except Exception as e:
+            if is_quota_error(e):
+                if stored:
+                    await _increment_daily_quota(user_id, stored)
+                raise
             logger.warning("[MemoryEvolution] signal %s failed for %s: %s", sig.run_id, user_id, e)
             # I5: 单信号失败不中断后续信号
 
@@ -598,6 +611,10 @@ async def evolve_user(backend, user_id: str, *, max_per_night: Optional[int] = N
                 if not r.get("skipped"):
                     await _mark_signal_processed(sig, user_id)
             except Exception as e:
+                if is_quota_error(e):
+                    if stored:
+                        await _increment_daily_quota(user_id, stored)
+                    raise
                 logger.warning(
                     "[MemoryEvolution] positive signal %s failed for %s: %s", sig.run_id, user_id, e
                 )

@@ -281,6 +281,7 @@ export function PersonaEditorModal({
 
   return (
     <EditorSidebar
+      registryKey="persona:editor"
       open={showModal}
       onClose={onClose}
       title={title}

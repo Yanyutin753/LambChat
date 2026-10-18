@@ -9,6 +9,7 @@ from src.infra.async_utils import (
     run_blocking_io,  # noqa: F401  # 测试 seam 可拦截
     run_long_blocking_io,
 )
+from src.infra.llm.quota import bind_quota_user, is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
@@ -171,6 +172,7 @@ class NativeMemoryBackend(MemoryBackend):
             **model_kwargs,
         )
 
+    @bind_quota_user
     async def retain(
         self,
         user_id: str,
@@ -431,6 +433,7 @@ class NativeMemoryBackend(MemoryBackend):
             "message": "Memory stored successfully",
         }
 
+    @bind_quota_user
     async def recall(
         self,
         user_id: str,
@@ -532,6 +535,8 @@ class NativeMemoryBackend(MemoryBackend):
                 return await result
             return result
         except Exception as e:
+            if is_quota_error(e):
+                raise
             logger.warning(f"[NativeMemory] Embedding failed: {e}")
             return None
 
@@ -663,10 +668,11 @@ class NativeMemoryBackend(MemoryBackend):
             )
 
             async def embed_fn(text: str) -> list[float]:
-                resp = await client.post(
-                    "/v1/embeddings",
-                    json={"input": text, "model": model},
-                )
+                async with unpriced_usage():
+                    resp = await client.post(
+                        "/v1/embeddings",
+                        json={"input": text, "model": model},
+                    )
                 resp.raise_for_status()
                 return resp.json()["data"][0]["embedding"]
 

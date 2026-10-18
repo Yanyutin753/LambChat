@@ -54,6 +54,19 @@ class TaskSessionStatusMixin:
             },
         )
 
+    async def _record_quota_error(self, session_id: str, run_id: str, error: AppError) -> None:
+        await self._storage.update_metadata_for_run(
+            session_id,
+            run_id,
+            self._state_machine.build_metadata(
+                TaskStatus.FAILED,
+                run_id=run_id,
+                error=error.display_message,
+                error_code=error.error_code.code,
+                recoverable=True,
+            ),
+        )
+
     async def _update_session_status(
         self,
         session_id: str,

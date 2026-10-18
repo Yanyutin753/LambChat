@@ -28,7 +28,7 @@ async def event(processor, kind, run):
     await processor.process_event({"event": kind, "run_id": run, "metadata": {}, "data": data})
 
 
-async def test_outer_summary_and_interrupted_inner_share_one_uncertified_total(monkeypatch):
+async def test_outer_summary_and_interrupted_inner_preserve_reported_total(monkeypatch):
     outer = make_processor(monkeypatch)
     inner = AgentEventProcessor(outer.presenter)
     await event(outer, "on_chat_model_start", "summary")
@@ -38,11 +38,9 @@ async def test_outer_summary_and_interrupted_inner_share_one_uncertified_total(m
     assert await inner.emit_token_usage()
     data = outer.presenter.emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 100 and data["cache_read_tokens"] == 70
-    assert data["usage_incomplete"] is True
-    assert data.get("input_includes_cache") is not True
-    assert {"input_tokens", "output_tokens", "cache_read_tokens"} <= set(
-        data["unknown_usage_fields"]
-    )
+    assert data["usage_incomplete"] is False
+    assert data.get("input_includes_cache") is True
+    assert data["unknown_usage_fields"] == []
     assert await outer.emit_token_usage() is False
 
 
@@ -54,7 +52,7 @@ async def test_native_uuid_seen_by_outer_and_inner_is_counted_once(monkeypatch):
         await event(processor, "on_chat_model_end", "same-native-call")
     assert outer.usage_totals()["input_tokens"] == 100
     assert inner.usage_totals() == outer.usage_totals()
-    assert await inner.emit_token_usage()
+    assert await inner.emit_token_usage() is False
     assert await outer.emit_token_usage() is False
     assert outer.presenter.emit.call_args.args[0]["data"]["input_includes_cache"] is True
 
@@ -65,8 +63,8 @@ async def test_separate_presenters_never_share_incomplete_attempts(monkeypatch):
     await event(second, "on_chat_model_start", "same-native-call")
     await event(second, "on_chat_model_end", "same-native-call")
     assert await first.emit_token_usage()
-    assert await second.emit_token_usage()
-    assert first.presenter.emit.call_args.args[0]["data"]["usage_incomplete"] is True
+    assert await second.emit_token_usage() is False
+    assert first.presenter.emit.call_args.args[0]["data"]["usage_incomplete"] is False
     assert second.presenter.emit.call_args.args[0]["data"]["usage_incomplete"] is False
 
 
@@ -89,7 +87,7 @@ def test_resume_snapshot_is_seeded_once_across_nested_processors(monkeypatch):
     assert inner.usage_totals() == outer.usage_totals()
 
 
-async def test_interrupted_stream_without_start_callback_invalidates_summary_only_rate(monkeypatch):
+async def test_interrupted_stream_without_start_callback_preserves_summary_usage(monkeypatch):
     from langchain_core.messages import AIMessageChunk
 
     processor = make_processor(monkeypatch)
@@ -110,8 +108,8 @@ async def test_interrupted_stream_without_start_callback_invalidates_summary_onl
     assert await processor.emit_token_usage()
     data = processor.presenter.emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 100
-    assert data.get("input_includes_cache") is not True
-    assert "input_tokens" in data["unknown_usage_fields"]
+    assert data.get("input_includes_cache") is True
+    assert data["unknown_usage_fields"] == []
 
 
 async def test_delayed_outer_end_after_inner_snapshot_adds_known_usage_once(monkeypatch):
@@ -120,19 +118,19 @@ async def test_delayed_outer_end_after_inner_snapshot_adds_known_usage_once(monk
     await event(outer, "on_chat_model_start", "queued-summary")
     await event(inner, "on_chat_model_start", "inner-main")
     await event(inner, "on_chat_model_end", "inner-main")
-    assert await inner.emit_token_usage()
+    assert await inner.emit_token_usage() is False
     assert outer.usage_totals()["input_tokens"] == 100
-    assert "input_tokens" in outer.usage_totals()["unknown_usage_fields"]
+    assert outer.usage_totals()["unknown_usage_fields"] == []
     await event(outer, "on_chat_model_end", "queued-summary")
     await event(inner, "on_chat_model_end", "queued-summary")
     assert outer.usage_totals()["input_tokens"] == 200
     assert outer.usage_totals()["cache_read_tokens"] == 140
-    assert await outer.emit_token_usage()
+    assert await outer.emit_token_usage() is False
     data = outer.presenter.emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 200 and data["usage_incomplete"] is False
 
 
-async def test_end_during_snapshot_delivery_keeps_final_snapshot_dirty(monkeypatch):
+async def test_end_during_snapshot_delivery_publishes_both_snapshots_in_order(monkeypatch):
     import asyncio
 
     outer = make_processor(monkeypatch)
@@ -148,14 +146,14 @@ async def test_end_during_snapshot_delivery_keeps_final_snapshot_dirty(monkeypat
 
     outer._presenter_emit = deliver
     await event(outer, "on_chat_model_start", "late")
-    await event(inner, "on_chat_model_end", "main")
-    emitting = asyncio.create_task(inner.emit_token_usage())
+    emitting = asyncio.create_task(event(inner, "on_chat_model_end", "main"))
     await entered.wait()
-    await event(outer, "on_chat_model_end", "late")
+    late = asyncio.create_task(event(outer, "on_chat_model_end", "late"))
+    await asyncio.sleep(0)
     release.set()
-    await emitting
+    await asyncio.gather(emitting, late)
     assert snapshots[0]["input_tokens"] == 100
-    assert await outer.emit_token_usage()
+    assert await outer.emit_token_usage() is False
     assert snapshots[-1]["input_tokens"] == 200
     assert snapshots[-1]["total_tokens"] == 220
     assert snapshots[-1]["usage_incomplete"] is False
@@ -173,14 +171,14 @@ async def test_end_during_pricing_does_not_mix_two_ledger_snapshots(monkeypatch)
         return None
 
     monkeypatch.setattr(module, "compute_usage_cost", price)
-    await event(outer, "on_chat_model_end", "first")
-    emitting = asyncio.create_task(outer.emit_token_usage())
+    emitting = asyncio.create_task(event(outer, "on_chat_model_end", "first"))
     await entered.wait()
-    await event(outer, "on_chat_model_end", "second")
+    second = asyncio.create_task(event(outer, "on_chat_model_end", "second"))
+    await asyncio.sleep(0)
     release.set()
-    await emitting
-    snapshot = outer.presenter.emit.call_args.args[0]["data"]
+    await asyncio.gather(emitting, second)
+    snapshot = outer.presenter.emit.call_args_list[0].args[0]["data"]
     assert snapshot["input_tokens"] == 100
     assert snapshot["total_tokens"] == 110
-    assert await outer.emit_token_usage()
+    assert await outer.emit_token_usage() is False
     assert outer.presenter.emit.call_args.args[0]["data"]["input_tokens"] == 200

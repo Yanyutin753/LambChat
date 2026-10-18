@@ -109,6 +109,7 @@ export function MemoryEditor({
 
   return (
     <EditorSidebar
+      registryKey="memory:editor"
       open={true}
       onClose={onClose}
       title={isEdit ? t("memory.editTitle") : t("memory.createTitle")}

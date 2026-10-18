@@ -31,6 +31,7 @@ export function DetailModal({
 
   return (
     <EditorSidebar
+      registryKey="memory:detail"
       open={true}
       onClose={onClose}
       title={memory.title}

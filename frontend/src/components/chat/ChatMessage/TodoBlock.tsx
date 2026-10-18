@@ -113,7 +113,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="min-w-[4ch] text-right text-12 tabular-nums leading-6 text-theme-text-tertiary">
+          <span className="min-w-[4ch] text-right tabular-nums leading-6 text-theme-text-tertiary">
             {Math.round(progress)}%
           </span>
           <InteractiveIcon>
@@ -157,7 +157,7 @@ export function TodoItemRow({
       <div className="min-w-0 flex-1">
         <p
           className={clsx(
-            "text-[length:calc(var(--chat-font-size)-0.0625rem)] leading-6",
+            "text-[length:var(--tool-font-size)] leading-6",
             wrap
               ? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
               : "truncate",

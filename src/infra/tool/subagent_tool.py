@@ -9,6 +9,8 @@ from langgraph.errors import GraphBubbleUp
 from langgraph.types import Command
 from pydantic import Field
 
+from src.infra.llm.quota import is_quota_error
+
 
 def create_subagent_parent_tools(sessions, subagent_id: str):
     @tool
@@ -90,7 +92,9 @@ def create_subagent_tools(sessions):
             )
         except GraphBubbleUp:
             raise
-        except Exception:
+        except Exception as error:
+            if is_quota_error(error):
+                raise
             value = {
                 "status": "error",
                 "error": "Unable to load this subagent; search its role again.",
@@ -117,7 +121,9 @@ def create_subagent_tools(sessions):
             )
         except GraphBubbleUp:
             raise
-        except Exception:
+        except Exception as error:
+            if is_quota_error(error):
+                raise
             value = {
                 "subagent_id": subagent_id,
                 "status": "error",
@@ -147,7 +153,9 @@ def create_subagent_tools(sessions):
             )
         except GraphBubbleUp:
             raise
-        except Exception:
+        except Exception as error:
+            if is_quota_error(error):
+                raise
             value = {
                 "subagent_id": subagent_id,
                 "status": "error",

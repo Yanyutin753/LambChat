@@ -34,6 +34,7 @@ export function PersonaPreviewSidebar({
 
   return (
     <EditorSidebar
+      registryKey="persona:preview"
       open={true}
       onClose={onClose}
       title={preset.name}

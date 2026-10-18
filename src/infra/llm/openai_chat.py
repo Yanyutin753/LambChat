@@ -13,6 +13,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 from pydantic import Field
 
+from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.responses_cache import current_responses_prompt_cache_key
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 from src.kernel.config import settings
@@ -60,7 +61,7 @@ def is_official_openai_base_url(base_url: Any) -> bool:
     return host.lower() in _OPENAI_OFFICIAL_HOSTS
 
 
-class LambChatOpenAIChatModel(ChatOpenAI):
+class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
     """Time out only the first stream event, not the whole streamed response."""
 
     first_event_timeout: float | None = Field(default=None, exclude=True)

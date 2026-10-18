@@ -655,7 +655,7 @@ class BaseGraphAgent(ABC):
             await self.initialize()
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": session_id},
+            "configurable": {"thread_id": session_id, "user_id": kwargs.get("user_id")},
             "recursion_limit": self.recursion_limit,
         }
 

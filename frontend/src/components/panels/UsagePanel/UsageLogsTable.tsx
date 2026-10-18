@@ -29,6 +29,11 @@ const _STATUS_PILL_STYLES: Record<
     dot: "bg-theme-success animate-[status-ok-pulse_2s_ease-in-out_infinite]",
     labelKey: "usage.statusOk",
   },
+  running: {
+    pill: "bg-theme-bg-secondary text-theme-text-secondary",
+    dot: "bg-theme-text-secondary",
+    labelKey: "usage.statusRunning",
+  },
   cancelled: {
     pill: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     dot: "bg-amber-500",

@@ -26,6 +26,7 @@ import httpx
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
@@ -257,9 +258,13 @@ async def document_parse(
                 except DocumentParseError as exc:
                     return await _json_dumps_result({"error": str(exc)})
                 except Exception as exc:
+                    if is_quota_error(exc):
+                        raise
                     logger.warning("[document_parse] failed for %s: %s", resolved_url, exc)
                     return await _json_dumps_result({"error": f"Document parse failed: {exc}"})
         except Exception as exc:
+            if is_quota_error(exc):
+                raise
             logger.warning("[document_parse] download failed for %s: %s", resolved_url, exc)
             return await _json_dumps_result({"error": f"Document download failed: {exc}"})
 

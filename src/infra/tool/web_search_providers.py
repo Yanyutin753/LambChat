@@ -15,6 +15,7 @@ from typing import Any
 
 import httpx
 
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -179,11 +180,12 @@ async def tavily_search(
     if time_range:
         body["time_range"] = time_range
 
-    response = await client.post(
-        TAVILY_SEARCH_URL,
-        json=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-    )
+    async with unpriced_usage():
+        response = await client.post(
+            TAVILY_SEARCH_URL,
+            json=body,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
     _raise_for_status(response)
     data = response.json()
 
@@ -236,11 +238,12 @@ async def brave_search(
     if time_range:
         params["freshness"] = _BRAVE_FRESHNESS[time_range]
 
-    response = await client.get(
-        BRAVE_SEARCH_URL,
-        params=params,
-        headers={"Accept": "application/json", "X-Subscription-Token": api_key},
-    )
+    async with unpriced_usage():
+        response = await client.get(
+            BRAVE_SEARCH_URL,
+            params=params,
+            headers={"Accept": "application/json", "X-Subscription-Token": api_key},
+        )
     _raise_for_status(response)
     data = response.json()
 
@@ -421,6 +424,8 @@ async def _search_with_pool(
             )
             errors.append(f"{provider} key#{index + 1}: HTTP {e.status_code}")
         except Exception as e:
+            if is_quota_error(e):
+                raise
             pool.mark_cooldown(index, COOLDOWN_DEFAULT_SECONDS)
             logger.warning(
                 "[WebSearch] %s key#%d error, cooling %.0fs: %s",
@@ -436,7 +441,7 @@ async def _search_with_pool(
 async def execute_web_search(
     query: str, max_results: int, time_range: str | None = None
 ) -> dict[str, Any]:
-    """执行网页搜索：供应商内多 key 轮询，auto 模式下跨供应商回退。永不抛异常。"""
+    """供应商内轮询、跨供应商回退；用量限额错误向上抛出。"""
     chain = resolve_provider_chain()
     if not chain:
         return {"success": False, "error": "web_search_no_provider_configured"}
@@ -458,6 +463,8 @@ async def execute_web_search(
                     time_range,
                 )
             except Exception as e:
+                if is_quota_error(e):
+                    raise
                 logger.warning("[WebSearch] searxng failed: %s", e)
                 errors.append(f"searxng: {e}")
                 continue

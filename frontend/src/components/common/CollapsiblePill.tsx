@@ -109,12 +109,15 @@ export function CollapsiblePill({
           className={clsx(
             "pill-btn__label min-w-0 flex-1 truncate overflow-hidden",
             description && "flex items-center gap-2",
-            animatedDots && !description && "typing-dots",
+            animatedDots &&
+              !description &&
+              _variant !== "tool" &&
+              "typing-dots",
           )}
         >
           {description ? (
             <>
-              <span className="shrink-0">{displayedLabel}</span>
+              <span className="max-w-full shrink-0">{displayedLabel}</span>
               <span
                 ref={descriptionRef}
                 className={clsx(
@@ -134,14 +137,14 @@ export function CollapsiblePill({
           !displayedLabel.includes(terminalLabel) && (
             <span
               className={
-                status === "error" ? "sr-only" : "shrink-0 text-12 font-normal"
+                status === "error" ? "sr-only" : "shrink-0 font-normal"
               }
             >
               {terminalLabel}
             </span>
           )}
         {suffix != null && (
-          <span className="pill-btn__suffix min-w-0 max-w-[40%] truncate text-12 font-normal text-theme-text-secondary tabular-nums">
+          <span className="pill-btn__suffix min-w-0 max-w-[40%] truncate font-normal text-theme-text-secondary tabular-nums">
             {suffix}
           </span>
         )}

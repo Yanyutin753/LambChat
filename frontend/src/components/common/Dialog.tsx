@@ -28,6 +28,7 @@ interface DialogProps {
   /** 页脚操作区（按钮组）；无 footer 时不渲染页脚条 */
   footer?: ReactNode;
   children: ReactNode;
+  layer?: number;
 }
 
 export function Dialog({
@@ -39,12 +40,14 @@ export function Dialog({
   dismissible = true,
   footer,
   children,
+  layer,
 }: DialogProps) {
   const titleId = useId();
   return (
     <ModalSurface
       className={`modal-size-${size}`}
       open={open}
+      layer={layer}
       onClose={onClose}
       dismissible={dismissible}
       labelledBy={title !== undefined ? titleId : undefined}

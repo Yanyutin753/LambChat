@@ -43,27 +43,35 @@ def _usage_sources(response: Any) -> list[Any]:
 
 
 def _first_usage_int(sources: list[Any], aliases: tuple[str, ...]) -> int | None:
+    supplied = False
     for source in sources:
-        value = _first_int(*(get_value(source, alias, None) for alias in aliases))
+        values = [get_value(source, alias, None) for alias in aliases]
+        supplied |= any(value is not None for value in values)
+        value = _first_int(*values)
         if value is not None:
             return value
-    return None
+    return None if supplied else 0
 
 
 def _first_cache_usage_int(sources: list[Any], aliases: tuple[str, ...]) -> int | None:
     """Read one semantic cache metric without summing equivalent aliases."""
+    supplied = False
     for source in sources:
         for details_name in ("input_token_details", "prompt_tokens_details"):
             details = get_value(source, details_name, None)
             if not details:
                 continue
-            value = _first_int(*(get_value(details, alias, None) for alias in aliases))
+            values = [get_value(details, alias, None) for alias in aliases]
+            supplied |= any(value is not None for value in values)
+            value = _first_int(*values)
             if value is not None:
                 return value
-        value = _first_int(*(get_value(source, alias, None) for alias in aliases))
+        values = [get_value(source, alias, None) for alias in aliases]
+        supplied |= any(value is not None for value in values)
+        value = _first_int(*values)
         if value is not None:
             return value
-    return None
+    return None if supplied else 0
 
 
 class StreamEventMixin:
@@ -373,7 +381,7 @@ class StreamEventMixin:
             self.total_input_tokens += input_tok
         if isinstance(output_tok, int):
             self.total_output_tokens += output_tok
-        if not isinstance(total_tok, int):
+        if not total_tok:
             if input_tok is None or output_tok is None:
                 self._usage_unknown_fields.add("total_tokens")
             total_tok = (input_tok or 0) + (output_tok or 0)
@@ -397,6 +405,8 @@ class StreamEventMixin:
 
         normalized = getattr(response, "usage_metadata", None)
         normalized_input = get_value(normalized, "input_tokens", None)
+        if normalized_input is None and not cache_read and not cache_creation:
+            normalized_input = input_tok
         normalized_read = _first_cache_usage_int([normalized], ("cache_read",))
         # Raw provider input may exclude cached tokens; never certify that fallback.
         self._input_includes_cache &= (
@@ -425,21 +435,11 @@ class StreamEventMixin:
             if value is None:
                 self._usage_unknown_fields.add(field)
 
-    def _mark_unknown_model_usage(self) -> None:
+    def _mark_unreported_model_usage(self) -> None:
         if self._usage_owner is not None:
-            self._usage_owner._mark_unknown_model_usage()
+            self._usage_owner._mark_unreported_model_usage()
             return
         self._usage_observed = True
-        self._input_includes_cache = False
-        self._usage_unknown_fields.update(
-            (
-                "input_tokens",
-                "output_tokens",
-                "total_tokens",
-                "cache_creation_tokens",
-                "cache_read_tokens",
-            )
-        )
 
     async def _handle_summary_stream(
         self,

@@ -275,7 +275,12 @@ class DualEventWriter:
                     self._flush_task = asyncio.create_task(self._schedule_flush())
                     self._flush_task.add_done_callback(self._on_flush_task_done)
 
-            if should_flush_now:
+            if event_type == "token:usage":
+                from src.infra.session.trace_usage_log import _write_usage_log
+
+                await self.flush_mongo_buffer(require_trace_id=trace_id)
+                await _write_usage_log(trace_id)
+            elif should_flush_now:
                 await self.flush_mongo_buffer()
             elif event_type in ("complete", "error", "done"):
                 await self.flush_mongo_buffer()

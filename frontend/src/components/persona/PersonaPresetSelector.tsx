@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DialogCloseButton } from "../common/DialogCloseButton";
@@ -76,9 +77,8 @@ export function PersonaPresetSelector({
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [previewPreset, setPreviewPreset] = useState<PersonaPreset | null>(
-    null,
-  );
+  const [previewPreset, setPreviewPreset] =
+    useRightPanelState<PersonaPreset | null>("persona:preview", null);
   const [pendingUsePresetId, setPendingUsePresetId] = useState<string | null>(
     null,
   );

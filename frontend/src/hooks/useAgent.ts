@@ -1104,13 +1104,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         }
         // 被后续发送/停止顶掉的旧发送不渲染错误（当前发送 owns 标志）
         if (!ownsSend()) return;
-        const errWithMeta = err as Error & { code?: string };
+        const errWithMeta = err as Error & {
+          code?: string;
+          args?: Record<string, unknown>;
+        };
         const errorMessage =
           err instanceof Error
             ? translateApiError(
                 errWithMeta.code,
                 err.message,
-                undefined,
+                errWithMeta.args,
                 i18n.t.bind(i18n),
               )
             : i18n.t("chat.unknownError");

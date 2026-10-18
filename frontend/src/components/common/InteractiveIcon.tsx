@@ -491,6 +491,7 @@ export function InteractiveIcon({ children }: { children: ReactNode }) {
       props.onClick ||
       props["aria-label"] ||
       props.children ||
+      "data-open" in props ||
       /animate-spin|rotate-|transition-transform/.test(props.className ?? "")
     )
       return child;

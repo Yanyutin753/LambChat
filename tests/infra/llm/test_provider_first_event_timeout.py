@@ -10,6 +10,15 @@ from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
 from src.infra.llm.openai_chat import LambChatOpenAIChatModel
 
 
+@pytest.fixture(autouse=True)
+def isolate_transport_timing(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.llm.quota import QuotaChatMixin
+
+    monkeypatch.setattr(QuotaChatMixin, "_quota_begin", AsyncMock(return_value=None))
+
+
 @pytest.mark.parametrize(
     ("model", "base_class"),
     [

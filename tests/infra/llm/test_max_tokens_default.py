@@ -10,8 +10,8 @@
 
 - openai 协议：未配置 = 不发送（None 透传，客户端字段为 None 时不进 payload），
   由 provider 默认值接管——与 temperature 未配置不发送（PR #250）同一契约；
-- anthropic 协议：未配置 = 注入显式默认 ``ANTHROPIC_DEFAULT_MAX_TOKENS``，
-  绝不让 langchain 的 4096 静默兜底生效；
+- anthropic 协议：未配置 = 注入模型族默认；GLM-5.3 增强推理为 64K，
+  其他既有调用保持 ``ANTHROPIC_DEFAULT_MAX_TOKENS``，不落入静默 4096；
 - anthropic 协议同时校验 deepagents 输入预算
   （``int(max_input_tokens*0.95) - max_tokens``），预算过小时告警，
   避免「预算 58,928 < 摘要+尾部+system/tools 不可再压最小值」式卡死

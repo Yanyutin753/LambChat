@@ -13,6 +13,12 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
 afterEach(cleanup);
 
+test("running usage is labelled as running in every responsive layout", () => {
+  show({ status: "running" });
+  expect(screen.getAllByText("usage.statusRunning")).toHaveLength(3);
+  expect(screen.queryByText("usage.statusError")).toBeNull();
+});
+
 function show(overrides: Partial<UsageLog> = {}, hasAnyCache = false) {
   const log = {
     trace_id: "trace",

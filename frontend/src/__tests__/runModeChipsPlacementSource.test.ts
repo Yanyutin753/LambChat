@@ -69,10 +69,10 @@ test("RunModeReferenceNode 复用 skill-chip 视觉并支持点击/退格关闭"
   expect(projection).toMatch(/run-mode-reference/);
 });
 
-test("用量 chip 在手机端仅显示图标", () => {
+test("用量 chip 在手机端保留可截断的金额", () => {
   const chip = readRepoFile("src/components/chat/ComposerUsageChip.tsx");
-  // 金额文本在 sm 断点以下隐藏，只保留 Activity 图标
-  expect(chip).toMatch(/hidden sm:inline/);
+  expect(chip).toMatch(/composer-usage-amount max-w-40 sm:max-w-52 truncate/);
+  expect(chip).not.toMatch(/hidden sm:inline/);
 });
 
 test("身份 chip 自适应截断：空间足够完整显示，不足才出省略号", () => {

@@ -257,16 +257,24 @@ describe("RunStepsCollapse", () => {
     expect(workingSpan.className).toContain("text-theme-text-secondary");
   });
 
-  test("summary row keeps the original process typography", () => {
-    render(
+  test.each([
+    ["completed", {}],
+    ["working", { active: true }],
+    ["stopped", { stopped: true }],
+    ["waiting for confirmation", { active: true, awaitingConfirmation: true }],
+  ])("%s summary row follows the body font size", (_status, props) => {
+    const { container } = render(
       <RunStepsCollapse
+        {...props}
         steps={2}
         durationMs={45000}
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    const span = SummaryRow().querySelector("span");
-    expect(span?.className).toContain("text-[0.9375rem]");
+    const span = container.querySelector(
+      ".run-steps-collapse > :first-child > span",
+    );
+    expect(span?.className).toContain("text-[length:var(--chat-font-size)]");
   });
 
   test("summary row keeps the original divider", () => {

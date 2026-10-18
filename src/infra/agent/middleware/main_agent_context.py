@@ -14,6 +14,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 
 from src.infra.agent.evidence import checkpoint_evidence_index
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.memory.control_frames import escape_control_frame_tags
 
@@ -437,7 +438,9 @@ class MainAgentContextMiddleware(AgentMiddleware):
             log.append("\n## Parent Checkpoint Todo\n" + todo_context)
         try:
             await log.check_and_compress(self._compress_with_llm)
-        except Exception:
+        except Exception as exc:
+            if is_quota_error(exc):
+                raise
             logger.warning("[MainAgentContext] Compression failed, keeping trimmed raw context")
 
         run_id = self._run_id_factory()

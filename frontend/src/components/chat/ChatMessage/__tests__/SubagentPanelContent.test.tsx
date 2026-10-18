@@ -651,3 +651,24 @@ test("timed-out runs display preserved partial report and error without streamin
   });
   expect(reply).toMatchObject({ isStreaming: false, cancelled: false });
 });
+
+test("subagent quota errors use the current interface language", async () => {
+  const language = createInstance();
+  await language.init({ lng: "en", resources: { en: { translation: en } } });
+  const messages = buildSubagentConversation(
+    {
+      agentId: "reviewer",
+      agentName: "Reviewer",
+      input: "Review",
+      error: "Five-hour or weekly USD quota is exhausted",
+      status: "error",
+      isPending: false,
+    },
+    language.t.bind(language),
+  );
+  const reply = messages.find((message) => message.role === "assistant");
+  expect(reply?.parts).toContainEqual({
+    type: "text",
+    content: en.backendErrors.usageQuotaExceeded,
+  });
+});

@@ -29,7 +29,8 @@ def test_read_rate_certifies_only_normalized_inclusive_input(normalized):
     processor._handle_token_usage({"data": {"output": response}})
     totals = processor.usage_totals()
     assert (totals.get("input_includes_cache") is True) is normalized
-    assert "cache_creation_tokens" in totals["unknown_usage_fields"]
+    assert "cache_creation_tokens" not in totals["unknown_usage_fields"]
+    assert totals["cache_creation_tokens"] == 0
     restored = _processor()
     restored.seed_usage(totals)
     assert restored.usage_totals().get("input_includes_cache") == totals.get("input_includes_cache")

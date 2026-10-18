@@ -271,6 +271,13 @@ class TraceStorageWriteMixin:
                 "input_tokens": 0,
                 "output_tokens": 0,
                 "total_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+                "unknown_usage_fields": [],
+                "usage_incomplete": False,
+                "input_includes_cache": True,
+                "cost_usd": 0.0,
+                "cost_complete": True,
                 "duration": 0.0,
                 "timestamp": utc_now_iso(),
             },
@@ -417,14 +424,14 @@ class TraceStorageWriteMixin:
                         if _USAGE_LOGS_ENABLED:
                             from src.infra.session.trace_usage_log import _write_usage_log
 
-                            asyncio.create_task(_write_usage_log(trace_id))
+                            await _write_usage_log(trace_id)
                         return finalized.get("status") == status
                 result = await self._complete_trace_after_marker_release(trace_id, update)
-            # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）
+            # Finish the terminal projection before returning; per-call snapshots already exist.
             if _USAGE_LOGS_ENABLED and result.modified_count > 0:
                 from src.infra.session.trace_usage_log import _write_usage_log
 
-                asyncio.create_task(_write_usage_log(trace_id))
+                await _write_usage_log(trace_id)
             if result.modified_count > 0 and self._merger is not None:
                 self._merger.schedule_merge_once()
             if result.modified_count > 0:

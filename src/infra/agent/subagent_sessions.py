@@ -21,7 +21,9 @@ from langgraph.types import Command, interrupt
 
 from src.agents.core.node_utils import build_nested_graph_configurable, isolated_nested_graph_run
 from src.infra.agent.middleware._helpers import _append_system_text_block
+from src.infra.llm.quota import is_quota_error
 from src.infra.tool.subagent_tool import create_subagent_parent_tools
+from src.kernel.errors import AppError, ErrorCode
 
 logger = logging.getLogger(__name__)
 SUBAGENT_MAX_RUNNING = 3
@@ -317,12 +319,26 @@ class SubagentSessions:
                     "status",
                     "result",
                     "error",
+                    "error_code",
+                    "error_args",
                     "verification_required",
                     "partial_result",
                 )
                 if key in record
             },
         }
+
+    def raise_quota_error(self, subagent_id: str | None = None) -> None:
+        # Rebuilt sessions may explicitly continue a child after its balance resets.
+        for key in (subagent_id,) if subagent_id is not None else self.jobs:
+            record = self.records.get(key, {})
+            for code in (
+                ErrorCode.USAGE_QUOTA_EXCEEDED,
+                ErrorCode.USAGE_QUOTA_UNAVAILABLE,
+                ErrorCode.USAGE_QUOTA_UNPRICED,
+            ):
+                if record.get("error_code") == code.code:
+                    raise AppError(code, args=record.get("error_args"))
 
     async def send(
         self,
@@ -364,6 +380,8 @@ class SubagentSessions:
             record["status"] = "queued"
             record["execution_seconds"] = 0
             record.pop("error", None)
+            record.pop("error_code", None)
+            record.pop("error_args", None)
             await self._emit(subagent_id, "queued")
             self.jobs[subagent_id] = asyncio.create_task(self._run(subagent_id, None))
         return (
@@ -594,11 +612,17 @@ class SubagentSessions:
                     graph_input = {"messages": messages}
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as error:
             logger.warning("Subagent execution failed: %s", subagent_id, exc_info=True)
             record.update(
                 status="failed", error="Subagent execution failed; retry the continuation."
             )
+            if is_quota_error(error):
+                record.update(
+                    error=error.display_message,
+                    error_code=error.error_code.code,
+                    error_args=error.args_data,
+                )
             await self._emit(subagent_id, "completed")
 
     async def _emit(self, subagent_id: str, phase: str) -> None:
@@ -651,6 +675,7 @@ class SubagentSessions:
         return self._wait_response(subagent_id, value, timed_out=timed_out)
 
     def _wait_response(self, subagent_id: str, value: dict, *, timed_out: bool = False) -> dict:
+        self.raise_quota_error(subagent_id)
         record = self.records.get(subagent_id)
         terminal = value.get("status") in _TERMINAL_STATUSES or record is None
         value = {**value, "wait_timed_out": timed_out and not terminal, "terminal": terminal}

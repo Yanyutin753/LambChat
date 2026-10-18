@@ -22,7 +22,7 @@ from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel as ChatAnthr
 from src.infra.llm.azure_chat import LambChatAzureChatModel as AzureChatOpenAI
 from src.infra.llm.azure_chat import parse_azure_endpoint
 from src.infra.llm.budget import (
-    ANTHROPIC_DEFAULT_MAX_TOKENS,
+    default_anthropic_max_tokens,
     warn_if_input_budget_strangled,
 )
 from src.infra.llm.google_chat import LambChatGoogleChatModel as ChatGoogleGenerativeAI
@@ -500,7 +500,9 @@ class LLMClient:
             # 未配置 max_tokens 时注入显式默认：langchain-anthropic 会把 None
             # 静默换成 4096（见 budget.ANTHROPIC_DEFAULT_MAX_TOKENS 注释）。
             effective_max_tokens = (
-                max_tokens if max_tokens is not None else ANTHROPIC_DEFAULT_MAX_TOKENS
+                max_tokens
+                if max_tokens is not None
+                else default_anthropic_max_tokens(model_name, effort=effort, profile=profile)
             )
             warn_if_input_budget_strangled(profile, effective_max_tokens, model_name)
             anthropic_kwargs: dict[str, Any] = {
@@ -814,6 +816,7 @@ class LLMClient:
             model_map = {m.get("value"): m for m in available_models}
             model_cfg = model_map.get(model)
             if model_cfg:
+                model_id = model_id or model_cfg.get("id")
                 # Apply per-model overrides (explicit params still take priority)
                 if not explicit_provider and model_cfg.get("provider"):
                     explicit_provider = model_cfg["provider"]
@@ -878,6 +881,7 @@ class LLMClient:
         )
 
         # LRU cache hit — move to end (most recently used)
+        cache_key = (*cache_key, model_id)
         if cache_key in LLMClient._model_cache:
             LLMClient._model_cache.move_to_end(cache_key)
             return LLMClient._model_cache[cache_key]
@@ -912,6 +916,11 @@ class LLMClient:
             if pooled_client is not None:
                 _release_pool_client(_pool_key(api_key, api_base))
             raise
+        from src.infra.llm.quota import QuotaChatMixin
+
+        if isinstance(instance, QuotaChatMixin):
+            instance.quota_provider = provider
+            instance.quota_model_config_id = model_id
         if pooled_client is not None:
             _model_pool_keys[id(instance)] = _pool_key(api_key, api_base)
         LLMClient._model_cache[cache_key] = instance

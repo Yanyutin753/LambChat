@@ -236,3 +236,12 @@ test("scheduled startup progress accepts empty content and bypasses human task c
   );
   expect(onScheduledProgress).toHaveBeenCalledTimes(1);
 });
+
+test("quota invalidation reuses the usage callback without requiring a trace", () => {
+  const updates: unknown[] = [];
+  dispatchWebSocketMessage(
+    { type: "usage_quota_updated" },
+    { onUsageUpdated: (message) => updates.push(message) },
+  );
+  expect(updates).toEqual([{ type: "usage_quota_updated" }]);
+});

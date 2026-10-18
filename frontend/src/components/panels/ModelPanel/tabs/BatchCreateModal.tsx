@@ -270,6 +270,7 @@ export const BatchCreateModal = ({
 
   return (
     <EditorSidebar
+      registryKey="models:batch"
       open={true}
       onClose={onClose}
       title={t("agentConfig.batchCreateTitle")}

@@ -8,6 +8,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from src.infra.llm.google_chat import LambChatGoogleChatModel
 
 
+@pytest.fixture(autouse=True)
+def isolate_transport_timing(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(LambChatGoogleChatModel, "_quota_begin", AsyncMock(return_value=None))
+
+
 def _model(**kwargs) -> LambChatGoogleChatModel:
     return LambChatGoogleChatModel(
         model="gemini-3.1-pro-preview",

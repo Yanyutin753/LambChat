@@ -15,6 +15,48 @@ vi.mock("react-i18next", () => ({
 }));
 afterEach(cleanup);
 
+test("running tools do not append decorative ellipsis to their label", () => {
+  const { container } = render(
+    <CollapsiblePill
+      variant="tool"
+      status="loading"
+      icon={<span />}
+      label="电脑控制 · 检查状态 status"
+      animatedDots
+    />,
+  );
+  expect(container.querySelector(".pill-btn__label")).not.toHaveClass(
+    "typing-dots",
+  );
+  expect(screen.getByRole("button")).toHaveTextContent(
+    "chat.eventStatus.loading",
+  );
+});
+
+test.each<CollapsibleStatus>(["loading", "success", "error", "cancelled"])(
+  "tool labels and descriptions stay on one line when %s",
+  (status) => {
+    const { container } = render(
+      <CollapsiblePill
+        variant="tool"
+        status={status}
+        icon={<span />}
+        label="电脑控制 · 检查状态"
+        description="Computer control on machine 7eab7fd04964: session caa18591-2e22-41b9-83e0-3272565181ae"
+      />,
+    );
+    const label = container.querySelector(".pill-btn__label")!;
+    const description = label.lastElementChild!;
+    for (const node of [label, description]) {
+      expect(node).toHaveClass("truncate");
+      expect(node).not.toHaveClass("whitespace-normal");
+      expect(node).not.toHaveClass("[overflow-wrap:anywhere]");
+    }
+    expect(label).not.toHaveClass("flex-wrap");
+    expect(label.firstElementChild).toHaveClass("max-w-full");
+  },
+);
+
 for (const variant of [
   "default",
   "tool",

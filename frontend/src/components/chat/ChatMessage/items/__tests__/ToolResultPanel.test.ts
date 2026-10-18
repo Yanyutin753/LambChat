@@ -249,13 +249,16 @@ test("tool detail text stays within its parent and uses slightly smaller body ty
     "utf8",
   );
   expect(css).toMatch(
-    /\.tool-readable\s*\{[^}]*font-family: var\(--chat-font-family\);[^}]*font-size: calc\(var\(--chat-font-size\) - 0\.0625rem\);/,
+    /\.tool-readable\s*\{[^}]*font-family: var\(--chat-font-family\);[^}]*font-size: var\(--tool-font-size\);/,
   );
   expect(css).toMatch(
-    /\.tool-readable :is\(\.text-12, \.text-13\)\s*\{[^}]*font-size: calc\(var\(--chat-font-size\) - 0\.0625rem\);/,
+    /\.tool-readable :is\(\.text-12, \.text-13\)\s*\{[^}]*font-size: var\(--tool-font-size\);/,
   );
   expect(css).toMatch(
     /\.tool-readable \.tool-detail-section__title\s*\{[^}]*font-family: inherit;/,
+  );
+  expect(css).toMatch(
+    /\.tool-readable :is\(\.markdown-preview, \.sidebar-reasoning-preview__scroll\)\s*\{[^}]*font-size: var\(--tool-font-size\);/,
   );
   expect(source).not.toMatch(/tool-readable font-serif/);
   expect(css).toMatch(

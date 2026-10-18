@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../../hooks/useRightPanelState";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -120,7 +121,7 @@ export function useSkillsActions() {
   // Form modal state
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useRightPanelState("skills:form", false);
   const [savedSkillName, setSavedSkillName] = useState<string | null>(null);
   const formSession = useRef(0);
 
@@ -156,7 +157,10 @@ export function useSkillsActions() {
   } | null>(null);
 
   // ZIP upload state
-  const [showZipModal, setShowZipModal] = useState(false);
+  const [showZipModal, setShowZipModal] = useRightPanelState(
+    "skills:zip",
+    false,
+  );
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipUploading, setZipUploading] = useState(false);
   const [zipPreviewing, setZipPreviewing] = useState(false);
@@ -168,7 +172,10 @@ export function useSkillsActions() {
   const [isDragging, setIsDragging] = useState(false);
 
   // GitHub import state
-  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [showGithubModal, setShowGithubModal] = useRightPanelState(
+    "skills:github",
+    false,
+  );
   const [githubUrl, setGithubUrl] = useState("");
   const [githubBranch, setGithubBranch] = useState("main");
   const [githubSkills, setGithubSkills] = useState<GitHubSkill[]>([]);

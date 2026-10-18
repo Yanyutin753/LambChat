@@ -17,6 +17,7 @@ from langsmith.run_helpers import tracing_context
 
 from src.infra.agent.middleware.retry import create_retry_middleware
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.quota import bind_quota_user
 from src.infra.logging import get_logger
 from src.infra.memory.distributed import (
     acquire_compaction_scan_lock,
@@ -308,6 +309,7 @@ class MemoryCompactionAgent:
         self._after_write_tasks_by_user.clear()
         self._last_attempt_by_user.clear()
 
+    @bind_quota_user
     async def compact_user_memories(self, backend: Any, user_id: str) -> dict[str, Any]:
         """Run the DeepAgent memory compactor for one user's automatic memories."""
         instance_id = uuid.uuid4().hex[:8]

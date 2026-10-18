@@ -342,6 +342,7 @@ export function TaskFormModal({
 
   return (
     <EditorSidebar
+      registryKey={isEdit ? "schedules:edit" : "schedules:create"}
       open={true}
       onClose={onClose}
       title={isEdit ? t("scheduledTask.edit") : t("scheduledTask.create")}

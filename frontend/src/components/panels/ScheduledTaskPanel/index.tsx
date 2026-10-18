@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../../hooks/useRightPanelState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -93,8 +94,12 @@ export function ScheduledTaskPanel({
     ScheduledTaskStatusType | undefined
   >(undefined);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null);
-  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [editingTask, setEditingTask] =
+    useRightPanelState<ScheduledTask | null>("schedules:edit", null);
+  const [isCreating, setIsCreating] = useRightPanelState(
+    "schedules:create",
+    false,
+  );
   useEffect(() => {
     if (canWrite && searchParams.get("create") === "1") {
       setIsCreating(true);
@@ -102,7 +107,7 @@ export function ScheduledTaskPanel({
       next.delete("create");
       setSearchParams(next, { replace: true });
     }
-  }, [canWrite, searchParams, setSearchParams]);
+  }, [canWrite, searchParams, setSearchParams, setIsCreating]);
 
   const [agents, setAgents] = useState<AgentInfo[]>(providedAgents || []);
   const [personaPresets, setPersonaPresets] = useState<PersonaPreset[]>([]);
@@ -667,6 +672,7 @@ export function ScheduledTaskPanel({
           {/* Edit Modal */}
           {editingTask && canWrite && (
             <TaskFormModal
+              key={editingTask.id}
               task={editingTask}
               agents={agents}
               availableModels={effectiveAvailableModels}

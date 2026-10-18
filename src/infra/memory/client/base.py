@@ -10,6 +10,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Sequence
 
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.kernel.schemas.conversation_history import ConversationSourceRef
 
@@ -81,6 +82,8 @@ async def with_retry(
             async with semaphore:
                 return await func()
         except Exception as e:
+            if is_quota_error(e):
+                raise
             last_error = e
             if attempt < max_retries - 1:
                 delay = retry_delay * (2**attempt) + random.uniform(0, 0.1)

@@ -1,6 +1,11 @@
-import type { TFunction } from "i18next";
+import i18n, { type TFunction } from "i18next";
 
 const BACKEND_ERROR_KEYS: Record<string, string> = {
+  "Five-hour or weekly USD quota is exhausted":
+    "backendErrors.usageQuotaExceeded",
+  "Usage quota cannot be verified": "backendErrors.usageQuotaUnavailable",
+  "Model pricing or token limits are unavailable for this quota":
+    "backendErrors.usageQuotaUnpriced",
   // Stable backend error codes
   persona_preset_not_found: "personaPresets.presetNotFound",
   persona_preset_no_edit_permission: "personaPresets.noEditPermission",
@@ -216,6 +221,44 @@ export function translateApiError(
   args: Record<string, unknown> | undefined,
   t: TFunction,
 ): string {
+  if (code === "usage_quota_exceeded" && Array.isArray(args?.windows)) {
+    const windows = args.windows.filter(
+      (window): window is "five_hour" | "weekly" =>
+        window === "five_hour" || window === "weekly",
+    );
+    if (windows.length) {
+      const labels = windows
+        .map((window) =>
+          t(
+            window === "five_hour"
+              ? "usage.quotaFiveHour"
+              : "usage.quotaWeekly",
+          ),
+        )
+        .join(" / ");
+      const reason =
+        args.reason === "unknown"
+          ? "usage.quotaErrorUnknown"
+          : args.reason === "reserved"
+            ? "usage.quotaErrorReserved"
+            : "usage.quotaErrorExhausted";
+      const text = t(reason, { windows: labels });
+      const resetAt =
+        typeof args.reset_at === "string" ? new Date(args.reset_at) : null;
+      if (resetAt && Number.isFinite(resetAt.getTime())) {
+        const time = new Intl.DateTimeFormat(i18n.language || "en", {
+          timeZone: "Asia/Shanghai",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZoneName: "short",
+        }).format(resetAt);
+        return `${text} ${t("usage.quotaErrorResets", { time })}`;
+      }
+      return text;
+    }
+  }
   if (code && code !== "internal_error") {
     const key = `backendErrors.${codeToKeySegment(code)}`;
     const translated = t(key, { defaultValue: "", ...(args ?? {}) });
