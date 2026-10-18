@@ -2,7 +2,14 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 import { ComposerUsageChip } from "../ComposerUsageChip";
 import type { UsageStats } from "../../../types/usage";
@@ -864,9 +871,11 @@ test("a failed refresh disables card redemption from the retained snapshot", asy
   });
   render(<ComposerUsageChip />);
   fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
-  expect(
-    await screen.findByRole("button", { name: /^usage\.useResetCard \d+$/ }),
-  ).toBeEnabled();
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: /^usage\.useResetCard \d+$/ }),
+    ).toBeEnabled();
+  });
   getQuotaMock.mockRejectedValue(new Error("offline"));
   act(() => window.dispatchEvent(new Event("today-usage-refresh")));
   await screen.findByText("usage.quotaUnavailable");
@@ -907,9 +916,11 @@ test("weekly and five-hour cards have separate actions and target the selected c
     .mockResolvedValue({ outcome: "reset" });
   render(<ComposerUsageChip />);
   fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
-  expect(
-    await screen.findByRole("button", { name: /^usage\.useFiveHourCard \d+$/ }),
-  ).toBeEnabled();
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: /^usage\.useFiveHourCard \d+$/ }),
+    ).toBeEnabled();
+  });
   fireEvent.click(
     screen.getByRole("button", { name: /^usage\.useWeeklyCard \d+$/ }),
   );
@@ -1026,7 +1037,7 @@ test("header shows only the amount while reset buttons sit beside their quota la
     expires_at: "2026-11-17T00:00:00Z",
   };
   getStatsMock.mockResolvedValue(todayStats());
-  getQuotaMock.mockResolvedValue({
+  const quota = {
     currency: "USD",
     timezone: "Asia/Shanghai",
     five_hour: quotaWindow({ used_usd: 1 }),
@@ -1039,7 +1050,10 @@ test("header shows only the amount while reset buttons sit beside their quota la
         { ...card, id: "week-two", window: "weekly" },
       ],
     },
-  });
+  };
+  getQuotaMock.mockImplementation(
+    () => new Promise((resolve) => setTimeout(() => resolve(quota), 30)),
+  );
   render(<ComposerUsageChip />);
   const trigger = await screen.findByRole("button", { name: /今日 ¥3\.60/ });
   await act(async () => {});
@@ -1052,9 +1066,11 @@ test("header shows only the amount while reset buttons sit beside their quota la
     expect.stringContaining("usage.resetCardsAvailable"),
   );
   fireEvent.click(trigger);
-  expect(
-    await screen.findByRole("button", { name: "usage.useFiveHourCard 1" }),
-  ).toBeEnabled();
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: "usage.useFiveHourCard 1" }),
+    ).toBeEnabled();
+  });
   expect(
     screen.getByRole("button", { name: "usage.useWeeklyCard 2" }),
   ).toBeEnabled();
