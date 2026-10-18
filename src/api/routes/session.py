@@ -323,12 +323,7 @@ async def get_session_events(
     include_approval_statuses: bool = False,
     user: TokenPayload = Depends(get_current_user_required),
 ):
-    """
-    获取会话所有事件
-
-    只能获取自己拥有的会话事件。
-
-    """
+    """获取当前用户拥有的会话事件。"""
     from src.infra.session.dual_writer import get_dual_writer
 
     manager = SessionManager()

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { DatabaseZap } from "lucide-react";
 import { vi } from "vitest";
 
@@ -102,10 +102,14 @@ test("cache insight explains unknown input without replacing known zero", () => 
       },
     }) as UsageDashboardResponse;
   const { rerender } = render(<InsightStrip dashboard={dashboard(null)} />);
-  expect(screen.getByText("usage.cacheRateUnknown")).toBeVisible();
-  rerender(<InsightStrip dashboard={dashboard(0)} />);
   const insight = screen.getByText("usage.insight.cacheReuse").parentElement!
     .parentElement!;
-  expect(insight).toHaveTextContent("0%");
-  expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
+  expect(within(insight).getByText("—")).toBeVisible();
+  expect(within(insight).getByText("0 · usage.cacheRateUnknown")).toBeVisible();
+  rerender(<InsightStrip dashboard={dashboard(0)} />);
+  expect(within(insight).getByText("0%")).toBeVisible();
+  expect(within(insight).getByText("0")).toBeVisible();
+  expect(
+    within(insight).queryByText(/usage\.cacheRateUnknown/),
+  ).not.toBeInTheDocument();
 });
