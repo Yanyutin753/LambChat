@@ -688,10 +688,7 @@ async def session_stream(
     async def event_generator():
         logger.info(f"[SSE] Generator started for session={session_id}, run_id={run_id}")
         try:
-            # 终态 stream 已过 60s TTL 被清（run 结束超过 60 秒后的重连）：重放
-            # 0 条事件且下方 xread 永远等不到新事件，只能靠 24h 兜底超时——
-            # 断线重连的客户端在途工具卡因此永远转圈（孤儿组件）。stream 为
-            # 空且 run 已终态时立即合成终态事件返回。
+            # 已过期的终态流无需等待新事件。
             if await dual_writer.get_stream_length(session_id, run_id=run_id) == 0:
                 terminal = await resolve_terminal_stream_status(session, run_id)
                 if terminal is not None:
@@ -710,9 +707,15 @@ async def session_stream(
                 session_id,
                 run_id=run_id,
             ):
-                # 心跳事件：具名 ping（空数据）。客户端以其为存活信号判定
-                # 半开死连接；旧客户端跳过未知事件，不受影响。
                 if event["event_type"] == "heartbeat":
+                    # Early cancellation can leave a nonempty stream without a terminal event.
+                    current = await session_manager.get_session(session_id)
+                    terminal = await resolve_terminal_stream_status(current, run_id)
+                    if terminal is not None:
+                        yield _format_sse_event(
+                            synthesize_terminal_stream_event(run_id, current, terminal)
+                        )
+                        return
                     yield "event: ping\ndata: {}\n\n"
                     continue
 
