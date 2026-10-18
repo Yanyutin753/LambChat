@@ -12,7 +12,7 @@ from src.kernel.errors import AppError, ErrorCode
 
 
 @pytest.fixture
-async def quota_db():
+async def quota_db(monkeypatch):
     if os.environ.get("LAMBCHAT_QUOTA_INTEGRATION") != "1":
         pytest.skip("Set LAMBCHAT_QUOTA_INTEGRATION=1 to verify real Mongo atomicity")
     from pymongo import AsyncMongoClient
@@ -23,6 +23,12 @@ async def quota_db():
         build_mongo_connection_string(), serverSelectionTimeoutMS=3000, tz_aware=True
     )
     db = client[f"test_lambchat_quota_{uuid.uuid4().hex}"]
+    from src.infra.usage import auxiliary
+    from src.infra.usage.storage import UsageStorage
+
+    usage_storage = UsageStorage()
+    usage_storage._collection = db["usage_logs"]
+    monkeypatch.setattr(auxiliary, "get_usage_storage", lambda: usage_storage)
     try:
         await client.admin.command("ping")
         yield UsageQuota(db["quotas"])
