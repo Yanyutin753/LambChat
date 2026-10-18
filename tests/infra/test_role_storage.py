@@ -541,3 +541,30 @@ async def test_get_by_names_corrupt_cache_does_not_hide_other_roles(monkeypatch)
 
     assert [role.name for role in roles] == ["broken", "fresh"]
     assert storage.collection.queries == [{"name": {"$in": ["broken", "fresh"]}}]
+
+
+async def test_create_invalidates_previously_cached_missing_role(monkeypatch):
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.role import RoleCreate
+
+    records = {}
+
+    async def find_one(query):
+        return deepcopy(records.get(query["name"]))
+
+    async def insert_one(document):
+        identifier = ObjectId()
+        records[document["name"]] = {**deepcopy(document), "_id": identifier}
+        return SimpleNamespace(inserted_id=identifier)
+
+    monkeypatch.setattr(role_storage, "_get_redis", AsyncMock(return_value=_FakeRedis()))
+    storage = RoleStorage()
+    storage._collection = SimpleNamespace(find_one=find_one, insert_one=insert_one)
+    assert await storage.get_by_name("new-role") is None
+    created = await storage.create(RoleCreate(name="new-role", description="New role"))
+    found = await storage.get_by_name("new-role")
+    assert found is not None
+    assert found.id == created.id
