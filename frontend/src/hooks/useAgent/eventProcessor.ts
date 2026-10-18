@@ -659,6 +659,13 @@ export function processMessageEvent(
         model_id: data.model_id,
         model: data.model,
         cost_complete: data.cost_complete,
+        ...(data.cost_source !== undefined
+          ? {
+              cost_source: data.cost_source,
+              cost_units: data.cost_units,
+              actual_models: data.actual_models,
+            }
+          : {}),
         cost_usd: data.cost_usd,
         partial_cost_usd: data.partial_cost_usd,
         estimated_cost_usd: data.estimated_cost_usd,
@@ -774,7 +781,7 @@ export function processMessageEvent(
 
     case "error": {
       const errorMsg = data.error
-        ? translateApiError(data.code, data.error, undefined, i18n.t.bind(i18n))
+        ? translateApiError(data.code, data.error, data.args, i18n.t.bind(i18n))
         : i18n.t("chat.unknownError");
       if (isTransientAskHumanCancellation(errorMsg)) {
         result.parts = parts;

@@ -576,6 +576,7 @@ class EventPresenterMixin:
         rates: Any = None,
         unknown_usage_fields: list[str] | None = None,
         input_includes_cache: bool = False,
+        settlement_usage: dict | None = None,
     ) -> Dict[str, Any]:
         """输出 Token 使用统计
 
@@ -615,6 +616,37 @@ class EventPresenterMixin:
             data["model_id"] = model_id
         if model:
             data["model"] = model
+        if settlement_usage is not None:
+            units = settlement_usage["cost_units"]
+            if type(units) is not int or units < 0:
+                raise ValueError("Invalid settled cost units")
+            complete = settlement_usage.get("cost_complete") is True
+            models = settlement_usage.get("actual_models", [])
+            data.update(
+                cost_source="provider_settlement",
+                cost_units=units,
+                cost_complete=complete,
+                actual_models=models,
+            )
+            # Recovery needs call identities to replace partial receipts rather than add twice.
+            for key in (
+                "cost_receipts",
+                "legacy_cost_units",
+                "legacy_cost_unknown",
+                "legacy_actual_models",
+                "legacy_model_identity_complete",
+                "model_identity_complete",
+            ):
+                if key in settlement_usage:
+                    data[key] = settlement_usage[key]
+            data["cost_usd" if complete else "partial_cost_usd"] = units / 1_000_000_000
+            if len(models) == 1 and settlement_usage.get("model_identity_complete", True):
+                data["model"] = models[0].get("model") or ""
+                data["model_id"] = models[0].get("model_id") or ""
+            else:
+                data["model"] = "mixed" if models else ""
+                data["model_id"] = ""
+            return self._build_event("token:usage", data)
         # 金额字段仅在可计价时携带，前端据此区分「未计价」与「0 美元」
         if isinstance(cost, PartialCostBreakdown):
             if cost.components and input_includes_cache is True:

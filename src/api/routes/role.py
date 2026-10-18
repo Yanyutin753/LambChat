@@ -10,7 +10,7 @@ from src.api.deps import (
 )
 from src.infra.role.manager import RoleManager
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.role import Role, RoleCreate, RoleListResponse, RoleUpdate
+from src.kernel.schemas.role import Role, RoleCreate, RoleListResponse, RoleQuotaUpdate, RoleUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -81,6 +81,16 @@ async def update_role(
     if not role:
         raise AppError(ErrorCode.ROLE_NOT_FOUND)
     return role
+
+
+@router.patch("/{role_id}/usage-quota", response_model=Role)
+async def update_role_usage_quota(
+    role_id: str,
+    quota: RoleQuotaUpdate,
+    _: TokenPayload = Depends(get_current_user_required),
+    _permission: None = Depends(require_permissions("role:manage")),
+) -> Role:
+    return await RoleManager().update_usage_quota(role_id, quota)
 
 
 @router.delete("/{role_id}")

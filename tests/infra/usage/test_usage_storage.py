@@ -973,7 +973,7 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(
                 },
             }
         )
-        assert await processor.emit_token_usage(model="selected-model") is True
+        assert events[-1]["event_type"] == "token:usage"
         assert await processor.emit_token_usage(model="selected-model") is False
         assert events[-1]["data"]["total_tokens"] == [110, 330, 385, 385][index]
         if starts_with_quick_handoff and index == 0:

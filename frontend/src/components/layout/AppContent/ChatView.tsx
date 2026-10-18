@@ -12,7 +12,6 @@ import { ChatInput } from "../../chat/ChatInput";
 import { SessionTodoDock } from "../../chat/SessionTodoDock";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
-import { ActiveGoalBar } from "../../chat/ActiveGoalBar";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
 import {
@@ -957,31 +956,6 @@ export function ChatView({
                 goalClearLabel={t("chat.goal.clear", "Clear goal")}
                 showHelpMenu
                 helpMenuClassName="hidden sm:block"
-              />
-            )}
-            {hasPendingApproval && (persistentGoal || composerGoal) && (
-              <ActiveGoalBar
-                goal={composerGoal}
-                persistentGoal={persistentGoal}
-                onUpdatePersistentGoal={onUpdatePersistentGoal}
-                disabled={isLoading || !canSendMessage}
-                persistentDisabled={persistentGoalBusy || !canSendMessage}
-                onClear={onClearActiveGoal}
-                onPause={
-                  onControlPersistentGoal
-                    ? () => onControlPersistentGoal("pause")
-                    : undefined
-                }
-                onResume={
-                  onControlPersistentGoal
-                    ? () => onControlPersistentGoal("resume")
-                    : undefined
-                }
-                onClearPersistentGoal={
-                  onControlPersistentGoal
-                    ? () => onControlPersistentGoal("clear")
-                    : undefined
-                }
               />
             )}
           </div>

@@ -21,7 +21,11 @@ import {
 } from "./constants";
 import { FeishuPanelForm } from "./FeishuPanelForm";
 import { ChannelRunConfigFields } from "../ChannelRunConfigFields";
-import { defaultChannelRuntime, formatChannelEnv, parseChannelEnv } from "../channelRuntimeConfig";
+import {
+  defaultChannelRuntime,
+  formatChannelEnv,
+  parseChannelEnv,
+} from "../channelRuntimeConfig";
 import type { ChannelRuntimeConfig } from "../../../../types/channel";
 import type {
   FeishuConfigResponse,
@@ -76,7 +80,9 @@ export function FeishuPanel({
   const [agentId, setAgentId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [runtimeConfig, setRuntimeConfig] = useState<ChannelRuntimeConfig>(defaultChannelRuntime);
+  const [runtimeConfig, setRuntimeConfig] = useState<ChannelRuntimeConfig>(
+    defaultChannelRuntime,
+  );
   const [envText, setEnvText] = useState("");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [personaPresetId, setPersonaPresetId] = useState<string | null>(null);
@@ -122,7 +128,8 @@ export function FeishuPanel({
     setIsRefreshingStatus(false);
     if (initialConfig) {
       const feishuConfig = initialConfig.config as unknown as
-        FeishuConfigResponse | undefined;
+        | FeishuConfigResponse
+        | undefined;
       setConfig(feishuConfig ?? null);
       setHasExistingConfig(true);
       setInstanceName(initialConfig.name || "");
@@ -264,7 +271,9 @@ export function FeishuPanel({
         setAgentId(loadedAgentId);
         setModelId(configResponse.model_id || null);
         setProjectId(configResponse.project_id || null);
-        setRuntimeConfig(configResponse.runtime_config || defaultChannelRuntime());
+        setRuntimeConfig(
+          configResponse.runtime_config || defaultChannelRuntime(),
+        );
         setEnvText(formatChannelEnv(configResponse.runtime_config?.env_vars));
         setTeamId(
           loadedAgentId === "team" ? configResponse.team_id || null : null,
@@ -490,9 +499,17 @@ export function FeishuPanel({
 
     let runtimeData: ChannelRuntimeConfig;
     try {
-      runtimeData = { ...defaultChannelRuntime(), ...runtimeConfig, env_vars: parseChannelEnv(envText) };
+      runtimeData = {
+        ...defaultChannelRuntime(),
+        ...runtimeConfig,
+        env_vars: parseChannelEnv(envText),
+      };
     } catch (error) {
-      setSaveError(t(error instanceof Error ? error.message : "channel.runtime.envInvalid"));
+      setSaveError(
+        t(
+          error instanceof Error ? error.message : "channel.runtime.envInvalid",
+        ),
+      );
       return;
     }
     setIsSaving(true);
@@ -702,9 +719,17 @@ export function FeishuPanel({
   ) : (
     <FeishuPanelForm
       t={t}
-      runConfiguration={<ChannelRunConfigFields value={runtimeConfig} onChange={setRuntimeConfig}
-        projectId={projectId} onProjectChange={setProjectId} envText={envText}
-        onEnvTextChange={setEnvText} disabled={isSaving || !canWrite} />}
+      runConfiguration={
+        <ChannelRunConfigFields
+          value={runtimeConfig}
+          onChange={setRuntimeConfig}
+          projectId={projectId}
+          onProjectChange={setProjectId}
+          envText={envText}
+          onEnvTextChange={setEnvText}
+          disabled={isSaving || !canWrite}
+        />
+      }
       hasExistingConfig={hasExistingConfig}
       status={status}
       enabled={enabled}
@@ -828,6 +853,7 @@ export function FeishuPanel({
   if (onClose) {
     return (
       <EditorSidebar
+        registryKey="channels:editor"
         open={true}
         onClose={onClose}
         title={

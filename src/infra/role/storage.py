@@ -17,7 +17,7 @@ from src.infra.utils.datetime import to_iso, utc_now
 from src.kernel.config import settings
 from src.kernel.errors import ErrorCode
 from src.kernel.exceptions import NotFoundError, ValidationError
-from src.kernel.schemas.role import Role, RoleCreate, RoleLimits, RoleUpdate
+from src.kernel.schemas.role import Role, RoleCreate, RoleLimits, RoleQuotaUpdate, RoleUpdate
 from src.kernel.types import Permission
 
 logger = get_logger(__name__)
@@ -202,6 +202,7 @@ class RoleStorage:
         }
 
         result = await self.collection.insert_one(role_dict)
+        await self.invalidate_cache(role_data.name)
         role_dict["id"] = str(result.inserted_id)
         role_dict["permissions"] = role_data.permissions  # 保持枚举类型
 
@@ -569,6 +570,41 @@ class RoleStorage:
         except Exception as e:
             logger.warning(f"[Role Cache] Redis incr failed for role {role_name}: {e}")
 
+    async def update_usage_quota(self, role_id: str, quota: RoleQuotaUpdate) -> Role:
+        """Update only quota fields, preserving protected role authority and other limits."""
+        from bson import ObjectId
+
+        existing = await self.get_by_id(role_id)
+        if existing is None:
+            raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
+        result = await self.collection.find_one_and_update(
+            {"_id": ObjectId(role_id)},
+            [
+                {
+                    "$set": {
+                        "limits": {
+                            "$mergeObjects": [
+                                {
+                                    "$ifNull": [
+                                        "$limits",
+                                        {"max_concurrent_chats": None, "max_queued_chats": None},
+                                    ]
+                                },
+                                quota.model_dump(exclude_unset=True),
+                            ]
+                        },
+                        "updated_at": utc_now(),
+                    }
+                }
+            ],
+            return_document=True,
+        )
+        if result is None:
+            raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
+        result["id"] = str(result.pop("_id"))
+        await self.invalidate_cache(existing.name)
+        return Role(**_normalize_role_dict(result))
+
     async def init_default_roles(self) -> None:
         """
         初始化默认角色
@@ -628,7 +664,7 @@ class RoleStorage:
                     except Exception:
                         pass
             elif role_data.get("is_system", False):
-                # 系统角色：更新权限列表、描述、限制和is_system标记
+                # 系统角色：保留管理员配置的限制，刷新默认权限与说明
                 now = utc_now()
                 await self.collection.update_one(
                     {"name": role_data["name"]},
@@ -636,7 +672,6 @@ class RoleStorage:
                         "$set": {
                             "permissions": role_data["permissions"],
                             "description": role_data.get("description"),
-                            "limits": role_data.get("limits"),
                             "is_system": True,  # 确保is_system被更新
                             "updated_at": now,
                         }

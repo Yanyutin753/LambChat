@@ -23,6 +23,7 @@ from src.infra.agent.middleware.dead_attachment import (
     DeadAttachmentFilterMiddleware,
     HistoricalImageCapMiddleware,
 )
+from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import _is_output_limit_response, is_retryable_model_error
 from src.kernel.config import settings
 
@@ -236,6 +237,8 @@ class ModelFallbackMiddleware(AgentMiddleware):
         try:
             response = await handler(request)
         except Exception as exc:
+            if is_quota_error(exc):
+                raise
             return await self._invoke_fallback(request, handler, str(exc))
 
         if _response_is_invalid(response):

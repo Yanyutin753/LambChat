@@ -98,3 +98,38 @@ test("an old authenticated socket cannot mark the next account's sessions read",
     window.removeEventListener(SESSIONS_READ_INVALIDATED_EVENT, onRead);
   }
 });
+
+test("quota updates and authenticated reconnects refresh usage only for the current account", async () => {
+  mocks.user = { id: "old" };
+  Socket.instances = [];
+  vi.stubGlobal("WebSocket", Socket);
+  const refresh = vi.fn();
+  window.addEventListener("today-usage-refresh", refresh);
+  try {
+    const hook = renderHook(() =>
+      useWebSocketNotifications({ sessionId: "current", enabled: true }),
+    );
+    await act(async () => {});
+    const oldMessage = Socket.instances[0].onmessage!;
+    act(() =>
+      oldMessage({ data: JSON.stringify({ type: "usage_quota_updated" }) }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    mocks.user = { id: "new" };
+    hook.rerender();
+    await act(async () => {});
+    act(() =>
+      oldMessage({ data: JSON.stringify({ type: "usage_quota_updated" }) }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    const currentMessage = Socket.instances[1].onmessage!;
+    act(() => currentMessage({ data: JSON.stringify({ type: "auth:ok" }) }));
+    expect(refresh).toHaveBeenCalledTimes(2);
+    act(() =>
+      currentMessage({ data: JSON.stringify({ type: "usage_quota_updated" }) }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(3);
+  } finally {
+    window.removeEventListener("today-usage-refresh", refresh);
+  }
+});

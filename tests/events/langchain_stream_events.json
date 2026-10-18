@@ -58,7 +58,7 @@
       "handled_by_processor": true,
       "handler": "processor.process_event -> flush() + _handle_token_usage()",
       "emits_sse": [],
-      "note": "Flushes chunk buffers (may emit pending message:chunk / summary events). Token usage is accumulated but not emitted here — emitted once via emit_token_usage() after stream ends.",
+      "note": "Flushes chunk buffers (may emit pending message:chunk / summary events). Publishes cumulative token usage after each model call; final cleanup preserves late usage and duration.",
       "data_shape": {
         "event": "on_chat_model_end",
         "name": "<chat_model_name>",
@@ -91,7 +91,7 @@
       "lc_type": "StandardStreamEvent",
       "description": "A started model attempt failed without complete usage; preserve unknown accounting while retaining successful attempt totals.",
       "handled_by_processor": true,
-      "handler": "processor.process_event -> _mark_unknown_model_usage",
+      "handler": "processor.process_event -> _mark_unreported_model_usage",
       "emits_sse": [],
       "data_shape": {
         "event": "on_chat_model_error",

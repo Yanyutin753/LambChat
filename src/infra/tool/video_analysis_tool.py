@@ -20,6 +20,7 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.agents.core.node_utils import build_human_message
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime
 from src.kernel.config import settings
@@ -101,6 +102,8 @@ async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
         try:
             return await llm.ainvoke(messages, config=VIDEO_ANALYSIS_INTERNAL_RUN_CONFIG)
         except Exception as exc:
+            if is_quota_error(exc):
+                raise
             last_exc = exc
             if attempt >= max_attempts:
                 break
@@ -241,6 +244,8 @@ async def video_analyze(
         )
     except Exception as exc:
         # 只记异常类型不记正文（对齐 image_analyze：请求体内嵌视频 data URL）
+        if is_quota_error(exc):
+            raise
         logger.warning("[video_analyze] failed: error_type=%s", type(exc).__name__)
         return await _json_dumps_result({"error": "Video analysis failed"})
 

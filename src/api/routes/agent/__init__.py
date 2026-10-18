@@ -368,6 +368,7 @@ async def chat(
     response = await agent.invoke(
         request.message,
         request.session_id or str(uuid.uuid4()),
+        user_id=user.sub,
     )
     return {"response": response}
 

@@ -664,6 +664,7 @@ export function useWebSocketNotifications({
       if (!isNotificationScopeActive()) return;
       void restoreCompletions();
       window.dispatchEvent(new Event(SCHEDULED_RESULTS_REFRESH_EVENT));
+      window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
       setSandboxWsHealthy(true);
     },
     onWsClose: () => {
@@ -672,7 +673,7 @@ export function useWebSocketNotifications({
     },
     onUsageUpdated: () => {
       if (!isNotificationScopeActive()) return;
-      // 后端 usage_logs 落库后推送，直接触发各处当日用量刷新
+      // 用量落库或账号额度变化后，从认证 API 刷新当前账号的用量和额度。
       window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
     },
     onSessionTaskStatus: (data) => {

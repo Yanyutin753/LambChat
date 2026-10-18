@@ -11,6 +11,7 @@ import asyncio
 import logging
 from typing import Any
 
+from src.infra.llm.quota import is_quota_error
 from src.infra.memory.control_frames import CONTROL_FRAME_TAG_RE
 from src.kernel.config import settings
 
@@ -145,7 +146,9 @@ async def append_memory_context(
             ),
             timeout=MEMORY_CONTEXT_TIMEOUT_SECONDS,
         )
-    except Exception:
+    except Exception as exc:
+        if is_quota_error(exc):
+            raise
         logger.debug("[MemoryContext] recall skipped (timeout/error)", exc_info=True)
         return message
     return f"{message}\n\n{block}" if block else message

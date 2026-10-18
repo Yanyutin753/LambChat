@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFxRates } from "../../hooks/useFxRates";
+import { TODAY_USAGE_REFRESH_EVENT } from "../../hooks/useTodayUsageCost";
 import { cacheHitRateFromTokens } from "../chat/todayUsageSnapshot";
 import { fmtCostUsd, fmtUsageCount } from "./UsagePanel/formatters";
 import { usageCostOptions, historicalEstimateHint } from "../../utils/currency";
@@ -193,11 +194,35 @@ export function UsagePanel() {
     } finally {
       setIsLoading(false);
     }
-    fetchDashboard();
+    await fetchDashboard();
   }, [fetchLogs, fetchDashboard]);
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    let inFlight = false;
+    let pending = false;
+    const refresh = async () => {
+      if (inFlight) {
+        pending = true;
+        return;
+      }
+      inFlight = true;
+      try {
+        await fetchData();
+      } finally {
+        inFlight = false;
+        if (active && pending) {
+          pending = false;
+          void refresh();
+        }
+      }
+    };
+    void refresh();
+    window.addEventListener(TODAY_USAGE_REFRESH_EVENT, refresh);
+    return () => {
+      active = false;
+      window.removeEventListener(TODAY_USAGE_REFRESH_EVENT, refresh);
+    };
   }, [fetchData]);
 
   const isInitialLoading =

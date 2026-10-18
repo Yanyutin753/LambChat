@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { EmptyState } from "../common/EmptyState";
 import { FolderOpen } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
@@ -64,10 +65,13 @@ export function MCPPanel() {
     null,
   );
   const [isCreating, setIsCreating] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useRightPanelState("mcp:form", false);
   const [createAsSystem, setCreateAsSystem] = useState(false);
   const [changeToSystem, setChangeToSystem] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useRightPanelState(
+    "mcp:import",
+    false,
+  );
   const [importJson, setImportJson] = useState("");
   const [importOverwrite, setImportOverwrite] = useState(false);
   const [importResult, setImportResult] = useState<{
@@ -75,7 +79,7 @@ export function MCPPanel() {
     message: string;
   } | null>(null);
   const [toolsSidebarServer, setToolsSidebarServer] =
-    useState<MCPServerResponse | null>(null);
+    useRightPanelState<MCPServerResponse | null>("mcp:tools", null);
 
   // Delete confirmation dialog state
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -118,15 +122,18 @@ export function MCPPanel() {
     setCreateAsSystem(false);
     setChangeToSystem(false);
     setShowModal(true);
-  }, []);
+  }, [setShowModal]);
 
-  const handleEdit = useCallback((server: MCPServerResponse) => {
-    setEditingServer(server);
-    setIsCreating(false);
-    setCreateAsSystem(false);
-    setChangeToSystem(server.is_system); // Initialize with current type
-    setShowModal(true);
-  }, []);
+  const handleEdit = useCallback(
+    (server: MCPServerResponse) => {
+      setEditingServer(server);
+      setIsCreating(false);
+      setCreateAsSystem(false);
+      setChangeToSystem(server.is_system); // Initialize with current type
+      setShowModal(true);
+    },
+    [setShowModal],
+  );
 
   const handleSave = useCallback(
     async (data: MCPServerCreate): Promise<boolean> => {
@@ -233,6 +240,7 @@ export function MCPPanel() {
       updateServer,
       promoteServer,
       demoteServer,
+      setShowModal,
       user?.id,
       t,
     ],
@@ -244,7 +252,7 @@ export function MCPPanel() {
     setIsCreating(false);
     setCreateAsSystem(false);
     setChangeToSystem(false);
-  }, []);
+  }, [setShowModal]);
 
   const handleDelete = useCallback(
     async (name: string, isSystem: boolean = false) => {
@@ -478,6 +486,7 @@ export function MCPPanel() {
 
       {/* Form Sidebar */}
       <EditorSidebar
+        registryKey="mcp:form"
         open={showModal}
         onClose={handleCancel}
         title={
@@ -537,6 +546,7 @@ export function MCPPanel() {
 
       {/* Import Sidebar */}
       <EditorSidebar
+        registryKey="mcp:import"
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
         title={t("mcp.importServers")}
@@ -614,6 +624,7 @@ export function MCPPanel() {
 
       {/* Tools Sidebar */}
       <EditorSidebar
+        registryKey="mcp:tools"
         open={toolsSidebarServer !== null}
         onClose={() => setToolsSidebarServer(null)}
         title={toolsSidebarServer?.name ?? ""}

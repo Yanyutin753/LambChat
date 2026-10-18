@@ -9,6 +9,7 @@ from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.web_search_providers import execute_web_search, normalize_time_range
 
@@ -47,6 +48,8 @@ async def web_search(
             time_range=normalize_time_range(time_range),
         )
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.error("[WebSearch] execute failed: %s", e, exc_info=True)
         result = {"success": False, "error": f"web_search_failed: {e}"}
     else:

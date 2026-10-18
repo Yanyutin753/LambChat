@@ -5,6 +5,7 @@ This module keeps the public `AgentEventProcessor` entry point while delegating
 the heavier event-specific work to focused helper modules.
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -80,11 +81,18 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_usage_observed",
         "_usage_owner",
         "_usage_seeded",
+        "_cost_receipts",
+        "_legacy_cost_units",
+        "_legacy_cost_unknown",
+        "_legacy_actual_models",
+        "_legacy_model_identity_complete",
         "_usage_ledger_id",
         "_input_includes_cache",
         "_pending_model_runs",
         "_completed_model_runs",
         "_token_usage_emitted",
+        "_usage_emit_lock",
+        "_usage_duration",
         "_output_buffer_chars",
         "_presenter_emit",
         "_before_tool_start",
@@ -105,15 +113,6 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
     )
 
     _CHUNK_FLUSH_SIZE = 200
-    _MODEL_USAGE_FIELDS = frozenset(
-        {
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "cache_read_tokens",
-            "cache_creation_tokens",
-        }
-    )
 
     def __init__(
         self,
@@ -130,6 +129,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             owner if isinstance(owner, AgentEventProcessor) else None
         )
         self._usage_seeded = False
+        self._cost_receipts: dict[str, dict] = {}
+        self._legacy_cost_units = 0
+        self._legacy_cost_unknown = False
+        self._legacy_actual_models: list[dict] = []
+        self._legacy_model_identity_complete = True
         self._usage_ledger_id = uuid.uuid4().hex
         if self._usage_owner is None:
             presenter._usage_accounting_owner = self
@@ -151,6 +155,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._pending_model_runs: set[str] = set()
         self._completed_model_runs: set[str] = set()
         self._token_usage_emitted = False
+        self._usage_emit_lock = asyncio.Lock()
+        self._usage_duration = 0.0
         self._presenter_emit = presenter.emit
         self._before_tool_start = before_tool_start
         chunk_flush_interval = settings.STREAM_CHUNK_FLUSH_INTERVAL
@@ -200,19 +206,42 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         if not any(isinstance(prior_usage.get(key), int) for key in fields):
             return
         self._usage_seeded = True
+        if prior_usage.get("cost_source") == "provider_settlement":
+            self._cost_receipts.update(prior_usage.get("cost_receipts") or {})
+            self._legacy_cost_units = prior_usage.get(
+                "legacy_cost_units",
+                prior_usage.get("cost_units", 0) if not self._cost_receipts else 0,
+            )
+            self._legacy_cost_unknown = prior_usage.get(
+                "legacy_cost_unknown", "cost_receipts" not in prior_usage
+            )
+            self._legacy_actual_models = prior_usage.get(
+                "legacy_actual_models",
+                prior_usage.get("actual_models", []) if not self._cost_receipts else [],
+            )
+        else:
+            self._legacy_cost_unknown = True
+            # Old trace-wide pricing is an estimate, never evidence of settled spending.
+            self._legacy_actual_models = prior_usage.get("actual_models") or []
+        self._legacy_model_identity_complete = prior_usage.get(
+            "legacy_model_identity_complete",
+            prior_usage.get(
+                "model_identity_complete",
+                bool(self._legacy_actual_models) or bool(self._cost_receipts),
+            ),
+        )
         self._token_usage_emitted = False
         self._usage_observed = True
         self._input_includes_cache &= prior_usage.get("input_includes_cache") is True
         unknown = prior_usage.get("unknown_usage_fields")
-        if isinstance(unknown, list) and all(
-            isinstance(key, str) and key in fields for key in unknown
-        ):
-            self._usage_unknown_fields.update(unknown)
-        else:
-            # Legacy counters did not distinguish unreported usage from a genuine zero.
-            self._usage_unknown_fields.update(fields)
+        if isinstance(unknown, list):
+            self._usage_unknown_fields.update(
+                key for key in unknown if isinstance(key, str) and key in fields
+            )
         for field in fields:
             value = prior_usage.get(field)
+            if value is None:
+                value = 0
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 counter = field if field == "total_tokens" else f"total_{field}"
                 setattr(self, counter, getattr(self, counter) + value)
@@ -233,13 +262,81 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         }
         if self._usage_observed or self._pending_model_runs:
             totals["usage_observed"] = True
-            unknown = self._usage_unknown_fields | (
-                self._MODEL_USAGE_FIELDS if self._pending_model_runs else set()
-            )
+            unknown = self._usage_unknown_fields
             totals["unknown_usage_fields"] = sorted(unknown)
-            if self._input_includes_cache and not self._pending_model_runs:
+            if self._input_includes_cache:
                 totals["input_includes_cache"] = True
+        if self._cost_receipts or self._legacy_cost_unknown:
+            totals.update(
+                cost_source="provider_settlement",
+                cost_receipts={key: dict(value) for key, value in self._cost_receipts.items()},
+                legacy_cost_units=self._legacy_cost_units,
+                legacy_cost_unknown=self._legacy_cost_unknown,
+                legacy_actual_models=self._legacy_actual_models,
+                legacy_model_identity_complete=self._legacy_model_identity_complete,
+            )
         return totals
+
+    def begin_usage_receipt(self, receipt: dict) -> None:
+        owner = self._usage_owner or self
+        owner._cost_receipts.setdefault(receipt["call_id"], receipt)
+        owner._token_usage_emitted = False
+
+    async def record_usage_receipt(self, receipt: dict) -> None:
+        if self._usage_owner is not None:
+            return await self._usage_owner.record_usage_receipt(receipt)
+        previous = self._cost_receipts.get(receipt["call_id"])
+        # A completed receipt is immutable; stale partials cannot undo final settlement.
+        if previous is not None and (previous == receipt or not previous["unknown"]):
+            if not self._token_usage_emitted:
+                await self._publish_settlement_usage()
+            return
+        if previous is not None and receipt["unknown"]:
+            receipt = {
+                **receipt,
+                "charged_units": max(previous["charged_units"], receipt["charged_units"]),
+            }
+        self._cost_receipts[receipt["call_id"]] = receipt
+        self._token_usage_emitted = False
+        await self._publish_settlement_usage()
+
+    async def _publish_settlement_usage(self) -> None:
+        try:
+            await self.emit_token_usage()
+        except Exception:
+            # Keep the receipt dirty for cleanup; delivery must not retry a paid provider call.
+            logger.warning("Failed to publish settled usage receipt", exc_info=True)
+
+    @staticmethod
+    def _settlement_usage(snapshot: dict) -> dict | None:
+        if snapshot.get("cost_source") != "provider_settlement":
+            return None
+        receipts = list(snapshot.get("cost_receipts", {}).values())
+        models = list(snapshot.get("legacy_actual_models", []))
+        for receipt in receipts:
+            identity = {key: receipt[key] for key in ("model", "model_id", "provider")}
+            if any(identity.values()) and identity not in models:
+                models.append(identity)
+        return {
+            "cost_source": "provider_settlement",
+            "cost_units": snapshot.get("legacy_cost_units", 0)
+            + sum(item["charged_units"] for item in receipts),
+            "cost_complete": not snapshot.get("legacy_cost_unknown", False)
+            and all(not item["unknown"] for item in receipts),
+            "actual_models": models,
+            "model_identity_complete": snapshot.get("legacy_model_identity_complete", True),
+            **{
+                key: snapshot[key]
+                for key in (
+                    "cost_receipts",
+                    "legacy_cost_units",
+                    "legacy_cost_unknown",
+                    "legacy_actual_models",
+                    "legacy_model_identity_complete",
+                )
+                if key in snapshot
+            },
+        }
 
     async def flush(self) -> None:
         """Flush pending stream chunks without clearing counters or output text."""
@@ -266,17 +363,25 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         model_id: str | None = None,
         model: str | None = None,
     ) -> bool:
-        """Emit accumulated token usage once, preserving counters for late cleanup paths."""
+        """Publish ordered cumulative snapshots, including late cleanup usage."""
         if self._usage_owner is not None:
             return await self._usage_owner.emit_token_usage(
                 duration=duration, model_id=model_id, model=model
             )
-        if self._token_usage_emitted:
-            return False
+        async with self._usage_emit_lock:
+            return await self._emit_token_usage(duration=duration, model_id=model_id, model=model)
 
-        # A snapshot must not discard ends still queued in the outer graph.
+    async def _emit_token_usage(self, *, duration, model_id, model) -> bool:
+        if self._token_usage_emitted and duration <= self._usage_duration:
+            return False
+        duration = max(duration, self._usage_duration)
+
+        config = getattr(self.presenter, "config", None)
+        model_id = model_id or getattr(config, "model_id", None)
+        model = model or getattr(config, "model", None)
+
         pending = bool(self._pending_model_runs)
-        unknown = self._usage_unknown_fields | (self._MODEL_USAGE_FIELDS if pending else set())
+        unknown = self._usage_unknown_fields
 
         if not (
             self.total_input_tokens > 0
@@ -284,6 +389,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             or self.total_tokens > 0
             or self._usage_observed
             or pending
+            or self._cost_receipts
+            or self._legacy_cost_unknown
         ):
             return False
 
@@ -291,9 +398,10 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         total_tokens = (
             snapshot["total_tokens"] or snapshot["input_tokens"] + snapshot["output_tokens"]
         )
+        settlement_usage = self._settlement_usage(snapshot)
         cost, rates = (
             (None, None)
-            if pending
+            if settlement_usage is not None
             else await self._resolve_usage_cost(model=model, model_id=model_id, usage=snapshot)
         )
         event = self.presenter.present_token_usage(
@@ -317,8 +425,10 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             model=model,
             cost=cost,
             rates=rates,
+            **({"settlement_usage": settlement_usage} if settlement_usage is not None else {}),
         )
         await self._presenter_emit(event)
+        self._usage_duration = duration
         # Pricing and delivery can yield while native model ends update the ledger.
         self._token_usage_emitted = snapshot == self.usage_totals()
         return True
@@ -386,7 +496,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         elif kind == "on_chat_model_error" and run_id and run_id in self._pending_model_runs:
             self._pending_model_runs.remove(run_id)
             self._completed_model_runs.add(run_id)
-            self._mark_unknown_model_usage()
+            self._mark_unreported_model_usage()
             self._token_usage_emitted = False
         elif kind == "on_chat_model_end" and (
             not run_id or run_id not in self._completed_model_runs
@@ -396,7 +506,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                 self._pending_model_runs.discard(run_id)
                 self._completed_model_runs.add(run_id)
                 if started and not event.get("data", {}).get("output"):
-                    self._mark_unknown_model_usage()
+                    self._mark_unreported_model_usage()
             self._handle_token_usage(event)
             self._token_usage_emitted = False
 
@@ -404,6 +514,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         """Process a single LangChain stream event."""
         # Nested and outer views share native IDs, including streams whose start callback was lost.
         (self._usage_owner or self)._track_model_usage(event)
+        if event.get("event") in {"on_chat_model_end", "on_chat_model_error"}:
+            await self.emit_token_usage()
         await debug_log_event(event, self._debug_log_context())
         evt_type = event.get("event")
         event_name = event.get("name", "")

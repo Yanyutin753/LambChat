@@ -86,6 +86,28 @@ test("rotating state arrows and non-icon content keep their original rendering",
   expect(container.querySelector("[data-interactive-icon]")).toBeNull();
 });
 
+test("disclosure arrows retain CSS state through expand and collapse", () => {
+  const arrow = (open: boolean) => (
+    <InteractiveIcon>
+      <ChevronDown
+        className="feature-menu-chevron"
+        data-open={open ? "true" : undefined}
+      />
+    </InteractiveIcon>
+  );
+  const { container, rerender } = render(arrow(false));
+  const svg = container.querySelector("svg")!;
+  expect(svg).not.toHaveAttribute("data-open");
+
+  rerender(arrow(true));
+  expect(container.querySelector("svg")).toBe(svg);
+  expect(svg).toHaveAttribute("data-open", "true");
+
+  rerender(arrow(false));
+  expect(container.querySelector("svg")).toBe(svg);
+  expect(svg).not.toHaveAttribute("data-open");
+});
+
 test("shared sidebar glyph animates from its button and preserves the toggle", () => {
   const toggle = vi.fn();
   render(

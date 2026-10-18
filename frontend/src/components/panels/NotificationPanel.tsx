@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { EmptyState } from "../common/EmptyState";
 import { AlertCircle } from "lucide-react";
 /**
@@ -137,6 +138,7 @@ function NotificationFormModal({
 
   return (
     <EditorSidebar
+      registryKey={isEdit ? "notifications:edit" : "notifications:create"}
       open={true}
       onClose={onClose}
       title={isEdit ? t("notification.edit") : t("notification.create")}
@@ -289,8 +291,11 @@ export function NotificationPanel() {
   const [limit] = useState(20);
   const [deleteTarget, setDeleteTarget] = useState<Notification | null>(null);
   const [editingNotification, setEditingNotification] =
-    useState<Notification | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+    useRightPanelState<Notification | null>("notifications:edit", null);
+  const [isCreating, setIsCreating] = useRightPanelState(
+    "notifications:create",
+    false,
+  );
 
   const canManage = hasPermission(Permission.NOTIFICATION_MANAGE);
 
@@ -608,6 +613,7 @@ export function NotificationPanel() {
       {/* Edit Modal */}
       {editingNotification && (
         <NotificationFormModal
+          key={editingNotification.id}
           notification={editingNotification}
           onSave={handleUpdate}
           onClose={() => setEditingNotification(null)}

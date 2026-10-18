@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, expect, test, vi } from "vitest";
+import { getUsagePopoverPosition } from "../../chat/usagePopoverPosition";
 import { ConfirmDialog } from "../ConfirmDialog";
 afterEach(cleanup);
 const props = {
@@ -70,4 +71,15 @@ test("cancelling restores the opener without confirming", async () => {
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(opener).toHaveFocus();
   expect(onConfirm).not.toHaveBeenCalled();
+});
+
+test("confirmation covers the usage menu that opened it", () => {
+  render(<ConfirmDialog {...props} />);
+  const overlay = screen.getByRole("dialog").parentElement!;
+  const menu = getUsagePopoverPosition({
+    triggerRect: new DOMRect(100, 20, 60, 32),
+    viewportWidth: 1024,
+    viewportHeight: 768,
+  });
+  expect(Number(overlay.style.zIndex)).toBeGreaterThan(Number(menu.zIndex));
 });

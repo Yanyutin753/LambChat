@@ -3,13 +3,33 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.infra.utils.datetime import utc_now
 from src.kernel.types import Permission
 
 
-class RoleLimits(BaseModel):
+class RoleQuotaUpdate(BaseModel):
+    """Quota-only changes are allowed even for protected system roles."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    five_hour_budget_usd: Optional[float] = Field(
+        default=None, ge=0, le=1_000_000, allow_inf_nan=False
+    )
+    weekly_budget_usd: Optional[float] = Field(
+        default=None, ge=0, le=1_000_000, allow_inf_nan=False
+    )
+
+    @field_validator("five_hour_budget_usd", "weekly_budget_usd", mode="before")
+    @classmethod
+    def validate_budget(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("Budget must be a USD amount")
+        return value
+
+
+class RoleLimits(RoleQuotaUpdate):
     """Role-specific limits configuration."""
 
     max_channels: Optional[int] = Field(

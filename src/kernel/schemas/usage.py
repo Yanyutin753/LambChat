@@ -40,6 +40,9 @@ class UsageLog(BaseModel):
     cost_available: bool = False
     cost_complete: StrictBool = False
     cost_rates: dict[str, float | bool | None] | None = None
+    cost_source: str | None = None
+    cost_units: int | None = None
+    actual_models: list[dict[str, str | None]] = Field(default_factory=list)
     usage_incomplete: bool | None = None
     unknown_usage_fields: list[str] | None = None
     cache_metrics_available: bool = False

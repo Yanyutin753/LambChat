@@ -7,7 +7,7 @@
 from typing import Optional
 
 from src.infra.role.storage import RoleStorage
-from src.kernel.schemas.role import Role, RoleCreate, RoleUpdate
+from src.kernel.schemas.role import Role, RoleCreate, RoleQuotaUpdate, RoleUpdate
 
 
 class RoleManager:
@@ -93,6 +93,9 @@ class RoleManager:
             是否删除成功
         """
         return await self.storage.delete(role_id)
+
+    async def update_usage_quota(self, role_id: str, quota: RoleQuotaUpdate) -> Role:
+        return await self.storage.update_usage_quota(role_id, quota)
 
     async def list_roles(
         self,

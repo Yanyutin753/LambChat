@@ -96,7 +96,7 @@ export function RunStepsCollapse({
           ? t("chat.message.runStepsSummary", { duration: durationLabel })
           : t("chat.message.runStepsCount", { count: steps });
   const statusClass =
-    "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-16 text-theme-text-secondary";
+    "min-w-0 truncate leading-6 text-[length:var(--chat-font-size)] text-theme-text-secondary";
 
   if (active || awaitingConfirmation) {
     return (

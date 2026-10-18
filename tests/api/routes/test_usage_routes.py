@@ -6,6 +6,31 @@ from src.api.routes import usage as usage_routes
 from src.kernel.schemas.user import TokenPayload
 
 
+async def test_quota_endpoint_always_uses_authenticated_owner_even_for_admin(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.usage import quota, reset
+
+    budgets = AsyncMock(return_value=(1, 5))
+    snapshot = AsyncMock(return_value={"currency": "USD"})
+    monkeypatch.setattr(quota, "user_budgets", budgets)
+    monkeypatch.setattr(quota, "UsageQuota", lambda: SimpleNamespace(snapshot=snapshot))
+    monkeypatch.setattr(
+        reset,
+        "QuotaReset",
+        lambda: SimpleNamespace(
+            credits=AsyncMock(return_value={"available_count": 0, "credits": []})
+        ),
+    )
+    result = await usage_routes.get_usage_quota(
+        user=SimpleNamespace(sub="own-user", permissions=["usage:admin"])
+    )
+    assert result == {"currency": "USD", "reset_credits": {"available_count": 0, "credits": []}}
+    budgets.assert_awaited_once_with("own-user")
+    snapshot.assert_awaited_once_with("own-user", (1, 5))
+
+
 class _FakeUsageStorage:
     def __init__(self):
         self.calls = []

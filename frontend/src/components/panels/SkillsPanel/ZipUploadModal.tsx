@@ -55,6 +55,7 @@ export function ZipUploadModal({
 
   return (
     <EditorSidebar
+      registryKey="skills:zip"
       open={showZipModal}
       onClose={() => setShowZipModal(false)}
       title={t("skills.uploadZipTitle")}

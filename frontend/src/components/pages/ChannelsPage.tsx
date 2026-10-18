@@ -20,7 +20,10 @@ import { Button } from "../common/ui";
 import { ChannelsGridSkeleton, ChannelInstancesSkeleton } from "../skeletons";
 import { EmptyState } from "../common/EmptyState";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
-import { getRightPanelSnapshot } from "../common/rightPanelCoordinator";
+import {
+  activateRightPanelByKey,
+  getRightPanelSnapshot,
+} from "../common/rightPanelCoordinator";
 import type { SkillBaseCardProps } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
 import type {
@@ -290,6 +293,11 @@ export function ChannelsPage() {
     }
   };
 
+  const openInstance = (instanceId: string) => {
+    activateRightPanelByKey("channels:editor");
+    navigate(`/channels/${selectedChannel}/${instanceId}`);
+  };
+
   // Determine what the sidebar should render
   const renderSidebar = () => {
     if (!selectedChannel || !selectedInstance) return null;
@@ -488,7 +496,7 @@ export function ChannelsPage() {
           actions={
             canWrite && (
               <button
-                onClick={() => navigate(`/channels/${selectedChannel}/new`)}
+                onClick={() => openInstance("new")}
                 className="btn-primary btn-sm"
               >
                 <InteractiveIcon>
@@ -517,9 +525,7 @@ export function ChannelsPage() {
                     <Button
                       variant="primary"
                       leftIcon={<Plus size={16} />}
-                      onClick={() =>
-                        navigate(`/channels/${selectedChannel}/new`)
-                      }
+                      onClick={() => openInstance("new")}
                     >
                       {t("channel.addFirstInstance")}
                     </Button>
@@ -571,6 +577,17 @@ export function ChannelsPage() {
                   <Link
                     key={instance.instance_id}
                     to={`/channels/${selectedChannel}/${instance.instance_id}`}
+                    onClick={(event) => {
+                      if (
+                        event.button === 0 &&
+                        !event.metaKey &&
+                        !event.ctrlKey &&
+                        !event.shiftKey &&
+                        !event.altKey
+                      ) {
+                        activateRightPanelByKey("channels:editor");
+                      }
+                    }}
                     className="panel-card flex items-center gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
                   >
                     <div className="min-w-0 flex-1">

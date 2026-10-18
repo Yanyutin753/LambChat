@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
@@ -11,16 +12,25 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import Field
 
+from src.infra.llm.quota import QuotaChatMixin, _QuotaResource
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 
-class LambChatGoogleChatModel(ChatGoogleGenerativeAI):
+class LambChatGoogleChatModel(QuotaChatMixin, ChatGoogleGenerativeAI):
     """Require a timely first stream event without imposing a total deadline."""
 
     first_event_timeout: float | None = Field(default=None, exclude=True)
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
+
+    def _format_tools(self, tools: Any = None, functions: Any = None) -> list | None:
+        # Gemini removes empty parameter schemas in place; keep shared tools intact.
+        return super()._format_tools(deepcopy(tools), deepcopy(functions))
+
+    @property
+    def async_client(self):
+        return _QuotaResource(super().async_client)
 
     async def _astream(
         self,

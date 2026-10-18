@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../../../hooks/useRightPanelState";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useEffect, useCallback, useId } from "react";
 import { Pencil, Save } from "lucide-react";
@@ -33,7 +34,10 @@ export function GlobalAgentTab({
   const { t } = useTranslation();
   const formId = useId();
   const [localAgents, setLocalAgents] = useState<AgentConfig[]>(agents);
-  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [editingAgentId, setEditingAgentId] = useRightPanelState<string | null>(
+    "agents:editor",
+    null,
+  );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [activeLocale, setActiveLocale] = useState<string>(
     i18n.language?.split("-")[0] || "zh",
@@ -181,6 +185,7 @@ export function GlobalAgentTab({
       {/* Editor Sidebar */}
       {editingAgent && (
         <EditorSidebar
+          registryKey="agents:editor"
           open={!!editingAgent}
           onClose={() => setEditingAgentId(null)}
           title={resolveAgentDisplayName(editingAgent, i18n.language, t)}

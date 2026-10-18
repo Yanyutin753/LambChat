@@ -97,7 +97,7 @@ export function SessionTodoDock({
                 ? closePersistentToolPanel(panelKey)
                 : openPersistentToolPanel(panel)
             }
-            className={`mb-1 flex min-h-11 w-full max-w-full min-w-0 items-center gap-2 rounded-lg border border-transparent px-5 py-2 text-left text-12 text-theme-text-secondary transition-colors hover:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
+            className={`mb-1 flex min-h-11 w-full max-w-full min-w-0 items-center gap-2 rounded-lg border border-transparent px-5 py-2 text-left text-[length:var(--tool-font-size)] text-theme-text-secondary transition-colors hover:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]`}
           >
             <InteractiveIcon>
               <Icon

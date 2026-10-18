@@ -69,6 +69,7 @@ export function SkillPreviewModal({
   return (
     <>
       <EditorSidebar
+        registryKey="marketplace:preview"
         open={true}
         onClose={onClose}
         title={previewSkill.skill_name}

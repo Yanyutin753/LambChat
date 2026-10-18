@@ -105,6 +105,9 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
             seen.add(doc["trace_id"])
             scanned += 1
             model_value = str(doc.get("model") or "")
+            if doc.get("cost_source") == "provider_settlement":
+                unpriced_models[model_value] = unpriced_models.get(model_value, 0) + 1
+                continue
             token_fields = (
                 "input_tokens",
                 "output_tokens",

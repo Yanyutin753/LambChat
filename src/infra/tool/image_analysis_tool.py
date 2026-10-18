@@ -25,6 +25,7 @@ from src.infra.agent.middleware.image_url import _append_proxy_direct_param
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.llm.client import LLMClient
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 from src.kernel.config import settings
@@ -296,6 +297,8 @@ async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
         try:
             return await llm.ainvoke(messages, config=IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG)
         except Exception as exc:
+            if is_quota_error(exc):
+                raise
             last_exc = exc
             if attempt >= max_attempts:
                 break
@@ -392,12 +395,16 @@ async def image_analyze(
             }
         )
     except AppError as exc:
+        if is_quota_error(exc):
+            raise
         return await _json_dumps_result(
             {"error": exc.display_message, "code": exc.error_code.code, "args": exc.args_data}
         )
     except Exception as exc:
         # 只记异常类型不记正文：LLM 异常消息可能内嵌请求体（图片 data URL），
         # 全量落日志会泄露用户内容（test_image_analyze_model_error_omits_request_content 守卫）。
+        if is_quota_error(exc):
+            raise
         logger.warning(
             "[image_analyze] failed: error_type=%s",
             type(exc).__name__,

@@ -1,4 +1,4 @@
-"""Known zero and missing model accounting must remain different across emission/resume."""
+"""Omitted provider counters default to zero without discarding reported usage."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -37,33 +37,26 @@ async def test_explicit_cache_zero_survives_sse_emission(monkeypatch):
     price.assert_awaited_once()
 
 
-async def test_missing_cache_counts_cannot_be_priced_as_zero(monkeypatch):
+async def test_missing_cache_counts_default_to_zero(monkeypatch):
     instance, price = processor(monkeypatch)
     record(instance)
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
-    assert "cache_read_tokens" not in data and "cache_creation_tokens" not in data
-    assert data["usage_incomplete"] is True
-    assert "cost_usd" not in data
-    price.assert_not_awaited()
+    assert data["cache_read_tokens"] == data["cache_creation_tokens"] == 0
+    assert data["usage_incomplete"] is False
+    price.assert_awaited_once()
 
 
-async def test_partial_cache_counts_are_not_complete_aggregate_counts(monkeypatch):
+async def test_missing_cache_counts_preserve_reported_aggregate_counts(monkeypatch):
     instance, price = processor(monkeypatch)
     record(instance, details={"cache_read": 70, "cache_creation": 0})
     record(instance)
-    assert instance.usage_totals()["cache_read_tokens"] == 70
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
-    assert data["input_tokens"] == 200
-    assert (
-        data["cache_read_tokens"] == 70
-    )  # Preserve the known lower bound, never certify the total.
-    assert data["usage_incomplete"] is True
-    assert {"cache_read_tokens", "cache_creation_tokens"} <= set(data["unknown_usage_fields"])
-    assert data.get("input_includes_cache") is not True
-    assert "cost_usd" not in data
-    price.assert_not_awaited()
+    assert data["input_tokens"] == 200 and data["cache_read_tokens"] == 70
+    assert data["usage_incomplete"] is False
+    assert data["input_includes_cache"] is True
+    price.assert_awaited_once()
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -80,21 +73,25 @@ async def test_cache_completeness_survives_resume_and_legacy_is_conservative(mon
     data = second._presenter_emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 200 and data["output_tokens"] == 20
     if legacy:
-        assert "cache_read_tokens" not in data
-        assert data["usage_incomplete"] is True
+        assert data["cache_read_tokens"] == 0
+        assert data["usage_incomplete"] is False
+        assert data.get("input_includes_cache") is not True
         price.assert_not_awaited()
     else:
         assert data["cache_read_tokens"] == data["cache_creation_tokens"] == 0
-        price.assert_awaited_once()
+    # Token completeness cannot certify a restored snapshot without call receipts.
+    price.assert_not_awaited()
+    assert data["cost_complete"] is False and "cost_usd" not in data
 
 
-async def test_completed_model_without_usage_remains_unpriced_observation(monkeypatch):
+async def test_completed_model_without_usage_counts_as_zero(monkeypatch):
     instance, price = processor(monkeypatch)
     record(instance, missing_usage=True)
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
-    assert data["usage_incomplete"] is True and "cost_usd" not in data
-    price.assert_not_awaited()
+    assert data["input_tokens"] == data["output_tokens"] == 0
+    assert data["usage_incomplete"] is False
+    price.assert_awaited_once()
 
 
 async def model_event(instance, kind, run_id, *, metadata=None, complete=False):
@@ -124,7 +121,7 @@ async def model_event(instance, kind, run_id, *, metadata=None, complete=False):
         {"lambchat_subagent_id": "child"},
     ],
 )
-async def test_failed_attempt_then_complete_retry_keeps_usage_unknown(
+async def test_failed_attempt_preserves_successful_retry_usage(
     monkeypatch, failed_terminal, metadata
 ):
     instance, price = processor(monkeypatch)
@@ -133,31 +130,22 @@ async def test_failed_attempt_then_complete_retry_keeps_usage_unknown(
         await model_event(instance, "on_chat_model_error", "failed", metadata=metadata)
     await model_event(instance, "on_chat_model_start", "retry", metadata=metadata)
     await model_event(instance, "on_chat_model_end", "retry", metadata=metadata, complete=True)
-    assert await instance.emit_token_usage()
+    assert await instance.emit_token_usage() is False
     data = instance._presenter_emit.call_args.args[0]["data"]
     assert (data["input_tokens"], data["output_tokens"], data["total_tokens"]) == (100, 10, 110)
-    assert data["usage_incomplete"] is True
-    assert data.get("input_includes_cache") is not True
-    assert "cost_usd" not in data
-    assert set(data["unknown_usage_fields"]) == {
-        "input_tokens",
-        "output_tokens",
-        "total_tokens",
-        "cache_read_tokens",
-        "cache_creation_tokens",
-    }
-    assert instance.usage_totals()["cache_read_tokens"] == 70
-    price.assert_not_awaited()
+    assert data["usage_incomplete"] is False
+    assert data["input_includes_cache"] is True
+    assert data["unknown_usage_fields"] == []
+    assert price.await_count == (2 if failed_terminal == "error" else 1)
     restored, restored_price = processor(monkeypatch)
     restored.seed_usage(instance.usage_totals())
     await model_event(restored, "on_chat_model_start", "resumed")
     await model_event(restored, "on_chat_model_end", "resumed", complete=True)
-    assert await restored.emit_token_usage()
+    assert await restored.emit_token_usage() is False
     resumed = restored._presenter_emit.call_args.args[0]["data"]
-    assert resumed["input_tokens"] == 200
-    assert resumed["usage_incomplete"] is True
-    assert resumed.get("input_includes_cache") is not True
+    assert resumed["input_tokens"] == 200 and resumed["usage_incomplete"] is False
     restored_price.assert_not_awaited()
+    assert resumed["cost_complete"] is False and "cost_usd" not in resumed
 
 
 async def test_successful_parallel_attempts_do_not_poison_interim_usage(monkeypatch):
@@ -166,33 +154,37 @@ async def test_successful_parallel_attempts_do_not_poison_interim_usage(monkeypa
     await model_event(instance, "on_chat_model_start", "second")
     await model_event(instance, "on_chat_model_end", "first", complete=True)
     assert instance._usage_unknown_fields == set()
-    assert "input_tokens" in instance.usage_totals()["unknown_usage_fields"]
+    assert instance.usage_totals()["unknown_usage_fields"] == []
     await model_event(instance, "on_chat_model_end", "second", complete=True)
-    assert await instance.emit_token_usage()
+    assert await instance.emit_token_usage() is False
     data = instance._presenter_emit.call_args.args[0]["data"]
     assert data["input_tokens"] == 200
     assert data["input_includes_cache"] is True
     assert data.get("usage_incomplete") is not True
-    price.assert_awaited_once()
+    assert price.await_count == 2
 
 
-async def test_started_attempt_without_end_still_emits_unknown_usage(monkeypatch):
+async def test_started_attempt_without_reported_usage_counts_as_zero(monkeypatch):
     instance, price = processor(monkeypatch)
     await model_event(instance, "on_chat_model_start", "interrupted")
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
-    assert data["usage_incomplete"] is True
-    assert data.get("input_includes_cache") is not True
-    price.assert_not_awaited()
+    assert data["input_tokens"] == data["output_tokens"] == 0
+    assert data["usage_incomplete"] is False
+    assert data["input_includes_cache"] is True
+    price.assert_awaited_once()
 
 
-async def test_finalizing_quick_stream_preserves_pending_attempt_for_usage(monkeypatch):
+async def test_finalizing_quick_stream_preserves_received_usage(monkeypatch):
     instance, price = processor(monkeypatch)
+    record(instance, details={"cache_read": 70, "cache_creation": 0})
     await model_event(instance, "on_chat_model_start", "interrupted")
     await instance.finalize()
     assert await instance.emit_token_usage()
-    assert instance._presenter_emit.call_args.args[0]["data"]["usage_incomplete"] is True
-    price.assert_not_awaited()
+    data = instance._presenter_emit.call_args.args[0]["data"]
+    assert data["input_tokens"] == 100 and data["cache_read_tokens"] == 70
+    assert data["usage_incomplete"] is False
+    price.assert_awaited_once()
 
 
 async def test_error_without_started_attempt_does_not_poison_complete_usage(monkeypatch):
@@ -200,7 +192,7 @@ async def test_error_without_started_attempt_does_not_poison_complete_usage(monk
     await model_event(instance, "on_chat_model_error", "guard-denied")
     await model_event(instance, "on_chat_model_start", "success")
     await model_event(instance, "on_chat_model_end", "success", complete=True)
-    assert await instance.emit_token_usage()
+    assert await instance.emit_token_usage() is False
     data = instance._presenter_emit.call_args.args[0]["data"]
     assert data["usage_incomplete"] is False
     assert data["input_includes_cache"] is True
@@ -213,7 +205,7 @@ async def test_duplicate_model_terminal_callbacks_do_not_double_count_usage(monk
     await model_event(instance, "on_chat_model_end", "success", complete=True)
     await model_event(instance, "on_chat_model_end", "success", complete=True)
     await model_event(instance, "on_chat_model_error", "success")
-    assert await instance.emit_token_usage()
+    assert await instance.emit_token_usage() is False
     data = instance._presenter_emit.call_args.args[0]["data"]
     assert data["total_tokens"] == 110
     assert data["usage_incomplete"] is False
@@ -221,7 +213,9 @@ async def test_duplicate_model_terminal_callbacks_do_not_double_count_usage(monk
 
 
 @pytest.mark.parametrize("bad_write", [None, True, -1])
-async def test_resume_cannot_certify_missing_or_invalid_cache_write(monkeypatch, bad_write):
+async def test_resume_defaults_missing_cache_write_and_rejects_invalid_counts(
+    monkeypatch, bad_write
+):
     instance, price = processor(monkeypatch)
     prior = dict(
         input_tokens=100,
@@ -237,11 +231,17 @@ async def test_resume_cannot_certify_missing_or_invalid_cache_write(monkeypatch,
     instance.seed_usage(prior)
     assert await instance.emit_token_usage()
     data = instance._presenter_emit.call_args.args[0]["data"]
-    assert "cache_creation_tokens" in data["unknown_usage_fields"]
-    assert "cache_creation_tokens" not in data
-    assert data["usage_incomplete"] is True and "cost_usd" not in data
     assert data["input_tokens"] == 100 and data["cache_read_tokens"] == 70
-    price.assert_not_awaited()
+    if bad_write is None:
+        assert data["cache_creation_tokens"] == 0
+        assert data["usage_incomplete"] is False
+        price.assert_not_awaited()
+        assert data["cost_complete"] is False and "cost_usd" not in data
+    else:
+        assert "cache_creation_tokens" in data["unknown_usage_fields"]
+        assert "cache_creation_tokens" not in data
+        assert data["usage_incomplete"] is True and "cost_usd" not in data
+        price.assert_not_awaited()
 
 
 @pytest.mark.parametrize("invalid", [True, -1])

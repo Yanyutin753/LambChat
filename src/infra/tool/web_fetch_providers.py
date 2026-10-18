@@ -21,12 +21,14 @@ from __future__ import annotations
 import ipaddress
 import socket
 from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.tool.web_search_providers import (
     COOLDOWN_RATE_LIMIT_SECONDS,
@@ -417,13 +419,14 @@ async def firecrawl_fetch(
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    response = await _request_no_redirect(
-        client,
-        "POST",
-        f"{_firecrawl_base()}/v1/scrape",
-        json={"url": url, "formats": ["markdown"]},
-        headers=headers,
-    )
+    async with unpriced_usage() if api_key else nullcontext():
+        response = await _request_no_redirect(
+            client,
+            "POST",
+            f"{_firecrawl_base()}/v1/scrape",
+            json={"url": url, "formats": ["markdown"]},
+            headers=headers,
+        )
     _raise_for_status(response)
     try:
         data = response.json()
@@ -462,13 +465,14 @@ async def exa_fetch(
     if not ok:
         return {"success": False, "error": err}
 
-    response = await _request_no_redirect(
-        client,
-        "POST",
-        EXA_CONTENTS_URL,
-        json={"urls": [url]},
-        headers={"x-api-key": api_key, "Content-Type": "application/json"},
-    )
+    async with unpriced_usage():
+        response = await _request_no_redirect(
+            client,
+            "POST",
+            EXA_CONTENTS_URL,
+            json={"urls": [url]},
+            headers={"x-api-key": api_key, "Content-Type": "application/json"},
+        )
     _raise_for_status(response)
     try:
         data = response.json()
@@ -508,13 +512,14 @@ async def tavily_extract(
     if not ok:
         return {"success": False, "error": err}
 
-    response = await _request_no_redirect(
-        client,
-        "POST",
-        TAVILY_EXTRACT_URL,
-        json={"urls": [url]},
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-    )
+    async with unpriced_usage():
+        response = await _request_no_redirect(
+            client,
+            "POST",
+            TAVILY_EXTRACT_URL,
+            json={"urls": [url]},
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
     _raise_for_status(response)
     try:
         data = response.json()
@@ -567,9 +572,10 @@ async def jina_fetch(
     headers = {"Accept": "text/plain", "X-Return-Format": "markdown"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    response = await _request_no_redirect(
-        client, "GET", f"{JINA_READER_PREFIX}{url}", headers=headers
-    )
+    async with unpriced_usage() if api_key else nullcontext():
+        response = await _request_no_redirect(
+            client, "GET", f"{JINA_READER_PREFIX}{url}", headers=headers
+        )
     _raise_for_status(response)
     title = (response.headers.get("title") or "").strip() or None
     # 响应首行常是 "Markdown Source:"，对 LLM 无信息量，剥掉
@@ -627,7 +633,7 @@ def resolve_fetch_chain() -> list[str]:
 async def execute_web_fetch(
     url: str, max_chars: int, *, provider: str | None = None
 ) -> dict[str, Any]:
-    """执行网页抓取：SSRF 前置校验 → 供应商链。永不抛异常。"""
+    """SSRF 前置校验后按供应商链抓取；用量限额错误向上抛出。"""
     ok, err = await validate_public_http_url(url)
     if not ok:
         return {"success": False, "error": err}
@@ -644,6 +650,8 @@ async def execute_web_fetch(
             try:
                 result = await direct_fetch(client, url, max_chars)
             except Exception as exc:  # noqa: BLE001
+                if is_quota_error(exc):
+                    raise
                 logger.warning("[WebFetch] direct failed: %s", exc)
                 errors.append(f"direct: {exc}")
                 continue
@@ -686,6 +694,8 @@ async def execute_web_fetch(
                 errors.append(f"{name} key#{index + 1}: HTTP {exc.status_code}")
                 continue
             except Exception as exc:  # noqa: BLE001
+                if is_quota_error(exc):
+                    raise
                 pool.mark_cooldown(index, 30.0)
                 errors.append(f"{name} key#{index + 1}: {exc}")
                 continue
@@ -703,6 +713,8 @@ async def execute_web_fetch(
                 try:
                     result = await jina_fetch(client, url, "", max_chars)
                 except Exception as exc:  # noqa: BLE001
+                    if is_quota_error(exc):
+                        raise
                     errors.append(f"jina keyless: {exc}")
                     continue
                 if result.get("success"):
@@ -728,6 +740,8 @@ async def execute_web_fetch(
             errors.append(f"jina key#{index + 1}: HTTP {exc.status_code}")
             continue
         except Exception as exc:  # noqa: BLE001
+            if is_quota_error(exc):
+                raise
             pool.mark_cooldown(index, 30.0)
             errors.append(f"jina key#{index + 1}: {exc}")
             continue

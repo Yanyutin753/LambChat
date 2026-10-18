@@ -20,6 +20,7 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.storage.s3.service import get_or_init_storage
 from src.infra.tool.backend_utils import (
@@ -359,7 +360,8 @@ async def _post_image_api_with_retries(
 ) -> dict[str, Any]:
     for attempt in range(1, IMAGE_API_MAX_ATTEMPTS + 1):
         try:
-            response = await client.post(url, **kwargs)
+            async with unpriced_usage():
+                response = await client.post(url, **kwargs)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as exc:
@@ -815,6 +817,8 @@ async def _image_generate_impl(
             )
         return await _json_dumps_result(result)
     except Exception as exc:
+        if is_quota_error(exc):
+            raise
         logger.warning("[image_generate] failed: %s", exc)
         return await _json_dumps_result({"error": f"Image generation failed: {exc}"})
 

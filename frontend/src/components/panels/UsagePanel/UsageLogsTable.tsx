@@ -16,7 +16,7 @@ import {
   usageStatusKind,
   type CostFormatOpts,
 } from "./formatters";
-import { modelDisplayName, type ModelLabelMap } from "./modelDisplay";
+import { usageModelNames, type ModelLabelMap } from "./modelDisplay";
 
 const _EMPTY_MODEL_LABELS: ModelLabelMap = new Map();
 
@@ -28,6 +28,11 @@ const _STATUS_PILL_STYLES: Record<
     pill: "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)] text-theme-success dark:text-emerald-400",
     dot: "bg-theme-success animate-[status-ok-pulse_2s_ease-in-out_infinite]",
     labelKey: "usage.statusOk",
+  },
+  running: {
+    pill: "bg-theme-bg-secondary text-theme-text-secondary",
+    dot: "bg-theme-text-secondary",
+    labelKey: "usage.statusRunning",
   },
   cancelled: {
     pill: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -219,14 +224,17 @@ function DesktopTable({
                   <div className={textCellClass}>
                     <span
                       className="block truncate tabular-nums"
-                      title={log.model}
+                      title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
                     >
-                      {modelDisplayName(modelLabels, log.model) || "-"}
+                      {usageModelNames(log, modelLabels) || "-"}
                     </span>
                   </div>
                   <div className={textCellClass}>
                     <span className="block truncate font-medium">
-                      {log.agent_name || "-"}
+                      {log.agent_name ||
+                        (log.source === "auxiliary"
+                          ? t("usage.sources.auxiliary")
+                          : "-")}
                     </span>
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-12 text-theme-text-tertiary">
@@ -296,14 +304,15 @@ function TabletRow({
           <div className="flex min-w-0 items-center gap-2">
             <code
               className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums"
-              title={log.model}
+              title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
             >
-              {modelDisplayName(modelLabels, log.model) || "-"}
+              {usageModelNames(log, modelLabels) || "-"}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
           </div>
           <p className="mt-1 truncate text-11 font-medium text-theme-text-secondary">
-            {log.agent_name || "-"}
+            {log.agent_name ||
+              (log.source === "auxiliary" ? t("usage.sources.auxiliary") : "-")}
           </p>
           <p className="mt-0.5 truncate text-10 text-theme-text-tertiary">
             {personaOrTeam || "-"}
@@ -418,13 +427,16 @@ function MobileCard({
             <div className="min-w-0 flex-1">
               <code
                 className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums"
-                title={log.model}
+                title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
               >
-                {modelDisplayName(modelLabels, log.model) || "-"}
+                {usageModelNames(log, modelLabels) || "-"}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">
-                  {log.agent_name || "-"}
+                  {log.agent_name ||
+                    (log.source === "auxiliary"
+                      ? t("usage.sources.auxiliary")
+                      : "-")}
                 </span>
                 {personaOrTeam && (
                   <span className="usage-soft-pill text-10 text-theme-text-tertiary">

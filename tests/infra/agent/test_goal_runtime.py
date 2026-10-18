@@ -747,6 +747,27 @@ async def test_provider_timeout_remains_execution_failure_not_goal_time_budget(m
     assert (await service.get("s", "u")).status == "blocked"
 
 
+async def test_quota_denial_pauses_goal_without_automatic_continuation(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.goal_runtime import guarded_goal_stream
+    from src.kernel.errors import AppError, ErrorCode
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    enqueue = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", enqueue)
+
+    async def source():
+        raise AppError(ErrorCode.USAGE_QUOTA_EXCEEDED)
+        yield
+
+    with pytest.raises(AppError):
+        async for _ in guarded_goal_stream(source(), **kwargs):
+            pass
+    assert (await service.get("s", "u")).status == "paused"
+    enqueue.assert_not_awaited()
+
+
 async def test_paused_goal_publishes_usage_finalized_after_control_response(monkeypatch):
     from unittest.mock import AsyncMock
 

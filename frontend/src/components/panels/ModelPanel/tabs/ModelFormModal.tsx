@@ -313,6 +313,7 @@ export const ModelFormModal = ({
 
   return (
     <EditorSidebar
+      registryKey="models:form"
       open={true}
       onClose={onClose}
       title={
@@ -584,7 +585,8 @@ export const ModelFormModal = ({
                 value={formApiBase}
                 onChange={(e) => setFormApiBase(e.target.value)}
                 placeholder={
-                  providerDefaultBase || t("agentConfig.modelApiBasePlaceholder")
+                  providerDefaultBase ||
+                  t("agentConfig.modelApiBasePlaceholder")
                 }
                 className="es-input"
               />

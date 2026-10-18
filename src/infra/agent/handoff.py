@@ -55,4 +55,36 @@ def restore_handoff_usage(handoff: dict[str, Any], latest_usage: dict[str, Any])
         counters["usage_observed"] = True
     if sources and all(source.get("input_includes_cache") is True for source in sources):
         counters["input_includes_cache"] = True
+    settlements = [
+        source
+        for source in (prior, latest_usage)
+        if source.get("cost_source") == "provider_settlement"
+    ]
+    if settlements:
+        latest = settlements[-1]
+        for key in (
+            "cost_source",
+            "cost_units",
+            "cost_receipts",
+            "legacy_cost_units",
+            "legacy_cost_unknown",
+            "legacy_actual_models",
+            "legacy_model_identity_complete",
+            "model_identity_complete",
+            "actual_models",
+        ):
+            if key in latest:
+                counters[key] = latest[key]
+        if all("cost_receipts" in source for source in settlements):
+            receipts: dict[str, dict[str, Any]] = {}
+            for source in settlements:
+                for call_id, receipt in source["cost_receipts"].items():
+                    previous = receipts.get(call_id)
+                    if previous is None or previous["unknown"]:
+                        receipts[call_id] = dict(receipt)
+                        if previous is not None and receipt["unknown"]:
+                            receipts[call_id]["charged_units"] = max(
+                                previous["charged_units"], receipt["charged_units"]
+                            )
+            counters["cost_receipts"] = receipts
     return {"run_started_at": handoff.get("run_started_at"), "prior_usage": counters}

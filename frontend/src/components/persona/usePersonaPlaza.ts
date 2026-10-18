@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -125,7 +126,7 @@ export function usePersonaPlaza() {
     deletePreset,
   } = usePersonaPresets({ enabled: canRead, listParams });
 
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useRightPanelState("persona:editor", false);
   const [editingPreset, setEditingPreset] = useState<PersonaPreset | null>(
     null,
   );
@@ -256,7 +257,7 @@ export function usePersonaPlaza() {
     setShowModal(false);
     setEditingPreset(null);
     setEditorScope("user");
-  }, []);
+  }, [setShowModal]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;

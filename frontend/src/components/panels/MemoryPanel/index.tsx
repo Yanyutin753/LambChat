@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../../hooks/useRightPanelState";
 import { EmptyState } from "../../common/EmptyState";
 import {
   useState,
@@ -53,15 +54,18 @@ export function MemoryPanel() {
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<MemoryItem | null>(null);
+  const [selected, setSelected] = useRightPanelState<MemoryItem | null>(
+    "memory:detail",
+    null,
+  );
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<
+  const [editingMemory, setEditingMemory] = useRightPanelState<
     MemoryItem | null | undefined
-  >(undefined);
+  >("memory:editor", undefined);
   // undefined = closed, null = create new, MemoryItem = edit existing
 
   const [debouncedSearch, setDebouncedSearch] = useState("");

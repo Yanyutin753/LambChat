@@ -1,3 +1,6 @@
+import { UserQuotaControls } from "./UserQuotaControls";
+import { BulkResetCards } from "./BulkResetCards";
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { EmptyState } from "../common/EmptyState";
 /**
  * 用户管理页面组件
@@ -17,6 +20,7 @@ import {
   User,
   Mail,
   Lock,
+  CircleDollarSign,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -108,6 +112,8 @@ function UserFormModal({
   isLoading,
 }: UserFormModalProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.USER_WRITE);
   const formId = useId();
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
@@ -122,6 +128,7 @@ function UserFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWrite) return;
     setError(null);
 
     // 验证
@@ -179,6 +186,7 @@ function UserFormModal({
 
   return (
     <EditorSidebar
+      registryKey="users:form"
       open={true}
       onClose={onClose}
       title={isEditing ? t("users.editUser") : t("users.createUser")}
@@ -194,137 +202,143 @@ function UserFormModal({
           <Button type="button" onClick={onClose} className="flex-1">
             {t("common.cancel")}
           </Button>
-          <Button
-            variant="primary"
-            type="submit"
-            form="user-form"
-            loading={isLoading}
-            leftIcon={<Save size={16} />}
-            className="flex-1"
-          >
-            {t("common.save")}
-          </Button>
+          {canWrite && (
+            <Button
+              variant="primary"
+              type="submit"
+              form="user-form"
+              loading={isLoading}
+              leftIcon={<Save size={16} />}
+              className="flex-1"
+            >
+              {t("common.save")}
+            </Button>
+          )}
         </PanelFooterActions>
       }
     >
       <form id="user-form" onSubmit={handleSubmit} className="es-form">
-        {error && (
-          <div className="es-error">
-            <AlertCircle size={18} />
-            <span>{error}</span>
-          </div>
-        )}
+        <fieldset disabled={!canWrite} className="contents">
+          {error && (
+            <div className="es-error">
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+          )}
 
-        {/* 用户名 */}
-        <div className="es-field">
-          <label htmlFor={`${formId}-username`} className="es-label">
-            {t("users.username")}
-          </label>
-          <Input
-            id={`${formId}-username`}
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            leadingIcon={<User size={16} />}
-            className="es-input"
-            placeholder={t("users.usernamePlaceholder")}
-          />
-        </div>
-
-        {/* 邮箱 */}
-        <div className="es-field">
-          <label htmlFor={`${formId}-email`} className="es-label">
-            {t("users.email")}
-          </label>
-          <Input
-            id={`${formId}-email`}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            leadingIcon={<Mail size={16} />}
-            className="es-input"
-            placeholder={t("users.emailPlaceholder")}
-          />
-        </div>
-
-        {/* 密码 */}
-        <div className="es-field">
-          <label htmlFor={`${formId}-password`} className="es-label">
-            {t("users.password")} {isEditing && t("users.passwordHint")}
-          </label>
-          <Input
-            id={`${formId}-password`}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            leadingIcon={<Lock size={16} />}
-            className="es-input"
-            placeholder={
-              isEditing
-                ? t("users.passwordPlaceholderEdit")
-                : t("users.passwordPlaceholder")
-            }
-          />
-        </div>
-
-        {/* 角色 */}
-        <div className="es-field">
-          <label className="es-label">{t("users.roles")}</label>
-          <div className="es-section">
-            {rolesLoading ? (
-              <p className="es-hint" role="status">
-                {t("common.loading")}
-              </p>
-            ) : rolesLoadError ? (
-              <div
-                role="alert"
-                className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
-              >
-                <span>{t("common.loadFailed")}</span>
-                <Button onClick={onRetryRoles} size="sm">
-                  {t("common.refresh")}
-                </Button>
-              </div>
-            ) : roles.length === 0 ? (
-              <p className="es-hint">{t("users.noRolesAvailable")}</p>
-            ) : (
-              <div className="space-y-1">
-                {roles.map((role) => (
-                  <label
-                    key={role.id}
-                    className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
-                  >
-                    <Checkbox
-                      ariaLabel={role.name}
-                      size="sm"
-                      checked={selectedRoles.includes(role.name)}
-                      onChange={() => toggleRole(role.name)}
-                    />
-                    <span className="text-14 text-theme-text">{role.name}</span>
-                    {role.is_system && (
-                      <span className="es-chip">{t("users.system")}</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 状态 */}
-        {isEditing && (
+          {/* 用户名 */}
           <div className="es-field">
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
-              <Checkbox
-                ariaLabel={t("users.enableAccount")}
-                size="sm"
-                checked={isActive}
-                onChange={() => setIsActive(!isActive)}
-              />
-              <span className="es-label">{t("users.enableAccount")}</span>
+            <label htmlFor={`${formId}-username`} className="es-label">
+              {t("users.username")}
             </label>
+            <Input
+              id={`${formId}-username`}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              leadingIcon={<User size={16} />}
+              className="es-input"
+              placeholder={t("users.usernamePlaceholder")}
+            />
           </div>
-        )}
+
+          {/* 邮箱 */}
+          <div className="es-field">
+            <label htmlFor={`${formId}-email`} className="es-label">
+              {t("users.email")}
+            </label>
+            <Input
+              id={`${formId}-email`}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              leadingIcon={<Mail size={16} />}
+              className="es-input"
+              placeholder={t("users.emailPlaceholder")}
+            />
+          </div>
+
+          {/* 密码 */}
+          <div className="es-field">
+            <label htmlFor={`${formId}-password`} className="es-label">
+              {t("users.password")} {isEditing && t("users.passwordHint")}
+            </label>
+            <Input
+              id={`${formId}-password`}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              leadingIcon={<Lock size={16} />}
+              className="es-input"
+              placeholder={
+                isEditing
+                  ? t("users.passwordPlaceholderEdit")
+                  : t("users.passwordPlaceholder")
+              }
+            />
+          </div>
+
+          {/* 角色 */}
+          <div className="es-field">
+            <label className="es-label">{t("users.roles")}</label>
+            <div className="es-section">
+              {rolesLoading ? (
+                <p className="es-hint" role="status">
+                  {t("common.loading")}
+                </p>
+              ) : rolesLoadError ? (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
+                >
+                  <span>{t("common.loadFailed")}</span>
+                  <Button onClick={onRetryRoles} size="sm">
+                    {t("common.refresh")}
+                  </Button>
+                </div>
+              ) : roles.length === 0 ? (
+                <p className="es-hint">{t("users.noRolesAvailable")}</p>
+              ) : (
+                <div className="space-y-1">
+                  {roles.map((role) => (
+                    <label
+                      key={role.id}
+                      className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
+                    >
+                      <Checkbox
+                        ariaLabel={role.name}
+                        size="sm"
+                        checked={selectedRoles.includes(role.name)}
+                        onChange={() => toggleRole(role.name)}
+                      />
+                      <span className="text-14 text-theme-text">
+                        {role.name}
+                      </span>
+                      {role.is_system && (
+                        <span className="es-chip">{t("users.system")}</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 状态 */}
+          {isEditing && (
+            <div className="es-field">
+              <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
+                <Checkbox
+                  ariaLabel={t("users.enableAccount")}
+                  size="sm"
+                  checked={isActive}
+                  onChange={() => setIsActive(!isActive)}
+                />
+                <span className="es-label">{t("users.enableAccount")}</span>
+              </label>
+            </div>
+          )}
+        </fieldset>
       </form>
     </EditorSidebar>
   );
@@ -356,14 +370,24 @@ export function UsersPanel() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   // 模态框状态
-  const [showFormModal, setShowFormModal] = useState(false);
+  const [showFormModal, setShowFormModal] = useRightPanelState(
+    "users:form",
+    false,
+  );
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [quotaUser, setQuotaUser] = useRightPanelState<UserType | null>(
+    "users:quota",
+    null,
+  );
   const [deleteUser, setDeleteUser] = useState<UserType | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showBulkCards, setShowBulkCards] = useState(false);
 
   // 权限检查
   const canCreate = hasPermission(Permission.USER_WRITE);
   const canEdit = hasPermission(Permission.USER_WRITE);
+  const canManageQuota = hasPermission(Permission.USAGE_ADMIN);
+  const canOpenUser = canEdit || canManageQuota;
   const canDelete = hasPermission(Permission.USER_DELETE);
 
   const loadRoles = useCallback(async () => {
@@ -479,16 +503,32 @@ export function UsersPanel() {
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("users.searchPlaceholder")}
         actions={
-          canCreate && (
-            <Button
-              variant="primary"
-              onClick={openCreateModal}
-              leftIcon={<Plus size={16} className="sm:size-[1.125rem]" />}
-            >
-              <span className="hidden sm:inline">{t("users.createUser")}</span>
-            </Button>
-          )
+          <>
+            {canManageQuota && (
+              <Button
+                onClick={() => setShowBulkCards(true)}
+                className="font-serif"
+              >
+                {t("usage.bulkCardsTitle")}
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="primary"
+                onClick={openCreateModal}
+                leftIcon={<Plus size={16} className="sm:size-[1.125rem]" />}
+              >
+                <span className="hidden sm:inline">
+                  {t("users.createUser")}
+                </span>
+              </Button>
+            )}
+          </>
         }
+      />
+      <BulkResetCards
+        open={showBulkCards}
+        onClose={() => setShowBulkCards(false)}
       />
 
       {/* 错误提示 */}
@@ -534,7 +574,7 @@ export function UsersPanel() {
                     <th className="px-6 py-3 text-left text-12 font-medium uppercase tracking-wider text-theme-text-secondary">
                       {t("users.createdAt")}
                     </th>
-                    {(canEdit || canDelete) && (
+                    {(canOpenUser || canDelete) && (
                       <th className="px-6 py-3 text-right text-12 font-medium uppercase tracking-wider text-theme-text-secondary">
                         {t("users.actions")}
                       </th>
@@ -589,9 +629,17 @@ export function UsersPanel() {
                       <td className="whitespace-nowrap px-6 py-4 text-14 text-theme-text-secondary">
                         {formatDate(user.created_at)}
                       </td>
-                      {(canEdit || canDelete) && (
+                      {(canOpenUser || canDelete) && (
                         <td className="whitespace-nowrap px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {canManageQuota && (
+                              <IconButton
+                                aria-label={t("usage.adminQuotaTitle")}
+                                icon={<CircleDollarSign size={18} />}
+                                onClick={() => setQuotaUser(user)}
+                                title={t("usage.adminQuotaTitle")}
+                              />
+                            )}
                             {canEdit && (
                               <IconButton
                                 aria-label={t("users.edit")}
@@ -668,8 +716,16 @@ export function UsersPanel() {
                     </div>
 
                     {/* Edit/Delete buttons */}
-                    {(canEdit || canDelete) && (
+                    {(canOpenUser || canDelete) && (
                       <div className="flex items-center gap-1">
+                        {canManageQuota && (
+                          <IconButton
+                            aria-label={t("usage.adminQuotaTitle")}
+                            icon={<CircleDollarSign size={18} />}
+                            onClick={() => setQuotaUser(user)}
+                            title={t("usage.adminQuotaTitle")}
+                          />
+                        )}
                         {canEdit && (
                           <IconButton
                             aria-label={t("users.edit")}
@@ -708,8 +764,31 @@ export function UsersPanel() {
       </div>
 
       {/* 模态框 */}
+      {quotaUser && canManageQuota && (
+        <EditorSidebar
+          registryKey="users:quota"
+          open={true}
+          onClose={() => setQuotaUser(null)}
+          title={t("usage.adminQuotaTitle")}
+          icon={<CircleDollarSign size={16} />}
+        >
+          <div className="es-form user-quota-panel">
+            <div className="flex min-w-0 items-center gap-3">
+              <UserAvatar user={quotaUser} />
+              <div className="min-w-0 space-y-1">
+                <p className="break-words text-14 font-medium text-theme-text">
+                  {quotaUser.username}
+                </p>
+                <p className="es-hint break-all">{quotaUser.email}</p>
+              </div>
+            </div>
+            <UserQuotaControls key={quotaUser.id} userId={quotaUser.id} />
+          </div>
+        </EditorSidebar>
+      )}
       {showFormModal && (
         <UserFormModal
+          key={editingUser?.id ?? "new"}
           user={editingUser}
           roles={roles}
           rolesLoading={rolesLoading}

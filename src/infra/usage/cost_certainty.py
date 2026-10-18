@@ -57,6 +57,14 @@ def _valid_cost(value: Any) -> TypeGuard[int | float]:
 
 
 def _has_complete_cost_receipt(doc: dict[str, Any]) -> bool:
+    if doc.get("cost_source") == "provider_settlement":
+        return (
+            doc.get("cost_complete") is True
+            and type(doc.get("cost_units")) is int
+            and doc["cost_units"] >= 0
+            and _valid_cost(doc.get("cost_usd"))
+            and doc["cost_usd"] == doc["cost_units"] / 1_000_000_000
+        )
     if (
         doc.get("cost_complete") is not True
         or doc.get("input_includes_cache") is not True
@@ -102,6 +110,16 @@ def _has_complete_cost_receipt(doc: dict[str, Any]) -> bool:
 
 def _usage_cost_fields(doc: dict[str, Any]) -> dict[str, Any]:
     complete = _has_complete_cost_receipt(doc)
+    if doc.get("cost_source") == "provider_settlement":
+        units = doc.get("cost_units")
+        return {
+            "cost_available": complete,
+            "cost_complete": complete,
+            "partial_cost_usd": units / 1_000_000_000
+            if not complete and type(units) is int and units >= 0
+            else None,
+            "estimated_cost_usd": None,
+        }
     confirmed = (
         doc.get("cost_available") is True
         and (doc.get("usage_incomplete") is False or complete)
@@ -134,6 +152,7 @@ def _usage_cost_fields(doc: dict[str, Any]) -> dict[str, Any]:
 def _usage_snapshot_query(trace_id: str, expected: dict[str, Any]) -> dict[str, Any]:
     query: dict[str, Any] = {
         "trace_id": trace_id,
+        "cost_source": {"$ne": "provider_settlement"},
         "input_includes_cache": {"$eq": True, "$type": "bool"},
     }
     for key in (
@@ -225,10 +244,41 @@ PRICED_USAGE_CONDITION = {
         _amount_condition("cost_usd"),
     ]
 }
+SETTLEMENT_CONDITION = {
+    "$and": [
+        {"$eq": [{"$ifNull": ["$cost_source", None]}, "provider_settlement"]},
+        {"$in": [{"$type": "$cost_units"}, ["int", "long"]]},
+        {"$gte": ["$cost_units", 0]},
+    ]
+}
+PRICED_USAGE_CONDITION = {
+    "$or": [
+        {
+            "$and": [
+                SETTLEMENT_CONDITION,
+                _boolean_condition("cost_complete", True),
+                _amount_condition("cost_usd"),
+                {
+                    "$cond": [
+                        SETTLEMENT_CONDITION,
+                        {"$eq": ["$cost_usd", {"$divide": ["$cost_units", 1_000_000_000]}]},
+                        False,
+                    ]
+                },
+            ]
+        },
+        {
+            "$and": [
+                {"$ne": [{"$ifNull": ["$cost_source", None]}, "provider_settlement"]},
+                PRICED_USAGE_CONDITION,
+            ]
+        },
+    ]
+}
 PARTIAL_USAGE_CONDITION = {
     "$and": [
         {"$not": [PRICED_USAGE_CONDITION]},
-        _boolean_condition("input_includes_cache", True),
+        {"$or": [SETTLEMENT_CONDITION, _boolean_condition("input_includes_cache", True)]},
         _amount_condition("partial_cost_usd"),
     ]
 }

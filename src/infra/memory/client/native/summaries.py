@@ -12,6 +12,7 @@ with warnings.catch_warnings():
     import jieba.posseg as pseg
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.memory.client.native.models import CJK_STOPWORDS, has_cjk
 
@@ -103,6 +104,8 @@ async def llm_enrich_memory(backend: Any, content: str) -> dict[str, Any]:
             or _fallback_tags(content),
         }
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.debug("[NativeMemory] LLM enrich failed, using fallback: %s", e)
         return _fallback_enrich(content)
 

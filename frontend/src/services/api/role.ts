@@ -122,6 +122,24 @@ export const roleApi = {
     return role;
   },
 
+  async updateQuota(
+    roleId: string,
+    limits: {
+      five_hour_budget_usd: number | null;
+      weekly_budget_usd: number | null;
+    },
+  ): Promise<Role> {
+    const role = await authFetch<Role>(
+      `${API_BASE}/api/roles/${roleId}/usage-quota`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(limits),
+      },
+    );
+    clearRoleListCache();
+    return role;
+  },
+
   /**
    * 删除角色
    */

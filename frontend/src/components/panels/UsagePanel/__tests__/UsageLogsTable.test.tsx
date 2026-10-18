@@ -13,6 +13,12 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
 afterEach(cleanup);
 
+test("running usage is labelled as running in every responsive layout", () => {
+  show({ status: "running" });
+  expect(screen.getAllByText("usage.statusRunning")).toHaveLength(3);
+  expect(screen.queryByText("usage.statusError")).toBeNull();
+});
+
 function show(overrides: Partial<UsageLog> = {}, hasAnyCache = false) {
   const log = {
     trace_id: "trace",
@@ -109,4 +115,9 @@ test("legacy null completeness reports valid counts and labels its estimate whil
     expect(screen.queryAllByText(count)).toHaveLength(0);
   }
   expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
+});
+
+test("auxiliary calls remain identifiable across responsive layouts", () => {
+  show({ source: "auxiliary", agent_name: "" });
+  expect(screen.getAllByText("usage.sources.auxiliary")).toHaveLength(3);
 });

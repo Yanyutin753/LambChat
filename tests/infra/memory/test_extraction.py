@@ -987,8 +987,22 @@ class FencedJobsCollection:
 
 
 def _patch_pass_env(monkeypatch, *, claimed, quota="allowed", job_docs=None):
+    from unittest.mock import AsyncMock
+
     from src.infra.memory import distributed, user_pref
     from src.infra.storage import mongodb
+    from src.infra.usage import quota as usage_quota
+
+    monkeypatch.setattr(usage_quota, "user_budgets", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(
+        usage_quota,
+        "UsageQuota",
+        lambda: SimpleNamespace(
+            snapshot=AsyncMock(
+                return_value={"five_hour": {"blocked": False}, "weekly": {"blocked": False}}
+            )
+        ),
+    )
 
     recorded = {"quota_checks": 0, "quota": quota, "records": 0}
 
@@ -1028,6 +1042,50 @@ def _patch_pass_env(monkeypatch, *, claimed, quota="allowed", job_docs=None):
     monkeypatch.setattr(extraction, "ensure_extraction_job_indexes", noop_indexes)
     monkeypatch.setattr(extraction, "claim_candidate_jobs", fake_claim)
     return jobs, recorded
+
+
+@pytest.mark.parametrize("denial", ["five_hour", "weekly", "unavailable"])
+async def test_quota_preflight_leaves_idle_session_claimable_after_recovery(monkeypatch, denial):
+    from unittest.mock import AsyncMock
+
+    from src.infra.usage import quota
+    from src.kernel.errors import AppError, ErrorCode
+
+    session = {"session_id": "s1", "updated_at": _now() - timedelta(hours=1)}
+    job = {
+        "_id": "j1",
+        "status": "claimed",
+        "attempts": 1,
+        "lease_expires_at": _now() + timedelta(minutes=15),
+    }
+    jobs, _ = _patch_pass_env(monkeypatch, claimed=[], job_docs=[job])
+    claim = AsyncMock(return_value=[(session, job)])
+    extract = AsyncMock(return_value=extraction.ExtractionOutcome("succeeded_no_output"))
+    monkeypatch.setattr(extraction, "claim_candidate_jobs", claim)
+    monkeypatch.setattr(extraction, "extract_session_memory", extract)
+    available = {"five_hour": {"blocked": False}, "weekly": {"blocked": False}}
+    refused = (
+        AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE)
+        if denial == "unavailable"
+        else {**available, denial: {"blocked": True}}
+    )
+    snapshot = AsyncMock(side_effect=[refused, available])
+    monkeypatch.setattr(quota, "UsageQuota", lambda: SimpleNamespace(snapshot=snapshot))
+
+    result = await extraction.run_extraction_pass("u1", backend=object())
+    assert result == {
+        "skipped": 1,
+        "reason": "usage_quota_unavailable" if denial == "unavailable" else "usage_quota_exceeded",
+    }
+    claim.assert_not_awaited()
+    extract.assert_not_awaited()
+    assert jobs.update_calls == []
+
+    result = await extraction.run_extraction_pass("u1", backend=object())
+    claim.assert_awaited_once()
+    assert extract.await_args.args[-1] is session
+    assert result["succeeded_no_output"] == 1
+    assert jobs.docs["j1"]["status"] == "succeeded_no_output"
 
 
 @pytest.mark.asyncio

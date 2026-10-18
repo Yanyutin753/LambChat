@@ -24,6 +24,7 @@ from src.infra.agent.middleware.main_agent_context import (
     redact_sensitive_text,
     write_subagent_handoff_file,
 )
+from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.memory.control_frames import escape_control_frame_tags
 
@@ -201,7 +202,9 @@ class SubagentActivityMiddleware(ActivityReferenceMiddleware):
         summary = ""
         try:
             summary = (await self._compress_text(bounded)).strip()
-        except Exception:
+        except Exception as exc:
+            if is_quota_error(exc):
+                raise
             logger.warning("[SubagentActivity] Compression failed, truncating raw activity")
         if not summary:
             return bounded

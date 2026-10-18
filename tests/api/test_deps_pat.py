@@ -38,6 +38,10 @@ def _pat_record(scopes: list[str]) -> PATRecord:
 
 
 async def test_pat_token_builds_payload(monkeypatch):
+    from src.infra.backend.context import current_user_id
+    from src.infra.llm.quota import quota_user_id
+
+    current_user_id.set(None)
     record = _pat_record(["sandbox:execute"])
 
     async def _no_touch(_self, _pat_id):
@@ -61,12 +65,13 @@ async def test_pat_token_builds_payload(monkeypatch):
 
     @app.get("/probe")
     async def probe(user=Depends(api_deps.require_pat_scope("sandbox:execute"))):
-        return {"sub": user.sub}
+        return {"sub": user.sub, "payer": quota_user_id()}
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/probe", headers={"Authorization": "Bearer lc_pat_good"})
     assert resp.status_code == 200 and resp.json()["sub"] == "u1"
+    assert resp.json()["payer"] == "u1"
 
 
 async def test_pat_missing_scope_denied(monkeypatch):
