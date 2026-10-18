@@ -445,3 +445,11 @@
   --theme-accent-light: #f7ecd2;
   --theme-accent-glow: rgba(251, 191, 36, 0.16);
 }
+
+@supports not (color: color-mix(in srgb, black, white)) {
+  :root {
+    --theme-bg-hover: var(--theme-bg-subtle);
+    --shadow-inset-hover: inset 0 0 0 2px var(--theme-border-hover);
+    --shadow-inset-selected: inset 0 0 0 2px var(--theme-border-hover);
+  }
+}

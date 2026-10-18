@@ -356,11 +356,11 @@ export function SessionScheduledTasksButton({
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >
       <InteractiveIcon>
-        <CalendarClock size={17} />
+        <CalendarClock size={16} />
       </InteractiveIcon>
       {count > 0 && (
-        <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-10 font-semibold leading-none text-white">
-          {count > 99 ? "99+" : count}
+        <span className="count-badge count-badge--overlay" aria-hidden="true">
+          {Math.min(count, 99)}
         </span>
       )}
     </button>

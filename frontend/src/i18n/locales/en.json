@@ -208,6 +208,7 @@
     "parameters": "Parameters",
     "preferenceSaved": "Default agent preference saved",
     "pricingBackfill": "Backfill costs",
+    "pricingBackfillPartial": "{{count}} partially calculated",
     "pricingBackfillFailed": "Failed to backfill costs",
     "pricingBackfillSuccess": "Backfilled {{priced}}/{{scanned}} records",
     "pricingBackfillUnpriced": "{{count}} unpriced",
@@ -4329,6 +4330,9 @@
   "updateRetry": "Retry",
   "updateSkip": "Later",
   "usage": {
+    "tokensInputReported": "Input (reported)",
+    "historicalEstimate": "Historical estimate",
+    "partialCostHint": "Known amount only; the remaining cost is unknown.",
     "sources": {
       "chat": "Chat",
       "scheduled_task": "Scheduled task"
@@ -4552,7 +4556,7 @@
     "readyToast": "v{{version}} is ready to install",
     "downloadingToast": "Downloading v{{version}}; install when it finishes",
     "channel": "Update channel",
-    "channelStable": "Stable (default)",
+    "channelStable": "Stable",
     "channelDev": "Preview",
     "channelDevHint": "Preview builds may contain unresolved issues. dev.2 and earlier require one manual reinstall before channel updates are supported."
   },

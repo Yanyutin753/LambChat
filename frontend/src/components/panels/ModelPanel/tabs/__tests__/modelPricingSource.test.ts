@@ -100,6 +100,7 @@ test("backfill labels are available in every locale", () => {
     for (const key of [
       "pricingBackfill",
       "pricingBackfillSuccess",
+      "pricingBackfillPartial",
       "pricingBackfillUnpriced",
       "pricingBackfillFailed",
     ]) {

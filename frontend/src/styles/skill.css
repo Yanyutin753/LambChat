@@ -406,6 +406,18 @@
   );
 }
 
+@supports not (color: color-mix(in srgb, black, white)) {
+  .skill-theme-shell,
+  .dark .skill-theme-shell {
+    --skill-accent-soft: var(--theme-primary-light);
+    --skill-surface-alt: var(--theme-bg-subtle);
+    --skill-surface-strong: var(--theme-bg-card);
+    --skill-border-strong: var(--theme-border);
+    --skill-glow: 0 0 0 2px var(--theme-border-hover);
+    --skill-grid-bg: var(--theme-bg);
+  }
+}
+
 .dark .skill-panel-header .panel-search {
   background: var(--theme-bg-card);
 }

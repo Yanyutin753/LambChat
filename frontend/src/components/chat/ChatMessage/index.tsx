@@ -55,11 +55,15 @@ import {
   buildCostDetailRows,
   formatCostDetailRow,
   formatUsageTokenCount,
-  hasPricedCost,
+  formatTokenUsageCost,
+  tokenUsageEstimatedCost,
 } from "./tokenCostDisplay";
 import { cacheHitRateFromTokens } from "../todayUsageSnapshot";
 import { useFxRates } from "../../../hooks/useFxRates";
-import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
+import {
+  historicalEstimateHint,
+  type FxRatesDoc,
+} from "../../../utils/currency";
 import {
   shouldAllowAutoPreviewForPart,
   type AutoPreviewTarget,
@@ -135,7 +139,18 @@ function TokenDetailsButton({
       )
     : null;
   const costRows = buildCostDetailRows(tokenUsage);
-  const priced = hasPricedCost(tokenUsage);
+  const costAmount = formatTokenUsageCost(tokenUsage, {
+    language,
+    rates: fxRates,
+  });
+  const estimateHint = historicalEstimateHint(
+    {
+      language,
+      rates: fxRates,
+      estimatedCostUsd: tokenUsageEstimatedCost(tokenUsage),
+    },
+    t("usage.historicalEstimate"),
+  );
   const costRowLabels: Record<string, string> = {
     input: t("chat.message.tokenInput"),
     output: t("chat.message.tokenOutput"),
@@ -296,7 +311,7 @@ function TokenDetailsButton({
                       {formatUsageTokenCount(tokenUsage, "total_tokens")} tokens
                     </span>
                   </div>
-                  {priced && (
+                  {tokenUsage && (
                     <div className="border-t border-theme-border pt-1.5 mt-1.5 space-y-1.5">
                       <div className="flex items-center justify-between gap-4 text-amber-600 dark:text-amber-400">
                         <Tooltip content={t("chat.message.costDetail")}>
@@ -320,12 +335,19 @@ function TokenDetailsButton({
                           </button>
                         </Tooltip>
                         <span className="font-medium tabular-nums">
-                          {formatCostUsd(tokenUsage.cost_usd ?? 0, {
-                            language,
-                            rates: fxRates ?? null,
-                          })}
+                          {costAmount}
                         </span>
                       </div>
+                      {estimateHint && (
+                        <p className="max-w-64 whitespace-normal text-11 text-theme-text-muted">
+                          {estimateHint}
+                        </p>
+                      )}
+                      {costAmount.endsWith("+") && (
+                        <p className="max-w-64 whitespace-normal text-11 text-theme-text-muted">
+                          {t("usage.partialCostHint")}
+                        </p>
+                      )}
                       {costExpanded &&
                         costRows.map((row) => {
                           const { cost, rate } = formatCostDetailRow(row, {

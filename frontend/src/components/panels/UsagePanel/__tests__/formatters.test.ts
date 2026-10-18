@@ -3,7 +3,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
-import { fmt, fmtCostUsd, pct, precise, usageStatusKind } from "../formatters";
+import {
+  fmt,
+  fmtCostUsd,
+  fmtUsageCount,
+  pct,
+  precise,
+  usageStatusKind,
+} from "../formatters";
 
 describe("fmt number abbreviation", () => {
   test("keeps plain numbers below 1K", () => {
@@ -127,4 +134,76 @@ test("usage status labels exist in all five locales", () => {
       `${locale} statusCancelled`,
     ).toBeTruthy();
   }
+});
+
+describe("partial and historical cost display", () => {
+  test("restores historical estimates with an approximation marker", () => {
+    expect(
+      fmtCostUsd(0, true, {
+        language: "en",
+        pricedRequests: 0,
+        unpricedRequests: 2,
+        estimatedRequests: 2,
+        estimatedCostUsd: 0.4,
+      }),
+    ).toBe("≈$0.4");
+  });
+  test("retains independently calculated costs including explicit zero", () => {
+    expect(
+      fmtCostUsd(undefined, false, { language: "en", partialCostUsd: 0.2 }),
+    ).toBe("$0.2+");
+    expect(
+      fmtCostUsd(0, true, {
+        language: "en",
+        pricedRequests: 0,
+        unpricedRequests: 1,
+        partialRequests: 1,
+        partialCostUsd: 0,
+      }),
+    ).toBe("$0.00+");
+  });
+  test("adds confirmed and partial costs without blending historical estimates", () => {
+    expect(
+      fmtCostUsd(0.3, true, {
+        language: "en",
+        pricedRequests: 1,
+        unpricedRequests: 2,
+        partialRequests: 1,
+        partialCostUsd: 0.2,
+        estimatedRequests: 1,
+        estimatedCostUsd: 9,
+      }),
+    ).toBe("$0.5+");
+  });
+  test("invalid amounts remain unknown", () => {
+    expect(
+      fmtCostUsd(null, false, {
+        language: "en",
+        partialCostUsd: null,
+        estimatedCostUsd: null,
+      }),
+    ).toBe("—");
+    expect(
+      fmtCostUsd(undefined, false, {
+        language: "en",
+        partialCostUsd: Number.NaN,
+        estimatedCostUsd: -1,
+      }),
+    ).toBe("—");
+  });
+});
+
+describe("reported aggregate counters", () => {
+  test("unknown summed input stays unknown while known output and zero remain reportable", () => {
+    const unknown = ["input_tokens", "total_tokens"];
+    expect(fmtUsageCount(0, "input_tokens", unknown)).toBe("—");
+    expect(fmtUsageCount(0, "total_tokens", unknown)).toBe("—");
+    expect(fmtUsageCount(1200, "output_tokens", unknown)).toBe("1.2K");
+    expect(fmtUsageCount(0, "cache_read_tokens", unknown)).toBe("0");
+  });
+  test("missing and invalid aggregate counters are not coerced into zero", () => {
+    for (const value of [undefined, null, Number.NaN, -1, true]) {
+      expect(fmtUsageCount(value, "total_tokens")).toBe("—");
+    }
+  });
 });

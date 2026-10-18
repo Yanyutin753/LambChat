@@ -25,7 +25,10 @@ export function StatMetric({
         {value}
       </p>
       {hint && (
-        <p className="truncate pl-[2.25rem] text-10 leading-snug text-theme-text-tertiary sm:pl-[2.5rem] sm:text-11">
+        <p
+          title={hint}
+          className="truncate pl-[2.25rem] text-10 leading-snug text-theme-text-tertiary sm:pl-[2.5rem] sm:text-11"
+        >
           <span className="text-theme-text-tertiary/50">&#x00B7;</span> {hint}
         </p>
       )}

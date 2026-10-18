@@ -52,7 +52,7 @@ export function TeamRoster({
           <p className="team-pane-eyebrow">{t("team.rosterView")}</p>
           <h2 className="team-pane-title font-serif">
             {t("team.rosterTitle")}
-            <span className="team-pane-count">{members.length}</span>
+            <span className="count-badge">{Math.min(members.length, 99)}</span>
           </h2>
         </div>
       </div>

@@ -5,6 +5,7 @@ import {
   buildCostDetailRows,
   formatCostDetailRow,
   hasPricedCost,
+  formatTokenUsageCost,
 } from "../tokenCostDisplay";
 
 const fxRates: FxRatesDoc = {
@@ -162,4 +163,183 @@ describe("formatCostDetailRow", () => {
 test("an old cost estimate needs an inclusive input certificate", () => {
   expect(hasPricedCost(usage({ input_includes_cache: undefined }))).toBe(false);
   expect(hasPricedCost(usage({ input_includes_cache: false }))).toBe(false);
+});
+
+describe("formatTokenUsageCost", () => {
+  test("old uncertified chat cost remains visible as a historical estimate", () => {
+    const old = usage({
+      usage_incomplete: undefined,
+      input_includes_cache: undefined,
+    });
+    expect(hasPricedCost(old)).toBe(false);
+    expect(formatTokenUsageCost(old, { language: "en" })).toBe("≈$0.0371");
+  });
+  test("partial cost is visible even when only a zero amount is calculable", () => {
+    expect(
+      formatTokenUsageCost(
+        usage({
+          cost_usd: undefined,
+          usage_incomplete: true,
+          partial_cost_usd: 0,
+        }),
+        { language: "en" },
+      ),
+    ).toBe("$0.00+");
+  });
+  test("fully unknown chat cost stays unknown", () => {
+    expect(
+      formatTokenUsageCost(usage({ cost_usd: undefined }), { language: "en" }),
+    ).toBe("—");
+  });
+});
+
+test("numeric certificates cannot certify an old estimate", () => {
+  const legacy = usage({ input_includes_cache: 1 as unknown as boolean });
+  expect(hasPricedCost(legacy)).toBe(false);
+  expect(formatTokenUsageCost(legacy, { language: "en" })).toBe("≈$0.0371");
+});
+
+test("partial rows omit ordinary input when a cache counter is unknown", () => {
+  const rows = buildCostDetailRows(
+    usage({
+      usage_incomplete: true,
+      unknown_usage_fields: ["cache_creation_tokens"],
+      cache_creation_tokens: undefined,
+      partial_cost_breakdown: { output: 0.03, cache_read: 0.0001 },
+    }),
+  );
+  expect(rows.find((row) => row.key === "input")).toBeUndefined();
+  expect(rows.find((row) => row.key === "output")?.tokens).toBe(100_000);
+  expect(rows.find((row) => row.key === "cache_read")?.tokens).toBe(200_000);
+});
+
+test("partial rows omit an unknown output counter rather than inventing zero", () => {
+  const rows = buildCostDetailRows(
+    usage({
+      usage_incomplete: true,
+      unknown_usage_fields: ["output_tokens"],
+      output_tokens: 0,
+      partial_cost_breakdown: { input: 0.007, cache_read: 0.0001 },
+    }),
+  );
+  expect(rows.find((row) => row.key === "output")).toBeUndefined();
+  expect(rows.find((row) => row.key === "input")?.tokens).toBe(700_000);
+});
+
+function noSeparateWriteUsage(
+  overrides: Partial<TokenUsagePart> = {},
+): TokenUsagePart {
+  return usage({
+    input_tokens: 12822,
+    output_tokens: 86,
+    total_tokens: 12908,
+    cache_read_tokens: 10880,
+    cache_creation_tokens: undefined,
+    usage_incomplete: true,
+    unknown_usage_fields: ["cache_creation_tokens"],
+    cost_complete: true,
+    cost_usd: 0.005926,
+    cost_rates: {
+      input: 1.4,
+      output: 4.4,
+      cache_read: 0.26,
+      cache_write: 0,
+      cache_write_included: true,
+    },
+    cost_breakdown: {
+      input: 0.0027188,
+      output: 0.0003784,
+      cache_read: 0.0028288,
+      cache_write: 0,
+      total: 0.005926,
+    },
+    ...overrides,
+  });
+}
+
+test("financial certification prices providers with no separate write charge without inventing write tokens", () => {
+  const value = noSeparateWriteUsage();
+  expect(hasPricedCost(value)).toBe(true);
+  expect(formatTokenUsageCost(value, { language: "en" })).toBe("$0.005926");
+  expect(value.cache_creation_tokens).toBeUndefined();
+  expect(value.usage_incomplete).toBe(true);
+  expect(
+    buildCostDetailRows(value).find((row) => row.key === "input")?.tokens,
+  ).toBe(1942);
+  const measuredWrite = noSeparateWriteUsage({
+    cache_creation_tokens: 100,
+    unknown_usage_fields: [],
+    usage_incomplete: false,
+  });
+  expect(
+    buildCostDetailRows(measuredWrite).find((row) => row.key === "input")
+      ?.tokens,
+  ).toBe(1942);
+});
+
+test("financial certification must be literal and requires valid billable input output and reads", () => {
+  expect(
+    hasPricedCost(
+      noSeparateWriteUsage({ cost_complete: 1 as unknown as boolean }),
+    ),
+  ).toBe(false);
+  for (const field of [
+    "input_tokens",
+    "output_tokens",
+    "cache_read_tokens",
+  ] as const) {
+    expect(
+      hasPricedCost(
+        noSeparateWriteUsage({
+          unknown_usage_fields: ["cache_creation_tokens", field],
+        }),
+      ),
+    ).toBe(false);
+    expect(hasPricedCost(noSeparateWriteUsage({ [field]: Number.NaN }))).toBe(
+      false,
+    );
+  }
+  for (const flag of [undefined, false, 1]) {
+    expect(
+      hasPricedCost(
+        noSeparateWriteUsage({
+          cost_rates: {
+            input: 1.4,
+            output: 4.4,
+            cache_read: 0.26,
+            cache_write: 0,
+            cache_write_included: flag as unknown as boolean,
+          },
+        }),
+      ),
+    ).toBe(false);
+  }
+  expect(
+    hasPricedCost(
+      noSeparateWriteUsage({
+        cost_rates: {
+          input: 1.4,
+          output: 4.4,
+          cache_read: 0.26,
+          cache_write: null,
+          cache_write_included: true,
+        },
+      }),
+    ),
+  ).toBe(true);
+  for (const writeRate of [0.1, -1, true, Number.NaN]) {
+    expect(
+      hasPricedCost(
+        noSeparateWriteUsage({
+          cost_rates: {
+            input: 1.4,
+            output: 4.4,
+            cache_read: 0.26,
+            cache_write: writeRate as number,
+            cache_write_included: true,
+          },
+        }),
+      ),
+    ).toBe(false);
+  }
 });

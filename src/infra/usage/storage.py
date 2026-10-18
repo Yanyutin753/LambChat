@@ -12,12 +12,26 @@ from pymongo.errors import DuplicateKeyError
 
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
+from src.infra.usage.cost_certainty import (
+    COMPLETE_USAGE_CONDITION,
+    _boolean_condition,
+    _cost_certainty_aggregates,
+    _usage_cost_fields,
+    _usage_snapshot_query,
+    _valid_cost,
+)
+from src.infra.usage.cost_certainty import (
+    PRICED_USAGE_CONDITION as PRICED_USAGE_CONDITION,
+)
+from src.infra.usage.counter_availability import _counter_availability_aggregates, _token_sum
 from src.infra.usage.formatting import (
     _aggregate_cache_unknown_requests,
     _as_float,
     _as_int,
     _empty_dashboard,
     _empty_stats,
+    _format_cost_certainty,
+    _format_counter_availability,
     _format_dashboard,
 )
 from src.infra.usage.formatting import (
@@ -34,17 +48,11 @@ logger = get_logger(__name__)
 
 USAGE_LOG_LIMIT_MAX = 200
 USAGE_RANKING_LIMIT = 8
-COMPLETE_USAGE_CONDITION = {"$eq": ["$usage_incomplete", False]}
-PRICED_USAGE_CONDITION = {
-    "$and": [
-        {"$eq": ["$cost_available", True]},
-        COMPLETE_USAGE_CONDITION,
-        {"$eq": ["$input_includes_cache", True]},
-    ]
-}
-CACHE_METRICS_CONDITION = {"$eq": ["$cache_metrics_available", True]}
+
+
+CACHE_METRICS_CONDITION = _boolean_condition("cache_metrics_available", True)
 CERTIFIED_CACHE_METRICS_CONDITION = {
-    "$and": [CACHE_METRICS_CONDITION, {"$eq": ["$input_includes_cache", True]}]
+    "$and": [CACHE_METRICS_CONDITION, _boolean_condition("input_includes_cache", True)]
 }
 SCHEDULED_USAGE_CONDITION = {
     "$or": [
@@ -304,6 +312,14 @@ class UsageStorage:
             "cache_creation_tokens": _as_int(usage_data.get("cache_creation_tokens", 0)),
             "cache_read_tokens": _as_int(usage_data.get("cache_read_tokens", 0)),
             "cost_usd": _as_float(usage_data.get("cost_usd", 0.0)),
+            "cost_complete": usage_data.get("cost_complete") is True
+            and _valid_cost(usage_data.get("cost_usd")),
+            "cost_rates": {
+                key: reported_rates.get(key)
+                for key in ("input", "output", "cache_read", "cache_write", "cache_write_included")
+            }
+            if isinstance(reported_rates, dict)
+            else None,
             "usage_incomplete": usage_incomplete,
             "unknown_usage_fields": sorted(unknown_fields),
             "input_includes_cache": usage_data.get("input_includes_cache") is True,
@@ -320,7 +336,8 @@ class UsageStorage:
             "cost_available": (
                 "cost_usd" in usage_data
                 and usage_data["cost_usd"] is not None
-                and not usage_incomplete
+                and _valid_cost(usage_data["cost_usd"])
+                and (not usage_incomplete or usage_data.get("cost_complete") is True)
                 and not pricing_incomplete
                 and usage_data.get("input_includes_cache") is True
             ),
@@ -333,6 +350,16 @@ class UsageStorage:
             "step_count": _as_int(metadata.get("step_count", 0)),
             "tool_calls": _as_int(metadata.get("tool_calls", 0)),
         }
+        partial_cost = usage_data.get("partial_cost_usd")
+        doc["partial_cost_usd"] = (
+            float(partial_cost)
+            if usage_data.get("input_includes_cache") is True and _valid_cost(partial_cost)
+            else None
+        )
+        classified = _usage_cost_fields(doc)
+        doc["cost_complete"] = classified["cost_complete"]
+        doc["cost_available"] = classified["cost_available"]
+        doc["partial_cost_usd"] = classified["partial_cost_usd"]
 
         try:
             await self.collection.update_one(
@@ -483,17 +510,19 @@ class UsageStorage:
                             "$group": {
                                 "_id": None,
                                 "total_requests": {"$sum": 1},
-                                "total_tokens": {"$sum": "$total_tokens"},
-                                "total_input_tokens": {"$sum": "$input_tokens"},
-                                "total_output_tokens": {"$sum": "$output_tokens"},
-                                "total_cache_read_tokens": {"$sum": "$cache_read_tokens"},
-                                "total_cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+                                "total_tokens": _token_sum("total_tokens"),
+                                "total_input_tokens": _token_sum("input_tokens"),
+                                "total_output_tokens": _token_sum("output_tokens"),
+                                "total_cache_read_tokens": _token_sum("cache_read_tokens"),
+                                "total_cache_creation_tokens": _token_sum("cache_creation_tokens"),
                                 "total_duration": {"$sum": "$duration"},
                                 "total_tool_calls": {"$sum": "$tool_calls"},
                                 "max_duration": {"$max": "$duration"},
                                 "total_cost_usd": {
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}
                                 },
+                                **_cost_certainty_aggregates(),
+                                **_counter_availability_aggregates(),
                                 "unpriced_requests": {
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
                                 },
@@ -546,14 +575,16 @@ class UsageStorage:
                                     }
                                 },
                                 "requests": {"$sum": 1},
-                                "tokens": {"$sum": "$total_tokens"},
-                                "input_tokens": {"$sum": "$input_tokens"},
-                                "cache_read_tokens": {"$sum": "$cache_read_tokens"},
-                                "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+                                "tokens": _token_sum("total_tokens"),
+                                "input_tokens": _token_sum("input_tokens"),
+                                "cache_read_tokens": _token_sum("cache_read_tokens"),
+                                "cache_creation_tokens": _token_sum("cache_creation_tokens"),
                                 "duration": {"$sum": "$duration"},
                                 "cost_usd": {
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}
                                 },
+                                **_cost_certainty_aggregates(),
+                                **_counter_availability_aggregates(),
                                 "priced_requests": {
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
                                 },
@@ -641,12 +672,14 @@ class UsageStorage:
         group: Dict[str, Any] = {
             "_id": group_id,
             "requests": {"$sum": 1},
-            "tokens": {"$sum": "$total_tokens"},
-            "input_tokens": {"$sum": "$input_tokens"},
-            "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
-            "cache_read_tokens": {"$sum": "$cache_read_tokens"},
+            "tokens": _token_sum("total_tokens"),
+            "input_tokens": _token_sum("input_tokens"),
+            "cache_creation_tokens": _token_sum("cache_creation_tokens"),
+            "cache_read_tokens": _token_sum("cache_read_tokens"),
             "duration": {"$sum": "$duration"},
             "cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+            **_cost_certainty_aggregates(),
+            **_counter_availability_aggregates(),
             "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
             "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
             "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
@@ -702,13 +735,15 @@ class UsageStorage:
             {
                 "$group": {
                     "_id": None,
-                    "total_input_tokens": {"$sum": "$input_tokens"},
-                    "total_output_tokens": {"$sum": "$output_tokens"},
-                    "total_tokens": {"$sum": "$total_tokens"},
-                    "total_cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
-                    "total_cache_read_tokens": {"$sum": "$cache_read_tokens"},
+                    "total_input_tokens": _token_sum("input_tokens"),
+                    "total_output_tokens": _token_sum("output_tokens"),
+                    "total_tokens": _token_sum("total_tokens"),
+                    "total_cache_creation_tokens": _token_sum("cache_creation_tokens"),
+                    "total_cache_read_tokens": _token_sum("cache_read_tokens"),
                     "total_duration": {"$sum": "$duration"},
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+                    **_cost_certainty_aggregates(),
+                    **_counter_availability_aggregates(),
                     "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
                     "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
                     "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
@@ -734,6 +769,8 @@ class UsageStorage:
                         "total_cache_read_tokens": doc.get("total_cache_read_tokens", 0),
                         "total_duration": doc.get("total_duration", 0.0),
                         "total_cost_usd": doc.get("total_cost_usd", 0.0),
+                        **_format_cost_certainty(doc),
+                        **_format_counter_availability(doc),
                         "unpriced_requests": doc.get("unpriced_requests", 0),
                         "priced_requests": doc.get("priced_requests", 0),
                         "usage_unknown_requests": doc.get("usage_unknown_requests", 0),
@@ -762,12 +799,9 @@ class UsageStorage:
             )
             items = await cursor.to_list(length=limit)
             for item in items:
-                item["cost_available"] = (
-                    item.get("cost_available") is True
-                    and item.get("usage_incomplete") is False
-                    and item.get("input_includes_cache") is True
-                )
-                item["usage_incomplete"] = item.get("usage_incomplete") is not False
+                item.update(_usage_cost_fields(item))
+                incomplete = item.get("usage_incomplete")
+                item["usage_incomplete"] = incomplete if isinstance(incomplete, bool) else None
             return items
         except Exception as e:
             logger.error(f"Failed to fetch usage items: {e}")
@@ -791,14 +825,22 @@ class UsageStorage:
             raise
 
     async def update_usage_cost(
-        self, trace_id: str, cost_usd: float, *, expected_usage: Dict[str, Any] | None = None
+        self,
+        trace_id: str,
+        cost_usd: float,
+        *,
+        expected_usage: Dict[str, Any] | None = None,
+        cost_complete: bool = False,
+        cost_rates: Dict[str, Any] | None = None,
     ) -> bool:
         """回填单条记录的 USD 费用快照。"""
+        if not _valid_cost(cost_usd):
+            return False
         try:
-            query = {
+            query: dict[str, Any] = {
                 "trace_id": trace_id,
                 "cost_available": {"$ne": True},
-                "usage_incomplete": False,
+                "usage_incomplete": {"$eq": False, "$type": "bool"},
                 "input_includes_cache": {"$eq": True, "$type": "bool"},
             }
             if expected_usage is not None:
@@ -808,16 +850,48 @@ class UsageStorage:
                     "cache_read_tokens",
                     "cache_creation_tokens",
                 ):
-                    query[key] = expected_usage[key]
+                    query[key] = expected_usage.get(key)
                 query["model"] = expected_usage.get("model")
                 query["model_id"] = expected_usage.get("model_id")
+            values: Dict[str, Any] = {"cost_usd": cost_usd, "cost_available": True}
+            if cost_complete is True:
+                if expected_usage is None or expected_usage.get("cost_available") is True:
+                    return False
+                classified = _usage_cost_fields(
+                    {
+                        **expected_usage,
+                        **values,
+                        "cost_complete": True,
+                        "cost_rates": cost_rates,
+                    }
+                )
+                if not classified["cost_complete"] or not classified["cost_available"]:
+                    return False
+                query = _usage_snapshot_query(trace_id, expected_usage)
+                values.update(cost_complete=True, cost_rates=cost_rates)
             result = await self.collection.update_one(
                 query,
-                {"$set": {"cost_usd": cost_usd, "cost_available": True}},
+                {"$set": values},
             )
             return bool(result.matched_count)
         except Exception as e:
             logger.error(f"Failed to update usage cost for trace {trace_id}: {e}")
+            return False
+
+    async def update_usage_partial_cost(
+        self, trace_id: str, cost_usd: float, *, expected_usage: Dict[str, Any]
+    ) -> bool:
+        """Write only independent cost components while the original usage snapshot still matches."""
+        if expected_usage.get("input_includes_cache") is not True or not _valid_cost(cost_usd):
+            return False
+        query = _usage_snapshot_query(trace_id, expected_usage)
+        try:
+            result = await self.collection.update_one(
+                query, {"$set": {"partial_cost_usd": cost_usd}}
+            )
+            return bool(result.matched_count)
+        except Exception as error:
+            logger.error("Failed to update partial cost for trace %s: %s", trace_id, error)
             return False
 
     async def get_user_usage_summary(self, user_id: str) -> Dict[str, Any]:
@@ -830,15 +904,23 @@ class UsageStorage:
             {
                 "$group": {
                     "_id": None,
-                    "total_input_tokens": {"$sum": "$input_tokens"},
-                    "total_output_tokens": {"$sum": "$output_tokens"},
-                    "total_tokens": {"$sum": "$total_tokens"},
+                    "total_input_tokens": _token_sum("input_tokens"),
+                    "total_output_tokens": _token_sum("output_tokens"),
+                    "total_tokens": _token_sum("total_tokens"),
                     "total_duration": {"$sum": "$duration"},
+                    "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+                    **_cost_certainty_aggregates(),
+                    **_counter_availability_aggregates(),
                 }
             },
         ]
 
-        summary: Dict[str, Any] = {"total_requests": total}
+        summary: Dict[str, Any] = {
+            "total_requests": total,
+            "total_cost_usd": 0.0,
+            **_format_cost_certainty({}),
+            **_format_counter_availability({}),
+        }
         try:
             async for doc in await self.collection.aggregate(pipeline):
                 summary.update(
@@ -847,6 +929,9 @@ class UsageStorage:
                         "total_output_tokens": doc.get("total_output_tokens", 0),
                         "total_tokens": doc.get("total_tokens", 0),
                         "total_duration": doc.get("total_duration", 0.0),
+                        "total_cost_usd": doc.get("total_cost_usd", 0.0),
+                        **_format_cost_certainty(doc),
+                        **_format_counter_availability(doc),
                     }
                 )
                 break

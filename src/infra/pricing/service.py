@@ -3,11 +3,17 @@
 进程内缓存价格索引与汇率；所有查询 best-effort，失败不阻塞调用方。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from src.infra.logging import get_logger
-from src.infra.pricing.calculator import CostBreakdown, PriceRates, compute_cost
+from src.infra.pricing.calculator import (
+    CostBreakdown,
+    PartialCostBreakdown,
+    PriceRates,
+    compute_cost,
+    compute_partial_cost,
+)
 from src.infra.pricing.matching import PriceEntry, PriceIndex, restore_price_index
 from src.infra.pricing.storage import get_pricing_storage
 
@@ -102,6 +108,7 @@ async def resolve_price(
     value: Optional[str],
     provider: Optional[str] = None,
     model_config_id: Optional[str] = None,
+    allow_partial: bool = False,
 ) -> Optional[ResolvedPrice]:
     """解析模型单价：模型配置覆盖（字段级合并）优先，其次 models.dev 匹配。"""
     override = await _load_model_override(model_config_id)
@@ -113,10 +120,26 @@ async def resolve_price(
         except Exception as e:
             logger.debug(f"Pricing: index match failed for {value!r}: {e}")
 
+    base = entry.rates if entry is not None else PriceRates()
+    if (
+        entry is not None
+        and entry.provider == "zai"
+        and type(base.cache_write) in (int, float)
+        and base.cache_write == 0
+    ):
+        # https://docs.z.ai/guides/capabilities/cache: new content uses the input rate.
+        base = replace(base, cache_write_included=True)
+
     if override is not None:
-        base = entry.rates if entry is not None else PriceRates()
         merged = base.merge_override(override)
-        if merged.is_priced():
+        if (
+            merged.is_priced()
+            or allow_partial
+            and any(
+                rate is not None
+                for rate in (merged.input, merged.output, merged.cache_read, merged.cache_write)
+            )
+        ):
             return ResolvedPrice(
                 rates=merged,
                 source="override",
@@ -125,9 +148,21 @@ async def resolve_price(
             )
         return None
 
-    if entry is not None and entry.rates.is_priced():
+    if entry is not None and (
+        entry.rates.is_priced()
+        or allow_partial
+        and any(
+            rate is not None
+            for rate in (
+                entry.rates.input,
+                entry.rates.output,
+                entry.rates.cache_read,
+                entry.rates.cache_write,
+            )
+        )
+    ):
         return ResolvedPrice(
-            rates=entry.rates,
+            rates=base,
             source="models_dev",
             matched_provider=entry.provider,
             matched_model_id=entry.model_id,
@@ -167,3 +202,42 @@ async def compute_usage_cost(
     if breakdown is None:
         return None
     return breakdown, resolved.rates, resolved.source
+
+
+async def compute_partial_usage_cost(
+    *,
+    model_value: Optional[str],
+    model_config_id: Optional[str] = None,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cache_read_tokens: int | None,
+    cache_creation_tokens: int | None,
+    input_includes_cache: bool,
+) -> Optional[tuple[CostBreakdown | PartialCostBreakdown, PriceRates, str]]:
+    resolved = await resolve_price(
+        value=model_value, model_config_id=model_config_id, allow_partial=True
+    )
+    if resolved is None:
+        return None
+    if input_includes_cache is True:
+        complete = compute_cost(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+            rates=resolved.rates,
+        )
+        if complete is not None:
+            return complete, resolved.rates, resolved.source
+    return (
+        compute_partial_cost(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+            rates=resolved.rates,
+            input_includes_cache=input_includes_cache,
+        ),
+        resolved.rates,
+        resolved.source,
+    )

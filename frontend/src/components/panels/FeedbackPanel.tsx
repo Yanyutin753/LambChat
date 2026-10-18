@@ -168,22 +168,14 @@ function FilterTabs({
             type="button"
             aria-pressed={isActive}
             onClick={() => onChange(tab.key)}
-            className={`relative flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-13 font-medium whitespace-nowrap transition-all duration-200 ${
+            className={`relative flex items-center gap-2 px-3.5 py-[7px] rounded-lg text-13 font-medium whitespace-nowrap transition-all duration-200 ${
               isActive
                 ? "bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-sm"
                 : "text-theme-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-theme-bg-hover dark:hover:bg-white/5"
             }`}
           >
             <span className="feedback-filter-label">{tab.label}</span>
-            <span
-              className={`min-w-[20px] text-center px-1 py-0.5 rounded-full text-10 font-semibold tabular-nums ${
-                isActive
-                  ? "bg-white/20 dark:bg-stone-900/20 text-inherit"
-                  : "bg-stone-100 dark:bg-stone-700 text-theme-text-tertiary"
-              }`}
-            >
-              {tab.count}
-            </span>
+            <span className="count-badge">{Math.min(tab.count, 99)}</span>
           </button>
         );
       })}

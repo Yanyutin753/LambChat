@@ -453,14 +453,12 @@ function SectionTitle({
   count: number;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-3 pt-2 pb-1.5 font-serif">
+    <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 font-serif">
       <span className="text-11 font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
         {children}
       </span>
       <span className="h-px flex-1 bg-linear-to-r from-[var(--theme-border)]/80 to-transparent" />
-      <span className="flex min-w-[20px] items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 py-0.5 text-10 font-bold tabular-nums text-[var(--theme-primary)]">
-        {count}
-      </span>
+      <span className="count-badge">{Math.min(count, 99)}</span>
     </div>
   );
 }

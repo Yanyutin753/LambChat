@@ -107,10 +107,19 @@ class _FakeUsageStorage:
             if doc["trace_id"] not in (exclude_trace_ids or set())
         ][:limit]
 
-    async def update_usage_cost(self, trace_id, cost_usd, *, expected_usage=None):
+    async def update_usage_cost(
+        self, trace_id, cost_usd, *, expected_usage=None, cost_complete=False, cost_rates=None
+    ):
         await self.collection.update_one(
             {"trace_id": trace_id},
-            {"$set": {"cost_usd": cost_usd, "cost_available": True}},
+            {
+                "$set": {
+                    "cost_usd": cost_usd,
+                    "cost_available": True,
+                    "cost_complete": cost_complete,
+                    "cost_rates": cost_rates,
+                }
+            },
         )
         return True
 
@@ -257,7 +266,7 @@ class TestBackfillUsageCosts:
         from src.infra.pricing.calculator import PriceRates
         from src.kernel.schemas.model import ModelConfig
 
-        async def _fake_resolve(*, value, provider=None, model_config_id=None):
+        async def _fake_resolve(*, value, provider=None, model_config_id=None, allow_partial=False):
             if model_config_id == "cfg-1":
                 return pricing_service.ResolvedPrice(
                     rates=PriceRates(input=0.5, output=1.0), source="override"

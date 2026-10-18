@@ -104,7 +104,7 @@ function MenuItem({
 }: {
   icon: ReactNode;
   label: string;
-  badge?: string;
+  badge?: string | number;
   active?: boolean;
   onClick: () => void;
 }) {
@@ -117,9 +117,11 @@ function MenuItem({
     >
       <span className="feature-menu-item-icon">{icon}</span>
       <span className="flex-1 text-left truncate">{label}</span>
-      {badge && (
+      {typeof badge === "number" ? (
+        <span className="count-badge">{Math.min(badge, 99)}</span>
+      ) : badge ? (
         <span className="feature-menu-item-badge font-serif">{badge}</span>
-      )}
+      ) : null}
     </button>
   );
 }
@@ -299,9 +301,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                     label={t("featureMenu.persona", "角色")}
                     badge={
                       personaName ||
-                      (totalPersonaCount > 0
-                        ? `${totalPersonaCount}`
-                        : undefined)
+                      (totalPersonaCount > 0 ? totalPersonaCount : undefined)
                     }
                     active={activePanel === "persona"}
                     onClick={() => onOpen("persona")}
@@ -311,7 +311,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                   <MenuItem
                     icon={<UsersRound size={18} />}
                     label={t("featureMenu.team", "团队")}
-                    badge={totalTeamCount > 0 ? `${totalTeamCount}` : undefined}
+                    badge={totalTeamCount > 0 ? totalTeamCount : undefined}
                     active={activePanel === "team"}
                     onClick={() => onOpen("team")}
                   />

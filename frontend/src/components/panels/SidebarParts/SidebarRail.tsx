@@ -168,12 +168,8 @@ export function SidebarRail({
               <History size={16} />
             </InteractiveIcon>
             {unreadCount > 0 && (
-              <span
-                className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-linear-to-br from-red-400 to-rose-500 text-9 font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
-                  unreadCount <= 9 ? "w-3.5 h-3.5" : "h-3.5 min-w-[18px] px-1"
-                }`}
-              >
-                {unreadCount > 99 ? "99+" : unreadCount}
+              <span className="count-badge count-badge--overlay">
+                {Math.min(unreadCount, 99)}
               </span>
             )}
           </button>

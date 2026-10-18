@@ -189,8 +189,8 @@ export function SessionBookmarksButton({
       <InteractiveIcon>
         <Bookmark size={17} />
       </InteractiveIcon>
-      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1 text-10 font-semibold leading-none text-white">
-        {count > 99 ? "99+" : count}
+      <span className="count-badge count-badge--overlay">
+        {Math.min(count, 99)}
       </span>
     </button>
   );

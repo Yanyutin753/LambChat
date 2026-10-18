@@ -117,13 +117,16 @@ test("preview anchors to the full row and aligns its top edge", () => {
 test.each([
   [1, "1"],
   [12, "12"],
-  [100, "99+"],
+  [9, "9"],
+  [99, "99"],
+  [100, "99"],
+  [10000, "99"],
 ] as const)("sidebar shows unread count %s as %s", (count, label) => {
   render(
     <SessionItem {...props} session={{ ...session, unread_count: count }} />,
   );
   expect(screen.getByLabelText("sidebar.unreadMessages")).toHaveTextContent(
-    label,
+    new RegExp(`^${label}$`),
   );
 });
 

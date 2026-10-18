@@ -28,12 +28,16 @@ for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
   });
 }
 
-test("existing conversations expose their schedule panel from the chat header", () => {
+test("scheduled tasks stay accessible from the sidebar without a chat header shortcut", () => {
   const source = readFileSync(
     new URL("../../../layout/AppContent/Header.tsx", import.meta.url),
     "utf8",
   );
-  expect(source).toMatch(
-    /<SessionScheduledTasksButton\s+sessionId=\{sessionId\}/,
+  expect(source).not.toContain("SessionScheduledTasksButton");
+  const sidebar = readFileSync(
+    new URL("../../SidebarParts/SidebarRail.tsx", import.meta.url),
+    "utf8",
   );
+  expect(sidebar).toContain("onClick={onOpenScheduledTasks}");
+  expect(sidebar).toContain('aria-label={t("nav.scheduled-tasks")}');
 });

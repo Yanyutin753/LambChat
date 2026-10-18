@@ -7,15 +7,12 @@ test("chat header does not display a project badge", () => {
   expect(source).not.toContain("{project.name}");
 });
 
-test("header orders more, scheduled tasks, workspace, usage and avatar with a consistent gap", () => {
+test("header orders more, workspace, usage and avatar with responsive spacing", () => {
   const right = source.slice(source.indexOf("/* Right */"));
   expect(right).toContain(
-    'className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0"',
+    'className="chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0"',
   );
   expect(right.indexOf("<MoreHorizontal")).toBeLessThan(
-    right.indexOf("<SessionScheduledTasksButton"),
-  );
-  expect(right.indexOf("<SessionScheduledTasksButton")).toBeLessThan(
     right.indexOf("{headerActions}"),
   );
   expect(right.indexOf("{headerActions}")).toBeLessThan(
@@ -96,4 +93,15 @@ test("header icons and text share the same 16px content scale", () => {
   expect(css).toContain("font-size: var(--header-content-size)");
   expect(css).not.toContain(".header-control-avatar");
   expect(css).toContain("[data-sidebar-brand] [data-wordmark-style]");
+  expect(css).toMatch(
+    /\.chat-header \.interactive-action-icon > div,\s*\[data-sidebar-brand\] \.interactive-action-icon > div\s*\{[^}]*width:\s*var\(--header-content-size\);[^}]*height:\s*var\(--header-content-size\);/,
+  );
+  const workspace = readFileSync(
+    new URL(
+      "../../../workspacePanel/SessionWorkspaceButton.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  expect(workspace).not.toContain("<FolderOpen size={18}");
 });

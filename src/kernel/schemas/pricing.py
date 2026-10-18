@@ -59,6 +59,7 @@ class PricingBackfillResponse(BaseModel):
 
     scanned: int = 0
     priced: int = 0
+    partial_priced: int = 0
     still_unpriced: int = 0
     unpriced_models: dict[str, int] = Field(default_factory=dict)
     dry_run: bool = False

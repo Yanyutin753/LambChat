@@ -52,7 +52,7 @@ export function RoleSquare({
           <p className="team-pane-eyebrow">{t("team.select")}</p>
           <h2 className="team-pane-title font-serif">
             {t("team.roleLibrary")}
-            <span className="team-pane-count">{filtered.length}</span>
+            <span className="count-badge">{Math.min(filtered.length, 99)}</span>
           </h2>
         </div>
       </div>

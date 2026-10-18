@@ -101,3 +101,72 @@ export function formatCostUsd(
     return `$${value.toFixed(max)}`;
   }
 }
+
+export interface UsageCostFormatOpts {
+  pricedRequests?: number;
+  unpricedRequests?: number;
+  partialCostUsd?: number | null;
+  partialRequests?: number;
+  estimatedCostUsd?: number | null;
+  estimatedRequests?: number;
+  language?: string;
+  rates?: FxRatesDoc | null;
+  maxDecimals?: number;
+  decimals?: number;
+}
+
+export function isCostAmount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Confirmed and independently calculated amounts exclude historical estimates. */
+export function formatUsageCost(
+  usd: number | null | undefined,
+  available: boolean,
+  opts: UsageCostFormatOpts,
+): string {
+  const unknown = (opts.unpricedRequests ?? 0) > 0;
+  const confirmed =
+    available === true &&
+    isCostAmount(usd) &&
+    !(unknown && opts.pricedRequests === 0);
+  const partial =
+    isCostAmount(opts.partialCostUsd) &&
+    (opts.partialRequests === undefined || opts.partialRequests > 0);
+  if (confirmed || partial) {
+    const amount = (confirmed ? usd : 0) + (partial ? opts.partialCostUsd! : 0);
+    return `${formatCostUsd(amount, opts)}${unknown || partial ? "+" : ""}`;
+  }
+  const estimated =
+    isCostAmount(opts.estimatedCostUsd) &&
+    (opts.estimatedRequests === undefined || opts.estimatedRequests > 0);
+  return estimated ? `≈${formatCostUsd(opts.estimatedCostUsd!, opts)}` : "—";
+}
+
+/** Pass aggregate or per-log certainty fields into the shared formatter. */
+export function usageCostOptions(data: {
+  priced_requests?: number;
+  unpriced_requests?: number;
+  partial_cost_usd?: number | null;
+  partial_requests?: number;
+  estimated_cost_usd?: number | null;
+  estimated_requests?: number;
+}): UsageCostFormatOpts {
+  return {
+    pricedRequests: data.priced_requests,
+    unpricedRequests: data.unpriced_requests,
+    partialCostUsd: data.partial_cost_usd,
+    partialRequests: data.partial_requests,
+    estimatedCostUsd: data.estimated_cost_usd,
+    estimatedRequests: data.estimated_requests,
+  };
+}
+
+export function historicalEstimateHint(
+  opts: UsageCostFormatOpts,
+  label: string,
+): string | undefined {
+  if (!isCostAmount(opts.estimatedCostUsd) || opts.estimatedRequests === 0)
+    return undefined;
+  return `${label}: ≈${formatCostUsd(opts.estimatedCostUsd, opts)}`;
+}

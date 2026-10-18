@@ -335,10 +335,10 @@ export function SessionListContent({
                 </InteractiveIcon>
                 {notificationCount > 0 && (
                   <span
-                    className="pointer-events-none absolute right-0 top-0 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium tabular-nums leading-none text-white"
+                    className="count-badge count-badge--overlay"
                     aria-hidden="true"
                   >
-                    {notificationCount > 99 ? "99+" : notificationCount}
+                    {Math.min(notificationCount, 99)}
                   </span>
                 )}
               </button>

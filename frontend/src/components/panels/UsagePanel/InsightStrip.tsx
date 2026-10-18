@@ -1,3 +1,4 @@
+import { reportedTokenCount } from "../../../utils/usageTokens";
 import {
   AlertTriangle,
   DatabaseZap,
@@ -8,7 +9,14 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageDashboardResponse } from "../../../types/usage";
-import { fmt, fmtDur, pct, precise, shortDate } from "./formatters";
+import {
+  fmt,
+  fmtUsageCount,
+  fmtDur,
+  pct,
+  precise,
+  shortDate,
+} from "./formatters";
 
 interface Insight {
   icon: typeof Gauge;
@@ -26,6 +34,11 @@ export function InsightStrip({
   const { t } = useTranslation();
   const s = dashboard.summary;
   const peakDay = s.peak_day;
+  const avgTokens = reportedTokenCount(
+    s.avg_tokens_per_request,
+    "total_tokens",
+    s.unknown_usage_fields,
+  );
   const failureTone =
     s.failed_requests > 0
       ? "text-amber-600 dark:text-amber-400"
@@ -45,7 +58,7 @@ export function InsightStrip({
       icon: Gauge,
       label: t("usage.insight.avgPerRequest"),
       value: t("usage.tokensValue", {
-        count: fmt(Math.round(s.avg_tokens_per_request)),
+        count: avgTokens === null ? "—" : fmt(Math.round(avgTokens)),
       }),
       detail: fmtDur(s.avg_duration_per_request),
     },
@@ -61,10 +74,20 @@ export function InsightStrip({
       icon: DatabaseZap,
       label: t("usage.insight.cacheReuse"),
       value: pct(s.cache_read_share),
-      detail:
+      detail: [
+        t("usage.tokensValue", {
+          count: fmtUsageCount(
+            s.total_cache_read_tokens,
+            "cache_read_tokens",
+            s.unknown_usage_fields,
+          ),
+        }),
         pct(s.cache_read_share) === "—"
           ? t("usage.cacheRateUnknown")
-          : t("usage.tokensValue", { count: fmt(s.total_cache_read_tokens) }),
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     },
     {
       icon: AlertTriangle,

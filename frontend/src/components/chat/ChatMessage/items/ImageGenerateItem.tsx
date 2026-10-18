@@ -133,9 +133,9 @@ function ImageGenerateDetail({
             </div>
           </div>
           {images.length > 0 && (
-            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-bg-subtle text-theme-text-secondary text-12 font-medium shadow-sm">
+            <span className="shrink-0 inline-flex items-center gap-2 text-theme-text-secondary">
               <ImageIcon size={10} />
-              {images.length}
+              <span className="count-badge">{Math.min(images.length, 99)}</span>
             </span>
           )}
         </div>
@@ -432,9 +432,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${t("chat.message.toolImageGenerate")} ${
-      prompt
-    }`,
+    `${t("chat.message.toolImageGenerate")} ${prompt}`,
     args,
     { isPending, result },
   );

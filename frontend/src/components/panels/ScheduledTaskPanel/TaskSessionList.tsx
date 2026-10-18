@@ -208,10 +208,8 @@ export function TaskSessionList({
                   {/* Trail: unread badge + chevron */}
                   <div className="scheduled-task-session-card__trail">
                     {session.unread_count > 0 && (
-                      <span className="scheduled-task-session-card__unread">
-                        {session.unread_count > 99
-                          ? "99+"
-                          : session.unread_count}
+                      <span className="count-badge">
+                        {Math.min(session.unread_count, 99)}
                       </span>
                     )}
                     <InteractiveIcon>

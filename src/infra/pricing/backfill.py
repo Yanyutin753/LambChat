@@ -6,10 +6,13 @@
 - 注意：历史记录按「当前」价格估算，模型若曾调价会有出入
 """
 
+from math import isfinite
+
 from src.infra.logging import get_logger
-from src.infra.pricing.calculator import compute_cost
+from src.infra.pricing.calculator import compute_cost, compute_partial_cost
 from src.infra.pricing.locks import acquire_pricing_lock, release_pricing_lock
 from src.infra.pricing.service import resolve_price
+from src.infra.usage.cost_certainty import _usage_cost_fields
 from src.infra.usage.storage import get_usage_storage
 
 logger = get_logger(__name__)
@@ -49,7 +52,7 @@ async def backfill_usage_costs(
     """补算存量 usage_logs 的费用。
 
     Returns:
-        {scanned, priced, still_unpriced, unpriced_models, dry_run}
+        {scanned, priced, partial_priced, still_unpriced, unpriced_models, dry_run}
     """
     usage = usage_storage or get_usage_storage()
 
@@ -77,6 +80,7 @@ def _empty_summary(*, dry_run: bool, lock_contended: bool) -> dict:
     return {
         "scanned": 0,
         "priced": 0,
+        "partial_priced": 0,
         "still_unpriced": 0,
         "unpriced_models": {},
         "dry_run": dry_run,
@@ -87,6 +91,7 @@ def _empty_summary(*, dry_run: bool, lock_contended: bool) -> dict:
 async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
     scanned = 0
     priced = 0
+    partial_priced = 0
     resolved_elsewhere = 0
     unpriced_models: dict[str, int] = {}
     seen: set[str] = set()
@@ -106,18 +111,23 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
                 "cache_read_tokens",
                 "cache_creation_tokens",
             )
-            if (
-                doc.get("input_includes_cache") is not True
-                or doc.get("usage_incomplete") is not False
-                or any(
-                    not isinstance(doc.get(key), int)
-                    or isinstance(doc.get(key), bool)
-                    or doc[key] < 0
-                    for key in token_fields
-                )
-            ):
+            if doc.get("input_includes_cache") is not True:
                 unpriced_models[model_value] = unpriced_models.get(model_value, 0) + 1
                 continue
+            unknown = doc.get("unknown_usage_fields")
+            if not isinstance(unknown, list) or not all(isinstance(key, str) for key in unknown):
+                unknown = [] if doc.get("usage_incomplete") is False else list(token_fields)
+            if doc.get("usage_incomplete") is not False and not unknown:
+                unknown = list(token_fields)
+            counts = {
+                key: doc[key]
+                if key not in unknown
+                and isinstance(doc.get(key), int)
+                and not isinstance(doc[key], bool)
+                and doc[key] >= 0
+                else None
+                for key in token_fields
+            }
             model_config_id = doc.get("model_id") or None
             provider = None
             try:
@@ -137,41 +147,64 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
                 continue
 
             resolved = await resolve_price(
-                value=model_value or None, model_config_id=model_config_id, provider=provider
+                value=model_value or None,
+                model_config_id=model_config_id,
+                provider=provider,
+                allow_partial=True,
             )
             cost = None
             if resolved is not None:
                 cost = compute_cost(
-                    input_tokens=int(doc.get("input_tokens") or 0),
-                    output_tokens=int(doc.get("output_tokens") or 0),
-                    cache_read_tokens=int(doc.get("cache_read_tokens") or 0),
-                    cache_creation_tokens=int(doc.get("cache_creation_tokens") or 0),
+                    **counts,
                     rates=resolved.rates,
                 )
             if cost is None:
+                if resolved is not None:
+                    partial = compute_partial_cost(
+                        **counts, rates=resolved.rates, input_includes_cache=True
+                    )
+                    previous = doc.get("partial_cost_usd")
+                    unchanged = (
+                        isinstance(previous, (int, float))
+                        and not isinstance(previous, bool)
+                        and previous == partial.total_usd
+                    )
+                    if (
+                        partial.components
+                        and isfinite(partial.total_usd)
+                        and partial.total_usd >= 0
+                        and not unchanged
+                    ):
+                        if dry_run or await usage.update_usage_partial_cost(
+                            doc["trace_id"], partial.total_usd, expected_usage=doc
+                        ):
+                            partial_priced += 1
                 unpriced_models[model_value] = unpriced_models.get(model_value, 0) + 1
                 continue
+            assert resolved is not None
             if dry_run or await usage.update_usage_cost(
                 doc["trace_id"],
                 cost.total_usd,
-                expected_usage={
-                    **{key: doc[key] for key in token_fields},
-                    "model": doc.get("model"),
-                    "model_id": doc.get("model_id"),
+                expected_usage=doc,
+                cost_complete=True,
+                cost_rates={
+                    key: getattr(resolved.rates, key)
+                    for key in (
+                        "input",
+                        "output",
+                        "cache_read",
+                        "cache_write",
+                        "cache_write_included",
+                    )
                 },
             ):
                 priced += 1
             else:
                 current = await usage.collection.find_one(
                     {"trace_id": doc["trace_id"]},
-                    {"cost_available": 1, "usage_incomplete": 1, "input_includes_cache": 1},
+                    {"_id": 0},
                 )
-                if (
-                    current
-                    and current.get("cost_available") is True
-                    and current.get("usage_incomplete") is False
-                    and current.get("input_includes_cache") is True
-                ):
+                if current and _usage_cost_fields(current)["cost_available"]:
                     resolved_elsewhere += 1
                 else:
                     unpriced_models[model_value] = unpriced_models.get(model_value, 0) + 1
@@ -179,6 +212,7 @@ async def _backfill_locked(*, usage, dry_run: bool, batch_size: int) -> dict:
     summary = {
         "scanned": scanned,
         "priced": priced,
+        "partial_priced": partial_priced,
         "still_unpriced": scanned - priced - resolved_elsewhere,
         "unpriced_models": unpriced_models,
         "dry_run": dry_run,
