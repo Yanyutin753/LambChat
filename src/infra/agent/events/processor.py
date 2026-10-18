@@ -5,6 +5,7 @@ This module keeps the public `AgentEventProcessor` entry point while delegating
 the heavier event-specific work to focused helper modules.
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -85,6 +86,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_pending_model_runs",
         "_completed_model_runs",
         "_token_usage_emitted",
+        "_usage_emit_lock",
+        "_usage_duration",
         "_output_buffer_chars",
         "_presenter_emit",
         "_before_tool_start",
@@ -105,15 +108,6 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
     )
 
     _CHUNK_FLUSH_SIZE = 200
-    _MODEL_USAGE_FIELDS = frozenset(
-        {
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "cache_read_tokens",
-            "cache_creation_tokens",
-        }
-    )
 
     def __init__(
         self,
@@ -151,6 +145,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._pending_model_runs: set[str] = set()
         self._completed_model_runs: set[str] = set()
         self._token_usage_emitted = False
+        self._usage_emit_lock = asyncio.Lock()
+        self._usage_duration = 0.0
         self._presenter_emit = presenter.emit
         self._before_tool_start = before_tool_start
         chunk_flush_interval = settings.STREAM_CHUNK_FLUSH_INTERVAL
@@ -204,15 +200,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._usage_observed = True
         self._input_includes_cache &= prior_usage.get("input_includes_cache") is True
         unknown = prior_usage.get("unknown_usage_fields")
-        if isinstance(unknown, list) and all(
-            isinstance(key, str) and key in fields for key in unknown
-        ):
-            self._usage_unknown_fields.update(unknown)
-        else:
-            # Legacy counters did not distinguish unreported usage from a genuine zero.
-            self._usage_unknown_fields.update(fields)
+        if isinstance(unknown, list):
+            self._usage_unknown_fields.update(
+                key for key in unknown if isinstance(key, str) and key in fields
+            )
         for field in fields:
             value = prior_usage.get(field)
+            if value is None:
+                value = 0
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 counter = field if field == "total_tokens" else f"total_{field}"
                 setattr(self, counter, getattr(self, counter) + value)
@@ -233,11 +228,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         }
         if self._usage_observed or self._pending_model_runs:
             totals["usage_observed"] = True
-            unknown = self._usage_unknown_fields | (
-                self._MODEL_USAGE_FIELDS if self._pending_model_runs else set()
-            )
+            unknown = self._usage_unknown_fields
             totals["unknown_usage_fields"] = sorted(unknown)
-            if self._input_includes_cache and not self._pending_model_runs:
+            if self._input_includes_cache:
                 totals["input_includes_cache"] = True
         return totals
 
@@ -266,17 +259,25 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         model_id: str | None = None,
         model: str | None = None,
     ) -> bool:
-        """Emit accumulated token usage once, preserving counters for late cleanup paths."""
+        """Publish ordered cumulative snapshots, including late cleanup usage."""
         if self._usage_owner is not None:
             return await self._usage_owner.emit_token_usage(
                 duration=duration, model_id=model_id, model=model
             )
-        if self._token_usage_emitted:
-            return False
+        async with self._usage_emit_lock:
+            return await self._emit_token_usage(duration=duration, model_id=model_id, model=model)
 
-        # A snapshot must not discard ends still queued in the outer graph.
+    async def _emit_token_usage(self, *, duration, model_id, model) -> bool:
+        if self._token_usage_emitted and duration <= self._usage_duration:
+            return False
+        duration = max(duration, self._usage_duration)
+
+        config = getattr(self.presenter, "config", None)
+        model_id = model_id or getattr(config, "model_id", None)
+        model = model or getattr(config, "model", None)
+
         pending = bool(self._pending_model_runs)
-        unknown = self._usage_unknown_fields | (self._MODEL_USAGE_FIELDS if pending else set())
+        unknown = self._usage_unknown_fields
 
         if not (
             self.total_input_tokens > 0
@@ -291,11 +292,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         total_tokens = (
             snapshot["total_tokens"] or snapshot["input_tokens"] + snapshot["output_tokens"]
         )
-        cost, rates = (
-            (None, None)
-            if pending
-            else await self._resolve_usage_cost(model=model, model_id=model_id, usage=snapshot)
-        )
+        cost, rates = await self._resolve_usage_cost(model=model, model_id=model_id, usage=snapshot)
         event = self.presenter.present_token_usage(
             input_tokens=snapshot["input_tokens"],
             output_tokens=snapshot["output_tokens"],
@@ -319,6 +316,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             rates=rates,
         )
         await self._presenter_emit(event)
+        self._usage_duration = duration
         # Pricing and delivery can yield while native model ends update the ledger.
         self._token_usage_emitted = snapshot == self.usage_totals()
         return True
@@ -386,7 +384,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         elif kind == "on_chat_model_error" and run_id and run_id in self._pending_model_runs:
             self._pending_model_runs.remove(run_id)
             self._completed_model_runs.add(run_id)
-            self._mark_unknown_model_usage()
+            self._mark_unreported_model_usage()
             self._token_usage_emitted = False
         elif kind == "on_chat_model_end" and (
             not run_id or run_id not in self._completed_model_runs
@@ -396,7 +394,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                 self._pending_model_runs.discard(run_id)
                 self._completed_model_runs.add(run_id)
                 if started and not event.get("data", {}).get("output"):
-                    self._mark_unknown_model_usage()
+                    self._mark_unreported_model_usage()
             self._handle_token_usage(event)
             self._token_usage_emitted = False
 
@@ -404,6 +402,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         """Process a single LangChain stream event."""
         # Nested and outer views share native IDs, including streams whose start callback was lost.
         (self._usage_owner or self)._track_model_usage(event)
+        if event.get("event") in {"on_chat_model_end", "on_chat_model_error"}:
+            await self.emit_token_usage()
         await debug_log_event(event, self._debug_log_context())
         evt_type = event.get("event")
         event_name = event.get("name", "")

@@ -14,6 +14,7 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from openai import AsyncOpenAI
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_base_url_from_runtime
 from src.kernel.config import settings
@@ -177,8 +178,11 @@ async def audio_transcribe(
                 if prompt:
                     request["prompt"] = prompt
 
-                result = await client.audio.transcriptions.create(**request)
+                async with unpriced_usage():
+                    result = await client.audio.transcriptions.create(**request)
         except Exception as exc:
+            if is_quota_error(exc):
+                raise
             logger.warning("[audio_transcribe] transcription failed for %s: %s", resolved_url, exc)
             return await _json_dumps_result({"error": f"Audio transcription failed: {exc}"})
 

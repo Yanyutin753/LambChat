@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import Field
 
+from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 _CACHE_CONTROL = {"type": "ephemeral"}
@@ -100,7 +101,7 @@ def _apply_prompt_cache_control(messages: list[BaseMessage]) -> list[BaseMessage
     return result
 
 
-class LambChatAnthropicChatModel(ChatAnthropic):
+class LambChatAnthropicChatModel(QuotaChatMixin, ChatAnthropic):
     """Time out only the first stream event, not the whole streamed response."""
 
     first_event_timeout: float | None = Field(default=None, exclude=True)

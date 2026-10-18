@@ -42,12 +42,9 @@ export interface RecommendQuestionsNotification {
   };
 }
 
-export interface UsageUpdatedNotification {
-  type: "usage:updated";
-  data: {
-    trace_id: string;
-  };
-}
+export type UsageUpdatedNotification =
+  | { type: "usage:updated"; data: { trace_id: string } }
+  | { type: "usage_quota_updated" };
 
 export interface SandboxPresenceNotification {
   type: "sandbox:presence";
@@ -140,6 +137,8 @@ export function dispatchWebSocketMessage(
       return;
     }
     handlers.onRecommendQuestions?.(message as RecommendQuestionsNotification);
+  } else if (typedMessage.type === "usage_quota_updated") {
+    handlers.onUsageUpdated?.({ type: "usage_quota_updated" });
   } else if (typedMessage.type === "usage:updated") {
     const data = (message as { data?: unknown }).data;
     if (!data || typeof data !== "object") return;

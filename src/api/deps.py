@@ -158,6 +158,9 @@ async def get_current_user_required(
         token = credentials.credentials
         cached_user = getattr(request.state, "current_user", None)
         if isinstance(cached_user, TokenPayload):
+            from src.infra.backend.context import set_user_context
+
+            set_user_context(cached_user.sub)
             return cached_user.model_copy(deep=True)
 
         # Cache token verification, never the current account/role authority.
@@ -177,6 +180,10 @@ async def get_current_user_required(
 
         _set_cached_user(token, payload)
         request.state.current_user = payload.model_copy(deep=True)
+
+        from src.infra.backend.context import set_user_context
+
+        set_user_context(payload.sub)
 
         return payload
     except AppError:
@@ -311,6 +318,9 @@ async def get_current_user_pat_or_jwt(
                     raise AppError(ErrorCode.PAT_EXPIRED)
                 raise AppError(ErrorCode.PAT_NOT_FOUND)
             payload = await _load_user_payload(record.user_id)
+            from src.infra.backend.context import set_user_context
+
+            set_user_context(payload.sub)
             request.state.pat_scopes = record.scopes
             _schedule_touch_last_used(record.pat_id)
             return payload

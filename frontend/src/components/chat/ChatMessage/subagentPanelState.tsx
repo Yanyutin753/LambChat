@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { translateBackendError } from "../../../utils/backendErrors";
 import type { CollapsibleStatus } from "../../common";
 import type {
   Message,
@@ -128,7 +129,7 @@ export function buildSubagentConversation(
       messages.push({
         id: `${id}-error`,
         role: "assistant",
-        content: error,
+        content: t ? translateBackendError(error, t) : error,
         timestamp,
       });
     }
@@ -209,7 +210,10 @@ export function buildSubagentConversation(
       } else parts.push(result);
     }
     if (part.error && (status === "error" || status === "timed_out"))
-      parts.push({ type: "text", content: part.error });
+      parts.push({
+        type: "text",
+        content: t ? translateBackendError(part.error, t) : part.error,
+      });
     if (status === "cancelled" && !parts.some((p) => p.type === "cancelled"))
       parts.push({ type: "cancelled" });
     const assistant: Message = {

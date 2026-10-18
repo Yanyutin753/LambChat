@@ -38,6 +38,7 @@ export function ConfirmDialog({
   return (
     <Dialog
       open={isOpen}
+      layer={10001}
       onClose={onCancel}
       title={title}
       icon={

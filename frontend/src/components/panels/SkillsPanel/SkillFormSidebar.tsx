@@ -39,6 +39,7 @@ export function SkillFormSidebar({
 
   return (
     <EditorSidebar
+      registryKey="skills:form"
       open={showModal}
       onClose={onCancel}
       title={title}

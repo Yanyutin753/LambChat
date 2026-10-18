@@ -1217,7 +1217,7 @@ async def test_emit_token_usage_flushes_accumulated_totals_once() -> None:
         model_id="model-config-1",
         model="openai/gpt-4.1",
     )
-    emitted_again = await processor.emit_token_usage(duration=2.0)
+    emitted_again = await processor.emit_token_usage()
 
     assert emitted is True
     assert emitted_again is False

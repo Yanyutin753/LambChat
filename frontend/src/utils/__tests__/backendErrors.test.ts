@@ -121,3 +121,43 @@ test("parseErrorDetail 提取三字段并兼容旧字符串形状", () => {
     parseErrorDetail({ detail: { error: "model_not_found", message: "nope" } }),
   ).toEqual({ code: "model_not_found", message: "nope", args: undefined });
 });
+
+test("quota errors distinguish exhausted, reserved and unknown costs and format their reset time", () => {
+  const tt = makeT({
+    "usage.quotaFiveHour": "5 小时",
+    "usage.quotaWeekly": "每周",
+    "usage.quotaErrorExhausted": "{{windows}}额度已用尽。",
+    "usage.quotaErrorReserved": "{{windows}}额度已被进行中的调用预留。",
+    "usage.quotaErrorUnknown": "{{windows}}存在未知费用，暂时无法使用。",
+    "usage.quotaErrorResets": "重置于 {{time}}。",
+  });
+  const result = translateApiError(
+    "usage_quota_exceeded",
+    "raw",
+    {
+      windows: ["weekly"],
+      reason: "exhausted",
+      reset_at: "2026-10-19T00:00:00+08:00",
+    },
+    tt,
+  );
+  expect(result).toContain("每周额度已用尽");
+  expect(result).toContain("重置于");
+  expect(result).not.toContain("2026-10-19T00:00:00+08:00");
+  expect(
+    translateApiError(
+      "usage_quota_exceeded",
+      "raw",
+      { windows: ["five_hour"], reason: "reserved" },
+      tt,
+    ),
+  ).toBe("5 小时额度已被进行中的调用预留。");
+  expect(
+    translateApiError(
+      "usage_quota_exceeded",
+      "raw",
+      { windows: ["five_hour"], reason: "unknown" },
+      tt,
+    ),
+  ).toBe("5 小时存在未知费用，暂时无法使用。");
+});

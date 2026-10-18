@@ -243,6 +243,8 @@ class _CapturedCacheRequestError(Exception):
 
 @pytest.fixture
 def captured_cache_requests(monkeypatch):
+    from unittest.mock import AsyncMock
+
     from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
 
     payloads = []
@@ -252,6 +254,7 @@ def captured_cache_requests(monkeypatch):
         raise _CapturedCacheRequestError
 
     monkeypatch.setattr(LambChatAnthropicChatModel, "_acreate", capture)
+    monkeypatch.setattr(LambChatAnthropicChatModel, "_quota_begin", AsyncMock(return_value=None))
     return payloads
 
 
@@ -423,30 +426,24 @@ async def test_native_agent_cache_policy_keeps_its_budget_and_ttl(
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_sync_generation_uses_the_same_cache_entrypoint(monkeypatch, enabled) -> None:
+def test_request_payload_uses_the_same_cache_entrypoint(enabled) -> None:
     from pydantic import SecretStr
 
     from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
 
-    payloads = []
-
-    def capture(self, payload):
-        payloads.append(payload)
-        raise _CapturedCacheRequestError
-
-    monkeypatch.setattr(LambChatAnthropicChatModel, "_create", capture)
     model = LambChatAnthropicChatModel(
         model_name="claude-sonnet-4-5",
         api_key=SecretStr("sk-test"),
         enable_prompt_cache=enabled,
     )
-    with pytest.raises(_CapturedCacheRequestError):
-        model.bind_tools([_tool("check", "tiny")]).invoke(
-            [
-                SystemMessage(content="Original policy."),
-                HumanMessage(content="Original request."),
-                AIMessage(content="Understood."),
-                HumanMessage(content="Continue."),
-            ]
-        )
-    assert len(_payload_cache_controls(payloads[0])) == (4 if enabled else 0)
+    bound = model.bind_tools([_tool("check", "tiny")])
+    payload = model._get_request_payload(
+        [
+            SystemMessage(content="Original policy."),
+            HumanMessage(content="Original request."),
+            AIMessage(content="Understood."),
+            HumanMessage(content="Continue."),
+        ],
+        **bound.kwargs,
+    )
+    assert len(_payload_cache_controls(payload)) == (4 if enabled else 0)

@@ -321,7 +321,7 @@ async def test_explicit_openai_write_override_disables_included_policy(monkeypat
 
 
 @pytest.mark.parametrize("api", ["chat", "responses"])
-async def test_real_openai_sdk_missing_write_field_preserves_raw_unknown_but_prices_complete_bill(
+async def test_real_openai_sdk_missing_write_field_defaults_to_zero_and_prices_complete_bill(
     monkeypatch,
     api,
 ):
@@ -364,7 +364,8 @@ async def test_real_openai_sdk_missing_write_field_preserves_raw_unknown_but_pri
         }
     )
     snapshot = processor.usage_totals()
-    assert snapshot["unknown_usage_fields"] == ["cache_creation_tokens"]
+    assert snapshot["unknown_usage_fields"] == []
+    assert snapshot["cache_creation_tokens"] == 0
     assert snapshot["input_includes_cache"] is True
     entry = SimpleNamespace(
         rates=PriceRates(input=2, output=3, cache_read=0.2),

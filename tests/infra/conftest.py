@@ -7,6 +7,33 @@ from types import SimpleNamespace
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def unlimited_transport_quota(request, monkeypatch):
+    """Transport contracts exercise the guard with a known, uncapped test account."""
+    modules = {
+        ("decision", "test_systemone_client.py"),
+        ("tool", "test_audio_transcribe_tool.py"),
+        ("tool", "test_document_parse_tool.py"),
+        ("tool", "test_image_generation_tool.py"),
+        ("tool", "test_web_fetch_providers.py"),
+        ("tool", "test_web_search_providers.py"),
+    }
+    if (request.path.parent.name, request.path.name) not in modules:
+        return
+    from unittest.mock import AsyncMock
+
+    from src.infra.llm import quota
+
+    ledger = SimpleNamespace(
+        reserve=AsyncMock(return_value={"id": "transport-test-call"}),
+        settle=AsyncMock(),
+        cancel_unstarted=AsyncMock(),
+    )
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "transport-test-owner")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(quota, "UsageQuota", lambda: ledger)
+
+
 @pytest.fixture
 def fake_channel_inbox(monkeypatch):
     """Share durable inputs across test channel replicas without MongoDB or Redis."""

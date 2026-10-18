@@ -10,8 +10,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from src.api.deps import get_current_user_required
-from src.infra.logging import get_logger
+from src.api.deps import get_current_user_required, require_permissions
+from src.infra.usage.notifications import broadcast_quota_changed as _broadcast_quota_changed
 from src.infra.usage.storage import get_usage_storage
 from src.kernel.schemas.usage import (
     UsageDashboardResponse,
@@ -19,10 +19,14 @@ from src.kernel.schemas.usage import (
     UsageLogListResponse,
     UsageStats,
 )
+from src.kernel.schemas.usage_quota import (
+    QuotaResetRequest,
+    ResetCardConsumeRequest,
+    ScopedResetCardIssueRequest,
+)
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
-logger = get_logger(__name__)
 
 
 def _is_admin(user: TokenPayload) -> bool:
@@ -32,6 +36,128 @@ def _is_admin(user: TokenPayload) -> bool:
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@router.get("/quota")
+async def get_usage_quota(user: TokenPayload = Depends(get_current_user_required)) -> dict:
+    """Own-account limits; administrative usage visibility never changes the payer."""
+    return await _quota_snapshot(user.sub)
+
+
+async def _quota_snapshot(user_id: str) -> dict:
+    from src.infra.usage.quota import UsageQuota, user_budgets
+    from src.infra.usage.reset import QuotaReset
+
+    snapshot = await UsageQuota().snapshot(user_id, await user_budgets(user_id))
+    snapshot["reset_credits"] = await QuotaReset().credits(user_id)
+    return snapshot
+
+
+async def _active_quota_target(user_id: str) -> None:
+    from src.infra.user.storage import UserStorage
+    from src.kernel.errors import AppError, ErrorCode
+
+    target = await UserStorage().get_by_id(user_id)
+    if target is None:
+        raise AppError(ErrorCode.USER_NOT_FOUND)
+    if not target.is_active:
+        raise AppError(ErrorCode.FORBIDDEN)
+
+
+@router.get("/users/{user_id}/quota")
+async def get_user_usage_quota(
+    user_id: str, user: TokenPayload = Depends(require_permissions("usage:admin"))
+) -> dict:
+    await _active_quota_target(user_id)
+    return await _quota_snapshot(user_id)
+
+
+@router.post("/users/{user_id}/quota/reset")
+async def reset_user_usage_quota(
+    user_id: str,
+    body: QuotaResetRequest,
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.quota import user_budgets
+    from src.infra.usage.reset import QuotaReset
+
+    await _active_quota_target(user_id)
+    result = await QuotaReset().reset(
+        user_id, user.sub, body.window, str(body.idempotency_key), await user_budgets(user_id)
+    )
+    await _broadcast_quota_changed(user_id)
+    return result
+
+
+@router.post("/users/{user_id}/quota/reset-cards")
+async def issue_usage_reset_card(
+    user_id: str,
+    body: ScopedResetCardIssueRequest,
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.reset import QuotaReset
+
+    await _active_quota_target(user_id)
+    result = await QuotaReset().issue_card(
+        user_id, user.sub, str(body.idempotency_key), window=body.window
+    )
+    await _broadcast_quota_changed(user_id)
+    return result
+
+
+@router.post("/quota/reset-cards/consume")
+async def consume_usage_reset_card(
+    body: ResetCardConsumeRequest,
+    user: TokenPayload = Depends(get_current_user_required),
+) -> dict:
+    from src.infra.usage.quota import user_budgets
+    from src.infra.usage.reset import QuotaReset
+
+    result = await QuotaReset().consume(
+        user.sub, str(body.idempotency_key), await user_budgets(user.sub), credit_id=body.credit_id
+    )
+    await _broadcast_quota_changed(user.sub)
+    return result
+
+
+@router.post("/quota/reset-card-batches")
+async def create_reset_card_batch(
+    body: QuotaResetRequest,
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.reset_batches import ResetCardBatches
+
+    return await ResetCardBatches().create(user.sub, str(body.idempotency_key), body.window)
+
+
+@router.get("/quota/reset-card-batches")
+async def list_reset_card_batches(
+    limit: int = Query(1, ge=1, le=20),
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.reset_batches import ResetCardBatches
+
+    return await ResetCardBatches().latest(user.sub, limit)
+
+
+@router.get("/quota/reset-card-batches/{batch_id}")
+async def get_reset_card_batch(
+    batch_id: str,
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.reset_batches import ResetCardBatches
+
+    return await ResetCardBatches().get(batch_id, user.sub)
+
+
+@router.post("/quota/reset-card-batches/{batch_id}/advance")
+async def advance_reset_card_batch(
+    batch_id: str,
+    user: TokenPayload = Depends(require_permissions("usage:admin")),
+) -> dict:
+    from src.infra.usage.reset_batches import ResetCardBatches
+
+    return await ResetCardBatches().advance(batch_id, user.sub)
 
 
 @router.get("/logs", response_model=UsageLogListResponse)

@@ -7,6 +7,7 @@ import json
 import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
+from contextvars import ContextVar
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -260,10 +261,29 @@ def _create_rubric_middleware_with_retry(
     the base class ``_handle_grader_exception``.
     """
 
+    quota_failure: ContextVar[Exception | None] = ContextVar("grader_quota_failure", default=None)
+
     class _RetryableRubricMiddleware(middleware_cls):  # type: ignore[misc, valid-type]
         """RubricMiddleware whose grader sub-agent shares the retry stack."""
 
         _grader: object | None  # declared for type-checker; set at runtime
+
+        def _handle_grader_exception(self, runtime, state, grading_run_id, iteration, exc):
+            from src.infra.llm.quota import is_quota_error
+
+            if is_quota_error(exc):
+                raise exc
+            return super()._handle_grader_exception(runtime, state, grading_run_id, iteration, exc)
+
+        async def _agrade(self, state, iteration, *, context=None):
+            token = quota_failure.set(None)
+            try:
+                result = await super()._agrade(state, iteration, context=context)
+                if error := quota_failure.get():
+                    raise error
+                return result
+            finally:
+                quota_failure.reset(token)
 
         def _build_grader_payload(self, state, iteration, correction=None):
             from deepagents.middleware.rubric import _build_grader_transcript, _sanitize_for_payload
@@ -344,9 +364,16 @@ def _create_rubric_middleware_with_retry(
             elif presenter is not None:
                 presenter.goal_evidence_ready = False
                 presenter.goal_evidence_ids = []
-            graded = await super()._ainvoke_grader(
-                grader_state, iteration, correction, context=context
-            )
+            try:
+                graded = await super()._ainvoke_grader(
+                    grader_state, iteration, correction, context=context
+                )
+            except Exception as error:
+                from src.infra.llm.quota import is_quota_error
+
+                if is_quota_error(error):
+                    quota_failure.set(error)
+                raise
             if evidence_clock is not None and (
                 (evidence_clock.token, evidence_clock.generation) != clock_snapshot
                 or evidence_clock.active_writes > 0

@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../../../hooks/useRightPanelState";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { Cpu } from "lucide-react";
 import { Pagination } from "../../../common/Pagination";
@@ -428,9 +429,13 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
   });
 
   // Modal state — only these booleans, all form state lives inside the modal components
-  const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [editingModel, setEditingModel] =
+    useRightPanelState<ModelConfig | null>("models:form", null);
+  const [isCreating, setIsCreating] = useRightPanelState("models:form", false);
+  const [showBatchModal, setShowBatchModal] = useRightPanelState(
+    "models:batch",
+    false,
+  );
   const [isSyncingPrices, setIsSyncingPrices] = useState(false);
   const [isBackfillingCosts, setIsBackfillingCosts] = useState(false);
   const [batchInitialTab, setBatchInitialTab] = useState<
@@ -565,16 +570,16 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
     setEditingModel(null);
     setIsCreating(false);
     onReload();
-  }, [onReload]);
+  }, [onReload, setEditingModel, setIsCreating]);
 
   const handleBatchSaved = useCallback(() => {
     setShowBatchModal(false);
     onReload();
-  }, [onReload]);
+  }, [onReload, setShowBatchModal]);
 
   const handleBatchClosed = useCallback(() => {
     setShowBatchModal(false);
-  }, []);
+  }, [setShowBatchModal]);
 
   const menuId = useId();
   const menuTrigger = useRef<HTMLButtonElement | null>(null);
@@ -801,6 +806,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
       {/* Create / Edit Modal — isolated component, form state lives here */}
       {(editingModel || isCreating) && (
         <ModelFormModal
+          key={editingModel?.id ?? "new"}
           model={editingModel}
           models={models}
           onClose={() => {

@@ -111,6 +111,49 @@ def _grader(session_id="cache-test", scope_version="v1"):
     )
 
 
+def test_rubric_quota_errors_escape_instead_of_scheduling_another_goal_run():
+    from src.kernel.errors import AppError, ErrorCode
+
+    grader = _grader()
+    error = AppError(ErrorCode.USAGE_QUOTA_EXCEEDED)
+    with pytest.raises(AppError) as caught:
+        grader._handle_grader_exception(None, {}, "grading", 0, error)
+    assert caught.value is error
+
+
+async def test_corrective_grade_cannot_swallow_quota_denial():
+    from types import SimpleNamespace
+
+    from src.infra.goal import _create_rubric_middleware_with_retry
+    from src.kernel.errors import AppError, ErrorCode
+
+    error = AppError(ErrorCode.USAGE_QUOTA_EXCEEDED)
+
+    class Rubric(_FakeRubricMiddleware):
+        async def _ainvoke_grader(self, state, iteration, correction=None, **kwargs):
+            if correction:
+                raise error
+            return SimpleNamespace(result="needs_revision", criteria=[])
+
+        async def _agrade(self, state, iteration, **kwargs):
+            first = await self._ainvoke_grader(state, iteration)
+            try:
+                return await self._ainvoke_grader(state, iteration, "correct coverage")
+            except Exception:
+                return first
+
+    grader = _create_rubric_middleware_with_retry(
+        Rubric,
+        model="unused",
+        goal_spec=GoalSpec(objective="verify", rubric="strict"),
+        on_evaluation=lambda *args: None,
+        grader_middleware=[],
+    )
+    with pytest.raises(AppError) as caught:
+        await grader._agrade({}, 0)
+    assert caught.value is error
+
+
 def test_repeated_grading_caches_identical_input_without_changing_payload():
     from deepagents.middleware.rubric import RubricMiddleware
 

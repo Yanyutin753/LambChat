@@ -835,7 +835,7 @@ function handleError(
   options?: { keepConnectionOpen?: boolean; skipCancelledPart?: boolean },
 ): void {
   const errorMsg = data.error
-    ? translateApiError(data.code, data.error, undefined, i18n.t.bind(i18n))
+    ? translateApiError(data.code, data.error, data.args, i18n.t.bind(i18n))
     : i18n.t("chat.unknownError");
   const isCancelled = forceCancelled || isCancelledErrorType(data.type);
 

@@ -53,6 +53,13 @@ test("all pending approvals replace the composer", () => {
   );
 });
 
+test("pending approvals hide the goal bar and restore it with the composer", () => {
+  expect(chatViewSource).not.toMatch(/<ActiveGoalBar\b/);
+  expect(chatViewSource).toMatch(
+    /\{hasPendingApproval \? \([\s\S]*?<ApprovalPanel[\s\S]*?\) : \(\s*<ChatInput[\s\S]*?activeGoal=\{composerGoal\}[\s\S]*?persistentGoal=\{persistentGoal\}/,
+  );
+});
+
 test("pending approvals suppress welcome and loading composers without messages", () => {
   expect(chatViewSource).toMatch(
     /\{messages\.length === 0 \? \(\s*!hasPendingApproval &&\s*\(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,

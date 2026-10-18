@@ -28,7 +28,7 @@ export function RoleDetailSidebar({
   onEdit,
   onDelete,
 }: RoleDetailSidebarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasPermission } = useAuth();
 
   const canManage = hasPermission(Permission.ROLE_MANAGE);
@@ -74,6 +74,7 @@ export function RoleDetailSidebar({
 
   return (
     <EditorSidebar
+      registryKey="roles:detail"
       open={true}
       onClose={onClose}
       title={role.name}
@@ -198,6 +199,39 @@ export function RoleDetailSidebar({
             </div>
           </>
         )}
+
+        <hr className="es-divider" />
+        <div className="es-field">
+          <h3 className="es-label">{t("roles.budgetTitle")}</h3>
+          <dl className="es-section">
+            {(
+              [
+                ["five_hour_budget_usd", "fiveHourBudgetUsd"],
+                ["weekly_budget_usd", "weeklyBudgetUsd"],
+              ] as const
+            ).map(([key, label]) => (
+              <div
+                key={key}
+                className="flex min-w-0 items-baseline justify-between gap-3 text-14"
+              >
+                <dt className="min-w-0 text-theme-text-secondary [overflow-wrap:anywhere]">
+                  {t(`roles.${label}`)}
+                </dt>
+                <dd className="shrink-0 font-medium tabular-nums text-theme-text">
+                  {role.limits?.[key] == null
+                    ? t("usage.quotaUnlimited")
+                    : new Intl.NumberFormat(i18n.language, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "narrowSymbol",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 6,
+                      }).format(role.limits[key])}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
 
         {/* 时间信息 */}
         <hr className="es-divider" />

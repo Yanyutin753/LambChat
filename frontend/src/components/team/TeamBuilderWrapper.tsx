@@ -1,3 +1,4 @@
+import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { ResourceCardTags } from "../common/ResourceCardTags";
 import { SkillBaseCard } from "../common/SkillBaseCard";
@@ -203,7 +204,7 @@ export function TeamBuilderWrapper() {
   const [isImporting, setIsImporting] = useState(false);
   const [isScopeOpen, setIsScopeOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useRightPanelState("team:editor", false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -814,6 +815,7 @@ export function TeamBuilderWrapper() {
         />
       </div>
       <EditorSidebar
+        registryKey="team:editor"
         open={editorOpen}
         onClose={handleClose}
         title={editingTeamId ? t("team.editTeam") : t("team.newTeam")}

@@ -13,6 +13,7 @@ import { test, expect, vi, afterEach } from "vitest";
 import { ChannelsPage } from "../ChannelsPage";
 import { channelApi } from "../../../services/api/channel";
 import i18n from "../../../i18n";
+import { EditorSidebar } from "../../common/EditorSidebar";
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));
@@ -74,6 +75,47 @@ function mount(path = "/channels/slack") {
     </MemoryRouter>,
   );
 }
+
+test.each(["instance", "create"])(
+  "the channel %s action restores its retained sidebar",
+  async (action) => {
+    vi.mocked(channelApi.getTypes).mockResolvedValue([metadata]);
+    vi.mocked(channelApi.listByType).mockResolvedValue([instance]);
+    vi.mocked(channelApi.getStatus).mockResolvedValue({
+      channel_type: "slack",
+      enabled: true,
+      connected: true,
+    });
+    mount("/channels/slack/fixture");
+    const link = await screen.findByRole("link", {
+      name: new RegExp(instance.name),
+    });
+    render(
+      <EditorSidebar
+        registryKey="channels:editor"
+        open
+        onClose={() => {}}
+        title="Channel editor"
+      >
+        <input aria-label="Channel draft" defaultValue="unsaved" />
+      </EditorSidebar>,
+    );
+    const draft = screen.getByRole("textbox", { name: "Channel draft" });
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: i18n.t("common.collapsePanel") }),
+    );
+    await user.click(
+      action === "instance"
+        ? link
+        : screen.getByRole("button", { name: i18n.t("channel.addInstance") }),
+    );
+    expect(screen.getByRole("textbox", { name: "Channel draft" })).toBe(draft);
+    expect(draft).toHaveValue("unsaved");
+    expect(draft.closest("[data-right-panel-root]")).toBeVisible();
+  },
+);
+
 test("failed instance list remains distinct from empty and retry restores native links without duplicate reads", async () => {
   vi.mocked(channelApi.getTypes).mockResolvedValue([metadata]);
   vi.mocked(channelApi.listByType)

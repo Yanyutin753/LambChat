@@ -17,6 +17,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import AzureChatOpenAI
 from pydantic import Field
 
+from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 _AZURE_DEFAULT_API_VERSION = "2024-10-21"
@@ -45,7 +46,7 @@ def parse_azure_endpoint(
     return endpoint, version
 
 
-class LambChatAzureChatModel(AzureChatOpenAI):
+class LambChatAzureChatModel(QuotaChatMixin, AzureChatOpenAI):
     """Time out only the first stream event, not the whole streamed response."""
 
     first_event_timeout: float | None = Field(default=None, exclude=True)

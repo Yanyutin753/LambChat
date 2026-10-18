@@ -10,6 +10,7 @@ ContextOverflowError 卡死。本模块集中存放相关默认值与诊断告�
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from src.infra.logging import get_logger
@@ -25,6 +26,19 @@ ANTHROPIC_DEFAULT_MAX_TOKENS = 32_768
 # 输入预算低于该下限时长会话压缩后仍可能超预算（终态 ContextOverflowError），
 # 构建模型时告警留下诊断线索。
 INPUT_BUDGET_WARN_FLOOR = 20_000
+
+
+def default_anthropic_max_tokens(
+    model_name: str, *, effort: str | None, profile: dict | None
+) -> int:
+    """Keep enhanced GLM reasoning from inheriting Claude's smaller fallback."""
+    if effort in {"high", "max"} and re.match(r"glm-5[.-]3(?:[-\[]|$)", model_name.lower()):
+        output = 65_536  # GLM-5.3's native default; explicit caller limits still take priority.
+        limit = (profile or {}).get("max_input_tokens")
+        if type(limit) is int and int(limit * 0.95) - output < INPUT_BUDGET_WARN_FLOOR:
+            return ANTHROPIC_DEFAULT_MAX_TOKENS
+        return output
+    return ANTHROPIC_DEFAULT_MAX_TOKENS
 
 
 def warn_if_input_budget_strangled(

@@ -14,6 +14,7 @@ from langgraph.config import get_config
 from langgraph.errors import GraphBubbleUp
 
 from src.infra.agent.middleware._helpers import _append_system_text_block
+from src.infra.llm.quota import is_quota_error
 from src.infra.tool.background_task_tool import create_background_task_tool
 from src.infra.tool.subagent_tool import create_subagent_tools
 
@@ -51,6 +52,7 @@ class SubagentSessionMiddleware(AgentMiddleware):
 
     async def abefore_model(self, state, runtime):
         self.sessions.restore(state.get("subagent_sessions", {}))
+        self.sessions.raise_quota_error()
         messages = self.sessions.drain_parent(state.get("messages", []))
         summary = [
             {"subagent_id": key, "subagent_type": value["subagent_type"], "status": value["status"]}
@@ -105,6 +107,7 @@ class SubagentSessionMiddleware(AgentMiddleware):
     @hook_config(can_jump_to=["model"])
     async def aafter_model(self, state, runtime):
         self.sessions.restore(state.get("subagent_sessions", {}))
+        self.sessions.raise_quota_error()
         last = state["messages"][-1]
         if isinstance(last, AIMessage) and not last.tool_calls:
             assert last.id is not None
@@ -130,7 +133,9 @@ class SubagentSessionMiddleware(AgentMiddleware):
                 )
             except GraphBubbleUp:
                 raise
-            except Exception:
+            except Exception as error:
+                if is_quota_error(error):
+                    raise
                 results.append(
                     {
                         "subagent_id": key,

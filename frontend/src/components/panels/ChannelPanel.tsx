@@ -789,6 +789,7 @@ export function ChannelPanel({
     return (
       <>
         <EditorSidebar
+          registryKey="channels:editor"
           open={true}
           onClose={onClose}
           title={

@@ -1,7 +1,7 @@
 """
 Usage storage layer.
 
-独立的 usage_logs 集合，在 trace 完成时写入扁平化的 token 消耗记录。
+独立的 usage_logs 集合，逐次调用更新累计 token 消耗，trace 完成时更新终态。
 查询时直接从该集合读取，避免对 traces 集合做复杂聚合。
 """
 
@@ -556,6 +556,7 @@ class UsageStorage:
                                                 "$and": [
                                                     {"$ne": ["$status", "completed"]},
                                                     {"$ne": ["$status", "cancelled"]},
+                                                    {"$ne": ["$status", "running"]},
                                                 ]
                                             },
                                             1,
@@ -614,6 +615,7 @@ class UsageStorage:
                                                 "$and": [
                                                     {"$ne": ["$status", "completed"]},
                                                     {"$ne": ["$status", "cancelled"]},
+                                                    {"$ne": ["$status", "running"]},
                                                 ]
                                             },
                                             1,

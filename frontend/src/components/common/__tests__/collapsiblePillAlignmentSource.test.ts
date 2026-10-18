@@ -27,18 +27,18 @@ describe("CollapsiblePill alignment", () => {
     );
   });
 
-  test("uses the body font one step smaller for disclosure labels and groups", () => {
+  test("uses the shared tool font for disclosure labels and groups", () => {
     expect(animationSource).toMatch(
-      /\.pill-btn\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*calc\(var\(--chat-font-size\) - 0\.0625rem\)/,
+      /\.pill-btn\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*var\(--tool-font-size\)/,
     );
     expect(chatSource).toMatch(
-      /\.chat-tool-category \.chat-tool-call-group__toggle\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*calc\(var\(--chat-font-size\) - 0\.0625rem\)/,
+      /\.chat-tool-category \.chat-tool-call-group__toggle\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*var\(--tool-font-size\)/,
     );
     expect(animationSource).not.toContain(
       'font-family: theme("fontFamily.sans")',
     );
     expect(animationSource).toMatch(
-      /\.pill-btn > span\s*\{\s*line-height: inherit;/,
+      /\.pill-btn > span\s*\{[^}]*line-height: inherit;/,
     );
     expect(animationSource).toMatch(
       /\.pill-btn > svg\s*\{[^}]*block[^}]*size-3[^}]*shrink-0/,
@@ -56,4 +56,34 @@ describe("CollapsiblePill alignment", () => {
   test("does not lift the pill on any hover state", () => {
     expect(animationSource).not.toContain("transform: translateY(-1px);");
   });
+});
+
+test("shares one tool font across disclosures, panels, status and todos", () => {
+  const tokens = readFileSync(
+    new URL("../../../styles/tokens.css", import.meta.url),
+    "utf8",
+  );
+  const components = readFileSync(
+    new URL("../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  expect(tokens).toContain("--tool-font-size: 0.8125rem;");
+  expect(animationSource).toMatch(
+    /\.pill-btn > span\s*\{[^}]*font-size: inherit;/,
+  );
+  expect(animationSource).toMatch(
+    /\.pill-btn__suffix \*\s*\{[^}]*font-size: inherit;/,
+  );
+  for (const selector of [
+    ".tool-console-header",
+    ".tool-console-title",
+    ".tool-console-subtitle-pill",
+    ".tool-duration-footer",
+    ".tool-readable :is(pre, code)",
+    ".tool-readable :is(.font-mono, .cm-editor, .cm-scroller)",
+  ]) {
+    const rule = components.split("\n" + selector + " {")[1]?.split("}")[0];
+    expect(rule).toContain("font-size: var(--tool-font-size);");
+  }
+  expect(source).not.toContain("text-12");
 });

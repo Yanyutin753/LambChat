@@ -61,3 +61,25 @@ test("a role without permissions displays an explicit zero count", () => {
     ),
   ).toBeInTheDocument();
 });
+
+test("role detail displays USD quotas including a zero budget", () => {
+  render(
+    <RoleDetailSidebar
+      role={{
+        ...role,
+        limits: { five_hour_budget_usd: 0, weekly_budget_usd: 12.5 },
+      }}
+      permissionGroups={[]}
+      permissionLabels={{}}
+      onClose={vi.fn()}
+      onEdit={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByText(i18n.t("roles.fiveHourBudgetUsd")),
+  ).toBeInTheDocument();
+  expect(screen.getByText(i18n.t("roles.weeklyBudgetUsd"))).toBeInTheDocument();
+  expect(screen.getByText("$0.00")).toBeInTheDocument();
+  expect(screen.getByText("$12.50")).toBeInTheDocument();
+});

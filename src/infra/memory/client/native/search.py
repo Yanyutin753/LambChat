@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 import httpx
 
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.memory.client.native.content import (
     batch_get_memory_contents,
@@ -654,18 +655,21 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
             },
             timeout=httpx.Timeout(15.0),
         ) as client:
-            response = await client.post(
-                "/v1/rerank",
-                json={
-                    "model": rerank_model,
-                    "query": query,
-                    "documents": documents,
-                    "top_n": max_results,
-                },
-            )
+            async with unpriced_usage():
+                response = await client.post(
+                    "/v1/rerank",
+                    json={
+                        "model": rerank_model,
+                        "query": query,
+                        "documents": documents,
+                        "top_n": max_results,
+                    },
+                )
             response.raise_for_status()
             payload = response.json()
-    except Exception:
+    except Exception as exc:
+        if is_quota_error(exc):
+            raise
         return local_rerank(query, candidates, max_results)
 
     results = payload.get("results") if isinstance(payload, dict) else None

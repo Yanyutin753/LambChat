@@ -2175,6 +2175,10 @@
   }
 }
 
+.es-form.user-quota-panel {
+  gap: 1rem;
+}
+
 /* Visual section card */
 .es-section {
   padding: 0.75rem 0.875rem;
@@ -3777,6 +3781,7 @@
 }
 
 .tool-console-header {
+  font-size: var(--tool-font-size);
   min-height: 3.5rem;
   padding-inline: 0.625rem;
   border-bottom-color: transparent;
@@ -3841,11 +3846,17 @@
   }
 }
 
+.tool-console-panel .right-panel-tab [role="tab"] {
+  font-size: var(--tool-font-size);
+}
+
 .tool-console-title {
+  font-size: var(--tool-font-size);
   letter-spacing: 0;
 }
 
 .tool-console-subtitle-pill {
+  font-size: var(--tool-font-size);
   border-radius: 0;
 }
 
@@ -4060,7 +4071,7 @@
   padding: 0.5rem 1rem;
   border-top: 1px solid color-mix(in srgb, var(--theme-border) 35%, transparent);
   color: var(--theme-text-tertiary);
-  font-size: 0.6875rem;
+  font-size: var(--tool-font-size);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
@@ -5250,26 +5261,27 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   line-height: 1.7;
 }
 .tool-readable :is(.text-10, .text-11) {
-  font-size: 0.8125rem;
+  font-size: var(--tool-font-size);
   line-height: 1.5;
 }
 .tool-readable :is(.text-12, .text-13) {
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   line-height: 1.65;
 }
 .tool-readable .text-14 {
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   line-height: 1.7;
+}
+.tool-readable :is(.markdown-preview, .sidebar-reasoning-preview__scroll) {
+  font-size: var(--tool-font-size);
 }
 .tool-readable :is(pre, code) {
   font-family: theme("fontFamily.mono");
-}
-.tool-readable :is(pre, code) {
-  font-size: 0.875rem;
+  font-size: var(--tool-font-size);
   line-height: 1.65;
 }
 .tool-readable pre {
@@ -5292,7 +5304,7 @@
 
 .tool-readable .tool-detail-section__title {
   font-family: inherit;
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   line-height: 1.5;
 }
 
@@ -5315,7 +5327,7 @@
 }
 .tool-readable :is(.font-mono, .cm-editor, .cm-scroller) {
   font-family: theme("fontFamily.mono");
-  font-size: 0.875rem;
+  font-size: var(--tool-font-size);
   line-height: 1.65;
 }
 
@@ -5443,7 +5455,7 @@
 .tool-surface--collapsible
   .collapsible-section-card__trigger
   > span:last-child {
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   font-weight: 500;
   letter-spacing: normal;
   text-transform: none;

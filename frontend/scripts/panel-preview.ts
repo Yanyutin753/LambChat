@@ -79,6 +79,8 @@ const roles = rows((i, name) => ({
     i < 2
       ? {
           max_channels: 12,
+          five_hour_budget_usd: 3.5,
+          weekly_budget_usd: 20,
           max_concurrent_chats: 4,
           max_file_size_document: 80,
         }
@@ -988,6 +990,51 @@ function response(
   if (path === "/api/feedback/stats") return feedbackStats;
   if (path === "/api/usage/logs") return paginate(logs, "items", { stats });
   if (path === "/api/usage/stats") return stats;
+  if (/^\/api\/usage\/users\/[^/]+\/quota$/.test(path))
+    return response(new URL("/api/usage/quota", url), scenario);
+  if (path === "/api/usage/quota") {
+    const exhausted = ["quota-exhausted", "quota-reset-card"].includes(
+      scenario,
+    );
+    const weeklyExhausted = scenario === "quota-weekly-exhausted";
+    const unknown = scenario === "quota-unknown";
+    return {
+      currency: "USD",
+      timezone: "Asia/Shanghai",
+      five_hour: {
+        limit_usd: 3.5,
+        used_usd: exhausted ? 3.5 : 1,
+        reserved_usd: exhausted ? 0 : 0.25,
+        remaining_usd: exhausted ? 0 : 2.5,
+        reset_at: "2026-10-19T00:00:00+08:00",
+        blocked: exhausted,
+        unknown,
+      },
+      weekly: {
+        limit_usd: 20,
+        used_usd: weeklyExhausted ? 20 : 4,
+        reserved_usd: weeklyExhausted ? 0 : 0.25,
+        remaining_usd: weeklyExhausted ? 0 : 16,
+        reset_at: "2026-10-25T22:30:00+08:00",
+        blocked: weeklyExhausted,
+        unknown: false,
+      },
+      reset_credits: {
+        available_count: scenario === "quota-reset-card" ? 1 : 0,
+        credits:
+          scenario === "quota-reset-card"
+            ? [
+                {
+                  id: "preview-reset-card",
+                  status: "available",
+                  granted_at: "2026-10-18T00:00:00Z",
+                  expires_at: "2026-11-17T00:00:00Z",
+                },
+              ]
+            : [],
+      },
+    };
+  }
   if (path === "/api/usage/dashboard")
     return {
       summary: {
@@ -1464,7 +1511,27 @@ function response(
           timestamp: now,
           data:
             chatState === "error"
-              ? { error: "请求超时", type: "task_error", status: "error" }
+              ? scenario.startsWith("quota-")
+                ? {
+                    error: "Five-hour or weekly USD quota is exhausted",
+                    code: "usage_quota_exceeded",
+                    args: {
+                      windows: [
+                        scenario === "quota-weekly-exhausted"
+                          ? "weekly"
+                          : "five_hour",
+                      ],
+                      reason:
+                        scenario === "quota-unknown" ? "unknown" : "exhausted",
+                      reset_at:
+                        scenario === "quota-weekly-exhausted"
+                          ? "2026-10-25T22:30:00+08:00"
+                          : "2026-10-19T00:00:00+08:00",
+                    },
+                    type: "task_error",
+                    status: "error",
+                  }
+                : { error: "请求超时", type: "task_error", status: "error" }
               : { status: "completed" },
         },
       ].filter(
@@ -1634,6 +1701,8 @@ const token = `preview.${Buffer.from(
 const failedDocumentRequests = new Set<string>();
 const failedDrawingRequests = new Map<string, number>();
 const completedPreviewStreams = new Set<string>();
+const previewQuotas = new Map<string, ReturnType<typeof response>>();
+const quotaOperations = new Map<string, object>();
 const failedWelcomeRequests = new Set<string>();
 const failedChannelRequests = new Set<string>();
 const failedSkillPreviews = new Set<string>();
@@ -2014,6 +2083,156 @@ const server = await createServer({
             return next();
           const scenario = previewParams.get("fixture") ?? "populated";
           const failureTarget = previewParams.get("failure");
+          const quotaRoute = url.pathname.match(
+            /^\/api\/usage\/(?:users\/([^/]+)\/)?quota(\/reset|\/reset-cards(?:\/consume)?)?$/,
+          );
+          if (quotaRoute && scenario === "quota-unavailable") {
+            res.statusCode = 503;
+            res.setHeader("Content-Type", "application/json");
+            res.end(
+              JSON.stringify({
+                detail: {
+                  code: "usage_quota_unavailable",
+                  message: "Usage quota is temporarily unavailable",
+                },
+              }),
+            );
+            return;
+          }
+          if (quotaRoute && scenario !== "loading" && scenario !== "error") {
+            const target = quotaRoute[1] ?? user.id;
+            const quotaKey = `${req.headers.referer}:${target}`;
+            if (!previewQuotas.has(quotaKey))
+              previewQuotas.set(
+                quotaKey,
+                response(new URL("/api/usage/quota", url), scenario),
+              );
+            const quota = previewQuotas.get(quotaKey) as {
+              five_hour: {
+                limit_usd: number;
+                used_usd: number;
+                reserved_usd: number;
+                remaining_usd: number;
+                blocked: boolean;
+                unknown: boolean;
+                reset_at: string | null;
+              };
+              weekly: {
+                limit_usd: number;
+                used_usd: number;
+                reserved_usd: number;
+                remaining_usd: number;
+                blocked: boolean;
+                unknown: boolean;
+                reset_at: string | null;
+              };
+              reset_credits: {
+                available_count: number;
+                credits: {
+                  id: string;
+                  status: string;
+                  granted_at: string;
+                  expires_at: string;
+                }[];
+              };
+            };
+            res.setHeader("Content-Type", "application/json");
+            if (req.method === "POST") {
+              let body = "";
+              req.on("data", (chunk) => {
+                body += chunk;
+              });
+              req.on("end", () => {
+                let input: {
+                  idempotency_key?: string;
+                  window?: string;
+                  credit_id?: string;
+                };
+                try {
+                  input = JSON.parse(body || "{}");
+                  if (
+                    !input ||
+                    typeof input !== "object" ||
+                    typeof input.idempotency_key !== "string"
+                  )
+                    throw new Error("Invalid request");
+                } catch {
+                  res.statusCode = 400;
+                  res.end(
+                    JSON.stringify({
+                      detail: {
+                        code: "bad_request",
+                        message: "Invalid quota fixture request",
+                      },
+                    }),
+                  );
+                  return;
+                }
+                const key = `${quotaKey}:${quotaRoute[2]}:${input.idempotency_key}`;
+                if (quotaOperations.has(key)) {
+                  res.end(JSON.stringify(quotaOperations.get(key)));
+                  return;
+                }
+                let result: object;
+                const eligible = (["five_hour", "weekly"] as const).filter(
+                  (window) =>
+                    quota[window].limit_usd > 0 &&
+                    (quotaRoute[2] === "/reset"
+                      ? quota[window].unknown || quota[window].used_usd > 0
+                      : !quota[window].unknown &&
+                        quota[window].used_usd >= quota[window].limit_usd),
+                );
+                if (quotaRoute[2] === "/reset-cards") {
+                  const credit = {
+                    id: `preview-card-${quotaOperations.size}`,
+                    status: "available",
+                    granted_at: new Date().toISOString(),
+                    expires_at: new Date(
+                      Date.now() + 30 * 86400000,
+                    ).toISOString(),
+                  };
+                  quota.reset_credits.credits.push(credit);
+                  quota.reset_credits.available_count++;
+                  result = { outcome: "issued", credit_id: credit.id };
+                } else {
+                  const windows =
+                    quotaRoute[2] === "/reset"
+                      ? eligible.filter((window) => window === input.window)
+                      : eligible;
+                  const credit = quota.reset_credits.credits.find(
+                    (credit) =>
+                      !input.credit_id || credit.id === input.credit_id,
+                  );
+                  const needsCard = quotaRoute[2] !== "/reset";
+                  if (!windows.length) result = { outcome: "nothingToReset" };
+                  else if (needsCard && !credit)
+                    result = { outcome: "noCredit" };
+                  else {
+                    for (const window of windows)
+                      Object.assign(quota[window], {
+                        used_usd: 0,
+                        reserved_usd: 0,
+                        remaining_usd: quota[window].limit_usd,
+                        blocked: false,
+                        unknown: false,
+                        reset_at: null,
+                      });
+                    if (needsCard && credit) {
+                      quota.reset_credits.credits =
+                        quota.reset_credits.credits.filter(
+                          (item) => item !== credit,
+                        );
+                      quota.reset_credits.available_count--;
+                    }
+                    result = { outcome: "reset" };
+                  }
+                }
+                quotaOperations.set(key, result);
+                res.end(JSON.stringify(result));
+              });
+            } else res.end(JSON.stringify(quota));
+            return;
+          }
           const streamKey = req.headers.referer ?? "";
           if (
             previewParams.get("profile-flow") === "1" &&

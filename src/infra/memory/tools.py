@@ -14,6 +14,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import (
     MemoryBackend,
@@ -174,6 +175,8 @@ async def memory_retain(
             )
         return await _json_dumps_result(result)
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.error(f"[Memory] Failed to retain memory: {e}")
         return await _json_dumps_result({"success": False, "error": str(e)})
 
@@ -228,6 +231,8 @@ async def memory_recall(
         )
         return await _json_dumps_result(result)
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.error(f"[Memory] Failed to recall memories: {e}")
         return await _json_dumps_result({"success": False, "error": str(e)})
 

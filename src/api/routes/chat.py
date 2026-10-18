@@ -746,13 +746,7 @@ async def get_session_status(
     run_id: str = Query(None, description="Run ID (optional, defaults to current run)"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
-    """
-    获取任务状态
-
-    Args:
-        session_id: 会话 ID
-        run_id: 运行 ID（可选，默认为当前 run）
-    """
+    """获取当前任务或指定运行的状态。"""
     # 验证用户对该 session 的所有权
     session_manager = SessionManager()
     session = await session_manager.get_session(session_id)
@@ -769,14 +763,16 @@ async def get_session_status(
         status = await task_manager.get_status(session_id)
         error = await task_manager.get_error(session_id)
 
-    # error 为动态原文；code 取任务中断码，无则按状态兜底
+    if status not in {TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.EXPIRED}:
+        error = None
+
+    # A recovered run can retain an older trace error; prefer its current session code.
     error_code = None
     if error:
-        error_code = (
-            await task_manager.get_run_error_code(run_id)
-            if run_id and hasattr(task_manager, "get_run_error_code")
-            else getattr(status, "error_code", None)
-        ) or ("internal_error" if status.value == "failed" else None)
+        metadata = session.metadata or {}
+        if not run_id or metadata.get("current_run_id") == run_id:
+            error_code = metadata.get("task_error_code")
+        error_code = error_code or ("internal_error" if status is TaskStatus.FAILED else None)
 
     result = {
         "session_id": session_id,

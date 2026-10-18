@@ -5,7 +5,16 @@ import { Select } from "../common/ui/Select";
 import { observePanelWidths } from "../common/panelWidths";
 import { useState, useEffect, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
-import { User, Bell, Settings, Braces, Wrench, Cpu, Scale } from "lucide-react";
+import {
+  User,
+  Bell,
+  Settings,
+  Braces,
+  Wrench,
+  Cpu,
+  Scale,
+  Gauge,
+} from "lucide-react";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { APP_VERSION } from "../../utils/appVersion";
 
@@ -16,6 +25,7 @@ import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
 import { ProfileToolsTab } from "./tabs/ProfileToolsTab";
 import { ProfileModelsTab } from "./tabs/ProfileModelsTab";
 import { ProfileTermsTab } from "./tabs/ProfileTermsTab";
+import { ComposerUsageChip } from "../chat/ComposerUsageChip";
 
 import "./profile.css";
 
@@ -28,6 +38,7 @@ const TAB_ICONS = {
   info: User,
   notification: Bell,
   preferences: Settings,
+  quota: Gauge,
   envvars: Braces,
   tools: Wrench,
   models: Cpu,
@@ -61,6 +72,7 @@ export function ProfileModal({
     { key: "info", label: t("profile.title") },
     { key: "notification", label: t("profile.notifications") },
     { key: "preferences", label: t("profile.preferences") },
+    { key: "quota", label: t("usage.quotaAndCards") },
     { key: "envvars", label: t("envVars.title") },
     { key: "tools", label: t("profile.toolsTab") },
     { key: "models", label: t("profile.modelIntro") },
@@ -121,6 +133,7 @@ export function ProfileModal({
               {activeTab === "info" && <ProfileInfoTab />}
               {activeTab === "notification" && <ProfileNotificationTab />}
               {activeTab === "preferences" && <ProfilePreferencesTab />}
+              {activeTab === "quota" && <ComposerUsageChip embedded />}
               {activeTab === "envvars" && <ProfileEnvVarsTab />}
               {activeTab === "tools" && <ProfileToolsTab />}
               {activeTab === "models" && <ProfileModelsTab />}

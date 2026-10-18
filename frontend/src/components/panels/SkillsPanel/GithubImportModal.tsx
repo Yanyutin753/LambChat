@@ -51,6 +51,7 @@ export function GithubImportModal({
   const { t } = useTranslation();
   return (
     <EditorSidebar
+      registryKey="skills:github"
       open={showGithubModal}
       onClose={() => setShowGithubModal(false)}
       title={t("skills.importFromGitHub")}

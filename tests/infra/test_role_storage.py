@@ -10,6 +10,27 @@ from src.infra.role import storage as role_storage
 from src.infra.role.storage import RoleStorage
 
 
+async def test_default_role_refresh_preserves_administrator_configured_budgets(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    storage = RoleStorage()
+    storage._collection = SimpleNamespace(update_one=AsyncMock())
+    monkeypatch.setattr(
+        storage, "get_by_name", AsyncMock(return_value=SimpleNamespace(name="admin"))
+    )
+    monkeypatch.setattr(storage, "invalidate_cache", AsyncMock())
+    monkeypatch.setattr(
+        "src.infra.auth.rbac.RBACManager.get_default_roles",
+        lambda self: [
+            {"name": "admin", "permissions": [], "is_system": True, "limits": None},
+        ],
+    )
+    await storage.init_default_roles()
+    update = storage.collection.update_one.call_args.args[1]
+    assert "limits" not in update["$set"]
+
+
 class _FakeRedis:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}

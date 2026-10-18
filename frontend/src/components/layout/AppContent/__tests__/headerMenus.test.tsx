@@ -20,6 +20,8 @@ const appearance = vi.hoisted(() => ({
   retry: vi.fn(),
   language: vi.fn(),
   write: vi.fn().mockResolvedValue({}),
+  userId: "first",
+  quotaRead: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -29,7 +31,13 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
 vi.mock("../../../../hooks/useTodayUsageCost", () => ({
+  TODAY_USAGE_REFRESH_EVENT: "today-usage-refresh",
   useTodayUsageCost: () => ({ stats: null }),
+}));
+vi.mock("../../../../services/api/fetch", () => ({ authFetch: vi.fn() }));
+vi.mock("../../../../services/api/usage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../services/api/usage")>()),
+  usageApi: { getQuota: (...args: unknown[]) => appearance.quotaRead(...args) },
 }));
 vi.mock("../../../common/SceneIllustration", () => ({
   SceneIllustration: () => null,
@@ -41,7 +49,7 @@ vi.mock("../../../notification/NotificationDialog", () => ({
   NotificationDialog: () => null,
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: "first", permissions: [] } }),
+  useAuth: () => ({ user: { id: appearance.userId, permissions: [] } }),
 }));
 vi.mock("../../../../contexts/ThemeContext", () => ({
   useTheme: () => ({
@@ -75,6 +83,33 @@ afterEach(() => {
   appearance.retry.mockClear();
   appearance.language.mockClear();
   appearance.write.mockReset().mockResolvedValue({});
+  appearance.userId = "first";
+  appearance.quotaRead.mockReset().mockResolvedValue(null);
+});
+
+test("switching accounts aborts the old quota request and reloads the new account", async () => {
+  appearance.quotaRead.mockImplementation(() => new Promise(() => {}));
+  const props = {
+    activeTab: "files" as const,
+    setMobileSidebarOpen: vi.fn(),
+    onNewSession: vi.fn(),
+    onShowProfile: vi.fn(),
+  };
+  const view = render(
+    <MemoryRouter>
+      <Header {...props} />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(appearance.quotaRead).toHaveBeenCalledTimes(1));
+  const signal = appearance.quotaRead.mock.calls[0][0] as AbortSignal;
+  appearance.userId = "second";
+  view.rerender(
+    <MemoryRouter>
+      <Header {...props} />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(appearance.quotaRead).toHaveBeenCalledTimes(2));
+  expect(signal.aborted).toBe(true);
 });
 function renderHeader() {
   render(

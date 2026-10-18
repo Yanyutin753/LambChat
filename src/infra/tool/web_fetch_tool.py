@@ -9,6 +9,7 @@ from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.web_fetch_providers import execute_web_fetch
 
@@ -39,6 +40,8 @@ async def web_fetch(
         limit = max(256, min(int(max_chars), MAX_WEB_FETCH_CHARS))
         result = await execute_web_fetch(raw, limit)
     except Exception as e:
+        if is_quota_error(e):
+            raise
         logger.error("[WebFetch] execute failed: %s", e, exc_info=True)
         result = {"success": False, "error": f"web_fetch_failed: {e}"}
     return await _json_dumps_result(result)

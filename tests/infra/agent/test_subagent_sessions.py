@@ -2,12 +2,112 @@
 
 import asyncio
 
+import pytest
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 
 from tests.agents.core.test_fork_subagent_contract import _ScriptedChatModel
+
+
+async def test_child_quota_failure_reaches_wait_without_losing_checkpoint_or_failing_job():
+    from src.infra.agent.subagent_sessions import SubagentSessions
+    from src.kernel.errors import AppError, ErrorCode
+
+    saver = InMemorySaver()
+    denied = True
+
+    class DeniedModel(_ScriptedChatModel):
+        async def _agenerate(self, messages, **kwargs):
+            if denied:
+                raise AppError(ErrorCode.USAGE_QUOTA_EXCEEDED, args={"reset_at": "tomorrow"})
+            return await super()._agenerate(messages, **kwargs)
+
+    async def build(role, inbox):
+        return create_agent(
+            DeniedModel(script=[AIMessage(content="unused")]),
+            middleware=[inbox],
+            checkpointer=saver,
+        )
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+    )
+    started = await sessions.start(
+        "reviewer", "Keep this assignment", call_id="quota", config={}, background=True
+    )
+    child_id = started["subagent_id"]
+    await sessions.jobs[child_id]
+    assert sessions.result(child_id)["error_code"] == "usage_quota_exceeded"
+    with pytest.raises(AppError) as rejected:
+        await sessions.wait(child_id, config={})
+    assert rejected.value.error_code is ErrorCode.USAGE_QUOTA_EXCEEDED
+    assert rejected.value.args_data == {"reset_at": "tomorrow"}
+    snapshot = await sessions.graphs[child_id].aget_state(sessions.configs[child_id])
+    assert snapshot.values["messages"][0].content == "Keep this assignment"
+    assert snapshot.next
+    denied = False
+    continued = await sessions.send(child_id, "Continue after reset", config={})
+    assert continued["status"] == "completed"
+    assert "error_code" not in continued
+
+
+@pytest.mark.parametrize("background", [False, True])
+async def test_parent_propagates_child_quota_through_tools_and_final_collection(background):
+    from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
+    from src.infra.agent.subagent_sessions import SubagentSessions
+    from src.kernel.errors import AppError, ErrorCode
+
+    saver = InMemorySaver()
+
+    class DeniedModel(_ScriptedChatModel):
+        async def _agenerate(self, messages, **kwargs):
+            raise AppError(ErrorCode.USAGE_QUOTA_EXCEEDED)
+
+    async def build(role, inbox):
+        return create_agent(
+            DeniedModel(script=[AIMessage(content="unused")]),
+            middleware=[inbox],
+            checkpointer=saver,
+        )
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+    )
+    parent = _ScriptedChatModel(
+        script=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "task",
+                        "args": {
+                            "description": "Review",
+                            "subagent_type": "reviewer",
+                            "background": background,
+                        },
+                        "id": "quota-task",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="Do not treat the child refusal as success"),
+        ]
+    )
+    graph = create_agent(
+        parent, middleware=[SubagentSessionMiddleware(sessions)], checkpointer=saver
+    )
+    try:
+        with pytest.raises(AppError) as rejected:
+            await graph.ainvoke(
+                {"messages": [HumanMessage(content="Review")]},
+                {"configurable": {"thread_id": "parent"}},
+            )
+        assert rejected.value.error_code is ErrorCode.USAGE_QUOTA_EXCEEDED
+        assert all(job.done() and job.exception() is None for job in sessions.jobs.values())
+    finally:
+        await sessions.close()
 
 
 async def test_child_can_message_parent_and_wake_wait_without_finishing():

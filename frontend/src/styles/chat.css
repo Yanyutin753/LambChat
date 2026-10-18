@@ -1521,7 +1521,7 @@ html[data-mobile-keyboard="true"]
 }
 .chat-process-todo {
   font-family: var(--chat-font-family);
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
 }
 .chat-process-todo__header .interactive-action-icon > div {
   display: flex;
@@ -1547,7 +1547,7 @@ html[data-mobile-keyboard="true"]
 .chat-tool-category .chat-tool-call-group__toggle {
   color: var(--theme-text-secondary);
   font-family: var(--chat-font-family);
-  font-size: calc(var(--chat-font-size) - 0.0625rem);
+  font-size: var(--tool-font-size);
   font-weight: 400;
   line-height: 1.5rem;
   cursor: pointer;
@@ -1624,6 +1624,54 @@ html[data-mobile-keyboard="true"]
 }
 .chat-tool-call-group__panel {
   animation: fade-in 150ms ease-out;
+}
+
+.ui-button.usage-quota-reset {
+  min-height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  line-height: 1.125rem;
+  color: var(--color-text-green);
+  background: color-mix(
+    in srgb,
+    var(--color-background-green) 65%,
+    transparent
+  );
+}
+.ui-button.usage-quota-reset:hover {
+  background: var(--color-background-green);
+}
+@media (pointer: coarse) {
+  .ui-button.usage-quota-reset {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+[data-period="five_hour"] .usage-quota-progress {
+  --quota-progress-color: var(--color-icon-blue);
+}
+[data-period="weekly"] .usage-quota-progress {
+  --quota-progress-color: var(--color-icon-purple);
+}
+.usage-quota-progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--theme-border);
+}
+.usage-quota-progress::-webkit-progress-bar {
+  background: var(--theme-border);
+}
+.usage-quota-progress::-webkit-progress-value {
+  border-radius: inherit;
+  background: var(--quota-progress-color);
+}
+.usage-quota-progress::-moz-progress-bar {
+  border-radius: inherit;
+  background: var(--quota-progress-color);
 }
 
 @media (prefers-reduced-motion: reduce) {

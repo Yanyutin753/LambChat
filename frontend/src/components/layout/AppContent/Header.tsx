@@ -307,7 +307,7 @@ export function Header({
       </div>
 
       {headerActions}
-      <ComposerUsageChip />
+      <ComposerUsageChip key={user?.id} />
       <UserMenu onShowProfile={onShowProfile} />
     </div>
   );

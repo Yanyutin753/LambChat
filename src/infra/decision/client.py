@@ -1,7 +1,7 @@
 """System One 决策模型客户端：/v1/systemone 协议（TypeSafe Jev / 自托管 von）。
 
 面向高频小判定（分类 / 是非 / 评分）的独立裸 httpx 客户端，与 embedding /
-rerank 客户端同款契约：不经 LLMClient、无重试、失败返回 None 由调用方走
+rerank 客户端同款契约：不经 LLMClient、无重试、普通失败返回 None 由调用方走
 原路径兜底。自托管 von（Apache 2.0 开源 System One 模型）协议完全兼容，
 base 指向 von serve 即可，无鉴权时 key 可留空。
 """
@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx
 
+from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ async def system_one(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, dict[str, Any]] | None:
-    """执行一次 System One 求值，返回 answers 映射；未配置或任何失败返回 None。
+    """执行一次求值；未配置或普通失败返回 None，用量限额错误向上抛出。
 
     state 含用户会话内容，日志只记异常类型，不得记录请求内容。
     """
@@ -57,13 +58,16 @@ async def system_one(
             timeout=httpx.Timeout(cfg["timeout"]),
             transport=transport,
         ) as client:
-            response = await client.post(
-                "/v1/systemone",
-                json={"state": state, "model": cfg["model"], "questions": questions},
-            )
+            async with unpriced_usage():
+                response = await client.post(
+                    "/v1/systemone",
+                    json={"state": state, "model": cfg["model"], "questions": questions},
+                )
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:
+        if is_quota_error(exc):
+            raise
         logger.warning("[SystemOne] request failed: %s", type(exc).__name__)
         return None
 

@@ -23,6 +23,10 @@ vi.mock("../tabs/ProfileEnvVarsTab", () => ({
 vi.mock("../tabs/ProfileToolsTab", () => ({ ProfileToolsTab: () => null }));
 vi.mock("../tabs/ProfileModelsTab", () => ({ ProfileModelsTab: () => null }));
 vi.mock("../tabs/ProfileTermsTab", () => ({ ProfileTermsTab: () => null }));
+vi.mock("../../chat/ComposerUsageChip", () => ({
+  ComposerUsageChip: ({ embedded }: { embedded?: boolean }) =>
+    embedded ? <p>Quota content</p> : null,
+}));
 test("a single labelled dialog lets narrow screens select every settings category", () => {
   Element.prototype.scrollIntoView = vi.fn();
   const close = vi.fn();
@@ -38,7 +42,10 @@ test("a single labelled dialog lets narrow screens select every settings categor
     .getAllByRole("button", { name: "profile.preferences" })
     .find((button) => button.hasAttribute("aria-haspopup"))!;
   fireEvent.click(selector);
-  expect(screen.getAllByRole("option")).toHaveLength(7);
+  expect(screen.getAllByRole("option")).toHaveLength(8);
+  fireEvent.click(screen.getByRole("option", { name: "usage.quotaAndCards" }));
+  expect(screen.getByText("Quota content")).toBeTruthy();
+  fireEvent.click(selector);
   fireEvent.click(screen.getByRole("option", { name: "envVars.title" }));
   expect(screen.getByText("Environment content")).toBeTruthy();
   expect(screen.queryByText("Account content")).toBeNull();

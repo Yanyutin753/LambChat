@@ -19,10 +19,11 @@ export function fmtDur(seconds: number): string {
   return formatDuration(seconds * 1000);
 }
 
-export type UsageStatusKind = "ok" | "cancelled" | "error";
+export type UsageStatusKind = "ok" | "cancelled" | "running" | "error";
 
-/** 用量记录状态三态归类：完成 / 用户取消 / 失败（未知按失败展示）。 */
+/** 用量记录状态：运行中 / 完成 / 用户取消 / 失败（未知按失败展示）。 */
 export function usageStatusKind(status: string): UsageStatusKind {
+  if (status === "running") return "running";
   if (status === "completed") return "ok";
   if (status === "cancelled") return "cancelled";
   return "error";

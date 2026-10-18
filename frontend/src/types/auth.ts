@@ -132,6 +132,8 @@ export interface UserListResponse {
 
 // 角色限制配置
 export interface RoleLimits {
+  five_hour_budget_usd?: number | null; // 5 小时模型费用额度（USD），null = 无限制
+  weekly_budget_usd?: number | null; // 每周模型费用额度（USD），null = 无限制
   max_channels?: number | null; // 最大渠道数量，null = 无限制
   max_concurrent_chats?: number | null; // 每用户最大并发聊天数，null = 无限制
   max_queued_chats?: number | null; // 每用户最大排队数，null = 无限制

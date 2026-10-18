@@ -664,11 +664,15 @@ class TaskExecutor(TaskSessionStatusMixin):
     ) -> None:
         """处理通用异常"""
         error_msg = getattr(error, "display_message", None) or str(error) or type(error).__name__
+        from src.infra.llm.quota import is_quota_error
+
         if (
             isinstance(error, AppError)
             and error.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
         ):
             await self._record_uncertain_effect(session_id, run_id, error)
+        elif is_quota_error(error):
+            await self._record_quota_error(session_id, run_id, error)
         else:
             await self._update_session_status(
                 session_id, TaskStatus.FAILED, error_msg, run_id=run_id
@@ -702,6 +706,7 @@ class TaskExecutor(TaskSessionStatusMixin):
             data={
                 "error": getattr(error, "display_message", str(error)),
                 "code": error_code.code if error_code else "internal_error",
+                "args": getattr(error, "args_data", {}),
                 "type": type(error).__name__,
                 "run_id": run_id,
             },

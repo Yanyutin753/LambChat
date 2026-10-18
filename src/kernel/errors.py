@@ -30,6 +30,17 @@ class ErrorCode(Enum):
     PAYLOAD_TOO_LARGE = ("payload_too_large", 413, "Request payload too large")
     EVENT_PAYLOAD_TOO_LARGE = ("event_payload_too_large", 413, "Event payload too large")
     SERVICE_UNAVAILABLE = ("service_unavailable", 503, "Service unavailable")
+    USAGE_QUOTA_EXCEEDED = (
+        "usage_quota_exceeded",
+        429,
+        "Five-hour or weekly USD quota is exhausted",
+    )
+    USAGE_QUOTA_UNAVAILABLE = ("usage_quota_unavailable", 503, "Usage quota cannot be verified")
+    USAGE_QUOTA_UNPRICED = (
+        "usage_quota_unpriced",
+        409,
+        "Model pricing or token limits are unavailable for this quota",
+    )
 
     # ---------- auth：认证与账户 ----------
     AUTH_MISSING = ("auth_missing", 401, "Authentication credentials not provided")

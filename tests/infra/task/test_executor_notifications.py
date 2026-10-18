@@ -373,6 +373,31 @@ async def test_new_run_resets_history_recovery_metadata(status) -> None:
     assert metadata["recovery_requested_at"] is None
 
 
+async def test_quota_denial_keeps_checkpoint_run_manually_recoverable(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    storage = _FakeStorage()
+    storage.update_metadata_for_run = AsyncMock()
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)
+    monkeypatch.setattr(executor, "_send_task_notification", AsyncMock())
+    writer = _FakeDualWriter()
+    await executor._handle_generic_error(
+        "session-1",
+        "run-1",
+        "user-1",
+        AppError(ErrorCode.USAGE_QUOTA_EXCEEDED),
+        writer,
+        None,
+    )
+    metadata = storage.update_metadata_for_run.call_args.args[2]
+    assert metadata["task_recoverable"] is True
+    assert metadata["task_error_code"] == "usage_quota_exceeded"
+    assert metadata["task_status"] == "failed"
+    assert writer.events[-1]["data"]["code"] == "usage_quota_exceeded"
+
+
 async def test_same_run_submission_preserves_recovery_budget() -> None:
     storage = _FakeStorage(current_run_id="run-old")
     executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)

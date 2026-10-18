@@ -29,6 +29,7 @@ export interface EditorSidebarProps {
   width?: "default" | "wide";
   defaultWidthPct?: number;
   widthStorageKey?: string;
+  registryKey?: string;
 }
 
 export function EditorSidebar({
@@ -41,6 +42,7 @@ export function EditorSidebar({
   width = "default",
   defaultWidthPct = DEFAULT_WIDTH,
   widthStorageKey = STORAGE_KEY,
+  registryKey,
 }: EditorSidebarProps) {
   const { t } = useTranslation();
   const entry = useRightPanelEntry({
@@ -49,6 +51,7 @@ export function EditorSidebar({
     kind: "editor",
     title,
     icon,
+    registryKey,
   });
   const shell = useSidebarPanel({
     open: entry.active,

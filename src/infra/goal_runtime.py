@@ -680,10 +680,14 @@ async def _guarded_goal_stream(
         raise
     except TaskInterruptedError:
         raise
-    except Exception:
+    except Exception as error:
         current = await service.get(session_id, user_id)
         if valid(current):
-            blocked = await service.control(session_id, user_id, "block", **fenced)
+            from src.infra.llm.quota import is_quota_error
+
+            blocked = await service.control(
+                session_id, user_id, "pause" if is_quota_error(error) else "block", **fenced
+            )
             if blocked:
                 await publish_goal(blocked, presenter)
         raise
