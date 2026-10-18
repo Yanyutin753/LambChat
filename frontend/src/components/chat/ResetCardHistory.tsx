@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useClientPagination } from "../../hooks/useClientPagination";
 import { useTranslation } from "react-i18next";
 import { Pagination } from "../common/Pagination";
 import type { UsageResetHistory } from "../../services/api/usage";
@@ -11,14 +11,14 @@ export function ResetCardHistory({
   timezone: string;
 }) {
   const { t, i18n } = useTranslation();
-  const [page, setPage] = useState(1);
+  const { page, setPage, totalPages } = useClientPagination({
+    total: history.length,
+    pageSize: 10,
+  });
   const sorted = [...history].sort(
     (a, b) => Date.parse(b.redeemed_at) - Date.parse(a.redeemed_at),
   );
-  const currentPage = Math.min(
-    page,
-    Math.max(1, Math.ceil(sorted.length / 10)),
-  );
+  const currentPage = Math.min(page, totalPages);
   return (
     <section
       aria-label={t("usage.resetCardHistory")}

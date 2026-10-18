@@ -1262,6 +1262,13 @@ test("card history paginates and shows an empty state after records expire", asy
   fireEvent.click(screen.getByRole("button", { name: "common.next" }));
   expect(within(log).getAllByRole("row")).toHaveLength(2);
   expect(log.querySelector("time")?.dateTime).toBe(history[0].redeemed_at);
+  rerender(
+    <ResetCardHistory history={history.slice(1)} timezone="Asia/Shanghai" />,
+  );
+  expect(within(log).getAllByRole("row")).toHaveLength(11);
+  rerender(<ResetCardHistory history={history} timezone="Asia/Shanghai" />);
+  expect(within(log).getAllByRole("row")).toHaveLength(11);
+  expect(log.querySelector("time")?.dateTime).toBe(history[10].redeemed_at);
   rerender(<ResetCardHistory history={[]} timezone="Asia/Shanghai" />);
   expect(screen.getByText("usage.resetCardHistoryEmpty")).toBeInTheDocument();
   expect(screen.queryByRole("table")).toBeNull();
