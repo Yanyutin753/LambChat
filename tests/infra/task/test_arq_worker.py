@@ -221,6 +221,7 @@ async def test_late_interrupted_resume_cannot_readmit_finished_or_replaced_run(
     live_run_info = {current_run: {"session_id": "session-1", "owner": "current-worker"}}
     task_manager = SimpleNamespace(
         storage=storage,
+        _tasks={},
         _run_info=dict(live_run_info),
         _ensure_executor=lambda: task_executor,
     )
@@ -281,6 +282,7 @@ async def test_interrupted_resume_admits_current_active_or_recoverable_failed_ru
     task_executor = _FakeTaskExecutor()
     task_manager = SimpleNamespace(
         storage=storage,
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -398,6 +400,7 @@ async def test_run_agent_task_loads_payload_and_invokes_executor(
     payload_store = _FakePayloadStore(payload)
     task_executor = _FakeTaskExecutor()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -448,7 +451,7 @@ async def test_run_agent_task_uses_dispatch_key_but_executes_logical_run(
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _FakeTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
 
     async def _executor_fn(*args, **kwargs):
         if False:
@@ -499,7 +502,7 @@ async def test_parallel_resume_worker_retries_during_same_run_source_handoff(
         }
 
     task_executor = _FakeTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     limiter = _FakeLimiter()
     redis = _ResumeStartupRedis()
     first_waiting = asyncio.Event()
@@ -564,7 +567,7 @@ async def test_hitl_resume_retries_without_running_when_concurrency_slot_is_busy
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _FakeTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     limiter = _FakeLimiter(can_acquire=False)
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
@@ -596,7 +599,7 @@ async def test_hitl_resume_releases_slot_when_pending_status_update_fails(
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _StatusFailingTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     limiter = _FakeLimiter()
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
@@ -629,7 +632,7 @@ async def test_hitl_resume_releases_slot_when_executor_resolution_raises(
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _FakeTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     limiter = _FakeLimiter()
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
@@ -666,7 +669,7 @@ async def test_hitl_resume_retries_without_claiming_capacity_while_source_is_act
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _FakeTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     limiter = _FakeLimiter()
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
@@ -737,7 +740,7 @@ async def test_suspended_arq_source_publishes_handoff_after_cleanup(
     }
     payload_store = _FakePayloadStore(payload)
     task_executor = _SuspendedTaskExecutor()
-    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    task_manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: task_executor)
     order: list[str] = []
 
     class _OrderedLimiter:
@@ -788,6 +791,7 @@ async def test_run_agent_task_imports_default_executor_when_registry_is_cold(
     task_executor = _FakeTaskExecutor()
     limiter = _FakeLimiter()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -837,6 +841,7 @@ async def test_run_agent_task_cleans_up_when_executor_is_unknown(
     task_executor = _FakeTaskExecutor()
     limiter = _FakeLimiter()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -883,6 +888,7 @@ async def test_run_agent_task_marks_recoverable_and_deletes_payload_when_cancell
         recoverable_failures.append((session_id, run_id, error_message))
 
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
         _mark_run_recoverable_failure=_fake_mark_recoverable_failure,
@@ -936,6 +942,7 @@ async def test_run_agent_task_does_not_mark_user_cancelled_run_recoverable(
         recoverable_failures.append((session_id, run_id, error_message))
 
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
         _mark_run_recoverable_failure=_fake_mark_recoverable_failure,
@@ -984,6 +991,7 @@ async def test_run_agent_task_deletes_payload_after_task_interrupted(
     task_executor = _InterruptedTaskExecutor()
     limiter = _FakeLimiter()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -1022,6 +1030,7 @@ async def test_run_agent_task_marks_failed_and_deletes_payload_when_watchdog_tim
     task_executor = _HangingTaskExecutor()
     limiter = _FakeLimiter()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -1074,6 +1083,7 @@ async def test_run_agent_task_keeps_payload_for_non_cancel_error(
     payload_store = _FakePayloadStore(payload)
     task_executor = _GenericFailingTaskExecutor()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )
@@ -1111,6 +1121,7 @@ async def test_run_agent_task_deletes_payload_after_success(
     task_executor = _FakeTaskExecutor()
     limiter = _FakeLimiter()
     task_manager = SimpleNamespace(
+        _tasks={},
         _run_info={},
         _ensure_executor=lambda: task_executor,
     )

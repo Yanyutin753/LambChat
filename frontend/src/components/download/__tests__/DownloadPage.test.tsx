@@ -284,7 +284,7 @@ function render(children: ReactNode) {
 test("shows opt-in update channel without changing the stable default", async () => {
   render(<DownloadPage />);
   expect(
-    await screen.findByRole("button", { name: /更新通道|Update channel/ }),
+    await screen.findByRole("group", { name: /更新通道|Update channel/ }),
   ).toBeTruthy();
 });
 

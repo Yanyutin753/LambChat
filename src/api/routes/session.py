@@ -20,6 +20,7 @@ from src.api.routes.session_history_render import (
     prepare_history_events,
     render_history_response_offloaded,
 )
+from src.api.routes.session_usage_projection import project_session_usage_costs
 from src.api.server_timing import timed_server_phase
 from src.infra.folder.storage import get_project_storage
 from src.infra.llm.retry import ainvoke_with_retry
@@ -322,12 +323,7 @@ async def get_session_events(
     include_approval_statuses: bool = False,
     user: TokenPayload = Depends(get_current_user_required),
 ):
-    """
-    获取会话所有事件
-
-    只能获取自己拥有的会话事件。
-
-    """
+    """获取当前用户拥有的会话事件。"""
     from src.infra.session.dual_writer import get_dual_writer
 
     manager = SessionManager()
@@ -415,6 +411,9 @@ async def get_session_events(
     # 预算按 trace 整轮消费：每个 run 的事件完整返回（最新单轮超预算也完整），
     # 超限丢弃的是更旧的整轮；这里不再二次切片以免切断 run
     events_limited = limit is not None and (events_truncated_by_budget or len(events) > limit)
+    events = await project_session_usage_costs(
+        events, session_id=session_id, user_id=session.user_id
+    )
     events, offload_history_json = await prepare_history_events(events, compact_message_chunks)
 
     response = {

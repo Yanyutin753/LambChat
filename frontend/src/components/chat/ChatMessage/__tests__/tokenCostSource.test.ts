@@ -23,7 +23,7 @@ test("total cost is not shown directly in the action bar, only in the popover", 
 test("token details popover renders a cost breakdown section", () => {
   const source = readFileSync(resolve(currentDir, "../index.tsx"), "utf8");
 
-  expect(source).toMatch(/priced && \(/);
+  expect(source).toMatch(/formatTokenUsageCost\(tokenUsage/);
   expect(source).toMatch(/costRows\.map/);
   expect(source).toMatch(/cost_breakdown|buildCostDetailRows/);
   expect(source).toMatch(/t\("chat\.message\.costTotal"\)/);

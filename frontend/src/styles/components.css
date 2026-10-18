@@ -1,5 +1,22 @@
 @reference "./tailwind.css";
 
+/* Numeric badges share the notification count's size, color and padding. */
+.count-badge {
+  @apply inline-flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 font-sans text-10 font-medium tabular-nums leading-none text-white;
+}
+
+.count-badge--overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.count-badge--loading {
+  width: 0.875rem;
+  padding-inline: 0;
+}
+
 /* Soften clipped sidebar rows without changing the list spacing. */
 [data-sidebar-scroll] {
   scroll-padding-block: 12px;
@@ -23,6 +40,13 @@
 .chat-header,
 [data-sidebar-brand] {
   --header-content-size: 1rem;
+}
+
+.chat-header .interactive-action-icon > div,
+[data-sidebar-brand] .interactive-action-icon > div {
+  width: var(--header-content-size);
+  height: var(--header-content-size);
+  flex-shrink: 0;
 }
 
 .chat-header__identity > button > svg,
@@ -441,6 +465,7 @@
 .panel-header .btn-secondary,
 .panel-header .ui-button--secondary {
   height: 2.5rem;
+  border-radius: 0.5rem;
   border-color: var(--theme-border);
   background: var(--theme-bg-card);
 }
@@ -452,13 +477,13 @@
   background: var(--theme-bg-hover);
 }
 
-.panel-header :is(.ui-button--secondary, .btn-secondary) {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--theme-text) 6%, var(--theme-bg-card));
+.panel-header .panel-filter-trigger--active {
+  box-shadow: none;
 }
-.panel-header :is(.ui-button--secondary, .btn-secondary):hover {
-  border-color: transparent;
-  background: var(--theme-bg-hover);
+
+.panel-header .panel-filter-trigger:focus:not(:focus-visible) {
+  border-color: var(--theme-border);
+  box-shadow: none;
 }
 
 @container panel (max-width: 639px) {
@@ -1191,10 +1216,6 @@
   border-color: var(--theme-primary);
   box-shadow: 0 0 0 2px
     color-mix(in srgb, var(--theme-primary) 20%, transparent);
-}
-
-.dark .panel-search {
-  background-color: var(--theme-bg-subtle);
 }
 
 /* Mobile bottom sheet modal */
@@ -3517,22 +3538,6 @@
   transform: translateX(2px);
 }
 
-.scheduled-task-session-card__unread {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 9999px;
-  background: var(--theme-primary);
-  color: var(--glass-bg, #fff);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 0 0.375rem;
-  line-height: 1;
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 60%, transparent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .scheduled-task-session-card,
   .scheduled-task-session-card__indicator,
@@ -4765,6 +4770,24 @@
     var(--theme-primary) 55%,
     var(--theme-text-tertiary)
   );
+}
+
+@supports not (color: color-mix(in srgb, black, white)) {
+  .usage-panel,
+  .dark .usage-panel {
+    --usage-surface: var(--theme-bg-card);
+    --usage-surface-hover: var(--theme-bg-elevated);
+    --usage-inset-bg: var(--theme-bg-subtle);
+    --usage-code-bg: var(--theme-bg-subtle);
+    --usage-icon-bg: var(--theme-primary-light);
+    --usage-border: var(--theme-border);
+    --usage-border-hover: var(--theme-border-hover);
+    --usage-shadow: none;
+    --usage-accent-soft: var(--theme-primary-light);
+    --usage-accent-mid: var(--theme-primary);
+    --usage-chart-secondary: var(--theme-text-tertiary);
+    --usage-progress-fill: var(--theme-primary);
+  }
 }
 
 /* ── Shared surface ── */

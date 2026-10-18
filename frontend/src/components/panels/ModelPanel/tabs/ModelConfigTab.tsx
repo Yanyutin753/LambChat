@@ -625,14 +625,24 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
         priced: result.priced,
         scanned: result.scanned,
       });
-      toast.success(
-        result.still_unpriced > 0
-          ? `${base} · ${t("agentConfig.pricingBackfillUnpriced", {
-              defaultValue: "{{count}} 条未计价",
-              count: result.still_unpriced,
-            })}`
-          : base,
-      );
+      const details = [base];
+      if ((result.partial_priced ?? 0) > 0) {
+        details.push(
+          t("agentConfig.pricingBackfillPartial", {
+            defaultValue: "{{count}} partially calculated",
+            count: result.partial_priced,
+          }),
+        );
+      }
+      if (result.still_unpriced > 0) {
+        details.push(
+          t("agentConfig.pricingBackfillUnpriced", {
+            defaultValue: "{{count}} 条未计价",
+            count: result.still_unpriced,
+          }),
+        );
+      }
+      toast.success(details.join(" · "));
     } catch (err) {
       const message =
         (err as Error).message ||

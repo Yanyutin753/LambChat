@@ -138,7 +138,7 @@ it.each([
       expect(view.getByText(session.name)).toBeInTheDocument(),
     );
     const unread = view.queryByLabelText("sidebar.unreadMessages");
-    if (status === "completed") expect(unread).toHaveTextContent("99+");
+    if (status === "completed") expect(unread).toHaveTextContent(/^99$/);
     else expect(unread).toBeNull();
   },
 );

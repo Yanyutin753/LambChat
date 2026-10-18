@@ -1,0 +1,303 @@
+.public-download .download-hero {
+  min-height: auto;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(2.5rem, 6vw, 5rem);
+  padding: calc(8rem + var(--app-safe-area-top, 0px))
+    max(1.5rem, calc((100vw - 75rem) / 2)) 4rem;
+}
+
+.public-download .download-hero-copy {
+  width: 100%;
+  margin: 0;
+}
+
+.public-download .download-eyebrow {
+  margin: 0 0 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.public-download .download-title {
+  margin: 0 0 1.5rem;
+  font-size: clamp(2.25rem, 4.1vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.public-download .download-description {
+  margin: 0 0 1.5rem;
+  max-width: 28rem;
+  font-size: 1rem;
+  line-height: 1.9;
+  text-wrap: pretty;
+}
+
+.public-download .download-channel-row {
+  margin: 0 0 1rem;
+}
+
+.download-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.download-action {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.download-action-primary,
+.download-asset--primary {
+  background: var(--theme-text);
+  color: var(--theme-bg);
+}
+
+.download-action-primary:hover,
+.download-asset--primary:hover {
+  background: var(--theme-text-secondary);
+}
+
+.download-action-secondary {
+  border-color: var(--theme-border);
+  color: var(--theme-text);
+}
+
+.download-action-secondary:hover,
+.download-asset--ghost:hover {
+  background: var(--theme-bg-hover);
+}
+
+.public-download .download-hero-copy .download-release-meta {
+  margin: 1.5rem 0 0;
+}
+
+.download-version,
+.download-release-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--theme-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.75;
+}
+
+.download-release-link {
+  min-height: 2.75rem;
+}
+
+.download-release-link:hover {
+  color: var(--theme-text);
+}
+
+.public-download .download-hero-art {
+  height: auto;
+  max-height: 34rem;
+  aspect-ratio: 1;
+  object-position: center 42%;
+  border-radius: var(--radius-xl);
+}
+
+.public-download > section[id] {
+  padding-block: clamp(3rem, 6vw, 5rem);
+}
+
+.public-download .public-section-heading {
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.public-download .public-section-heading h2 {
+  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+}
+
+.public-download .public-section-heading .public-eyebrow {
+  margin-bottom: 0.75rem;
+}
+
+.download-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.download-platform-card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  background: var(--theme-bg-card);
+}
+
+.download-platform-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.25rem;
+}
+
+.download-platform-heading h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.download-platform-current {
+  margin-left: auto;
+  color: var(--theme-text-secondary);
+  font-size: 0.6875rem;
+}
+
+.download-asset {
+  display: flex;
+  min-width: 0;
+  min-height: 3.25rem;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
+}
+
+.download-asset--primary {
+  border-color: transparent;
+}
+
+.download-asset--ghost {
+  color: var(--theme-text);
+}
+
+.download-asset-name {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6875rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.download-asset-type,
+.download-asset-size {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.download-asset-type {
+  font-family: var(--font-mono, monospace);
+}
+
+.download-mobile-card {
+  max-width: 36rem;
+}
+
+.download-back-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+  border-radius: var(--radius-md);
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.download-back-link:hover {
+  background: var(--theme-bg-hover);
+  color: var(--theme-text);
+}
+
+.download-install-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--theme-bg-subtle);
+}
+
+.download-install-note {
+  min-width: 0;
+}
+
+.download-install-note h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--theme-text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.download-install-note p {
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+}
+
+.download-install-note pre {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  font-size: 0.75rem;
+  line-height: 1.75;
+}
+
+@media (max-width: 1023px) {
+  .download-platform-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .public-download .download-hero {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding-top: calc(7rem + var(--app-safe-area-top, 0px));
+    padding-bottom: 2rem;
+  }
+
+  .public-download .download-hero-art {
+    max-height: 24rem;
+    aspect-ratio: 4 / 3;
+  }
+
+  .public-download .public-section-heading {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .download-hero-actions > a {
+    flex: 1 1 auto;
+  }
+
+  .download-platform-card {
+    padding: 1.25rem;
+  }
+
+  .download-install-notes {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1.25rem;
+  }
+}

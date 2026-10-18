@@ -35,6 +35,7 @@ export interface PricingSyncResponse extends PricingStatusResponse {
 export interface PricingBackfillResponse {
   scanned: number;
   priced: number;
+  partial_priced?: number;
   still_unpriced: number;
   unpriced_models: Record<string, number>;
   dry_run: boolean;

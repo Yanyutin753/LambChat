@@ -96,3 +96,34 @@ test("explicit priced free requests still display zero", () => {
     ),
   ).toBe("$0.000");
 });
+
+test("today restores historical estimates without claiming a confirmed total", () => {
+  expect(
+    buildDailyUsageAmount(
+      stats({
+        total_cost_usd: 0,
+        priced_requests: 0,
+        unpriced_requests: 3,
+        estimated_cost_usd: 0.5,
+        estimated_requests: 3,
+      }),
+      { language: "en" },
+    ),
+  ).toBe("≈$0.500");
+});
+test("today retains a known partial zero and keeps estimated amounts separate", () => {
+  expect(
+    buildDailyUsageAmount(
+      stats({
+        total_cost_usd: 0,
+        priced_requests: 0,
+        unpriced_requests: 3,
+        partial_cost_usd: 0,
+        partial_requests: 1,
+        estimated_cost_usd: 4,
+        estimated_requests: 2,
+      }),
+      { language: "en" },
+    ),
+  ).toBe("$0.000+");
+});

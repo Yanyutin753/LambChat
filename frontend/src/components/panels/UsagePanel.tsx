@@ -23,7 +23,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { useFxRates } from "../../hooks/useFxRates";
 import { cacheHitRateFromTokens } from "../chat/todayUsageSnapshot";
-import { fmtCostUsd } from "./UsagePanel/formatters";
+import { fmtCostUsd, fmtUsageCount } from "./UsagePanel/formatters";
+import { usageCostOptions, historicalEstimateHint } from "../../utils/currency";
 import {
   buildModelLabelMap,
   withModelDisplayNames,
@@ -215,7 +216,7 @@ export function UsagePanel() {
       stats.total_input_tokens,
       stats.total_cache_read_tokens,
       stats.total_cache_creation_tokens,
-      [],
+      stats.unknown_usage_fields,
       stats.cache_unknown_requests === 0,
     );
     return pct(rate);
@@ -343,21 +344,38 @@ export function UsagePanel() {
               icon={DatabaseZap}
               label={t("usage.cacheHitRate")}
               value={cacheHitLabel}
-              hint={
-                cacheHitLabel === "—"
-                  ? t("usage.cacheRateUnknown")
-                  : t("usage.cacheTokens", {
-                      count: fmt(stats.total_cache_read_tokens),
-                    })
-              }
+              hint={[
+                t("usage.cacheTokens", {
+                  count: fmtUsageCount(
+                    stats.total_cache_read_tokens,
+                    "cache_read_tokens",
+                    stats.unknown_usage_fields,
+                  ),
+                }),
+                cacheHitLabel === "—" ? t("usage.cacheRateUnknown") : undefined,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             />
             <StatMetric
               icon={ArrowUpFromLine}
               label={t("usage.totalTokens")}
-              value={fmt(stats.total_tokens)}
+              value={fmtUsageCount(
+                stats.total_tokens,
+                "total_tokens",
+                stats.unknown_usage_fields,
+              )}
               hint={t("usage.kpi.tokensHint", {
-                in: fmt(stats.total_input_tokens),
-                out: fmt(stats.total_output_tokens),
+                in: fmtUsageCount(
+                  stats.total_input_tokens,
+                  "input_tokens",
+                  stats.unknown_usage_fields,
+                ),
+                out: fmtUsageCount(
+                  stats.total_output_tokens,
+                  "output_tokens",
+                  stats.unknown_usage_fields,
+                ),
               })}
             />
             <StatMetric
@@ -366,15 +384,26 @@ export function UsagePanel() {
               value={fmtCostUsd(stats.total_cost_usd, true, {
                 language: i18n.language,
                 rates: fxRates,
-                pricedRequests: stats.priced_requests,
-                unpricedRequests: stats.unpriced_requests,
+                ...usageCostOptions(stats),
               })}
               hint={
-                (stats.unpriced_requests ?? 0) > 0
-                  ? t("usage.unpricedHint", {
-                      count: fmt(stats.unpriced_requests ?? 0),
-                    })
-                  : undefined
+                [
+                  (stats.unpriced_requests ?? 0) > 0
+                    ? t("usage.unpricedHint", {
+                        count: fmt(stats.unpriced_requests ?? 0),
+                      })
+                    : undefined,
+                  historicalEstimateHint(
+                    {
+                      ...usageCostOptions(stats),
+                      language: i18n.language,
+                      rates: fxRates,
+                    },
+                    t("usage.historicalEstimate"),
+                  ),
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
               }
             />
           </div>

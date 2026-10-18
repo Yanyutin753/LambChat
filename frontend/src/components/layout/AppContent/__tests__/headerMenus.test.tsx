@@ -35,12 +35,6 @@ vi.mock("../../../common/SceneIllustration", () => ({
   SceneIllustration: () => null,
 }));
 vi.mock("../../../agent/ModelSelector", () => ({ ModelSelector: () => null }));
-vi.mock(
-  "../../../panels/ScheduledTaskPanel/SessionScheduledTasksButton",
-  () => ({
-    SessionScheduledTasksButton: () => null,
-  }),
-);
 vi.mock("../../UserMenu", () => ({ UserMenu: () => null }));
 vi.mock("../../../share/ShareDialog", () => ({ ShareDialog: () => null }));
 vi.mock("../../../notification/NotificationDialog", () => ({

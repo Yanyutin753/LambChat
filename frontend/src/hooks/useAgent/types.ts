@@ -110,7 +110,13 @@ export interface EventData {
   input_includes_cache?: boolean;
   model_id?: string;
   model?: string;
-  cost_usd?: number;
+  cost_complete?: boolean;
+  cost_usd?: number | null;
+  partial_cost_usd?: number | null;
+  estimated_cost_usd?: number | null;
+  partial_cost_breakdown?: Partial<
+    Record<"input" | "output" | "cache_read" | "cache_write", number>
+  >;
   cost_breakdown?: {
     input: number;
     output: number;
@@ -123,6 +129,7 @@ export interface EventData {
     output: number | null;
     cache_read: number | null;
     cache_write: number | null;
+    cache_write_included?: boolean;
   };
   // user:message event fields
   message_id?: string;

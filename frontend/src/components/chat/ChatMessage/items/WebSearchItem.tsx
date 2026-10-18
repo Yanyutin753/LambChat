@@ -417,8 +417,8 @@ const WebSearchItem = memo(function WebSearchItem({
   // 结果数走 suffix 徽章，pill 主标签保持干净
   const countSuffix =
     summary && summary.results.length > 0 ? (
-      <span className="inline-flex shrink-0 items-center rounded-full bg-black/[0.06] dark:bg-white/10 px-1.5 text-9 font-semibold tabular-nums opacity-80">
-        {summary.results.length}
+      <span className="count-badge">
+        {Math.min(summary.results.length, 99)}
       </span>
     ) : undefined;
 

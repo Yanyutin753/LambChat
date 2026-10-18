@@ -11,6 +11,7 @@ import {
   buildTodayUsageSnapshot,
   type TokenShareKey,
 } from "./todayUsageSnapshot";
+import { historicalEstimateHint, usageCostOptions } from "../../utils/currency";
 import { getUsagePopoverPosition } from "./usagePopoverPosition";
 
 const SEGMENT_STYLE: Record<
@@ -88,7 +89,22 @@ export function ComposerUsageChip() {
 
   if (!snapshot) return null;
 
-  const label = t("usage.todayShort", { amount: snapshot.amount });
+  const estimateHint = stats
+    ? historicalEstimateHint(
+        {
+          ...usageCostOptions(stats),
+          language: i18n.language,
+          rates: fxRates,
+        },
+        t("usage.historicalEstimate"),
+      )
+    : undefined;
+  const label = [
+    t("usage.todayShort", { amount: snapshot.amount }),
+    estimateHint,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const visibleShares = snapshot.sharesKnown
     ? snapshot.shares.filter((s) => s.share > 0)
     : [];
@@ -138,6 +154,17 @@ export function ComposerUsageChip() {
               </span>
             </div>
 
+            {estimateHint && (
+              <p className="px-3 pt-2 text-11 text-theme-text-muted">
+                {estimateHint}
+              </p>
+            )}
+            {snapshot.amount?.endsWith("+") && (
+              <p className="px-3 pt-2 text-11 text-theme-text-muted">
+                {t("usage.partialCostHint")}
+              </p>
+            )}
+
             {/* ── Token 构成 ── */}
             <div className="px-3 pb-2 pt-2.5">
               <div
@@ -174,13 +201,17 @@ export function ComposerUsageChip() {
                       className="min-w-0"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
-                      {t(SEGMENT_STYLE[s.key].labelKey)}
+                      {t(
+                        s.reported
+                          ? "usage.tokensInputReported"
+                          : SEGMENT_STYLE[s.key].labelKey,
+                      )}
                     </span>
                     <span
                       className="text-right tabular-nums"
                       style={{ color: "var(--theme-text-tertiary)" }}
                     >
-                      {snapshot.sharesKnown ? s.tokens.toLocaleString() : "—"}
+                      {s.tokens === null ? "—" : s.tokens.toLocaleString()}
                     </span>
                     <span
                       className="w-9 text-right tabular-nums"

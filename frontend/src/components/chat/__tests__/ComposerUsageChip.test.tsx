@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 import { ComposerUsageChip } from "../ComposerUsageChip";
 import type { UsageStats } from "../../../types/usage";
@@ -19,6 +19,7 @@ vi.mock("react-i18next", () => ({
         "usage.todaySpend": "今日用量",
         "usage.tokenMix": "Token 构成",
         "usage.tokensInput": "输入",
+        "usage.tokensInputReported": "输入（报告值）",
         "usage.tokensOutput": "输出",
         "usage.cacheWrite": "缓存写入",
         "usage.cacheRead": "缓存读取",
@@ -124,7 +125,8 @@ test("unknown usage shows neither invented free cost nor token percentages", asy
   expect(await screen.findByText("Token 构成")).toBeInTheDocument();
   expect(screen.queryByText("0%")).not.toBeInTheDocument();
   expect(screen.queryByText("30.0%")).not.toBeInTheDocument();
-  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(8);
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(6);
+  expect(screen.getByText("输入（报告值）")).toBeInTheDocument();
 });
 
 test("queues a follow-up refresh when the event lands while a fetch is in flight", async () => {
@@ -243,4 +245,32 @@ test("usage card uses serif text and aligns metric columns and baselines", async
     "inline-flex",
     "items-baseline",
   );
+});
+
+test("56 requests show independently known tokens and mark reported input without fabricating writes", async () => {
+  getStatsMock.mockResolvedValue(
+    todayStats({
+      total_requests: 56,
+      total_cache_creation_tokens: 0,
+      cache_unknown_requests: 56,
+      usage_unknown_requests: 56,
+      unknown_usage_fields: ["cache_creation_tokens"],
+    }),
+  );
+  render(<ComposerUsageChip />);
+  fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
+  const input = await screen.findByText("输入（报告值）");
+  expect(within(input.parentElement!).getByText("100")).toBeInTheDocument();
+  expect(
+    within(screen.getByText("输出").parentElement!).getByText("50"),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByText("缓存读取").parentElement!).getByText("30"),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByText("缓存写入").parentElement!).queryByText("0"),
+  ).toBeNull();
+  expect(screen.queryByText("30.0%")).toBeNull();
+  expect(screen.queryByText("0%")).toBeNull();
+  expect(screen.getByText("56")).toBeInTheDocument();
 });

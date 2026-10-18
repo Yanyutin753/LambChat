@@ -84,7 +84,10 @@ async def test_arq_background_resume_fences_pending_before_slots(monkeypatch, re
     collection, executor, stream, source = setup_background(monkeypatch, stale=stale, race=race)
     limiter = _FakeLimiter()
     manager = SimpleNamespace(
-        _ensure_executor=lambda: executor, _run_info=executor._run_info, storage=executor._storage
+        _ensure_executor=lambda: executor,
+        _tasks={},
+        _run_info=executor._run_info,
+        storage=executor._storage,
     )
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)

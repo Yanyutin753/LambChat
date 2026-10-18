@@ -82,7 +82,7 @@ export function RightPanelTabs({
             <PanelRightOpen size={16} aria-hidden="true" />
           </InteractiveIcon>
           <span>{t("common.panelTabs")}</span>
-          <span className="right-panel-restore-count">{entries.length}</span>
+          <span className="count-badge">{Math.min(entries.length, 99)}</span>
         </button>
         <DialogCloseButton
           aria-label={t("common.closeAllPanelTabs")}

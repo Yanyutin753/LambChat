@@ -155,9 +155,7 @@ export function SkillFilterDropdown<T extends string>({
         {icon}
         <span className="panel-filter-trigger__label">{label}</span>
         {hasActiveFilters && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-11">
-            {activeCount}
-          </span>
+          <span className="count-badge">{Math.min(activeCount, 99)}</span>
         )}
         <InteractiveIcon>
           <ChevronDown

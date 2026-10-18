@@ -1,8 +1,13 @@
+import { reportedTokenCount } from "../../../utils/usageTokens";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageRankingItem } from "../../../types/usage";
 import { useFxRates } from "../../../hooks/useFxRates";
-import { fmt, fmtDur, fmtCostUsd, pct } from "./formatters";
+import { fmtUsageCount, fmtDur, fmtCostUsd, pct } from "./formatters";
+import {
+  usageCostOptions,
+  historicalEstimateHint,
+} from "../../../utils/currency";
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank > 3) return null;
@@ -51,7 +56,17 @@ export function RankingList({
 }) {
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
-  const maxTokens = Math.max(...items.map((i) => i.tokens), 1);
+  const maxTokens = Math.max(
+    ...items.map(
+      (item) =>
+        reportedTokenCount(
+          item.tokens,
+          "total_tokens",
+          item.unknown_usage_fields,
+        ) ?? 0,
+    ),
+    1,
+  );
   return (
     <div className="usage-surface rounded-xl p-4 transition-colors duration-200 hover:border-[var(--usage-border-hover)] sm:p-5">
       {/* Header */}
@@ -89,38 +104,73 @@ export function RankingList({
                   {item.name || item.id || "-"}
                 </span>
                 <span className="shrink-0 text-11 font-bold tabular-nums text-theme-text sm:text-12">
-                  {fmt(item.tokens)}
+                  {fmtUsageCount(
+                    item.tokens,
+                    "total_tokens",
+                    item.unknown_usage_fields,
+                  )}
                 </span>
               </div>
-              <CustomProgressBar
-                percentage={Math.max(4, (item.tokens / maxTokens) * 100)}
-              />
+              {reportedTokenCount(
+                item.tokens,
+                "total_tokens",
+                item.unknown_usage_fields,
+              ) !== null && (
+                <CustomProgressBar
+                  percentage={Math.max(4, (item.tokens / maxTokens) * 100)}
+                />
+              )}
               <div className="mt-1 flex justify-between gap-2 text-10 text-theme-text-tertiary">
                 <span>
                   {t("usage.ranking.countSuffix", { count: item.requests })}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {(item.cost_usd !== undefined ||
+                    item.partial_cost_usd !== undefined ||
+                    item.estimated_cost_usd !== undefined ||
                     (item.unpriced_requests ?? 0) > 0) && (
                     <span className="tabular-nums">
                       {fmtCostUsd(item.cost_usd, true, {
                         language: i18n.language,
                         rates: fxRates,
-                        pricedRequests: item.priced_requests,
-                        unpricedRequests: item.unpriced_requests,
+                        ...usageCostOptions(item),
                       })}
                     </span>
                   )}
                   <span>{fmtDur(item.duration)}</span>
                 </span>
               </div>
+              {historicalEstimateHint(
+                {
+                  ...usageCostOptions(item),
+                  language: i18n.language,
+                  rates: fxRates,
+                },
+                t("usage.historicalEstimate"),
+              ) && (
+                <p className="mt-1 break-words text-10 text-theme-text-tertiary">
+                  {historicalEstimateHint(
+                    {
+                      ...usageCostOptions(item),
+                      language: i18n.language,
+                      rates: fxRates,
+                    },
+                    t("usage.historicalEstimate"),
+                  )}
+                </p>
+              )}
               {showCacheMetrics && (
                 <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-10 text-theme-text-tertiary">
                   <span>
                     {t("usage.cacheHitRate")}: {pct(item.cache_read_share)}
                   </span>
                   <span>
-                    {t("usage.cacheRead")}: {fmt(item.cache_read_tokens)}
+                    {t("usage.cacheRead")}:{" "}
+                    {fmtUsageCount(
+                      item.cache_read_tokens,
+                      "cache_read_tokens",
+                      item.unknown_usage_fields,
+                    )}
                   </span>
                   {pct(item.cache_read_share) === "—" && (
                     <span className="basis-full">
@@ -199,7 +249,11 @@ export function DistributionList({
                   </span>
                   <span>
                     {t("usage.ranking.tokensValue", {
-                      count: fmt(item.tokens),
+                      count: fmtUsageCount(
+                        item.tokens,
+                        "total_tokens",
+                        item.unknown_usage_fields,
+                      ),
                     })}
                   </span>
                 </div>

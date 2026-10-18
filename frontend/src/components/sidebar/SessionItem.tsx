@@ -379,7 +379,7 @@ function SessionItemComponent({
                       <span
                         role="img"
                         aria-label={unreadLabel}
-                        className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center self-start rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
+                        className="count-badge self-start"
                       >
                         {formatUnreadCount(session.unread_count!)}
                       </span>
@@ -463,11 +463,7 @@ function SessionItemComponent({
         {/* Show unread count only when no task status is displayed. */}
         {!selectionMode && !isEditing && hasUnread && (
           <span className="inline-flex h-8 w-6 shrink-0 items-center justify-center max-sm:h-9 max-sm:w-9">
-            <span
-              role="img"
-              aria-label={unreadLabel}
-              className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
-            >
+            <span role="img" aria-label={unreadLabel} className="count-badge">
               {formatUnreadCount(session.unread_count!)}
             </span>
           </span>

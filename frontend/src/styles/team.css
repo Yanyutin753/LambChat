@@ -397,8 +397,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.625rem;
   border-bottom: 1px solid var(--theme-border);
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--theme-text-secondary) 20%, transparent),
       transparent
@@ -750,22 +749,6 @@
   gap: 0.5rem;
   line-height: 1.25;
 }
-.team-pane-count {
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: var(--theme-text-secondary);
-  background: color-mix(
-    in srgb,
-    var(--theme-bg) 80%,
-    var(--theme-primary-light)
-  );
-  border: 1px solid
-    color-mix(in srgb, var(--theme-border) 80%, var(--theme-text) 6%);
-  border-radius: 9999px;
-  padding: 0.1rem 0.45rem;
-  line-height: 1.4;
-}
-
 /* --- Role list / Roster list --- */
 .team-role-list,
 .team-roster-list {

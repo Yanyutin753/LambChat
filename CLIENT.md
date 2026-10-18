@@ -96,6 +96,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 ## 8. 移动端（Capacitor）专项
 
 - **WebView 兼容下限**：共享前端使用 Tailwind CSS 4 与 Vite 8，iOS 最低版本为 **16.4**（WKWebView/Safari 16.4），Podfile 与所有 Xcode deployment target 保持一致。Android 最低 API 24 与 WebView 引擎版本是两个独立条件：实际运行需 Android System WebView / Chrome **111+**，旧设备须更新 WebView；提高 Android API 不能代替引擎版本检查。浏览器下限与依据见 [Tailwind 官方兼容说明](https://tailwindcss.com/docs/compatibility)。
+- **颜色降级**：共享卡片、用量与技能表单的混色变量通过 `@supports not (color: color-mix(...))` 回退到现有主题 token，避免旧 WebView 在变量消费时生成无效颜色，导致白边或透明底色。PostCSS 入口的 `color-mix-border-fallback.mjs` 同时覆盖直接声明与 Tailwind 生成的主题混色边框，保留媒体条件、状态选择器、显式备用色和后续覆盖。CSS 自定义属性中的未知函数不会自动触发 `var()` 的默认值，不能只追加同名变量或消费处的备用声明；该降级不代表支持低于上述下限的完整运行环境。
 
 - **安装器图标**：Windows NSIS 安装/卸载程序显式使用桌面 ICO，NSIS 与 MSI 向导位图由 `pnpm brand:assets` 从 `resources/native-icon.png` 生成并提交；`pnpm brand:assets:check` 同时检测安装器素材是否过期。macOS app/DMG 与 Linux 桌面入口继续使用 Tauri 生成的 ICNS/PNG；Android/iOS 沿用移动端原图。
 

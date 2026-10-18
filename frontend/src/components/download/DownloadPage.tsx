@@ -1,3 +1,4 @@
+import "./download.css";
 import { UpdateChannelSelect } from "../update/UpdateChannelSelect";
 import { useUpdateChannel } from "../../utils/updateChannel";
 import { InteractiveIcon } from "../common/InteractiveIcon";
@@ -45,13 +46,10 @@ import type { VersionInfo } from "../../types";
 /** 平台分区的展示顺序：检测到的平台置顶并高亮。 */
 const PLATFORM_ORDER: DesktopPlatform[] = ["windows", "macos", "linux"];
 
-const PLATFORM_META: Record<
-  DesktopPlatform,
-  { icon: typeof Monitor; gradient: string }
-> = {
-  windows: { icon: AppWindow, gradient: "from-sky-400/90 to-blue-500/90" },
-  macos: { icon: Command, gradient: "from-stone-500/90 to-stone-700/90" },
-  linux: { icon: Terminal, gradient: "from-amber-400/90 to-orange-500/90" },
+const PLATFORM_ICONS: Record<DesktopPlatform, typeof Monitor> = {
+  windows: AppWindow,
+  macos: Command,
+  linux: Terminal,
 };
 
 /** 扩展名类型徽章（技术感标签，免 i18n：MSI/DMG/DEB…）。 */
@@ -72,62 +70,19 @@ function AssetRow({
   size?: number;
   variant?: "primary" | "ghost";
 }) {
-  const badge = (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 font-mono text-9 font-bold tracking-wider ${
-        variant === "primary"
-          ? "bg-white/15 text-white/80 dark:bg-black/10 dark:text-stone-600"
-          : "bg-stone-100/90 text-theme-text-secondary dark:bg-stone-800/80 dark:text-theme-text-secondary"
-      }`}
-    >
-      {extBadge(name)}
-    </span>
-  );
-  if (variant === "primary") {
-    return (
-      <a
-        href={url}
-        download
-        className="group inline-flex w-full items-center gap-3 rounded-2xl bg-stone-900 px-5 py-3.5 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:text-15"
-      >
-        {badge}
-        <span className="min-w-0 flex-1 break-all font-mono text-12 leading-relaxed sm:text-13">
-          {name}
-        </span>
-        {size != null && (
-          <span className="ml-auto shrink-0 tabular-nums text-11 opacity-60">
-            {formatAssetSize(size)}
-          </span>
-        )}
-        <InteractiveIcon>
-          <DownloadIcon
-            size={14}
-            className="shrink-0 transition-transform duration-300 group-hover:translate-y-0.5"
-          />
-        </InteractiveIcon>
-      </a>
-    );
-  }
   return (
     <a
       href={url}
       download
-      className="group inline-flex w-full items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/55 px-4 py-3 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:text-15"
+      className={`download-asset download-asset--${variant}`}
     >
-      {badge}
-      <span className="min-w-0 flex-1 break-all font-mono text-12 leading-relaxed sm:text-13 text-theme-text-secondary dark:text-stone-200">
-        {name}
-      </span>
+      <span className="download-asset-type">{extBadge(name)}</span>
+      <span className="download-asset-name">{name}</span>
       {size != null && (
-        <span className="ml-auto shrink-0 tabular-nums text-11 text-theme-text-secondary dark:text-theme-text-secondary">
-          {formatAssetSize(size)}
-        </span>
+        <span className="download-asset-size">{formatAssetSize(size)}</span>
       )}
       <InteractiveIcon>
-        <DownloadIcon
-          size={14}
-          className="shrink-0 text-theme-text-secondary transition-transform duration-300 group-hover:translate-y-0.5 dark:text-theme-text-secondary"
-        />
+        <DownloadIcon size={14} className="shrink-0" />
       </InteractiveIcon>
     </a>
   );
@@ -149,44 +104,32 @@ function SectionDivider() {
 function MacGatekeeperNote() {
   const { t } = useTranslation();
   return (
-    <div className="mt-4 rounded-xl border border-amber-200/70 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/[0.05]">
-      <div className="mb-1.5 flex items-center gap-2">
-        <Terminal
-          size={13}
-          className="shrink-0 text-amber-600/80 dark:text-amber-400/80"
-        />
-        <span className="text-12 font-semibold text-amber-700 dark:text-amber-400">
+    <div className="download-install-notes">
+      <div className="download-install-note">
+        <h3>
+          <Terminal size={14} />
           {t("download.macInstall.title")}
-        </span>
+        </h3>
+        <p>{t("download.macInstall.body")}</p>
+        <pre>
+          <code>curl -fsSL https://lambchat.com/install.sh | sh</code>
+        </pre>
       </div>
-      <p className="text-12 leading-relaxed text-theme-text-secondary dark:text-theme-text-secondary">
-        {t("download.macInstall.body")}
-      </p>
-      <p className="mt-2.5 overflow-x-auto rounded-lg bg-stone-900 px-3.5 py-2.5 font-mono text-12 whitespace-nowrap text-stone-200 dark:bg-black/60 sm:text-13">
-        <span className="select-none text-emerald-400/80">$ </span>
-        curl -fsSL https://lambchat.com/install.sh | sh
-      </p>
-      <div className="mt-3.5 mb-1.5 flex items-center gap-2 border-t border-amber-200/60 pt-3 dark:border-amber-500/15">
-        <ShieldAlert
-          size={13}
-          className="shrink-0 text-amber-600/80 dark:text-amber-400/80"
-        />
-        <span className="text-12 font-semibold text-amber-700 dark:text-amber-400">
+      <div className="download-install-note">
+        <h3>
+          <ShieldAlert size={14} />
           {t("download.macGatekeeper.title")}
-        </span>
+        </h3>
+        <p>{t("download.macGatekeeper.body")}</p>
+        <pre>
+          <code>xattr -cr /Applications/LambChat.app</code>
+        </pre>
       </div>
-      <p className="text-12 leading-relaxed text-theme-text-secondary dark:text-theme-text-secondary">
-        {t("download.macGatekeeper.body")}
-      </p>
-      <p className="mt-2.5 overflow-x-auto rounded-lg bg-stone-900 px-3.5 py-2.5 font-mono text-12 whitespace-nowrap text-stone-200 dark:bg-black/60 sm:text-13">
-        <span className="select-none text-emerald-400/80">$ </span>
-        xattr -cr /Applications/LambChat.app
-      </p>
     </div>
   );
 }
 
-/** 下载页专属大号分区标题（结构同落地页 SectionHeading，字号上调一档）。 */
+/** 下载页分区标题沿用公开页面的排版。 */
 function SectionHeadingXL({
   label,
   title,
@@ -338,7 +281,7 @@ export function DownloadPage() {
             <Link
               to="/chat"
               aria-label={t("download.back")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-stone-200/80 bg-white/55 px-4 py-2 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md hover:shadow-stone-200/30 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30"
+              className="download-back-link"
             >
               <InteractiveIcon>
                 <ArrowLeft size={13} />
@@ -350,27 +293,14 @@ export function DownloadPage() {
       </nav>
 
       {/* Hero */}
-      <section className="public-brand-hero blog-hero relative flex min-h-[calc(100svh-var(--titlebar-inset,0px))] min-h-[calc(100dvh-var(--titlebar-inset,0px))] flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-[calc(5rem+var(--app-safe-area-top,0px))] text-center sm:px-6 sm:pt-28">
-        <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-4xl lg:max-w-5xl">
-          <UpdateChannelSelect />
-          {/* Editorial tag */}
-          <div
-            data-reveal
-            className="mb-8 flex items-center justify-center gap-2.5 sm:mb-12 sm:gap-3"
-          >
-            <span className="block h-px w-6 bg-linear-to-r from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
-            <span className="relative text-11 font-semibold uppercase tracking-[0.16em] text-theme-text-secondary dark:text-theme-text-secondary sm:text-13 sm:tracking-[0.18em]">
-              {t("download.tag")}
-            </span>
-            <span className="block h-px w-6 bg-linear-to-l from-transparent to-stone-300 dark:to-stone-600 sm:w-8" />
-          </div>
+      <section className="public-brand-hero download-hero">
+        <div className="download-hero-copy">
+          <p data-reveal className="public-eyebrow download-eyebrow">
+            {t("download.tag")}
+          </p>
 
           {/* Title */}
-          <h1
-            data-reveal
-            data-reveal-delay="1"
-            className="mb-7 bg-linear-to-b from-stone-900 via-stone-800 to-stone-600 bg-clip-text text-[2.35rem] font-extrabold leading-[1.15] tracking-[-0.025em] text-transparent dark:from-stone-50 dark:via-stone-200 dark:to-stone-400 sm:mb-10 sm:text-[3.1rem] lg:text-[3.4rem]"
-          >
+          <h1 data-reveal data-reveal-delay="1" className="download-title">
             {t("download.title")}
           </h1>
 
@@ -378,10 +308,14 @@ export function DownloadPage() {
           <p
             data-reveal
             data-reveal-delay="2"
-            className="blog-prose mx-auto mb-11 max-w-[20rem] text-16 leading-[1.8] text-theme-text-secondary dark:text-theme-text-secondary sm:mb-16 sm:max-w-xl sm:text-20 lg:text-[1.4rem] sm:leading-[1.85]"
+            className="blog-prose download-description"
           >
             {t("download.description")}
           </p>
+
+          <div className="download-channel-row">
+            <UpdateChannelSelect />
+          </div>
 
           {/* CTAs */}
           {failed && !hasDesktopAssets ? (
@@ -410,20 +344,17 @@ export function DownloadPage() {
             <div
               data-reveal
               data-reveal-delay="3"
-              className="mx-auto flex max-w-[19rem] flex-col items-center justify-center gap-3.5 sm:max-w-none sm:flex-row sm:gap-4"
+              className="download-hero-actions"
             >
               {android && apk ? (
                 <a
                   href={apk.url}
                   download
                   data-hero-direct-download
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="download-action download-action-primary"
                 >
                   <InteractiveIcon>
-                    <DownloadIcon
-                      size={15}
-                      className="transition-transform duration-300 group-hover:translate-y-0.5"
-                    />
+                    <DownloadIcon size={15} />
                   </InteractiveIcon>
                   {t("download.downloadFor", { platform: "Android" })}
                 </a>
@@ -432,13 +363,10 @@ export function DownloadPage() {
                   href={recommended.url}
                   download
                   data-hero-direct-download
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/15 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="download-action download-action-primary"
                 >
                   <InteractiveIcon>
-                    <DownloadIcon
-                      size={15}
-                      className="transition-transform duration-300 group-hover:translate-y-0.5"
-                    />
+                    <DownloadIcon size={15} />
                   </InteractiveIcon>
                   {t("download.downloadFor", {
                     platform: platformLabel(detected),
@@ -447,7 +375,7 @@ export function DownloadPage() {
               ) : (
                 <a
                   href="#desktop"
-                  className="blog-btn-primary group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-stone-900 px-8 py-4 text-14 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-theme-bg-hover hover:shadow-xl hover:shadow-stone-900/12 active:translate-y-0 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-white dark:hover:shadow-stone-50/10 sm:w-auto sm:px-9"
+                  className="download-action download-action-primary"
                 >
                   <InteractiveIcon>
                     <DownloadIcon size={15} />
@@ -457,7 +385,7 @@ export function DownloadPage() {
               )}
               <a
                 href="#tutorial"
-                className="blog-btn-ghost group inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-stone-200/80 bg-white/55 px-8 py-4 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 active:translate-y-0 dark:border-stone-700/50 dark:bg-stone-800/35 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:w-auto sm:px-9"
+                className="download-action download-action-secondary"
               >
                 <InteractiveIcon>
                   <GraduationCap size={15} />
@@ -472,11 +400,11 @@ export function DownloadPage() {
             <div
               data-reveal
               data-reveal-delay="4"
-              className="mt-12 border-t border-stone-200/40 pt-6 dark:border-stone-800/30 sm:mt-20 sm:pt-8"
+              className="download-release-meta"
             >
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2.5">
                 {info?.latest_version && (
-                  <span className="blog-tech-pill inline-flex items-center gap-2 rounded-full border border-stone-100/60 bg-white/70 px-3.5 py-1.5 text-12 font-medium text-theme-text-secondary dark:border-stone-700/20 dark:bg-stone-900/50 dark:text-theme-text-secondary sm:text-13">
+                  <span className="download-version">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                     {t("download.latestVersion", {
                       version: info.latest_version,
@@ -487,7 +415,7 @@ export function DownloadPage() {
                   href={releasesFallbackUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-11 font-semibold uppercase tracking-[0.14em] text-theme-text-secondary transition-colors hover:text-theme-text-secondary dark:text-theme-text-secondary dark:hover:text-theme-text-tertiary sm:text-13"
+                  className="download-release-link"
                 >
                   <InteractiveIcon>
                     <ExternalLink size={11} />
@@ -499,7 +427,7 @@ export function DownloadPage() {
           )}
         </div>
         <img
-          className="public-brand-art"
+          className="public-brand-art download-hero-art"
           src={
             theme === "dark"
               ? "/images/illustrations/auth-brand-workspace.webp"
@@ -513,7 +441,7 @@ export function DownloadPage() {
 
       <SectionDivider />
 
-      {/* 桌面端：Bento——检测平台大卡 + 其余平台紧凑卡 */}
+      {/* 桌面端：检测到的平台置顶，所有平台共用下载行。 */}
       <section
         id="desktop"
         className="blog-mesh-features relative scroll-mt-14 py-20 sm:py-28 lg:py-36"
@@ -524,103 +452,26 @@ export function DownloadPage() {
             title={t("download.desktop.title")}
             description={t("download.desktop.desc")}
           />
-          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
+          <div className="download-platform-grid">
             {platformOrder.map((platform, idx) => {
               const links = desktop[platform];
-              const meta = PLATFORM_META[platform];
-              const Icon = meta.icon;
+              const Icon = PLATFORM_ICONS[platform];
               const isDetected = platform === detected;
-              const featured = idx === 0;
-              if (featured) {
-                // 大卡：主推直下（实心）+ 全部变体（双列）
-                return (
-                  <div
-                    key={platform}
-                    data-reveal
-                    className={`blog-feature-card blog-glass-inner-glow group relative rounded-3xl border p-7 transition-all duration-500 hover:-translate-y-1.5 sm:p-8 lg:col-span-2 lg:row-span-2 ${
-                      isDetected
-                        ? "border-amber-200/90 bg-amber-50/60 dark:border-amber-500/25 dark:bg-amber-500/[0.06]"
-                        : "border-stone-100/80 bg-white/80 dark:border-stone-800/40 dark:bg-stone-900/40"
-                    }`}
-                  >
-                    <div
-                      className={`absolute left-7 top-0 h-[2px] w-10 rounded-full bg-linear-to-r opacity-60 transition-all duration-500 group-hover:w-16 sm:left-8 ${
-                        isDetected
-                          ? "from-amber-300 to-orange-400"
-                          : meta.gradient
-                      }`}
-                    />
-                    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-3.5">
-                        <span
-                          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-20 text-white shadow-md transition-all duration-500  ${meta.gradient}`}
-                        >
-                          <Icon size={20} />
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-20 font-bold text-stone-900 dark:text-stone-100">
-                              {platformLabel(platform)}
-                            </span>
-                            {isDetected && (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100/90 px-2.5 py-1 text-10 font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-                                <span className="h-1 w-1 rounded-full bg-amber-500" />
-                                {t("download.detectedPlatform")}
-                              </span>
-                            )}
-                          </div>
-                          {links[0] && (
-                            <p className="mt-0.5 truncate font-mono text-11 tabular-nums text-theme-text-secondary dark:text-theme-text-secondary">
-                              {links[0].name}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2.5">
-                      {links.length > 0 ? (
-                        <>
-                          <AssetRow {...links[0]} variant="primary" />
-                          {links.length > 1 && (
-                            <div className="grid grid-cols-1 gap-2.5 pt-1 sm:grid-cols-2">
-                              {links.slice(1).map((link) => (
-                                <AssetRow key={link.url} {...link} />
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-14 text-theme-text-secondary dark:text-theme-text-secondary">
-                          {t("download.noAssets")}
-                        </p>
-                      )}
-                    </div>
-                    {platform === "macos" && links.length > 0 && (
-                      <MacGatekeeperNote />
-                    )}
-                  </div>
-                );
-              }
-              // 紧凑卡：图标 + 平台名 + 首包实心行 + 其余小行
               return (
                 <div
                   key={platform}
                   data-reveal
                   data-reveal-delay={String(idx)}
-                  className="blog-feature-card blog-glass-inner-glow group relative rounded-3xl border border-stone-100/80 bg-white/80 p-6 transition-all duration-500 hover:-translate-y-1.5 dark:border-stone-800/40 dark:bg-stone-900/40 sm:p-7"
+                  className="download-platform-card"
                 >
-                  <div
-                    className={`absolute left-6 top-0 h-[2px] w-8 rounded-full bg-linear-to-r opacity-50 transition-all duration-500 group-hover:w-12 group-hover:opacity-90 sm:left-7 ${meta.gradient}`}
-                  />
-                  <div className="mb-4 flex items-center gap-3">
-                    <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br text-16 text-white shadow-sm transition-all duration-500  ${meta.gradient}`}
-                    >
-                      <Icon size={16} />
-                    </span>
-                    <span className="text-16 font-bold text-stone-900 dark:text-stone-100 sm:text-17">
-                      {platformLabel(platform)}
-                    </span>
+                  <div className="download-platform-heading">
+                    <Icon size={20} className="text-theme-text-secondary" />
+                    <h3>{platformLabel(platform)}</h3>
+                    {isDetected && (
+                      <span className="download-platform-current">
+                        {t("download.detectedPlatform")}
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {links.length > 0 ? (
@@ -628,22 +479,20 @@ export function DownloadPage() {
                         <AssetRow
                           key={link.url}
                           {...link}
-                          variant={i === 0 ? "primary" : "ghost"}
+                          variant={isDetected && i === 0 ? "primary" : "ghost"}
                         />
                       ))
                     ) : (
-                      <p className="text-12 text-theme-text-secondary dark:text-theme-text-secondary">
+                      <p className="text-13 text-theme-text-secondary">
                         {t("download.noAssets")}
                       </p>
                     )}
                   </div>
-                  {platform === "macos" && links.length > 0 && (
-                    <MacGatekeeperNote />
-                  )}
                 </div>
               );
             })}
           </div>
+          {desktop.macos.length > 0 && <MacGatekeeperNote />}
         </div>
       </section>
 
@@ -663,11 +512,10 @@ export function DownloadPage() {
             />
             <div
               data-reveal
-              className="blog-feature-card blog-glass-inner-glow group relative mx-auto max-w-xl rounded-3xl border border-stone-100/80 bg-white/80 p-6 transition-all duration-500 hover:-translate-y-1.5 dark:border-stone-800/40 dark:bg-stone-900/40 sm:p-7"
+              className="download-platform-card download-mobile-card"
             >
-              <div className="absolute left-6 top-0 h-[2px] w-10 rounded-full bg-linear-to-r from-emerald-400/80 to-teal-500/80 opacity-60 transition-all duration-500 group-hover:w-16 sm:left-7" />
               <div className="mb-5 flex items-center gap-3.5">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400/90 to-teal-500/90 text-20 text-white shadow-md transition-all duration-500 ">
+                <span className="text-theme-text-secondary">
                   <Smartphone size={20} />
                 </span>
                 <div className="min-w-0">
@@ -710,7 +558,7 @@ export function DownloadPage() {
               {/* 终端三步（全宽）：命令 + 模拟成功输出 */}
               <div
                 data-reveal
-                className="public-terminal blog-feature-card group relative overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-900 shadow-lg shadow-stone-900/10 transition-all duration-500 hover:-translate-y-1.5 dark:border-stone-800/60 dark:bg-black/50"
+                className="public-terminal blog-feature-card relative overflow-hidden rounded-xl border border-stone-200/70 bg-stone-900 dark:border-stone-800/60 dark:bg-black/50"
               >
                 <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
@@ -887,28 +735,14 @@ export function DownloadPage() {
       {/* 结尾 CTA：同落地页 CTASection 语言 */}
       {!failed && (
         <section className="blog-mesh-cta relative overflow-hidden py-20 sm:py-28">
-          <div
-            className="pointer-events-none absolute inset-0"
-            aria-hidden="true"
-          >
-            <div className="absolute left-1/2 top-1/2 h-[400px] w-[700px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse,rgba(251,191,36,0.08)_0%,rgba(232,121,249,0.04)_30%,transparent_65%)] dark:bg-[radial-gradient(ellipse,rgba(251,191,36,0.06)_0%,rgba(232,121,249,0.03)_30%,transparent_65%)]" />
-          </div>
           <div className="relative mx-auto max-w-2xl px-5 text-center sm:px-6 lg:max-w-3xl">
-            <div
-              data-reveal
-              className="mb-10 flex items-center justify-center gap-3 sm:mb-12"
-            >
-              <div className="h-px w-20 bg-linear-to-r from-transparent via-amber-400/20 to-stone-300/50 dark:via-amber-500/15 dark:to-stone-600/30 sm:w-28" />
-              <div className="blog-ornament-diamond" />
-              <div className="h-px w-20 bg-linear-to-l from-transparent via-sky-400/15 to-stone-300/50 dark:via-sky-500/10 dark:to-stone-600/30 sm:w-28" />
-            </div>
             <a
               data-reveal
               data-reveal-delay="1"
               href={releasesFallbackUrl}
               target="_blank"
               rel="noreferrer"
-              className="blog-btn-ghost group inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full border border-stone-200/80 bg-white/50 px-8 py-4 text-14 font-medium text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/30 active:translate-y-0 dark:border-stone-700/50 dark:bg-stone-800/30 dark:text-theme-text-tertiary dark:hover:border-stone-600 dark:hover:shadow-stone-900/30 sm:px-9"
+              className="download-action download-action-secondary"
             >
               <InteractiveIcon>
                 <ExternalLink size={14} />

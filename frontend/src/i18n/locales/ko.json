@@ -208,6 +208,7 @@
     "parameters": "매개변수",
     "preferenceSaved": "기본 에이전트 설정이 저장되었습니다",
     "pricingBackfill": "과거 비용 재계산",
+    "pricingBackfillPartial": "{{count}}건의 비용 일부 계산됨",
     "pricingBackfillFailed": "과거 비용 재계산 실패",
     "pricingBackfillSuccess": "재계산 완료: {{priced}}/{{scanned}}건",
     "pricingBackfillUnpriced": "{{count}}건 가격 미매칭",
@@ -4329,6 +4330,9 @@
   "updateRetry": "재시도",
   "updateSkip": "나중에",
   "usage": {
+    "tokensInputReported": "입력 (보고값)",
+    "historicalEstimate": "과거 추정액",
+    "partialCostHint": "확인된 금액만 포함하며 나머지 비용은 알 수 없습니다.",
     "sources": {
       "chat": "대화",
       "scheduled_task": "예약 작업"
@@ -4552,7 +4556,7 @@
     "readyToast": "v{{version}} 설치 준비가 완료되었습니다",
     "downloadingToast": "v{{version}} 다운로드 중입니다. 완료 후 설치할 수 있습니다",
     "channel": "업데이트 채널",
-    "channelStable": "안정 버전 (기본값)",
+    "channelStable": "안정 버전",
     "channelDev": "테스트 버전",
     "channelDevHint": "테스트 버전에는 해결되지 않은 문제가 있을 수 있습니다. dev.2 이전 버전은 새 버전을 한 번 수동 설치한 후 채널 업데이트를 사용할 수 있습니다."
   },
