@@ -1,5 +1,17 @@
 import type { MessagePart, SubagentPart } from "../../../types";
 import { processMessageEvent } from "../eventProcessor";
+import { updateSubagentResult } from "../messageParts";
+
+const subagentCard = (overrides: Partial<SubagentPart> = {}): SubagentPart => ({
+  type: "subagent",
+  agent_id: "child",
+  agent_name: "child",
+  input: "",
+  depth: 1,
+  isPending: true,
+  status: "running",
+  ...overrides,
+});
 
 test.each([0, 1])("an explicit result ID cannot be consumed by an unrelated legacy tool at depth %s", (depth) => {
   let parts: MessagePart[] = [];
@@ -133,4 +145,41 @@ test.each([true, false])("confirmation replay cannot take over a sibling's ident
   emit("tool:result", "child-a", "a-first");
   expect((parts[0] as SubagentPart).parts).toEqual([expect.objectContaining({ id: "a-first", isPending: false, result: "ok" })]);
   expect((parts[1] as SubagentPart).parts).toEqual([expect.objectContaining({ id: "b-resumed", isPending: false, result: "ok" })]);
+});
+
+test("same-agent parallel runs keep each result on its own card when the later run settles first", () => {
+  let parts: MessagePart[] = [subagentCard({ input: "first run" }), subagentCard({ input: "second run" })];
+  parts = updateSubagentResult(parts, "child", "second report", true, 1);
+  expect(parts[1]).toMatchObject({ input: "second run", result: "second report", isPending: false, status: "complete" });
+  expect(parts[0]).toMatchObject({ input: "first run", isPending: true });
+  parts = updateSubagentResult(parts, "child", "first report", true, 1);
+  expect(parts[0]).toMatchObject({ input: "first run", result: "first report", isPending: false, status: "complete" });
+  expect(parts[1]).toMatchObject({ input: "second run", result: "second report", isPending: false });
+});
+
+test("a late result settles the nested pending card instead of rewriting the nested settled card", () => {
+  let parts: MessagePart[] = [
+    subagentCard({
+      agent_id: "parent",
+      agent_name: "parent",
+      depth: 0,
+      isPending: true,
+      parts: [subagentCard({ input: "first run" }), subagentCard({ input: "second run" })],
+    }),
+  ];
+  parts = updateSubagentResult(parts, "child", "second report", true, 1);
+  parts = updateSubagentResult(parts, "child", "first report", true, 1);
+  const nested = (parts[0] as SubagentPart).parts;
+  expect(nested?.[0]).toMatchObject({ input: "first run", result: "first report", isPending: false });
+  expect(nested?.[1]).toMatchObject({ input: "second run", result: "second report", isPending: false });
+});
+
+test("a replayed result still refreshes the newest settled card when nothing is pending", () => {
+  let parts: MessagePart[] = [
+    subagentCard({ input: "first run", isPending: false, status: "complete", result: "first report" }),
+    subagentCard({ input: "second run", isPending: false, status: "complete", result: "second report" }),
+  ];
+  parts = updateSubagentResult(parts, "child", "second report replayed", true, 1);
+  expect(parts[1]).toMatchObject({ input: "second run", result: "second report replayed", isPending: false });
+  expect(parts[0]).toMatchObject({ input: "first run", result: "first report" });
 });

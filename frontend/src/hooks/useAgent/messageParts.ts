@@ -760,6 +760,12 @@ function findSummaryStubIndex(parts: MessagePart[]): number {
 
 /**
  * Update subagent result. Returns new parts array.
+ *
+ * Two-pass scan: a result first settles the newest still-pending card with the
+ * same agent_id/depth, so parallel runs sharing one agent_id cannot rewrite
+ * each other's cards. When no pending card exists (replayed or out-of-order
+ * events after reconnect), the newest matching card of any state is refreshed
+ * in place instead.
  */
 export function updateSubagentResult(
   parts: MessagePart[],
@@ -781,57 +787,31 @@ export function updateSubagentResult(
           ? "complete"
           : "error";
 
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
-    if (
-      p.type === "subagent" &&
-      p.agent_id === agentId &&
-      p.depth === targetDepth
-    ) {
-      const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: status === "waiting_human",
-        status,
-        completedAt: status === "waiting_human" ? undefined : completedAt,
-        parts:
-          status === "waiting_human"
-            ? p.parts
-            : clearAllLoadingStates(p.parts ?? [], {
-                discardToolDrafts: true,
-                terminalStatus:
-                  status === "cancelled"
-                    ? "cancelled"
-                    : status === "error" || status === "timed_out"
-                      ? "error"
-                      : undefined,
-                error,
-              }),
-      };
-      return newParts;
-    }
-    if (p.type === "subagent" && p.parts) {
-      const updatedSubagent = updateSubagentResultInParts(
-        p.parts,
-        agentId,
-        result,
-        success,
-        targetDepth,
-        error,
-        completedAt,
-        status,
-      );
-      if (updatedSubagent) {
-        const newParts = [...parts];
-        newParts[i] = { ...p, parts: updatedSubagent };
-        return newParts;
-      }
-    }
-  }
-  return parts;
+  return (
+    updateSubagentResultInParts(
+      parts,
+      agentId,
+      result,
+      success,
+      targetDepth,
+      error,
+      completedAt,
+      status,
+      true,
+    ) ??
+    updateSubagentResultInParts(
+      parts,
+      agentId,
+      result,
+      success,
+      targetDepth,
+      error,
+      completedAt,
+      status,
+      false,
+    ) ??
+    parts
+  );
 }
 
 /**
@@ -846,13 +826,15 @@ export function updateSubagentResultInParts(
   error?: string,
   completedAt?: number,
   status?: SubagentPart["status"],
+  pendingOnly = false,
 ): MessagePart[] | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (
       p.type === "subagent" &&
       p.agent_id === agentId &&
-      p.depth === targetDepth
+      p.depth === targetDepth &&
+      (!pendingOnly || p.isPending)
     ) {
       const newParts = [...parts];
       newParts[i] = {
@@ -889,6 +871,7 @@ export function updateSubagentResultInParts(
         error,
         completedAt,
         status,
+        pendingOnly,
       );
       if (updatedParts) {
         const newParts = [...parts];
