@@ -67,7 +67,7 @@ import { APP_NAME, GITHUB_URL } from "../../constants";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { IconButton } from "../common/ui/IconButton";
 import { formatDate, formatDateTimeShort } from "../../utils/datetime";
-import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
+import { ModelIconImg } from "../agent/modelIcon.tsx";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
 import { AgentAvatar } from "../common/AgentAvatar";
 import { resolveAgentReferenceName } from "../agent/agentCatalog";
@@ -633,31 +633,15 @@ export function SharedPage({
                   )}
                   {data.session.model && (
                     <span className={metadataClassName}>
-                      {(() => {
-                        const iconUrl = getModelIconUrl(
-                          data.session.model,
+                      <ModelIconImg
+                        model={data.session.model}
+                        provider={
                           (data.session as Record<string, unknown>).provider as
                             | string
-                            | undefined,
-                        );
-                        const mono = isMonochromeIcon(
-                          data.session.model,
-                          (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined,
-                        );
-                        return iconUrl ? (
-                          <ImageWithSkeleton
-                            src={iconUrl}
-                            alt=""
-                            skipUrlResolve
-                            inline
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              mono ? "dark:invert" : ""
-                            }`}
-                          />
-                        ) : null;
-                      })()}
+                            | undefined
+                        }
+                        size={14}
+                      />
                       {data.session.model}
                     </span>
                   )}

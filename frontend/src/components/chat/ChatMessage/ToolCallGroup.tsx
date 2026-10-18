@@ -49,7 +49,7 @@ export function ToolCallGroup({
                 <Icon size={16} />
               </InteractiveIcon>
             </span>
-            <span className="min-w-0 flex-1 truncate text-left font-medium">
+            <span className="min-w-0 flex-1 truncate text-left">
               {t(`chat.message.${labels[category]}`, { count })}
             </span>
             <span className="chat-tool-call-group__chevron" aria-hidden="true">

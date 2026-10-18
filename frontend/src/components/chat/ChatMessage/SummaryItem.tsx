@@ -10,6 +10,7 @@ import {
 } from "./items/persistentToolPanelState";
 import { MarkdownContent } from "./MarkdownContent";
 import { buildPanelSummary } from "./panelSummary";
+import { stripActivityReferences } from "../../../utils/activityReferences";
 
 export function SummaryItem({
   content,
@@ -25,8 +26,9 @@ export function SummaryItem({
   const { t } = useTranslation();
 
   const status: CollapsibleStatus = isStreaming ? "loading" : "success";
-  const subtitle = buildPanelSummary(content);
-  const suffix = useMemo(
+  const visibleContent = stripActivityReferences(content, isStreaming);
+  const subtitle = buildPanelSummary(visibleContent);
+  const description = useMemo(
     () =>
       freedTokens != null
         ? t("chat.message.summaryFreedTokens", {
@@ -45,26 +47,25 @@ export function SummaryItem({
         subtitle,
         children: (
           <div className="p-3 sm:p-4">
-            <MarkdownContent content={content} isStreaming={isStreaming} />
+            <MarkdownContent
+              content={visibleContent}
+              isStreaming={isStreaming}
+            />
           </div>
         ),
       }),
       panelKey,
     );
-  }, [content, isStreaming, panelKey, status, subtitle]);
+  }, [visibleContent, isStreaming, panelKey, status, subtitle]);
 
   return (
     <CollapsiblePill
       status={status}
       icon={<FileText size={12} className="shrink-0 opacity-50" />}
       label={t("chat.message.summary")}
-      suffix={
-        <span className="min-w-0 truncate">
-          {suffix}
-        </span>
-      }
+      description={description}
       variant="summary"
-      expandable={!!content}
+      expandable={!!visibleContent}
       onPanelOpen={() => {
         openPersistentToolPanel({
           title: t("chat.message.summary"),
@@ -74,7 +75,10 @@ export function SummaryItem({
           panelKey,
           children: (
             <div className="p-3 sm:p-4">
-              <MarkdownContent content={content} isStreaming={isStreaming} />
+              <MarkdownContent
+                content={visibleContent}
+                isStreaming={isStreaming}
+              />
             </div>
           ),
         });

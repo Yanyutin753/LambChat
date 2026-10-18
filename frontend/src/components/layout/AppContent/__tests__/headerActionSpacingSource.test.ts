@@ -7,15 +7,21 @@ test("chat header does not display a project badge", () => {
   expect(source).not.toContain("{project.name}");
 });
 
-test("header puts more before workspace and avatar with a consistent gap", () => {
+test("header orders more, scheduled tasks, workspace, usage and avatar with a consistent gap", () => {
   const right = source.slice(source.indexOf("/* Right */"));
   expect(right).toContain(
     'className="chat-header__actions flex items-center gap-0 sm:gap-1 flex-shrink-0"',
   );
   expect(right.indexOf("<MoreHorizontal")).toBeLessThan(
+    right.indexOf("<SessionScheduledTasksButton"),
+  );
+  expect(right.indexOf("<SessionScheduledTasksButton")).toBeLessThan(
     right.indexOf("{headerActions}"),
   );
   expect(right.indexOf("{headerActions}")).toBeLessThan(
+    right.indexOf("<ComposerUsageChip"),
+  );
+  expect(right.indexOf("<ComposerUsageChip")).toBeLessThan(
     right.indexOf("<UserMenu"),
   );
 });

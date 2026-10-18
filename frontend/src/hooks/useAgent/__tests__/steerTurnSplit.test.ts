@@ -67,7 +67,7 @@ describe("splitAssistantTurn", () => {
     expect(splitAssistantTurn(base, "missing")).toBe(base);
   });
 
-  test("封存轮次标记 cancelled（状态行切换已停止），不追加 cancelled part 组件", () => {
+  test("普通插话封存轮次但不取消已完成内容", () => {
     const base: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
       msg({
@@ -83,7 +83,7 @@ describe("splitAssistantTurn", () => {
 
     const sealed = result[1];
     expect(sealed.id).toBe("a1#t1");
-    expect(sealed.cancelled).toBe(true);
+    expect(sealed.cancelled).not.toBe(true);
     expect(sealed.isStreaming).toBe(false);
     // 已停止是状态行文字切换（RunStepsCollapse），不是独立组件
     expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(false);
@@ -121,6 +121,7 @@ describe("splitAssistantTurn", () => {
         content: "半截",
         isStreaming: true,
         parts: [{ type: "text", text: "半截" }, { type: "cancelled" }],
+        cancelled: true,
       }),
     ];
 
@@ -131,5 +132,33 @@ describe("splitAssistantTurn", () => {
       (part) => part.type === "cancelled",
     ).length;
     expect(cancelledCount).toBe(1);
+  });
+});
+
+test("delivered steering seals a segment without cancelling its work or pending todos", () => {
+  const result = splitAssistantTurn(
+    [
+      msg({
+        id: "a",
+        role: "assistant",
+        content: "已完成第一步",
+        isStreaming: true,
+        parts: [
+          {
+            type: "todo",
+            items: [{ id: "sign", content: "等待人工签字", status: "pending" }],
+            isStreaming: false,
+          },
+        ],
+      }),
+    ],
+    "a",
+  );
+  expect(result[0].cancelled).not.toBe(true);
+  expect(result[0].metadata?.continuedBySteer).toBe(true);
+  expect(result[0].isStreaming).toBe(false);
+  expect(result[0].parts?.[0]).toMatchObject({
+    type: "todo",
+    items: [{ status: "pending" }],
   });
 });

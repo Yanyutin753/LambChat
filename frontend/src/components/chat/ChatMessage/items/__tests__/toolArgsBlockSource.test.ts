@@ -72,3 +72,18 @@ test("right panel code arguments retain the shared monospace font", () => {
     /\.tool-readable \.tool-args-block__content \.font-mono\s*\{\s*font-family: theme\(['"]fontFamily\.mono['"]\);/,
   );
 });
+
+test("natural-language search arguments inherit the body font in compact and detail views", () => {
+  for (const name of ["SkillSearchItem", "ToolSearchItem", "WebSearchItem"]) {
+    const source = readSource(`../${name}.tsx`);
+    expect(source).toMatch(
+      /<span className="[^"]*font-medium[^"]*">\s*\{(?:truncate\(query, \d+\)|query)\}/,
+    );
+  }
+  expect(readSource("../ConversationHistoryItem.tsx")).toContain(
+    'isSearch ? "" : "font-mono"',
+  );
+  expect(readSource("../ToolInlineDetails.tsx")).toContain(
+    "tool-inline-details tool-readable",
+  );
+});

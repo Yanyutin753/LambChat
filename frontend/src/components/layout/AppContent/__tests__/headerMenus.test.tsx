@@ -35,6 +35,12 @@ vi.mock("../../../common/SceneIllustration", () => ({
   SceneIllustration: () => null,
 }));
 vi.mock("../../../agent/ModelSelector", () => ({ ModelSelector: () => null }));
+vi.mock(
+  "../../../panels/ScheduledTaskPanel/SessionScheduledTasksButton",
+  () => ({
+    SessionScheduledTasksButton: () => null,
+  }),
+);
 vi.mock("../../UserMenu", () => ({ UserMenu: () => null }));
 vi.mock("../../../share/ShareDialog", () => ({ ShareDialog: () => null }));
 vi.mock("../../../notification/NotificationDialog", () => ({
@@ -105,11 +111,17 @@ test("panel navigation groups the page title and actions and returns through his
       <Location />
     </MemoryRouter>,
   );
-  const navigation = within(screen.getByRole("navigation", { name: "nav.mcp" }));
+  const navigation = within(
+    screen.getByRole("navigation", { name: "nav.mcp" }),
+  );
   expect(navigation.getByRole("heading", { name: "nav.mcp" })).toBeTruthy();
-  expect(navigation.getByRole("button", { name: "Create server" })).toBeTruthy();
+  expect(
+    navigation.getByRole("button", { name: "Create server" }),
+  ).toBeTruthy();
   expect(navigation.getByRole("button", { name: "common.menu" })).toBeTruthy();
-  await userEvent.click(navigation.getByRole("button", { name: "common.back" }));
+  await userEvent.click(
+    navigation.getByRole("button", { name: "common.back" }),
+  );
   expect(screen.getByTestId("location").textContent).toBe("/chat");
 });
 function openLanguages() {
@@ -234,18 +246,25 @@ function render(children: ReactNode) {
   return renderBase(children, { wrapper: LanguagePreferenceProvider });
 }
 
-
 test("wide-screen header opener dispatches the sidebar toggle event", () => {
   const toggle = vi.fn();
   const previousWidth = window.innerWidth;
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1200,
+  });
   window.addEventListener("lambchat:desktop-sidebar-toggle", toggle);
   try {
     renderHeader();
-    fireEvent.click(screen.getByRole("button", { name: "sidebar.expandSidebar" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.expandSidebar" }),
+    );
     expect(toggle).toHaveBeenCalledOnce();
   } finally {
     window.removeEventListener("lambchat:desktop-sidebar-toggle", toggle);
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: previousWidth });
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: previousWidth,
+    });
   }
 });

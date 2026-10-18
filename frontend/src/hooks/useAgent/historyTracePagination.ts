@@ -11,7 +11,10 @@ import type { SessionApprovalStatus } from "../../types/session";
 import { sessionApi } from "../../services/api";
 import i18n from "../../i18n";
 import type { ActiveGoalSpec, HistoryEvent, UseAgentOptions } from "./types";
-import { applyFeedbackToMessages } from "./historyLoadState";
+import {
+  applyFeedbackToMessages,
+  preserveScheduledMessages,
+} from "./historyLoadState";
 import {
   historyCoverage,
   historySourceIds,
@@ -42,6 +45,7 @@ interface HistoryTracePaginationDeps {
   setGoalsByRunId: Dispatch<SetStateAction<Record<string, ActiveGoalSpec>>>;
   loadHistoryRequestIdRef: RefObject<number>;
   historyAbortControllerRef: RefObject<AbortController | null>;
+  accountIdRef?: RefObject<string | undefined>;
   setIsLoadingHistory: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
   onApprovalLookup?: (approval: {
@@ -64,6 +68,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     onApprovalLookup,
     loadHistoryRequestIdRef,
     historyAbortControllerRef,
+    accountIdRef,
     setIsLoadingHistory,
     setError,
   } = deps;
@@ -203,12 +208,14 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       if (messagesRef.current.some((message) => message.runId === runId))
         return null;
       const requestId = ++loadHistoryRequestIdRef.current;
+      const accountId = accountIdRef?.current;
       historyAbortControllerRef.current?.abort();
       const controller = new AbortController();
       historyAbortControllerRef.current = controller;
       const isCurrent = () =>
         !controller.signal.aborted &&
         requestId === loadHistoryRequestIdRef.current &&
+        accountIdRef?.current === accountId &&
         sessionIdRef.current === targetSessionId;
       const epoch = historyEpochRef.current;
       isLoadingHistoryRef.current = true;
@@ -284,6 +291,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       mergeStoredEvents,
       loadHistoryRequestIdRef,
       historyAbortControllerRef,
+      accountIdRef,
       isLoadingHistoryRef,
       setIsLoadingHistory,
       setError,
@@ -297,6 +305,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     const traceWindow = historyTraceWindowRef.current;
     if (!traceWindow || !sessionIdRef.current) return;
     const targetSessionId = sessionIdRef.current;
+    const accountId = accountIdRef?.current;
     if (
       !canLoadOlderHistory({
         sessionId: targetSessionId,
@@ -314,6 +323,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     const isCurrent = () =>
       !controller.signal.aborted &&
       epoch === historyEpochRef.current &&
+      accountIdRef?.current === accountId &&
       sessionIdRef.current === targetSessionId;
     isLoadingOlderHistoryRef.current = true;
     setIsLoadingOlderHistory(true);
@@ -369,6 +379,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
         messagesRef.current.find(
           (message) =>
             message.role === "assistant" &&
+            !message.metadata?.scheduledTaskId &&
             message.isStreaming &&
             message.runId,
         )?.runId ?? null;
@@ -406,13 +417,20 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       if (!isCurrent()) return;
       const streaming = replayed.messages.find(
         (message) =>
-          message.role === "assistant" && message.isStreaming && message.runId,
+          message.role === "assistant" &&
+          !message.metadata?.scheduledTaskId &&
+          message.isStreaming &&
+          message.runId,
       );
       if (streaming) streamingMessageIdRef.current = streaming.id;
       setGoalsByRunId((current) =>
         isCurrent() ? { ...current, ...replayed.goals } : current,
       );
-      setMessages((current) => (isCurrent() ? replayed.messages : current));
+      setMessages((current) =>
+        isCurrent()
+          ? preserveScheduledMessages(replayed.messages, current)
+          : current,
+      );
     } catch (err) {
       if (isCurrent())
         console.warn("[loadOlderHistory] Failed to load older history:", err);
@@ -435,6 +453,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     setGoalsByRunId,
     onApprovalLookup,
     mergeStoredEvents,
+    accountIdRef,
   ]);
 
   return {

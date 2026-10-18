@@ -12,7 +12,7 @@ TOKENS_PER_UNIT = 1_000_000
 
 @dataclass(frozen=True)
 class PriceRates:
-    """模型单价（USD / 每百万 token）。None 表示未收录/不单独计费。"""
+    """模型单价（USD / 每百万 token）。None 表示未知，明确免费使用 0。"""
 
     input: float | None = None
     output: float | None = None
@@ -70,14 +70,28 @@ def _per_million(tokens: int, price: float | None) -> float:
 
 def compute_cost(
     *,
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int = 0,
-    cache_creation_tokens: int = 0,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cache_read_tokens: int | None = 0,
+    cache_creation_tokens: int | None = 0,
     rates: PriceRates,
 ) -> CostBreakdown | None:
     """按单价计算 USD 成本；无法计价（缺 input 或 output 单价）返回 None。"""
     if not rates.is_priced():
+        return None
+    if (
+        input_tokens is None
+        or output_tokens is None
+        or cache_read_tokens is None
+        or cache_creation_tokens is None
+    ):
+        return None
+    if (
+        cache_read_tokens > 0
+        and rates.cache_read is None
+        or cache_creation_tokens > 0
+        and rates.cache_write is None
+    ):
         return None
 
     billable_input = max(input_tokens - cache_read_tokens - cache_creation_tokens, 0)

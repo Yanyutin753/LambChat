@@ -11,10 +11,14 @@ import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
  * 后判定自然消失，无需与重载结果做合并。
  */
 export function isInterruptedRunMessage(
-  message: Pick<Message, "isStreaming" | "cancelled" | "content" | "parts">,
+  message: Pick<
+    Message,
+    "isStreaming" | "cancelled" | "content" | "parts" | "metadata"
+  >,
 ): boolean {
   if (message.isStreaming) return false;
   if (message.cancelled) return false;
+  if (message.metadata?.continuedBySteer) return false;
   const parts = message.parts ?? [];
   // 等待人工输入的 HITL 轮次不是中断
   if (hasPendingAskHuman(parts)) return false;

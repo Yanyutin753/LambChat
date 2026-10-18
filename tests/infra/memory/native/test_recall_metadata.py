@@ -242,7 +242,7 @@ async def local_collection():
         yield collection
     finally:
         await collection.drop()
-        client.close()
+        await client.close()
 
 
 @pytest.mark.parametrize("mode", ["text", "keyword", "overview", "cosine"])

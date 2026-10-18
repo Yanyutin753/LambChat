@@ -44,14 +44,21 @@ def test_user_snapshot_eviction_prefers_expired():
 
 @pytest.mark.asyncio
 async def test_build_memory_index_times_out_to_empty(monkeypatch):
-    async def slow(_uid):
-        await asyncio.sleep(30)
-        return "should never appear"
+    cancelled = False
+
+    async def slow(_uid, *, project_id=None):
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(30)
+        finally:
+            cancelled = True
 
     monkeypatch.setattr(pi, "_build_memory_index_full", slow)
+    monkeypatch.setattr(pi, "_MEMORY_INDEX_BUILD_TIMEOUT_SECONDS", 0.02)
     t0 = time.monotonic()
     result = await pi._build_memory_index_for_user("u-timeout", session_id="s1")
     assert result == ""
+    assert cancelled, "The build must actually start and be cancelled on timeout"
     assert time.monotonic() - t0 < 5  # 远小于 30s，说明 2s 超时生效
 
 
@@ -119,7 +126,7 @@ async def test_memory_index_guides_todo_and_scope_separation(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkeypatch):
+async def test_memory_index_middleware_persists_index_without_changing_tools(monkeypatch):
     async def fake_index(
         user_id: str, *, session_id: str | None = None, project_id: str | None = None
     ) -> str:
@@ -128,7 +135,9 @@ async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkey
         return "<memory_index>\n- 皮蛋供应商\n</memory_index>"
 
     monkeypatch.setattr(pi, "_build_memory_index_for_user", fake_index)
-    middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+    middleware = pi.MemoryRecallIndexMiddleware(
+        user_id="u1", session_id="s1", recall_available=True
+    )
     recall = _tool("memory_recall", "base recall description")
     other = _tool("other_tool", "other description")
 
@@ -153,14 +162,16 @@ async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkey
         captured["request"] = updated
         return object()
 
+    snapshot = await middleware.abefore_agent({"messages": request.messages}, None)
     await middleware.awrap_model_call(request, handler)
 
     updated = captured["request"]
     recall_tool = next(tool for tool in updated.tools if tool.name == "memory_recall")
     other_tool = next(tool for tool in updated.tools if tool.name == "other_tool")
     assert "base recall description" in recall_tool.description
-    assert "<memory_index>" in recall_tool.description
-    assert "皮蛋供应商" in recall_tool.description
+    assert recall_tool.description == "base recall description"
+    assert "<memory_index>" in snapshot["messages"][0].content
+    assert "皮蛋供应商" in snapshot["messages"][0].content
     assert other_tool.description == "other description"
     assert updated.messages[0].content == "曼玲粥的皮蛋供应商是谁？"
     assert "<memory_index" not in str(updated.messages[0].content)
@@ -172,7 +183,9 @@ async def test_memory_index_skips_build_when_recall_tool_is_unavailable(monkeypa
         raise AssertionError("memory index must not build without memory_recall")
 
     monkeypatch.setattr(pi, "build_memory_recall_index_context", unexpected_index)
-    middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+    middleware = pi.MemoryRecallIndexMiddleware(
+        user_id="u1", session_id="s1", recall_available=True
+    )
     request = type("Request", (), {"tools": [_tool("other", "Other")], "state": {}})()
 
     async def handler(updated):
@@ -195,7 +208,9 @@ async def test_memory_index_middleware_is_stable_for_same_session(monkeypatch):
         return "<memory_index>stable</memory_index>"
 
     monkeypatch.setattr(pi, "_build_memory_index_for_user", fake_index)
-    middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+    middleware = pi.MemoryRecallIndexMiddleware(
+        user_id="u1", session_id="s1", recall_available=True
+    )
     descriptions = []
 
     class FakeRequest:
@@ -215,65 +230,41 @@ async def test_memory_index_middleware_is_stable_for_same_session(monkeypatch):
             descriptions.append(updated.tools[0].description)
             return object()
 
+        await middleware.abefore_agent({"messages": []}, None)
         await middleware.awrap_model_call(request, handler)
 
     assert descriptions[0] == descriptions[1]
-    assert calls == 1
+    assert calls == 2
 
 
 @pytest.mark.asyncio
-async def test_memory_write_does_not_break_current_session_snapshot():
-    """中途写记忆只影响新会话：已加载的 middleware 实例（=当前会话）字节不变。"""
+async def test_memory_write_refreshes_existing_graph_without_rewriting_old_snapshot(monkeypatch):
+    async def no_project(session_id):
+        return None
 
-    class FakeRequest:
-        def __init__(self, tools):
-            self.tools = tools
+    current = "<memory_index>v1</memory_index>"
 
-        def override(self, **updates):
-            updated = FakeRequest(self.tools)
-            for key, value in updates.items():
-                setattr(updated, key, value)
-            return updated
+    async def index(*args, **kwargs):
+        return current
 
-    async def run_turn(middleware):
-        request = FakeRequest([_tool("memory_recall", "base")])
-
-        async def handler(updated):
-            return updated.tools[0].description
-
-        return await middleware.awrap_model_call(request, handler)
-
-    async def fake_index_v1(
-        user_id: str, *, session_id: str | None = None, project_id: str | None = None
-    ) -> str:
-        return "<memory_index>v1</memory_index>"
-
-    async def fake_index_v2(
-        user_id: str, *, session_id: str | None = None, project_id: str | None = None
-    ) -> str:
-        return "<memory_index>v2</memory_index>"
-
-    with mock.patch.object(pi, "_build_memory_index_for_user", fake_index_v1):
-        middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s-live")
-        first = await run_turn(middleware)
-
-    # 会话中途写入记忆 → 失效广播清空模块级快照 + 新数据
-    pi._MEMORY_INDEX_SNAPSHOTS.clear()
-
-    with mock.patch.object(pi, "_build_memory_index_for_user", fake_index_v2):
-        # 同一会话的下一轮：middleware 已加载，索引字节不变（KV 前缀不击穿）
-        second = await run_turn(middleware)
-        # 新会话：拿到新版本（写入对新会话可见）
-        fresh = await pi.build_memory_recall_index_context("u1", session_id="s-next")
-
-    assert first == second
-    assert "v1" in first
-    assert "v2" in fresh
+    monkeypatch.setattr("src.infra.memory.scope.resolve_session_project_id", no_project)
+    monkeypatch.setattr(pi, "_build_memory_index_for_user", index)
+    middleware = pi.MemoryRecallIndexMiddleware(
+        user_id="u1", session_id="s-live", recall_available=True
+    )
+    first = await middleware.abefore_agent({"messages": []}, None)
+    state = {"messages": first["messages"].copy()}
+    current = "<memory_index>v2</memory_index>"
+    pi.invalidate_memory_index_snapshot("u1")
+    second = await middleware.abefore_agent(state, None)
+    assert "v1" in state["messages"][0].content
+    assert "v2" in second["messages"][0].content
+    assert "v1" not in second["messages"][0].content
 
 
 @pytest.mark.asyncio
-async def test_middleware_resolves_project_once_per_session(monkeypatch):
-    """project_id 在会话首构建时解析一次：后续轮次不再反查（字节稳定 + 省 Mongo）。"""
+async def test_middleware_resolves_current_project_for_each_invocation(monkeypatch):
+    """Every invocation consults the scoped project resolver and its existing cache."""
     from src.infra.memory import scope as scope_module
 
     resolve_calls: list[str | None] = []
@@ -290,7 +281,9 @@ async def test_middleware_resolves_project_once_per_session(monkeypatch):
 
     with mock.patch.object(scope_module, "resolve_session_project_id", fake_resolve):
         with mock.patch.object(pi, "_build_memory_index_for_user", fake_index):
-            middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
+            middleware = pi.MemoryRecallIndexMiddleware(
+                user_id="u1", session_id="s1", recall_available=True
+            )
 
             class FakeRequest:
                 def __init__(self, tools):
@@ -308,9 +301,10 @@ async def test_middleware_resolves_project_once_per_session(monkeypatch):
                 async def handler(updated):
                     return object()
 
+                await middleware.abefore_agent({"messages": []}, None)
                 await middleware.awrap_model_call(request, handler)
 
-    assert resolve_calls == ["s1"]
+    assert resolve_calls == ["s1", "s1", "s1"]
 
 
 @pytest.mark.asyncio

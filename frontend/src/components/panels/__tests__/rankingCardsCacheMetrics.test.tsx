@@ -5,6 +5,8 @@ import { DatabaseZap } from "lucide-react";
 import { vi } from "vitest";
 
 import { RankingList } from "../UsagePanel/RankingCards";
+import { InsightStrip } from "../UsagePanel/InsightStrip";
+import type { UsageDashboardResponse } from "../../../types/usage";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -55,4 +57,55 @@ test("keeps cache metrics hidden for ordinary rankings", () => {
 
   expect(screen.queryByText(/usage\.cacheHitRate/)).not.toBeInTheDocument();
   expect(screen.queryByText(/usage\.cacheRead/)).not.toBeInTheDocument();
+});
+
+test("unknown ranking cache rate explains the missing observation while explicit zero stays zero", () => {
+  const { rerender } = render(
+    <RankingList
+      title="Models"
+      icon={DatabaseZap}
+      items={[{ ...modelItem, cache_read_share: null }]}
+      emptyLabel="Empty"
+      showCacheMetrics
+    />,
+  );
+  expect(screen.getByText("usage.cacheRateUnknown")).toBeVisible();
+  rerender(
+    <RankingList
+      title="Models"
+      icon={DatabaseZap}
+      items={[{ ...modelItem, cache_read_share: 0 }]}
+      emptyLabel="Empty"
+      showCacheMetrics
+    />,
+  );
+  expect(screen.getByText("usage.cacheHitRate: 0%")).toBeVisible();
+  expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
+});
+
+test("cache insight explains unknown input without replacing known zero", () => {
+  const dashboard = (rate: number | null) =>
+    ({
+      summary: {
+        peak_day: null,
+        failed_requests: 0,
+        cancelled_requests: 0,
+        success_rate: 1,
+        avg_tokens_per_request: 100,
+        avg_duration_per_request: 1,
+        scheduled_share: 0,
+        scheduled_runs: 0,
+        cache_read_share: rate,
+        total_cache_read_tokens: 0,
+        max_duration: 1,
+        tool_calls_per_request: 0,
+      },
+    }) as UsageDashboardResponse;
+  const { rerender } = render(<InsightStrip dashboard={dashboard(null)} />);
+  expect(screen.getByText("usage.cacheRateUnknown")).toBeVisible();
+  rerender(<InsightStrip dashboard={dashboard(0)} />);
+  const insight = screen.getByText("usage.insight.cacheReuse").parentElement!
+    .parentElement!;
+  expect(insight).toHaveTextContent("0%");
+  expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
 });

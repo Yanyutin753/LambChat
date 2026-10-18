@@ -51,6 +51,7 @@ async def test_tool_evidence_keeps_system_prefix_stable_and_persists_model_conte
         m.content for m in calls[1] if isinstance(m, SystemMessage)
     ]
     snapshot = next(m for m in calls[1] if m.name == "evidence_context")
+    assert snapshot.additional_kwargs.get("lambchat_evidence_snapshot") is True
     assert '"status": "observed"' in snapshot.content
     assert "/evidence/" in snapshot.content
     assert snapshot in result["messages"]
@@ -118,4 +119,60 @@ async def test_evidence_updates_preserve_serialized_prefix_across_protocols(
         after = model._get_request_payload(extended)
         assert before.get("system") == after.get("system")
         key = "input" if api_format == "responses" else "messages"
+        if provider in {"anthropic", "zai"}:
+            # Breakpoint metadata moves; compare the token-bearing content, not its policy.
+            for payload in (before, after):
+                for message in payload[key]:
+                    blocks = message["content"]
+                    if isinstance(blocks, str):
+                        blocks = [{"type": "text", "text": blocks}]
+                    message["content"] = [
+                        {k: v for k, v in block.items() if k != "cache_control"} for block in blocks
+                    ]
     assert after[key][: len(before[key])] == before[key]
+
+
+async def test_new_turn_does_not_repeat_the_same_stale_evidence_index():
+    first = EvidenceMiddleware(session_id="s", run_id="r1", scope_version="v1")
+    record = {
+        "evidence_id": "proof",
+        "source_ref": "/evidence/proof.json",
+        "scope_version": "v1",
+        "status": "observed",
+        "run_id": "r1",
+        "evidence_clock_token": first.clock.token,
+        "evidence_clock_generation": 0,
+    }
+    state = {"messages": [HumanMessage("Initial work")], "evidence": [record]}
+    initial = await first.abefore_model(state, None)
+    state["messages"].extend(initial["messages"])
+    initial_content = state["messages"][-1].content
+
+    second = EvidenceMiddleware(session_id="s", run_id="r2", scope_version="v1")
+    state.update(second.before_agent(state, None))
+    invalidated = await second.abefore_model(state, None)
+    assert invalidated["evidence"][0]["status"] == "stale"
+    assert '"status": "stale"' in invalidated["messages"][0].content
+    state["messages"].extend(invalidated["messages"])
+    state["evidence"] = invalidated["evidence"]
+
+    third = EvidenceMiddleware(session_id="s", run_id="r3", scope_version="v2")
+    state.update(third.before_agent(state, None))
+    unchanged = await third.abefore_model(state, None)
+    assert not unchanged.get("messages"), (
+        "Changing run ownership must not repeat an unchanged index"
+    )
+    assert unchanged["evidence"][0]["status"] == "stale"
+    assert state["messages"][1].content == initial_content
+
+    fresh = {
+        **record,
+        "evidence_id": "fresh-proof",
+        "scope_version": "v2",
+        "run_id": "r3",
+        "evidence_clock_token": third.clock.token,
+    }
+    state["evidence"].append(fresh)
+    observed = await third.abefore_model(state, None)
+    assert '"evidence_id": "fresh-proof"' in observed["messages"][0].content
+    assert observed["evidence"][-1]["status"] == "observed"

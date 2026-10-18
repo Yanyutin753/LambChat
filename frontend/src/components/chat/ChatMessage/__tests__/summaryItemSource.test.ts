@@ -6,9 +6,9 @@ const source = readFileSync(
 );
 
 test("summary item keeps the shared pill chrome and adds a light description", () => {
-  expect(source).toMatch(/suffix=\{/);
+  expect(source).toMatch(/description=\{description\}/);
+  expect(source).not.toMatch(/suffix=/);
   expect(source).toMatch(/chat\.message\.summaryDescription/);
-  expect(source).toMatch(/<span className="min-w-0 truncate"/);
   expect(source).not.toMatch(/text-emerald/);
   expect(source).not.toMatch(/opacity-70/);
   expect(source).not.toMatch(/text-\[9px\]/);

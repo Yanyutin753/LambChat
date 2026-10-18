@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def approval_storage(monkeypatch: pytest.MonkeyPatch):
+    from src.infra.tool.scheduled_task import approval
+
+    storage = SimpleNamespace(
+        finish_if_pending=AsyncMock(return_value=True),
+        get_response=AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(approval, "get_approval_storage", lambda: storage, raising=False)
+    return storage
 
 
 @pytest.mark.asyncio
@@ -62,7 +75,15 @@ async def test_confirm_scheduled_task_creation_proceeds_in_interactive_session(
         return _FakeApproval()
 
     async def fake_send(
-        *, approval_id, message, session_id, run_id, timeout, trace_id=None, preview=None
+        *,
+        approval_id,
+        message,
+        session_id,
+        run_id,
+        timeout,
+        expires_at=None,
+        trace_id=None,
+        preview=None,
     ):
         nonlocal send_called
         send_called = True
@@ -115,6 +136,7 @@ async def test_scheduled_task_approval_event_includes_metadata(
         session_id="session-1",
         run_id="run-1",
         timeout=300,
+        expires_at="2026-10-18T00:05:00+00:00",
         trace_id="trace-1",
         preview=preview,
     )
@@ -123,6 +145,7 @@ async def test_scheduled_task_approval_event_includes_metadata(
     data = write_calls[0]["data"]
     assert data["metadata"]["approval_type"] == "scheduled_task_create"
     assert data["metadata"]["preview"] == preview
+    assert data["expires_at"] == "2026-10-18T00:05:00+00:00"
 
 
 @pytest.mark.asyncio
@@ -190,6 +213,7 @@ async def test_confirm_scheduled_task_writes_approval_resolved_event(
 @pytest.mark.asyncio
 async def test_confirm_scheduled_task_writes_approval_resolved_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
+    approval_storage,
 ) -> None:
     """超时路径同样要写 approval_resolved（status=timeout），否则 pill 永远转圈。"""
     from src.infra.logging.context import TraceContext
@@ -233,10 +257,85 @@ async def test_confirm_scheduled_task_writes_approval_resolved_on_timeout(
 
     assert result["approved"] is False
     assert result["status"] == "timeout"
+    approval_storage.finish_if_pending.assert_awaited_once_with("ap-1", "timeout")
     resolved = [c for c in write_calls if c["event_type"] == "approval_resolved"]
     assert len(resolved) == 1
     assert resolved[0]["data"]["result"]["status"] == "timeout"
     assert resolved[0]["data"]["success"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_confirmation_deadline_and_cancellation_close_the_pending_request(
+    monkeypatch: pytest.MonkeyPatch, approval_storage, cancelled: bool
+) -> None:
+    import asyncio
+
+    from src.infra.logging.context import TraceContext
+    from src.infra.tool.scheduled_task import approval
+
+    monkeypatch.setattr(
+        TraceContext,
+        "get_request_context",
+        lambda: SimpleNamespace(session_id="session-1", run_id="run-1", trace_id="trace-1"),
+    )
+    monkeypatch.setattr(approval, "_format_approval_message", lambda _: "Confirm")
+    create = AsyncMock(return_value=SimpleNamespace(id="approval-1"))
+    resolved = AsyncMock()
+    monkeypatch.setattr(approval, "create_approval", create)
+    monkeypatch.setattr(approval, "_send_scheduled_task_approval_event", AsyncMock())
+    monkeypatch.setattr(approval, "_send_scheduled_task_resolved_event", resolved)
+    monkeypatch.setattr(
+        approval,
+        "wait_for_response",
+        AsyncMock(side_effect=asyncio.CancelledError)
+        if cancelled
+        else AsyncMock(return_value=None),
+    )
+    if cancelled:
+        with pytest.raises(asyncio.CancelledError):
+            await approval._confirm_scheduled_task_creation(preview={}, user_id="u1", timeout=120)
+    else:
+        result = await approval._confirm_scheduled_task_creation(
+            preview={}, user_id="u1", timeout=120
+        )
+        assert result["status"] == "timeout"
+    assert create.call_args.kwargs["ttl"] == 120
+    assert create.call_args.kwargs["metadata"]["run_id"] == "run-1"
+    approval_storage.finish_if_pending.assert_awaited_once_with(
+        "approval-1", "cancelled" if cancelled else "timeout"
+    )
+    assert resolved.call_args.kwargs["status"] == ("cancelled" if cancelled else "timeout")
+
+
+@pytest.mark.asyncio
+async def test_timeout_does_not_overwrite_a_response_that_won_the_race(
+    monkeypatch: pytest.MonkeyPatch,
+    approval_storage,
+) -> None:
+    from src.infra.logging.context import TraceContext
+    from src.infra.tool.scheduled_task import approval
+
+    monkeypatch.setattr(
+        TraceContext,
+        "get_request_context",
+        lambda: SimpleNamespace(session_id="session-1", run_id="run-1", trace_id=None),
+    )
+    monkeypatch.setattr(approval, "_format_approval_message", lambda _: "Confirm")
+    monkeypatch.setattr(
+        approval, "create_approval", AsyncMock(return_value=SimpleNamespace(id="ap-1"))
+    )
+    monkeypatch.setattr(approval, "_send_scheduled_task_approval_event", AsyncMock())
+    resolved = AsyncMock()
+    monkeypatch.setattr(approval, "_send_scheduled_task_resolved_event", resolved)
+    monkeypatch.setattr(approval, "wait_for_response", AsyncMock(return_value=None))
+    approval_storage.finish_if_pending.return_value = False
+    approval_storage.get_response.return_value = SimpleNamespace(approved=True)
+
+    result = await approval._confirm_scheduled_task_creation(preview={}, user_id="u1")
+
+    assert result["approved"] is True
+    assert resolved.call_args.kwargs["status"] == "approved"
 
 
 def test_approval_message_contains_prompt_exactly_once() -> None:
@@ -323,7 +422,15 @@ async def test_confirm_scheduled_task_forwards_request_trace_id(
         return _FakeApproval()
 
     async def fake_send(
-        *, approval_id, message, session_id, run_id, timeout, trace_id=None, preview=None
+        *,
+        approval_id,
+        message,
+        session_id,
+        run_id,
+        timeout,
+        expires_at=None,
+        trace_id=None,
+        preview=None,
     ):
         captured.append({"trace_id": trace_id})
 

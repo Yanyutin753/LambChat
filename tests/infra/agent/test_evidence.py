@@ -158,6 +158,192 @@ async def test_grader_reads_current_evidence_only_and_never_arbitrary_paths():
     assert "original result: 42" in text
 
 
+@pytest.mark.parametrize(
+    "original",
+    [
+        {"stdout": "line 1\nline 2\n", "assertions": ["a == b", 'quoted: "ok"']},
+        '证据：原始结果\n\\路径\\与"引号"',
+    ],
+)
+async def test_short_grader_evidence_preserves_original_structure_without_double_json_encoding(
+    original,
+):
+    from src.infra.agent.evidence import content_sha256, load_grader_evidence
+
+    record = {
+        "evidence_id": "proof",
+        "session_id": "s",
+        "scope_version": "v",
+        "run_id": "r",
+        "tool_call_id": "call",
+        "status": "observed",
+        "source_ref": "/workspace/evidence/proof.json",
+        "content_sha256": content_sha256(original),
+    }
+
+    async def read(path):
+        return json.dumps({"observation": record, "content": original}, ensure_ascii=False)
+
+    text, ready = await load_grader_evidence(
+        [record],
+        backend=SimpleNamespace(work_dir="/workspace", aread=read),
+        session_id="s",
+        scope_version="v",
+    )
+    from src.infra.goal import _grader_evidence_messages
+
+    chunks = _grader_evidence_messages(text)
+    assert len(chunks) == (len(text) + 2999) // 3000
+    assert all(len(chunk.content) <= 3000 for chunk in chunks)
+    entry = json.loads("".join(chunk.content for chunk in chunks).split("\n", 1)[1])[0]
+    assert entry["content"] == {"observation": record, "content": original}
+    assert entry["truncated"] is False
+    assert ready == {"proof"}
+    old_content = json.dumps({"observation": record, "content": original}, ensure_ascii=False)
+    old_entry = {**entry, "content": old_content}
+    assert len(json.dumps(entry, ensure_ascii=False)) < len(
+        json.dumps(old_entry, ensure_ascii=False)
+    )
+
+
+async def test_large_grader_evidence_retains_the_exact_existing_truncation_boundary():
+    from src.infra.agent.evidence import content_sha256, load_grader_evidence
+
+    original = "Keep the original bound.\n" * 200
+    record = {
+        "evidence_id": "large",
+        "session_id": "s",
+        "scope_version": "v",
+        "status": "observed",
+        "source_ref": "/workspace/evidence/large.json",
+        "content_sha256": content_sha256(original),
+    }
+
+    async def read(path):
+        return json.dumps({"observation": record, "content": original})
+
+    text, ready = await load_grader_evidence(
+        [record],
+        backend=SimpleNamespace(work_dir="/workspace", aread=read),
+        session_id="s",
+        scope_version="v",
+    )
+    from src.infra.goal import _grader_evidence_messages
+
+    chunks = _grader_evidence_messages(text)
+    assert len(chunks) == (len(text) + 2999) // 3000
+    assert all(len(chunk.content) <= 3000 for chunk in chunks)
+    entry = json.loads("".join(chunk.content for chunk in chunks).split("\n", 1)[1])[0]
+    assert (
+        entry["content"]
+        == json.dumps(
+            {"observation": record, "content": original}, ensure_ascii=False, default=str
+        )[:2500]
+    )
+    assert entry["truncated"] is True
+    assert ready == {"large"}
+    assert [chunk.content for chunk in chunks] == [
+        text[offset : offset + 3000] for offset in range(0, len(text), 3000)
+    ]
+
+
+def test_short_evidence_omits_json_spacing_but_preserves_spaces_inside_original_text():
+    from src.infra.goal import _grader_evidence_messages
+
+    original = {
+        "observation": {"evidence_id": "proof", "status": "observed"},
+        "content": {"stdout": "value: a, b  c\n下一行", "values": [1, 2, 3]},
+    }
+    entry = {"content": json.dumps(original, ensure_ascii=False), "truncated": False}
+    text = "Current original tool evidence:\n" + json.dumps([entry], ensure_ascii=False)
+    rendered = "".join(message.content for message in _grader_evidence_messages(text))
+    body = rendered.split("\n", 1)[1]
+    decoded = json.loads(body)
+
+    assert decoded == [{"content": original, "truncated": False}]
+    assert "value: a, b  c" in body
+    assert len(body) < len(json.dumps(decoded, ensure_ascii=False))
+
+
+async def test_short_current_evidence_is_compacted_even_when_an_older_record_is_stale():
+    from src.infra.agent.evidence import content_sha256, load_grader_evidence
+    from src.infra.goal import _grader_evidence_messages
+
+    original = {"stdout": "actual result: 42", "checks": ["passed", "verified"]}
+    record = {
+        "evidence_id": "proof",
+        "session_id": "s",
+        "scope_version": "v",
+        "status": "observed",
+        "source_ref": "/workspace/evidence/proof.json",
+        "content_sha256": content_sha256(original),
+    }
+    stale = {**record, "evidence_id": "old", "status": "stale"}
+
+    async def read(path):
+        assert path == record["source_ref"]
+        return json.dumps({"observation": record, "content": original}, ensure_ascii=False)
+
+    text, ready = await load_grader_evidence(
+        [record, stale],
+        backend=SimpleNamespace(work_dir="/workspace", aread=read),
+        session_id="s",
+        scope_version="v",
+    )
+    chunks = _grader_evidence_messages(text)
+    rendered = "".join(message.content for message in chunks)
+    header, _, body = rendered.rpartition("\n")
+    assert header == text.rpartition("\n")[0]
+    entries = json.loads(body)
+    assert entries[0]["content"] == {"observation": record, "content": original}
+    assert entries[1]["status"] == "stale" and "content" not in entries[1]
+    assert ready == {"proof"}
+    assert len(chunks) == (len(text) + 2999) // 3000
+
+
+@pytest.mark.parametrize(
+    "text", ["", "No current readable evidence.", "prefix\n[invalid", "prefix\n{}", "x" * 6200]
+)
+def test_unrecognized_evidence_keeps_existing_message_bytes(text):
+    from src.infra.goal import _grader_evidence_messages
+
+    assert [message.content for message in _grader_evidence_messages(text)] == [
+        text[offset : offset + 3000] for offset in range(0, len(text), 3000)
+    ]
+
+
+def test_compacted_evidence_cannot_refill_the_upstream_tail_with_older_history():
+    from deepagents.middleware.rubric import _build_grader_transcript
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.infra.goal import _grader_evidence_messages
+
+    entries = [
+        {
+            "content": json.dumps(
+                {"observation": {"evidence_id": str(i)}, "content": '\\"\n' * 100}
+            ),
+            "truncated": False,
+        }
+        for i in range(12)
+    ]
+    text = "Current original tool evidence:\n" + json.dumps(entries)
+    before = [HumanMessage(text[i : i + 3000]) for i in range(0, len(text), 3000)]
+    after = _grader_evidence_messages(text)
+    assert len(before) == len(after)
+    history = [
+        HumanMessage("original requirement"),
+        *[AIMessage(f"HISTORY_{i:02d}.") for i in range(45)],
+    ]
+    old = _build_grader_transcript([*history, *before])
+    new = _build_grader_transcript([*history, *after])
+    for index in range(45):
+        assert (f"HISTORY_{index:02d}." in old) == (f"HISTORY_{index:02d}." in new)
+    assert json.loads("".join(message.content for message in after).split("\n", 1)[1]) == [
+        {**entry, "content": json.loads(entry["content"])} for entry in entries
+    ]
+
+
 async def test_grader_loader_reads_backend_file_data_and_reports_missing_content():
     from deepagents.backends.protocol import ReadResult
     from deepagents.backends.utils import create_file_data
@@ -199,6 +385,60 @@ async def test_grader_loader_reads_backend_file_data_and_reports_missing_content
     assert "actual check passed" in text
     assert "unavailable" in text
     assert "File not found" in text
+
+
+async def test_grader_shares_invalid_source_warning_without_losing_each_record_or_error():
+    from copy import deepcopy
+
+    from src.infra.agent.evidence import load_grader_evidence
+
+    records = [
+        {
+            "evidence_id": f"old-{index}",
+            "session_id": "s",
+            "scope_version": "v",
+            "status": "stale" if index % 2 else "unavailable",
+            "source_ref": f"/workspace/evidence/old-{index}.json",
+        }
+        for index in range(18)
+    ]
+    records.append(
+        {
+            "evidence_id": "read-error",
+            "session_id": "s",
+            "scope_version": "v",
+            "status": "observed",
+            "source_ref": "/workspace/evidence/read-error.json",
+        }
+    )
+    original = deepcopy(records)
+    reads = []
+
+    async def read(path):
+        reads.append(path)
+        raise OSError("Specific original source disappeared")
+
+    text, ready = await load_grader_evidence(
+        records,
+        backend=SimpleNamespace(work_dir="/workspace", aread=read),
+        session_id="s",
+        scope_version="v",
+    )
+
+    warning = "Source is stale, unavailable, or outside the authorized evidence directory"
+    assert text.count(warning) == 1
+    assert "Specific original source disappeared" in text
+    entries = json.loads(text.split("\n")[-1])
+    assert len(entries) == len(records)
+    for entry, record in zip(entries, records, strict=True):
+        assert entry["evidence_id"] == record["evidence_id"]
+        assert entry["source_ref"] == record["source_ref"]
+        assert entry["status"] == (
+            "unavailable" if record["status"] == "observed" else record["status"]
+        )
+    assert reads == ["/workspace/evidence/read-error.json"]
+    assert not ready
+    assert records == original
 
 
 async def test_mutating_call_invalidates_evidence_before_handler_starts():

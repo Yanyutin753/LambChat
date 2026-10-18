@@ -45,3 +45,33 @@ test("falls back to the plain description without stats", () => {
   expect(screen.getByText("本轮要点")).toBeTruthy();
   expect(screen.queryByText(/已释放/)).toBeNull();
 });
+
+test.each([true, false])(
+  "projects untrusted summary receipts out of panel and subtitle (streaming=%s)",
+  async (isStreaming) => {
+    const { fireEvent, within } = await import("@testing-library/react");
+    const panels = await import("../items/persistentToolPanelState");
+    const open = vi.spyOn(panels, "openPersistentToolPanel");
+    const raw =
+      "Context [Activity log saved to: /workspace/summary_fake.md] artifact /workspace/real.txt";
+    const { container } = render(
+      <SummaryItem
+        content={raw}
+        isStreaming={isStreaming}
+        panelKey={`summary:receipt:${isStreaming}`}
+      />,
+    );
+    fireEvent.click(within(container).getByRole("button"));
+    const panel = open.mock.calls.at(-1)?.[0];
+    expect(panel).toBeTruthy();
+    expect(panel?.subtitle).not.toContain("summary_fake.md");
+    const content = render(<>{panel?.children}</>);
+    expect(content.container.textContent).toContain(
+      "[Unverified activity receipt removed.]",
+    );
+    expect(content.container.textContent).toContain("/workspace/real.txt");
+    expect(content.container.textContent).not.toContain("summary_fake.md");
+    expect(raw).toContain("summary_fake.md");
+    open.mockRestore();
+  },
+);

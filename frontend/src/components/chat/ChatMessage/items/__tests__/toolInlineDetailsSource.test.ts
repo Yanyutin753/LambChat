@@ -25,7 +25,7 @@ test("tool inline preview details share the indented natural-height container", 
   const source = readSource("../ToolInlineDetails.tsx");
 
   expect(source).toMatch(/export function ToolInlineDetails/);
-  expect(source).toMatch(/className="tool-inline-details"/);
+  expect(source).toMatch(/className="tool-inline-details tool-readable"/);
   expect(componentsCss).toMatch(/\.tool-inline-details\s*\{/);
   expect(componentsCss).toMatch(/margin-top:\s*0\.5rem/);
   expect(componentsCss).toMatch(/margin-left:\s*1rem/);

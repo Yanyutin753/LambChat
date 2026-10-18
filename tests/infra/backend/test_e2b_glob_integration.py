@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 
 import pytest
+from pymongo import AsyncMongoClient
 
 from src.infra.settings.service import SettingsService
+from src.infra.storage.mongodb import build_mongo_connection_string
+from src.kernel.config import settings
 
 
 @pytest.mark.asyncio
@@ -12,10 +15,12 @@ async def test_e2b_glob_finds_nested_and_root_hello_py_in_real_sandbox() -> None
     if os.environ.get("RUN_SANDBOX_INTEGRATION") != "1":
         pytest.skip("set RUN_SANDBOX_INTEGRATION=1 to run real sandbox integration tests")
 
-    service = SettingsService.get_instance()
-    api_key_item = await service._storage.get_raw("E2B_API_KEY")
-    template_item = await service._storage.get_raw("E2B_TEMPLATE")
-    timeout_item = await service._storage.get_raw("E2B_TIMEOUT")
+    service = SettingsService()
+    async with AsyncMongoClient(build_mongo_connection_string()) as client:
+        service._storage._collection = client[settings.MONGODB_DB]["system_settings"]
+        api_key_item = await service._storage.get_raw("E2B_API_KEY")
+        template_item = await service._storage.get_raw("E2B_TEMPLATE")
+        timeout_item = await service._storage.get_raw("E2B_TIMEOUT")
 
     if api_key_item is None or api_key_item.updated_at is None:
         pytest.skip("E2B_API_KEY is not configured in database settings")
@@ -43,7 +48,8 @@ async def test_e2b_glob_finds_nested_and_root_hello_py_in_real_sandbox() -> None
 
         result = backend.glob("**/hello.py", path="/")
 
-        paths = {match["path"] for match in result["matches"]}
+        assert result.error is None
+        paths = {match["path"] for match in result.matches}
         assert {
             "/home/user/hello.py",
             "/home/user/project/hello.py",
@@ -51,7 +57,8 @@ async def test_e2b_glob_finds_nested_and_root_hello_py_in_real_sandbox() -> None
         }.issubset(paths)
 
         nested_result = backend.glob("src/**/tests/*.py", path="/")
-        nested_paths = {match["path"] for match in nested_result["matches"]}
+        assert nested_result.error is None
+        nested_paths = {match["path"] for match in nested_result.matches}
         assert {
             "/home/user/src/tests/root.py",
             "/home/user/src/pkg/deep/tests/deep.py",

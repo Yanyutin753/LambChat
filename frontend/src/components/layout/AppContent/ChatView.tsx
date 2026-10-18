@@ -152,6 +152,7 @@ export function ChatView({
   persistentGoal,
   persistentGoalBusy,
   onControlPersistentGoal,
+  onUpdatePersistentGoal,
   goalsByRunId,
   onClearActiveGoal,
   attachments,
@@ -172,9 +173,7 @@ export function ChatView({
   const navigate = useNavigate();
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
-  const hasPendingAskHumanApproval = approvals.some(
-    (approval) => approval.metadata?.mode === "interrupt",
-  );
+  const hasPendingApproval = approvals.length > 0;
   const hasVisibleStreamingMessage = messages.some(
     (message) => message.role === "assistant" && message.isStreaming,
   );
@@ -472,6 +471,12 @@ export function ChatView({
     () => getVisibleActiveGoalForMessages(activeGoal, messages),
     [activeGoal, messages],
   );
+  const composerGoal =
+    visibleActiveGoal ??
+    (activeGoal?._persistent_id &&
+    activeGoal._persistent_id === persistentGoal?.id
+      ? activeGoal
+      : null);
   const isMobileViewport =
     typeof window !== "undefined" ? window.innerWidth < 640 : false;
 
@@ -766,13 +771,14 @@ export function ChatView({
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
             style={{
-              height: 48,
+              height: "1.5rem",
               background:
                 "linear-gradient(to bottom, transparent, var(--theme-bg))",
             }}
           />
           {messages.length === 0 ? (
-            isLoading ? (
+            !hasPendingApproval &&
+            (isLoading ? (
               <ChatSkeleton count={8} />
             ) : (
               <WelcomePage
@@ -806,8 +812,9 @@ export function ChatView({
                 selectedTeamId={selectedTeamId}
                 canSendMessage={canSendMessage}
                 chatInputProps={chatInputProps}
-                activeGoal={visibleActiveGoal}
+                activeGoal={composerGoal}
                 persistentGoal={persistentGoal}
+                onUpdatePersistentGoal={onUpdatePersistentGoal}
                 persistentGoalBusy={persistentGoalBusy}
                 onControlPersistentGoal={onControlPersistentGoal}
                 onClearActiveGoal={onClearActiveGoal}
@@ -815,7 +822,7 @@ export function ChatView({
                 onClearPersonaPreset={onClearPersonaPreset}
                 onSelectTeam={onSelectTeam}
               />
-            )
+            ))
           ) : (
             <Virtuoso
               key={messageListSessionKey}
@@ -856,8 +863,8 @@ export function ChatView({
         <AttachmentPreviewHost />
         <PersistentToolPanelHost />
 
-        {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
-        {messages.length > 0 && (
+        {/* Pending confirmations replace every composer, including empty/history-loading views. */}
+        {(messages.length > 0 || hasPendingApproval) && (
           <div className="relative">
             <SessionTodoDock
               running={sessionRunning || approvals.length > 0}
@@ -928,7 +935,7 @@ export function ChatView({
                 </svg>
               </button>
             </div>
-            {approvals.length > 0 && (
+            {hasPendingApproval ? (
               <div className="approval-panel-scroll-region flex min-h-0 w-full shrink-0 flex-col overflow-hidden">
                 <ApprovalPanel
                   approvals={approvals}
@@ -936,37 +943,12 @@ export function ChatView({
                   isLoading={approvalLoading}
                 />
               </div>
-            )}
-            {hasPendingAskHumanApproval &&
-              (persistentGoal || visibleActiveGoal) && (
-                <ActiveGoalBar
-                  goal={visibleActiveGoal}
-                  persistentGoal={persistentGoal}
-                  disabled={isLoading || !canSendMessage}
-                  persistentDisabled={persistentGoalBusy || !canSendMessage}
-                  onClear={onClearActiveGoal}
-                  onPause={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("pause")
-                      : undefined
-                  }
-                  onResume={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("resume")
-                      : undefined
-                  }
-                  onClearPersistentGoal={
-                    onControlPersistentGoal
-                      ? () => onControlPersistentGoal("clear")
-                      : undefined
-                  }
-                />
-              )}
-            {!hasPendingAskHumanApproval && (
+            ) : (
               <ChatInput
                 {...chatInputProps}
-                activeGoal={visibleActiveGoal}
+                activeGoal={composerGoal}
                 persistentGoal={persistentGoal}
+                onUpdatePersistentGoal={onUpdatePersistentGoal}
                 persistentGoalBusy={persistentGoalBusy}
                 onControlPersistentGoal={onControlPersistentGoal}
                 onClearActiveGoal={onClearActiveGoal}
@@ -975,6 +957,31 @@ export function ChatView({
                 goalClearLabel={t("chat.goal.clear", "Clear goal")}
                 showHelpMenu
                 helpMenuClassName="hidden sm:block"
+              />
+            )}
+            {hasPendingApproval && (persistentGoal || composerGoal) && (
+              <ActiveGoalBar
+                goal={composerGoal}
+                persistentGoal={persistentGoal}
+                onUpdatePersistentGoal={onUpdatePersistentGoal}
+                disabled={isLoading || !canSendMessage}
+                persistentDisabled={persistentGoalBusy || !canSendMessage}
+                onClear={onClearActiveGoal}
+                onPause={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("pause")
+                    : undefined
+                }
+                onResume={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("resume")
+                    : undefined
+                }
+                onClearPersistentGoal={
+                  onControlPersistentGoal
+                    ? () => onControlPersistentGoal("clear")
+                    : undefined
+                }
               />
             )}
           </div>

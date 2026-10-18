@@ -8,6 +8,25 @@ resolve_run_usage_carry 从 configurable.hitl_resume 还原原 run 的起点与
 from src.agents.core.node_utils import resolve_run_usage_carry
 
 
+def test_carries_usage_completeness_through_handoff_and_resume():
+    counts = {
+        "input_tokens": 100,
+        "output_tokens": 10,
+        "total_tokens": 110,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "usage_observed": True,
+        "unknown_usage_fields": ["cache_creation_tokens"],
+        "_usage_ledger_id": "a" * 32,
+    }
+    for kwargs in (
+        {"hitl_resume": {"prior_usage": counts}},
+        {"hitl_resume": None, "handoff_usage": {"prior_usage": counts}},
+    ):
+        _, carried = resolve_run_usage_carry(default_started_at=1.0, **kwargs)
+        assert carried == counts
+
+
 def test_no_hitl_resume_falls_back_to_node_entry_time():
     started_at, prior_usage = resolve_run_usage_carry(None, default_started_at=123.5)
     assert started_at == 123.5

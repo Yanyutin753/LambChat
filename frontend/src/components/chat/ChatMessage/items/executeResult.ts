@@ -37,10 +37,12 @@ export function parseExecuteResult(result?: string | Record<string, unknown>) {
 export function deriveExecuteStatus(props: {
   cancelled?: boolean;
   isPending?: boolean;
+  awaitingConfirmation?: boolean;
   success?: boolean;
   result?: string | Record<string, unknown>;
 }): CollapsibleStatus {
   if (props.cancelled) return "cancelled";
+  if (props.isPending && props.awaitingConfirmation) return "idle";
   if (props.isPending) return "loading";
   const { exitCode, failed } = parseExecuteResult(props.result);
   if (

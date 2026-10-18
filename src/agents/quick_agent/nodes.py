@@ -1,13 +1,14 @@
 """
 Quick Agent 节点 - 快问快答：消息直发 LLM
 
-无工具、无技能、无子代理、无沙箱。流式回复不经过 deepagents：
+不直接执行工具、技能或沙箱；仅提供内部 Search 接力动作。流式回复不经过 deepagents：
 节点把 LLM 调用挂在节点 config 上，外层图 astream_events 捕获
 on_chat_model_stream/on_chat_model_end，由 BaseGraphAgent._stream 的
 AgentEventProcessor 统一转成 message:chunk 与 token:usage 事件。
 """
 
 from typing import Any, Dict
+from uuid import uuid4
 
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -20,10 +21,12 @@ from src.agents.core.node_utils import (
 )
 from src.agents.core.subagent_prompts import build_response_language_section
 from src.agents.core.thinking import build_thinking_config
-from src.agents.quick_agent.prompt import QUICK_SYSTEM_PROMPT
+from src.agents.quick_agent.prompt import QUICK_SYSTEM_PROMPT, SEARCH_HANDOFF_TOOL
+from src.infra.agent.middleware.subagent_activity import ActivityReferenceMiddleware
 from src.infra.llm.client import LLMClient
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -110,9 +113,28 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         operation="quick-agent",
         fallback_model=fallback,
         thinking=thinking,
+        tools=[SEARCH_HANDOFF_TOOL] if configurable.get("allow_search_handoff") else None,
     )
+
+    ai_message = ActivityReferenceMiddleware._strip_model_references(ai_message)
+
+    if configurable.get("allow_search_handoff") and any(
+        call.get("name") == "handoff_to_search" for call in ai_message.tool_calls
+    ):
+        # Commit the request before changing executors; Search reuses this ID to deduplicate.
+        presenter = configurable.get("presenter")
+        human_message.id = f"handoff-user:{presenter.run_id if presenter else uuid4().hex}"
+        return {
+            "messages": [human_message],
+            "output": "",
+            "agent_handoff": {"agent_id": "search", "message_id": human_message.id},
+        }
+
+    if ai_message.tool_calls:
+        raise AppError(ErrorCode.INTERNAL_ERROR)
 
     return {
         "messages": [human_message, ai_message],
         "output": _extract_text(ai_message.content),
+        "agent_handoff": None,
     }

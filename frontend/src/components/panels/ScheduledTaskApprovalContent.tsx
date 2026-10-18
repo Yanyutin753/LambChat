@@ -3,7 +3,7 @@ import { AgentIcon } from "../agent/AgentIcon";
 import { useAgentCatalog } from "../agent/useAgentCatalog";
 import { resolveAgentReferenceName } from "../agent/agentCatalog";
 import { clsx } from "clsx";
-import { CalendarClock, TerminalSquare, Check, Minus } from "lucide-react";
+import { CalendarClock, Check, Minus } from "lucide-react";
 
 interface ScheduledTaskApprovalContentProps {
   preview: {
@@ -13,6 +13,7 @@ interface ScheduledTaskApprovalContentProps {
     run_on_start: boolean;
     timeout_seconds: number;
     message: string;
+    execution_mode?: "conversation" | "standalone";
   };
 }
 
@@ -25,19 +26,19 @@ function SpecRow({
 }) {
   return (
     <div className="approval-st-row">
-      <span className="approval-st-label">{label}</span>
-      <span className="approval-st-value">{children}</span>
+      <dt className="approval-st-label">{label}</dt>
+      <dd className="approval-st-value">{children}</dd>
     </div>
   );
 }
 
-function MonoChip({ children }: { children: React.ReactNode }) {
-  return <code className="approval-st-mono">{children}</code>;
+function ParameterValue({ children }: { children: React.ReactNode }) {
+  return <span className="approval-st-parameter">{children}</span>;
 }
 
 /**
  * Renders a scheduled task creation approval as a compact spec sheet:
- * definition rows for the task parameters plus a code block for the run
+ * definition rows for the task parameters plus plain text for the run
  * prompt. Used by ApprovalPanel when an approval has
  * metadata.approval_type === "scheduled_task_create".
  */
@@ -46,23 +47,33 @@ export function ScheduledTaskApprovalContent({
 }: ScheduledTaskApprovalContentProps) {
   const { t, i18n } = useTranslation();
   const agents = useAgentCatalog();
-  const agentName = resolveAgentReferenceName(preview.agent_id, "", agents, i18n.language, t);
+  const agentName = resolveAgentReferenceName(
+    preview.agent_id,
+    "",
+    agents,
+    i18n.language,
+    t,
+  );
 
   return (
     <div className="approval-st">
-      <p className="approval-st-lead">
-        {t("approvals.scheduledTask.confirmCreation")}
-      </p>
       <p className="approval-st-note">
         {t("approvals.scheduledTask.noTaskYet")}
       </p>
 
-      <div className="approval-st-sheet">
+      <dl className="approval-st-sheet">
         <SpecRow label={t("approvals.scheduledTask.name")}>
           <span className="approval-st-name">{preview.name}</span>
         </SpecRow>
+        <SpecRow label={t("scheduledTask.executionMode")}>
+          {t(
+            preview.execution_mode === "conversation"
+              ? "scheduledTask.conversationMode"
+              : "scheduledTask.standaloneMode",
+          )}
+        </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.agent")}>
-          <MonoChip>
+          <ParameterValue>
             <AgentIcon
               icon={agents.find((agent) => agent.id === preview.agent_id)?.icon}
               seed={preview.agent_id}
@@ -70,10 +81,10 @@ export function ScheduledTaskApprovalContent({
               className="approval-st-chip-icon"
             />
             {agentName}
-          </MonoChip>
+          </ParameterValue>
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.schedule")}>
-          <MonoChip>
+          <ParameterValue>
             <CalendarClock
               size={11}
               strokeWidth={2}
@@ -81,7 +92,7 @@ export function ScheduledTaskApprovalContent({
               className="approval-st-chip-icon"
             />
             {preview.schedule}
-          </MonoChip>
+          </ParameterValue>
         </SpecRow>
         <SpecRow label={t("approvals.scheduledTask.runImmediately")}>
           <span
@@ -102,27 +113,21 @@ export function ScheduledTaskApprovalContent({
               : t("approvals.scheduledTask.no")}
           </span>
         </SpecRow>
-        <SpecRow label={t("approvals.scheduledTask.timeout")}>
-          <MonoChip>{preview.timeout_seconds}s</MonoChip>
-        </SpecRow>
-      </div>
+      </dl>
 
       <p className="approval-st-effect">
-        {t("approvals.scheduledTask.effect", {
-          agent: agentName,
-          schedule: preview.schedule,
-        })}
-        {preview.run_on_start && t("approvals.scheduledTask.effectImmediate")}
+        {t(
+          preview.execution_mode === "conversation"
+            ? "approvals.scheduledTask.conversationSummary"
+            : "approvals.scheduledTask.standaloneSummary",
+        )}
       </p>
 
       <div className="approval-st-prompt">
         <div className="approval-st-prompt-header">
-          <TerminalSquare size={12} strokeWidth={2} aria-hidden="true" />
           <span>{t("approvals.scheduledTask.promptSent")}</span>
         </div>
-        <pre className="approval-st-prompt-body">
-          <code>{preview.message}</code>
-        </pre>
+        <p className="approval-st-prompt-body">{preview.message}</p>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -282,6 +283,13 @@ async def test_existing_session_uses_persisted_project_scope_for_memory(
             return SimpleNamespace(metadata={})
 
     monkeypatch.setattr(chat, "SessionManager", lambda: _SessionManager())
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _SessionManager())
+    lease = SimpleNamespace(
+        acquire=AsyncMock(return_value=True),
+        renew=AsyncMock(return_value=True),
+        release=AsyncMock(),
+    )
+    monkeypatch.setattr("src.infra.channel.chat_lease.ChatLease", lambda *_args, **_kwargs: lease)
     monkeypatch.setattr(chat, "verify_session_ownership", lambda *_args: None)
 
     await _invoke_chat(

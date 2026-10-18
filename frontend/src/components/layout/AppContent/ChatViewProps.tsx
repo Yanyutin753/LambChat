@@ -103,9 +103,11 @@ function resolveChatAssistantIdentity({
   }
 
   return {
-    avatar: currentPersonaAvatar ?? (
-      selectedPersonaName || selectedPersonaPresetId ? null : agentIcon ?? null
-    ),
+    avatar:
+      currentPersonaAvatar ??
+      (selectedPersonaName || selectedPersonaPresetId
+        ? null
+        : agentIcon ?? null),
     seed: selectedPersonaPresetId || selectedPersonaName || currentAgent,
     name: selectedPersonaName ?? agentNameFallback,
   };
@@ -232,6 +234,11 @@ export interface ChatViewProps {
   onCancelSteer?: (content: string, messageId?: string) => void;
   persistentGoal?: PersistentGoal | null;
   persistentGoalBusy?: boolean;
+  onUpdatePersistentGoal?: (
+    objective: string,
+    rubric: string,
+    expectedRevision: number,
+  ) => Promise<boolean>;
   onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;

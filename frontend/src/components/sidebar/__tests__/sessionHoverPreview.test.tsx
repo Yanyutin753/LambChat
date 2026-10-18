@@ -38,31 +38,39 @@ const props = {
   onSessionUpdate: vi.fn(),
 };
 
-test("delayed hover shows title, chat type, update time and an accessible unread dot without marking read", () => {
+test("delayed hover shows title, chat type, update time and an accessible unread count without marking read", () => {
   vi.useFakeTimers();
   render(<SessionItem {...props} />);
   fireEvent.mouseEnter(screen.getByRole("button", { name: session.name }));
   expect(screen.queryByRole("tooltip")).toBeNull();
   act(() => vi.advanceTimersByTime(500));
   const preview = screen.getByRole("tooltip");
-  expect(within(preview).getByText(session.name)).toBeInTheDocument();
+  expect(within(preview).getByText(session.name)).toHaveClass(
+    "line-clamp-3",
+    "text-theme-text-secondary",
+    "font-normal",
+  );
   expect(within(preview).getByText("nav.chat")).toBeInTheDocument();
   expect(preview.querySelector("time")).toHaveAttribute(
     "dateTime",
     session.updated_at,
   );
+  expect(preview.querySelector("time")?.parentElement).toHaveClass(
+    "items-baseline",
+  );
+  expect(preview.querySelector("time")).toHaveClass("leading-5");
   expect(
     within(preview).getByLabelText("sidebar.unreadMessages"),
-  ).toBeInTheDocument();
+  ).toHaveTextContent("3");
   expect(props.onSelect).not.toHaveBeenCalled();
-  expect(screen.queryByText("3")).toBeNull();
+  expect(screen.getAllByText("3")).toHaveLength(2);
   fireEvent.keyDown(screen.getByRole("button", { name: session.name }), {
     key: "Escape",
   });
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
 
-test("keyboard focus opens the preview and active sessions have no unread dot", () => {
+test("keyboard focus opens the preview and active sessions have no unread count", () => {
   render(<SessionItem {...props} isActive />);
   fireEvent.keyDown(document, { key: "Tab" });
   fireEvent.focus(screen.getByRole("button", { name: session.name }));
@@ -104,4 +112,55 @@ test("preview anchors to the full row and aligns its top edge", () => {
     top: "100px",
     left: "290px",
   });
+});
+
+test.each([
+  [1, "1"],
+  [12, "12"],
+  [100, "99+"],
+] as const)("sidebar shows unread count %s as %s", (count, label) => {
+  render(
+    <SessionItem {...props} session={{ ...session, unread_count: count }} />,
+  );
+  expect(screen.getByLabelText("sidebar.unreadMessages")).toHaveTextContent(
+    label,
+  );
+});
+
+test.each([
+  "queued",
+  "pending",
+  "starting",
+  "running",
+  "recovering",
+  "waiting_human",
+])(
+  "%s status takes priority over unread count in row and preview",
+  (status) => {
+    vi.useFakeTimers();
+    const view = render(
+      <SessionItem
+        {...props}
+        session={{ ...session, metadata: { task_status: status } }}
+      />,
+    );
+    fireEvent.mouseEnter(screen.getByRole("button", { name: session.name }));
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    expect(screen.queryByLabelText("sidebar.unreadMessages")).toBeNull();
+    view.rerender(
+      <SessionItem
+        {...props}
+        session={{ ...session, metadata: { task_status: "completed" } }}
+      />,
+    );
+    expect(screen.getAllByLabelText("sidebar.unreadMessages")).toHaveLength(2);
+  },
+);
+
+test.each([0, undefined])("sidebar hides empty unread count %s", (count) => {
+  render(
+    <SessionItem {...props} session={{ ...session, unread_count: count }} />,
+  );
+  expect(screen.queryByLabelText("sidebar.unreadMessages")).toBeNull();
 });

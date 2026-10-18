@@ -12,7 +12,6 @@ from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import get_concurrency_limiter, get_registered_executor
 from .recovery_texts import build_recovery_message, normalize_recovery_language
@@ -80,6 +79,7 @@ async def _lookup_trace_id_for_run(run_id: str) -> str | None:
             return str(trace_id) if trace_id else None
     except Exception as e:
         logger.warning("Failed to lookup trace_id for run %s: %s", run_id, e)
+        raise
     return None
 
 
@@ -94,9 +94,12 @@ def _registered_agent_ids() -> set[str]:
 
 def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -> str:
     from src.agents.core.base import normalize_agent_id
+    from src.infra.agent.handoff import resolve_execution_agent_id
 
     candidate = str(
-        session_metadata.get("agent_id") or getattr(session, "agent_id", "") or ""
+        resolve_execution_agent_id(session_metadata)
+        if session_metadata.get("agent_id")
+        else getattr(session, "agent_id", "") or ""
     ).strip()
     candidate = normalize_agent_id(candidate)
     registered_ids = _registered_agent_ids()
@@ -126,6 +129,97 @@ def _require_safe_recovery(session: Any) -> None:
     metadata = getattr(session, "metadata", None) or {}
     if metadata.get("task_error_code") == ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT.code:
         raise AppError(ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT)
+
+
+async def restore_recovery_claim(
+    storage: Any,
+    session_id: str,
+    run_id: str,
+    claim: dict[str, Any],
+    *,
+    recoverable: bool,
+) -> None:
+    """A rejected dispatch cannot rearm a newer claim or replace terminal diagnostics."""
+    original = claim["metadata"]
+    await storage.update_metadata_for_run(
+        session_id,
+        run_id,
+        {
+            "task_status": "failed",
+            "task_error": original.get("task_error"),
+            "task_error_code": original.get("task_error_code")
+            or ("server_restart" if recoverable else None),
+            "task_recoverable": recoverable,
+            "recovery_token": None,
+        },
+        expected_statuses=["recovering", "pending", "queued", "starting"],
+        expected_recovery_token=claim["token"],
+    )
+
+
+async def strip_terminal_stream_events(session_id: str, run_id: str) -> int:
+    """删除 Redis Stream 中残留的终态事件，恢复后 SSE 重放才不会提前断开。
+
+    SSE 读循环遇 error/done/complete 即断流；旧关停路径或跨版本升级可能已经
+    写入了终态事件，同 run 续跑前必须清掉，非终态事件（半截输出）一律保留。
+    """
+    try:
+        from src.infra.session.dual_writer import get_dual_writer
+
+        dual_writer = get_dual_writer()
+        stream_key = dual_writer._stream_key(session_id, run_id)
+        terminal_types = {"error", "done", "complete"}
+        removed = 0
+        entries = await dual_writer.redis.xrange(stream_key, min="-", max="+")
+        for entry_id, fields in entries:
+            if fields.get("event_type") in terminal_types:
+                await dual_writer.redis.xdel(stream_key, entry_id)
+                removed += 1
+        if removed:
+            logger.info(
+                "Stripped %d terminal stream events before seamless resume: session=%s, run_id=%s",
+                removed,
+                session_id,
+                run_id,
+            )
+        return removed
+    except Exception as e:
+        logger.warning(
+            "Failed to strip terminal stream events (session=%s run=%s): %s",
+            session_id,
+            run_id,
+            e,
+        )
+        raise
+
+
+async def prepare_interrupted_recovery(
+    storage: Any,
+    session_id: str,
+    run_id: str,
+    trace_id: str | None,
+    claim: dict[str, Any],
+) -> None:
+    """Only the final admitted executor may change the previous terminal stream."""
+    from src.infra.goal_runtime import GoalRunAdmissionError
+
+    if not await storage.update_metadata_for_run(
+        session_id,
+        run_id,
+        {"task_recoverable": False},
+        expected_statuses=["starting"],
+        expected_recovery_token=claim["token"],
+    ):
+        raise GoalRunAdmissionError("Interrupted recovery claim was superseded")
+    if trace_id:
+        traces = get_trace_storage()
+        if not await traces.reopen_interrupted_trace(trace_id):
+            trace = await traces.collection.find_one({"trace_id": trace_id}, {"status": 1})
+            if trace and trace.get("status") in {"completed", "cancelled"}:
+                raise GoalRunAdmissionError("Interrupted trace is already terminal")
+            if not trace or trace.get("status") != "running":
+                raise RuntimeError("Interrupted trace could not be reopened")
+    await strip_terminal_stream_events(session_id, run_id)
 
 
 class TaskRecoveryService:
@@ -198,15 +292,14 @@ class TaskRecoveryService:
             reason,
             run_id=run_id,
         )
-        await self._storage.update(
+        await self._storage.update_metadata_for_run(
             session.id,
-            SessionUpdate(
-                metadata={
-                    "task_recoverable": recoverable,
-                    "task_error_code": "server_restart",
-                    "interrupted_run_id": run_id,
-                }
-            ),
+            run_id,
+            {
+                "task_recoverable": recoverable,
+                "task_error_code": "server_restart",
+                "interrupted_run_id": run_id,
+            },
         )
         try:
             trace_storage = get_trace_storage()
@@ -250,41 +343,7 @@ class TaskRecoveryService:
         except Exception as e:
             logger.warning("Failed to mark trace failed for run %s: %s", run_id, e)
 
-    async def _strip_terminal_stream_events(self, session_id: str, run_id: str) -> int:
-        """删除 Redis Stream 中残留的终态事件，恢复后 SSE 重放才不会提前断开。
-
-        SSE 读循环遇 error/done/complete 即断流；旧关停路径或跨版本升级可能已经
-        写入了终态事件，同 run 续跑前必须清掉，非终态事件（半截输出）一律保留。
-        """
-        try:
-            from src.infra.session.dual_writer import get_dual_writer
-
-            dual_writer = get_dual_writer()
-            stream_key = dual_writer._stream_key(session_id, run_id)
-            terminal_types = {"error", "done", "complete"}
-            removed = 0
-            entries = await dual_writer.redis.xrange(stream_key, min="-", max="+")
-            for entry_id, fields in entries:
-                if fields.get("event_type") in terminal_types:
-                    await dual_writer.redis.xdel(stream_key, entry_id)
-                    removed += 1
-            if removed:
-                logger.info(
-                    "Stripped %d terminal stream events before seamless resume: "
-                    "session=%s, run_id=%s",
-                    removed,
-                    session_id,
-                    run_id,
-                )
-            return removed
-        except Exception as e:
-            logger.warning(
-                "Failed to strip terminal stream events (session=%s run=%s): %s",
-                session_id,
-                run_id,
-                e,
-            )
-            return 0
+    _strip_terminal_stream_events = staticmethod(strip_terminal_stream_events)
 
     async def mark_run_recoverable_failure(
         self,
@@ -294,22 +353,20 @@ class TaskRecoveryService:
         error_code: str = "server_restart",
     ) -> None:
         """Persist a failed task state that is eligible for automatic recovery."""
-        executor = self._ensure_executor()
-        await executor._update_session_status(
+        await self._storage.update_metadata_for_run(
             session_id,
-            TaskStatus.FAILED,
-            error_message,
-            run_id=run_id,
-        )
-        await self._storage.update(
-            session_id,
-            SessionUpdate(
-                metadata={
-                    "task_recoverable": True,
-                    "task_error_code": error_code,
-                    "interrupted_run_id": run_id,
-                }
-            ),
+            run_id,
+            {
+                **self._state_machine.build_metadata(
+                    TaskStatus.FAILED,
+                    run_id=run_id,
+                    error=error_message,
+                    error_code=error_code,
+                    recoverable=True,
+                ),
+                "interrupted_run_id": run_id,
+            },
+            expected_statuses=["running", "queued", "pending", "starting", "recovering"],
         )
 
     async def submit_seamless_resume(
@@ -318,6 +375,7 @@ class TaskRecoveryService:
         source_run_id: str,
         trace_id: str | None,
         reason: str,
+        recovery_claim: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """以原 run_id/trace_id 提交无缝续跑（模板：submit_hitl_resume_run）。
 
@@ -329,7 +387,11 @@ class TaskRecoveryService:
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
         executor_fn = get_registered_executor(executor_key)
-        if executor_fn is None and executor_key == "agent_stream":
+        if executor_fn is None and executor_key in {
+            "agent_stream",
+            "scheduled_agent_stream",
+            "conversation_schedule",
+        }:
             from importlib import import_module
 
             import_module("src.api.routes.chat")
@@ -348,18 +410,36 @@ class TaskRecoveryService:
         from src.infra.goal_runtime import restore_goal_for_run
 
         active_goal = await restore_goal_for_run(session, source_run_id)
+        from src.infra.agent.handoff import get_run_handoff, restore_handoff_usage
+
+        agent_options = session_metadata.get("agent_options") or None
+        handoff = get_run_handoff(session_metadata)
+        if handoff:
+            usage_trace_id = trace_id or handoff.get("trace_id")
+            last_usage = (
+                await get_trace_storage().get_last_trace_event(usage_trace_id, ["token:usage"])
+                if usage_trace_id
+                else None
+            )
+            agent_options = {
+                **(agent_options or {}),
+                "_handoff_usage": restore_handoff_usage(
+                    handoff, (last_usage or {}).get("data") or {}
+                ),
+            }
         common_kwargs: dict[str, Any] = {
-            "disabled_tools": session_metadata.get("disabled_tools") or None,
-            "agent_options": session_metadata.get("agent_options") or None,
-            "disabled_skills": session_metadata.get("disabled_skills") or None,
+            "disabled_tools": session_metadata.get("disabled_tools"),
+            "agent_options": agent_options,
+            **({"attachments": handoff.get("attachments")} if handoff else {}),
+            "disabled_skills": session_metadata.get("disabled_skills"),
             "enabled_skills": _get_enabled_skills_from_metadata(session_metadata),
             "persona_system_prompt": (
                 (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(session_metadata.get("persona_snapshot"), dict)
                 else None
             ),
-            "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
-            "enabled_mcp_servers": session_metadata.get("enabled_mcp_servers") or None,
+            "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools"),
+            "enabled_mcp_servers": session_metadata.get("enabled_mcp_servers"),
             "project_id": session_metadata.get("project_id"),
             "session_name": getattr(session, "name", None),
             "user_message_written": True,
@@ -370,6 +450,8 @@ class TaskRecoveryService:
             "recommendation_input": hidden_instruction,
             "auto_mode": bool(session_metadata.get("auto_mode", False)),
         }
+        if recovery_claim is not None:
+            common_kwargs["recovery_claim"] = recovery_claim
         if active_goal is not None:
             common_kwargs["active_goal"] = active_goal
 
@@ -424,26 +506,6 @@ class TaskRecoveryService:
             "message": "任务已在原对话中恢复",
         }
 
-    async def _restore_recoverable_failure(
-        self,
-        session_id: str,
-        run_id: str,
-        error_message: str,
-    ) -> None:
-        """Restore a failed run to a recoverable failed state after recovery submission fails."""
-        await self._storage.update_metadata_for_run(
-            session_id,
-            run_id,
-            self._state_machine.build_metadata(
-                TaskStatus.FAILED,
-                run_id=run_id,
-                error=error_message,
-                error_code="server_restart",
-                recoverable=True,
-            ),
-            expected_statuses=["recovering", "pending", "queued", "starting"],
-        )
-
     async def resume_interrupted_run(
         self,
         session: Any,
@@ -489,6 +551,9 @@ class TaskRecoveryService:
                 "Took over stale recovery lock: key=%s run_id=%s", lock_key, source_run_id
             )
 
+        from src.infra.goal_runtime import GoalRunAdmissionError, restore_goal_for_run
+
+        recovery_claim: dict[str, Any] | None = None
         try:
             session_metadata = getattr(session, "metadata", None) or {}
             current_run_id = session_metadata.get("current_run_id")
@@ -526,10 +591,23 @@ class TaskRecoveryService:
             session = fresh
             _require_safe_recovery(session)
             session_metadata = session.metadata or {}
+            await restore_goal_for_run(session, source_run_id)
+            candidate_claim: dict[str, Any] = {
+                "token": lock_token,
+                "metadata": {
+                    key: session_metadata.get(key) for key in ("task_error", "task_error_code")
+                },
+            }
             if not await self._storage.claim_run_recovery(
                 session.id,
                 source_run_id,
-                self._state_machine.build_metadata(TaskStatus.RECOVERING, run_id=source_run_id),
+                {
+                    **self._state_machine.build_metadata(
+                        TaskStatus.RECOVERING, run_id=source_run_id
+                    ),
+                    "recovery_token": lock_token,
+                    **candidate_claim["metadata"],
+                },
             ):
                 await self.release_recovery_lock(lock_key, lock_token)
                 return {
@@ -540,6 +618,7 @@ class TaskRecoveryService:
                     "message": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.default_message,
                 }
 
+            recovery_claim = candidate_claim
             attempts_run_id = session_metadata.get("resume_attempts_run_id")
             attempts = (
                 int(session_metadata.get("resume_attempts") or 0)
@@ -570,18 +649,12 @@ class TaskRecoveryService:
                 }
 
             trace_id = await _lookup_trace_id_for_run(source_run_id)
-            if trace_id:
-                await get_trace_storage().reopen_interrupted_trace(trace_id)
-            await self._strip_terminal_stream_events(session.id, source_run_id)
-
             recovery_result = await self.submit_seamless_resume(
-                session, source_run_id, trace_id, reason
+                session, source_run_id, trace_id, reason, recovery_claim=recovery_claim
             )
             if not recovery_result.get("success"):
-                await self._restore_recoverable_failure(
-                    session.id,
-                    source_run_id,
-                    recovery_result.get("message") or "恢复任务失败",
+                await restore_recovery_claim(
+                    self._storage, session.id, source_run_id, recovery_claim, recoverable=True
                 )
                 # 提交失败释放锁，让下一轮扫描/手动重试可以立即接手
                 await self.release_recovery_lock(lock_key, lock_token)
@@ -596,21 +669,51 @@ class TaskRecoveryService:
                     "recovery_reason": reason,
                     "recovery_requested_at": utc_now_iso(),
                     "task_recoverable": False,
-                    "task_error_code": None,
                 },
                 expected_statuses=["recovering", "pending", "queued", "starting", "running"],
+                expected_recovery_token=lock_token,
             )
             return recovery_result
+        except GoalRunAdmissionError:
+            try:
+                if recovery_claim is not None:
+                    await restore_recovery_claim(
+                        self._storage, session.id, source_run_id, recovery_claim, recoverable=False
+                    )
+                else:
+                    await self._storage.update_metadata_for_run(
+                        session.id,
+                        source_run_id,
+                        {"task_status": "failed", "task_recoverable": False},
+                        expected_statuses=[
+                            "failed",
+                            "recovering",
+                            "pending",
+                            "queued",
+                            "starting",
+                            "running",
+                        ],
+                    )
+            finally:
+                await self.release_recovery_lock(lock_key, lock_token)
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "code": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.code,
+                "message": ErrorCode.TASK_RECOVERY_NOT_AVAILABLE.default_message,
+            }
         except asyncio.CancelledError:
             await self.release_recovery_lock(lock_key, lock_token)
             raise
         except Exception as e:
-            await self.release_recovery_lock(lock_key, lock_token)
-            await self._restore_recoverable_failure(
-                session.id,
-                source_run_id,
-                f"恢复任务失败: {e}",
-            )
+            try:
+                if recovery_claim is not None:
+                    await restore_recovery_claim(
+                        self._storage, session.id, source_run_id, recovery_claim, recoverable=True
+                    )
+            finally:
+                await self.release_recovery_lock(lock_key, lock_token)
             logger.error("Failed to resume interrupted run %s: %s", source_run_id, e)
             return {
                 "success": False,

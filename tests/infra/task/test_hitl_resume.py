@@ -375,7 +375,11 @@ async def test_submit_resume_lock_prevents_duplicate(fake_redis, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypatch):
+@pytest.mark.parametrize("selected_agent", ["search", "quick"])
+@pytest.mark.parametrize("selection", [None, [], ["selected"]])
+async def test_submit_resume_submits_run_with_hitl_payload(
+    fake_redis, monkeypatch, selected_agent, selection
+):
     monkeypatch.setattr(hitl_mod.settings, "HITL_MODE", "interrupt", raising=False)
     monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "local", raising=False)
 
@@ -388,9 +392,20 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
                     "task_status": "waiting_human",
                     "current_run_id": "run-1",
                     "executor_key": "agent_stream",
-                    "agent_id": "search",
+                    "agent_id": selected_agent,
+                    "agent_handoff": {"run_id": "run-1", "agent_id": "search"},
                     "agent_options": {"model": "m"},
-                    "disabled_tools": [],
+                    **{
+                        key: selection
+                        for key in (
+                            "disabled_tools",
+                            "disabled_skills",
+                            "enabled_skills",
+                            "disabled_mcp_tools",
+                            "enabled_mcp_servers",
+                        )
+                    },
+                    "auto_mode": False,
                 },
             )
 
@@ -456,6 +471,15 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
     assert submitted["args"][2] == ""  # 空消息，不注入新用户输入
     assert submitted["kwargs"]["user_message_written"] is True
     assert submitted["kwargs"]["agent_options"] == {"model": "m"}
+    for key in (
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+    ):
+        assert submitted["kwargs"][key] == selection
+    assert submitted["kwargs"]["auto_mode"] is False
     assert submitted["kwargs"]["run_id"] == "run-1"
     assert submitted["kwargs"]["trace_id"] == "trace-1"
     assert submitted["kwargs"]["active_goal"] == {"id": "goal-1"}
@@ -480,7 +504,10 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_submit_resume_uses_arq_attempt_but_keeps_logical_run(fake_redis, monkeypatch):
+@pytest.mark.parametrize("selection", [None, [], ["selected"]])
+async def test_submit_resume_uses_arq_attempt_but_keeps_logical_run(
+    fake_redis, monkeypatch, selection
+):
     monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "arq", raising=False)
 
     class _Storage:
@@ -493,6 +520,17 @@ async def test_submit_resume_uses_arq_attempt_but_keeps_logical_run(fake_redis, 
                     "current_run_id": "run-1",
                     "executor_key": "agent_stream",
                     "agent_id": "team",
+                    **{
+                        key: selection
+                        for key in (
+                            "disabled_tools",
+                            "disabled_skills",
+                            "enabled_skills",
+                            "disabled_mcp_tools",
+                            "enabled_mcp_servers",
+                        )
+                    },
+                    "auto_mode": False,
                 },
             )
 
@@ -524,6 +562,15 @@ async def test_submit_resume_uses_arq_attempt_but_keeps_logical_run(fake_redis, 
     assert result["run_id"] == "run-1"
     assert submitted["kwargs"]["run_id"] == "run-1"
     assert submitted["kwargs"]["trace_id"] == "trace-1"
+    for key in (
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+    ):
+        assert submitted["kwargs"][key] == selection
+    assert submitted["kwargs"]["auto_mode"] is False
     assert submitted["kwargs"]["dispatch_id"].startswith("hitl-resume:approval-1:")
     assert submitted["kwargs"]["hitl_resume"]["approval_id"] == "approval-1"
 

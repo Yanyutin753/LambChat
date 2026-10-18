@@ -1,18 +1,36 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
-import { useEffect, useRef, useState } from "react";
-import { Target, X, Pause, Play } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  Target,
+  X,
+  Pause,
+  Play,
+  Trash2,
+  Maximize2,
+  Minimize2,
+  Pencil,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { PersistentGoal } from "../../services/api/session";
 import { getGoalControlScope } from "../../hooks/useAgent/goalControlScope";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
+import { Textarea } from "../common/ui/Textarea";
+import { Button } from "../common/ui/Button";
+import { formatElapsedCompact } from "./ChatMessage/runStepsCollapseUtils";
 
 interface ActiveGoalBarProps {
   goal: ActiveGoalSpec | null;
   persistentGoal?: PersistentGoal | null;
   onClearPersistentGoal?: () => void;
+  onUpdatePersistentGoal?: (
+    objective: string,
+    rubric: string,
+    expectedRevision: number,
+  ) => Promise<boolean>;
   persistentDisabled?: boolean;
   onPause?: () => void;
   onResume?: () => void;
+  onResumeOrdinary?: () => void;
   label?: string;
   durationLabel?: string;
   clearLabel?: string;
@@ -39,11 +57,13 @@ function EmbeddedGoalBar({
   durationLabel,
   clearLabel = "Clear goal",
   onClear,
+  onResumeOrdinary,
   disabled = false,
   className = "",
 }: Omit<ActiveGoalBarProps, "embedded"> & {
   goal: NonNullable<ActiveGoalBarProps["goal"]>;
 }) {
+  const { t } = useTranslation();
   const [now, setNow] = useState(Date.now());
   const [exiting, setExiting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,11 +142,25 @@ function EmbeddedGoalBar({
           disabled={disabled}
           title={clearLabel}
           aria-label={clearLabel}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--theme-bg-hover,rgba(128,128,128,0.08))] disabled:cursor-not-allowed disabled:opacity-20"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-20"
           style={{ opacity: 0.4 }}
         >
           <InteractiveIcon>
             <X className="h-3.5 w-3.5" />
+          </InteractiveIcon>
+        </button>
+      )}
+      {goal.ended_at && onResumeOrdinary && (
+        <button
+          type="button"
+          onClick={onResumeOrdinary}
+          disabled={disabled}
+          aria-label={t("chat.goalPersistent.resume", "Resume goal")}
+          title={t("chat.goalPersistent.resume", "Resume goal")}
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40 sm:size-8"
+        >
+          <InteractiveIcon>
+            <Play className="size-3.5" aria-hidden="true" />
           </InteractiveIcon>
         </button>
       )}
@@ -136,6 +170,8 @@ function EmbeddedGoalBar({
 
 function PersistentGoalStrip({
   goal,
+  runGoal,
+  onUpdate,
   onPause,
   onResume,
   onClear,
@@ -144,6 +180,8 @@ function PersistentGoalStrip({
   className,
 }: {
   goal: PersistentGoal;
+  runGoal?: ActiveGoalSpec | null;
+  onUpdate?: ActiveGoalBarProps["onUpdatePersistentGoal"];
   onPause?: () => void;
   onResume?: () => void;
   onClear?: () => void;
@@ -152,100 +190,237 @@ function PersistentGoalStrip({
   className: string;
 }) {
   const { t } = useTranslation();
-  const canPause = goal.status === "active" || goal.status === "waiting_human";
-  const canResume =
-    goal.status === "paused" ||
-    goal.status === "blocked" ||
-    goal.status === "budget_limited";
+  const [expanded, setExpanded] = useState(false);
+  const objectiveId = useId();
+  const [editing, setEditing] = useState(false);
+  const [draftObjective, setDraftObjective] = useState("");
+  const [draftRubric, setDraftRubric] = useState("");
+  const [editRevision, setEditRevision] = useState(goal.revision);
+  const [saving, setSaving] = useState(false);
+  const beginEdit = () => {
+    setDraftObjective(goal.objective);
+    setDraftRubric(goal.rubric);
+    setEditRevision(goal.revision);
+    setExpanded(true);
+    setEditing(true);
+  };
+  const saveEdit = async () => {
+    if (!onUpdate || saving || !draftObjective.trim() || !draftRubric.trim())
+      return;
+    setSaving(true);
+    try {
+      if (
+        await onUpdate(draftObjective.trim(), draftRubric.trim(), editRevision)
+      )
+        setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const status = goal.status === "budget_limited" ? "paused" : goal.status;
+  const canPause = status === "active" || status === "waiting_human";
+  const canResume = status === "paused" || status === "blocked";
+  const [now, setNow] = useState(Date.now());
+  const startedAt = runGoal?.started_at;
+  const endedAt = runGoal?.ended_at;
+  useEffect(() => {
+    if (!startedAt || endedAt || !canPause) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt, endedAt, canPause]);
+  const elapsedSeconds =
+    startedAt && (endedAt || canPause)
+      ? Math.max(
+          0,
+          Math.floor(
+            ((endedAt ? Date.parse(endedAt) : now) - Date.parse(startedAt)) /
+              1000,
+          ),
+        )
+      : NaN;
+  const duration = Number.isFinite(elapsedSeconds)
+    ? formatElapsedCompact(elapsedSeconds)
+    : "—";
   const buttonClass =
-    "flex size-9 shrink-0 items-center justify-center rounded hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40";
+    "flex size-9 sm:size-8 shrink-0 items-center justify-center rounded-md text-theme-text-tertiary transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40";
   if (goal.status === "cleared") return null;
   return (
     <div
-      className={`flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-14 ${
+      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-13 leading-5 ${
         embedded
-          ? "border-b border-theme-border"
-          : "mx-auto w-full max-w-[52rem]"
+          ? "relative mx-3 -mb-3 rounded-t-xl border border-b-0 pb-3"
+          : "mx-auto w-full max-w-[52rem] py-2"
       } ${className}`}
+      style={
+        embedded
+          ? {
+              backgroundColor:
+                "color-mix(in srgb, var(--theme-bg-card) 85%, var(--theme-bg))",
+              borderColor:
+                "color-mix(in srgb, var(--theme-border) 60%, transparent)",
+            }
+          : undefined
+      }
     >
-      <Target
-        className="size-4 shrink-0 text-theme-text-secondary"
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1 basis-40">
-        <p
-          className="truncate text-theme-text-secondary"
-          title={goal.objective}
+      <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-1.5 font-medium text-theme-text-secondary">
+        <Target
+          className="size-3.5 shrink-0 text-theme-text-tertiary"
+          aria-hidden="true"
+        />
+        {t("chat.goalPersistent.label", "Goal")}
+      </span>
+      <span
+        id={objectiveId}
+        className={`min-w-0 text-theme-text-secondary ${
+          editing
+            ? "hidden"
+            : expanded
+              ? "col-span-3 row-start-2 max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-theme-border-subtle py-2 text-14 leading-relaxed [overflow-wrap:anywhere]"
+              : "col-start-2 row-start-1 truncate"
+        }`}
+        title={expanded ? undefined : goal.objective}
+      >
+        {goal.objective}
+      </span>
+      <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-0.5">
+        <span
+          className="hidden h-9 min-w-8 items-center justify-end pr-1 text-12 tabular-nums text-theme-text-tertiary sm:flex sm:h-8"
+          title={t("chat.goal.duration")}
+          aria-label={`${t("chat.goal.duration")}: ${duration}`}
         >
-          {goal.objective}
-        </p>
-        <p
-          className="text-12 text-theme-text-tertiary"
-          role="status"
-          aria-live="polite"
+          {duration}
+        </span>
+        {onUpdate && (
+          <button
+            type="button"
+            onClick={beginEdit}
+            disabled={disabled || saving}
+            aria-label={t("chat.goalPersistent.edit")}
+            title={t("chat.goalPersistent.edit")}
+            className={buttonClass}
+          >
+            <InteractiveIcon>
+              <Pencil className="size-3.5" aria-hidden="true" />
+            </InteractiveIcon>
+          </button>
+        )}
+        {onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={disabled}
+            aria-label={t("chat.goalPersistent.clear", "Clear goal")}
+            title={t("chat.goalPersistent.clear", "Clear goal")}
+            className={buttonClass}
+          >
+            <InteractiveIcon>
+              <Trash2 className="size-3.5" aria-hidden="true" />
+            </InteractiveIcon>
+          </button>
+        )}
+        {canPause && onPause && (
+          <button
+            type="button"
+            onClick={onPause}
+            disabled={disabled}
+            aria-label={t("chat.goalPersistent.pause", "Pause goal")}
+            title={t("chat.goalPersistent.pause", "Pause goal")}
+            className={buttonClass}
+          >
+            <InteractiveIcon>
+              <Pause className="size-3.5" aria-hidden="true" />
+            </InteractiveIcon>
+          </button>
+        )}
+        {canResume && onResume && (
+          <button
+            type="button"
+            onClick={onResume}
+            disabled={disabled}
+            aria-label={t("chat.goalPersistent.resume", "Resume goal")}
+            title={t("chat.goalPersistent.resume", "Resume goal")}
+            className={buttonClass}
+          >
+            <InteractiveIcon>
+              <Play className="size-3.5" aria-hidden="true" />
+            </InteractiveIcon>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(false);
+            setExpanded((value) => !value);
+          }}
+          aria-label={t(expanded ? "common.collapse" : "common.expand")}
+          title={t(expanded ? "common.collapse" : "common.expand")}
+          aria-expanded={expanded}
+          aria-controls={objectiveId}
+          className={buttonClass}
         >
-          {t(`chat.goalPersistent.status.${goal.status}`, goal.status)} ·{" "}
-          {t("chat.goalPersistent.turns", {
-            count: goal.accounting.turns,
-            max: goal.limits.max_turns,
-            defaultValue: "{{count}} / {{max}} turns",
-          })}{" "}
-          ·{" "}
-          {goal.accounting.tokens === null
-            ? t("chat.goalPersistent.tokensUnknown", "Token usage unknown")
-            : t("chat.goalPersistent.tokens", {
-                count: goal.accounting.tokens,
-                max: goal.limits.max_tokens,
-                defaultValue: "{{count}} / {{max}} tokens",
-              })}{" "}
-          ·{" "}
-          {t("chat.goalPersistent.timeLimit", {
-            minutes: Math.ceil(goal.limits.max_seconds / 60),
-            defaultValue: "{{minutes}} min limit",
-          })}
-        </p>
+          <InteractiveIcon>
+            {expanded ? (
+              <Minimize2 className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Maximize2 className="size-3.5" aria-hidden="true" />
+            )}
+          </InteractiveIcon>
+        </button>
       </div>
-      {canPause && onPause && (
-        <button
-          type="button"
-          onClick={onPause}
-          disabled={disabled}
-          aria-label={t("chat.goalPersistent.pause", "Pause goal")}
-          title={t("chat.goalPersistent.pause", "Pause goal")}
-          className={buttonClass}
+      {editing && (
+        <div
+          className="col-span-3 row-start-2 space-y-3 border-t border-theme-border-subtle py-3"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !saving) {
+              event.preventDefault();
+              event.stopPropagation();
+              setEditing(false);
+            }
+          }}
         >
-          <InteractiveIcon>
-            <Pause className="size-4" aria-hidden="true" />
-          </InteractiveIcon>
-        </button>
-      )}
-      {canResume && onResume && (
-        <button
-          type="button"
-          onClick={onResume}
-          disabled={disabled}
-          aria-label={t("chat.goalPersistent.resume", "Resume goal")}
-          title={t("chat.goalPersistent.resume", "Resume goal")}
-          className={buttonClass}
-        >
-          <InteractiveIcon>
-            <Play className="size-4" aria-hidden="true" />
-          </InteractiveIcon>
-        </button>
-      )}
-      {onClear && (
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={disabled}
-          aria-label={t("chat.goalPersistent.clear", "Clear goal")}
-          title={t("chat.goalPersistent.clear", "Clear goal")}
-          className={buttonClass}
-        >
-          <InteractiveIcon>
-            <X className="size-4" aria-hidden="true" />
-          </InteractiveIcon>
-        </button>
+          <label className="block space-y-1 text-theme-text-secondary">
+            <span>{t("chat.goalPersistent.label")}</span>
+            <Textarea
+              autoFocus
+              rows={3}
+              maxLength={8000}
+              value={draftObjective}
+              disabled={saving}
+              onChange={(event) => setDraftObjective(event.target.value)}
+            />
+          </label>
+          <label className="block space-y-1 text-theme-text-secondary">
+            <span>{t("chat.goalPersistent.criteria")}</span>
+            <Textarea
+              rows={2}
+              maxLength={16000}
+              value={draftRubric}
+              disabled={saving}
+              onChange={(event) => setDraftRubric(event.target.value)}
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={saving}
+              disabled={
+                disabled || !draftObjective.trim() || !draftRubric.trim()
+              }
+              onClick={() => void saveEdit()}
+            >
+              {t("common.save")}
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -257,10 +432,12 @@ function OrdinaryGoalBar({
   durationLabel,
   clearLabel = "Clear goal",
   onClear,
+  onResumeOrdinary,
   disabled = false,
   embedded = false,
   className = "",
 }: ActiveGoalBarProps) {
+  const { t } = useTranslation();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -287,6 +464,7 @@ function OrdinaryGoalBar({
         durationLabel={durationLabel}
         clearLabel={clearLabel}
         onClear={onClear}
+        onResumeOrdinary={onResumeOrdinary}
         disabled={disabled}
         className={className}
       />
@@ -315,6 +493,20 @@ function OrdinaryGoalBar({
           {durationLabel} {durationText}
         </span>
       )}
+      {goal.ended_at && onResumeOrdinary && (
+        <button
+          type="button"
+          onClick={onResumeOrdinary}
+          disabled={disabled}
+          aria-label={t("chat.goalPersistent.resume", "Resume goal")}
+          title={t("chat.goalPersistent.resume", "Resume goal")}
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40 sm:size-8"
+        >
+          <InteractiveIcon>
+            <Play className="size-3.5" aria-hidden="true" />
+          </InteractiveIcon>
+        </button>
+      )}
       {onClear && (
         <button
           type="button"
@@ -322,7 +514,7 @@ function OrdinaryGoalBar({
           disabled={disabled}
           title={clearLabel}
           aria-label={clearLabel}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--theme-bg-hover,rgba(128,128,128,0.08))] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-50"
         >
           <InteractiveIcon>
             <X className="h-4 w-4" />
@@ -344,20 +536,24 @@ export function ActiveGoalBar(props: ActiveGoalBarProps) {
   const scope = getGoalControlScope(goal, persistentGoal);
   return (
     <>
-      {persistentGoal && persistentGoal.status !== "cleared" && (
-        <PersistentGoalStrip
-          goal={persistentGoal}
-          onPause={props.onPause}
-          onResume={props.onResume}
-          onClear={
-            props.onClearPersistentGoal ??
-            (scope === "persistent" ? props.onClear : undefined)
-          }
-          disabled={props.persistentDisabled ?? disabled}
-          embedded={embedded}
-          className={className}
-        />
-      )}
+      {persistentGoal &&
+        !["cleared", "completed"].includes(persistentGoal.status) && (
+          <PersistentGoalStrip
+            key={persistentGoal.id}
+            goal={persistentGoal}
+            runGoal={goal?._persistent_id === persistentGoal.id ? goal : null}
+            onUpdate={props.onUpdatePersistentGoal}
+            onPause={props.onPause}
+            onResume={props.onResume}
+            onClear={
+              props.onClearPersistentGoal ??
+              (scope === "persistent" ? props.onClear : undefined)
+            }
+            disabled={props.persistentDisabled ?? disabled}
+            embedded={embedded}
+            className={className}
+          />
+        )}
       {scope === "ordinary" && (
         <OrdinaryGoalBar {...props} goal={goal ?? null} />
       )}

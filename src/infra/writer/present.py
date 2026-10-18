@@ -101,6 +101,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         self._trace_created: bool = False
         self._completed: bool = False
         self._token_usage_recorded: bool = False
+        self._usage_accounting_owner: Any = None
         self._done_recorded: bool = False
         self._goal_end_recorded: bool = False
         self._recommend_questions_recorded: bool = False
@@ -246,8 +247,24 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         schedule_search_index: bool = True,
         run_modes: Optional[List[str]] = None,
         assistant_identity: Optional[Dict[str, Any]] = None,
+        goal_continuation: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """输出用户消息并保存"""
+        """Persist human input, or the boundary of an internally triggered Goal turn."""
+        if goal_continuation:
+            if not goal_continuation["initial"]:
+                event = {
+                    "event": "goal:continuation",
+                    "data": {
+                        "run_id": self.run_id,
+                        "session_id": self.config.session_id,
+                        "goal_id": goal_continuation["goal_id"],
+                        "turn": goal_continuation["turn"],
+                    },
+                }
+                await self.save_event(event, raise_on_error=True)
+                return event
+            content = goal_continuation["objective"]
+            run_modes = ["goal"]
         attachment_keys = _extract_attachment_keys(attachments)
         file_records: FileRecordStorage | None = None
         claims_established = False
@@ -271,6 +288,11 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                 run_modes=run_modes,
                 assistant_identity=assistant_identity,
             )
+            if self.run_id.startswith("scheduled-") and (self.config.session_id or "").startswith(
+                "sch_conversation_"
+            ):
+                event["event"] = "scheduled:instruction"
+                schedule_search_index = False
             await self.save_event(event, raise_on_error=True)
         except (Exception, asyncio.CancelledError):
             if claims_established and file_records is not None:

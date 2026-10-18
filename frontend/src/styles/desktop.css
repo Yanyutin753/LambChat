@@ -4,7 +4,6 @@ html:has([data-titlebar], [data-workspace-ui]) {
   --desktop-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --desktop-hover: var(--theme-bg-hover);
   --desktop-selected: color-mix(in srgb, var(--theme-text) 10%, transparent);
-  --radius-chat: 1rem;
 }
 
 html:has([data-titlebar], [data-workspace-ui])
@@ -103,7 +102,7 @@ html:has([data-desktop-activity-rail]) [data-titlebar] {
 }
 
 [data-desktop-activity-rail] {
-  --desktop-hover: var(--theme-bg-hover);
+  --desktop-hover: color-mix(in srgb, var(--theme-text) 5%, transparent);
   --desktop-selected: color-mix(in srgb, var(--theme-text) 14%, transparent);
 }
 
@@ -111,9 +110,12 @@ html:has([data-desktop-activity-rail]) [data-titlebar] {
   border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 }
 
-[data-desktop-activity-rail] button:not(:disabled):hover {
-  background: var(--desktop-hover);
-  color: var(--theme-text);
+@media (hover: hover) {
+  [data-desktop-activity-rail]
+    button:not(:disabled):not([aria-pressed="true"]):hover {
+    background: var(--desktop-hover);
+    color: var(--theme-text);
+  }
 }
 
 [data-desktop-activity-rail] button[aria-pressed="true"] {

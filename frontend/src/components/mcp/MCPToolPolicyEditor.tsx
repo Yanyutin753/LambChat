@@ -219,10 +219,7 @@ export function MCPToolPolicyEditor({
                     </InteractiveIcon>
                   ) : (
                     <InteractiveIcon>
-                      <ToggleRight
-                        size={17}
-                        className="text-emerald-500 dark:text-emerald-400"
-                      />
+                      <ToggleRight size={17} className="text-theme-success" />
                     </InteractiveIcon>
                   )}
                 </button>

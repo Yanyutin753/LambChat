@@ -13,6 +13,25 @@ const approvalCss = readFileSync(
   "utf8",
 );
 
+test("keeps space between the final operation list and the footer divider", () => {
+  expect(approvalCss).toMatch(
+    /\.approval-ask-human-context:last-child\s*\{[^}]*padding-bottom:\s*var\(--approval-section-y\);/,
+  );
+});
+
+test("uses the same vertical inset for approval header, fields, and actions", () => {
+  for (const selector of ["approval-ask-human-header", "approval-actions"]) {
+    expect(approvalCss).toMatch(
+      new RegExp(
+        `\\.${selector}\\s*\\{[^}]*padding:\\s*var\\(--approval-section-y\\) var\\(--approval-section-x\\);`,
+      ),
+    );
+  }
+  expect(approvalCss).not.toMatch(
+    /\.approval-form--ask-human\s*\{[^}]*padding-(?:top|bottom):/,
+  );
+});
+
 test("keeps operation labels above commands at every container width", () => {
   expect(approvalCss).toMatch(
     /\.approval-op-row\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*max-content minmax\(0, 1fr\);/,
@@ -84,9 +103,9 @@ test("localizes the backend-generated other-opinion field", () => {
 });
 
 test("renders all ask-human fields in one form and validates them together", () => {
-  expect(approvalSource).toMatch(/askHumanFields\.map/);
+  expect(approvalSource).toMatch(/askHumanDisplayFields\.map/);
   expect(approvalSource).toMatch(
-    /isAskHuman\s*&&\s*!isFormFieldsValid\(askHumanFields, currentFormValues\)/,
+    /isLoading \|\| !isFormFieldsValid\(currentApproval\.fields, currentFormValues\)/,
   );
   expect(approvalSource).not.toMatch(/askHumanFieldIndex/);
   expect(approvalSource).not.toMatch(/currentAskHumanField/);
@@ -94,7 +113,7 @@ test("renders all ask-human fields in one form and validates them together", () 
 
 test("hides the composer while an approval is pending", () => {
   expect(chatViewSource).toMatch(
-    /!hasPendingAskHumanApproval\s*&&\s*\([\s\S]*?<ChatInput/,
+    /hasPendingApproval \? \([\s\S]*?<ApprovalPanel[\s\S]*?\) : \(\s*<ChatInput/,
   );
 });
 
@@ -113,10 +132,10 @@ test("keeps approval and chat input on the same responsive width contract", () =
     /approval-panel-scroll-region[\s\S]*?<ApprovalPanel/,
   );
   expect(approvalSource).toMatch(
-    /approval-scroll-container h-full w-full min-h-0 overflow-visible px-2 py-2 sm:px-8 sm:py-3/,
+    /approval-scroll-container h-full w-full min-h-0 overflow-visible py-2 sm:py-3/,
   );
   expect(approvalSource).toMatch(
-    /approval-panel-content-shell[^"]*mx-auto[^"]*w-full[^"]*max-w-4xl[^"]*lg:max-w-5xl[^"]*xl:max-w-6xl/,
+    /approval-panel-content-shell chat-content-column/,
   );
 });
 
@@ -154,13 +173,13 @@ test("keeps the approval frame visible while only its details scroll", () => {
 
 test("keeps the ask-human card usable on narrow touch screens", () => {
   expect(approvalCss).toMatch(
-    /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-title-row[\s\S]*?white-space:\s*nowrap;/,
+    /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-title-row[\s\S]*?white-space:\s*normal;/,
   );
   expect(approvalCss).toMatch(
     /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-option[\s\S]*?min-height:\s*3rem;/,
   );
   expect(approvalCss).toMatch(
-    /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-footer \.flex button span[\s\S]*?display:\s*inline;/,
+    /@media \(max-width: 640px\)[\s\S]*?\.approval-ask-human-footer > \.flex button > span:last-child[\s\S]*?display:\s*inline;/,
   );
 });
 
@@ -180,7 +199,7 @@ test("pins approval actions to the right with a clear button group", () => {
     /\.approval-ask-human-footer\s*\{[\s\S]*?justify-content:\s*flex-end;/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-footer \.flex\s*\{[\s\S]*?margin-left:\s*auto;/,
+    /\.approval-ask-human-footer > \.flex\s*\{[\s\S]*?margin-left:\s*auto;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-btn-submit\s*\{[\s\S]*?min-height:\s*2\.5rem;/,
@@ -197,9 +216,9 @@ test("uses a compact spacing rhythm for ask-human fields", () => {
   );
 });
 
-test("aligns the ask-human title group on one vertically centered row", () => {
+test("centers the title group and lets long confirmation questions wrap", () => {
   expect(approvalCss).toMatch(
-    /\.approval-ask-human-title-row\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*flex-start;[\s\S]*?white-space:\s*nowrap;/,
+    /\.approval-ask-human-title-row\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*flex-start;[\s\S]*?white-space:\s*normal;/,
   );
 });
 
@@ -223,12 +242,9 @@ test("renders ask-human questions bold for clearer scanning", () => {
   );
 });
 
-test("clamps the collapsed approval summary to two lines", () => {
-  // 折叠态摘要把整段确认文案压成一行且不截断，长消息（如定时任务确认）
-  // 会撑爆卡片；限制为两行省略。
-  expect(approvalCss).toMatch(
-    /\.approval-summary\s*\{[\s\S]*?-webkit-line-clamp:\s*2;[\s\S]*?overflow:\s*hidden;/,
-  );
+test("shows confirmation details without a collapsed raw-text summary", () => {
+  expect(approvalSource).not.toMatch(/isExpanded|approval-summary/);
+  expect(approvalCss).not.toMatch(/\.approval-summary\s*\{/);
 });
 
 test("uses a restrained card surface and consistent control rhythm", () => {
@@ -365,7 +381,7 @@ test("only mouse clicks toggle single-select choices", () => {
 
 test("keeps the approval card surfaces visually quiet", () => {
   expect(approvalCss).toMatch(
-    /\.approval-card\.approval-card--composer\s*\{[\s\S]*?var\(--approval-accent\) 24%/,
+    /\.approval-card\.approval-card--composer\s*\{[^}]*border-color:\s*var\(--approval-border\);[^}]*box-shadow:\s*none;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-ask-human-header\s*\{[\s\S]*?var\(--approval-border\) 45%/,

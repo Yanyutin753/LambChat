@@ -28,6 +28,7 @@ class UsageLog(BaseModel):
     scheduled_task_run_id: str = ""
     scheduled_task_trigger_type: str = ""
     model: str = ""
+    model_id: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
@@ -35,6 +36,9 @@ class UsageLog(BaseModel):
     cache_read_tokens: int = 0
     cost_usd: float = 0.0
     cost_available: bool = False
+    usage_incomplete: bool = True
+    unknown_usage_fields: list[str] | None = None
+    cache_metrics_available: bool = False
     duration: float = 0.0
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -56,6 +60,9 @@ class UsageStats(BaseModel):
     total_cache_read_tokens: int = 0
     total_cost_usd: float = 0.0
     unpriced_requests: int = 0
+    priced_requests: int = 0
+    usage_unknown_requests: int = 0
+    cache_unknown_requests: int = 0
     total_duration: float = 0.0
 
 
@@ -75,6 +82,9 @@ class UsageDashboardSummary(BaseModel):
     total_cache_read_tokens: int = 0
     total_cost_usd: float = 0.0
     unpriced_requests: int = 0
+    priced_requests: int = 0
+    usage_unknown_requests: int = 0
+    cache_unknown_requests: int = 0
     total_duration: float = 0.0
     total_tool_calls: int = 0
     scheduled_runs: int = 0
@@ -84,7 +94,7 @@ class UsageDashboardSummary(BaseModel):
     avg_tokens_per_request: float = 0.0
     avg_duration_per_request: float = 0.0
     scheduled_share: float = 0.0
-    cache_read_share: float = 0.0
+    cache_read_share: float | None = None
     tool_calls_per_request: float = 0.0
     max_duration: float = 0.0
     peak_day: Optional["UsageDailyPoint"] = None
@@ -95,6 +105,10 @@ class UsageDailyPoint(BaseModel):
     requests: int = 0
     tokens: int = 0
     cost_usd: float = 0.0
+    priced_requests: int = 0
+    unpriced_requests: int = 0
+    usage_unknown_requests: int = 0
+    cache_unknown_requests: int = 0
     duration: float = 0.0
     scheduled_runs: int = 0
     cancelled_requests: int = 0
@@ -103,7 +117,7 @@ class UsageDailyPoint(BaseModel):
     input_tokens: int = 0
     cache_creation_tokens: int = 0
     cache_read_tokens: int = 0
-    cache_read_share: float = 0.0
+    cache_read_share: float | None = None
 
 
 class UsageRankingItem(BaseModel):
@@ -112,11 +126,15 @@ class UsageRankingItem(BaseModel):
     requests: int = 0
     tokens: int = 0
     cost_usd: float = 0.0
+    priced_requests: int = 0
+    unpriced_requests: int = 0
+    usage_unknown_requests: int = 0
+    cache_unknown_requests: int = 0
     duration: float = 0.0
     input_tokens: int = 0
     cache_creation_tokens: int = 0
     cache_read_tokens: int = 0
-    cache_read_share: float = 0.0
+    cache_read_share: float | None = None
     zero_cache_requests: int = 0
 
 

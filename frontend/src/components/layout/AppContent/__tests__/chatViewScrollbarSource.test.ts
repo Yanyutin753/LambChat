@@ -35,5 +35,7 @@ test("history restore renders directly without a settling overlay", () => {
   expect(chatViewSource).not.toMatch(/chat-history-settling-overlay/);
   expect(chatCss).not.toMatch(/\.chat-history-scroll-settling/);
   expect(chatCss).not.toMatch(/\.chat-history-settling-overlay/);
-  expect(chatViewSource).toMatch(/\{messages\.length > 0 && \(/);
+  expect(chatViewSource).toMatch(
+    /\{\(messages\.length > 0 \|\| hasPendingApproval\) && \(/,
+  );
 });

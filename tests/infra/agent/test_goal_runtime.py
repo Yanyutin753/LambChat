@@ -99,6 +99,53 @@ async def test_budget_callback_counts_nested_models_once_and_carries_unknown_usa
     await callback.on_llm_end(response, run_id="model-1")
     await callback.on_llm_end(response, run_id="child-1")
     assert metrics.tokens == 10
+    await callback.on_llm_error(RuntimeError("downstream budget stop"), run_id="model-1")
+    assert metrics.unknown_model_usage is False
+
+
+async def test_failed_model_usage_remains_unknown_after_a_successful_retry():
+    import httpx2
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+
+    from src.infra.goal_runtime import GoalUsageCallback
+
+    metrics = GoalRunMetrics()
+    callback = GoalUsageCallback(metrics)
+    await callback.on_llm_error(httpx2.RemoteProtocolError("stream disconnected"), run_id="failed")
+    await callback.on_llm_end(
+        LLMResult(
+            generations=[
+                [
+                    ChatGeneration(
+                        message=AIMessage(
+                            content="Recovered",
+                            usage_metadata={
+                                "input_tokens": 3,
+                                "output_tokens": 2,
+                                "total_tokens": 5,
+                            },
+                        )
+                    )
+                ]
+            ]
+        ),
+        run_id="retry",
+    )
+    assert metrics.tokens == 5  # Known lower bound remains available.
+    assert metrics.unknown_model_usage is True
+    service = GoalService(Store())
+    goal = await service.create("s", "u", PersistentGoalCreate(objective="finish", rubric="tests"))
+    goal = await service.reserve("s", "u", goal.version)
+    goal = await service.record_usage(
+        "s",
+        "u",
+        goal.version,
+        goal.current_run_id,
+        usage=None if metrics.unknown_model_usage else metrics.tokens,
+    )
+    assert goal.accounting.tokens is None
+    assert goal.run_accounting[0].tokens is None
 
 
 async def test_actual_agent_tool_execution_stops_at_model_budget_boundary():
@@ -664,3 +711,191 @@ async def test_replaced_goal_keeps_old_human_run_fenced_during_recovery():
         )
         is None
     )
+
+
+async def test_old_goal_stream_has_no_elapsed_time_deadline(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from src.infra.goal_runtime import guarded_goal_stream
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    service.store.value["started_at"] = (
+        datetime.now(timezone.utc) - timedelta(days=30)
+    ).isoformat()
+    service.store.value["limits"] = {"max_seconds": 1}
+
+    async def source():
+        yield {"event": "message:chunk", "data": {"content": "still running"}}
+
+    events = [event async for event in guarded_goal_stream(source(), **kwargs)]
+    assert events[0]["data"]["content"] == "still running"
+    assert (await service.get("s", "u")).status == "active"
+
+
+async def test_provider_timeout_remains_execution_failure_not_goal_time_budget(monkeypatch):
+    from src.infra.goal_runtime import guarded_goal_stream
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+
+    async def source():
+        raise TimeoutError("provider timed out")
+        yield
+
+    with pytest.raises(TimeoutError, match="provider timed out"):
+        async for _ in guarded_goal_stream(source(), **kwargs):
+            pass
+    assert (await service.get("s", "u")).status == "blocked"
+
+
+async def test_paused_goal_publishes_usage_finalized_after_control_response(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.goal_runtime import guarded_goal_stream
+    from src.infra.task.exceptions import TaskInterruptedError
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    publish = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_runtime.publish_goal", publish)
+
+    async def source():
+        await service.control("s", "u", "pause")
+        yield {"event": "thinking", "data": {"content": "working"}}
+
+    with pytest.raises(TaskInterruptedError):
+        async for _ in guarded_goal_stream(source(), **kwargs):
+            pass
+    publish.assert_awaited_once()
+    published = publish.await_args.args[0]
+    assert published.status == "paused"
+    assert published.accounting.turns == 1
+    assert published.revision == (await service.get("s", "u")).revision
+
+
+@pytest.mark.parametrize("outcome", ["cancelled", "completed", "denied_before_start"])
+async def test_terminal_usage_tracks_started_models_without_relying_on_error_callbacks(
+    monkeypatch, outcome
+):
+    from unittest.mock import AsyncMock
+
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+
+    from src.infra.goal_runtime import GoalUsageCallback, guarded_goal_stream
+    from src.infra.task.exceptions import TaskInterruptedError
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    presenter = kwargs["presenter"]
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", AsyncMock())
+    response = LLMResult(
+        generations=[
+            [
+                ChatGeneration(
+                    message=AIMessage(
+                        content="ok",
+                        usage_metadata={"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                    )
+                )
+            ]
+        ]
+    )
+
+    async def source():
+        callback = GoalUsageCallback(presenter.persistent_goal_metrics)
+        await callback.on_chat_model_start({}, [[]], run_id="known")
+        await callback.on_llm_end(response, run_id="known")
+        if outcome == "denied_before_start":
+            await service.control("s", "u", "pause")
+        await callback.on_chat_model_start({}, [[]], run_id="second")
+        yield {"event": "thinking", "data": {"content": "working"}}
+        # An in-flight call must not permanently poison otherwise complete future usage.
+        assert (await service.get("s", "u")).accounting.tokens == 5
+        if outcome == "completed":
+            await callback.on_llm_end(response, run_id="second")
+        else:
+            await service.control("s", "u", "pause")
+        yield {"event": "thinking", "data": {"content": "finishing"}}
+
+    if outcome == "completed":
+        async for _ in guarded_goal_stream(source(), **kwargs):
+            pass
+    else:
+        with pytest.raises(TaskInterruptedError):
+            async for _ in guarded_goal_stream(source(), **kwargs):
+                pass
+    final = await service.get("s", "u")
+    assert (
+        final.accounting.tokens
+        == {"completed": 10, "cancelled": None, "denied_before_start": 5}[outcome]
+    )
+    assert presenter.persistent_goal_metrics.tokens == (10 if outcome == "completed" else 5)
+
+
+@pytest.mark.parametrize(
+    "source", ["main", "grader", "summary", "recommendation", "child", "fallback", "tools"]
+)
+async def test_reasoning_only_output_limit_stops_only_unrecovered_main_goal(monkeypatch, source):
+    from unittest.mock import AsyncMock
+
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+
+    from src.infra.goal_runtime import GoalUsageCallback, guarded_goal_stream
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    presenter = kwargs["presenter"]
+    enqueue = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", enqueue)
+    metadata = {
+        "grader": {"rubric_grader_configured_model": "grader"},
+        "summary": {"lc_source": "summarization"},
+        "recommendation": {"lc_source": "recommendation"},
+        "child": {"lambchat_subagent_id": "child-1"},
+    }.get(source, {})
+
+    def result(content, **meta):
+        return LLMResult(
+            generations=[
+                [
+                    ChatGeneration(
+                        message=AIMessage(
+                            content=content,
+                            response_metadata=meta,
+                            usage_metadata={
+                                "input_tokens": 3,
+                                "output_tokens": 2,
+                                "total_tokens": 5,
+                            },
+                        )
+                    )
+                ]
+            ]
+        )
+
+    async def stream():
+        callback = GoalUsageCallback(presenter.persistent_goal_metrics)
+        await callback.on_chat_model_start({}, [[]], run_id="limited", metadata=metadata)
+        await callback.on_llm_end(
+            result([{"type": "thinking", "thinking": "incomplete"}], stop_reason="max_tokens"),
+            run_id="limited",
+        )
+        if source == "fallback":
+            await callback.on_chat_model_start({}, [[]], run_id="fallback", metadata={})
+            await callback.on_llm_end(
+                result("Recovered answer", stop_reason="end_turn"), run_id="fallback"
+            )
+        if source == "tools":
+            yield {
+                "event": "tool:result",
+                "data": {"tool_call_id": "tool-1", "result": "new artifact and passing check"},
+            }
+        yield {"event": "thinking", "data": {"content": "finished"}}
+
+    async for _ in guarded_goal_stream(stream(), **kwargs):
+        pass
+    saved = await service.get("s", "u")
+    assert saved.accounting.tokens == (10 if source == "fallback" else 5)
+    if source == "main":
+        assert saved.status == "blocked" and saved.stop_reason == "model_output_limit"
+        enqueue.assert_not_awaited()
+    else:
+        assert saved.status == "active" and saved.stop_reason != "model_output_limit"

@@ -57,6 +57,7 @@ function todayStats(overrides: Partial<UsageStats> = {}): UsageStats {
     total_cache_read_tokens: 30,
     total_cost_usd: 0.5,
     total_duration: 12,
+    cache_unknown_requests: 0,
     ...overrides,
   };
 }
@@ -108,6 +109,24 @@ test("refreshes when a chat round settles via the window event", async () => {
   expect(getStatsMock).toHaveBeenCalledTimes(2);
 });
 
+test("unknown usage shows neither invented free cost nor token percentages", async () => {
+  getStatsMock.mockResolvedValue(
+    todayStats({
+      total_cost_usd: 0,
+      priced_requests: 0,
+      unpriced_requests: 3,
+      cache_unknown_requests: 1,
+      usage_unknown_requests: 1,
+    }),
+  );
+  render(<ComposerUsageChip />);
+  fireEvent.click(await screen.findByRole("button", { name: "今日 —" }));
+  expect(await screen.findByText("Token 构成")).toBeInTheDocument();
+  expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  expect(screen.queryByText("30.0%")).not.toBeInTheDocument();
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(8);
+});
+
 test("queues a follow-up refresh when the event lands while a fetch is in flight", async () => {
   let resolveFirst!: (stats: UsageStats) => void;
   getStatsMock.mockImplementationOnce(
@@ -157,12 +176,20 @@ test("usage chip uses a borderless neutral serif label and 16px icon", () => {
 
 test("header renders today's usage next to the user menu, outside the composer", () => {
   const chatDir = dirname(fileURLToPath(import.meta.url));
-  const header = readFileSync(resolve(chatDir, "../../layout/AppContent/Header.tsx"), "utf8");
-  const toolbar = readFileSync(resolve(chatDir, "../ChatInputToolbar.tsx"), "utf8");
+  const header = readFileSync(
+    resolve(chatDir, "../../layout/AppContent/Header.tsx"),
+    "utf8",
+  );
+  const toolbar = readFileSync(
+    resolve(chatDir, "../ChatInputToolbar.tsx"),
+    "utf8",
+  );
   expect(toolbar).not.toContain("ComposerUsageChip");
   const actions = header.slice(header.indexOf("chat-header__actions"));
   expect(actions).toContain("<ComposerUsageChip />");
-  expect(actions.indexOf("<ComposerUsageChip />")).toBeLessThan(actions.indexOf("<UserMenu"));
+  expect(actions.indexOf("<ComposerUsageChip />")).toBeLessThan(
+    actions.indexOf("<UserMenu"),
+  );
 });
 
 test("view details footer spreads label left and chevron right", () => {
@@ -204,8 +231,16 @@ test("usage card uses serif text and aligns metric columns and baselines", async
   getStatsMock.mockResolvedValue(todayStats());
   render(<ComposerUsageChip />);
   fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
-  expect(document.getElementById("composer-usage-popover")).toHaveClass("font-serif");
+  expect(document.getElementById("composer-usage-popover")).toHaveClass(
+    "font-serif",
+  );
   expect(screen.getByText("输入").parentElement).toHaveClass("grid");
-  expect(screen.getByText("输入").parentElement!.children[2]).toHaveClass("text-right", "tabular-nums");
-  expect(screen.getByText("3").parentElement).toHaveClass("inline-flex", "items-baseline");
+  expect(screen.getByText("输入").parentElement!.children[2]).toHaveClass(
+    "text-right",
+    "tabular-nums",
+  );
+  expect(screen.getByText("3").parentElement).toHaveClass(
+    "inline-flex",
+    "items-baseline",
+  );
 });

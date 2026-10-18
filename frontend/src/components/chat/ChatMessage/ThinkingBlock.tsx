@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../common";
@@ -9,12 +9,16 @@ import {
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
 import { SidebarMarkdownContent } from "./SidebarMarkdownContent";
-import { buildStreamingThinkingPreview } from "./thinkingPreview";
 import { useSmoothStreamText } from "./useSmoothStreamText";
 import { buildPanelSummary } from "./panelSummary";
+import { stripActivityReferences } from "../../../utils/activityReferences";
+import {
+  formatElapsedCompact,
+  formatElapsedHuman,
+} from "./runStepsCollapseUtils";
 
 export function ThinkingBlock({
-  content,
+  content: rawContent,
   isStreaming,
   terminalStatus,
   startedAt,
@@ -28,7 +32,8 @@ export function ThinkingBlock({
   completedAt?: number;
   panelKey?: string;
 }) {
-  const { t } = useTranslation();
+  const content = stripActivityReferences(rawContent, !!isStreaming);
+  const { t, i18n } = useTranslation();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!isStreaming || startedAt === undefined || completedAt !== undefined)
@@ -37,14 +42,16 @@ export function ThinkingBlock({
     return () => window.clearInterval(timer);
   }, [isStreaming, startedAt, completedAt]);
   const end = completedAt ?? (isStreaming ? now : undefined);
+  const formatElapsed = i18n.language?.toLowerCase().startsWith("zh")
+    ? formatElapsedHuman
+    : formatElapsedCompact;
   const duration =
     startedAt !== undefined &&
     end !== undefined &&
     Number.isFinite(startedAt) &&
-    Number.isFinite(end)
-      ? t("chat.message.thinkingSeconds", {
-          count: Math.max(0, Math.floor((end - startedAt) / 1000)),
-        })
+    Number.isFinite(end) &&
+    end - startedAt >= 1000
+      ? formatElapsed(Math.floor((end - startedAt) / 1000))
       : "";
 
   const status: CollapsibleStatus = isStreaming
@@ -86,23 +93,12 @@ export function ThinkingBlock({
     );
   }, [displayContent, isStreaming, panelKey, status, subtitle, timedLabel]);
 
-  // Show a brief preview of the reasoning content in the pill label
-  const preview = useMemo(() => {
-    if (!displayContent) return "";
-    if (isStreaming) return buildStreamingThinkingPreview(displayContent);
-    const text = displayContent
-      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-      .replace(/\n+/g, " ")
-      .trim();
-    return text;
-  }, [displayContent, isStreaming]);
-
   return (
     <CollapsiblePill
       status={status}
       icon={<Brain size={12} className="shrink-0 opacity-50" />}
       label={timedLabel}
-      description={preview}
+      description={displayContent}
       formatLabel={false}
       variant="thinking"
       animatedDots={isStreaming}

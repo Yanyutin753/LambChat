@@ -10,7 +10,7 @@ import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
 from src.agents.core import resolve_agent_name
-from src.infra.goal_runtime import with_goal_run_lease
+from src.infra.goal_runtime import GoalRunAdmissionError, with_goal_run_lease
 from src.infra.logging import get_logger
 from src.infra.sandbox.idle_pause import schedule_idle_pause
 from src.infra.session.dual_writer import get_dual_writer
@@ -26,23 +26,18 @@ from .cancellation import TaskCancellation
 from .exceptions import TaskInterruptedError
 from .heartbeat import TaskHeartbeat
 from .session_status import TaskSessionStatusMixin
-from .stall_watchdog import aiter_with_stall_timeout
+from .stall_watchdog import (
+    aiter_with_stall_timeout,
+)
+from .stall_watchdog import (
+    run_stall_timeout_seconds as _run_stall_timeout_seconds,
+)
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
 from .steer import emit_undelivered_steer_events
 
 logger = get_logger(__name__)
 _TERMINAL_STREAM_TTL_SECONDS = 60
-_DEFAULT_RUN_STALL_TIMEOUT_SECONDS = 3600
-
-
-def _run_stall_timeout_seconds() -> float:
-    """Watchdog deadline between executor events; 0/negative disables it."""
-    value = getattr(settings, "TASK_RUN_STALL_TIMEOUT", _DEFAULT_RUN_STALL_TIMEOUT_SECONDS)
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return _DEFAULT_RUN_STALL_TIMEOUT_SECONDS
 
 
 def should_schedule_recommend_questions() -> bool:
@@ -122,6 +117,7 @@ class TaskExecutor(TaskSessionStatusMixin):
         hitl_resume: Optional[Dict[str, Any]] = None,
         interrupted_resume: bool = False,
         base_url: str = "",
+        recovery_claim: Optional[Dict[str, Any]] = None,
     ) -> bool | None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -147,23 +143,57 @@ class TaskExecutor(TaskSessionStatusMixin):
                 await validate_background_resume(self._storage, session_id, user_id, run_id)
                 or fenced_resume
             )
-        if fenced_resume:
-            await self._update_session_status(
-                session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
-            )
-        elif interrupted_resume and not hitl_resume:
+        if interrupted_resume and not hitl_resume:
             if not await self._storage.claim_run_recovery(
                 session_id,
                 run_id,
-                self._state_machine.build_metadata(TaskStatus.STARTING, run_id=run_id),
+                {
+                    **self._state_machine.build_metadata(TaskStatus.STARTING, run_id=run_id),
+                    **(
+                        {
+                            key: recovery_claim["metadata"].get(key)
+                            for key in ("task_error", "task_error_code")
+                        }
+                        if recovery_claim
+                        else {}
+                    ),
+                },
+                **({"expected_recovery_token": recovery_claim["token"]} if recovery_claim else {}),
             ):
-                raise TaskInterruptedError("Interrupted run no longer authorizes recovery")
+                raise GoalRunAdmissionError("Interrupted run no longer authorizes recovery")
             fenced_resume = True  # STARTING was already written atomically.
+        elif fenced_resume:
+            await self._update_session_status(
+                session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
+            )
+
+        if not fenced_resume:
+            await self._update_session_status(
+                session_id, TaskStatus.STARTING, run_id=run_id, expected_run_id=run_id
+            )
+
+        if recovery_claim:
+            from src.infra.goal_runtime import validate_goal_admission
+            from src.infra.scheduler.conversation import conversation_submission
+
+            from .recovery import prepare_interrupted_recovery
+
+            # Share the non-waiting admission fence with Goal controls and new turns.
+            async with conversation_submission(session_id, user_id, allow_busy=True):
+                await validate_goal_admission(
+                    {
+                        "active_goal": active_goal,
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "run_id": run_id,
+                        "hitl_resume": hitl_resume,
+                    }
+                )
+                await prepare_interrupted_recovery(
+                    self._storage, session_id, run_id, existing_trace_id, recovery_claim
+                )
 
         try:
-            if not fenced_resume:
-                await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
-
             # queued path 已经同时创建 trace 和写入 user:message 时，可安全复用。
             already_written = user_message_written or self._run_info.get(run_id, {}).get(
                 "user_message_written", False
@@ -213,7 +243,9 @@ class TaskExecutor(TaskSessionStatusMixin):
             # 心跳与 RUNNING 状态彼此独立；并发完成后才进入 agent stream。
             await asyncio.gather(
                 self._heartbeat.start(run_id, user_id=user_id),
-                self._update_session_status(session_id, TaskStatus.RUNNING, run_id=run_id),
+                self._update_session_status(
+                    session_id, TaskStatus.RUNNING, run_id=run_id, expected_run_id=run_id
+                ),
             )
 
             # 立即发送 user:message 事件（任务开始时固定发送）
@@ -224,6 +256,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
                     run_modes=derive_user_message_run_modes(auto_mode, active_goal),
+                    goal_continuation=(active_goal or {}).get("_continuation"),
                 )
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
@@ -342,6 +375,12 @@ class TaskExecutor(TaskSessionStatusMixin):
             if not produced_main_text and presenter is not None:
                 produced_main_text = bool(getattr(presenter, "produced_main_text", False))
             if not produced_main_text:
+                if getattr(
+                    getattr(presenter, "persistent_goal_metrics", None),
+                    "main_output_limited",
+                    False,
+                ):
+                    raise AppError(ErrorCode.MODEL_OUTPUT_LIMIT)
                 raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
 
             # 终态补写未注入的插话（steer:undelivered），落库可见、不静默丢失
@@ -379,15 +418,6 @@ class TaskExecutor(TaskSessionStatusMixin):
             # 清除请求上下文，防止 contextvars 泄漏到后续任务
             TraceContext.clear_request_context()
             TraceContext.clear()
-
-    async def _set_trace_waiting_human(self, trace_id: str, *, waiting: bool) -> None:
-        """HITL 挂起标记（#583）：失败只降级为日志，不影响挂起/恢复主流程。"""
-        try:
-            from src.infra.session.trace_storage import get_trace_storage
-
-            await get_trace_storage().set_trace_waiting_human(trace_id, waiting=waiting)
-        except Exception as e:
-            logger.warning("Failed to mark trace %s waiting_human=%s: %s", trace_id, waiting, e)
 
     async def _handle_cancelled_error(
         self,
@@ -776,6 +806,20 @@ class TaskExecutor(TaskSessionStatusMixin):
                     )
             except Exception:
                 pass
+
+            if run_id.startswith("scheduled-") or session_metadata.get("scheduled_task_id"):
+                from src.infra.scheduler.conversation import completion_context
+
+                scheduled_task_id, quiet = await completion_context(
+                    session_id, run_id, status.value
+                )
+                if quiet or (
+                    session_metadata.get("scheduled_target_session_id")
+                    and status == TaskStatus.COMPLETED
+                ):
+                    return
+                if scheduled_task_id:
+                    notification["data"]["scheduled_task_id"] = scheduled_task_id
 
             from src.infra.task.completion_events import TaskCompletionStore, prepare_completion
 

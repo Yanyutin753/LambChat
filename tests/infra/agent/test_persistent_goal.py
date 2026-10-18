@@ -39,18 +39,18 @@ def goal():
     )
 
 
-def test_defaults_and_budget_are_not_success():
+def test_usage_does_not_stop_or_complete_an_unlimited_goal():
     value = goal()
-    assert value.limits.max_turns == 10
-    assert value.limits.max_tokens == 100000
-    assert value.limits.max_seconds == 3600
     value.accounting.turns = 10
-    assert advance_goal(value, usage=None, verdict=None, tools=0).status == "budget_limited"
+    assert "limits" not in value.model_dump()
+    assert advance_goal(value, usage=None, verdict=None, tools=0).status == "active"
 
 
-def test_unknown_usage_and_two_no_progress_turns_block_instead_of_complete():
+def test_unknown_usage_and_three_no_progress_turns_block_instead_of_complete():
     value = advance_goal(goal(), usage=None, verdict=None, tools=0)
     assert value.accounting.tokens is None
+    assert value.status == "active"
+    value = advance_goal(value, usage=None, verdict=None, tools=0)
     assert value.status == "active"
     value = advance_goal(value, usage=None, verdict=None, tools=0)
     assert value.status == "blocked"
@@ -74,15 +74,24 @@ def test_grader_cannot_complete_without_evidence_or_with_failed_criterion():
     )
 
 
-def test_wall_clock_budget_overrides_grader_success():
+def test_elapsed_wall_clock_does_not_limit_goal_progress():
     value = goal()
-    value.started_at = datetime.now(timezone.utc) - timedelta(hours=2)
-    assert (
-        advance_goal(
-            value, usage=1, verdict={"result": "satisfied"}, tools=1, evidence_ready=True
-        ).status
-        == "budget_limited"
-    )
+    value.started_at = datetime.now(timezone.utc) - timedelta(days=30)
+    advanced = advance_goal(value, usage=1, verdict={"result": "needs_revision"}, tools=1)
+    assert advanced.status == "active"
+    assert advanced.stop_reason is None
+
+
+async def test_old_goal_with_legacy_time_limit_can_still_reserve():
+    store = Store()
+    service = GoalService(store)
+    value = await service.create("s", "u", PersistentGoalCreate(objective="finish", rubric="tests"))
+    store.value["started_at"] = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    store.value["limits"] = {"max_seconds": 1}
+    reserved = await service.reserve("s", "u", value.version)
+    assert reserved.status == "active"
+    assert reserved.current_run_id
+    assert "limits" not in reserved.model_dump()
 
 
 async def test_pause_fences_old_completion_and_resume_retains_accounting():
@@ -337,3 +346,133 @@ def test_each_passed_criterion_requires_current_verified_original(references):
         ).status
         != "completed"
     )
+
+
+def test_goal_records_no_progress_stop_reason():
+    value = advance_goal(goal(), usage=1, verdict=None, tools=0)
+    value = advance_goal(value, usage=1, verdict=None, tools=0)
+    assert value.status == "active"
+    value = advance_goal(value, usage=1, verdict=None, tools=0)
+    assert value.stop_reason == "no_progress"
+
+
+@pytest.mark.parametrize("action", ["pause", "resume"])
+@pytest.mark.parametrize("budget", ["tokens", "turns"])
+async def test_legacy_budget_does_not_override_pause_and_resume(action, budget):
+    store = Store()
+    service = GoalService(store)
+    await service.create("s", "u", PersistentGoalCreate(objective="finish", rubric="tests"))
+    store.value["limits"] = {"max_turns": 10, "max_tokens": 100000}
+    store.value["accounting"][budget] = store.value["limits"][f"max_{budget}"]
+    controlled = await service.control("s", "u", action)
+    assert controlled.status == ("paused" if action == "pause" else "active")
+    assert controlled.stop_reason == ("user_paused" if action == "pause" else None)
+    assert controlled.accounting.model_dump() == store.value["accounting"]
+
+
+def test_unlimited_goal_ignores_legacy_budget_fields_and_keeps_usage():
+    value = PersistentGoal(
+        session_id="s",
+        user_id="u",
+        objective="finish",
+        rubric="checked",
+        limits={"max_turns": 10, "max_tokens": 100000},
+        accounting={"turns": 20, "tokens": 150000},
+    )
+    advanced = advance_goal(value, usage=100, verdict=None, tools=1, progress_signature="changed")
+    assert advanced.status == "active"
+    assert advanced.accounting.turns == 21
+    assert advanced.accounting.tokens == 150100
+    assert "limits" not in advanced.model_dump()
+
+
+async def test_legacy_budget_stop_can_resume_without_resetting_progress():
+    store = Store()
+    service = GoalService(store)
+    await service.create("s", "u", PersistentGoalCreate(objective="finish", rubric="tests"))
+    store.value.update(
+        status="budget_limited",
+        stop_reason="token_limit",
+        limits={"max_turns": 10, "max_tokens": 100000},
+    )
+    store.value["accounting"] = {"turns": 20, "tokens": 150000}
+    loaded = await service.get("s", "u")
+    assert loaded.status == "paused"
+    assert loaded.stop_reason is None
+    resumed = await service.control("s", "u", "resume")
+    reserved = await service.reserve("s", "u", resumed.version)
+    assert reserved.current_run_id
+    assert reserved.accounting.tokens == 150000
+
+
+@pytest.mark.parametrize("status", ["active", "paused", "completed", "waiting_human"])
+async def test_edit_goal_preserves_identity_usage_and_fences_old_run(status):
+    from src.kernel.errors import AppError
+    from src.kernel.schemas.persistent_goal import PersistentGoalUpdate
+
+    store = Store()
+    service = GoalService(store)
+    created = await service.create(
+        "s", "u", PersistentGoalCreate(objective="old", rubric="old criteria")
+    )
+    running = await service.reserve("s", "u", created.version)
+    store.value.update(status=status)
+    store.value["accounting"] = {"turns": 7, "tokens": 150000}
+    updated = await service.update(
+        "s",
+        "u",
+        PersistentGoalUpdate(
+            objective="new", rubric="new criteria", expected_revision=running.revision
+        ),
+    )
+    assert updated.id == created.id
+    assert updated.accounting.model_dump() == {"turns": 7, "tokens": 150000}
+    assert updated.objective == "new"
+    assert updated.rubric == "new criteria"
+    assert updated.status == ("active" if status in {"active", "waiting_human"} else "paused")
+    assert updated.version == running.version + 1
+    assert updated.current_run_id is None
+    assert (
+        await service.finish(
+            "s", "u", running.version, running.current_run_id, usage=1, verdict=None, tools=0
+        )
+        is None
+    )
+    with pytest.raises(AppError):
+        await service.update(
+            "s",
+            "u",
+            PersistentGoalUpdate(
+                objective="stale", rubric="stale", expected_revision=running.revision
+            ),
+        )
+
+
+async def test_repeated_resume_keeps_the_active_run_and_version():
+    service = GoalService(Store())
+    created = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="checked")
+    )
+    await service.control("s", "u", "pause")
+    resumed = await service.control("s", "u", "resume")
+    running = await service.reserve("s", "u", resumed.version)
+    again = await service.control("s", "u", "resume")
+    assert again.current_run_id == running.current_run_id
+    assert again.version == running.version
+    assert again.revision == running.revision
+    assert again.id == created.id
+
+
+@pytest.mark.parametrize("terminal", ["cleared", "completed"])
+@pytest.mark.parametrize("action", ["pause", "resume"])
+async def test_late_controls_do_not_reactivate_a_finished_or_cleared_goal(terminal, action):
+    service = GoalService(Store())
+    created = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="checked")
+    )
+    created.status = terminal
+    saved = await service._save(created)
+    controlled = await service.control("s", "u", action)
+    assert controlled.status == terminal
+    assert controlled.version == saved.version
+    assert controlled.revision == saved.revision

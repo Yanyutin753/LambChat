@@ -6,10 +6,11 @@ import type { SteerItem } from "../../utils/mergeSteers";
 import { uuid } from "../../utils/uuid";
 import type { MessageAttachment } from "../../types";
 import { useQueuedFollowUpState } from "./queuedFollowUpState";
+import type { ChatSubmissionCallbacks } from "./types";
 
 interface SteerQueueOptions {
   sessionIdRef: RefObject<string | null>;
-  deferSteer: (
+  deferSteer?: (
     content: string,
     messageId: string,
     attachments?: MessageAttachment[],
@@ -83,9 +84,10 @@ export interface PromoteSteerFollowUpsDeps {
   sendMessage: (
     content: string,
     attachments?: MessageAttachment[],
+    onAccepted?: () => void,
   ) => Promise<unknown>;
   isCancelled?: (messageId: string) => boolean;
-  clearSteer?: (content: string, messageId: string) => void;
+  clearSteer?: (content: string, messageId: string, sessionId?: string) => void;
   /** 会话仍有运行中的 run 时返回 true：插话留在队列等注入，不补发 */
   isSessionActive?: () => Promise<boolean>;
   /** 本地 sendMessage 在途时返回 true：补发会被在途守卫静默丢弃，须保留排队项稍后重试 */
@@ -101,7 +103,7 @@ export interface PromoteSteerFollowUpsResult {
 /**
  * 把未送达插话补发为普通消息。
  *
- * 必须先清本地状态、再取消后端队列中的同一条，最后作为普通消息发送：
+ * 先取消后端队列中的同一条，受理为普通消息后才清本地状态：
  * 后端队列按会话共享，若只补发不取消，新 run 的首次模型调用会把同
  * 一条插话再次注入（同内容投递两次）。取消失败不阻塞补发——后端在
  * 新 run 提交时也会兜底清空残留队列。
@@ -142,14 +144,29 @@ export async function promoteSteerFollowUps(
       deferredBySending += 1;
       continue;
     }
-    deps.clearSteer?.(item.content, item.id);
     try {
       await deps.cancelSteer(sessionId, item.content, item.id);
     } catch {
       // 取消失败继续补发；新 run 提交时的后端兜底清理会移除残留项
     }
-    await deps.sendMessage(item.content, item.attachments);
-    promoted += 1;
+    if (deps.isCancelled?.(item.id)) continue;
+    if (deps.isSending?.()) {
+      deferredBySending += 1;
+      continue;
+    }
+    let accepted = false;
+    const onAccepted = () => {
+      accepted = true;
+      deps.clearSteer?.(item.content, item.id, sessionId);
+    };
+    const result = await deps.sendMessage(
+      item.content,
+      item.attachments,
+      onAccepted,
+    );
+    if (!accepted && result !== false) onAccepted();
+    if (accepted) promoted += 1;
+    else deferredBySending += 1;
   }
   return { promoted, skippedActive: deferredBySending };
 }
@@ -171,12 +188,16 @@ export interface SteerFollowUpPromotionOptions {
   isLoading: boolean;
   isSendingRef: RefObject<boolean>;
   steerMessages: SteerItem[];
-  clearSteer: (content: string, messageId?: string) => void;
+  clearSteer: (content: string, messageId?: string, sessionId?: string) => void;
   cancelledSteerIdsRef: RefObject<Set<string>>;
   followUpSteerIdsRef: RefObject<Set<string>>;
   sessionIdRef: RefObject<string | null>;
   sendMessageRef: RefObject<
-    | ((content: string, attachments?: MessageAttachment[]) => Promise<void>)
+    | ((
+        content: string,
+        attachments?: MessageAttachment[],
+        callbacks?: ChatSubmissionCallbacks,
+      ) => Promise<void>)
     | null
   >;
 }
@@ -222,27 +243,35 @@ export function useSteerFollowUpPromotion(
     // 拷贝（Set 本身从不被整体重赋值，语义等价）
     const markedFollowUpIds = followUpSteerIdsRef.current;
     const queuedSnapshot = steerMessagesRef;
+    const ownerSessionId = sessionIdRef.current;
     const promote = async () => {
       // 先取消后端队列中的残留项再补发，否则新 run 的首次模型调用会把
       // 同一条插话再次注入（同内容投递两次）。FIFO 逐条等待补发，避免
       // 单 run 守卫丢弃后续条目。
       const result = await promoteSteerFollowUps(followUps, {
-        sessionId: sessionIdRef.current,
+        sessionId: ownerSessionId,
         cancelSteer: (sessionId, content, messageId) =>
           sessionApi.cancelSteer(sessionId, content, messageId),
-        sendMessage: async (content, attachments) => {
-          await sendMessageRef.current?.(content, attachments);
+        sendMessage: async (content, attachments, onAccepted) => {
+          let accepted = false;
+          await sendMessageRef.current?.(content, attachments, {
+            onAccepted: () => {
+              accepted = true;
+              onAccepted?.();
+            },
+          });
+          return accepted;
         },
         // cancelled：effect 卸载或用户撤销；不在队列：已被注入/送达
         isCancelled: (id) =>
           cancelled ||
+          sessionIdRef.current !== ownerSessionId ||
           cancelledSteerIdsRef.current.has(id) ||
           !steerMessagesRef.current.some((item) => item.id === id),
         clearSteer,
         isSessionActive: async () => {
-          const sessionId = sessionIdRef.current;
-          if (!sessionId) return false;
-          const { status } = await sessionApi.getStatus(sessionId);
+          if (!ownerSessionId) return false;
+          const { status } = await sessionApi.getStatus(ownerSessionId);
           return ACTIVE_RUN_STATUSES.has(status);
         },
         isSending: () => isSendingRef.current,
@@ -311,7 +340,9 @@ export function useSteerQueue({
     clearSteerMessages,
     restoreSteerMessages,
     bindSteerSession,
+    clearSessionFollowUp,
   } = useQueuedFollowUpState(sessionIdRef.current);
+  const pendingSteersRef = useRef(new Map<string, { cancelled: boolean }>());
 
   // 引用必须稳定：作为 props 传给 memo(ChatInput)，流式期间父级高频
   // 重渲染时不能破坏记忆化（否则编辑器每个 token 重渲染一次）
@@ -329,10 +360,13 @@ export function useSteerQueue({
         status: "pending",
         timestamp: new Date(),
       };
+      const pending = { cancelled: false };
+      pendingSteersRef.current.set(item.id, pending);
       setSteerMessages((prev) => [...prev, item]);
       try {
         await sessionApi.steer(currentSessionId, text, item.id, attachments);
       } catch (error) {
+        if (pending.cancelled) return;
         console.error("[steerMessage] Failed to steer session:", error);
         const status =
           typeof error === "object" && error !== null && "status" in error
@@ -342,14 +376,19 @@ export function useSteerQueue({
         // is safe to preserve the user's intent as a normal next turn;
         // transport/auth/server failures must remain retryable instead.
         if (status === 409) {
-          setSteerMessages((prev) =>
-            prev.map((s) =>
-              s.id === item.id
-                ? { ...s, queued: false, status: "deferred", deferred: true }
-                : s,
-            ),
+          const deferred: SteerItem = {
+            ...item,
+            queued: true,
+            status: "deferred",
+            deferred: true,
+          };
+          setSteerMessages(
+            (prev) =>
+              prev.some((s) => s.id === item.id)
+                ? prev.map((s) => (s.id === item.id ? deferred : s))
+                : [...prev, deferred],
+            currentSessionId,
           );
-          deferSteer(text, item.id, attachments);
           return;
         }
         setSteerMessages((prev) =>
@@ -357,9 +396,11 @@ export function useSteerQueue({
             s.id === item.id ? { ...s, queued: false, status: "failed" } : s,
           ),
         );
+      } finally {
+        pendingSteersRef.current.delete(item.id);
       }
     },
-    [sessionIdRef, deferSteer, setSteerMessages],
+    [sessionIdRef, setSteerMessages],
   );
 
   // 追加提问：只入本地排队（不 POST /steer），run 结束后自动转普通消息
@@ -371,7 +412,7 @@ export function useSteerQueue({
       if (!currentSessionId) {
         // 首条消息 POST 在途（会话尚未建立）：挂到 deferred 队列，由该次
         // 发送的 finally 在 run 结束后补发——静默丢弃会弄丢用户输入
-        deferSteer(item.content, item.id, attachments);
+        deferSteer?.(item.content, item.id, attachments);
       }
       setSteerMessages((prev) => [...prev, item]);
     },
@@ -386,6 +427,10 @@ export function useSteerQueue({
         removed = result.removed;
         return result.remaining;
       });
+      const pending = pendingSteersRef.current.get(
+        messageId ?? removed?.id ?? "",
+      );
+      if (pending) pending.cancelled = true;
       removeDeferredSteer?.(content, messageId ?? removed?.id);
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
@@ -441,13 +486,18 @@ export function useSteerQueue({
     [setSteerMessages],
   );
   const clearSteer = useCallback(
-    (content: string, messageId?: string) =>
+    (content: string, messageId?: string, sessionId?: string) => {
+      if (sessionId && messageId) {
+        clearSessionFollowUp(sessionId, messageId);
+        return;
+      }
       setSteerMessages((prev) =>
         prev.filter((item) =>
           messageId ? item.id !== messageId : item.content !== content,
         ),
-      ),
-    [setSteerMessages],
+      );
+    },
+    [setSteerMessages, clearSessionFollowUp],
   );
 
   return {

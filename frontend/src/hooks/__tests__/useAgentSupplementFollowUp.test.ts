@@ -13,7 +13,7 @@ test("supplementFollowUp interrupts the running turn before resending", () => {
   expect(source).toMatch(/const supplementFollowUp = useCallback/);
   expect(source).toMatch(/if \(!text && !attachments\?\.length\) return;/);
   expect(source).toMatch(
-    /await stopGeneration\(\);\s*await sendMessageRef\.current\?\.\(text, attachments\);/,
+    /await stopGeneration\(true\);[\s\S]*?if \(!isCurrentSupplement\(\)\) return;\s*await sendMessageRef\.current\?\.\(text, attachments\);/,
   );
 });
 

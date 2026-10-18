@@ -445,11 +445,7 @@
 
 /* Markdown preview styles */
 .markdown-preview {
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--chat-font-family);
   line-height: 1.75;
   color: var(--theme-text-secondary);
   overflow-wrap: break-word;

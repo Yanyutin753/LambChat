@@ -270,3 +270,20 @@ describe("getRunStartedAtMs", () => {
     expect(getRunStartedAtMs({ parts: [] } as Message)).toBeNull();
   });
 });
+
+test("rubric grader stays after the final answer in execution order", () => {
+  const answer = group(text("Final answer"), 0);
+  const grader = group(
+    {
+      type: "subagent",
+      agent_id: "rubric_grader_123",
+      agent_name: "Rubric Grader",
+      input: "Evaluate",
+      depth: 1,
+    },
+    1,
+  );
+  const result = splitRunTailGroups([answer, grader], { enabled: true });
+  expect(result.head).toEqual([]);
+  expect(result.tail).toEqual([answer, grader]);
+});

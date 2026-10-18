@@ -83,7 +83,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
             size={14}
             className="shrink-0 text-sky-500 dark:text-sky-400"
           />
-          <span className="text-sky-600 dark:text-sky-400 font-mono font-semibold">
+          <span className="text-sky-600 dark:text-sky-400 font-medium">
             {query}
           </span>
         </ToolArgsBlock>
@@ -229,7 +229,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
                   size={12}
                   className="shrink-0 text-sky-500 dark:text-sky-400"
                 />
-                <span className="text-sky-600 dark:text-sky-400 font-mono font-medium min-w-0 truncate">
+                <span className="text-sky-600 dark:text-sky-400 font-medium min-w-0 truncate">
                   {truncate(query, 50)}
                 </span>
               </ToolArgsBlock>

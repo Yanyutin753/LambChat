@@ -21,6 +21,7 @@ const RUN_STATUS_COLOR_MAP: Record<string, StatusColor> = {
   success: "emerald",
   failed: "red",
   running: "blue",
+  waiting_human: "amber",
   pending: "stone",
   timeout: "amber",
   skipped: "stone",
@@ -32,6 +33,14 @@ export function RunStatusBadge({ status }: { status: string }) {
   const color = RUN_STATUS_COLOR_MAP[status] ?? "stone";
 
   return (
-    <StatusBadge color={color} label={t(`scheduledTask.${status}`)} size="sm" />
+    <StatusBadge
+      color={color}
+      label={t(
+        status === "waiting_human"
+          ? "chat.goal.waiting_human"
+          : `scheduledTask.${status}`,
+      )}
+      size="sm"
+    />
   );
 }

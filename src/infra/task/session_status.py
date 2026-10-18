@@ -28,6 +28,15 @@ class TaskSessionStatusMixin:
 
         def _schedule_idle_pause_check(self, session_id: str) -> None: ...
 
+    async def _set_trace_waiting_human(self, trace_id: str, *, waiting: bool) -> None:
+        """HITL 挂起标记（#583）：失败只降级为日志，不影响挂起/恢复主流程。"""
+        try:
+            from src.infra.session.trace_storage import get_trace_storage
+
+            await get_trace_storage().set_trace_waiting_human(trace_id, waiting=waiting)
+        except Exception as e:
+            logger.warning("Failed to mark trace %s waiting_human=%s: %s", trace_id, waiting, e)
+
     async def _record_uncertain_effect(self, session_id: str, run_id: str, error: AppError) -> None:
         await self._storage.update_metadata_for_run(
             session_id,
@@ -100,7 +109,22 @@ class TaskSessionStatusMixin:
             update_for_run = getattr(self._storage, "update_metadata_for_run", None)
             if expected_run_id:
                 if not callable(update_for_run) or not await update_for_run(
-                    session_id, expected_run_id, metadata
+                    session_id,
+                    expected_run_id,
+                    metadata,
+                    **(
+                        {
+                            "expected_statuses": [
+                                "queued",
+                                "pending",
+                                "starting",
+                                "running",
+                                "recovering",
+                            ]
+                        }
+                        if status in {TaskStatus.STARTING, TaskStatus.RUNNING}
+                        else {}
+                    ),
                 ):
                     raise GoalRunAdmissionError("Goal session ownership changed before admission")
             elif (

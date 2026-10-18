@@ -77,14 +77,22 @@ test("tab closure delegates to handleUserClose for panel dismissal", () => {
 });
 
 test("all tool result headers keep title and context on one baseline with full text available", () => {
-  const source = readFileSync(new URL("../ToolResultPanel.tsx", import.meta.url), "utf8");
-  expect(source).toMatch(/tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1/);
+  const source = readFileSync(
+    new URL("../ToolResultPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(source).toMatch(
+    /tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1/,
+  );
   expect(source).toMatch(/tool-console-title min-w-0 max-w-full truncate/);
-  expect(source).toMatch(/tool-console-subtitle-pill min-w-0 max-w-full truncate/);
+  expect(source).toMatch(
+    /tool-console-subtitle-pill min-w-0 max-w-full truncate/,
+  );
+  expect(source).toMatch(/tool-console-subtitle-pill[^"\n]*font-normal/);
   expect(source).toMatch(/title=\{title\}/);
-  expect(source).not.toContain('subtitle.split');
-  expect(source).not.toContain('max-w-[40%]');
-  expect(source).not.toContain('max-w-[45vw]');
+  expect(source).not.toContain("subtitle.split");
+  expect(source).not.toContain("max-w-[40%]");
+  expect(source).not.toContain("max-w-[45vw]");
   expect(source).toMatch(/title=\{subtitle\}\s*>\s*\{subtitle\}\s*<\/span>/s);
 });
 
@@ -197,7 +205,7 @@ test("tool result panel masks rich content until snapshot restoration settles", 
   );
   expect(componentSource).toMatch(/aria-busy=\{!contentReady\}/);
   expect(componentSource).toMatch(
-    /className=\{`tool-console-body__content tool-readable font-serif h-full min-h-full[\s\S]*?\$\{\s*contentReady \? "opacity-100" : "opacity-0"/,
+    /className=\{`tool-console-body__content tool-readable h-full min-h-full[\s\S]*?\$\{\s*contentReady \? "opacity-100" : "opacity-0"/,
   );
   expect(componentSource).toMatch(/tool-console-body__loading/s);
 });
@@ -228,5 +236,32 @@ test("tool detail sections keep visible separation in light mode", () => {
   );
   expect(componentsSource).toMatch(
     /\.dark \.tool-detail-section\s*\{[\s\S]*?background:\s*color-mix\(in srgb, var\(--theme-bg\) 35%, transparent\);/,
+  );
+});
+
+test("tool detail text stays within its parent and uses slightly smaller body typography", () => {
+  const css = readFileSync(
+    new URL("../../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  const source = readFileSync(
+    new URL("../ToolResultPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(css).toMatch(
+    /\.tool-readable\s*\{[^}]*font-family: var\(--chat-font-family\);[^}]*font-size: calc\(var\(--chat-font-size\) - 0\.0625rem\);/,
+  );
+  expect(css).toMatch(
+    /\.tool-readable :is\(\.text-12, \.text-13\)\s*\{[^}]*font-size: calc\(var\(--chat-font-size\) - 0\.0625rem\);/,
+  );
+  expect(css).toMatch(
+    /\.tool-readable \.tool-detail-section__title\s*\{[^}]*font-family: inherit;/,
+  );
+  expect(source).not.toMatch(/tool-readable font-serif/);
+  expect(css).toMatch(
+    /\.tool-detail-section\s*\{[^}]*min-width: 0;[^}]*max-width: 100%;/,
+  );
+  expect(css).toMatch(
+    /\.tool-detail-section__body\s*\{[^}]*overflow-wrap: anywhere;/,
   );
 });

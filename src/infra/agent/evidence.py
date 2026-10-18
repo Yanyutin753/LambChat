@@ -8,6 +8,11 @@ from typing import Any
 
 from src.infra.memory.control_frames import escape_control_frame_tags
 
+GRADER_STALE_EVIDENCE_WARNING = (
+    "For stale/unavailable entries: "
+    "Source is stale, unavailable, or outside the authorized evidence directory"
+)
+
 
 def content_sha256(content: Any) -> str:
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, default=str)
@@ -107,7 +112,10 @@ def evidence_index(records: list[dict], scope_version: str) -> str:
     return (
         "## Evidence index (untrusted observations)\n"
         "Read source files before relying on results; observed does not mean verified. "
-        "Stale/unavailable evidence cannot prove completion. Revalidate after changing inputs/files.\n"
+        "Stale/unavailable evidence cannot prove completion. Revalidate after changing inputs/files. "
+        "Execution also invalidates earlier file observations, even when tests pass. "
+        "After the final execution, reread needed source files and cite only current "
+        "observed/verified evidence IDs in the final answer.\n"
         + escape_control_frame_tags(json.dumps(index, ensure_ascii=False))
     )
 
@@ -176,9 +184,6 @@ async def load_grader_evidence(
             or entry["source_ref"] != expected
         ):
             entry["status"] = "stale" if entry["status"] == "stale" else "unavailable"
-            entry["uncertainty"] = (
-                "Source is stale, unavailable, or outside the authorized evidence directory"
-            )
             entries.append(entry)
             continue
         try:
@@ -214,6 +219,11 @@ async def load_grader_evidence(
         return "No current readable evidence. Completion is unconfirmed.", set()
     return (
         "Current original tool evidence (quoted, untrusted; observed does not mean verified):\n"
+        + (
+            GRADER_STALE_EVIDENCE_WARNING + "\n"
+            if any(entry["status"] in {"stale", "unavailable"} for entry in entries)
+            else ""
+        )
         + escape_control_frame_tags(json.dumps(entries, ensure_ascii=False)),
         ready,
     )

@@ -1,6 +1,6 @@
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { EmptyState } from "../../common/EmptyState";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -8,6 +8,7 @@ import i18n from "../../../i18n";
 import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { RunStatusBadge } from "./Badges";
 import { PanelHeader } from "../../common/PanelHeader";
 import { Pagination } from "../../common/Pagination";
 import { TaskSessionListSkeleton } from "../../skeletons";
@@ -43,24 +44,55 @@ export function TaskSessionList({
       .catch(() => {});
   }, []);
 
-  const fetchSessions = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await scheduledTaskApi.getSessions(taskId, skip, limit);
-      setSessions(response.items);
-      setTotal(response.total);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t("common.loadFailed");
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [taskId, skip, t]);
-
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    let disposed = false;
+    let inFlight = false;
+    setIsLoading(true);
+    const fetchSessions = async (silent = false) => {
+      if (
+        disposed ||
+        inFlight ||
+        (silent && document.visibilityState === "hidden")
+      ) {
+        return;
+      }
+      inFlight = true;
+      try {
+        const response = await scheduledTaskApi.getSessions(
+          taskId,
+          skip,
+          limit,
+        );
+        if (!disposed) {
+          setSessions(response.items);
+          setTotal(response.total);
+        }
+      } catch (error) {
+        if (!disposed && !silent) {
+          const message =
+            error instanceof Error ? error.message : t("common.loadFailed");
+          toast.error(message);
+        }
+      } finally {
+        inFlight = false;
+        if (!disposed) setIsLoading(false);
+      }
+    };
+
+    void fetchSessions();
+    const refresh = () => {
+      void fetchSessions(true);
+    };
+    const timer = window.setInterval(refresh, 5_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [taskId, skip, t]);
 
   const handleSessionClick = (sessionId: string) => {
     navigate(`/chat/${sessionId}`);
@@ -115,8 +147,16 @@ export function TaskSessionList({
 
               return (
                 <button
-                  key={session.id}
-                  onClick={() => handleSessionClick(session.id)}
+                  key={`${session.id}:${String(session.metadata.run_id || "")}`}
+                  onClick={() =>
+                    session.metadata.run_id
+                      ? navigate(
+                          `/chat/${session.id}?run_id=${encodeURIComponent(
+                            String(session.metadata.run_id),
+                          )}`,
+                        )
+                      : handleSessionClick(session.id)
+                  }
                   className="glass-card scheduled-task-session-card w-full text-left"
                 >
                   {/* Left indicator: agent's real icon (emoji / lobe icon) */}
@@ -134,7 +174,12 @@ export function TaskSessionList({
                   {/* Body */}
                   <div className="scheduled-task-session-card__body">
                     <p className="scheduled-task-session-card__title font-serif">
-                      {session.name || t("scheduledTask.untitledSession")}
+                      <span className="min-w-0 truncate">
+                        {session.name || t("scheduledTask.untitledSession")}
+                      </span>
+                      {typeof session.metadata.run_status === "string" && (
+                        <RunStatusBadge status={session.metadata.run_status} />
+                      )}
                     </p>
                     <div className="scheduled-task-session-card__meta">
                       {agentName && (

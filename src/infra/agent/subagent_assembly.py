@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from deepagents.graph import create_summarization_middleware
+import deepagents.graph as deepagents_graph
 from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
 from deepagents.middleware.subagents import SubAgent, create_sub_agent
@@ -79,11 +79,11 @@ def assemble_subagent_sessions(
                         "tools": spec.get("tools", tools),
                         "middleware": [
                             FilesystemMiddleware(backend=backend),
-                            create_summarization_middleware(child_model, backend),
                             PatchToolCallsMiddleware(),
                             *spec.get("middleware", []),
                             *extra_middleware,
                             inbox,
+                            deepagents_graph.create_summarization_middleware(child_model, backend),
                         ],
                     },
                 )

@@ -9,7 +9,6 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
 from functools import wraps
 from typing import Any
 
@@ -64,6 +63,9 @@ class GoalRunMetrics:
         self.tool_inputs: dict[str, dict] = {}
         self.observations: set[str] = set()
         self.seen_models: set[str] = set()
+        self.pending_models: set[str] = set()
+        self.main_models: set[str] = set()
+        self.main_output_limited = False
         self.model_tokens = 0
         self.unknown_model_usage = False
         self.enforce = None
@@ -117,11 +119,31 @@ class GoalUsageCallback(AsyncCallbackHandler):
     def __init__(self, metrics: GoalRunMetrics):
         self.metrics = metrics
 
+    async def on_llm_error(self, error, *, run_id, **kwargs):
+        identity = str(run_id)
+        self.metrics.pending_models.discard(identity)
+        if identity not in self.metrics.seen_models:
+            # A failed stream can incur unreported cost before a successful retry.
+            self.metrics.seen_models.add(identity)
+            self.metrics.unknown_model_usage = True
+
     async def on_llm_end(self, response, *, run_id, **kwargs):
         identity = str(run_id)
+        self.metrics.pending_models.discard(identity)
         if identity in self.metrics.seen_models:
             return
         self.metrics.seen_models.add(identity)
+        if identity in self.metrics.main_models:
+            from src.infra.llm.retry import _empty_answer, _is_output_limit_response
+
+            for generations in response.generations:
+                for generation in generations:
+                    message = getattr(generation, "message", None)
+                    if message is not None:
+                        if _is_output_limit_response(message) and _empty_answer(message):
+                            self.metrics.main_output_limited = True
+                        elif not _empty_answer(message):
+                            self.metrics.main_output_limited = False
         usages = [
             getattr(getattr(generation, "message", None), "usage_metadata", None)
             for generations in response.generations
@@ -143,11 +165,20 @@ class GoalUsageCallback(AsyncCallbackHandler):
         if self.metrics.enforce is not None:
             await self.metrics.enforce()
 
-    async def on_chat_model_start(self, serialized, messages, **kwargs):
+    async def on_chat_model_start(self, serialized, messages, *, run_id, **kwargs):
         await self._enforce()
+        self.metrics.pending_models.add(str(run_id))
+        metadata = kwargs.get("metadata") or {}
+        if not (
+            "rubric_grader_configured_model" in metadata
+            or metadata.get("lc_source") in {"summarization", "recommendation"}
+            or metadata.get("lambchat_subagent_id")
+            or metadata.get("internal_tool_call")
+        ):
+            self.metrics.main_models.add(str(run_id))
 
-    async def on_llm_start(self, serialized, prompts, **kwargs):
-        await self._enforce()
+    async def on_llm_start(self, serialized, prompts, *, run_id, **kwargs):
+        await self.on_chat_model_start(serialized, [], run_id=run_id, **kwargs)
 
     async def on_tool_start(self, serialized, input_str, **kwargs):
         await self._enforce()
@@ -157,7 +188,8 @@ def _run_goal(value) -> dict:
     return {
         "objective": value.objective,
         "rubric": value.rubric,
-        "max_iterations": 3,
+        # Persistent goals revise in the next durable turn, not inside one message.
+        "max_iterations": 1,
         "_persistent_id": value.id,
         "_persistent_version": value.version,
         "_scope_version": f"{value.id}:{value.version}",
@@ -167,6 +199,10 @@ def _run_goal(value) -> dict:
 async def bind_submission_goal(
     request, metadata: dict, session_id: str, user_id: str, run_id: str, *, service=None
 ):
+    from src.infra.scheduler.conversation import SCHEDULED_SUBMISSION
+
+    if SCHEDULED_SUBMISSION.get():
+        return None, run_id
     dispatch = GOAL_DISPATCH.get()
     if dispatch is None and not metadata.get("persistent_goal_id"):
         return request.goal.model_dump() if request.goal else None, run_id
@@ -182,7 +218,14 @@ async def bind_submission_goal(
         ):
             raise AppError(ErrorCode.GOAL_CONFLICT)
         request.goal = GoalSpec(objective=current.objective, rubric=current.rubric)
-        return _run_goal(current), str(current.current_run_id)
+        active = _run_goal(current)
+        active["_continuation"] = {
+            "goal_id": current.id,
+            "objective": current.objective,
+            "turn": current.accounting.turns + 1,
+            "initial": current.continuation_sequence == 1 and current.accounting.turns == 0,
+        }
+        return active, str(current.current_run_id)
     if request.goal is not None:
         if current and current.status == "active":
             await service.control(session_id, user_id, "pause")
@@ -229,7 +272,7 @@ async def restore_goal_for_run(session, run_id: str, *, service=None):
         or current.current_run_id != run_id
         or current.status not in {"active", "waiting_human"}
     ):
-        raise TaskInterruptedError("Goal was paused or superseded")
+        raise GoalRunAdmissionError("Goal was paused or superseded")
     return _run_goal(current)
 
 
@@ -268,6 +311,17 @@ class BackgroundLeaseCallback(AsyncCallbackHandler):
 
 class GoalRunAdmissionError(TaskInterruptedError):
     """A stale Goal payload was refused before acquiring task lifecycle state."""
+
+
+def execution_guard_callbacks(presenter) -> list[Any]:
+    callbacks: list[Any] = []
+    lease_state = GOAL_RUN_LEASE.get()
+    if lease_state is not None and lease_state.get("kind") == "background":
+        callbacks.append(BackgroundLeaseCallback(lease_state))
+    metrics = getattr(presenter, "persistent_goal_metrics", None)
+    if metrics is not None:
+        callbacks.append(GoalUsageCallback(metrics))
+    return callbacks
 
 
 async def validate_goal_admission(arguments):
@@ -382,21 +436,59 @@ def with_goal_run_lease(function):
     @wraps(function)
     async def owned(*args, **kwargs):
         arguments = signature.bind(*args, **kwargs).arguments
+        from src.infra.scheduler.conversation import (
+            SCHEDULED_SUBMISSION,
+            execute_conversation_schedule,
+        )
         from src.infra.task.background_tasks import execute_background_stream
 
         background = (
             (arguments["user_id"], arguments["session_id"])
-            if arguments.get("executor") is execute_background_stream
+            if arguments.get("executor")
+            in (execute_background_stream, execute_conversation_schedule)
             else None
         )
-        async with goal_run_lease(
-            arguments.get("active_goal"),
-            arguments["run_id"],
-            reuse=True,
-            background_identity=background,
-        ):
-            await validate_goal_admission(arguments)
-            return await function(*args, **kwargs)
+        try:
+            async with goal_run_lease(
+                arguments.get("active_goal"),
+                arguments["run_id"],
+                reuse=True,
+                background_identity=background,
+            ):
+                if arguments.get("executor") is execute_conversation_schedule:
+                    from src.infra.scheduler.conversation import validate_scheduled_run_admission
+
+                    await validate_scheduled_run_admission(
+                        arguments["session_id"], arguments["user_id"], arguments["run_id"]
+                    )
+                await validate_goal_admission(arguments)
+                dispatch_token = GOAL_DISPATCH.set(None)
+                token = (
+                    SCHEDULED_SUBMISSION.set(None)
+                    if arguments.get("executor") is execute_conversation_schedule
+                    else None
+                )
+                try:
+                    return await function(*args, **kwargs)
+                finally:
+                    GOAL_DISPATCH.reset(dispatch_token)
+                    if token is not None:
+                        SCHEDULED_SUBMISSION.reset(token)
+        except GoalRunAlreadyOwnedError:
+            raise
+        except Exception as error:
+            claim = arguments.get("recovery_claim")
+            if claim:
+                from src.infra.task.recovery import restore_recovery_claim
+
+                await restore_recovery_claim(
+                    arguments["self"]._storage,
+                    arguments["session_id"],
+                    arguments["run_id"],
+                    claim,
+                    recoverable=not isinstance(error, GoalRunAdmissionError),
+                )
+            raise
 
     return owned
 
@@ -408,11 +500,13 @@ def with_goal_submission_lease(function):
     async def owned(*args, **kwargs):
         bound = signature.bind(*args, **kwargs)
         goal = bound.arguments.get("active_goal")
+        from src.infra.scheduler.conversation import execute_conversation_schedule
         from src.infra.task.background_tasks import execute_background_stream
 
         background = (
             (bound.arguments["user_id"], bound.arguments["session_id"])
-            if bound.arguments.get("executor") is execute_background_stream
+            if bound.arguments.get("executor")
+            in (execute_background_stream, execute_conversation_schedule)
             else None
         )
         if (not goal or not goal.get("_persistent_id")) and background is None:
@@ -520,9 +614,6 @@ async def _guarded_goal_stream(
         metrics.tokens = previous.tokens
         metrics.model_tokens = previous.tokens or 0
         metrics.unknown_model_usage = previous.tokens is None
-    remaining = (
-        value.limits.max_seconds - (datetime.now(timezone.utc) - value.started_at).total_seconds()
-    )
     fenced = {"expected_version": version, "expected_run_id": run_id}
 
     async def checkpoint_usage(*, completed=False):
@@ -546,15 +637,6 @@ async def _guarded_goal_stream(
             current = await checkpoint_usage() or current
             if current is None or not valid(current):
                 raise TaskInterruptedError("Goal was paused or superseded")
-        elapsed = (datetime.now(timezone.utc) - current.started_at).total_seconds()
-        if elapsed >= current.limits.max_seconds or (
-            current.accounting.tokens is not None
-            and current.accounting.tokens >= current.limits.max_tokens
-        ):
-            limited = await service.control(session_id, user_id, "limit", **fenced)
-            if limited:
-                await publish_goal(limited, presenter)
-            raise TaskInterruptedError("Goal budget reached")
 
     metrics.enforce = enforce
     current_owner = asyncio.current_task()
@@ -580,19 +662,13 @@ async def _guarded_goal_stream(
 
     watchdog_task = asyncio.create_task(watchdog())
     try:
-        async with asyncio.timeout(max(0, remaining)):
-            async for event in source:
-                metrics.observe(event)
-                await enforce()
-                yield event
-                resumed_owner = asyncio.current_task()
-                assert resumed_owner is not None
-                owner = resumed_owner
-    except TimeoutError:
-        limited = await service.control(session_id, user_id, "limit", **fenced)
-        if limited:
-            await publish_goal(limited, presenter)
-        raise TaskInterruptedError("Goal time budget reached") from None
+        async for event in source:
+            metrics.observe(event)
+            await enforce()
+            yield event
+            resumed_owner = asyncio.current_task()
+            assert resumed_owner is not None
+            owner = resumed_owner
     except asyncio.CancelledError:
         if stop_reason or lease_state["failure"]:
             raise TaskInterruptedError(stop_reason or lease_state["failure"]) from None
@@ -612,6 +688,7 @@ async def _guarded_goal_stream(
                 await publish_goal(blocked, presenter)
         raise
     else:
+        metrics.unknown_model_usage |= bool(metrics.pending_models)
         if getattr(presenter, "hitl_suspended", False):
             await checkpoint_usage()
             waiting = await service.control(session_id, user_id, "waiting_human", **fenced)
@@ -632,6 +709,7 @@ async def _guarded_goal_stream(
                 usage=None if metrics.unknown_model_usage else metrics.tokens,
                 verdict=getattr(presenter, "goal_verdict", None),
                 tools=metrics.tool_count,
+                main_output_limited=metrics.main_output_limited,
                 progress_signature=metrics.progress_signature,
                 evidence_ready=current_proof
                 and bool(getattr(presenter, "goal_evidence_ready", False)),
@@ -639,13 +717,20 @@ async def _guarded_goal_stream(
             )
             if finished:
                 await publish_goal(finished, presenter)
-                await enqueue_goal(finished)
+                if finished.status == "active":
+                    await enqueue_goal(finished)
     finally:
         watchdog_task.cancel()
         await asyncio.gather(watchdog_task, return_exceptions=True)
-        # Includes cancellation, supersession and budget limits; late usage can only
+        # Cancellation can finalize this stream before a provider's terminal callback arrives.
+        metrics.unknown_model_usage |= bool(metrics.pending_models)
+        # Includes cancellation and supersession; late usage can only
         # reach the same Goal identity's registered run and never replace its state.
         try:
-            await checkpoint_usage(completed=not getattr(presenter, "hitl_suspended", False))
+            accounted = await checkpoint_usage(
+                completed=not getattr(presenter, "hitl_suspended", False)
+            )
+            if accounted and accounted.status == "paused":
+                await publish_goal(accounted, presenter)
         except Exception:
             logger.exception("Goal terminal usage could not be persisted")

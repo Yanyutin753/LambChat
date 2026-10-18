@@ -118,6 +118,64 @@ test("unmount aborts its older history read", () => {
   expect(signal.aborted).toBe(true);
 });
 
+test("pagination preserves an independent scheduled result delivered while the older page was pending", async () => {
+  let finish!: (value: ReturnType<typeof windowFor>) => void;
+  mocks.events.mockReset().mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const deps = dependencies();
+  const { result } = renderHook(() => useHistoryTracePagination(deps));
+  act(() => result.current.recordFirstWindow(windowFor("current")));
+  let pending!: Promise<void>;
+  act(() => {
+    pending = result.current.loadOlderHistory();
+  });
+  const late: Message = {
+    id: "late-result",
+    role: "assistant",
+    content: "scheduled answer",
+    timestamp: new Date("2026-10-15T00:01:00Z"),
+    metadata: { scheduledTaskId: "task" },
+  };
+  deps.messagesRef.current = [late];
+  await act(async () => {
+    finish(windowFor("older"));
+    await pending;
+  });
+  expect(deps.messagesRef.current.map((message) => message.content)).toEqual([
+    "older",
+    "current",
+    "scheduled answer",
+  ]);
+  expect(deps.messagesRef.current[2]).toBe(late);
+});
+
+test("pagination cannot commit a previous account's pending page", async () => {
+  let finish!: (value: ReturnType<typeof windowFor>) => void;
+  mocks.events.mockReset().mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const deps = { ...dependencies(), accountIdRef: { current: "user-a" } };
+  const { result } = renderHook(() => useHistoryTracePagination(deps));
+  act(() => result.current.recordFirstWindow(windowFor("current")));
+  let pending!: Promise<void>;
+  act(() => {
+    pending = result.current.loadOlderHistory();
+  });
+  deps.accountIdRef.current = "user-b";
+  await act(async () => {
+    finish(windowFor("older"));
+    await pending;
+  });
+  expect(deps.setMessages).not.toHaveBeenCalled();
+});
+
 test("journal rejects callbacks from a cleared epoch and covered Redis retries", () => {
   const deps = dependencies();
   const { result } = renderHook(() => useHistoryTracePagination(deps));

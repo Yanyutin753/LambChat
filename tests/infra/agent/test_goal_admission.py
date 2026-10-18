@@ -84,7 +84,9 @@ async def test_arq_rejects_old_goal_before_pending_slots_or_trace(monkeypatch, r
     limiter = _FakeLimiter()
     owner = {"trace_id": "new-trace"}
     executor._run_info["new-human"] = owner
-    manager = SimpleNamespace(_ensure_executor=lambda: executor, _run_info=executor._run_info)
+    manager = SimpleNamespace(
+        _ensure_executor=lambda: executor, _run_info=executor._run_info, storage=executor._storage
+    )
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
     monkeypatch.setattr(

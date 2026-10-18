@@ -201,8 +201,8 @@ def test_compact_descriptions_keep_valid_free_form_object_shapes() -> None:
     update_properties = definitions["scheduled_task_update"]["parameters"]["properties"]
     team_properties = definitions["create_agent_team"]["parameters"]["properties"]
 
-    assert "10-7200" in create_properties["timeout_seconds"]["description"]
-    assert "10-7200" in update_properties["timeout_seconds"]["description"]
+    assert "no total execution time limit" in create_properties["timeout_seconds"]["description"]
+    assert "no total execution time limit" in update_properties["timeout_seconds"]["description"]
 
     trigger_description = update_properties["trigger_config"]["description"]
     assert '{"seconds":300}' in trigger_description

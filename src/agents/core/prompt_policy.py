@@ -1,5 +1,12 @@
 """Canonical compact policy blocks shared by every agent prompt."""
 
+CORRECTNESS_POLICY = (
+    "Check guarantees against adversarial counterexamples; "
+    "distinguish necessary from sufficient conditions. "
+    "For APIs, test specified error types and unchanged state after invalid inputs, "
+    "including failed conversions and numeric limits."
+)
+
 PERSISTENT_STORAGE_POLICY = """## Storage
 
 - `/workflow/<session-id>`: current session workspace for new files.
@@ -16,7 +23,7 @@ This session has no sandbox or operating-system shell. File tools use persistent
 
 SANDBOX_STORAGE_POLICY = """## Storage
 
-- Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads (the file-tool descriptions carry the session workspace path).
+- Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads (see the sandbox workspace context).
 - `/skills/`: virtual Skill storage accessed with file tools (see the file-tool descriptions).
 - `/workspace/.shared/`: persistent per-user dir shared across sessions for reusable assets (shell: `$LAMBCHAT_SHARED`)."""
 
@@ -53,10 +60,8 @@ Check whether a target exists before creating it. Modify an existing project onl
 #: 电脑，不是隔离虚拟机。生产会话 26ed193a 实测：linux daemon 不加任何段时，
 #: 模型自认「隔离沙箱、跟用户电脑完全不连通」，当面否认控制能力还反指用户
 #: 可能中了远控木马——而命令实际就跑在用户机器上。
-#: 缓存纪律：本段注入点在文件工具 description 尾部、排在逐会话 {work_dir}
-#: 之后（SandboxWorkspaceMiddleware），跨会话本无共享前缀可失；注入方式
-#: 一律纯尾部追加（见 sandbox_shell_platform_section），存量会话已缓存字节
-#: 零失效，新会话仅首 turn 一次性多 prefill 本段。
+#: 会话路径、身份与平台提示统一由 SandboxWorkspaceMiddleware 追加到 system
+#: 尾部；工具定义和前面的静态 system 块不包含逐会话路径，便于复用缓存。
 _SANDBOX_LOCAL_MACHINE_IDENTITY = """### Local Machine Sandbox
 
 The sandbox for this session is the user's own real computer (connected via the local desktop daemon), not an isolated virtual machine. Every shell command and file operation executes on the user's actual machine and touches their real files; the daemon may ask the user to confirm each command before it runs.
@@ -104,12 +109,9 @@ def sandbox_shell_platform_section(daemon_platform: str, machine_name: str = "")
     机器名，机器名第五段缺失时只写 OS）——多机用户不再需要按记忆猜会话
     连的是哪台机器。
 
-    KV 缓存纪律：方言段与身份段字节保持历史原样，机器绑定段一律**纯尾部
-    追加**——整段文本经 SandboxWorkspaceMiddleware 落在文件工具 description
-    里、排在逐会话的 {work_dir} 之后，跨会话本就无共享前缀可失；纯追加保
-    证部署时存量会话已缓存的旧字节零失效。绑定段随会话内 daemon 目标机稳
-    定（与平台段同语义）。空串涵盖云端沙箱、daemon 离线与旧版未上报——
-    一律不加段，云端 prompt 逐字节保持现状，也绝不错入 Windows 分支。
+    方言、身份与机器绑定段保持尾部追加，随同会话路径放在 system 尾部，
+    不改变前面的工具定义。绑定段随会话内 daemon 目标机稳定。空串涵盖云端
+    沙箱、daemon 离线与旧版未上报，一律不加段，也绝不错入 Windows 分支。
     """
     if daemon_platform == "win32":
         base = _SANDBOX_SHELL_WIN32 + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
@@ -147,7 +149,8 @@ SAFETY_POLICY = """### Safety, Verification, and Privacy
 # 都挂该中间件，这里再复读一遍等于每个请求双份近逐字注入。
 PROGRESS_POLICY = """### Tool Progress
 For complex/slow/uncertain/external work, give one-line phase updates. Text/tool calls may interleave; never invent results.
-When slow sandbox work (installs, training, long builds) will verify or demo a conceptual answer, state the key concepts in text first, then run and append results."""
+Tool work: take the next concrete tool action after a short plan; do not draft the entire implementation in private reasoning. Iterate from results.
+For slow sandbox concept checks/demos, state the key concepts in text first; then run and append results."""
 
 WORKFLOW_POLICY = "\n\n".join(
     (

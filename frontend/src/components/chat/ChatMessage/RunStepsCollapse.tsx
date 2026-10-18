@@ -2,7 +2,7 @@ import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   formatElapsedCompact,
@@ -21,6 +21,7 @@ export function RunStepsCollapse({
   durationMs,
   startedAtMs = null,
   active = false,
+  awaitingConfirmation = false,
   stopped = false,
   stateKey,
   renderExpanded,
@@ -29,6 +30,7 @@ export function RunStepsCollapse({
   durationMs: number | null;
   startedAtMs?: number | null;
   active?: boolean;
+  awaitingConfirmation?: boolean;
   /** 轮次被插话打断（cancelled）：状态行「已停止」而非「已工作 N」 */
   stopped?: boolean;
   /** 稳定标识（如 message.id）：跨虚拟化卸载复水展开状态 */
@@ -57,10 +59,10 @@ export function RunStepsCollapse({
   }, [active, setExpanded]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || awaitingConfirmation) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [active]);
+  }, [active, awaitingConfirmation]);
 
   const formatElapsed = (ms: number) => {
     const seconds = Math.round(ms / 1000);
@@ -72,7 +74,7 @@ export function RunStepsCollapse({
   const settledDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : null;
   // 流式中优先实时走秒；已完成工具推算出的静态 elapsed 不能盖过 live 计时
-  const showLive = active && startedAtMs !== null;
+  const showLive = active && !awaitingConfirmation && startedAtMs !== null;
   const liveDurationMs = showLive
     ? Math.max(0, nowMs - (startedAtMs as number))
     : null;
@@ -82,27 +84,40 @@ export function RunStepsCollapse({
       ? formatElapsed(settledDurationMs)
       : null;
 
-  const statusText = active
-    ? durationLabel
-      ? t("chat.message.runStepsWorking", { duration: durationLabel })
-      : t("chat.message.runStepsWorkingNoTimer")
-    : stopped
-      ? t("chat.message.runStepsStopped")
-      : durationLabel
-        ? t("chat.message.runStepsSummary", { duration: durationLabel })
-        : t("chat.message.runStepsCount", { count: steps });
+  const statusText = awaitingConfirmation
+    ? t("chat.message.waitingConfirm")
+    : active
+      ? durationLabel
+        ? t("chat.message.runStepsWorking", { duration: durationLabel })
+        : t("chat.message.runStepsWorkingNoTimer")
+      : stopped
+        ? t("chat.message.runStepsStopped")
+        : durationLabel
+          ? t("chat.message.runStepsSummary", { duration: durationLabel })
+          : t("chat.message.runStepsCount", { count: steps });
   const statusClass =
     "min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-16 text-theme-text-secondary";
 
-  if (active) {
+  if (active || awaitingConfirmation) {
     return (
       <div className="run-steps-collapse">
         <div
           role="status"
-          aria-label={t("chat.message.runStepsWorkingNoTimer")}
-          aria-live="off"
+          aria-label={t(
+            awaitingConfirmation
+              ? "chat.message.waitingConfirm"
+              : "chat.message.runStepsWorkingNoTimer",
+          )}
+          aria-live={awaitingConfirmation ? "polite" : "off"}
           className="flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5"
         >
+          {awaitingConfirmation && (
+            <Clock
+              size={14}
+              className="shrink-0 self-center text-theme-text-secondary"
+              aria-hidden="true"
+            />
+          )}
           <span className={statusClass}>{statusText}</span>
         </div>
         <div className="chat-process-detail pt-3">{renderExpanded()}</div>

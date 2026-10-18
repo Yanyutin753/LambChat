@@ -32,6 +32,9 @@ export function filterApprovalsBySession(
 ): PendingApproval[] {
   return approvals.filter(
     (approval) =>
-      approval.session_id == null || approval.session_id === sessionId,
+      approval.session_id == null ||
+      approval.session_id === sessionId ||
+      (Boolean(sessionId) &&
+        approval.metadata?.scheduled_target_session_id === sessionId),
   );
 }

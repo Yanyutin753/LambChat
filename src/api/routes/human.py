@@ -297,7 +297,9 @@ async def get_pending_approvals(
     """
     _cleanup_stale_events()
     pending = await _approval_storage.list_pending(user_id=user.sub, limit=limit)
-    return {"approvals": [a.model_dump() for a in pending], "count": len(pending)}
+    from src.infra.scheduler.results import approval_view
+
+    return {"approvals": [await approval_view(a) for a in pending], "count": len(pending)}
 
 
 @router.post("/{approval_id}/respond")

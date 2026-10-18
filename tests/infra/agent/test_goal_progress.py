@@ -63,14 +63,16 @@ async def goal_rounds(monkeypatch):
     return run
 
 
-async def test_identical_poll_results_block_after_two_stagnant_rounds(monkeypatch):
+async def test_identical_poll_results_block_after_three_stagnant_rounds(monkeypatch):
     run = await goal_rounds(monkeypatch)
     first = await run({"status": "pending", "timestamp": "one"})
     second = await run({"timestamp": "two", "status": "pending"}, copies=3)
     third = await run('{"status":"pending","timestamp":"three"}')
     assert first.stagnant_turns == 0
     assert second.stagnant_turns == 1
-    assert third.status == "blocked"
+    assert third.status == "active"
+    fourth = await run({"status": "pending"})
+    assert fourth.status == "blocked"
     assert (
         first.last_progress_signature
         == second.last_progress_signature
@@ -92,8 +94,10 @@ async def test_failed_tools_do_not_count_as_progress(monkeypatch, result, succes
     first = await run(result, success=success)
     second = await run(result, success=success)
     assert first.stagnant_turns == 1
-    assert second.status == "blocked"
-    assert second.last_progress_signature == ""
+    assert second.status == "active"
+    third = await run(result, success=success)
+    assert third.status == "blocked"
+    assert third.last_progress_signature == ""
 
 
 async def test_changed_observation_resets_stagnation_without_self_reported_progress(monkeypatch):
@@ -113,4 +117,5 @@ async def test_failed_round_does_not_erase_previous_observation(monkeypatch):
     failed = await run({"status": "error"})
     repeated = await run({"status": "pending"})
     assert failed.last_progress_signature == first.last_progress_signature
-    assert repeated.status == "blocked"
+    assert repeated.status == "active"
+    assert (await run({"status": "pending"})).status == "blocked"

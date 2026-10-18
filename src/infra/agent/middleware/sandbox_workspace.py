@@ -1,16 +1,7 @@
-"""Sandbox workspace-path middleware.
-
-Codex-style layering: the session workspace path is environment metadata,
-not persona/system content. It is injected into the description of the most
-relevant file tool (framed, session-stable) so the system prompt stays fully
-static and the provider prompt-cache prefix is not invalidated by per-session
-path values. Falls back to a system-prompt tail block when no file tool is
-part of the request.
-"""
+"""Append session workspace metadata after reusable tool and system content."""
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -20,43 +11,26 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
-from langchain_core.tools import BaseTool
 
-from src.infra.agent.middleware._helpers import _append_system_text_block
-from src.infra.memory.control_frames import escape_control_frame_tags
-
-logger = logging.getLogger(__name__)
-
-# Preference order for which tool carries the workspace metadata: the most
-# commonly used file tools first, so the block lands on a tool the model is
-# virtually guaranteed to see in every request.
-_FILE_TOOL_PRIORITY = (
-    "ls",
-    "read_file",
-    "write_file",
-    "edit_file",
-    "execute",
-    "upload_url_to_sandbox",
-    "reveal_file",
-    "reveal_project",
-    "glob",
-    "grep",
+from src.infra.agent.middleware._helpers import (
+    _SANDBOX_WORKSPACE_FRAME,
+    _append_system_text_block,
+    _normalize_prompt_text,
+    _system_message_to_blocks,
 )
+from src.infra.memory.control_frames import escape_control_frame_tags
 
 
 class SandboxWorkspaceMiddleware(AgentMiddleware):
-    """Attaches the session workspace path to a file tool's description.
+    """Keep per-session paths out of the leading tool definitions."""
 
-    The policy text is session-stable (built once per session from the
-    sandbox work dir), so the tools prefix stays byte-identical across the
-    turns of one conversation.
-    """
-
-    _FRAME_MARKER = "<sandbox_workspace_context>"
+    _FRAME_MARKER = _SANDBOX_WORKSPACE_FRAME
 
     def __init__(self, *, policy_text: str) -> None:
         super().__init__()
-        normalized = escape_control_frame_tags(policy_text.strip()) if policy_text else ""
+        normalized = (
+            escape_control_frame_tags(_normalize_prompt_text(policy_text)) if policy_text else ""
+        )
         self._framed = (
             (
                 f"{self._FRAME_MARKER}\n"
@@ -77,25 +51,12 @@ class SandboxWorkspaceMiddleware(AgentMiddleware):
         if not self._framed:
             return await handler(request)
 
-        tools = list(request.tools)
-        target_index = next(
-            (
-                index
-                for index, tool in enumerate(tools)
-                if getattr(tool, "name", "") in _FILE_TOOL_PRIORITY
-            ),
-            None,
-        )
-        if target_index is not None:
-            target = tools[target_index]
-            if isinstance(target, BaseTool):
-                base_description = target.description or ""
-                if self._FRAME_MARKER not in base_description:
-                    tools[target_index] = target.model_copy(
-                        update={"description": f"{base_description}\n\n{self._framed}"}
-                    )
-                    request = request.override(tools=tools)
-                return await handler(request)
+        if any(
+            isinstance(block, dict) and block.get("text") == self._framed
+            for block in _system_message_to_blocks(request.system_message)
+        ):
+            return await handler(request)
+        # Anthropic caches tools before system; a path in the first tool breaks both prefixes.
         system_message = _append_system_text_block(request.system_message, self._framed)
         request = request.override(system_message=system_message)
         return await handler(request)

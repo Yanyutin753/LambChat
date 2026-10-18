@@ -23,8 +23,8 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::release_signature::{verify_package, verify_release, SignedAsset, MAX_MANIFEST_BYTES};
 use serde::Serialize;
-use crate::release_signature::{SignedAsset, verify_release, verify_package, MAX_MANIFEST_BYTES};
 use tauri::{AppHandle, Emitter};
 
 /// 前端消费的安装来源词汇表（invoke 返回值；unknown 回落下载页）。
@@ -192,21 +192,39 @@ fn ensure_rustls_provider() {
 }
 
 /// 更新包缓存目录：`$XDG_CACHE_HOME/lambchat/updates`（默认
-/// `~/.cache/lambchat/updates`），取不到家目录时回落系统临时目录。
-/// 版本化资产名即缓存键——同一版本只下载一次，装完清空。
-fn update_cache_dir() -> PathBuf {
+/// `~/.cache/lambchat/updates`）。取不到家目录时**报错而非回落 /tmp**：
+/// 共享临时目录可被同机其他用户预占（目录属主攻击），叠加安装链路即
+/// 无需任何代码执行也能投毒。unix 下再校验已存在目录的属主——不是
+/// 当前 euid 即拒绝使用。版本化资产名即缓存键——同一版本只下载一次，
+/// 装完清空。
+fn update_cache_dir() -> Result<PathBuf, String> {
     let base = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| PathBuf::from(h).join(".cache"))
-        })
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("lambchat").join("updates")
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
+        .ok_or_else(|| {
+            "cannot locate update cache: neither XDG_CACHE_HOME nor HOME is set".to_string()
+        })?;
+    let dir = base.join("lambchat").join("updates");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::metadata(&dir) {
+            let euid = unsafe { libc::geteuid() };
+            if meta.uid() != euid {
+                return Err(format!(
+                    "update cache {} is owned by uid {} (not this user); refusing to use it",
+                    dir.display(),
+                    meta.uid()
+                ));
+            }
+        }
+    }
+    Ok(dir)
 }
 
 /// 清空缓存目录里的更新包（安装成功后调用；目录不存在为幂等成功）。
+/// 同时清掉安装暂存目录（`stage_verified_copy` 的 `.install-*`）。
 fn clear_update_cache(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -215,6 +233,8 @@ fn clear_update_cache(dir: &Path) {
         let path = entry.path();
         if path.is_file() {
             let _ = std::fs::remove_file(&path);
+        } else if path.is_dir() {
+            let _ = std::fs::remove_dir_all(&path);
         }
     }
 }
@@ -233,7 +253,9 @@ fn remove_stale_packages(dir: &Path, keep: &Path) {
 }
 
 fn package_version(asset: &str, arch: &str) -> Result<String, String> {
-    let version_and_suffix = asset.strip_prefix("LambChat-v").ok_or("Invalid update asset")?;
+    let version_and_suffix = asset
+        .strip_prefix("LambChat-v")
+        .ok_or("Invalid update asset")?;
     for kind in [SOURCE_DEB, SOURCE_RPM] {
         if let Some(version) = version_and_suffix.strip_suffix(&format!("-Linux-{arch}.{kind}")) {
             crate::release_signature::release_version_parts(version)?;
@@ -243,22 +265,41 @@ fn package_version(asset: &str, arch: &str) -> Result<String, String> {
     Err("Update asset does not match this Linux architecture".into())
 }
 
-fn signed_metadata_urls(url: &str, asset: &str, version: &str) -> Result<(reqwest::Url, reqwest::Url), String> {
+fn signed_metadata_urls(
+    url: &str,
+    asset: &str,
+    version: &str,
+) -> Result<(reqwest::Url, reqwest::Url), String> {
     let url = reqwest::Url::parse(url).map_err(|_| "Invalid update URL")?;
-    let loopback = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]" | "::1"));
-    if (url.scheme() != "https" && !(cfg!(debug_assertions) && loopback && url.scheme() == "http")) || url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+    let loopback = matches!(
+        url.host_str(),
+        Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
+    );
+    if (url.scheme() != "https" && !(cfg!(debug_assertions) && loopback && url.scheme() == "http"))
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
         return Err("Update URL requires HTTPS".into());
     }
     let path = format!("/api/version/assets/{asset}/download");
-    let prefix = url.path().strip_suffix(&path).ok_or("Invalid release proxy URL")?;
+    let prefix = url
+        .path()
+        .strip_suffix(&path)
+        .ok_or("Invalid release proxy URL")?;
     let params: Vec<_> = url.query_pairs().collect();
     if params.len() != 1 || params[0].0 != "tag" || params[0].1 != format!("v{version}") {
         return Err("Update URL must select the exact release tag".into());
     }
     let mut manifest = url.clone();
-    manifest.set_path(&format!("{prefix}/api/version/assets/release-security.json/download"));
+    manifest.set_path(&format!(
+        "{prefix}/api/version/assets/release-security.json/download"
+    ));
     let mut signature = url.clone();
-    signature.set_path(&format!("{prefix}/api/version/assets/release-security.json.sig/download"));
+    signature.set_path(&format!(
+        "{prefix}/api/version/assets/release-security.json.sig/download"
+    ));
     Ok((manifest, signature))
 }
 
@@ -271,35 +312,78 @@ fn update_http_client(url: &reqwest::Url) -> Result<reqwest::Client, String> {
         .timeout(DOWNLOAD_TIMEOUT)
         .redirect(reqwest::redirect::Policy::custom(move |attempt| {
             let target = attempt.url();
-            let github = target.scheme() == "https" && target.port_or_known_default() == Some(443) && matches!(target.host_str(), Some("github.com" | "api.github.com" | "objects.githubusercontent.com" | "release-assets.githubusercontent.com"));
-            if attempt.previous().len() >= 5 || !target.username().is_empty() || target.password().is_some() || !(target.origin() == origin || github) {
+            let github = target.scheme() == "https"
+                && target.port_or_known_default() == Some(443)
+                && matches!(
+                    target.host_str(),
+                    Some(
+                        "github.com"
+                            | "api.github.com"
+                            | "objects.githubusercontent.com"
+                            | "release-assets.githubusercontent.com"
+                    )
+                );
+            if attempt.previous().len() >= 5
+                || !target.username().is_empty()
+                || target.password().is_some()
+                || !(target.origin() == origin || github)
+            {
                 attempt.error("Untrusted update redirect")
             } else {
                 attempt.follow()
             }
         }))
-        .build().map_err(|_| "Failed to build update client".into())
+        .build()
+        .map_err(|_| "Failed to build update client".into())
 }
 
-async fn fetch_release_metadata(client: &reqwest::Client, url: reqwest::Url, limit: usize) -> Result<Vec<u8>, String> {
-    let mut response = client.get(url).send().await.map_err(|_| "Release metadata request failed")?;
-    if !response.status().is_success() { return Err(format!("Release metadata HTTP {}", response.status())); }
-    if response.content_length().is_some_and(|length| length > limit as u64) { return Err("Release metadata too large".into()); }
+async fn fetch_release_metadata(
+    client: &reqwest::Client,
+    url: reqwest::Url,
+    limit: usize,
+) -> Result<Vec<u8>, String> {
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|_| "Release metadata request failed")?;
+    if !response.status().is_success() {
+        return Err(format!("Release metadata HTTP {}", response.status()));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Err("Release metadata too large".into());
+    }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| "Release metadata stream failed")? {
-        if bytes.len() + chunk.len() > limit { return Err("Release metadata too large".into()); }
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "Release metadata stream failed")?
+    {
+        if bytes.len() + chunk.len() > limit {
+            return Err("Release metadata too large".into());
+        }
         bytes.extend_from_slice(&chunk);
     }
     Ok(bytes)
 }
 
 fn read_cached_metadata(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|_| "Signed release metadata not cached")?;
-    if !metadata.is_file() || metadata.len() > limit as u64 { return Err("Invalid cached release metadata".into()); }
+    let metadata =
+        std::fs::symlink_metadata(path).map_err(|_| "Signed release metadata not cached")?;
+    if !metadata.is_file() || metadata.len() > limit as u64 {
+        return Err("Invalid cached release metadata".into());
+    }
     let file = std::fs::File::open(path).map_err(|_| "Cannot read signed release metadata")?;
     let mut bytes = Vec::new();
-    file.take(limit as u64 + 1).read_to_end(&mut bytes).map_err(|_| "Cannot read signed release metadata")?;
-    if bytes.len() > limit { return Err("Release metadata too large".into()); }
+    file.take(limit as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "Cannot read signed release metadata")?;
+    if bytes.len() > limit {
+        return Err("Release metadata too large".into());
+    }
     Ok(bytes)
 }
 
@@ -329,10 +413,7 @@ where
     if path.is_file() && verify_package(&path, signed).is_ok() {
         // Only verified cached bytes may be reused.
         // 缓存命中：推一次终值进度（UI 直接到 100%），不发网络请求
-        let size = path
-            .metadata()
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let size = path.metadata().map(|m| m.len()).unwrap_or(0);
         on_progress(size, size);
         return Ok((path, false));
     }
@@ -347,13 +428,19 @@ where
     if !resp.status().is_success() {
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
-    if resp.content_length().is_some_and(|size| size != signed.size) {
+    if resp
+        .content_length()
+        .is_some_and(|size| size != signed.size)
+    {
         return Err("Update package size does not match signed release".into());
     }
     let content_length = signed.size;
     let part_path = cache_dir.join(format!("{file_name}.{}.part", uuid::Uuid::new_v4()));
     let _partial = PartialDownload(part_path.clone());
-    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&part_path)
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&part_path)
         .map_err(|e| format!("create {}: {e}", part_path.display()))?;
 
     let mut downloaded: u64 = 0;
@@ -393,8 +480,7 @@ where
         return Err(error);
     }
     // 完整落盘后才改终名（= 完整性标记），并顺手清掉旧版本残留包
-    std::fs::rename(&part_path, &path)
-        .map_err(|e| format!("finalize {}: {e}", path.display()))?;
+    std::fs::rename(&part_path, &path).map_err(|e| format!("finalize {}: {e}", path.display()))?;
     remove_stale_packages(cache_dir, &path);
     // 收尾事件：让 UI 的 downloaded/content_length 落到终值
     on_progress(downloaded, content_length);
@@ -404,13 +490,16 @@ where
 /// 调起安装器（argv[0] 为程序名：pkcon 直接跑，apt/dnf 等由 pkexec 拉起）。
 ///
 /// stderr 由独立线程持续排空（dnf 进度输出可超管道缓冲，不排空会写阻塞
-/// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时 kill 兜底。
+/// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时**按进程组** kill：
+/// pkexec 拉起的 root 目标命令是孙进程，只杀 pkcon/pkexec 本体会让 root
+/// apt/dnf 变孤儿——与下一级回退并发抢包管理器锁，报出费解的锁冲突。
 fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
+    use command_group::CommandGroup;
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .spawn()
+        .group_spawn()
         .map_err(|e| {
             format!(
                 "failed to spawn {} ({e}); 系统缺少 polkit 授权组件，\
@@ -420,10 +509,7 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
         })?;
 
     // stderr 排空线程：try_wait 轮询期间子进程的输出不能积压在管道里
-    let mut stderr_pipe = child
-        .stderr
-        .take()
-        .expect("stderr piped above");
+    let mut stderr_pipe = child.inner().stderr.take().expect("stderr piped above");
     let stderr_buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let buf_clone = Arc::clone(&stderr_buf);
     let drain = std::thread::spawn(move || {
@@ -459,9 +545,13 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
     if status.success() {
         return Ok(());
     }
-    let stderr = String::from_utf8_lossy(&stderr_buf.lock().unwrap()).trim().to_string();
+    let stderr = String::from_utf8_lossy(&stderr_buf.lock().unwrap())
+        .trim()
+        .to_string();
     if stderr.is_empty() {
-        Err(format!("installer exited with {status}（polkit 授权被取消？）"))
+        Err(format!(
+            "installer exited with {status}（polkit 授权被取消？）"
+        ))
     } else {
         Err(format!("installer exited with {status}: {stderr}"))
     }
@@ -493,11 +583,18 @@ pub async fn download_linux_package(
     let client = update_http_client(&manifest_url)?;
     let manifest = fetch_release_metadata(&client, manifest_url, MAX_MANIFEST_BYTES).await?;
     let signature = fetch_release_metadata(&client, signature_url, 64).await?;
-    let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
+    let signed = verify_release(
+        &manifest,
+        &signature,
+        &version,
+        &asset_name,
+        option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")),
+    )?;
+    let cache_dir = update_cache_dir()?;
     let app_for_progress = app.clone();
-    let (_path, downloaded) = download_update_package(
+    let first = download_update_package(
         &url,
-        &update_cache_dir(),
+        &cache_dir,
         &asset_name,
         &signed,
         move |downloaded, content_length| {
@@ -510,10 +607,41 @@ pub async fn download_linux_package(
             );
         },
     )
-    .await?;
-    let cache = update_cache_dir();
-    std::fs::write(cache.join(format!("{asset_name}.security.json")), manifest).map_err(|_| "Cannot cache release signature")?;
-    std::fs::write(cache.join(format!("{asset_name}.security.sig")), signature).map_err(|_| "Cannot cache release signature")?;
+    .await;
+    let (_path, downloaded) = match first {
+        Ok(ok) => ok,
+        Err(first_err) => {
+            // 百 MB 级包在慢网/抖动下「一次失败即全量作废」会把长尾用户
+            // 永远留在旧版本（下次自动尝试要等最长 12h 周期）：退避 2s
+            // 重试一次，再失败才上抛（两次的错误都保留）。
+            tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_secs(2)))
+                .await
+                .ok();
+            let app_retry = app.clone();
+            download_update_package(
+                &url,
+                &cache_dir,
+                &asset_name,
+                &signed,
+                move |downloaded, content_length| {
+                    let _ = app_retry.emit(
+                        PROGRESS_EVENT,
+                        ProgressPayload {
+                            downloaded,
+                            content_length,
+                        },
+                    );
+                },
+            )
+            .await
+            .map_err(|retry_err| format!("{first_err}; retry also failed: {retry_err}"))?
+        }
+    };
+    let cache = update_cache_dir()?;
+    std::fs::write(cache.join(format!("{asset_name}.security.json")), manifest)
+        .map_err(|_| "Cannot cache release signature")?;
+    std::fs::write(cache.join(format!("{asset_name}.security.sig")), signature)
+        .map_err(|_| "Cannot cache release signature")?;
     Ok(downloaded)
 }
 
@@ -521,8 +649,52 @@ fn requires_package_replacement(target: &str, current: &str) -> bool {
     target.split("-dev.").next() == current.split("-dev.").next()
 }
 
+/// 目录权限收紧到仅属主（unix 0700；Windows 缓存本就在用户 Profile 下）。
+fn set_dir_private(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+/// 安装前私有副本（TOCTOU 缓解）：缓存目录是用户可写的，「哈希校验通过」
+/// 与「包管理器以 root 读取」之间隔着整个 polkit 授权窗口（最长 20min），
+/// 同用户恶意进程可在窗口内调包——校验过的和被安装的不是同一个文件。
+/// 全新 0700 随名目录隔离其他用户，复制后重验防止复制期间内容改变。
+/// shortcut: 同用户进程仍可在整个 polkit 授权等待期间调包；根治时须由
+/// root 属主的提权侧 helper 先验后装（需要打包链改造）。
+fn stage_verified_copy(
+    cache: &Path,
+    verified: &Path,
+    signed: &SignedAsset,
+) -> Result<PathBuf, String> {
+    let staging_dir = cache.join(format!(".install-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&staging_dir)
+        .and_then(|_| set_dir_private(&staging_dir))
+        .map_err(|e| format!("create {}: {e}", staging_dir.display()))?;
+    let staged = staging_dir.join(
+        verified
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("package")),
+    );
+    std::fs::copy(verified, &staged).map_err(|e| format!("stage {}: {e}", staged.display()))?;
+    if let Err(e) = verify_package(&staged, signed) {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+        return Err(e);
+    }
+    Ok(staged)
+}
+
 /// 从缓存安装 deb/rpm 更新包（pkcon → pkexec 包管理器 → 底层工具三级
-/// 回退；成功后清空缓存，调用方 relaunch 进新版）。
+/// 回退；成功后清空缓存，调用方 relaunch 进新版）。逐级失败原因全部
+/// 收集返回——pkcon 阶段的错误（依赖冲突/磁盘满）往往最能说明问题，
+/// 只报最后一级会让用户对着「授权被取消？」的猜测文案排查错方向。
 #[tauri::command]
 pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(), String> {
     if kind != SOURCE_DEB && kind != SOURCE_RPM {
@@ -530,38 +702,61 @@ pub async fn install_linux_package(asset_name: String, kind: String) -> Result<(
     }
     let arch = release_asset_arch().ok_or("Unsupported Linux architecture")?;
     let version = package_version(&asset_name, arch)?;
-    if !asset_name.ends_with(&format!(".{kind}")) { return Err("Update package kind mismatch".into()); }
-    let cache = update_cache_dir();
-    let manifest = read_cached_metadata(&cache.join(format!("{asset_name}.security.json")), MAX_MANIFEST_BYTES)?;
+    if !asset_name.ends_with(&format!(".{kind}")) {
+        return Err("Update package kind mismatch".into());
+    }
+    let cache = update_cache_dir()?;
+    let manifest = read_cached_metadata(
+        &cache.join(format!("{asset_name}.security.json")),
+        MAX_MANIFEST_BYTES,
+    )?;
     let signature = read_cached_metadata(&cache.join(format!("{asset_name}.security.sig")), 64)?;
-    let signed = verify_release(&manifest, &signature, &version, &asset_name, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))?;
+    let signed = verify_release(
+        &manifest,
+        &signature,
+        &version,
+        &asset_name,
+        option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")),
+    )?;
     let path = cache.join(&asset_name);
     verify_package(&path, &signed)?;
+    let install_path = stage_verified_copy(&cache, &path, &signed)?;
 
-    let chains = installer_argv_chain(&kind, &path)
+    let chains = installer_argv_chain(&kind, &install_path)
         .ok_or_else(|| format!("unsupported package kind: {kind}"))?;
     // Package managers may report success without installing another same-core dev build.
-    let chains = if requires_package_replacement(&version, option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))) {
+    let chains = if requires_package_replacement(
+        &version,
+        option_env!("LAMBCHAT_RELEASE_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")),
+    ) {
         chains.into_iter().rev().take(1).collect()
-    } else { chains };
-    let mut last_err = String::new();
+    } else {
+        chains
+    };
+    let mut attempts: Vec<(String, String)> = Vec::new();
     for argv in chains {
         // pkexec/pkcon 授权是阻塞轮询（≤20min 授权窗口），挪出 async 线程
+        let tool = argv.first().cloned().unwrap_or_else(|| "installer".into());
         let argv_clone = argv.clone();
         let result =
-            tauri::async_runtime::spawn_blocking(move || run_pkexec_installer(&argv_clone))
-                .await;
+            tauri::async_runtime::spawn_blocking(move || run_pkexec_installer(&argv_clone)).await;
         match result {
             Ok(Ok(())) => {
                 // 装完即清：新版本已生效，缓存使命完成
-                clear_update_cache(&update_cache_dir());
+                clear_update_cache(&update_cache_dir()?);
                 return Ok(());
             }
-            Ok(Err(e)) => last_err = e,
-            Err(e) => last_err = format!("installer task failed: {e}"),
+            Ok(Err(e)) => attempts.push((tool, e)),
+            Err(e) => attempts.push((tool, format!("installer task failed: {e}"))),
         }
     }
-    Err(format!("all install attempts failed; last: {last_err}"))
+    let _ = std::fs::remove_dir_all(install_path.parent().unwrap_or(Path::new("/")));
+    let details = attempts
+        .iter()
+        .map(|(tool, e)| format!("{tool}: {e}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(format!("all install attempts failed: {details}"))
 }
 
 #[cfg(test)]
@@ -577,8 +772,16 @@ mod tests {
 
     #[test]
     fn linux_release_identity_rejects_wrong_arch_and_paths() {
-        assert_eq!(package_version("LambChat-v2.15.0-Linux-arm64.deb", "arm64").unwrap(), "2.15.0");
-        for asset in ["LambChat-v2.15.0-Linux-x86_64.deb", "../package.deb", "LambChat-vbad-Linux-arm64.deb", "LambChat-v2.15.0-Linux-arm64.exe"] {
+        assert_eq!(
+            package_version("LambChat-v2.15.0-Linux-arm64.deb", "arm64").unwrap(),
+            "2.15.0"
+        );
+        for asset in [
+            "LambChat-v2.15.0-Linux-x86_64.deb",
+            "../package.deb",
+            "LambChat-vbad-Linux-arm64.deb",
+            "LambChat-v2.15.0-Linux-arm64.exe",
+        ] {
             assert!(package_version(asset, "arm64").is_err());
         }
     }
@@ -588,9 +791,19 @@ mod tests {
         let asset = "LambChat-v2.15.0-Linux-arm64.deb";
         let url = format!("https://lambchat.com/api/version/assets/{asset}/download?tag=v2.15.0");
         let urls = signed_metadata_urls(&url, asset, "2.15.0").unwrap();
-        assert_eq!(urls.0.as_str(), "https://lambchat.com/api/version/assets/release-security.json/download?tag=v2.15.0");
+        assert_eq!(
+            urls.0.as_str(),
+            "https://lambchat.com/api/version/assets/release-security.json/download?tag=v2.15.0"
+        );
         assert_eq!(urls.1.as_str(), "https://lambchat.com/api/version/assets/release-security.json.sig/download?tag=v2.15.0");
-        for url in [format!("http://evil.example/api/version/assets/{asset}/download?tag=v2.15.0"), format!("https://lambchat.com/api/version/assets/{asset}/download?tag=v2.14.0"), format!("https://lambchat.com/arbitrary?tag=v2.15.0"), format!("https://user:pass@lambchat.com/api/version/assets/{asset}/download?tag=v2.15.0")] {
+        for url in [
+            format!("http://evil.example/api/version/assets/{asset}/download?tag=v2.15.0"),
+            format!("https://lambchat.com/api/version/assets/{asset}/download?tag=v2.14.0"),
+            format!("https://lambchat.com/arbitrary?tag=v2.15.0"),
+            format!(
+                "https://user:pass@lambchat.com/api/version/assets/{asset}/download?tag=v2.15.0"
+            ),
+        ] {
             assert!(signed_metadata_urls(&url, asset, "2.15.0").is_err());
         }
     }
@@ -634,14 +847,21 @@ mod tests {
 
     #[test]
     fn installer_argv_chain_falls_back_pkcon_then_manager_then_lowlevel() {
-        let deb = installer_argv_chain(SOURCE_DEB, Path::new("/cache/lambchat-update.deb")).unwrap();
+        let deb =
+            installer_argv_chain(SOURCE_DEB, Path::new("/cache/lambchat-update.deb")).unwrap();
         assert_eq!(
             deb[0],
             vec!["pkcon", "install-local", "-y", "/cache/lambchat-update.deb"]
         );
         assert_eq!(
             deb[1],
-            vec!["pkexec", "apt", "install", "-y", "/cache/lambchat-update.deb"]
+            vec![
+                "pkexec",
+                "apt",
+                "install",
+                "-y",
+                "/cache/lambchat-update.deb"
+            ]
         );
         assert_eq!(
             deb[2],
@@ -649,7 +869,10 @@ mod tests {
         );
         let rpm = installer_argv_chain(SOURCE_RPM, Path::new("/cache/x.rpm")).unwrap();
         assert_eq!(rpm[0][0], "pkcon");
-        assert_eq!(rpm[1], vec!["pkexec", "dnf", "install", "-y", "/cache/x.rpm"]);
+        assert_eq!(
+            rpm[1],
+            vec!["pkexec", "dnf", "install", "-y", "/cache/x.rpm"]
+        );
         assert_eq!(
             rpm[2],
             vec!["pkexec", "rpm", "-U", "--replacepkgs", "/cache/x.rpm"]
@@ -662,7 +885,10 @@ mod tests {
     fn release_asset_arch_matches_workflow_vocabulary() {
         // 本机构建机必在受支持架构内；词汇表与 app-release.yml 一致
         let arch = release_asset_arch().expect("host arch must be supported");
-        assert!(arch == "x86_64" || arch == "arm64", "unexpected arch {arch}");
+        assert!(
+            arch == "x86_64" || arch == "arm64",
+            "unexpected arch {arch}"
+        );
     }
 
     /// 起一个单连接本地 HTTP 服务：回指定状态行/头 + 分两段写 body
@@ -673,7 +899,9 @@ mod tests {
         let head = status_and_headers.as_bytes().to_vec();
         let body = body.to_vec();
         std::thread::spawn(move || {
-            let Ok((mut stream, _)) = listener.accept() else { return };
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
             // 读完请求头再响应，避免立刻回写导致对端 RST。
             // 注意：先追加再判帧——读到请求头后对端不会再发数据，
             // 判旧缓冲会永久阻塞在第二次 read（首次集成即踩中）
@@ -705,11 +933,7 @@ mod tests {
             "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n",
             b"hello",
         );
-        let addr = url
-            .trim_start_matches("http://")
-            .split('/')
-            .next()
-            .unwrap();
+        let addr = url.trim_start_matches("http://").split('/').next().unwrap();
         let mut stream = std::net::TcpStream::connect(addr).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(10)))
@@ -746,16 +970,28 @@ mod tests {
     fn signed_asset(body: &[u8]) -> crate::release_signature::SignedAsset {
         crate::release_signature::SignedAsset {
             size: body.len() as u64,
-            sha256: ring::digest::digest(&ring::digest::SHA256, body).as_ref().iter().map(|b| format!("{b:02x}")).collect(),
+            sha256: ring::digest::digest(&ring::digest::SHA256, body)
+                .as_ref()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
         }
     }
 
     #[test]
     fn download_rejects_unsigned_bytes_and_oversize_body() {
         for body in [b"evil".as_slice(), b"good-plus".as_slice()] {
-            let url = spawn_chunked_http_server("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", body);
+            let url =
+                spawn_chunked_http_server("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", body);
             let dir = test_cache_dir("forged");
-            assert!(tauri::async_runtime::block_on(download_update_package(&url, &dir, "package.deb", &signed_asset(b"good"), |_, _| {})).is_err());
+            assert!(tauri::async_runtime::block_on(download_update_package(
+                &url,
+                &dir,
+                "package.deb",
+                &signed_asset(b"good"),
+                |_, _| {}
+            ))
+            .is_err());
             assert!(!dir.join("package.deb").exists());
             let _ = std::fs::remove_dir_all(dir);
         }
@@ -763,10 +999,24 @@ mod tests {
 
     #[test]
     fn interrupted_download_removes_partial_file() {
-        let url = spawn_chunked_http_server("HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\n", b"short");
+        let url = spawn_chunked_http_server(
+            "HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\n",
+            b"short",
+        );
         let dir = test_cache_dir("interrupted");
-        assert!(tauri::async_runtime::block_on(download_update_package(&url, &dir, "package.deb", &signed_asset(b"package"), |_, _| {})).is_err());
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "failed stream must not leave partial bytes");
+        assert!(tauri::async_runtime::block_on(download_update_package(
+            &url,
+            &dir,
+            "package.deb",
+            &signed_asset(b"package"),
+            |_, _| {}
+        ))
+        .is_err());
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            0,
+            "failed stream must not leave partial bytes"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

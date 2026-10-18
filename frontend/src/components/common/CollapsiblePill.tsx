@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { InteractiveIcon } from "./InteractiveIcon";
 import { clsx } from "clsx";
-import { Children, useId, useState } from "react";
+import { Children, useEffect, useId, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 
 export type CollapsibleStatus =
@@ -49,6 +49,12 @@ export function CollapsiblePill({
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const contentId = useId();
+  const descriptionRef = useRef<HTMLSpanElement>(null);
+  const streamingThinking = _variant === "thinking" && status === "loading";
+  useEffect(() => {
+    const node = descriptionRef.current;
+    if (node) node.scrollLeft = streamingThinking ? node.scrollWidth : 0;
+  }, [description, streamingThinking]);
   const hasChildren = Children.toArray(children).length > 0;
 
   const handleToggle = () => {
@@ -109,7 +115,13 @@ export function CollapsiblePill({
           {description ? (
             <>
               <span className="shrink-0">{displayedLabel}</span>
-              <span className="min-w-0 truncate font-normal text-theme-text-secondary">
+              <span
+                ref={descriptionRef}
+                className={clsx(
+                  "min-w-0 truncate font-normal text-theme-text-secondary",
+                  streamingThinking && "text-clip",
+                )}
+              >
                 {description}
               </span>
             </>

@@ -11,6 +11,22 @@
 import type { Message } from "../../types";
 import { clearAllLoadingStates } from "./messageParts";
 
+export function settleRunMessages(
+  messages: Message[],
+  runId: string | null,
+): Message[] {
+  return messages.map((message) =>
+    message.metadata?.scheduledTaskId ||
+    (runId && message.runId && message.runId !== runId)
+      ? message
+      : {
+          ...message,
+          isStreaming: false,
+          parts: clearAllLoadingStates(message.parts || []),
+        },
+  );
+}
+
 /** Whether an assistant message carries anything renderable besides
  *  recommend-questions suggestions (those render under the last message,
  *  never as a standalone turn). */

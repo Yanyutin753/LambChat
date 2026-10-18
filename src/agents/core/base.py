@@ -6,6 +6,7 @@ Graph Agent 基类
 """
 
 import asyncio
+import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
@@ -220,8 +221,9 @@ class BaseGraphAgent(ABC):
         if run_id is not None:
             # 取消特定的 stream_task
             task = self._stream_tasks.pop(run_id, None)
-            if task and not task.done():
-                task.cancel()
+            if task:
+                if not task.done():
+                    task.cancel()
                 try:
                     await task
                 except (asyncio.CancelledError, Exception):
@@ -232,16 +234,17 @@ class BaseGraphAgent(ABC):
             for _, task in list(self._stream_tasks.items()):
                 if not task.done():
                     task.cancel()
-                    try:
-                        await task
-                    except (asyncio.CancelledError, Exception):
-                        pass
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
             self._stream_tasks.clear()
 
             # 取消后台清理任务（MemorySaver fallback 时会创建）
             cleanup_task = getattr(self, "_cleanup_task", None)
-            if cleanup_task is not None and not cleanup_task.done():
-                cleanup_task.cancel()
+            if cleanup_task is not None:
+                if not cleanup_task.done():
+                    cleanup_task.cancel()
                 try:
                     await cleanup_task
                 except asyncio.CancelledError:
@@ -408,16 +411,9 @@ class BaseGraphAgent(ABC):
                 "recursion_limit": self.recursion_limit,
             }
             callbacks: list[Any] = [langfuse_handler] if langfuse_handler is not None else []
-            from src.infra.goal_runtime import GOAL_RUN_LEASE, BackgroundLeaseCallback
+            from src.infra.goal_runtime import execution_guard_callbacks
 
-            lease_state = GOAL_RUN_LEASE.get()
-            if lease_state is not None and lease_state.get("kind") == "background":
-                callbacks.append(BackgroundLeaseCallback(lease_state))
-            goal_metrics = getattr(presenter, "persistent_goal_metrics", None)
-            if goal_metrics is not None:
-                from src.infra.goal_runtime import GoalUsageCallback
-
-                callbacks.append(GoalUsageCallback(goal_metrics))
+            callbacks.extend(execution_guard_callbacks(presenter))
             if callbacks:
                 config["callbacks"] = callbacks
 
@@ -440,8 +436,10 @@ class BaseGraphAgent(ABC):
 
             # 使用队列来传递事件（限制大小防止消费者慢时内存无限增长）
             event_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
-            stream_error = None
+            stream_error: Exception | None = None
             stream_done = False
+            agent_handoff: dict[str, Any] | None = None
+            run_started_at = time.time()
 
             def put_terminal_queue_item(item: tuple[str, Any]) -> None:
                 """Put terminal wake-up items without blocking on a full event queue."""
@@ -468,7 +466,8 @@ class BaseGraphAgent(ABC):
                         # 在生产事件时检查中断
                         await BackgroundTaskManager.check_interrupt(presenter.run_id)
                         await event_queue.put(("event", event))
-                except TaskInterruptedError:
+                except TaskInterruptedError as exc:
+                    stream_error = exc
                     raise
                 except asyncio.CancelledError:
                     raise
@@ -543,6 +542,8 @@ class BaseGraphAgent(ABC):
                     item_type, item_data = item
 
                     if item_type == "done":
+                        if stream_error is not None:
+                            raise stream_error
                         if BackgroundTaskManager.check_interrupt_fast(presenter.run_id):
                             raise TaskInterruptedError(
                                 f"Task interrupted: run_id={presenter.run_id}"
@@ -554,6 +555,14 @@ class BaseGraphAgent(ABC):
 
                     # 使用 AgentEventProcessor 处理事件
                     await event_processor.process_event(item_data)
+                    if (
+                        item_data.get("event") == "on_chain_end"
+                        and item_data.get("parent_ids") == []
+                    ):
+                        result = item_data.get("data", {}).get("output")
+                        handoff = result.get("agent_handoff") if isinstance(result, dict) else None
+                        if isinstance(handoff, dict) and handoff.get("agent_id") == "search":
+                            agent_handoff = handoff
 
             except (asyncio.CancelledError, TaskInterruptedError) as exc:
                 terminal_error = exc
@@ -568,15 +577,21 @@ class BaseGraphAgent(ABC):
                 self._stream_tasks.pop(presenter.run_id, None)
                 if not stream_task.done():
                     stream_task.cancel()
-                    try:
-                        await stream_task
-                    except (asyncio.CancelledError, TaskInterruptedError):
-                        pass
+                try:
+                    await stream_task
+                except (asyncio.CancelledError, TaskInterruptedError):
+                    pass
                 # Flush pending chunks and clear event_processor memory
-                await event_processor.finalize()
-                await emit_usage_once()
+                try:
+                    await event_processor.finalize()
+                finally:
+                    try:
+                        await emit_usage_once()
+                    finally:
+                        if getattr(presenter, "_usage_accounting_owner", None) is event_processor:
+                            presenter._usage_accounting_owner = None
                 # goal:end 必须在 done 之前发出，保证事件顺序正确
-                if active_goal is not None:
+                if active_goal is not None and agent_handoff is None:
                     goal_end_data = {
                         "goal": active_goal,
                         "started_at": goal_started_at,
@@ -587,8 +602,19 @@ class BaseGraphAgent(ABC):
                         "data": goal_end_data,
                     }
                     await presenter.emit(goal_end_evt)
-                if terminal_error is None:
+                if terminal_error is None and agent_handoff is None:
                     await presenter.emit(presenter.done())
+
+            if agent_handoff is not None:
+                yield {
+                    "event": "agent:handoff",
+                    "data": {
+                        **agent_handoff,
+                        "prior_usage": event_processor.usage_totals(),
+                        "run_started_at": run_started_at,
+                    },
+                }
+                return
 
             # 先 yield goal:end，再 yield done
             if active_goal is not None:

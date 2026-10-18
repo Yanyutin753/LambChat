@@ -90,7 +90,11 @@ test("replayed agent calls keep one live stack entry until the execution complet
   handleStreamEvent(
     {
       event: "agent:result",
-      data: JSON.stringify({ agent_id: "stable-agent", result: "done", depth: 1 }),
+      data: JSON.stringify({
+        agent_id: "stable-agent",
+        result: "done",
+        depth: 1,
+      }),
     },
     "assistant-1",
     "result-1",
@@ -195,6 +199,36 @@ test("renders approval_required from the SSE payload when approval lookup is una
   );
   vi.unstubAllGlobals();
 });
+
+test.each([undefined, "2026-09-08T01:10:00.000Z"])(
+  "preserves the absolute approval deadline on replay (expiry: %s)",
+  (expiresAt) => {
+    const onApprovalRequired = vi.fn();
+    const ctx = createContext([], null);
+    ctx.options = { onApprovalRequired };
+    handleStreamEvent(
+      {
+        event: "approval_required",
+        data: JSON.stringify({
+          id: "approval-1",
+          message: "Confirm",
+          timeout: 300,
+          expires_at: expiresAt,
+        }),
+      },
+      "assistant-1",
+      "approval-event-1",
+      "2026-09-08T01:02:03.456Z",
+      ctx,
+    );
+    expect(onApprovalRequired).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeout: 300,
+        expires_at: expiresAt ?? "2026-09-08T01:07:03.456Z",
+      }),
+    );
+  },
+);
 
 test("removes a replayed resolved approval from the interactive queue", () => {
   const onApprovalResolved = vi.fn();
@@ -847,43 +881,49 @@ test("dispatches refresh events for persona and team tool mutation results", () 
   ]);
 });
 
-test("goal:end auto-clears the active goal after a short delay", () => {
-  // Use real timers so setTimeout fires
-  const ctx = createContext([], null);
+test("goal:end retains the goal and final duration until explicitly cleared", () => {
+  vi.useFakeTimers();
+  try {
+    const ctx = createContext([], null);
 
-  handleStreamEvent(
-    {
-      event: "goal:start",
-      data: JSON.stringify({
-        goal: { objective: "draw something", rubric: "- it looks good" },
-        started_at: "2026-05-30T08:00:00.000Z",
-      }),
-    } as StreamEvent,
-    "assistant-1",
-    "redis-event-goal-start",
-    "2026-05-30T08:00:00.000Z",
-    ctx,
-  );
+    handleStreamEvent(
+      {
+        event: "goal:start",
+        data: JSON.stringify({
+          goal: { objective: "draw something", rubric: "- it looks good" },
+          started_at: "2026-05-30T08:00:00.000Z",
+        }),
+      } as StreamEvent,
+      "assistant-1",
+      "redis-event-goal-start",
+      "2026-05-30T08:00:00.000Z",
+      ctx,
+    );
 
-  expect(ctx.activeGoal() != null).toBeTruthy();
+    expect(ctx.activeGoal() != null).toBeTruthy();
 
-  handleStreamEvent(
-    {
-      event: "goal:end",
-      data: JSON.stringify({
-        goal: { objective: "draw something" },
-        started_at: "2026-05-30T08:00:00.000Z",
-        ended_at: "2026-05-30T08:00:05.000Z",
-      }),
-    } as StreamEvent,
-    "assistant-1",
-    "redis-event-goal-end",
-    "2026-05-30T08:00:05.000Z",
-    ctx,
-  );
+    handleStreamEvent(
+      {
+        event: "goal:end",
+        data: JSON.stringify({
+          goal: { objective: "draw something" },
+          started_at: "2026-05-30T08:00:00.000Z",
+          ended_at: "2026-05-30T08:00:05.000Z",
+        }),
+      } as StreamEvent,
+      "assistant-1",
+      "redis-event-goal-end",
+      "2026-05-30T08:00:05.000Z",
+      ctx,
+    );
 
-  // Immediately after goal:end, the goal still has ended_at set
-  expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
+    // Immediately after goal:end, the goal still has ended_at set
+    expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
+    vi.advanceTimersByTime(10000);
+    expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("done removes an assistant bubble that never received content", () => {
@@ -960,23 +1000,179 @@ test("synthesized reconnect cancel (type task_cancelled) marks message cancelled
   ]);
 });
 
-
 test("stream goal projection retains its ID but identical ordinary goal does not inherit it", () => {
   const ctx = createContext([], null);
-  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r1", goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" } }) }, "assistant-1", "projection-start", "2026-10-13T00:00:00Z", ctx);
+  handleStreamEvent(
+    {
+      event: "goal:start",
+      data: JSON.stringify({
+        session_id: "session-1",
+        run_id: "r1",
+        goal: { objective: "docs", rubric: "verified", _persistent_id: "g1" },
+      }),
+    },
+    "assistant-1",
+    "projection-start",
+    "2026-10-13T00:00:00Z",
+    ctx,
+  );
   expect(ctx.activeGoal()).toMatchObject({ _persistent_id: "g1" });
-  handleStreamEvent({ event: "goal:start", data: JSON.stringify({ session_id: "session-1", run_id: "r2", goal: { objective: "docs", rubric: "verified" } }) }, "assistant-1", "ordinary-start", "2026-10-13T00:00:01Z", ctx);
+  handleStreamEvent(
+    {
+      event: "goal:start",
+      data: JSON.stringify({
+        session_id: "session-1",
+        run_id: "r2",
+        goal: { objective: "docs", rubric: "verified" },
+      }),
+    },
+    "assistant-1",
+    "ordinary-start",
+    "2026-10-13T00:00:01Z",
+    ctx,
+  );
   expect(ctx.activeGoal()?._persistent_id).toBeUndefined();
 });
 
 test("a new run identity updates only that run and survives metadata replay", () => {
   const oldIdentity = { seed: "fast", name: "Original", avatar: null };
-  const ctx = createContext([
-    { id: "old", runId: "old", role: "assistant", content: "old", timestamp: new Date(), assistantIdentity: oldIdentity },
-    { id: "new", runId: "new", role: "assistant", content: "", timestamp: new Date() },
-  ], null);
-  handleStreamEvent({ event: "user:message", data: JSON.stringify({ content: "new", run_id: "new", assistant_identity: { seed: "search", name: "Search", avatar: "🤖" } }) }, "new", "identity", undefined, ctx);
-  handleStreamEvent({ event: "metadata", data: JSON.stringify({ agent_id: "search", run_id: "new" }) }, "new", "metadata", undefined, ctx);
-  expect(ctx.messages().find(message => message.id === "old")?.assistantIdentity).toEqual(oldIdentity);
-  expect(ctx.messages().find(message => message.id === "new")?.assistantIdentity).toEqual({ seed: "search", name: "Search", avatar: "🤖" });
+  const ctx = createContext(
+    [
+      {
+        id: "old",
+        runId: "old",
+        role: "assistant",
+        content: "old",
+        timestamp: new Date(),
+        assistantIdentity: oldIdentity,
+      },
+      {
+        id: "new",
+        runId: "new",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      },
+    ],
+    null,
+  );
+  handleStreamEvent(
+    {
+      event: "user:message",
+      data: JSON.stringify({
+        content: "new",
+        run_id: "new",
+        assistant_identity: { seed: "search", name: "Search", avatar: "🤖" },
+      }),
+    },
+    "new",
+    "identity",
+    undefined,
+    ctx,
+  );
+  handleStreamEvent(
+    {
+      event: "metadata",
+      data: JSON.stringify({ agent_id: "search", run_id: "new" }),
+    },
+    "new",
+    "metadata",
+    undefined,
+    ctx,
+  );
+  expect(
+    ctx.messages().find((message) => message.id === "old")?.assistantIdentity,
+  ).toEqual(oldIdentity);
+  expect(
+    ctx.messages().find((message) => message.id === "new")?.assistantIdentity,
+  ).toEqual({ seed: "search", name: "Search", avatar: "🤖" });
 });
+
+test("an identical user message from a new run cannot take over an older turn", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "old-user",
+        runId: "old-run",
+        role: "user",
+        content: "继续",
+        timestamp: new Date(1),
+      },
+      {
+        id: "old-assistant",
+        runId: "old-run",
+        role: "assistant",
+        content: "old answer",
+        timestamp: new Date(2),
+      },
+      {
+        id: "new-assistant",
+        runId: "new-run",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(3),
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+  handleStreamEvent(
+    {
+      event: "user:message",
+      data: JSON.stringify({ content: "继续", run_id: "new-run" }),
+    },
+    "new-assistant",
+    "new-user-event",
+    "2026-10-17T00:00:00Z",
+    ctx,
+  );
+  expect(ctx.messages().map((message) => [message.id, message.runId])).toEqual([
+    ["old-user", "old-run"],
+    ["old-assistant", "old-run"],
+    ["new-run:user", "new-run"],
+    ["new-assistant", "new-run"],
+  ]);
+});
+
+test.each(["done", "user:cancel", "run:resumed"])(
+  "main run %s leaves an independent scheduled progress spinner alone",
+  (event) => {
+    const scheduled: Message = {
+      id: "scheduled-result:schedule",
+      role: "assistant",
+      content: "working",
+      runId: "schedule",
+      timestamp: new Date(2),
+      isStreaming: true,
+      metadata: { scheduledTaskId: "task" },
+    };
+    const ctx = createContext(
+      [
+        {
+          id: "main",
+          role: "assistant",
+          content: "answer",
+          runId: "main",
+          timestamp: new Date(1),
+          isStreaming: true,
+        },
+        scheduled,
+      ],
+      null,
+    );
+    handleStreamEvent(
+      { event, data: JSON.stringify({ run_id: "main" }) } as StreamEvent,
+      "main",
+      `main-${event}`,
+      undefined,
+      ctx,
+    );
+    expect(ctx.messages().find((message) => message.id === scheduled.id)).toBe(
+      scheduled,
+    );
+    expect(
+      ctx.messages().find((message) => message.id === scheduled.id)
+        ?.isStreaming,
+    ).toBe(true);
+  },
+);

@@ -2,7 +2,10 @@ import { describe, expect, test } from "vitest";
 import { isInterruptedRunMessage } from "../interruptedRun";
 import type { Message, MessagePart } from "../../../types";
 
-function assistantMessage(parts: MessagePart[], overrides: Partial<Message> = {}): Message {
+function assistantMessage(
+  parts: MessagePart[],
+  overrides: Partial<Message> = {},
+): Message {
   return {
     id: "m1",
     role: "assistant",
@@ -35,7 +38,9 @@ const askHumanPart: MessagePart = {
 
 describe("isInterruptedRunMessage", () => {
   test("run that only left process parts and no output is interrupted", () => {
-    expect(isInterruptedRunMessage(assistantMessage([subagentPart]))).toBe(true);
+    expect(isInterruptedRunMessage(assistantMessage([subagentPart]))).toBe(
+      true,
+    );
   });
 
   test("run with final text output is not interrupted", () => {
@@ -78,9 +83,9 @@ describe("isInterruptedRunMessage", () => {
   });
 
   test("recommend-questions-only turns are not interrupted", () => {
-    expect(
-      isInterruptedRunMessage(assistantMessage([recommendPart])),
-    ).toBe(false);
+    expect(isInterruptedRunMessage(assistantMessage([recommendPart]))).toBe(
+      false,
+    );
     expect(
       isInterruptedRunMessage(assistantMessage([recommendPart, subagentPart])),
     ).toBe(true);
@@ -88,8 +93,15 @@ describe("isInterruptedRunMessage", () => {
 
   test("messages without any run trace never show the banner", () => {
     expect(isInterruptedRunMessage(assistantMessage([]))).toBe(false);
-    expect(
-      isInterruptedRunMessage(assistantMessage([], { content: "" })),
-    ).toBe(false);
+    expect(isInterruptedRunMessage(assistantMessage([], { content: "" }))).toBe(
+      false,
+    );
   });
+});
+
+test("a process-only segment continued by steer is not a disconnected answer", () => {
+  const message = assistantMessage([subagentPart], {
+    metadata: { continuedBySteer: true },
+  });
+  expect(isInterruptedRunMessage(message)).toBe(false);
 });

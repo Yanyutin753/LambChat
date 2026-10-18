@@ -216,3 +216,18 @@ async def test_write_usage_log_skips_ws_notify_without_user_id(monkeypatch) -> N
 
     assert calls == []
     assert len(storage.upsert_calls) == 1
+
+
+async def test_failed_or_superseded_usage_write_does_not_broadcast_success(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    storage = _FakeUsageStorage({"trace_id": "trace-1", "user_id": "user-1"})
+    storage.upsert_usage_log_from_trace_metadata = AsyncMock(return_value=False)
+    monkeypatch.setattr("src.infra.usage.storage.get_usage_storage", lambda: storage)
+    _patch_trace_events(monkeypatch, usage_data={"input_tokens": 100, "output_tokens": 1})
+    calls = []
+    monkeypatch.setattr(
+        usage_log_module, "get_connection_manager", lambda: _FakeConnectionManager(calls)
+    )
+    await usage_log_module._write_usage_log("trace-1")
+    assert calls == []

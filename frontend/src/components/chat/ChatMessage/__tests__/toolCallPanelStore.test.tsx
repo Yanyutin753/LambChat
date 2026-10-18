@@ -28,6 +28,31 @@ afterEach(() => {
   );
 });
 
+test("open execution panels follow confirmation and resume without changing arguments", () => {
+  const part = {
+    type: "tool" as const,
+    id: "tool-stream",
+    name: "execute",
+    args: { command: "echo 123" },
+    isPending: true,
+  };
+  toolPanelModule.syncToolCallPanelStore([assistantMessage([part])]);
+  toolPanelModule.syncToolCallPanelStore([
+    assistantMessage([{ ...part, awaitingConfirmation: true }]),
+  ]);
+  expect(toolCallPanelStore.get(part.id)).toMatchObject({
+    awaitingConfirmation: true,
+    status: "idle",
+  });
+  toolPanelModule.syncToolCallPanelStore([
+    assistantMessage([{ ...part, awaitingConfirmation: false }]),
+  ]);
+  expect(toolCallPanelStore.get(part.id)).toMatchObject({
+    awaitingConfirmation: false,
+    status: "loading",
+  });
+});
+
 test("keeps tool panel data when a virtualized message row unmounts", async () => {
   const view = render(
     <ToolCallItem

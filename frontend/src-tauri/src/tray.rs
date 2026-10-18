@@ -79,7 +79,9 @@ fn labels_for_locale(locale: Option<&str>) -> &'static TrayLabels {
 /// 初始化托盘；任何失败都不阻塞壳启动。
 pub fn init(app: &AppHandle) {
     if let Err(e) = build_tray(app) {
-        eprintln!("[lambchat-tray] tray unavailable (main window unaffected): {e}");
+        daemon::emit_stderr_line(&format!(
+            "[lambchat-tray] tray unavailable (main window unaffected): {e}"
+        ));
     }
 }
 
@@ -148,10 +150,13 @@ fn open_sandbox_dir(app: &AppHandle, name: &str) {
     match daemon::resolve_openable_path(name) {
         Ok(path) => {
             if let Err(e) = app.opener().open_path(path.to_string_lossy(), None::<&str>) {
-                eprintln!("[lambchat-tray] failed to open {}: {e}", path.display());
+                daemon::emit_stderr_line(&format!(
+                    "[lambchat-tray] failed to open {}: {e}",
+                    path.display()
+                ));
             }
         }
-        Err(e) => eprintln!("[lambchat-tray] refused to open {name}: {e}"),
+        Err(e) => daemon::emit_stderr_line(&format!("[lambchat-tray] refused to open {name}: {e}")),
     }
 }
 

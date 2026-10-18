@@ -40,6 +40,20 @@ test("builds compact chat history event urls only when requested", () => {
   );
 });
 
+test("opts into active execution events only for the requested run", () => {
+  expect(
+    buildSessionEventsUrl("execution", {
+      run_id: "scheduled-1",
+      include_active_events: true,
+    }),
+  ).toBe(
+    "/api/sessions/execution/events?run_id=scheduled-1&include_active_events=true",
+  );
+  expect(buildSessionEventsUrl("execution", { run_id: "scheduled-1" })).toBe(
+    "/api/sessions/execution/events?run_id=scheduled-1",
+  );
+});
+
 test("builds trace-window history event urls for paginated first loads", () => {
   expect(
     buildSessionEventsUrl("session-1", {
@@ -287,10 +301,11 @@ test("generate title url keeps explicit lang and falls back to english", async (
   }
 });
 
-
 test("session approval status prefetch is optional in event requests", () => {
-  expect(buildSessionEventsUrl("session-1", { include_approval_statuses: true }))
-    .toBe("/api/sessions/session-1/events?include_approval_statuses=true");
-  expect(buildSessionEventsUrl("session-1", { include_approval_statuses: false }))
-    .toBe("/api/sessions/session-1/events");
+  expect(
+    buildSessionEventsUrl("session-1", { include_approval_statuses: true }),
+  ).toBe("/api/sessions/session-1/events?include_approval_statuses=true");
+  expect(
+    buildSessionEventsUrl("session-1", { include_approval_statuses: false }),
+  ).toBe("/api/sessions/session-1/events");
 });

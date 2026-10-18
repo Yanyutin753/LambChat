@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { RotateCcw, Square } from "lucide-react";
+import { ArrowRightLeft, RotateCcw, Square } from "lucide-react";
 import type { MessagePart } from "../../../types";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../common/ui/Button";
@@ -49,10 +49,13 @@ import { SummaryItem } from "./SummaryItem";
 import type { RevealPreviewRequest } from "./items/revealPreviewData";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 import { createToolPartAnchorId } from "./messagePartAnchors";
+import { CollapsiblePill } from "../../common";
+import { resolveAgentReferenceName } from "../../agent/agentCatalog";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
   part,
+  isScheduledRun,
   messageId,
   partIndex,
   isStreaming,
@@ -64,6 +67,7 @@ export function MessagePartRenderer({
   onRetryCancelled,
 }: {
   part: MessagePart;
+  isScheduledRun?: boolean;
   messageId?: string;
   partIndex?: number;
   isStreaming?: boolean;
@@ -77,16 +81,40 @@ export function MessagePartRenderer({
   onRecommendQuestionClick?: (question: string) => void;
   onRetryCancelled?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const toolPartAnchorId =
     messageId !== undefined && partIndex !== undefined
       ? createToolPartAnchorId(messageId, partIndex)
       : undefined;
 
+  if (part.type === "agentHandoff") {
+    return (
+      <CollapsiblePill
+        status="success"
+        icon={<ArrowRightLeft size={12} className="shrink-0 opacity-50" />}
+        label={t("chat.agentHandoff", {
+          agent: resolveAgentReferenceName(
+            part.agentId,
+            part.agentId,
+            [],
+            i18n.language,
+            t,
+          ),
+        })}
+        expandable={false}
+        formatLabel={false}
+      />
+    );
+  }
+
   if (part.type === "text") {
     return (
       <MarkdownContent
-        content={part.content}
+        content={
+          isScheduledRun && !isStreaming && part.content.trim() === "NO_UPDATE"
+            ? t("scheduledTask.noUpdate")
+            : part.content
+        }
         isStreaming={isStreaming && isLast}
         headingAnchorContext={
           messageId !== undefined && partIndex !== undefined
@@ -264,6 +292,7 @@ export function MessagePartRenderer({
           result={part.result}
           success={part.success}
           isPending={part.isPending}
+          awaitingConfirmation={part.awaitingConfirmation}
           cancelled={part.cancelled}
           startedAt={part.startedAt}
           completedAt={part.completedAt}

@@ -197,7 +197,7 @@ describe("promoteSteerFollowUps", () => {
       },
     );
 
-    expect(calls).toEqual(["clear:第一条", "send:第一条"]);
+    expect(calls).toEqual(["send:第一条", "clear:第一条"]);
     expect(result).toEqual({ promoted: 1, skippedActive: 2 });
   });
 
@@ -235,13 +235,14 @@ describe("promoteSteerFollowUps", () => {
     expect(result).toEqual({ promoted: 1, skippedActive: 0 });
   });
 
-  test("clears local state first so the promotion effect does not retrigger", async () => {
+  test("clears local state only after the follow-up send succeeds", async () => {
     const cleared: Array<[string, string]> = [];
     const calls: string[] = [];
     await promoteSteerFollowUps([item("s1", "插话")], {
       sessionId: "session-1",
       clearSteer: (content, messageId) => {
         cleared.push([content, messageId]);
+        calls.push("clear");
       },
       cancelSteer: async () => {
         calls.push("cancel");
@@ -252,7 +253,7 @@ describe("promoteSteerFollowUps", () => {
     });
 
     expect(cleared).toEqual([["插话", "s1"]]);
-    expect(calls).toEqual(["cancel", "send"]);
+    expect(calls).toEqual(["cancel", "send", "clear"]);
   });
 
   test("does nothing without a session id", async () => {
@@ -268,5 +269,96 @@ describe("promoteSteerFollowUps", () => {
     });
 
     expect(calls).toEqual([]);
+  });
+
+  test("does not resend or clear an item cancelled during the backend cancel request", async () => {
+    let release!: () => void;
+    let cancelled = false;
+    const sent: string[] = [];
+    const cleared: string[] = [];
+    const promoting = promoteSteerFollowUps([item("s1", "A 的补充")], {
+      sessionId: "session-a",
+      cancelSteer: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      sendMessage: async (content) => {
+        sent.push(content);
+      },
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
+      isCancelled: () => cancelled,
+    });
+    cancelled = true;
+    release();
+    await promoting;
+    expect(sent).toEqual([]);
+    expect(cleared).toEqual([]);
+  });
+
+  test("retains an item when a manual send starts during the backend cancel request", async () => {
+    let release!: () => void;
+    let sending = false;
+    const sent: string[] = [];
+    const cleared: string[] = [];
+    const promoting = promoteSteerFollowUps([item("s1", "保留补充")], {
+      sessionId: "session-a",
+      cancelSteer: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      sendMessage: async (content) => {
+        sent.push(content);
+      },
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
+      isSending: () => sending,
+    });
+    sending = true;
+    release();
+    expect(await promoting).toEqual({ promoted: 0, skippedActive: 1 });
+    expect(sent).toEqual([]);
+    expect(cleared).toEqual([]);
+  });
+
+  test("keeps a rejected follow-up queued for a later admission attempt", async () => {
+    const cleared: string[] = [];
+    const result = await promoteSteerFollowUps([item("s1", "稍后重试")], {
+      sessionId: "session-a",
+      cancelSteer: async () => undefined,
+      sendMessage: async () => false,
+      clearSteer: (_content, id) => {
+        cleared.push(id);
+      },
+    });
+    expect(result).toEqual({ promoted: 0, skippedActive: 1 });
+    expect(cleared).toEqual([]);
+  });
+
+  test("removes an admitted item before its response stream finishes", async () => {
+    const cleared: string[] = [];
+    let accept!: () => void;
+    let finish!: () => void;
+    const promoting = promoteSteerFollowUps([item("s1", "已受理")], {
+      sessionId: "session-a",
+      cancelSteer: async () => undefined,
+      sendMessage: (_content, _attachments, onAccepted) => {
+        accept = onAccepted!;
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      },
+      clearSteer: (_content, id, sessionId) => {
+        cleared.push(`${sessionId}:${id}`);
+      },
+    });
+    await Promise.resolve();
+    expect(cleared).toEqual([]);
+    accept();
+    expect(cleared).toEqual(["session-a:s1"]);
+    finish();
+    expect(await promoting).toEqual({ promoted: 1, skippedActive: 0 });
   });
 });

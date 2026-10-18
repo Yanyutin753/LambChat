@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.infra.usage.storage import UsageStorage, _empty_stats
+from src.infra.usage.storage import PRICED_USAGE_CONDITION, UsageStorage, _empty_stats
 
 
 class _FakeAggregateCursor:
@@ -106,8 +106,8 @@ def _facet_doc():
 async def test_stats_aggregate_includes_cost_totals():
     storage = UsageStorage()
     storage._collection = _FakeAggregateCollection(stats_doc=_stats_doc())
-    _items, total, stats = await storage.list_usage_logs(limit=1)
-    assert total == 2
+    stats = await storage.get_usage_stats_only()
+    assert stats["total_requests"] == 2
     assert stats["total_cost_usd"] == 0.5
     assert stats["unpriced_requests"] == 1
 
@@ -135,9 +135,9 @@ async def test_stats_pipeline_sums_cost_usd_and_unpriced():
     fake = _FakeAggregateCollection(stats_doc=_stats_doc())
     storage = UsageStorage()
     storage._collection = fake
-    await storage.list_usage_logs(limit=1)
+    await storage.get_usage_stats_only()
     group = fake.pipelines[0][1]["$group"]
-    assert group["total_cost_usd"] == {"$sum": "$cost_usd"}
+    assert group["total_cost_usd"] == {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}}
     assert "unpriced_requests" in group
 
 
@@ -151,7 +151,9 @@ async def test_dashboard_pipeline_aggregates_cost():
     summary_group = facet["summary"][0]["$group"]
     daily_group = facet["daily"][0]["$group"]
     models_group = next(stage["$group"] for stage in facet["models"] if "$group" in stage)
-    assert summary_group["total_cost_usd"] == {"$sum": "$cost_usd"}
+    assert summary_group["total_cost_usd"] == {
+        "$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}
+    }
     assert "unpriced_requests" in summary_group
-    assert daily_group["cost_usd"] == {"$sum": "$cost_usd"}
-    assert models_group["cost_usd"] == {"$sum": "$cost_usd"}
+    assert daily_group["cost_usd"] == {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}}
+    assert models_group["cost_usd"] == {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}}

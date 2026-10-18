@@ -187,7 +187,7 @@ export function ProjectMenu({
                 onDelete();
                 onClose();
               }}
-              className="ui-menu-item text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="ui-menu-item ui-menu-item--danger text-theme-error rounded-lg transition-colors"
             >
               <InteractiveIcon>
                 <Trash2 size={16} />
@@ -264,7 +264,7 @@ export function ProjectMenu({
           onDelete();
           onClose();
         }}
-        className="ui-menu-item text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        className="ui-menu-item ui-menu-item--danger text-theme-error transition-colors"
       >
         <InteractiveIcon>
           <Trash2 size={14} />

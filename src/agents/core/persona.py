@@ -14,6 +14,7 @@ from typing import Any
 from deepagents import HarnessProfile as _HarnessProfile
 from deepagents import register_harness_profile as _register_harness_profile
 
+from src.agents.core.prompt_policy import CORRECTNESS_POLICY
 from src.kernel.config.base import settings
 
 DEFAULT_ROLE = "You are an intelligent assistant with tools and skills."
@@ -55,7 +56,9 @@ def _build_behavior_guide() -> str:
 - Correct mistakes respectfully and distinguish evidence from assumptions.
 
 ## Task Persistence
-Read enough context to understand existing patterns, act, and keep working until done or genuinely blocked. When a failure repeats, diagnose the cause instead of retrying unchanged. Report a blocker plainly."""
+Read enough context to understand existing patterns, act, and keep working until done or genuinely blocked. When a failure repeats, diagnose the cause instead of retrying unchanged. Report a blocker plainly.
+
+{CORRECTNESS_POLICY}"""
 
 
 _BEHAVIOR_GUIDE = _build_behavior_guide()

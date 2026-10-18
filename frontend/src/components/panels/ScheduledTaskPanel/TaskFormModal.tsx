@@ -1,3 +1,4 @@
+import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { AgentAvatar } from "../../common/AgentAvatar";
@@ -34,6 +35,7 @@ import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import type { PersonaPreset } from "../../../types/personaPreset";
 import type { Team } from "../../../types/team";
+import { sessionApi, type BackendSession } from "../../../services/api/session";
 import { personaPresetApi } from "../../../services/api/personaPreset";
 import { teamApi } from "../../../services/api/team";
 import { getFullUrl } from "../../../services/api";
@@ -58,6 +60,7 @@ export function TaskFormModal({
   agents,
   availableModels,
   defaultAgentId,
+  defaultSessionId,
   defaultModelId,
   defaultModelValue,
   onSave,
@@ -67,6 +70,7 @@ export function TaskFormModal({
   agents: AgentInfo[];
   availableModels: AvailableModel[] | null;
   defaultAgentId?: string;
+  defaultSessionId?: string;
   defaultModelId?: string;
   defaultModelValue?: string;
   onSave: (data: ScheduledTaskCreate) => Promise<void>;
@@ -90,6 +94,32 @@ export function TaskFormModal({
     defaultModelValue ||
     "";
 
+  const [executionMode, setExecutionMode] = useState<
+    "conversation" | "standalone"
+  >(task?.execution_mode || (defaultSessionId ? "conversation" : "standalone"));
+  const [targetSessionId, setTargetSessionId] = useState(
+    task?.target_session_id || defaultSessionId || "",
+  );
+  const [notificationPolicy, setNotificationPolicy] = useState<
+    "always" | "meaningful_changes"
+  >(
+    task?.notification_policy ||
+      (defaultSessionId ? "meaningful_changes" : "always"),
+  );
+  const [sessions, setSessions] = useState<BackendSession[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    sessionApi
+      .list({ limit: 100 })
+      .then((response) => {
+        if (!cancelled)
+          setSessions(Array.isArray(response) ? response : response.sessions);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [name, setName] = useState(task?.name ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [agentId, setAgentId] = useState(
@@ -162,9 +192,6 @@ export function TaskFormModal({
   const [enabled, setEnabled] = useState(task?.enabled ?? true);
   const [runOnStart, setRunOnStart] = useState(task?.run_on_start ?? false);
   const [maxRetries, setMaxRetries] = useState(String(task?.max_retries ?? 0));
-  const [timeoutSeconds, setTimeoutSeconds] = useState(
-    String(task?.timeout_seconds ?? 600),
-  );
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const isTeamAgent = agentId === "team";
@@ -203,7 +230,11 @@ export function TaskFormModal({
       toast.error(t("scheduledTask.nameRequired"));
       return;
     }
-    if (!agentId) {
+    if (executionMode === "conversation" && !targetSessionId) {
+      toast.error(t("scheduledTask.targetRequired"));
+      return;
+    }
+    if (executionMode === "standalone" && !agentId) {
       toast.error(t("scheduledTask.agentRequired"));
       return;
     }
@@ -258,8 +289,19 @@ export function TaskFormModal({
         teamId,
       });
       await onSave({
+        execution_mode: executionMode,
+        target_session_id:
+          executionMode === "conversation" ? targetSessionId : null,
+        notification_policy: notificationPolicy,
+        source_session_id: task?.source_session_id || defaultSessionId || null,
         name: name.trim(),
-        agent_id: agentId,
+        agent_id:
+          executionMode === "conversation"
+            ? sessions.find((session) => session.id === targetSessionId)
+                ?.agent_id ||
+              agentId ||
+              "search"
+            : agentId,
         trigger_type: triggerType,
         trigger_config: triggerConfig,
         timezone,
@@ -268,7 +310,7 @@ export function TaskFormModal({
         enabled,
         run_on_start: triggerType === "date" ? false : runOnStart,
         max_retries: Math.max(0, parseInt(maxRetries) || 0),
-        timeout_seconds: Math.max(10, parseInt(timeoutSeconds) || 600),
+        timeout_seconds: 0,
       });
     } finally {
       setIsSaving(false);
@@ -351,117 +393,216 @@ export function TaskFormModal({
             />
           </div>
 
-          {/* Agent selector */}
           <div className="scheduled-task-form-field">
             <label className="scheduled-task-label">
-              {t("scheduledTask.agent")} *
+              {t("scheduledTask.executionMode")}
             </label>
             <Select
-              ariaLabel={t("scheduledTask.agent")}
-              value={agentId}
-              onChange={(v) => {
-                setAgentId(v);
-                if (v === "team") {
-                  setPersonaPresetId("");
-                } else {
-                  setTeamId("");
-                }
-              }}
-              triggerClassName={inputClass}
-              options={[
-                { value: "", label: t("scheduledTask.agentPlaceholder") },
-                ...agents.map((agent) => ({
-                  value: agent.id,
-                  label: (
-                    <span className="inline-flex min-w-0 items-center gap-2">
-                      <AgentIcon icon={agent.icon} seed={agent.id} size={18} />
-                      <span className="truncate">
-                        {resolveAgentDisplayName(agent, i18n.language, t) ||
-                          agent.id}
-                      </span>
-                    </span>
-                  ),
-                })),
-              ]}
-            />
-          </div>
-
-          {/* Persona / team selector */}
-          <div className="scheduled-task-form-field">
-            <label className="scheduled-task-label inline-flex items-center gap-1.5">
-              <PersonaOrTeamIcon size={14} className="shrink-0 opacity-75" />
-              <span>{personaOrTeamIconLabel}</span>
-            </label>
-            <Select
-              ariaLabel={personaOrTeamIconLabel}
-              value={isTeamAgent ? teamId : personaPresetId}
-              onChange={isTeamAgent ? setTeamId : setPersonaPresetId}
-              triggerClassName={inputClass}
-              options={
-                isTeamAgent
-                  ? [
-                      {
-                        value: "",
-                        label: renderPersonaOrTeamOption(
-                          t("scheduledTask.teamPlaceholder", "不指定团队"),
-                        ),
-                      },
-                      ...teams.map((team) => ({
-                        value: team.id,
-                        label: renderPersonaOrTeamOption(
-                          team.name,
-                          team.avatar ?? getTeamFallbackAvatar(team),
-                          team.name,
-                        ),
-                      })),
-                    ]
-                  : [
-                      {
-                        value: "",
-                        label: renderPersonaOrTeamOption(
-                          t("scheduledTask.personaPlaceholder", "不指定角色"),
-                        ),
-                      },
-                      ...personaPresets.map((preset) => ({
-                        value: preset.id,
-                        label: renderPersonaOrTeamOption(
-                          preset.name,
-                          preset.avatar,
-                          preset.id,
-                        ),
-                      })),
-                    ]
+              ariaLabel={t("scheduledTask.executionMode")}
+              value={executionMode}
+              onChange={(value) =>
+                setExecutionMode(value as typeof executionMode)
               }
-            />
-          </div>
-
-          {/* Model selector */}
-          <div className="scheduled-task-form-field">
-            <label className="scheduled-task-label">
-              {t("scheduledTask.model")}
-            </label>
-            <Select
-              ariaLabel={t("scheduledTask.model")}
-              value={modelId}
-              onChange={(v) => {
-                const nextModel = availableModels?.find(
-                  (model) => model.id === v,
-                );
-                setModelId(v);
-                setModelValue(nextModel?.value || "");
-              }}
-              disabled={!availableModels || availableModels.length === 0}
               triggerClassName={inputClass}
               options={[
-                { value: "", label: t("scheduledTask.modelPlaceholder") },
-                ...(availableModels || []).map((model) => ({
-                  value: model.id,
-                  label: model.label || model.value,
-                })),
+                {
+                  value: "conversation",
+                  label: t("scheduledTask.conversationMode"),
+                },
+                {
+                  value: "standalone",
+                  label: t("scheduledTask.standaloneMode"),
+                },
               ]}
             />
           </div>
+          {executionMode === "conversation" && (
+            <div className="scheduled-task-form-field">
+              <label className="scheduled-task-label">
+                {t("scheduledTask.targetConversation")}
+              </label>
+              <Select
+                ariaLabel={t("scheduledTask.targetConversation")}
+                value={targetSessionId}
+                onChange={setTargetSessionId}
+                triggerClassName={inputClass}
+                options={[
+                  { value: "", label: t("scheduledTask.targetRequired") },
+                  ...(!sessions.some(
+                    (session) => session.id === targetSessionId,
+                  ) && targetSessionId
+                    ? [
+                        {
+                          value: targetSessionId,
+                          label: t("scheduledTask.currentConversation"),
+                        },
+                      ]
+                    : []),
+                  ...sessions.map((session) => ({
+                    value: session.id,
+                    label: session.name || t("scheduledTask.untitledSession"),
+                  })),
+                ]}
+              />
+              <p className="text-12 text-theme-text-secondary">
+                {t("scheduledTask.inheritContext")}
+              </p>
+            </div>
+          )}
+          <div className="scheduled-task-form-field">
+            <label className="scheduled-task-label">
+              {t("scheduledTask.notificationPolicy")}
+            </label>
+            <Select
+              ariaLabel={t("scheduledTask.notificationPolicy")}
+              value={notificationPolicy}
+              onChange={(value) =>
+                setNotificationPolicy(value as typeof notificationPolicy)
+              }
+              triggerClassName={inputClass}
+              options={[
+                {
+                  value: "meaningful_changes",
+                  label: t("scheduledTask.meaningfulChanges"),
+                },
+                { value: "always", label: t("scheduledTask.alwaysNotify") },
+              ]}
+            />
+          </div>
+          {executionMode === "standalone" && (
+            <>
+              {/* Agent selector */}
+              <div className="scheduled-task-form-field">
+                <label className="scheduled-task-label">
+                  {t("scheduledTask.agent")} *
+                </label>
+                <Select
+                  ariaLabel={t("scheduledTask.agent")}
+                  value={agentId}
+                  onChange={(v) => {
+                    setAgentId(v);
+                    if (v === "team") {
+                      setPersonaPresetId("");
+                    } else {
+                      setTeamId("");
+                    }
+                  }}
+                  triggerClassName={inputClass}
+                  options={[
+                    { value: "", label: t("scheduledTask.agentPlaceholder") },
+                    ...agents.map((agent) => ({
+                      value: agent.id,
+                      label: (
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <AgentIcon
+                            icon={agent.icon}
+                            seed={agent.id}
+                            size={18}
+                          />
+                          <span className="truncate">
+                            {resolveAgentDisplayName(agent, i18n.language, t) ||
+                              agent.id}
+                          </span>
+                        </span>
+                      ),
+                    })),
+                  ]}
+                />
+              </div>
 
+              {/* Persona / team selector */}
+              <div className="scheduled-task-form-field">
+                <label className="scheduled-task-label inline-flex items-center gap-1.5">
+                  <PersonaOrTeamIcon
+                    size={14}
+                    className="shrink-0 opacity-75"
+                  />
+                  <span>{personaOrTeamIconLabel}</span>
+                </label>
+                <Select
+                  ariaLabel={personaOrTeamIconLabel}
+                  value={isTeamAgent ? teamId : personaPresetId}
+                  onChange={isTeamAgent ? setTeamId : setPersonaPresetId}
+                  triggerClassName={inputClass}
+                  options={
+                    isTeamAgent
+                      ? [
+                          {
+                            value: "",
+                            label: renderPersonaOrTeamOption(
+                              t("scheduledTask.teamPlaceholder", "不指定团队"),
+                            ),
+                          },
+                          ...teams.map((team) => ({
+                            value: team.id,
+                            label: renderPersonaOrTeamOption(
+                              team.name,
+                              team.avatar ?? getTeamFallbackAvatar(team),
+                              team.name,
+                            ),
+                          })),
+                        ]
+                      : [
+                          {
+                            value: "",
+                            label: renderPersonaOrTeamOption(
+                              t(
+                                "scheduledTask.personaPlaceholder",
+                                "不指定角色",
+                              ),
+                            ),
+                          },
+                          ...personaPresets.map((preset) => ({
+                            value: preset.id,
+                            label: renderPersonaOrTeamOption(
+                              preset.name,
+                              preset.avatar,
+                              preset.id,
+                            ),
+                          })),
+                        ]
+                  }
+                />
+              </div>
+
+              {/* Model selector */}
+              <div className="scheduled-task-form-field">
+                <label className="scheduled-task-label">
+                  {t("scheduledTask.model")}
+                </label>
+                <Select
+                  ariaLabel={t("scheduledTask.model")}
+                  value={modelId}
+                  onChange={(v) => {
+                    const nextModel = availableModels?.find(
+                      (model) => model.id === v,
+                    );
+                    setModelId(v);
+                    setModelValue(nextModel?.value || "");
+                  }}
+                  disabled={!availableModels || availableModels.length === 0}
+                  triggerClassName={inputClass}
+                  options={[
+                    { value: "", label: t("scheduledTask.modelPlaceholder") },
+                    ...(availableModels || []).map((model) => ({
+                      value: model.id,
+                      label: (
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <ModelIconImg
+                            model={model.value}
+                            provider={model.provider}
+                            icon={model.icon}
+                            size={16}
+                          />
+                          {model.label || model.value}
+                        </span>
+                      ),
+                    })),
+                  ]}
+                />
+              </div>
+            </>
+          )}
           {/* Trigger type */}
           <div className="scheduled-task-form-field">
             <label className="scheduled-task-label">
@@ -697,17 +838,11 @@ export function TaskFormModal({
             </div>
             <div className="scheduled-task-form-field">
               <label className="scheduled-task-label">
-                {t("scheduledTask.timeoutSeconds")}
+                {t("approvals.scheduledTask.timeout")}
               </label>
-              <Input
-                aria-label={t("scheduledTask.timeoutSeconds")}
-                type="number"
-                min={10}
-                max={3600}
-                value={timeoutSeconds}
-                onChange={(e) => setTimeoutSeconds(e.target.value)}
-                className={inputClass}
-              />
+              <span className="text-13 text-theme-text-secondary">
+                {t("scheduledTask.noTimeLimit")}
+              </span>
             </div>
           </div>
         </div>

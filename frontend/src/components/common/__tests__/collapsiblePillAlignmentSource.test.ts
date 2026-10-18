@@ -9,11 +9,33 @@ const animationSource = readFileSync(
   new URL("../../../styles/animations.css", import.meta.url),
   "utf8",
 );
+const chatSource = readFileSync(
+  new URL("../../../styles/chat.css", import.meta.url),
+  "utf8",
+);
 
 describe("CollapsiblePill alignment", () => {
-  test("uses a readable line height while using the shared interface font", () => {
+  test("uses the body text weight for disclosure labels and tool groups", () => {
+    expect(animationSource).toMatch(/\.pill-btn\s*\{[^}]*font-normal/);
+    expect(chatSource).toMatch(
+      /\.chat-tool-category \.chat-tool-call-group__toggle\s*\{[^}]*font-weight:\s*400;/,
+    );
+  });
+  test("sizes animated icon wrappers to match the shared search icon", () => {
     expect(animationSource).toMatch(
-      /\.pill-btn\s*\{[^}]*font-family:\s*theme\(['"]fontFamily\.sans['"]\)[^}]*items-center[^}]*leading-5/,
+      /\.pill-btn__icon \.interactive-action-icon > div\s*\{[^}]*width:\s*1rem;[^}]*height:\s*1rem;/,
+    );
+  });
+
+  test("uses the body font one step smaller for disclosure labels and groups", () => {
+    expect(animationSource).toMatch(
+      /\.pill-btn\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*calc\(var\(--chat-font-size\) - 0\.0625rem\)/,
+    );
+    expect(chatSource).toMatch(
+      /\.chat-tool-category \.chat-tool-call-group__toggle\s*\{[^}]*font-family:\s*var\(--chat-font-family\);[^}]*font-size:\s*calc\(var\(--chat-font-size\) - 0\.0625rem\)/,
+    );
+    expect(animationSource).not.toContain(
+      'font-family: theme("fontFamily.sans")',
     );
     expect(animationSource).toMatch(
       /\.pill-btn > span\s*\{\s*line-height: inherit;/,

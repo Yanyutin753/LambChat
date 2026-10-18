@@ -31,9 +31,7 @@ function ToolAvatarImg({
   src: string;
   className?: string;
 }) {
-  return (
-    <ImageWithSkeleton src={src} alt="" inline className={className} />
-  );
+  return <ImageWithSkeleton src={src} alt="" inline className={className} />;
 }
 
 /** Render an avatar value as <img> if it's a URL/emoji, otherwise render fallback. */
@@ -199,7 +197,7 @@ function TeamDetail({
                       </div>
                       <div className="min-w-0 flex-1 pt-0.5">
                         <div className="flex items-center gap-1.5">
-                          <div className="text-14 text-theme-text font-semibold truncate">
+                          <div className="text-14 text-theme-text font-semibold font-serif truncate">
                             {name}
                           </div>
                           {pStatus && pStatus !== "published" && (
@@ -387,7 +385,7 @@ function TeamDetail({
                       </div>
                     </div>
                     <div className="min-w-0 flex-1 pb-0.5">
-                      <h3 className="text-14 sm:text-16 font-bold text-theme-text truncate tracking-tight">
+                      <h3 className="text-14 sm:text-16 font-bold font-serif text-theme-text truncate tracking-tight">
                         {resultTeamName}
                       </h3>
                       {resultId && (
@@ -665,13 +663,7 @@ const TeamItem = memo(function TeamItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${actionLabel}${
-      labelSuffix
-        ? ` ${
-            labelSuffix
-          }`
-        : ""
-    }`,
+    `${actionLabel}${labelSuffix ? ` ${labelSuffix}` : ""}`,
     args,
     { isPending, result },
   );
@@ -724,7 +716,7 @@ const TeamItem = memo(function TeamItem({
                     return (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 font-serif text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                       >
                         <span className="inline-flex w-3.5 h-3.5 items-center justify-center overflow-hidden rounded shrink-0">
                           <RenderAvatar
@@ -766,7 +758,7 @@ const TeamItem = memo(function TeamItem({
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-12 text-theme-text font-medium truncate">
+                  <div className="text-12 text-theme-text font-medium font-serif truncate">
                     {resultTeamName}
                   </div>
                 </div>

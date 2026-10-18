@@ -8,31 +8,28 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
-import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from src.infra.channel.manager import get_channel_coordinator
-from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
+from src.infra.chat.user_message_timestamp import format_scheduled_message_with_timestamp
 from src.infra.logging import get_logger
-from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.locks import (
     acquire_task_lock,
     acquire_task_slot_lock,
+    extend_task_lock,
     release_task_lock,
 )
-from src.infra.scheduler.runtime import get_runtime_scheduler
+from src.infra.scheduler.runtime import SCHEDULED_FIRE_TIME, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.trace_storage import get_trace_storage
-from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
-    ScheduledTaskStatus,
     TaskRunRecord,
     TriggerType,
 )
@@ -41,7 +38,12 @@ from src.kernel.schemas.user import TokenPayload
 logger = get_logger(__name__)
 
 _POLL_INTERVAL = 2  # seconds between status checks when waiting for completion
-_DEFAULT_TIMEOUT = 3600  # 60 minutes
+_EXECUTION_LOCK_TTL = 600  # Renewed while running; not an execution deadline.
+
+
+class _ExecutionLeaseLostError(RuntimeError):
+    pass
+
 
 # Track detached monitor tasks so they can be drained on shutdown.
 _detached_monitor_tasks: set[asyncio.Task[None]] = set()
@@ -86,22 +88,9 @@ class _AttemptResult:
 
 
 async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
-    user = await UserStorage().get_by_id(user_id)
-    if not user:
-        return None
+    from src.api.deps import _load_user_payload
 
-    roles = await RoleStorage().get_by_names(user.roles or [])
-    permissions: set[str] = set()
-    for role in roles:
-        for permission in role.permissions:
-            permissions.add(permission if isinstance(permission, str) else permission.value)
-
-    return TokenPayload(
-        sub=user.id,
-        username=user.username,
-        roles=[r.name for r in roles],
-        permissions=sorted(permissions),
-    )
+    return await _load_user_payload(user_id)
 
 
 async def _agent_options_with_default_model(
@@ -133,6 +122,33 @@ async def _agent_options_with_default_model(
     if model_id:
         options["model_id"] = model_id
     return options
+
+
+async def execute_standalone_schedule(session_id, agent_id, message, user_id, **kwargs):
+    """Recheck account and model authority after local or distributed queueing."""
+    from src.api.routes.chat_agent_execution import _execute_agent_stream
+    from src.infra.task.background_tasks import (
+        apply_background_restrictions,
+        validate_background_execution,
+    )
+
+    request = await validate_background_execution(
+        session_id, agent_id, user_id, kwargs.get("agent_options") or {}
+    )
+    apply_background_restrictions(request, kwargs)
+    kwargs["agent_options"] = request.agent_options
+    for field in (
+        "persona_system_prompt",
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+        "team_id",
+    ):
+        kwargs[field] = getattr(request, field)
+    async for event in _execute_agent_stream(session_id, agent_id, message, user_id, **kwargs):
+        yield event
 
 
 class ScheduledTaskRunner:
@@ -169,13 +185,22 @@ class ScheduledTaskRunner:
                 if not slot_claimed:
                     return {"skipped": True, "reason": "slot_contended"}
 
+        if task.execution_mode == "conversation":
+            record = await storage.enqueue_conversation(task, trigger_type)
+            from src.infra.scheduler.conversation import dispatch_pending
+
+            _spawn_monitor(dispatch_pending())
+            return {
+                "run_id": record["_id"],
+                "status": "queued",
+                "session_id": record["session_id"],
+            }
+
         run_id = str(uuid.uuid4())
 
         # 1. Acquire distributed lock (multi-instance dedup)
         max_attempts = max(1, int(task.max_retries or 0) + 1)
-        lock_token = await acquire_task_lock(
-            task_id, run_id, ttl=task.timeout_seconds * max_attempts
-        )
+        lock_token = await acquire_task_lock(task_id, run_id, ttl=_EXECUTION_LOCK_TTL)
         if lock_token is None:
             return {
                 "skipped": True,
@@ -234,6 +259,7 @@ class ScheduledTaskRunner:
         """Detached background coroutine: wait for agent completion,
         record results, deliver to channel, retry on failure, release lock."""
         storage = get_scheduled_task_storage()
+        terminal_persisted = False
         try:
             final_attempt: _AttemptResult | None = None
             for attempt in range(max_attempts):
@@ -250,9 +276,16 @@ class ScheduledTaskRunner:
                 )
                 try:
                     result = await self._execute_agent(
-                        task, run_id, session_id, trigger_type, now=started_at
+                        task,
+                        run_id,
+                        session_id,
+                        trigger_type,
+                        now=started_at,
+                        lock_token=lock_token,
                     )
                     final_attempt = self._classify_attempt_result(result)
+                except _ExecutionLeaseLostError:
+                    raise
                 except Exception as exc:
                     final_attempt = _AttemptResult(
                         status=RunStatus.FAILED,
@@ -274,7 +307,11 @@ class ScheduledTaskRunner:
                     )
 
             assert final_attempt is not None
-            delivery_result = await self._deliver_success_result(task, final_attempt, run_id)
+            try:
+                delivery_result = await self._deliver_success_result(task, final_attempt, run_id)
+            except Exception as exc:
+                logger.warning("[Runner] result delivery failed: %s", run_id, exc_info=True)
+                delivery_result = {"status": "failed", "error": str(exc)}
             if delivery_result is not None:
                 final_attempt.result["delivery"] = delivery_result
             finished = utc_now()
@@ -287,9 +324,20 @@ class ScheduledTaskRunner:
                 "error_message": final_attempt.error_message,
                 "finished_at": finished,
                 "duration_ms": duration,
+                "finalization_pending": True,
+                "scheduled_trigger_config": task.trigger_config,
+                "scheduled_timezone": task.timezone,
             }
             await storage.update_run(run_id, update_payload)
-            await storage.update_task_run_stats(task.id, run_id, final_attempt.status)
+            terminal_persisted = True
+            await self.finalize_standalone_run(
+                {
+                    **update_payload,
+                    "_id": run_id,
+                    "task_id": task.id,
+                    "trigger_type": trigger_type,
+                }
+            )
 
             if final_attempt.status == RunStatus.SUCCESS:
                 logger.info(
@@ -309,28 +357,54 @@ class ScheduledTaskRunner:
                 )
 
         except Exception as exc:
+            if terminal_persisted:
+                logger.warning(
+                    "[Runner] finalization deferred: task=%s run=%s", task.id, run_id, exc_info=True
+                )
+                return
             finished = utc_now()
             duration = int((finished - started_at).total_seconds() * 1000)
-            await storage.update_run(
-                run_id,
-                {
-                    "status": RunStatus.FAILED,
-                    "error_message": str(exc),
-                    "finished_at": finished,
-                    "duration_ms": duration,
-                },
-            )
-            await storage.update_task_run_stats(task.id, run_id, RunStatus.FAILED)
+            failed = {
+                "status": RunStatus.FAILED,
+                "error_message": str(exc),
+                "finished_at": finished,
+                "duration_ms": duration,
+                "finalization_pending": True,
+                "scheduled_trigger_config": task.trigger_config,
+                "scheduled_timezone": task.timezone,
+            }
+            await storage.update_run(run_id, failed)
+            try:
+                await self.finalize_standalone_run(
+                    {
+                        **failed,
+                        "_id": run_id,
+                        "task_id": task.id,
+                        "trigger_type": trigger_type,
+                    }
+                )
+            except Exception:
+                logger.warning(
+                    "[Runner] failed-run finalization deferred: %s", run_id, exc_info=True
+                )
             logger.exception("[Runner] task=%s run=%s failed after %dms", task.id, run_id, duration)
 
         finally:
             await release_task_lock(task.id, lock_token)
-            if task.trigger_type == TriggerType.DATE and trigger_type == TriggerType.DATE.value:
-                await storage.update_task(
-                    task.id,
-                    {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
-                )
-                get_runtime_scheduler().unregister_job(task.id)
+
+    async def finalize_standalone_run(self, record):
+        storage = get_scheduled_task_storage()
+        await storage.update_task_run_stats(
+            record["task_id"], record["_id"], RunStatus(record["status"])
+        )
+        if record["trigger_type"] == TriggerType.DATE.value and record.get(
+            "scheduled_trigger_config"
+        ):
+            if await storage.pause_completed_date_task(
+                record["task_id"], record["scheduled_trigger_config"], record["scheduled_timezone"]
+            ):
+                get_runtime_scheduler().unregister_job(record["task_id"])
+        await storage.complete_run_finalization(record["_id"])
 
     # ── Internal ───────────────────────────────────
 
@@ -345,18 +419,23 @@ class ScheduledTaskRunner:
         now: datetime,
     ) -> tuple[str, int, datetime | None] | None:
         """Return a distributed schedule slot id, TTL, and optional due time."""
-        if task.run_on_start and task.total_runs == 0:
-            anchor = task.created_at or now
-            return f"run_on_start:{int(ensure_utc(anchor).timestamp())}", 86400, None
-
+        now = ensure_utc(SCHEDULED_FIRE_TIME.get() or now)
+        anchor = ensure_utc(task.created_at or now)
         if trigger_type == TriggerType.INTERVAL.value and task.trigger_type == TriggerType.INTERVAL:
             seconds = max(1, int(task.trigger_config.get("seconds", 1)))
-            interval_anchor = task.last_run_at or task.created_at
-            if interval_anchor is not None:
-                due_at = ensure_utc(interval_anchor) + timedelta(seconds=seconds)
-                return f"interval:{int(due_at.timestamp())}", max(seconds * 2, 60), due_at
-            bucket = int(now.timestamp()) // seconds
-            return f"interval:{bucket}", max(seconds * 2, 60), None
+            if task.created_at is None:
+                bucket = int(now.timestamp()) // seconds
+                return f"interval:{bucket}", max(seconds * 2, 60), None
+            elapsed = (now - anchor).total_seconds()
+            if task.run_on_start and task.total_runs == 0 and elapsed < seconds:
+                return f"run_on_start:{int(anchor.timestamp())}", 86400, None
+            # Completion time must never shift the cadence or the cross-instance slot identity.
+            slot = max(1, int(elapsed // seconds))
+            due_at = anchor + timedelta(seconds=slot * seconds)
+            return f"interval:{int(due_at.timestamp())}", max(seconds * 2, 60), due_at
+
+        if task.run_on_start and task.total_runs == 0:
+            return f"run_on_start:{int(anchor.timestamp())}", 86400, None
 
         if trigger_type == TriggerType.DATE.value and task.trigger_type == TriggerType.DATE:
             run_date = task.trigger_config.get("run_date")
@@ -378,15 +457,18 @@ class ScheduledTaskRunner:
         session_id: str,
         trigger_type: str | None = None,
         now: datetime | None = None,
+        lock_token: str | None = None,
     ) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session.
 
         ``now`` anchors the injected user-message timestamp to the run start so
         retries of the same run resend a byte-identical message (KV-cache
         stability, issue #212)."""
+        from src.api.routes.chat import validate_agent_model_access
         from src.infra.session.manager import SessionManager
-        from src.infra.task.concurrency import get_registered_executor
+        from src.infra.task.background_tasks import _request_options
         from src.infra.task.manager import get_task_manager
+        from src.kernel.errors import AppError, ErrorCode
 
         task_manager = get_task_manager()
         use_arq_backend = settings.TASK_BACKEND == "arq"
@@ -402,21 +484,23 @@ class ScheduledTaskRunner:
             if isinstance(raw_attachments, list)
             else None
         )
-        message = format_user_message_with_timestamp(
+        message = format_scheduled_message_with_timestamp(
             display_message,
-            user_timezone if isinstance(user_timezone, str) else None,
+            user_timezone if isinstance(user_timezone, str) else task.timezone,
             now=now,
         )
-        agent_options = task.input_payload.get("agent_options")
-        if isinstance(agent_options, dict):
-            from src.api.routes.chat import validate_agent_model_access
-
-            user = await _resolve_task_owner(task.owner_id)
-            if user is None:
-                raise RuntimeError(f"Scheduled task owner '{task.owner_id}' not found")
-            await validate_agent_model_access(agent_options, user)
-        else:
-            agent_options = None
+        user = await _resolve_task_owner(task.owner_id)
+        if user is None:
+            raise AppError(ErrorCode.USER_NOT_FOUND)
+        if "chat:write" not in (user.permissions or []):
+            raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "chat:write"})
+        raw_options = task.input_payload.get("agent_options")
+        agent_options = _request_options(
+            {
+                "agent_options": raw_options if isinstance(raw_options, dict) else {},
+            }
+        )
+        await validate_agent_model_access(agent_options, user)
         agent_options = await _agent_options_with_default_model(agent_options)
 
         persona_preset_id = task.input_payload.get("persona_preset_id")
@@ -437,9 +521,6 @@ class ScheduledTaskRunner:
             from src.api.routes.chat import resolve_persona_request
             from src.kernel.schemas.agent import AgentRequest
 
-            user = await _resolve_task_owner(task.owner_id)
-            if user is None:
-                raise RuntimeError(f"Scheduled task owner '{task.owner_id}' not found")
             persona_request = AgentRequest(
                 message=display_message,
                 persona_preset_id=persona_preset_id,
@@ -453,6 +534,7 @@ class ScheduledTaskRunner:
         session_metadata = {
             "source": "scheduled_task",
             "scheduled_task_id": task.id,
+            "executor_key": "scheduled_agent_stream",
             "scheduled_task_run_id": run_id,
             "scheduled_task_trigger_type": trigger_type or task.trigger_type.value,
             "hidden_from_conversation_list": True,
@@ -473,8 +555,9 @@ class ScheduledTaskRunner:
                 agent_id=task.agent_id,
                 message=message,
                 user_id=task.owner_id,
-                executor_key="agent_stream",
+                executor_key="scheduled_agent_stream",
                 run_id=run_id,
+                dispatch_id=f"scheduled:{run_id}:{session_id}",
                 disabled_tools=task.input_payload.get("disabled_tools"),
                 agent_options=agent_options,
                 attachments=attachments,
@@ -490,18 +573,12 @@ class ScheduledTaskRunner:
                 write_user_message_immediately=True,
             )
         else:
-            executor_fn = get_registered_executor("agent_stream")
-            if executor_fn is None:
-                raise RuntimeError(
-                    "agent_stream executor not registered — "
-                    "ensure the chat router is loaded before scheduled tasks run"
-                )
             _, trace_id = await task_manager.submit(
                 session_id=session_id,
                 agent_id=task.agent_id,
                 message=message,
                 user_id=task.owner_id,
-                executor=executor_fn,
+                executor=execute_standalone_schedule,
                 run_id=run_id,
                 disabled_tools=task.input_payload.get("disabled_tools"),
                 agent_options=agent_options,
@@ -523,7 +600,7 @@ class ScheduledTaskRunner:
         )
 
         result = await self._wait_for_completion(
-            task_manager, session_id, run_id, task.owner_id, task.timeout_seconds
+            task_manager, session_id, run_id, task.owner_id, task_id=task.id, lock_token=lock_token
         )
         result["session_id"] = session_id
         result["trace_id"] = trace_id
@@ -535,13 +612,29 @@ class ScheduledTaskRunner:
         session_id: str,
         run_id: str,
         user_id: str,
-        timeout_seconds: int = _DEFAULT_TIMEOUT,
+        *,
+        task_id: str | None = None,
+        lock_token: str | None = None,
     ) -> dict:
-        """Poll task status until completion or timeout."""
+        """Wait for a terminal state, renewing ownership regardless of elapsed time."""
         from src.infra.task.status import TaskStatus
 
-        start = time.monotonic()
-        while time.monotonic() - start < timeout_seconds:
+        while True:
+            if task_id and lock_token:
+                try:
+                    owned = await extend_task_lock(
+                        task_id, lock_token, extra_seconds=_EXECUTION_LOCK_TTL
+                    )
+                except Exception:
+                    logger.exception("Scheduled task execution lease renewal failed: %s", task_id)
+                    owned = False
+                if not owned:
+                    try:
+                        await task_manager.cancel_run(run_id, user_id=user_id)
+                    finally:
+                        raise _ExecutionLeaseLostError(
+                            "Scheduled task execution ownership was lost"
+                        )
             status = await task_manager.get_run_status(session_id, run_id)
             if status in (
                 TaskStatus.COMPLETED,
@@ -549,21 +642,8 @@ class ScheduledTaskRunner:
                 TaskStatus.CANCELLED,
                 TaskStatus.EXPIRED,
             ):
-                return {
-                    "session_status": (status.value if hasattr(status, "value") else str(status))
-                }
+                return {"session_status": status.value if hasattr(status, "value") else str(status)}
             await asyncio.sleep(_POLL_INTERVAL)
-
-        try:
-            await task_manager.cancel_run(run_id, user_id=user_id)
-        except Exception as exc:
-            logger.warning(
-                "[Runner] failed to cancel timed-out task run=%s session=%s: %s",
-                run_id,
-                session_id,
-                exc,
-            )
-        return {"session_status": "timeout"}
 
     @staticmethod
     def _classify_attempt_result(result: dict[str, Any]) -> _AttemptResult:
@@ -679,3 +759,14 @@ def get_scheduled_task_runner() -> ScheduledTaskRunner:
     if _runner is None:
         _runner = ScheduledTaskRunner()
     return _runner
+
+
+async def reconcile_standalone_finalizations():
+    storage = get_scheduled_task_storage()
+    for record in await storage.pending_standalone_finalizations():
+        try:
+            await get_scheduled_task_runner().finalize_standalone_run(record)
+        except Exception:
+            logger.warning(
+                "[Runner] standalone finalization deferred: %s", record["_id"], exc_info=True
+            )

@@ -114,3 +114,37 @@ test("appending unrelated Markdown preserves pending table copy and its success 
     "| Name  | Value |\n| ----- | ----- |\n| Draft | two   |",
   );
 });
+
+test.each([false, true])(
+  "empty fenced code stays empty when streaming is %s and copies no synthetic text",
+  async (streaming) => {
+    clipboard.copy.mockClear();
+    const i18n = appI18n.cloneInstance({ lng: "en" });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MarkdownContent content={"```text\n```"} isStreaming={streaming} />
+      </I18nextProvider>,
+    );
+    const copy = await screen.findByRole("button", { name: "Copy code" });
+    expect(document.querySelector(".cm-content")?.textContent).toBe("");
+    fireEvent.click(copy);
+    expect(clipboard.copy).not.toHaveBeenCalled();
+  },
+);
+
+test.each(["undefined", "0"])(
+  "fenced code preserves and copies literal %s",
+  async (code) => {
+    clipboard.copy.mockResolvedValueOnce(undefined);
+    const i18n = appI18n.cloneInstance({ lng: "en" });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MarkdownContent content={`\`\`\`text\n${code}\n\`\`\``} />
+      </I18nextProvider>,
+    );
+    const copy = await screen.findByRole("button", { name: "Copy code" });
+    expect(document.querySelector(".cm-content")?.textContent).toBe(code);
+    await act(async () => fireEvent.click(copy));
+    expect(clipboard.copy).toHaveBeenLastCalledWith(code);
+  },
+);

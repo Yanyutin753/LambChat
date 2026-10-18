@@ -6,6 +6,112 @@ import pytest
 from src.infra.usage.storage import UsageStorage
 
 
+@pytest.mark.parametrize("certified", [None, False, True])
+async def test_complete_positive_cache_counts_still_require_inclusive_certification(certified):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 5,
+        "total_tokens": 105,
+        "cache_read_tokens": 80,
+        "cache_creation_tokens": 0,
+        "unknown_usage_fields": [],
+    }
+    if certified is not None:
+        usage["input_includes_cache"] = certified
+    await storage.upsert_usage_log_from_trace_metadata({"trace_id": "positive-read"}, usage)
+    assert collection.update_calls[0][1]["$set"]["cache_metrics_available"] is (certified is True)
+
+
+@pytest.mark.parametrize("certified", [True, False])
+async def test_known_read_rate_does_not_certify_unknown_write_or_cost(certified):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    assert await storage.upsert_usage_log_from_trace_metadata(
+        {"trace_id": "read-rate", "session_id": "s", "user_id": "u"},
+        {
+            "input_tokens": 100,
+            "output_tokens": 5,
+            "cache_read_tokens": 80,
+            "input_includes_cache": certified,
+            "unknown_usage_fields": ["cache_creation_tokens"],
+        },
+    )
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["cache_metrics_available"] is certified
+    assert doc["usage_incomplete"] is True
+    assert doc["cost_available"] is False
+
+
+async def test_explicit_zero_reads_have_zero_rate_without_a_write_count_or_inclusive_certificate():
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    await storage.upsert_usage_log_from_trace_metadata(
+        {"trace_id": "zero-read", "user_id": "u"},
+        {
+            "input_tokens": 100,
+            "output_tokens": 1,
+            "cache_read_tokens": 0,
+            "unknown_usage_fields": ["cache_creation_tokens"],
+        },
+    )
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["cache_metrics_available"] is True
+    assert doc["usage_incomplete"] is True
+    assert doc["cost_available"] is False
+
+
+@pytest.mark.parametrize(
+    "method", ["get_usage_stats_only", "get_usage_dashboard", "list_usage_logs"]
+)
+async def test_database_failure_is_not_a_successful_zero_cost_snapshot(method):
+    from unittest.mock import AsyncMock
+
+    storage = UsageStorage()
+    collection = _FakeCollection()
+    collection.aggregate = AsyncMock(side_effect=RuntimeError("database unavailable"))
+    storage._collection = collection
+    with pytest.raises(Exception):
+        await getattr(storage, method)()
+
+
+@pytest.mark.parametrize("from_event", [True, False])
+async def test_usage_preserves_the_selected_model_config_for_later_pricing(from_event):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    trace = {"trace_id": "model-identity", "metadata": {"model_id": "original-config"}}
+    data = {"model": "shared-value"}
+    if from_event:
+        data["model_id"] = "actual-config"
+    assert await storage.upsert_usage_log_from_trace_metadata(trace, data)
+    assert collection.update_calls[0][1]["$set"]["model_id"] == (
+        "actual-config" if from_event else "original-config"
+    )
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_incomplete_usage_does_not_certify_a_stored_estimate(legacy):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    usage = {"input_tokens": 100, "output_tokens": 10, "total_tokens": 110, "cost_usd": 0.5}
+    if not legacy:
+        usage.update(cache_read_tokens=0, cache_creation_tokens=0, usage_incomplete=True)
+    assert await storage.upsert_usage_log_from_trace_metadata(
+        {"trace_id": "incomplete", "session_id": "s1", "run_id": "r1", "user_id": "u1"},
+        usage_data=usage,
+    )
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["usage_incomplete"] is True
+    assert doc["cost_available"] is False
+    assert doc["cost_usd"] == 0.5
+
+
 class _FakeCursor:
     def __init__(self, docs):
         self.docs = docs
@@ -189,7 +295,13 @@ async def test_upsert_usage_log_normalizes_token_numbers_and_metadata() -> None:
 
     assert inserted is True
     query, update, kwargs = collection.update_calls[0]
-    assert query == {"trace_id": "trace-1"}
+    assert query == {
+        "trace_id": "trace-1",
+        "$or": [
+            {"trace_event_revision": {"$exists": False}},
+            {"trace_event_revision": {"$lte": 0}},
+        ],
+    }
     assert kwargs == {"upsert": True}
     doc = update["$set"]
     assert doc["username"] == "Ada"
@@ -317,7 +429,7 @@ async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
         limit=999,
     )
 
-    assert items == [{"trace_id": "trace-1"}]
+    assert items == [{"trace_id": "trace-1", "cost_available": False, "usage_incomplete": True}]
     assert total == 1
     assert stats["total_requests"] == 1
     query = collection.count_queries[0]
@@ -339,7 +451,14 @@ async def test_list_usage_logs_paginates_items_but_keeps_stats_global() -> None:
     items, total, stats = await storage.list_usage_logs(skip=1, limit=1)
 
     assert items == [
-        {"trace_id": "trace-2", "input_tokens": 20, "output_tokens": 8, "total_tokens": 28}
+        {
+            "trace_id": "trace-2",
+            "input_tokens": 20,
+            "output_tokens": 8,
+            "total_tokens": 28,
+            "cost_available": False,
+            "usage_incomplete": True,
+        }
     ]
     assert total == 3
     assert stats["total_requests"] == 3
@@ -594,6 +713,10 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
         "cache_read_tokens": 20,
         "cache_read_share": 20 / 70,
         "zero_cache_requests": 1,
+        "priced_requests": 0,
+        "unpriced_requests": 0,
+        "cache_unknown_requests": 0,
+        "usage_unknown_requests": 0,
     }
     assert dashboard["top_models"][1]["cache_read_share"] == 0.0
     assert dashboard["top_users"][0]["name"] == "Ada"
@@ -777,7 +900,10 @@ async def test_usage_log_falls_back_to_run_model_without_usage_model(status, usa
 
 
 @pytest.mark.asyncio
-async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypatch) -> None:
+@pytest.mark.parametrize("starts_with_quick_handoff", [False, True])
+async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(
+    monkeypatch, starts_with_quick_handoff
+) -> None:
     from src.agents.core.node_utils import resolve_run_usage_carry
     from src.infra.agent.events.processor import AgentEventProcessor
     from src.infra.pricing.calculator import PriceRates, compute_cost
@@ -804,17 +930,20 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypat
 
     monkeypatch.setattr(presenter, "emit", capture)
     resume_payload = None
+    handoff_payload = None
     for index, (input_tokens, output_tokens, cache_tokens) in enumerate(
-        [(100, 10, 10), (200, 20, 20), (50, 5, 30)]
+        [(100, 10, 10), (200, 20, 20), (50, 5, 30), (0, 0, 0)]
     ):
         processor = AgentEventProcessor(presenter)
-        started_at, prior = resolve_run_usage_carry(resume_payload, default_started_at=100.0)
+        started_at, prior = resolve_run_usage_carry(
+            resume_payload, default_started_at=100.0, handoff_usage=handoff_payload
+        )
         processor.seed_usage(prior)
         usage = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": input_tokens + output_tokens,
-            "input_token_details": {"cache_read": cache_tokens},
+            "input_token_details": {"cache_read": cache_tokens, "cache_creation": 0},
         }
         await processor.process_event(
             {
@@ -829,7 +958,13 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypat
         )
         assert await processor.emit_token_usage(model="selected-model") is True
         assert await processor.emit_token_usage(model="selected-model") is False
-        assert events[-1]["data"]["total_tokens"] == [110, 330, 385][index]
+        assert events[-1]["data"]["total_tokens"] == [110, 330, 385, 385][index]
+        if starts_with_quick_handoff and index == 0:
+            handoff_payload = {
+                "run_started_at": started_at,
+                "prior_usage": processor.usage_totals(),
+            }
+            continue
         approval = SimpleNamespace(
             id=f"approval-{index}",
             message="confirm",
@@ -851,7 +986,13 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypat
     await storage.upsert_usage_log(trace)
 
     for query, update, options in collection.update_calls:
-        assert query == {"trace_id": "same-trace"}
+        assert query == {
+            "trace_id": "same-trace",
+            "$or": [
+                {"trace_event_revision": {"$exists": False}},
+                {"trace_event_revision": {"$lte": 0}},
+            ],
+        }
         assert options["upsert"] is True
         doc = update["$set"]
         assert doc["input_tokens"] == 350
@@ -859,3 +1000,45 @@ async def test_repeated_hitl_resumes_store_one_cumulative_usage_record(monkeypat
         assert doc["total_tokens"] == 385
         assert doc["cache_read_tokens"] == 60
         assert doc["cost_usd"] == pytest.approx(0.000366)
+
+
+@pytest.mark.parametrize("certificate", [None, False, 1, True])
+async def test_cost_snapshot_requires_inclusive_input_certificate(certificate):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 5,
+        "total_tokens": 105,
+        "cache_read_tokens": 70,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.9,
+        "usage_incomplete": False,
+        "unknown_usage_fields": [],
+    }
+    if certificate is not None:
+        usage["input_includes_cache"] = certificate
+    await storage.upsert_usage_log_from_trace_metadata({"trace_id": "raw-cost"}, usage)
+    stored = collection.update_calls[0][1]["$set"]
+    assert stored["cost_usd"] == 0.9
+    assert stored["cost_available"] is (certificate is True)
+
+
+@pytest.mark.parametrize("certificate", [None, False, 1, True])
+async def test_usage_listing_does_not_recertify_legacy_cost(certificate):
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    doc = {
+        "trace_id": "legacy-cost",
+        "cost_usd": 0.9,
+        "cost_available": True,
+        "usage_incomplete": False,
+    }
+    if certificate is not None:
+        doc["input_includes_cache"] = certificate
+    collection.find = lambda *args, **kwargs: _FakeCursor([doc])
+    [stored] = await storage._fetch_items({}, 0, 10)
+    assert stored["cost_usd"] == 0.9
+    assert stored["cost_available"] is (certificate is True)

@@ -18,6 +18,7 @@ function makeState(overrides: Partial<UpdateState> = {}): UpdateState {
     readyToInstall: false,
     error: null,
     linuxInstallSource: null,
+    linuxPackageAssetMissing: false,
     ...overrides,
   };
 }

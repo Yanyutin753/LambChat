@@ -123,6 +123,11 @@ export interface ChatInputProps {
   /** Active goal — when provided, renders an embedded goal strip inside the input card. */
   persistentGoal?: PersistentGoal | null;
   persistentGoalBusy?: boolean;
+  onUpdatePersistentGoal?: (
+    objective: string,
+    rubric: string,
+    expectedRevision: number,
+  ) => Promise<boolean>;
   onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal?: ActiveGoalSpec | null;
   onClearActiveGoal?: () => void;

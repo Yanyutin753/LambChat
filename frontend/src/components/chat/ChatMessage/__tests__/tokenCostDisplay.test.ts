@@ -21,6 +21,8 @@ function usage(overrides: Partial<TokenUsagePart> = {}): TokenUsagePart {
     total_tokens: 1_100_000,
     cache_read_tokens: 200_000,
     cache_creation_tokens: 100_000,
+    usage_incomplete: false,
+    input_includes_cache: true,
     cost_usd: 0.0371,
     cost_breakdown: {
       input: 0.007,
@@ -29,7 +31,7 @@ function usage(overrides: Partial<TokenUsagePart> = {}): TokenUsagePart {
       cache_write: 0,
       total: 0.0371,
     },
-    cost_rates: { input: 2.5, output: 10, cache_read: 1.25, cache_write: null },
+    cost_rates: { input: 2.5, output: 10, cache_read: 1.25, cache_write: 0 },
     ...overrides,
   };
 }
@@ -42,6 +44,35 @@ describe("hasPricedCost", () => {
   test("false when unpriced or missing", () => {
     expect(hasPricedCost(usage({ cost_usd: undefined }))).toBe(false);
     expect(hasPricedCost(undefined)).toBe(false);
+  });
+
+  test("incomplete accounting cannot turn an old estimate into a complete cost", () => {
+    expect(hasPricedCost(usage({ usage_incomplete: true }))).toBe(false);
+  });
+
+  test("missing cache metrics are unknown even with a stored legacy estimate", () => {
+    expect(hasPricedCost(usage({ cache_creation_tokens: undefined }))).toBe(
+      false,
+    );
+  });
+
+  test("positive cache usage with an explicitly unknown price is not free", () => {
+    expect(
+      hasPricedCost(
+        usage({
+          cost_rates: {
+            input: 2.5,
+            output: 10,
+            cache_read: null,
+            cache_write: 0,
+          },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test("legacy counters without completeness evidence are not a certified cost", () => {
+    expect(hasPricedCost(usage({ usage_incomplete: undefined }))).toBe(false);
   });
 });
 
@@ -68,17 +99,18 @@ describe("buildCostDetailRows", () => {
     expect(rows.find((row) => row.key === "cache_read")).toBeUndefined();
   });
 
-  test("missing breakdown falls back to zero component costs", () => {
+  test("missing breakdown preserves unknown component costs", () => {
     const rows = buildCostDetailRows(
       usage({ cost_breakdown: undefined, cost_rates: undefined }),
     );
     const inputRow = rows.find((row) => row.key === "input");
-    expect(inputRow?.usd).toBe(0);
+    expect(inputRow?.usd).toBeNull();
     expect(inputRow?.ratePerMillion).toBeNull();
   });
 
   test("empty usage returns no rows", () => {
     expect(buildCostDetailRows(undefined)).toEqual([]);
+    expect(buildCostDetailRows(usage({ usage_incomplete: true }))).toEqual([]);
   });
 });
 
@@ -122,7 +154,12 @@ describe("formatCostDetailRow", () => {
       language: "en",
       rates: null,
     });
-    expect(formatted.cost).toBe("$0.00");
+    expect(formatted.cost).toBe("—");
     expect(formatted.rate).toBeNull();
   });
+});
+
+test("an old cost estimate needs an inclusive input certificate", () => {
+  expect(hasPricedCost(usage({ input_includes_cache: undefined }))).toBe(false);
+  expect(hasPricedCost(usage({ input_includes_cache: false }))).toBe(false);
 });

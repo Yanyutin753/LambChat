@@ -328,9 +328,8 @@ def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
         installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
 
         assert -1 < assembly < installation
-        # The session workspace path moved out of the system prompt onto the
-        # file-tool descriptions (Codex-style layering); the middleware must
-        # be installed after the env-var middleware it follows.
+        # Workspace metadata follows env-var and static prompt sections,
+        # preserving the reusable tools prefix.
         env = source.rfind("EnvVarPromptMiddleware")
         sandbox = source.rfind("SandboxWorkspaceMiddleware")
         assert -1 < env < sandbox

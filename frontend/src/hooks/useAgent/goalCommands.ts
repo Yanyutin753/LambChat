@@ -41,8 +41,8 @@ export function parseFrontendGoalCommand(
   if (["pause", "resume"].includes(body.toLowerCase())) {
     return { action: body.toLowerCase() as "pause" | "resume" };
   }
-  const persistent = /^persist(?:\s|$)/i.test(body);
-  const objectiveBody = persistent ? body.replace(/^persist\s*/i, "") : body;
+  const singleRun = /^run(?:\s|$)/i.test(body);
+  const objectiveBody = body.replace(/^(?:persist|run)(?:\s+|$)/i, "");
   if (!objectiveBody) return { action: "invalid" };
 
   const parts = objectiveBody.split(SEPARATOR_RE);
@@ -50,7 +50,7 @@ export function parseFrontendGoalCommand(
   if (!objective) return { action: "invalid" };
   const explicitRubric = parts.slice(1).join("---").trim();
   return {
-    action: persistent ? "persist" : "run",
+    action: singleRun ? "run" : "persist",
     goal: buildGoalFromPrompt(objective, explicitRubric),
     prompt: objective,
   };

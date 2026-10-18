@@ -102,6 +102,7 @@ YubbChat/
 .codex
 /scripts/*
 !/scripts/
+!/scripts/e2e_conversation_schedules.py
 !/scripts/create_daytona_snapshot.py
 !/scripts/eval_agent_capabilities.py
 !/scripts/sign_release_assets.py
@@ -122,6 +123,7 @@ YubbChat/
 !/scripts/backfill_memory_scope.py
 !/scripts/eval_systemone_gate.py
 !/scripts/e2e_local_sandbox.py
+!/scripts/e2e_linux_update.py
 !/scripts/e2e_workspace_preview.py
 !/scripts/WORKSPACE_PREVIEW_E2E.md
 !/scripts/run_validation.py
