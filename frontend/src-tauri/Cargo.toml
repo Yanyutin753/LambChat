@@ -42,7 +42,7 @@ sys-locale = "0.3.2"
 command-group = "5.0.1"
 
 [target.'cfg(unix)'.dependencies]
-# daemon sidecar 探活轮询用 kill(pid, 0)（存在性校验，不发实际信号）
+# 壳级 SIGTERM 优雅退出注册 sigaction（lib.rs）；探活已统一走 command-group
 libc = "0.2.190"
 
 [target.'cfg(target_os = "macos")'.dependencies]

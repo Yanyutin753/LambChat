@@ -35,6 +35,7 @@ function makeState(overrides: Partial<UpdateState> = {}): UpdateState {
     readyToInstall: false,
     error: null,
     linuxInstallSource: null,
+    linuxPackageAssetMissing: false,
     ...overrides,
   };
 }
@@ -122,6 +123,25 @@ test("unknown linux source falls back to go-to-download button", () => {
   );
   expect(screen.getByRole("button", { name: /前往下载/ })).toBeTruthy();
   expect(screen.queryByRole("button", { name: /下载并安装/ })).toBeNull();
+});
+
+test("deb/rpm source without a located release asset falls back to go-to-download", () => {
+  // GitHub 资产缺失/架构不匹配时实际动作是 openDownloadPage——按钮不得
+  // 再承诺「下载并安装」（点下去却打开网页）
+  for (const source of ["deb", "rpm"] as const) {
+    cleanup();
+    render(
+      <UpdateDialog
+        {...baseProps}
+        state={makeState({
+          linuxInstallSource: source,
+          linuxPackageAssetMissing: true,
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /前往下载/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /下载并安装/ })).toBeNull();
+  }
 });
 
 test("appimage source falls back to go-to-download (AppImage discontinued)", () => {

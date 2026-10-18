@@ -32,7 +32,9 @@ fn arm_sigterm_handler() {
         action.sa_flags = libc::SA_RESTART;
         if libc::sigaction(libc::SIGTERM, &action, std::ptr::null_mut()) != 0 {
             let err = std::io::Error::last_os_error();
-            eprintln!("[lambchat] failed to arm SIGTERM handler: {err}");
+            daemon::emit_stderr_line(&format!(
+                "[lambchat] failed to arm SIGTERM handler: {err}"
+            ));
         }
     }
 }
@@ -57,7 +59,9 @@ fn install_sigterm_handler(app: tauri::AppHandle) {
         .name("lambchat-sigterm".to_string())
         .spawn(move || loop {
             if SIGTERM_SEEN.load(Ordering::SeqCst) {
-                eprintln!("[lambchat] SIGTERM received; stopping daemon and exiting");
+                daemon::emit_stderr_line(&format!(
+                    "[lambchat] SIGTERM received; stopping daemon and exiting"
+                ));
                 app.exit(0);
                 return;
             }
@@ -112,7 +116,9 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
     let resource_dir = match app.path().resource_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("[lambchat] resource dir unavailable ({e}); skipping PBS runtime seed");
+            daemon::emit_stderr_line(&format!(
+                "[lambchat] resource dir unavailable ({e}); skipping PBS runtime seed"
+            ));
             return;
         }
     };
@@ -123,7 +129,7 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
     let home = match daemon::sandbox_home() {
         Ok(home) => home,
         Err(e) => {
-            eprintln!("[lambchat] {e}; skipping PBS runtime seed");
+            daemon::emit_stderr_line(&format!("[lambchat] {e}; skipping PBS runtime seed"));
             return;
         }
     };
@@ -133,23 +139,26 @@ fn seed_pbs_runtime_resource(app: &tauri::AppHandle) {
     }
     if let Some(parent) = dest.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
-            eprintln!("[lambchat] failed to create {}: {e}", parent.display());
+            daemon::emit_stderr_line(&format!(
+                "[lambchat] failed to create {}: {e}",
+                parent.display()
+            ));
             return;
         }
     }
     // 同目录 .part 中转 + rename 原子可见（与 fetch-pbs.py 的下载落位同款约定）
     let tmp = dest.with_file_name("python.tar.gz.part");
     match fs::copy(&src, &tmp).and_then(|bytes| fs::rename(&tmp, &dest).map(|_| bytes)) {
-        Ok(bytes) => eprintln!(
+        Ok(bytes) => daemon::emit_stderr_line(&format!(
             "[lambchat] seeded PBS runtime archive to {} ({bytes} bytes)",
             dest.display()
-        ),
+        )),
         Err(e) => {
             let _ = fs::remove_file(&tmp); // 半截中转文件不留
-            eprintln!(
+            daemon::emit_stderr_line(&format!(
                 "[lambchat] failed to seed PBS runtime archive to {}: {e}",
                 dest.display()
-            );
+            ));
         }
     }
 }
@@ -195,7 +204,9 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 seed_pbs_runtime_resource(&handle);
                 if let Err(e) = daemon::start(&handle) {
-                    eprintln!("[lambchat-daemon] failed to start daemon: {e}");
+                    daemon::emit_stderr_line(&format!(
+                        "[lambchat-daemon] failed to start daemon: {e}"
+                    ));
                 }
             });
             // 托盘：构建失败（如缺 appindicator 运行库）仅告警，不影响主窗口。

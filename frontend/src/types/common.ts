@@ -47,4 +47,7 @@ export interface UpdateState {
   error: string | null;
   /** Linux 桌面端安装来源（更新流程分流依据；null=非桌面/未检测） */
   linuxInstallSource: LinuxInstallSource | null;
+  /** deb/rpm 来源但 Release 未定位到匹配架构的安装包资产——实际动作是
+   *  openDownloadPage，按钮须如实显示「前往下载」而非「下载并安装」 */
+  linuxPackageAssetMissing: boolean;
 }
