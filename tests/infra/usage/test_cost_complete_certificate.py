@@ -62,7 +62,10 @@ async def test_included_known_write_count_preserves_complete_cost_with_no_separa
         unknown_usage_fields=[],
         cost_usd=0.000194,
         cost_rates=dict(
-            input=2, output=3, cache_read=0.2, cache_write=write_rate,
+            input=2,
+            output=3,
+            cache_read=0.2,
+            cache_write=write_rate,
             cache_write_included=True,
         ),
     )
@@ -72,8 +75,13 @@ async def test_included_known_write_count_preserves_complete_cost_with_no_separa
     assert doc["cost_complete"] is True
     assert doc["cost_usd"] == usage["cost_usd"]
     assert doc["cost_rates"] == usage["cost_rates"]
-    for field in ("input_tokens", "output_tokens", "total_tokens", "cache_read_tokens",
-                  "cache_creation_tokens"):
+    for field in (
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+    ):
         assert doc[field] == usage[field]
     assert doc["usage_incomplete"] is False
     assert doc["unknown_usage_fields"] == []
