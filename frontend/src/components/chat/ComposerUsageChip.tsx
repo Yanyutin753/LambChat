@@ -258,11 +258,6 @@ export function ComposerUsageChip() {
             </div>
 
             {/* ── 详情入口 ── */}
-            {snapshot.cacheHitRate === null && (
-              <p className="px-3 pb-2 text-11 text-theme-text-muted">
-                {t("usage.cacheRateUnknown")}
-              </p>
-            )}
             <button
               type="button"
               onClick={() => {

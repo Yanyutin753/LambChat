@@ -1,5 +1,5 @@
 import { InteractiveIcon } from "../../common/InteractiveIcon";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tooltip } from "../../common/Tooltip";
 import { ChevronDown, Plus, SquarePen } from "lucide-react";
 
@@ -26,8 +26,24 @@ export function SidebarSectionHeader({
   createIcon?: "plus" | "compose";
   children?: ReactNode;
 }) {
+  const [isTouched, setIsTouched] = useState(false);
+  const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+    };
+  }, []);
+
   return (
-    <div className="sidebar-section-header sidebar-action-row group/section flex h-8 max-sm:h-9 items-center gap-1 px-[9px] select-none">
+    <div
+      className="sidebar-section-header sidebar-action-row group/section flex h-8 max-sm:h-9 items-center gap-1 px-[9px] select-none"
+      data-revealed={isTouched || undefined}
+      onTouchStart={() => {
+        if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+        setIsTouched(true);
+        touchTimerRef.current = setTimeout(() => setIsTouched(false), 3000);
+      }}
+    >
       <button
         type="button"
         onClick={onToggle}

@@ -110,7 +110,7 @@ test("refreshes when a chat round settles via the window event", async () => {
   expect(getStatsMock).toHaveBeenCalledTimes(2);
 });
 
-test("unknown usage shows neither invented free cost nor token percentages", async () => {
+test("unknown cost stays unknown while available token counts still produce percentages", async () => {
   getStatsMock.mockResolvedValue(
     todayStats({
       total_cost_usd: 0,
@@ -123,10 +123,8 @@ test("unknown usage shows neither invented free cost nor token percentages", asy
   render(<ComposerUsageChip />);
   fireEvent.click(await screen.findByRole("button", { name: "今日 —" }));
   expect(await screen.findByText("Token 构成")).toBeInTheDocument();
-  expect(screen.queryByText("0%")).not.toBeInTheDocument();
-  expect(screen.queryByText("30.0%")).not.toBeInTheDocument();
-  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(6);
-  expect(screen.getByText("输入（报告值）")).toBeInTheDocument();
+  expect(screen.getByText("30.0%")).toBeInTheDocument();
+  expect(screen.getByText("输入")).toBeInTheDocument();
 });
 
 test("queues a follow-up refresh when the event lands while a fetch is in flight", async () => {
@@ -247,7 +245,7 @@ test("usage card uses serif text and aligns metric columns and baselines", async
   );
 });
 
-test("56 requests show independently known tokens and mark reported input without fabricating writes", async () => {
+test("56 requests calculate available token counts despite missing provider metrics", async () => {
   getStatsMock.mockResolvedValue(
     todayStats({
       total_requests: 56,
@@ -259,8 +257,8 @@ test("56 requests show independently known tokens and mark reported input withou
   );
   render(<ComposerUsageChip />);
   fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
-  const input = await screen.findByText("输入（报告值）");
-  expect(within(input.parentElement!).getByText("100")).toBeInTheDocument();
+  const input = await screen.findByText("输入");
+  expect(within(input.parentElement!).getByText("70")).toBeInTheDocument();
   expect(
     within(screen.getByText("输出").parentElement!).getByText("50"),
   ).toBeInTheDocument();
@@ -268,9 +266,36 @@ test("56 requests show independently known tokens and mark reported input withou
     within(screen.getByText("缓存读取").parentElement!).getByText("30"),
   ).toBeInTheDocument();
   expect(
-    within(screen.getByText("缓存写入").parentElement!).queryByText("0"),
-  ).toBeNull();
-  expect(screen.queryByText("30.0%")).toBeNull();
-  expect(screen.queryByText("0%")).toBeNull();
+    within(screen.getByText("缓存写入").parentElement!).getByText("0"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("30.0%")).toBeInTheDocument();
   expect(screen.getByText("56")).toBeInTheDocument();
+});
+
+test("mixed observations display available totals without plus signs or unknown warnings", async () => {
+  getStatsMock.mockResolvedValue(
+    todayStats({
+      total_requests: 60,
+      total_cache_creation_tokens: 0,
+      usage_unknown_requests: 60,
+      cache_unknown_requests: 2,
+      unknown_usage_fields: [
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+      ],
+    }),
+  );
+  render(<ComposerUsageChip />);
+  fireEvent.click(await screen.findByRole("button", { name: /今日 ¥3\.60/ }));
+  expect(screen.getByText("70")).toBeInTheDocument();
+  expect(screen.getByText("50")).toBeInTheDocument();
+  expect(screen.getByText("30")).toBeInTheDocument();
+  expect(screen.queryByText("usage.partialTokensHint")).toBeNull();
+  expect(screen.queryByText("usage.cacheRateUnknown")).toBeNull();
+  expect(screen.queryByText("100+")).toBeNull();
+  const write = within(screen.getByText("缓存写入").parentElement!);
+  expect(write.getByText("0")).toBeInTheDocument();
+  expect(screen.getByText("30.0%")).toBeInTheDocument();
 });

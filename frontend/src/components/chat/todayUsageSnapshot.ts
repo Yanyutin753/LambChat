@@ -21,7 +21,7 @@ export interface TodayUsageSnapshot {
   amount: string | null;
   requests: number;
   totalTokens: number | null;
-  /** 缓存命中率 = 缓存读取 / 已认证包含缓存的 prompt 输入 */
+  /** 缓存命中率 = 已报告缓存读取 / prompt 输入 */
   cacheHitRate: number | null;
   shares: TokenShareRow[];
   sharesKnown: boolean;
@@ -82,9 +82,8 @@ export function buildTodayUsageSnapshot(
 ): TodayUsageSnapshot | null {
   if (!stats) return null;
 
-  const unknownFields = stats.unknown_usage_fields ?? [];
   const knownCount = (value: unknown, field: string) =>
-    reportedTokenCount(value, field, unknownFields);
+    reportedTokenCount(value, field);
   const input = knownCount(stats.total_input_tokens, "input_tokens");
   const output = knownCount(stats.total_output_tokens, "output_tokens");
   const cacheWrite = knownCount(
@@ -95,16 +94,18 @@ export function buildTodayUsageSnapshot(
     stats.total_cache_read_tokens,
     "cache_read_tokens",
   );
-  const sharesKnown =
-    stats.cache_unknown_requests === 0 &&
-    (stats.usage_unknown_requests ?? 0) === 0 &&
-    input !== null &&
-    output !== null &&
-    cacheRead !== null &&
-    cacheWrite !== null &&
-    input >= cacheRead + cacheWrite;
-  const uncachedInput = sharesKnown ? input - cacheRead - cacheWrite : input;
-  const denominator = sharesKnown ? input + output : 0;
+  const sharesKnown = [input, output, cacheRead, cacheWrite].some(
+    (count) => count !== null,
+  );
+  const promptInput = effectivePromptInput(
+    input ?? 0,
+    cacheRead ?? 0,
+    cacheWrite ?? 0,
+  );
+  const uncachedInput = sharesKnown
+    ? promptInput - (cacheRead ?? 0) - (cacheWrite ?? 0)
+    : null;
+  const denominator = promptInput + (output ?? 0);
   const pct = (tokens: number | null) =>
     denominator > 0 && tokens !== null ? (tokens / denominator) * 100 : 0;
 
@@ -113,16 +114,13 @@ export function buildTodayUsageSnapshot(
     requests: stats.total_requests ?? 0,
     totalTokens: knownCount(stats.total_tokens, "total_tokens"),
     sharesKnown,
-    cacheHitRate:
-      (stats.cache_unknown_requests ?? 0) > 0
-        ? null
-        : cacheHitRateFromTokens(
-            input ?? undefined,
-            cacheRead ?? undefined,
-            cacheWrite ?? undefined,
-            unknownFields,
-            stats.cache_unknown_requests === 0,
-          ),
+    cacheHitRate: cacheHitRateFromTokens(
+      promptInput,
+      cacheRead ?? undefined,
+      cacheWrite ?? undefined,
+      [],
+      true,
+    ),
     shares: [
       {
         key: "input",
