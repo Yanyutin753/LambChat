@@ -140,7 +140,7 @@ def is_quota_error(error: BaseException) -> TypeGuard[AppError]:
 
 
 def bind_quota_user(function):
-    """Detached jobs carry only their explicit billing owner, never foreground callbacks."""
+    """Bind the payer for foreground helpers and jobs launched with an empty context."""
     signature = inspect.signature(function)
 
     @wraps(function)
@@ -153,6 +153,27 @@ def bind_quota_user(function):
             _owner.reset(token)
 
     return bound
+
+
+def _usage_owner():
+    config = var_child_runnable_config.get() or {}
+    presenter = (config.get("configurable") or {}).get("presenter")
+    payer = quota_user_id()
+    presenter_user = getattr(getattr(presenter, "config", None), "user_id", None)
+    if payer and presenter_user and payer != presenter_user:
+        return None
+    return getattr(presenter, "_usage_accounting_owner", None)
+
+
+def _receipt(reservation, settlement):
+    context = reservation.get("context") or {}
+    return {
+        "call_id": reservation["id"],
+        "model": context.get("model") or "",
+        "model_id": context.get("model_config_id") or "",
+        "provider": context.get("provider") or "",
+        **settlement,
+    }
 
 
 def quota_user_id() -> str | None:
@@ -207,10 +228,19 @@ async def unpriced_usage():
     budgets = await user_budgets(user_id)
     ledger = UsageQuota()
     reservation = await _reserve_call(ledger, user_id, budgets, None)
+    owner = _usage_owner()
+    if owner is not None:
+        owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
     try:
         yield
     finally:
-        _, cancelled = await _complete_storage(ledger.settle(reservation, None))
+
+        async def settle_and_publish():
+            settlement = await ledger.settle(reservation, None)
+            if owner is not None and isinstance(settlement, dict):
+                await owner.record_usage_receipt(_receipt(reservation, settlement))
+
+        _, cancelled = await _complete_storage(settle_and_publish())
         if cancelled is not None:
             raise cancelled
 
@@ -431,26 +461,35 @@ class QuotaChatMixin:
                 "trace_id": TraceContext.get().trace_id,
                 "session_id": TraceContext.get_session_id(),
                 "run_id": TraceContext.get_run_id(),
+                "model": getattr(self, "model_name", None) or getattr(self, "model", None),
                 "model_config_id": self.quota_model_config_id,
                 "provider": self.quota_provider,
             },
         )
+        owner = _usage_owner()
+        if owner is not None:
+            owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
         root = getattr(self, "root_async_client", None)
         if root is not None and not isinstance(root, _QuotaResource):
             self.root_async_client = _QuotaResource(root)
-        return quota, reservation, rates
+        return quota, reservation, rates, owner
 
     async def _quota_finish(self, ticket, message, *, usage_valid=True, partial=False):
         if ticket is not None:
-            quota, reservation, rates = ticket
-            # A cancelled caller cannot abandon a successful response's settlement.
-            _, cancelled = await _complete_storage(
-                quota.settle(
+            quota, reservation, rates = ticket[:3]
+            owner = ticket[3] if len(ticket) > 3 else _usage_owner()
+
+            async def settle_and_publish():
+                settlement = await quota.settle(
                     reservation,
                     message_cost(message, rates) if usage_valid else None,
                     **({"partial": True} if partial else {}),
                 )
-            )
+                # Native model-end callbacks may never arrive after cancellation.
+                if owner is not None and isinstance(settlement, dict):
+                    await owner.record_usage_receipt(_receipt(reservation, settlement))
+
+            _, cancelled = await _complete_storage(settle_and_publish())
             if cancelled is not None:
                 raise cancelled
 

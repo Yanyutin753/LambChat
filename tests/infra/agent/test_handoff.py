@@ -183,4 +183,13 @@ def test_restart_preserves_completeness_through_restore_resolve_and_seed(unknown
 
     processor = AgentEventProcessor(create_presenter(session_id="s", agent_id="search"))
     processor.seed_usage(carried)
-    assert processor.usage_totals() == {**counts, "_usage_ledger_id": processor._usage_ledger_id}
+    assert processor.usage_totals() == {
+        **counts,
+        "_usage_ledger_id": processor._usage_ledger_id,
+        "cost_source": "provider_settlement",
+        "cost_receipts": {},
+        "legacy_cost_units": 0,
+        "legacy_cost_unknown": True,
+        "legacy_actual_models": [],
+        "legacy_model_identity_complete": False,
+    }

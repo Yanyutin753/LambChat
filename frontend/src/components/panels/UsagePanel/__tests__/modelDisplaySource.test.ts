@@ -12,10 +12,12 @@ test("usage logs render model display names across desktop, tablet and mobile", 
 
   // 桌面表格、平板行、移动卡三处模型列都走 display name 解析
   expect(
-    source.match(/modelDisplayName\(modelLabels/g)?.length,
+    source.match(/usageModelNames\(log, modelLabels/g)?.length,
   ).toBeGreaterThanOrEqual(3);
   // 原始模型 ID 仍可通过悬浮提示查看
-  expect(source).toMatch(/title=\{log\.model\}/);
+  expect(source).toMatch(
+    /title=\{usageModelNames\(log, _EMPTY_MODEL_LABELS\)\}/,
+  );
 });
 
 test("usage panel maps model value to label for logs and model ranking", () => {

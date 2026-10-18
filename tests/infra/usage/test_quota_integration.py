@@ -651,3 +651,41 @@ async def test_partial_then_reset_keeps_late_difference_in_original_periods(quot
     assert snapshot["five_hour"]["used_usd"] == snapshot["weekly"]["used_usd"] == 0
     doc = await quota_db.collection.find_one({"_id": "user"})
     assert all(doc["periods"][key]["used"] == 300_000_000 for key in ticket["periods"])
+
+
+async def test_mixed_model_settlement_receipts_match_quota_and_survive_replay(quota_db):
+    from unittest.mock import AsyncMock
+
+    from langchain_core.messages import AIMessage
+
+    from src.infra.agent.events.processor import AgentEventProcessor
+    from src.infra.llm.quota import QuotaChatMixin
+    from src.infra.pricing.calculator import PriceRates
+    from src.infra.writer.present import create_presenter
+
+    presenter = create_presenter(session_id="s", agent_id="search", model="primary", model_id="p")
+    presenter.emit = AsyncMock()
+    processor = AgentEventProcessor(presenter)
+    model = QuotaChatMixin()
+    message = AIMessage(
+        content="ok",
+        usage_metadata={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    for name, rate in [("primary", 10), ("fallback", 1)]:
+        reservation = await quota_db.reserve(
+            "user",
+            (1, 10),
+            0,
+            context={"model": name, "model_config_id": name, "provider": "openai"},
+        )
+        ticket = (quota_db, reservation, PriceRates(input=rate, output=1), processor)
+        await model._quota_finish(ticket, message, partial=name == "fallback")
+        if name == "fallback":
+            await model._quota_finish(ticket, message)
+            await model._quota_finish(ticket, message)
+    usage = presenter.emit.call_args.args[0]["data"]
+    snapshot = await quota_db.snapshot("user", (1, 10))
+    assert usage["cost_units"] == 11_000_000
+    assert usage["cost_usd"] == snapshot["five_hour"]["used_usd"] == 0.011
+    assert usage["cost_complete"] is True
+    assert {item["model"] for item in usage["actual_models"]} == {"primary", "fallback"}

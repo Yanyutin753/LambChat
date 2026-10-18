@@ -44,6 +44,12 @@ def test_seed_usage_merges_prior_segment_counters():
         "cache_read_tokens": 7,
         "usage_observed": True,
         "unknown_usage_fields": [],
+        "cost_source": "provider_settlement",
+        "cost_receipts": {},
+        "legacy_cost_units": 0,
+        "legacy_cost_unknown": True,
+        "legacy_actual_models": [],
+        "legacy_model_identity_complete": False,
     }
 
 

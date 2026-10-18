@@ -586,3 +586,34 @@ test("unrelated shallower stack entries cannot reroute anonymous deeper output a
     ),
   ).toMatchObject({ parts: [{ type: "text", content: "nested" }] });
 });
+
+test("historical usage retains actual settlement identities and amount", () => {
+  const actualModels = [
+    { model: "fallback", model_id: "b", provider: "openai" },
+  ];
+  const messages = reconstructMessagesFromEvents(
+    [
+      event("text", "message:chunk", { content: "Answer" }),
+      event("receipt", "token:usage", {
+        model: "fallback",
+        model_id: "b",
+        cost_source: "provider_settlement",
+        cost_units: 123_000_000,
+        cost_usd: 0.123,
+        cost_complete: true,
+        actual_models: actualModels,
+      }),
+    ],
+    new Set(),
+    { activeSubagentStack: [] },
+  );
+  expect(
+    messages.find((message) => message.role === "assistant")?.tokenUsage,
+  ).toMatchObject({
+    cost_source: "provider_settlement",
+    cost_units: 123_000_000,
+    cost_complete: true,
+    actual_models: actualModels,
+    model: "fallback",
+  });
+});

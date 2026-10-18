@@ -16,7 +16,7 @@ import {
   usageStatusKind,
   type CostFormatOpts,
 } from "./formatters";
-import { modelDisplayName, type ModelLabelMap } from "./modelDisplay";
+import { usageModelNames, type ModelLabelMap } from "./modelDisplay";
 
 const _EMPTY_MODEL_LABELS: ModelLabelMap = new Map();
 
@@ -224,9 +224,9 @@ function DesktopTable({
                   <div className={textCellClass}>
                     <span
                       className="block truncate tabular-nums"
-                      title={log.model}
+                      title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
                     >
-                      {modelDisplayName(modelLabels, log.model) || "-"}
+                      {usageModelNames(log, modelLabels) || "-"}
                     </span>
                   </div>
                   <div className={textCellClass}>
@@ -301,9 +301,9 @@ function TabletRow({
           <div className="flex min-w-0 items-center gap-2">
             <code
               className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums"
-              title={log.model}
+              title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
             >
-              {modelDisplayName(modelLabels, log.model) || "-"}
+              {usageModelNames(log, modelLabels) || "-"}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
           </div>
@@ -423,9 +423,9 @@ function MobileCard({
             <div className="min-w-0 flex-1">
               <code
                 className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums"
-                title={log.model}
+                title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
               >
-                {modelDisplayName(modelLabels, log.model) || "-"}
+                {usageModelNames(log, modelLabels) || "-"}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">

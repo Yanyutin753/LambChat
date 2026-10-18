@@ -1,4 +1,4 @@
-import type { UsageRankingItem } from "../../../types/usage";
+import type { UsageLog, UsageRankingItem } from "../../../types/usage";
 
 /** 只依赖 value/label 两个字段，兼容 SettingsContext 的 AvailableModel */
 export interface ModelLabelSource {
@@ -40,4 +40,17 @@ export function withModelDisplayNames(
     const name = modelDisplayName(labels, item.id);
     return name && name !== item.id ? { ...item, name } : item;
   });
+}
+
+/** 实际调用可能跨模型；旧日志继续使用原模型字段。 */
+export function usageModelNames(
+  log: Pick<UsageLog, "model" | "actual_models">,
+  labels: ModelLabelMap,
+): string {
+  const models = log.actual_models?.length
+    ? log.actual_models.map(({ model }) => model)
+    : [log.model];
+  return [...new Set(models.map((model) => modelDisplayName(labels, model)))]
+    .filter(Boolean)
+    .join(" / ");
 }

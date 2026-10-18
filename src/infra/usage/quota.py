@@ -306,7 +306,7 @@ class UsageQuota:
 
     async def settle(
         self, reservation: dict, cost_usd: float | None, *, partial: bool = False
-    ) -> None:
+    ) -> dict | None:
         """Charge reported usage now; a later final receipt only adjusts the difference."""
         call_id, user_id = reservation["id"], reservation["user_id"]
         unknown = partial or cost_usd is None
@@ -350,6 +350,7 @@ class UsageQuota:
             from src.infra.usage.notifications import broadcast_quota_changed
 
             await broadcast_quota_changed(user_id)
+        return {"charged_units": total, "unknown": unknown}
 
     async def snapshot(self, user_id: str, budgets, *, now=None) -> dict:
         current = now or datetime.now(UTC)

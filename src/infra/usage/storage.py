@@ -357,6 +357,15 @@ class UsageStorage:
             if usage_data.get("input_includes_cache") is True and _valid_cost(partial_cost)
             else None
         )
+        if usage_data.get("cost_source") == "provider_settlement":
+            doc.update(
+                cost_source="provider_settlement",
+                cost_units=usage_data.get("cost_units"),
+                actual_models=usage_data.get("actual_models", []),
+                model=usage_data.get("model") or "",
+                model_id=usage_data.get("model_id") or "",
+                cost_rates=None,
+            )
         classified = _usage_cost_fields(doc)
         doc["cost_complete"] = classified["cost_complete"]
         doc["cost_available"] = classified["cost_available"]
@@ -818,7 +827,10 @@ class UsageStorage:
         回填用：已回填的记录不再命中查询，重复执行天然幂等。
         """
         try:
-            query: Dict[str, Any] = {"cost_available": {"$ne": True}}
+            query: Dict[str, Any] = {
+                "cost_available": {"$ne": True},
+                "cost_source": {"$ne": "provider_settlement"},
+            }
             if exclude_trace_ids:
                 query["trace_id"] = {"$nin": list(exclude_trace_ids)}
             cursor = self.collection.find(query, {"_id": 0}).sort("started_at", 1).limit(limit)
@@ -839,9 +851,12 @@ class UsageStorage:
         """回填单条记录的 USD 费用快照。"""
         if not _valid_cost(cost_usd):
             return False
+        if (expected_usage or {}).get("cost_source") == "provider_settlement":
+            return False
         try:
             query: dict[str, Any] = {
                 "trace_id": trace_id,
+                "cost_source": {"$ne": "provider_settlement"},
                 "cost_available": {"$ne": True},
                 "usage_incomplete": {"$eq": False, "$type": "bool"},
                 "input_includes_cache": {"$eq": True, "$type": "bool"},
@@ -885,7 +900,11 @@ class UsageStorage:
         self, trace_id: str, cost_usd: float, *, expected_usage: Dict[str, Any]
     ) -> bool:
         """Write only independent cost components while the original usage snapshot still matches."""
-        if expected_usage.get("input_includes_cache") is not True or not _valid_cost(cost_usd):
+        if (
+            expected_usage.get("cost_source") == "provider_settlement"
+            or expected_usage.get("input_includes_cache") is not True
+            or not _valid_cost(cost_usd)
+        ):
             return False
         query = _usage_snapshot_query(trace_id, expected_usage)
         try:

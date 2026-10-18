@@ -79,7 +79,9 @@ async def test_cache_completeness_survives_resume_and_legacy_is_conservative(mon
         price.assert_not_awaited()
     else:
         assert data["cache_read_tokens"] == data["cache_creation_tokens"] == 0
-        price.assert_awaited_once()
+    # Token completeness cannot certify a restored snapshot without call receipts.
+    price.assert_not_awaited()
+    assert data["cost_complete"] is False and "cost_usd" not in data
 
 
 async def test_completed_model_without_usage_counts_as_zero(monkeypatch):
@@ -142,7 +144,8 @@ async def test_failed_attempt_preserves_successful_retry_usage(
     assert await restored.emit_token_usage() is False
     resumed = restored._presenter_emit.call_args.args[0]["data"]
     assert resumed["input_tokens"] == 200 and resumed["usage_incomplete"] is False
-    restored_price.assert_awaited_once()
+    restored_price.assert_not_awaited()
+    assert resumed["cost_complete"] is False and "cost_usd" not in resumed
 
 
 async def test_successful_parallel_attempts_do_not_poison_interim_usage(monkeypatch):
@@ -232,7 +235,8 @@ async def test_resume_defaults_missing_cache_write_and_rejects_invalid_counts(
     if bad_write is None:
         assert data["cache_creation_tokens"] == 0
         assert data["usage_incomplete"] is False
-        price.assert_awaited_once()
+        price.assert_not_awaited()
+        assert data["cost_complete"] is False and "cost_usd" not in data
     else:
         assert "cache_creation_tokens" in data["unknown_usage_fields"]
         assert "cache_creation_tokens" not in data

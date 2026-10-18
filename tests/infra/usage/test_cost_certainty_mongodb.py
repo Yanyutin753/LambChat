@@ -127,3 +127,61 @@ async def test_mixed_cost_certainties_reach_every_aggregate_without_recertifying
     finally:
         await collection.drop()
         await client.close()
+
+
+@pytest.mark.skipif(
+    os.environ.get("TEST_MEMORY_MONGODB") != "1", reason="Explicit real MongoDB opt-in"
+)
+async def test_settlement_certainty_matches_mongo_without_token_certificates():
+    from src.infra.usage.cost_certainty import (
+        PARTIAL_USAGE_CONDITION,
+        PRICED_USAGE_CONDITION,
+        _usage_cost_fields,
+    )
+
+    client = AsyncMongoClient(build_mongo_connection_string(), tz_aware=True)
+    collection = client[settings.MONGODB_DB][f"test_settlement_cost_{uuid4().hex}"]
+    docs = [
+        {
+            "_id": "known",
+            "cost_source": "provider_settlement",
+            "cost_units": 500,
+            "cost_usd": 0.0000005,
+            "cost_complete": True,
+        },
+        {
+            "_id": "partial",
+            "cost_source": "provider_settlement",
+            "cost_units": 250,
+            "partial_cost_usd": 0.00000025,
+            "cost_complete": False,
+        },
+        {
+            "_id": "unknown",
+            "cost_source": "provider_settlement",
+            "cost_units": 0,
+            "partial_cost_usd": 0.0,
+            "cost_complete": False,
+        },
+    ]
+    try:
+        await collection.insert_many(docs)
+        rows = await (
+            await collection.aggregate(
+                [
+                    {
+                        "$project": {
+                            "priced": PRICED_USAGE_CONDITION,
+                            "partial": PARTIAL_USAGE_CONDITION,
+                        }
+                    }
+                ]
+            )
+        ).to_list()
+        by_id = {doc["_id"]: _usage_cost_fields(doc) for doc in docs}
+        for row in rows:
+            assert row["priced"] is by_id[row["_id"]]["cost_available"]
+            assert row["partial"] is (by_id[row["_id"]]["partial_cost_usd"] is not None)
+    finally:
+        await collection.drop()
+        await client.close()
