@@ -1,9 +1,4 @@
-"""
-会话路由
-
-所有会话操作都需要认证，用户只能访问自己的会话。
-管理员可以访问所有会话。
-"""
+"""认证后的会话路由；访问权限由各接口的所有权校验控制。"""
 
 import asyncio
 from datetime import datetime
@@ -854,12 +849,7 @@ async def generate_session_title(
     lang: str = Query("en", description="语言代码: en, zh, ja, ko, ru（支持 zh-CN 等区域形式）"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
-    """
-    根据用户消息自动生成标题
-
-    使用 LLM 根据用户消息生成一个简短的会话标题。
-    支持通过 settings 自定义模型和提示词。
-    """
+    """使用配置的模型和提示词，根据用户消息生成简短标题。"""
     from src.infra.llm.client import LLMClient
     from src.infra.llm.models_service import resolve_model_reference
 
