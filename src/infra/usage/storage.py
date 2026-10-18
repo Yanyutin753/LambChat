@@ -268,6 +268,7 @@ class UsageStorage:
             and reported_rates.get("cache_read") is None
             or _as_int(usage_data.get("cache_creation_tokens")) > 0
             and reported_rates.get("cache_write") is None
+            and reported_rates.get("cache_write_included") is not True
         )
         if status == "cancelled" and not error_message:
             # 取消路径竞态：API 副本先终结 trace、worker 的 error 事件后落库时

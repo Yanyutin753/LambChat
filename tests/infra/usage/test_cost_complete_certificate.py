@@ -49,6 +49,36 @@ async def test_free_write_cost_certificate_is_strict_and_does_not_certify_missin
     assert doc["cost_rates"] == _usage()["cost_rates"]
 
 
+@pytest.mark.parametrize("write_rate", [None, 0])
+async def test_included_known_write_count_preserves_complete_cost_with_no_separate_write_price(
+    write_rate,
+):
+    storage = UsageStorage()
+    storage._collection = SimpleNamespace(update_one=AsyncMock())
+    usage = _usage()
+    usage.update(
+        cache_creation_tokens=10,
+        usage_incomplete=False,
+        unknown_usage_fields=[],
+        cost_usd=0.000194,
+        cost_rates=dict(
+            input=2, output=3, cache_read=0.2, cache_write=write_rate,
+            cache_write_included=True,
+        ),
+    )
+    await storage.upsert_usage_log_from_trace_metadata({"trace_id": "included-known-write"}, usage)
+    doc = storage._collection.update_one.call_args.args[1]["$set"]
+    assert doc["cost_available"] is True
+    assert doc["cost_complete"] is True
+    assert doc["cost_usd"] == usage["cost_usd"]
+    assert doc["cost_rates"] == usage["cost_rates"]
+    for field in ("input_tokens", "output_tokens", "total_tokens", "cache_read_tokens",
+                  "cache_creation_tokens"):
+        assert doc[field] == usage[field]
+    assert doc["usage_incomplete"] is False
+    assert doc["unknown_usage_fields"] == []
+
+
 @pytest.mark.parametrize("field", ["input_tokens", "output_tokens", "cache_read_tokens"])
 async def test_complete_cost_receipt_cannot_override_an_unknown_required_counter(field):
     storage = UsageStorage()
