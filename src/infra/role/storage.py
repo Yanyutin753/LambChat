@@ -202,6 +202,7 @@ class RoleStorage:
         }
 
         result = await self.collection.insert_one(role_dict)
+        await self.invalidate_cache(role_data.name)
         role_dict["id"] = str(result.inserted_id)
         role_dict["permissions"] = role_data.permissions  # 保持枚举类型
 

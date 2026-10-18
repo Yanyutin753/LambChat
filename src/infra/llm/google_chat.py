@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
@@ -22,6 +23,10 @@ class LambChatGoogleChatModel(QuotaChatMixin, ChatGoogleGenerativeAI):
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
+
+    def _format_tools(self, tools: Any = None, functions: Any = None) -> list | None:
+        # Gemini removes empty parameter schemas in place; keep shared tools intact.
+        return super()._format_tools(deepcopy(tools), deepcopy(functions))
 
     @property
     def async_client(self):
