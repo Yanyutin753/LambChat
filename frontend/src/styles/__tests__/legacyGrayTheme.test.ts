@@ -16,10 +16,18 @@ test("legacy gray utilities follow neutral dark tokens and retain opacity modifi
   const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
   const result = await postcss([
     tailwindcss({ base: fileURLToPath(new URL("../../../", import.meta.url)) }),
-  ]).process(`@import "../tailwind.css";
-@source inline("${shades.map((shade) => `dark:bg-stone-${shade}/50 dark:border-stone-${shade} dark:text-stone-${shade}`).join(" ")}");`, {
-    from: fileURLToPath(new URL("./neutral-test.css", import.meta.url)),
-  });
+  ]).process(
+    `@import "../tailwind.css";
+@source inline("${shades
+      .map(
+        (shade) =>
+          `dark:bg-stone-${shade}/50 dark:border-stone-${shade} dark:text-stone-${shade}`,
+      )
+      .join(" ")}");`,
+    {
+      from: fileURLToPath(new URL("./neutral-test.css", import.meta.url)),
+    },
+  );
 
   for (const shade of shades) {
     expect(result.css, `stone-${shade}`).toContain(
@@ -94,14 +102,16 @@ test("shared dark panel styles do not override neutral utilities with warm gray 
   }
 });
 
-
 test("Tailwind 4 keeps legacy shrink, outline, and theme-alpha utilities available", async () => {
   const result = await postcss([
     tailwindcss({ base: fileURLToPath(new URL("../../../", import.meta.url)) }),
-  ]).process(`@import "../tailwind.css";
-@source inline("flex-shrink-0 outline-hidden border-theme-border/60 rounded-sm shadow-sm");`, {
-    from: fileURLToPath(new URL("./compatibility-test.css", import.meta.url)),
-  });
+  ]).process(
+    `@import "../tailwind.css";
+@source inline("flex-shrink-0 outline-hidden border-theme-border/60 rounded-sm shadow-sm");`,
+    {
+      from: fileURLToPath(new URL("./compatibility-test.css", import.meta.url)),
+    },
+  );
   expect(result.css).toContain("flex-shrink: 0");
   expect(result.css).toMatch(/forced-colors:\s*active/);
   expect(result.css).toContain("var(--theme-border)");

@@ -64,9 +64,7 @@ export function CollapsibleSection({
               size={12}
               className={clsx(
                 "transition-transform duration-200",
-                isError
-                  ? "text-theme-error"
-                  : "text-theme-text-secondary",
+                isError ? "text-theme-error" : "text-theme-text-secondary",
                 !expanded && "-rotate-90",
               )}
             />
@@ -79,9 +77,7 @@ export function CollapsibleSection({
           <span
             className={clsx(
               "min-w-0 truncate text-12 uppercase tracking-wider font-medium",
-              isError
-                ? "text-theme-error"
-                : "text-theme-text-secondary",
+              isError ? "text-theme-error" : "text-theme-text-secondary",
             )}
           >
             {title}

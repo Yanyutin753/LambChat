@@ -288,7 +288,7 @@ const ModelCard = React.memo(function ModelCard({
           )}
           <button
             onClick={handleEdit}
-            className="p-2 text-theme-text-tertiary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
+            className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
             title={t("agentConfig.edit")}
           >
             <InteractiveIcon>
@@ -377,7 +377,7 @@ const ModelCard = React.memo(function ModelCard({
             />
             <button
               onClick={handleEdit}
-              className="p-2 text-theme-text-tertiary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
+              className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
               title={t("agentConfig.edit")}
             >
               <InteractiveIcon>
