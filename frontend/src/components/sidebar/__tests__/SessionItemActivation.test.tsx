@@ -46,7 +46,10 @@ test("session title supports keyboard activation once and keeps the More action 
     exact: true,
   });
   expect(title).toHaveAttribute("aria-current", "page");
-  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute("data-selected", "true");
+  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await user.tab();
   expect(title).toHaveFocus();
   await user.keyboard("{Enter} ");
@@ -75,7 +78,9 @@ test("selection mode exposes a checkbox that toggles by pointer and keyboard wit
   expect(title).toHaveAttribute("aria-checked", "false");
   expect(screen.queryAllByRole("button")).toHaveLength(0);
   expect(title).not.toHaveAttribute("aria-current");
-  expect(screen.getByRole("group", { name: "Research plan" })).not.toHaveAttribute("data-selected");
+  expect(
+    screen.getByRole("group", { name: "Research plan" }),
+  ).not.toHaveAttribute("data-selected");
   await user.click(title);
   expect(toggle).toHaveBeenCalledOnce();
   expect(select).not.toHaveBeenCalled();
@@ -89,7 +94,10 @@ test("selection mode exposes a checkbox that toggles by pointer and keyboard wit
     />,
   );
   expect(title).toHaveAttribute("aria-checked", "true");
-  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute("data-selected", "true");
+  expect(screen.getByRole("group", { name: "Research plan" })).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await user.keyboard(" ");
   await user.click(screen.getByRole("group", { name: "Research plan" }));
   expect(toggle).toHaveBeenCalledTimes(3);
@@ -246,6 +254,62 @@ test("a touch drag suppresses the next title activation", () => {
     expect(drag).toHaveBeenCalledWith("session-1", 12, 30);
     fireEvent.click(title);
     expect(select).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("touch reveals only the current session and renews its three-second timeout", () => {
+  vi.useFakeTimers();
+  try {
+    render(
+      <>
+        <SessionItem {...defaults} onSelect={vi.fn()} />
+        <SessionItem
+          {...defaults}
+          session={{ ...session, id: "session-2", name: "Another chat" }}
+          onSelect={vi.fn()}
+        />
+      </>,
+    );
+    const title = screen.getByRole("button", { name: "Research plan" });
+    const [current, other] = screen.getAllByRole("button", {
+      name: "sidebar.moreOptions",
+    });
+    expect(current).not.toHaveAttribute("data-revealed", "true");
+    const touch = () => {
+      fireEvent.touchStart(title, { touches: [{ clientX: 12, clientY: 30 }] });
+      fireEvent.touchEnd(title);
+    };
+    touch();
+    expect(current).toHaveAttribute("data-revealed", "true");
+    expect(other).not.toHaveAttribute("data-revealed", "true");
+    act(() => vi.advanceTimersByTime(2000));
+    touch();
+    act(() => vi.advanceTimersByTime(2999));
+    expect(current).toHaveAttribute("data-revealed", "true");
+    act(() => vi.advanceTimersByTime(1));
+    expect(current).not.toHaveAttribute("data-revealed", "true");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("an open session menu keeps its action revealed after the touch timeout", () => {
+  vi.useFakeTimers();
+  try {
+    render(<SessionItem {...defaults} onSelect={vi.fn()} />);
+    const title = screen.getByRole("button", { name: "Research plan" });
+    const action = screen.getByRole("button", { name: "sidebar.moreOptions" });
+    fireEvent.touchStart(title, { touches: [{ clientX: 12, clientY: 30 }] });
+    fireEvent.touchEnd(title);
+    fireEvent.click(action);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(action).toHaveAttribute("data-revealed", "true");
+    const rename = screen.getByRole("button", { name: "sidebar.rename" });
+    expect(rename).toBeInTheDocument();
+    fireEvent.keyDown(rename, { key: "Escape" });
+    expect(action).not.toHaveAttribute("data-revealed", "true");
   } finally {
     vi.useRealTimers();
   }

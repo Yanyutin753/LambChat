@@ -5063,7 +5063,7 @@
   }
 }
 
-/* Keep action feedback local to each row; touch controls stay discoverable. */
+/* Keep action feedback local; touch uses the row's timed reveal state. */
 .sidebar-action-reveal:where(:not(.opacity-100)) {
   opacity: 0;
   pointer-events: none;
@@ -5086,18 +5086,22 @@
 }
 
 .sidebar-action-reveal[data-revealed="true"],
-.sidebar-action-row:hover > .sidebar-action-reveal,
-.sidebar-action-row:focus-within > .sidebar-action-reveal,
-.sidebar-action-row:hover > button > .sidebar-action-reveal,
-.sidebar-action-row:focus-within > button > .sidebar-action-reveal,
-.sidebar-action-row:hover > span > .sidebar-action-reveal,
-.sidebar-action-row:focus-within > span > .sidebar-action-reveal {
+.sidebar-action-row:is([data-revealed="true"], :has(:focus-visible))
+  > .sidebar-action-reveal,
+.sidebar-action-row:is([data-revealed="true"], :has(:focus-visible))
+  > button
+  > .sidebar-action-reveal,
+.sidebar-action-row:is([data-revealed="true"], :has(:focus-visible))
+  > span
+  > .sidebar-action-reveal {
   opacity: 1;
   pointer-events: auto;
 }
 
-@media (hover: none), (pointer: coarse) {
-  .sidebar-action-reveal:where(:not(.opacity-100)) {
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-action-row:hover > .sidebar-action-reveal,
+  .sidebar-action-row:hover > button > .sidebar-action-reveal,
+  .sidebar-action-row:hover > span > .sidebar-action-reveal {
     opacity: 1;
     pointer-events: auto;
   }
