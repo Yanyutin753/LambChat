@@ -35,9 +35,27 @@ class QuotaReset:
         current = now or datetime.now(UTC)
         async with quota_storage():
             doc = await self.collection.find_one({"_id": user_id}, {"reset_cards": 1}) or {}
-        cards = self._available(doc.get("reset_cards", {}), current)
+        stored = doc.get("reset_cards", {})
+        cards = self._available(stored, current)
         return {
             "available_count": len(cards),
+            "history": [
+                {
+                    "id": card["id"],
+                    "redeemed_at": card["redeemed_at"],
+                    **({"window": card["window"]} if card.get("window") else {}),
+                }
+                for card in sorted(
+                    (
+                        card
+                        for card in stored.values()
+                        if card["status"] == "redeemed"
+                        and card["expires_at"] + HISTORY_GRACE > current
+                    ),
+                    key=lambda card: (card["redeemed_at"], card["id"]),
+                    reverse=True,
+                )
+            ],
             "credits": [
                 {
                     **{key: card[key] for key in ("id", "status", "granted_at", "expires_at")},

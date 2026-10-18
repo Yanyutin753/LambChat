@@ -29,6 +29,12 @@ export interface UsageResetCredit {
   window?: "five_hour" | "weekly";
 }
 
+export interface UsageResetHistory {
+  id: string;
+  window?: "five_hour" | "weekly";
+  redeemed_at: string;
+}
+
 export type QuotaResetOutcome =
   | "reset"
   | "alreadyRedeemed"
@@ -40,7 +46,11 @@ export interface UsageQuota {
   timezone: string;
   five_hour: UsageQuotaWindow;
   weekly: UsageQuotaWindow;
-  reset_credits?: { available_count: number; credits: UsageResetCredit[] };
+  reset_credits?: {
+    available_count: number;
+    credits: UsageResetCredit[];
+    history?: UsageResetHistory[];
+  };
 }
 
 export interface ResetCardBatch {
@@ -122,6 +132,18 @@ export function parseUsageQuota(data: unknown): UsageQuota {
       (!credits ||
         !Number.isInteger(credits.available_count) ||
         credits.available_count < 0 ||
+        (credits.history !== undefined &&
+          (!Array.isArray(credits.history) ||
+            !credits.history.every(
+              (entry) =>
+                entry &&
+                typeof entry.id === "string" &&
+                entry.id.length > 0 &&
+                validDate(entry.redeemed_at) &&
+                (entry.window === undefined ||
+                  entry.window === "five_hour" ||
+                  entry.window === "weekly"),
+            ))) ||
         !Array.isArray(credits.credits) ||
         !credits.credits.every(
           (card) =>
