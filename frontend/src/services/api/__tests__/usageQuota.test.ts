@@ -170,3 +170,15 @@ test("typed reset cards use their own spent pool and weekly cards include the fi
   quota.weekly.used_usd = 0;
   expect(canRedeemResetCard(quota, "weekly")).toBe(false);
 });
+
+test.each([
+  [{ id: "used", redeemed_at: "invalid" }],
+  [{ id: "used", redeemed_at: "2026-10-18T00:00:00Z", window: "other" }],
+  null,
+])("quota rejects malformed card history: %j", async (history) => {
+  authFetch.mockResolvedValue({
+    ...quotaSnapshot(),
+    reset_credits: { available_count: 0, credits: [], history },
+  });
+  await expect(usageApi.getQuota()).rejects.toThrow();
+});

@@ -1,3 +1,4 @@
+import { ResetCardHistory } from "./ResetCardHistory";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { Button } from "../common/ui/Button";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -417,7 +418,7 @@ export function ComposerUsageChip({
                               loading={redeeming}
                               onClick={() => setConfirmCredit(card)}
                             >
-                              {t("common.reset")}
+                              {t("common.reset")} {count}
                             </Button>
                           );
                         })}
@@ -593,6 +594,10 @@ export function ComposerUsageChip({
             </p>
           )}
         </section>
+      )}
+
+      {embedded && quota && credits?.history && (
+        <ResetCardHistory history={credits.history} timezone={quota.timezone} />
       )}
 
       {snapshot && (

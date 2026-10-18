@@ -4346,6 +4346,7 @@
     "historicalEstimate": "과거 추정액",
     "partialCostHint": "확인된 금액만 포함하며 나머지 비용은 알 수 없습니다.",
     "sources": {
+      "auxiliary": "보조 호출",
       "chat": "대화",
       "scheduled_task": "예약 작업"
     },
@@ -4519,6 +4520,11 @@
     "resetLegacyCardHint": "공용 카드는 한도를 모두 사용한 후에만 사용할 수 있습니다.",
     "resetCardsTitle": "한도 초기화 카드",
     "resetCardsAvailable": "초기화 카드 {{count}}장 사용 가능",
+    "resetCardHistory": "사용 기록",
+    "resetCardUsedAt": "사용 시간",
+    "resetCardUsed": "초기화 완료",
+    "resetCardHistoryEmpty": "사용 기록이 없습니다",
+    "resetCardHistoryRetention": "기록은 카드 만료 후 7일까지 보관됩니다.",
     "resetCardsShort": "초기화 카드 {{count}}",
     "useResetCard": "초기화 카드 사용",
     "resetSuccess": "한도가 초기화되었습니다.",

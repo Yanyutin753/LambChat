@@ -101,6 +101,13 @@ export interface TokenUsagePart {
   model?: string;
   // USD 金额（models.dev 计价；undefined 表示该模型未匹配到价格）
   cost_complete?: boolean;
+  cost_source?: string | null;
+  cost_units?: number | null;
+  actual_models?: Array<{
+    model: string;
+    model_id: string | null;
+    provider: string | null;
+  }>;
   cost_usd?: number | null;
   partial_cost_usd?: number | null;
   estimated_cost_usd?: number | null;

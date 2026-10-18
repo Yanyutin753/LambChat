@@ -4346,6 +4346,7 @@
     "historicalEstimate": "過去の概算",
     "partialCostHint": "判明している金額のみです。残りの費用は不明です。",
     "sources": {
+      "auxiliary": "補助呼び出し",
       "chat": "チャット",
       "scheduled_task": "定期タスク"
     },
@@ -4519,6 +4520,11 @@
     "resetLegacyCardHint": "共通カードは予算を使い切った場合のみ利用できます。",
     "resetCardsTitle": "予算リセットカード",
     "resetCardsAvailable": "リセットカード {{count}} 枚が利用可能",
+    "resetCardHistory": "使用履歴",
+    "resetCardUsedAt": "使用日時",
+    "resetCardUsed": "リセット完了",
+    "resetCardHistoryEmpty": "使用履歴はありません",
+    "resetCardHistoryRetention": "記録はカードの有効期限から7日後まで保存されます。",
     "resetCardsShort": "リセットカード {{count}}",
     "useResetCard": "リセットカードを使う",
     "resetSuccess": "予算をリセットしました。",

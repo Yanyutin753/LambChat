@@ -116,3 +116,8 @@ test("legacy null completeness reports valid counts and labels its estimate whil
   }
   expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
 });
+
+test("auxiliary calls remain identifiable across responsive layouts", () => {
+  show({ source: "auxiliary", agent_name: "" });
+  expect(screen.getAllByText("usage.sources.auxiliary")).toHaveLength(3);
+});

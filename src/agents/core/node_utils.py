@@ -710,6 +710,17 @@ def resolve_run_usage_carry(
             "unknown_usage_fields",
             "input_includes_cache",
             "_usage_ledger_id",
+            "cost_source",
+            "cost_units",
+            "cost_receipts",
+            "legacy_cost_units",
+            "legacy_cost_unknown",
+            "legacy_actual_models",
+            "legacy_model_identity_complete",
+            "model_identity_complete",
+            "actual_models",
+            "cost_usd",
+            "partial_cost_usd",
         ):
             if key in prior:
                 carried[key] = prior[key]

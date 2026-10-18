@@ -1,6 +1,7 @@
 import {
   buildModelLabelMap,
   modelDisplayName,
+  usageModelNames,
   withModelDisplayNames,
 } from "../modelDisplay";
 import type { UsageRankingItem } from "../../../../types/usage";
@@ -72,4 +73,28 @@ test("withModelDisplayNames swaps ranking names to labels without mutating input
   expect(result[0].name).toBe("GLM 4.7");
   expect(result[1].name).toBe("legacy-model");
   expect(items[0].name).toBe("glm-4.7");
+});
+
+test("usage model names show actual fallback and mixed models, retaining legacy logs", () => {
+  const labels = buildModelLabelMap([{ value: "glm", label: "GLM" }]);
+  const actual = (model: string) => ({ model, model_id: null, provider: null });
+  expect(
+    usageModelNames(
+      { model: "primary", actual_models: [actual("glm")] },
+      labels,
+    ),
+  ).toBe("GLM");
+  expect(
+    usageModelNames(
+      {
+        model: "mixed",
+        actual_models: [actual("glm"), actual("other"), actual("glm")],
+      },
+      labels,
+    ),
+  ).toBe("GLM / other");
+  expect(usageModelNames({ model: "legacy" }, labels)).toBe("legacy");
+  expect(usageModelNames({ model: "legacy", actual_models: [] }, labels)).toBe(
+    "legacy",
+  );
 });

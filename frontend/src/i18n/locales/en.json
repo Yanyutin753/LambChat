@@ -4346,6 +4346,7 @@
     "historicalEstimate": "Historical estimate",
     "partialCostHint": "Known amount only; the remaining cost is unknown.",
     "sources": {
+      "auxiliary": "Auxiliary calls",
       "chat": "Chat",
       "scheduled_task": "Scheduled task"
     },
@@ -4519,6 +4520,11 @@
     "resetLegacyCardHint": "Legacy cards can only be used after a budget is exhausted.",
     "resetCardsTitle": "Budget reset cards",
     "resetCardsAvailable": "{{count}} reset cards available",
+    "resetCardHistory": "Usage log",
+    "resetCardUsedAt": "Used at",
+    "resetCardUsed": "Reset completed",
+    "resetCardHistoryEmpty": "No usage records yet",
+    "resetCardHistoryRetention": "Records are retained until 7 days after the card expires.",
     "resetCardsShort": "Reset cards {{count}}",
     "useResetCard": "Use reset card",
     "resetSuccess": "Budget reset.",

@@ -55,6 +55,15 @@ function cacheWritesIncludedInInput(usage: TokenUsagePart): boolean {
 
 /** Financial completeness can be certified independently of write token counts. */
 export function hasPricedCost(usage: TokenUsagePart | undefined): boolean {
+  if (usage?.cost_source === "provider_settlement") {
+    return (
+      usage.cost_complete === true &&
+      Number.isSafeInteger(usage.cost_units) &&
+      usage.cost_units! >= 0 &&
+      isCostAmount(usage.cost_usd) &&
+      usage.cost_usd === usage.cost_units! / 1_000_000_000
+    );
+  }
   if (
     !usage ||
     !isCostAmount(usage.cost_usd) ||

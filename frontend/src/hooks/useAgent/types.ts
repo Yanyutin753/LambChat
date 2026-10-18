@@ -111,6 +111,13 @@ export interface EventData {
   model_id?: string;
   model?: string;
   cost_complete?: boolean;
+  cost_source?: string | null;
+  cost_units?: number | null;
+  actual_models?: Array<{
+    model: string;
+    model_id: string | null;
+    provider: string | null;
+  }>;
   cost_usd?: number | null;
   partial_cost_usd?: number | null;
   estimated_cost_usd?: number | null;

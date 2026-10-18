@@ -1074,14 +1074,14 @@ test("header shows only the amount while reset buttons sit beside their quota la
   expect(
     screen.getByRole("button", { name: "usage.useWeeklyCard 2" }),
   ).toBeEnabled();
-  for (const [period, name] of [
-    ["five_hour", "usage.useFiveHourCard 1"],
-    ["weekly", "usage.useWeeklyCard 2"],
+  for (const [period, name, count] of [
+    ["five_hour", "usage.useFiveHourCard 1", "1"],
+    ["weekly", "usage.useWeeklyCard 2", "2"],
   ]) {
     const column = document.querySelector(`[data-period="${period}"]`)!;
     expect(
       within(column as HTMLElement).getByRole("button", { name }),
-    ).toHaveTextContent("common.reset");
+    ).toHaveTextContent(`common.reset ${count}`);
   }
   expect(screen.queryByText("usage.weeklyResetHint")).toBeNull();
   expect(screen.queryByText("usage.resetCardExpires")).toBeNull();
@@ -1208,3 +1208,68 @@ test.each([true, false])(
     expect(screen.getByText("usage.resetSuccess")).toBeVisible();
   },
 );
+
+test("embedded quota shows consumed cards even when no cards remain", async () => {
+  getStatsMock.mockResolvedValue(todayStats());
+  getQuotaMock.mockResolvedValue({
+    currency: "USD",
+    timezone: "Asia/Shanghai",
+    five_hour: quotaWindow(),
+    weekly: quotaWindow(),
+    reset_credits: {
+      available_count: 0,
+      credits: [],
+      history: [
+        {
+          id: "used-short",
+          window: "five_hour",
+          redeemed_at: "2026-10-18T10:00:00Z",
+        },
+        {
+          id: "used-week",
+          window: "weekly",
+          redeemed_at: "2026-10-18T11:00:00Z",
+        },
+      ],
+    },
+  });
+  render(<ComposerUsageChip embedded />);
+  const log = await screen.findByRole("table", {
+    name: "usage.resetCardHistory",
+  });
+  expect(within(log).getAllByRole("row")).toHaveLength(3);
+  expect(within(log).getAllByRole("row")[1]).toHaveTextContent(
+    "usage.weeklyCard",
+  );
+  expect(within(log).getAllByRole("row")[2]).toHaveTextContent(
+    "usage.fiveHourCard",
+  );
+  expect(within(log).getAllByText("usage.resetCardUsed")).toHaveLength(2);
+  expect(log.querySelector("time")?.dateTime).toBe("2026-10-18T11:00:00Z");
+});
+
+test("card history paginates and shows an empty state after records expire", async () => {
+  const { ResetCardHistory } = await import("../ResetCardHistory");
+  const history = Array.from({ length: 11 }, (_, index) => ({
+    id: `card-${index}`,
+    redeemed_at: new Date(Date.UTC(2026, 9, 18, index)).toISOString(),
+  }));
+  const { rerender } = render(
+    <ResetCardHistory history={history} timezone="Asia/Shanghai" />,
+  );
+  const log = screen.getByRole("table", { name: "usage.resetCardHistory" });
+  expect(within(log).getAllByRole("row")).toHaveLength(11);
+  fireEvent.click(screen.getByRole("button", { name: "common.next" }));
+  expect(within(log).getAllByRole("row")).toHaveLength(2);
+  expect(log.querySelector("time")?.dateTime).toBe(history[0].redeemed_at);
+  rerender(
+    <ResetCardHistory history={history.slice(1)} timezone="Asia/Shanghai" />,
+  );
+  expect(within(log).getAllByRole("row")).toHaveLength(11);
+  rerender(<ResetCardHistory history={history} timezone="Asia/Shanghai" />);
+  expect(within(log).getAllByRole("row")).toHaveLength(11);
+  expect(log.querySelector("time")?.dateTime).toBe(history[10].redeemed_at);
+  rerender(<ResetCardHistory history={[]} timezone="Asia/Shanghai" />);
+  expect(screen.getByText("usage.resetCardHistoryEmpty")).toBeInTheDocument();
+  expect(screen.queryByRole("table")).toBeNull();
+});

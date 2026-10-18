@@ -264,3 +264,19 @@ async def test_unknown_receipts_do_not_block_resetting_settled_spending(reset_db
     snapshot = await ledger.snapshot("user", budgets)
     assert snapshot["five_hour"]["used_usd"] == 0
     assert snapshot["weekly"]["used_usd"] == (1.2 if window == "five_hour" else 0)
+
+
+async def test_card_history_lists_actual_consumption_once_and_stays_account_local(reset_db):
+    resets, ledger = reset_db
+    now = datetime.now(UTC).replace(microsecond=0)
+    await _exhaust(ledger, now=now)
+    issued = await resets.issue_card(
+        "user", "admin", str(uuid.uuid4()), window="five_hour", now=now
+    )
+    operation = str(uuid.uuid4())
+    await resets.consume("user", operation, (1, 5), credit_id=issued["credit_id"], now=now)
+    await resets.consume("user", operation, (1, 5), credit_id=issued["credit_id"], now=now)
+    history = (await resets.credits("user", now=now))["history"]
+    assert history == [{"id": issued["credit_id"], "window": "five_hour", "redeemed_at": now}]
+    assert (await resets.credits("other", now=now))["history"] == []
+    assert (await resets.credits("user", now=now + timedelta(days=37)))["history"] == []

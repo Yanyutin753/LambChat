@@ -4346,6 +4346,7 @@
     "historicalEstimate": "Историческая оценка",
     "partialCostHint": "Указана только известная сумма; остальная стоимость неизвестна.",
     "sources": {
+      "auxiliary": "Вспомогательные вызовы",
       "chat": "Чат",
       "scheduled_task": "Задача по расписанию"
     },
@@ -4519,6 +4520,11 @@
     "resetLegacyCardHint": "Универсальную карту можно использовать только после исчерпания лимита.",
     "resetCardsTitle": "Карты сброса бюджета",
     "resetCardsAvailable": "Доступно карт сброса: {{count}}",
+    "resetCardHistory": "Журнал использования",
+    "resetCardUsedAt": "Время использования",
+    "resetCardUsed": "Сброс выполнен",
+    "resetCardHistoryEmpty": "Записей пока нет",
+    "resetCardHistoryRetention": "Записи хранятся до 7 дней после истечения срока карты.",
     "resetCardsShort": "Карты сброса {{count}}",
     "useResetCard": "Использовать карту",
     "resetSuccess": "Бюджет сброшен.",

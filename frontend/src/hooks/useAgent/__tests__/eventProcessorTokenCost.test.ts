@@ -256,3 +256,50 @@ test("events retain financial completeness independently of missing cache write 
     "$0.005926",
   );
 });
+
+test.each([true, false])(
+  "settled costs survive live and historical conversion (complete=%s)",
+  (complete) => {
+    const actualModels = [
+      { model: "fallback", model_id: "b", provider: "openai" },
+    ];
+    for (const streaming of [true, false]) {
+      const result = processMessageEvent(
+        "token:usage",
+        {
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          unknown_usage_fields: ["input_tokens"],
+          model: "fallback",
+          model_id: "b",
+          cost_source: "provider_settlement",
+          cost_units: 123_000_000,
+          cost_complete: complete,
+          actual_models: actualModels,
+          ...(complete ? { cost_usd: 0.123 } : { partial_cost_usd: 0.123 }),
+        },
+        [],
+        "",
+        [],
+        0,
+        [],
+        streaming,
+        "receipt",
+      );
+      expect(result.tokenUsage).toMatchObject({
+        cost_source: "provider_settlement",
+        cost_units: 123_000_000,
+        cost_complete: complete,
+        actual_models: actualModels,
+        model: "fallback",
+      });
+      expect(result.tokenUsage?.input_includes_cache).toBeUndefined();
+      expect(hasPricedCost(result.tokenUsage)).toBe(complete);
+      expect(
+        formatTokenUsageCost(result.tokenUsage, { language: "en" }),
+      ).toContain("0.123");
+      expect(result.tokenUsage?.cost_rates).toBeUndefined();
+    }
+  },
+);
