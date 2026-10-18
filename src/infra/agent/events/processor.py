@@ -6,12 +6,18 @@ the heavier event-specific work to focused helper modules.
 """
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from io import StringIO
 from typing import Any
 
 from src.infra.agent.events.binary_uploads import upload_binary_blocks
-from src.infra.agent.events.buffers import TextChunkBuffer
+from src.infra.agent.events.buffers import (
+    ActivityReferenceFilter,
+    ActivityStreamKey,
+    BufferKey,
+    TextChunkBuffer,
+)
 from src.infra.agent.events.debug_logger import debug_log_event
 from src.infra.agent.events.stream import StreamEventMixin
 from src.infra.agent.events.subagents import SubagentEventMixin
@@ -70,6 +76,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "total_tokens",
         "total_cache_creation_tokens",
         "total_cache_read_tokens",
+        "_usage_unknown_fields",
+        "_usage_observed",
+        "_usage_owner",
+        "_usage_seeded",
+        "_usage_ledger_id",
+        "_input_includes_cache",
+        "_pending_model_runs",
+        "_completed_model_runs",
         "_token_usage_emitted",
         "_output_buffer_chars",
         "_presenter_emit",
@@ -87,9 +101,19 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_rubric_grader_active",
         "_rubric_grader_id",
         "_first_event_timing",
+        "_activity_reference_filters",
     )
 
     _CHUNK_FLUSH_SIZE = 200
+    _MODEL_USAGE_FIELDS = frozenset(
+        {
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cache_read_tokens",
+            "cache_creation_tokens",
+        }
+    )
 
     def __init__(
         self,
@@ -101,6 +125,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         first_event_timing: FirstEventTiming | None = None,
     ):
         self.presenter = presenter
+        owner = getattr(presenter, "_usage_accounting_owner", None)
+        self._usage_owner: AgentEventProcessor | None = (
+            owner if isinstance(owner, AgentEventProcessor) else None
+        )
+        self._usage_seeded = False
+        self._usage_ledger_id = uuid.uuid4().hex
+        if self._usage_owner is None:
+            presenter._usage_accounting_owner = self
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
         if not base_url:
             base_url = settings.APP_BASE_URL.rstrip("/")
@@ -113,6 +145,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self.total_tokens = 0
         self.total_cache_creation_tokens = 0
         self.total_cache_read_tokens = 0
+        self._usage_unknown_fields: set[str] = set()
+        self._usage_observed = False
+        self._input_includes_cache = True
+        self._pending_model_runs: set[str] = set()
+        self._completed_model_runs: set[str] = set()
         self._token_usage_emitted = False
         self._presenter_emit = presenter.emit
         self._before_tool_start = before_tool_start
@@ -122,6 +159,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
         self._tool_args_buffers: dict[tuple[str | None, int | str], TextChunkBuffer] = {}
         self._tool_args_meta: dict[tuple[str | None, int | str], tuple[str, str | None]] = {}
+        self._activity_reference_filters: dict[
+            ActivityStreamKey, tuple[ActivityReferenceFilter, BufferKey]
+        ] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
@@ -141,28 +181,65 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         恢复分段重新执行节点时计数器从零开始，不 seed 的话最终
         token:usage（以及取 last 落库的 usage_logs）只含最后一段。
         """
-        if not isinstance(prior_usage, dict):
+        if self._usage_owner is not None:
+            self._usage_owner.seed_usage(prior_usage)
             return
-        if isinstance(prior_usage.get("input_tokens"), int):
-            self.total_input_tokens += prior_usage["input_tokens"]
-        if isinstance(prior_usage.get("output_tokens"), int):
-            self.total_output_tokens += prior_usage["output_tokens"]
-        if isinstance(prior_usage.get("total_tokens"), int):
-            self.total_tokens += prior_usage["total_tokens"]
-        if isinstance(prior_usage.get("cache_creation_tokens"), int):
-            self.total_cache_creation_tokens += prior_usage["cache_creation_tokens"]
-        if isinstance(prior_usage.get("cache_read_tokens"), int):
-            self.total_cache_read_tokens += prior_usage["cache_read_tokens"]
+        if (
+            not isinstance(prior_usage, dict)
+            or self._usage_seeded
+            or prior_usage.get("_usage_ledger_id") == self._usage_ledger_id
+        ):
+            return
+        fields = {
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cache_creation_tokens",
+            "cache_read_tokens",
+        }
+        if not any(isinstance(prior_usage.get(key), int) for key in fields):
+            return
+        self._usage_seeded = True
+        self._token_usage_emitted = False
+        self._usage_observed = True
+        self._input_includes_cache &= prior_usage.get("input_includes_cache") is True
+        unknown = prior_usage.get("unknown_usage_fields")
+        if isinstance(unknown, list) and all(
+            isinstance(key, str) and key in fields for key in unknown
+        ):
+            self._usage_unknown_fields.update(unknown)
+        else:
+            # Legacy counters did not distinguish unreported usage from a genuine zero.
+            self._usage_unknown_fields.update(fields)
+        for field in fields:
+            value = prior_usage.get(field)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                counter = field if field == "total_tokens" else f"total_{field}"
+                setattr(self, counter, getattr(self, counter) + value)
+            else:
+                self._usage_unknown_fields.add(field)
 
     def usage_totals(self) -> dict:
         """当前累计用量快照，用于挂起时写入 resume_context 传给下一段。"""
-        return {
+        if self._usage_owner is not None:
+            return self._usage_owner.usage_totals()
+        totals: dict[str, Any] = {
+            "_usage_ledger_id": self._usage_ledger_id,
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,
             "total_tokens": self.total_tokens,
             "cache_creation_tokens": self.total_cache_creation_tokens,
             "cache_read_tokens": self.total_cache_read_tokens,
         }
+        if self._usage_observed or self._pending_model_runs:
+            totals["usage_observed"] = True
+            unknown = self._usage_unknown_fields | (
+                self._MODEL_USAGE_FIELDS if self._pending_model_runs else set()
+            )
+            totals["unknown_usage_fields"] = sorted(unknown)
+            if self._input_includes_cache and not self._pending_model_runs:
+                totals["input_includes_cache"] = True
+        return totals
 
     async def flush(self) -> None:
         """Flush pending stream chunks without clearing counters or output text."""
@@ -171,8 +248,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         await self._flush_thinking_chunk_buffer()
         await self._flush_tool_args_buffers()
 
+    async def drain_activity_references(self) -> None:
+        """Finish interrupted streams without clearing their output or usage."""
+        for stream_key in list(self._activity_reference_filters):
+            await self._finish_activity_reference(stream_key)
+
     async def finalize(self) -> None:
         """Flush pending chunks and release session-scoped buffers."""
+        await self.drain_activity_references()
         await self.flush()
         self.clear()
 
@@ -184,36 +267,68 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         model: str | None = None,
     ) -> bool:
         """Emit accumulated token usage once, preserving counters for late cleanup paths."""
+        if self._usage_owner is not None:
+            return await self._usage_owner.emit_token_usage(
+                duration=duration, model_id=model_id, model=model
+            )
         if self._token_usage_emitted:
             return False
 
+        # A snapshot must not discard ends still queued in the outer graph.
+        pending = bool(self._pending_model_runs)
+        unknown = self._usage_unknown_fields | (self._MODEL_USAGE_FIELDS if pending else set())
+
         if not (
-            self.total_input_tokens > 0 or self.total_output_tokens > 0 or self.total_tokens > 0
+            self.total_input_tokens > 0
+            or self.total_output_tokens > 0
+            or self.total_tokens > 0
+            or self._usage_observed
+            or pending
         ):
             return False
 
-        total_tokens = self.total_tokens or self.total_input_tokens + self.total_output_tokens
-        cost, rates = await self._resolve_usage_cost(model=model, model_id=model_id)
+        snapshot = self.usage_totals()
+        total_tokens = (
+            snapshot["total_tokens"] or snapshot["input_tokens"] + snapshot["output_tokens"]
+        )
+        cost, rates = (
+            (None, None)
+            if pending
+            else await self._resolve_usage_cost(model=model, model_id=model_id)
+        )
         event = self.presenter.present_token_usage(
-            input_tokens=self.total_input_tokens,
-            output_tokens=self.total_output_tokens,
+            input_tokens=snapshot["input_tokens"],
+            output_tokens=snapshot["output_tokens"],
             total_tokens=total_tokens,
             duration=duration,
-            cache_creation_tokens=self.total_cache_creation_tokens,
-            cache_read_tokens=self.total_cache_read_tokens,
+            cache_creation_tokens=(
+                None
+                if "cache_creation_tokens" in unknown and not snapshot["cache_creation_tokens"]
+                else snapshot["cache_creation_tokens"]
+            ),
+            cache_read_tokens=(
+                None
+                if "cache_read_tokens" in unknown and not snapshot["cache_read_tokens"]
+                else snapshot["cache_read_tokens"]
+            ),
+            unknown_usage_fields=sorted(unknown),
+            input_includes_cache=snapshot.get("input_includes_cache") is True,
             model_id=model_id,
             model=model,
             cost=cost,
             rates=rates,
         )
         await self._presenter_emit(event)
-        self._token_usage_emitted = True
+        # Pricing and delivery can yield while native model ends update the ledger.
+        self._token_usage_emitted = snapshot == self.usage_totals()
         return True
 
     async def _resolve_usage_cost(
         self, *, model: str | None, model_id: str | None
     ) -> tuple[Any, Any]:
         """best-effort 计算本次用量成本；失败或未匹配价格时返回 (None, None)。"""
+        if self._usage_unknown_fields or not self._input_includes_cache:
+            return None, None
         try:
             result = await compute_usage_cost(
                 model_value=model,
@@ -244,13 +359,42 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._thinking_chunk_buffer.reset()
         self._tool_args_buffers.clear()
         self._tool_args_meta.clear()
+        self._activity_reference_filters.clear()
         self._started_tool_call_ids.clear()
+
+    def _track_model_usage(self, event: StreamEvent) -> None:
+        kind, run_id = event.get("event"), event.get("run_id")
+        if kind in {"on_chat_model_start", "on_chat_model_stream"} and run_id:
+            if run_id not in self._completed_model_runs and run_id not in self._pending_model_runs:
+                self._pending_model_runs.add(run_id)
+                self._token_usage_emitted = False
+        elif kind == "on_chat_model_error" and run_id and run_id in self._pending_model_runs:
+            self._pending_model_runs.remove(run_id)
+            self._completed_model_runs.add(run_id)
+            self._mark_unknown_model_usage()
+            self._token_usage_emitted = False
+        elif kind == "on_chat_model_end" and (
+            not run_id or run_id not in self._completed_model_runs
+        ):
+            if run_id:
+                started = run_id in self._pending_model_runs
+                self._pending_model_runs.discard(run_id)
+                self._completed_model_runs.add(run_id)
+                if started and not event.get("data", {}).get("output"):
+                    self._mark_unknown_model_usage()
+            self._handle_token_usage(event)
+            self._token_usage_emitted = False
 
     async def process_event(self, event: StreamEvent) -> None:
         """Process a single LangChain stream event."""
+        # Nested and outer views share native IDs, including streams whose start callback was lost.
+        (self._usage_owner or self)._track_model_usage(event)
         await debug_log_event(event, self._debug_log_context())
         evt_type = event.get("event")
         event_name = event.get("name", "")
+        run_id = event.get("run_id")
+        if evt_type == "on_chat_model_error":
+            return
         if evt_type == "on_custom_event" and event_name == "lambchat_subagent_message":
             await self._handle_subagent_message(event)
             return
@@ -323,13 +467,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                     return
 
         if evt_type == "on_chat_model_end":
-            await self.flush()
             metadata = event.get("metadata", {})
             agent_id = metadata.get("lambchat_subagent_id")
             if not isinstance(agent_id, str) or not agent_id:
                 agent_id, _ = self._get_agent_context(self._get_checkpoint_ns(metadata))
+            for kind in ("body", "thinking", "summary"):
+                await self._finish_activity_reference((agent_id, event.get("run_id"), kind))
+            await self.flush()
             self._reset_tool_args_buffers(agent_id)
-            self._handle_token_usage(event)
             return
 
         if evt_type not in _CONTEXT_EVENT_TYPES:
@@ -367,6 +512,10 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         match evt_type:
             case "on_chat_model_start":
+                run_id = event.get("run_id")
+                for stream_key in list(self._activity_reference_filters):
+                    if stream_key[0] == current_agent_id and stream_key[1] != run_id:
+                        await self._finish_activity_reference(stream_key)
                 # 新模型流开始：上一步残留的参数缓冲已被 model_end 冲掉，
                 # 异常中断的残留在此丢弃（对应工具不会执行）。
                 self._reset_tool_args_buffers(current_agent_id)

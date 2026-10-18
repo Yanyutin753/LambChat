@@ -1,3 +1,9 @@
+import {
+  isScheduledProgress,
+  isScheduledResult,
+  type ScheduledProgress,
+  type ScheduledResult,
+} from "./useAgent/scheduledResults";
 import type { SessionReadScope } from "../services/api/session";
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import {
@@ -64,6 +70,8 @@ export interface SandboxPresenceNotification {
 export interface WebSocketMessageHandlers {
   onSessionsRead?: (scope: SessionReadScope) => void;
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
+  onScheduledResult?: (data: ScheduledResult) => void;
+  onScheduledProgress?: (data: ScheduledProgress) => void;
   onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
   onUsageUpdated?: (notification: UsageUpdatedNotification) => void;
   onSandboxPresence?: (notification: SandboxPresenceNotification) => void;
@@ -111,6 +119,12 @@ export function dispatchWebSocketMessage(
         ? { scheduledTaskId: payload.scheduled_task_id as string }
         : {}),
     });
+  } else if (typedMessage.type === "scheduled:progress") {
+    const data = (message as { data?: unknown }).data;
+    if (isScheduledProgress(data)) handlers.onScheduledProgress?.(data);
+  } else if (typedMessage.type === "scheduled:result") {
+    const data = (message as { data?: unknown }).data;
+    if (isScheduledResult(data)) handlers.onScheduledResult?.(data);
   } else if (typedMessage.type === "task:complete") {
     handlers.onTaskComplete?.(message as TaskCompleteNotification);
   } else if (typedMessage.type === "recommend:questions") {
@@ -174,6 +188,8 @@ const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max fai
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     onTaskComplete,
+    onScheduledResult,
+    onScheduledProgress,
     onSessionsRead,
     onRecommendQuestions,
     onUsageUpdated,
@@ -194,6 +210,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   );
   const onSessionsReadRef = useRef(onSessionsRead);
   onSessionsReadRef.current = onSessionsRead;
+  const onScheduledProgressRef = useRef(onScheduledProgress);
+  onScheduledProgressRef.current = onScheduledProgress;
+  const onScheduledResultRef = useRef(onScheduledResult);
+  onScheduledResultRef.current = onScheduledResult;
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onRecommendQuestionsRef = useRef(onRecommendQuestions);
   const onUsageUpdatedRef = useRef(onUsageUpdated);
@@ -340,6 +360,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           dispatchWebSocketMessage(message, {
             onSessionsRead: onSessionsReadRef.current,
             onTaskComplete: onTaskCompleteRef.current,
+            onScheduledResult: onScheduledResultRef.current,
+            onScheduledProgress: onScheduledProgressRef.current,
             onRecommendQuestions: onRecommendQuestionsRef.current,
             onUsageUpdated: onUsageUpdatedRef.current,
             onSandboxPresence: onSandboxPresenceRef.current,

@@ -1205,3 +1205,24 @@ test("completion retains a draft that already received an actual result", () => 
   const result = processMessageEvent("done", {}, [draft], "", [], 0, [], false);
   expect(result.parts).toEqual([draft]);
 });
+
+test.each([true, false])(
+  "Goal interruption preserves the answer as cancellation (streaming: %s)",
+  (streaming) => {
+    const result = processMessageEvent(
+      "error",
+      { error: "Goal was paused or superseded", type: "TaskInterruptedError" },
+      [{ type: "text", content: "Already generated answer" }],
+      "Already generated answer",
+      [],
+      0,
+      [],
+      streaming,
+    );
+    expect(result.cancelled).toBe(true);
+    expect(result.content).toBe("Already generated answer");
+    expect(result.parts.filter((part) => part.type === "text")).toEqual([
+      { type: "text", content: "Already generated answer" },
+    ]);
+  },
+);

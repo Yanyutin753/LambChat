@@ -18,11 +18,12 @@ import type { MessagePart, ToolPart } from "../../types";
 export function markPendingToolsAwaiting(
   parts: MessagePart[],
   awaiting: boolean,
+  toolCallIds?: ReadonlySet<string>,
 ): MessagePart[] {
   let changed = false;
   const next = parts.map((p) => {
     if (p.type === "subagent" && p.parts) {
-      const updated = markPendingToolsAwaiting(p.parts, awaiting);
+      const updated = markPendingToolsAwaiting(p.parts, awaiting, toolCallIds);
       if (updated !== p.parts) {
         changed = true;
         return { ...p, parts: updated };
@@ -31,6 +32,7 @@ export function markPendingToolsAwaiting(
     }
     if (
       p.type === "tool" &&
+      (!toolCallIds || (p.id !== undefined && toolCallIds.has(p.id))) &&
       p.isPending &&
       p.result === undefined &&
       Boolean(p.awaitingConfirmation) !== awaiting

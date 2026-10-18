@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -16,10 +15,6 @@ from pydantic import Field
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 _CACHE_CONTROL = {"type": "ephemeral"}
-
-# Anthropic requires >= ~1024 tokens between adjacent breakpoints; estimate
-# tokens from chars at ~3.5 chars/token and require a healthy margin.
-_MIN_CACHE_SEGMENT_CHARS = 3600
 
 
 def _to_text_blocks(content: Any) -> list[dict[str, Any]] | None:
@@ -38,23 +33,26 @@ def _to_text_blocks(content: Any) -> list[dict[str, Any]] | None:
 
 
 def _mark_last_block(messages: list[BaseMessage], index: int) -> BaseMessage:
-    """Return a copy of messages[index] with cache_control on its last block."""
+    """Copy the message and mark its last eligible block, preserving reasoning."""
     message = messages[index]
     blocks = _to_text_blocks(message.content)
     if not blocks:
         return message
-    last = dict(blocks[-1])
+    target = next(
+        (
+            i
+            for i in range(len(blocks) - 1, -1, -1)
+            if blocks[i].get("type") not in {"thinking", "redacted_thinking", "reasoning"}
+            and (blocks[i].get("type") != "text" or blocks[i].get("text"))
+        ),
+        None,
+    )
+    if target is None:
+        return message
+    last = dict(blocks[target])
     last["cache_control"] = dict(_CACHE_CONTROL)
-    blocks[-1] = last
+    blocks[target] = last
     return message.model_copy(update={"content": blocks})
-
-
-def _message_chars(message: BaseMessage) -> int:
-    """Rough size estimate (chars) of a message's text content."""
-    blocks = _to_text_blocks(message.content)
-    if blocks is None:
-        return 0
-    return sum(len(block.get("text") or "") for block in blocks if isinstance(block, dict))
 
 
 def _apply_prompt_cache_control(messages: list[BaseMessage]) -> list[BaseMessage]:
@@ -64,9 +62,8 @@ def _apply_prompt_cache_control(messages: list[BaseMessage]) -> list[BaseMessage
         1. The last system message - caches the stable system prefix.
         2. The end of the previous turn (message right before the newest
            human message) - lets tool-loop iterations and retries reuse the
-           conversation prefix up to the last completed turn. Skipped when
-           the segment since that point is too small to be cacheable
-           (Anthropic requires >= ~1024 tokens between breakpoints).
+           conversation prefix up to the last completed turn. Eligibility
+           depends on that entire prefix, not the size of the last answer.
         3. The final message - caches the full conversation prefix so each
            subsequent turn reuses everything up to the previous turn.
     """
@@ -86,15 +83,19 @@ def _apply_prompt_cache_control(messages: list[BaseMessage]) -> list[BaseMessage
         and last_human > 0
         and not isinstance(result[last_human - 1], SystemMessage)
     ):
-        boundary = last_human - 1
-        segment_chars = sum(_message_chars(m) for m in result[boundary:-1])
-        if segment_chars >= _MIN_CACHE_SEGMENT_CHARS:
-            result[boundary] = _mark_last_block(result, boundary)
+        for boundary in range(last_human - 1, -1, -1):
+            if isinstance(result[boundary], SystemMessage):
+                break
+            marked = _mark_last_block(result, boundary)
+            if marked is not result[boundary]:
+                result[boundary] = marked
+                break
     # 3. Final message breakpoint (fall back to the nearest message that
     # actually has content blocks, e.g. pure tool-call AIMessages).
     for index in range(len(result) - 1, -1, -1):
-        if _to_text_blocks(result[index].content):
-            result[index] = _mark_last_block(result, index)
+        marked = _mark_last_block(result, index)
+        if marked is not result[index]:
+            result[index] = marked
             break
     return result
 
@@ -114,8 +115,8 @@ class LambChatAnthropicChatModel(ChatAnthropic):
     ) -> dict:
         from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
 
+        messages = self._convert_input(input_).to_messages()
         if is_deepseek_thinking_model(self.model):
-            messages = self._convert_input(input_).to_messages()
             normalized = []
             for message in messages:
                 if isinstance(message, AIMessage):
@@ -136,34 +137,32 @@ class LambChatAnthropicChatModel(ChatAnthropic):
                         }
                         message = message.model_copy(update={"content": [block, *content]})
                 normalized.append(message)
-            input_ = normalized
-        return super()._get_request_payload(input_, stop=stop, **kwargs)
-
-    def bind_tools(
-        self, tools, *, tool_choice=None, parallel_tool_calls=None, strict=None, **kwargs
-    ):
-        bound = super().bind_tools(
-            tools,
-            tool_choice=tool_choice,
-            parallel_tool_calls=parallel_tool_calls,
-            strict=strict,
-            **kwargs,
-        )
-        # Tools 块断点（4 个配额中的第 4 个）：消息级断点只能让「同一会话」
-        # 复用前缀，tools 断点让不同会话/子代理（同一套工具、不同消息）也
-        # 能直接命中 system+tools 前缀，冷启动免整段重填充。tools 段太小
-        # （< ~1024 token）时服务端只会忽略断点，主动跳过以保持干净。
-        if self.enable_prompt_cache:
-            bound_tools = getattr(bound, "kwargs", {}).get("tools")
+            messages = normalized
+        prepared = messages
+        if "cache_control" not in kwargs and "cache_control" not in self.model_kwargs:
+            prepared = self._prepare(
+                messages, tools=kwargs.get("tools", self.model_kwargs.get("tools"))
+            )
+        payload = super()._get_request_payload(prepared, stop=stop, **kwargs)
+        # Respect caller-owned policy; defaults share at most four block markers.
+        if prepared is not messages:
+            bound_tools = payload.get("tools")
             if bound_tools and isinstance(bound_tools[-1], dict):
-                serialized_chars = sum(len(json.dumps(t, default=str)) for t in bound_tools)
                 last = bound_tools[-1]
-                if serialized_chars >= _MIN_CACHE_SEGMENT_CHARS and "cache_control" not in last:
-                    last["cache_control"] = dict(_CACHE_CONTROL)
-        return bound
+                if "cache_control" not in last:
+                    payload["tools"] = [
+                        *bound_tools[:-1],
+                        {**last, "cache_control": dict(_CACHE_CONTROL)},
+                    ]
+        return payload
 
-    def _prepare(self, messages: list[BaseMessage]) -> list[BaseMessage]:
-        if self.enable_prompt_cache:
+    def _prepare(self, messages: list[BaseMessage], *, tools: Any = None) -> list[BaseMessage]:
+        explicit = any(
+            "cache_control" in block
+            for message in messages
+            for block in _to_text_blocks(message.content) or []
+        ) or any(isinstance(tool, dict) and "cache_control" in tool for tool in tools or [])
+        if self.enable_prompt_cache and not explicit:
             return _apply_prompt_cache_control(messages)
         return messages
 
@@ -177,7 +176,7 @@ class LambChatAnthropicChatModel(ChatAnthropic):
         **kwargs: Any,
     ) -> AsyncIterator[ChatGenerationChunk]:
         source = super()._astream(
-            self._prepare(messages),
+            messages,
             stop=stop,
             run_manager=run_manager,
             stream_usage=stream_usage,
@@ -202,7 +201,7 @@ class LambChatAnthropicChatModel(ChatAnthropic):
     ) -> ChatResult:
         async with asyncio.timeout(self.non_streaming_timeout):
             return await super()._agenerate(
-                self._prepare(messages),
+                messages,
                 stop=stop,
                 run_manager=run_manager,
                 **kwargs,

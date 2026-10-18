@@ -7,12 +7,21 @@ export interface DailyUsageAmountOpts {
   rates?: FxRatesDoc | null;
 }
 
-/** 无统计数据时返回 null，调用方据此隐藏入口；有未计价请求时追加 "+"。 */
+/** 无统计时隐藏；全部未计价时显示未知，部分已计价时保留已知金额并追加 "+"。 */
 export function buildDailyUsageAmount(
   stats: UsageStats | null | undefined,
   opts: DailyUsageAmountOpts,
 ): string | null {
   if (!stats) return null;
-  const amount = formatCostUsd(stats.total_cost_usd ?? 0, { ...opts, decimals: 3 });
+  const unpriced = stats.unpriced_requests ?? 0;
+  const priced =
+    stats.priced_requests ?? Math.max(stats.total_requests - unpriced, 0);
+  if (
+    typeof stats.total_cost_usd !== "number" ||
+    !Number.isFinite(stats.total_cost_usd) ||
+    (unpriced > 0 && priced === 0)
+  )
+    return "—";
+  const amount = formatCostUsd(stats.total_cost_usd, { ...opts, decimals: 3 });
   return (stats.unpriced_requests ?? 0) > 0 ? `${amount}+` : amount;
 }

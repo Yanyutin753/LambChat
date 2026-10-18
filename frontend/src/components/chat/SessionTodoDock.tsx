@@ -85,8 +85,8 @@ export function SessionTodoDock({
   if (!sessionId || !todo) return null;
   const Icon = completed === items.length ? CheckCircle2 : ListTodo;
   return (
-    <div className="shrink-0 px-2 sm:px-8">
-      <div className="mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl">
+    <div className="shrink-0">
+      <div className="chat-content-column">
         <div className="w-fit max-w-full">
           <button
             type="button"

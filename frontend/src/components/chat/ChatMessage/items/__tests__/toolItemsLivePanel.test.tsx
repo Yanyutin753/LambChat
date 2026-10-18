@@ -17,6 +17,18 @@ afterEach(() => {
   toolCallPanelStore.clear();
 });
 
+test("ExecuteItem presents a confirmation wait without an execution spinner", () => {
+  const view = render(
+    <ExecuteItem
+      args={{ command: "echo 123" }}
+      isPending
+      awaitingConfirmation
+    />,
+  );
+  expect(view.container.textContent).toContain("Waiting for confirmation");
+  expect(view.container.querySelector(".animate-spin")).toBeNull();
+});
+
 test("ReadFileItem can open its panel while the tool is still running", () => {
   const view = render(
     <ReadFileItem

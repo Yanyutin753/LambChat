@@ -62,7 +62,7 @@ class TeamAgent(BaseGraphAgent):
     _options = {
         "enable_thinking": {
             "type": "string",
-            "default": "low",
+            "default": "medium",
             "label": "Thinking",
             "label_key": "agentOptions.enableThinking.label",
             "description": "Control thinking intensity (supported models only)",
@@ -173,7 +173,6 @@ class TeamAgent(BaseGraphAgent):
 
         # 构建 config
         agent_options = kwargs.get("agent_options", {})
-        logger.info(f"[TeamAgent] agent_options: {agent_options}")
 
         langsmith_context = {
             "agent_options": agent_options,

@@ -25,6 +25,7 @@ import {
   upgradeGeneratingToolPart,
   addPartToDepth,
   mergeSummaryPart,
+  mergeThinkingPart,
   updateSubagentResult,
   updateToolResultInDepth,
   clearAllLoadingStates,
@@ -40,6 +41,7 @@ const approvalToolIds = (data: EventData): string[] => {
     : [];
   return ids.length ? ids : data.tool_call_id ? [data.tool_call_id] : [];
 };
+
 const approvalResult = (data: EventData) =>
   typeof data.result === "object" && data.result !== null
     ? data.result
@@ -247,23 +249,46 @@ export class HistoryPartReplay {
     );
     return ref ? index.child(ref) : index.root;
   }
+  private append(
+    index: HistoryToolCandidates,
+    owner: PartContainer,
+    part: MessagePart,
+  ): void {
+    if (part.type === "thinking") {
+      const before = index.local(owner, ["non-draft"], true);
+      const last = index.local(owner, ["part"], true);
+      if (last && before !== last) {
+        index.insertAfter(owner, before?.slot.position ?? -1, part);
+        return;
+      }
+    }
+    index.append(owner, part);
+  }
   private add(
     index: HistoryToolCandidates,
     owner: PartContainer,
     part: MessagePart,
     depth: number,
   ): void {
+    if (part.type === "text") {
+      const before = index.local(owner, ["non-draft"], true);
+      const last = index.local(owner, ["part"], true);
+      if (
+        before?.slot.part.type === "text" &&
+        (owner.parent || depth || !before.slot.part.depth)
+      )
+        index.replace(before, {
+          ...before.slot.part,
+          content: before.slot.part.content + part.content,
+        });
+      else if (!last || before === last) index.append(owner, part);
+      else index.insertAfter(owner, before?.slot.position ?? -1, part);
+      return;
+    }
     let target: PartRef | undefined;
     if (part.type === "thinking")
       target = index.local(owner, ["thinking", part.thinking_id], true);
-    else if (part.type === "text") {
-      const last = index.local(owner, ["part"], true);
-      if (
-        last?.slot.part.type === "text" &&
-        (owner.parent || depth || !last.slot.part.depth)
-      )
-        target = last;
-    } else if (part.type === "todo" && owner.parent)
+    else if (part.type === "todo" && owner.parent)
       target = index.local(owner, ["type", "todo"]);
     else if (part.type === "summary") {
       const slots = owner.slots;
@@ -287,23 +312,14 @@ export class HistoryPartReplay {
       )[0] as SubagentPart;
       const next = result.parts || [];
       if (target && next.length === 1) index.replace(target, next[0]);
-      else if (next.length) index.append(owner, next[next.length - 1]);
+      else if (next.length) this.append(index, owner, next[next.length - 1]);
     } else if (target) {
       // Fallback placement at the root uses the same thinking/text/summary merge helpers.
       const merged =
         part.type === "thinking" && target.slot.part.type === "thinking"
-          ? [
-              {
-                ...target.slot.part,
-                content: target.slot.part.content + part.content,
-                startedAt: target.slot.part.startedAt ?? part.startedAt,
-                lastUpdatedAt:
-                  part.lastUpdatedAt ?? target.slot.part.lastUpdatedAt,
-                completedAt: undefined,
-                isStreaming: this.streaming
-                  ? true
-                  : target.slot.part.isStreaming,
-              },
+          ? mergeThinkingPart([target.slot.part], part, this.streaming) || [
+              target.slot.part,
+              part,
             ]
           : part.type === "summary"
             ? mergeSummaryPart([target.slot.part], part) || [
@@ -313,7 +329,7 @@ export class HistoryPartReplay {
             : addPartToDepth([target.slot.part], part, depth, []);
       if (merged.length === 1) index.replace(target, merged[0]);
       else index.append(owner, merged[merged.length - 1]);
-    } else index.append(owner, part);
+    } else this.append(index, owner, part);
   }
   replay(
     message: Message,
@@ -370,16 +386,24 @@ export class HistoryPartReplay {
           if (ref)
             index.replace(
               ref,
-              updateToolResultInDepth(
-                [ref.slot.part],
-                toolId,
-                approvalResult(data),
-                data.success !== false,
-                data.error,
-                (ref.slot.part as ToolPart).depth || 0,
-                data.agent_id,
-                data.timestamp,
-              )[0],
+              (Array.isArray(data.tool_call_ids) &&
+              data.tool_call_ids.length > 0 &&
+              data.success !== false
+                ? markPendingToolsAwaiting(
+                    [ref.slot.part],
+                    false,
+                    new Set([toolId]),
+                  )
+                : updateToolResultInDepth(
+                    [ref.slot.part],
+                    toolId,
+                    approvalResult(data),
+                    data.success !== false,
+                    data.error,
+                    (ref.slot.part as ToolPart).depth || 0,
+                    data.agent_id,
+                    data.timestamp,
+                  ))[0],
             );
         }
       return true;
@@ -624,20 +648,7 @@ export class HistoryPartReplay {
     if (eventType === "message:chunk" && !depth) {
       const content = data.content || "";
       if (!content) return true;
-      const before = index.local(index.root, ["non-draft"], true);
-      const last = index.local(index.root, ["part"], true);
-      if (before?.slot.part.type === "text" && !before.slot.part.depth)
-        index.replace(before, {
-          ...before.slot.part,
-          content: before.slot.part.content + content,
-        });
-      else if (!last || before === last)
-        index.append(index.root, { type: "text", content });
-      else
-        index.insertAfter(index.root, before?.slot.position ?? -1, {
-          type: "text",
-          content,
-        });
+      this.add(index, index.root, { type: "text", content }, 0);
       message.content += content;
       return true;
     }

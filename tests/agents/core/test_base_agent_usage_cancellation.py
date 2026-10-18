@@ -52,6 +52,53 @@ class _TestAgent(base_module.BaseGraphAgent):
 
 
 @pytest.mark.asyncio
+async def test_producer_interrupt_survives_a_cleared_interrupt_flag(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        base_module,
+        "AgentEventProcessor",
+        lambda *a, **kw: SimpleNamespace(
+            process_event=AsyncMock(), finalize=AsyncMock(), emit_token_usage=AsyncMock()
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt",
+        AsyncMock(side_effect=TaskInterruptedError("cancelled producer")),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast", lambda _: False
+    )
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = _FakeGraph()
+    presenter = _FakePresenter()
+    with pytest.raises(TaskInterruptedError, match="cancelled producer"):
+        _ = [event async for event in agent._stream("hello", "s", "u", presenter=presenter)]
+    assert not any(event["event"] == "done" for event in presenter.emitted_events)
+    assert not agent._stream_tasks
+
+
+@pytest.mark.parametrize("close_run", [None, "r"])
+async def test_close_consumes_already_finished_stream_failure(close_run) -> None:
+    async def fail():
+        raise TaskInterruptedError("already interrupted")
+
+    task = asyncio.create_task(fail())
+    cleanup = asyncio.create_task(fail()) if close_run is None else None
+    await asyncio.wait({task, cleanup} if cleanup is not None else {task})
+    assert task._log_traceback
+    agent = _TestAgent()
+    agent._stream_tasks["r"] = task
+    if cleanup is not None:
+        agent._cleanup_task = cleanup
+    await agent.close(close_run)
+    assert not task._log_traceback
+    assert cleanup is None or not cleanup._log_traceback
+
+
+@pytest.mark.asyncio
 async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -> None:
     processed = asyncio.Event()
     instances = []

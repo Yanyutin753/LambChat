@@ -6,6 +6,7 @@ import asyncio
 import sys
 import types
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -106,10 +107,190 @@ def mock_default_model():
         yield
 
 
+@pytest.fixture(autouse=True)
+def mock_task_authority():
+    from src.kernel.schemas.user import TokenPayload
+
+    owner = TokenPayload(sub="user_1", username="owner", permissions=["chat:write"])
+    with (
+        patch("src.infra.scheduler.runner._resolve_task_owner", AsyncMock(return_value=owner)),
+        patch("src.api.routes.chat.validate_agent_model_access", AsyncMock()),
+    ):
+        yield
+
+
+async def test_default_scheduled_execution_rejects_revoked_chat_permission():
+    from src.kernel.errors import AppError, ErrorCode
+    from src.kernel.schemas.user import TokenPayload
+
+    owner = TokenPayload(sub="user_1", username="owner", permissions=[])
+    manager = SimpleNamespace(submit=AsyncMock(), submit_arq=AsyncMock())
+    with (
+        patch("src.infra.scheduler.runner._resolve_task_owner", AsyncMock(return_value=owner)),
+        patch("src.infra.task.manager.get_task_manager", return_value=manager),
+    ):
+        with pytest.raises(AppError) as rejected:
+            await ScheduledTaskRunner()._execute_agent(_make_task(), "run", "session")
+    assert rejected.value.error_code == ErrorCode.PERMISSION_MISSING
+    manager.submit.assert_not_awaited()
+    manager.submit_arq.assert_not_awaited()
+
+
+async def test_default_scheduled_model_is_selected_through_current_role_access(monkeypatch):
+    manager = SimpleNamespace(submit=AsyncMock(return_value=("run", "trace")))
+    sessions = SimpleNamespace(update_session_metadata=AsyncMock())
+
+    async def authorize(options, user):
+        assert options == {}
+        assert "chat:write" in user.permissions
+        options.update(model="allowed-model", model_id="allowed-id")
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.api.routes.chat.validate_agent_model_access", authorize)
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: manager)
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: sessions)
+    monkeypatch.setattr("src.infra.task.concurrency.get_registered_executor", lambda key: object())
+    runner = ScheduledTaskRunner()
+    runner._wait_for_completion = AsyncMock(return_value={"session_status": "completed"})
+    await runner._execute_agent(_make_task(), "run", "session")
+    from src.infra.scheduler.runner import execute_standalone_schedule
+
+    assert manager.submit.call_args.kwargs["executor"] is execute_standalone_schedule
+    assert manager.submit.call_args.kwargs["agent_options"] == {
+        "model": "allowed-model",
+        "model_id": "allowed-id",
+    }
+
+
 async def _await_spawned(spawned: list[asyncio.Task]) -> None:
     """Wait for all spawned monitor tasks to complete."""
     if spawned:
         await asyncio.gather(*spawned, return_exceptions=True)
+
+
+async def test_old_date_run_does_not_unregister_a_reconfigured_schedule(mock_storage):
+    task = _make_task(
+        trigger_type=TriggerType.DATE, trigger_config={"run_date": "2099-01-01T00:00:00+00:00"}
+    )
+    mock_storage.pause_completed_date_task = AsyncMock(return_value=False)
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(
+        return_value={"session_status": "completed", "session_id": "child"}
+    )
+    with (
+        patch("src.infra.scheduler.runner.release_task_lock", AsyncMock()),
+        patch("src.infra.scheduler.runner.get_runtime_scheduler") as scheduler,
+    ):
+        await runner._monitor_and_finalize(
+            task=task,
+            run_id="run",
+            base_session_id="child",
+            lock_token="token",
+            max_attempts=1,
+            trigger_type="date",
+            started_at=task.created_at,
+        )
+    mock_storage.pause_completed_date_task.assert_awaited_once_with(
+        task.id, task.trigger_config, task.timezone
+    )
+    mock_storage.update_task.assert_not_awaited()
+    scheduler.return_value.unregister_job.assert_not_called()
+
+
+async def test_stats_failure_does_not_change_successful_agent_result(mock_storage):
+    task = _make_task()
+    mock_storage.update_task_run_stats.side_effect = RuntimeError("stats unavailable")
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(
+        return_value={"session_status": "completed", "session_id": "child"}
+    )
+    with patch("src.infra.scheduler.runner.release_task_lock", AsyncMock()):
+        await runner._monitor_and_finalize(
+            task=task,
+            run_id="run",
+            base_session_id="child",
+            lock_token="token",
+            max_attempts=1,
+            trigger_type="interval",
+            started_at=task.created_at,
+        )
+    final = mock_storage.update_run.call_args_list[-1].args[1]
+    assert final["status"] == RunStatus.SUCCESS
+    assert final["finalization_pending"] is True
+    mock_storage.complete_run_finalization.assert_not_awaited()
+    runner._execute_agent.assert_awaited_once()
+
+
+async def test_delivery_read_failure_does_not_change_successful_agent_result(mock_storage):
+    task = _make_task()
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(
+        return_value={"session_status": "completed", "session_id": "child"}
+    )
+    runner._deliver_success_result = AsyncMock(side_effect=RuntimeError("trace unavailable"))
+    with patch("src.infra.scheduler.runner.release_task_lock", AsyncMock()):
+        await runner._monitor_and_finalize(
+            task=task,
+            run_id="run",
+            base_session_id="child",
+            lock_token="token",
+            max_attempts=1,
+            trigger_type="interval",
+            started_at=task.created_at,
+        )
+    final = mock_storage.update_run.call_args_list[-1].args[1]
+    assert final["status"] == RunStatus.SUCCESS
+    assert final["output_result"]["delivery"]["status"] == "failed"
+    mock_storage.complete_run_finalization.assert_awaited_once_with("run")
+
+
+async def test_standalone_finalization_retry_updates_stats_without_running_agent(mock_storage):
+    from src.infra.scheduler.runner import reconcile_standalone_finalizations
+
+    record = {
+        "_id": "run",
+        "task_id": "task",
+        "status": "success",
+        "trigger_type": "date",
+        "scheduled_trigger_config": {"run_date": "2099-01-01T00:00:00+00:00"},
+        "scheduled_timezone": "UTC",
+        "finalization_pending": True,
+    }
+    mock_storage.pending_standalone_finalizations.return_value = [record]
+    mock_storage.pause_completed_date_task.return_value = True
+    with (
+        patch.object(ScheduledTaskRunner, "_execute_agent", AsyncMock()) as execute,
+        patch("src.infra.scheduler.runner.get_runtime_scheduler") as scheduler,
+    ):
+        await reconcile_standalone_finalizations()
+    execute.assert_not_awaited()
+    mock_storage.update_task_run_stats.assert_awaited_once_with("task", "run", RunStatus.SUCCESS)
+    mock_storage.pause_completed_date_task.assert_awaited_once_with(
+        "task", record["scheduled_trigger_config"], "UTC"
+    )
+    scheduler.return_value.unregister_job.assert_called_once_with("task")
+    mock_storage.complete_run_finalization.assert_awaited_once_with("run")
+
+
+def test_delayed_cron_peers_share_the_actual_scheduled_fire_slot():
+    from datetime import timedelta
+
+    from src.infra.scheduler.runtime import SCHEDULED_FIRE_TIME
+
+    fire_time = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+    task = _make_task(trigger_type=TriggerType.CRON, trigger_config={"minute": "*"})
+    token = SCHEDULED_FIRE_TIME.set(fire_time)
+    try:
+        first = ScheduledTaskRunner._build_schedule_slot(
+            task, "cron", fire_time + timedelta(milliseconds=900)
+        )
+        delayed = ScheduledTaskRunner._build_schedule_slot(
+            task, "cron", fire_time + timedelta(seconds=2)
+        )
+    finally:
+        SCHEDULED_FIRE_TIME.reset(token)
+    assert first == delayed
+    assert first[0] == f"cron:{int(fire_time.timestamp())}"
 
 
 @pytest.mark.asyncio
@@ -436,22 +617,14 @@ async def test_runner_does_not_retry_timeout(
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_times_out_and_cancels_run() -> None:
+async def test_wait_for_completion_waits_until_terminal_without_cancelling_run() -> None:
     manager = AsyncMock()
-    manager.get_run_status = AsyncMock(return_value=TaskStatus.RUNNING)
-    manager.cancel_run = AsyncMock(return_value={"success": True})
+    manager.get_run_status = AsyncMock(side_effect=[TaskStatus.RUNNING, TaskStatus.COMPLETED])
     runner = ScheduledTaskRunner()
-
-    result = await runner._wait_for_completion(
-        manager,
-        session_id="session_1",
-        run_id="run_1",
-        user_id="user_1",
-        timeout_seconds=0,
-    )
-
-    assert result == {"session_status": "timeout"}
-    manager.cancel_run.assert_awaited_once_with("run_1", user_id="user_1")
+    with patch("src.infra.scheduler.runner.asyncio.sleep", AsyncMock()):
+        result = await runner._wait_for_completion(manager, "session_1", "run_1", "user_1")
+    assert result == {"session_status": "completed"}
+    manager.cancel_run.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -525,6 +698,7 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
     assert submitted["session_metadata"] == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
@@ -532,6 +706,7 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
     assert session_manager.metadata == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
@@ -675,7 +850,9 @@ async def test_execute_agent_resolves_persona_id_for_non_team_agent(
     )
     monkeypatch.setattr(
         "src.infra.scheduler.runner._resolve_task_owner",
-        AsyncMock(return_value=type("User", (), {"sub": "user_1", "permissions": []})()),
+        AsyncMock(
+            return_value=type("User", (), {"sub": "user_1", "permissions": ["chat:write"]})()
+        ),
     )
     monkeypatch.setattr(
         "src.api.routes.chat.resolve_persona_request",
@@ -835,7 +1012,8 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
         "session_id": "session_1",
         "trace_id": "trace_1",
     }
-    assert submitted["executor_key"] == "agent_stream"
+    assert submitted["executor_key"] == "scheduled_agent_stream"
+    assert submitted["dispatch_id"] == "scheduled:run_1:session_1"
     assert submitted["run_id"] == "run_1"
     assert submitted["session_id"] == "session_1"
     assert submitted["display_message"] == "Run distributed report"
@@ -843,6 +1021,7 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
     assert submitted["session_metadata"] == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
+        "executor_key": "scheduled_agent_stream",
         "scheduled_task_run_id": "run_1",
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
@@ -883,6 +1062,7 @@ async def test_execute_agent_anchors_timestamp_to_run_start(
     await ScheduledTaskRunner()._execute_agent(
         task, run_id="run_1", session_id="session_1", now=anchored
     )
+    assert "Do not guess" in submitted["message"]
     assert submitted["message"].startswith(
         "[User message sent at: 2026-08-22 09:02:03 +08:00 Asia/Shanghai] "
     )
@@ -983,7 +1163,7 @@ async def test_execute_agent_keeps_existing_model_selection(
     # 显式选模走 validate_agent_model_access 分支，需要任务 owner 在场
     monkeypatch.setattr(
         "src.infra.scheduler.runner._resolve_task_owner",
-        AsyncMock(return_value=object()),
+        AsyncMock(return_value=SimpleNamespace(sub="user_1", permissions=["chat:write"])),
     )
     monkeypatch.setattr("src.api.routes.chat.validate_agent_model_access", AsyncMock())
 
@@ -993,3 +1173,60 @@ async def test_execute_agent_keeps_existing_model_selection(
         "model": "deepseek-flash",
         "response_language": "zh",
     }
+
+
+@pytest.mark.parametrize("elapsed", [60, 120, 180, 600])
+def test_interval_slots_keep_every_minute_despite_completion_latency(elapsed):
+    from datetime import timedelta
+
+    anchor = datetime(2026, 10, 16, 17, 36, 41, 886000, tzinfo=timezone.utc)
+    now = anchor + timedelta(seconds=elapsed)
+    task = _make_task(
+        created_at=anchor,
+        trigger_config={"seconds": 60},
+        last_run_at=now - timedelta(seconds=50),
+        total_runs=1,
+        run_on_start=True,
+    )
+    slot = ScheduledTaskRunner._build_schedule_slot(task, "interval", now)
+    assert slot[2] == now
+    # Delayed peers must dedupe the same fixed slot even after completion stats change.
+    task.last_run_at = now + timedelta(seconds=5)
+    assert (
+        ScheduledTaskRunner._build_schedule_slot(task, "interval", now + timedelta(seconds=10))
+        == slot
+    )
+
+
+def test_interval_slot_advances_while_first_run_is_still_open():
+    from datetime import timedelta
+
+    anchor = datetime(2026, 10, 16, 17, 36, 41, tzinfo=timezone.utc)
+    task = _make_task(
+        created_at=anchor, trigger_config={"seconds": 60}, total_runs=0, run_on_start=True
+    )
+    first = ScheduledTaskRunner._build_schedule_slot(task, "interval", anchor)
+    next_slot = ScheduledTaskRunner._build_schedule_slot(
+        task, "interval", anchor + timedelta(seconds=60)
+    )
+    assert first[0].startswith("run_on_start:")
+    assert next_slot[0] != first[0]
+    assert next_slot[2] == anchor + timedelta(seconds=60)
+
+
+def test_interval_slot_is_not_due_before_first_fixed_tick():
+    from datetime import timedelta
+
+    anchor = datetime(2026, 10, 16, 17, 36, 41, tzinfo=timezone.utc)
+    task = _make_task(created_at=anchor, trigger_config={"seconds": 60})
+    slot = ScheduledTaskRunner._build_schedule_slot(
+        task, "interval", anchor + timedelta(seconds=59)
+    )
+    assert slot[2] == anchor + timedelta(seconds=60)
+
+
+def test_legacy_interval_without_creation_time_remains_runnable():
+    now = datetime(2026, 10, 16, 17, 37, 41, tzinfo=timezone.utc)
+    task = _make_task(created_at=None, trigger_config={"seconds": 60})
+    slot = ScheduledTaskRunner._build_schedule_slot(task, "interval", now)
+    assert slot[2] is None

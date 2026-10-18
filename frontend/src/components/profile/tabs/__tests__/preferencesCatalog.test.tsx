@@ -37,6 +37,7 @@ vi.mock("react-i18next", async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
 }));
 vi.mock("../../ThemeScheduleSection", () => ({ default: () => null }));
+vi.mock("../../LocalSandboxSection", () => ({ default: () => null }));
 vi.mock("../../../../services/api", () => ({
   authApi: { updateMetadata: api.save },
   agentApi: { list: api.agents },

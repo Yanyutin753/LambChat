@@ -86,7 +86,7 @@ def _executor_fixture(
 
     status_updates: list[str] = []
 
-    async def _record_status(session_id, status, error=None, run_id=None):
+    async def _record_status(session_id, status, error=None, run_id=None, *, expected_run_id=None):
         status_updates.append(status.value if hasattr(status, "value") else str(status))
 
     executor = TaskExecutor(
@@ -258,3 +258,24 @@ async def test_blank_chunk_does_not_count_as_main_output(
 
     assert result is None
     assert "failed" in status_updates
+
+
+async def test_goal_output_exhaustion_has_specific_error_instead_of_claiming_retries(monkeypatch):
+    executor, writer, holder, statuses = _executor_fixture(monkeypatch)
+
+    async def stream(*args, **kwargs):
+        kwargs["presenter"].persistent_goal_metrics = SimpleNamespace(main_output_limited=True)
+        yield {"event": "thinking", "data": {"content": "Stopped at output cap"}}
+
+    result = await executor.run_task(
+        session_id="session-1",
+        run_id="run-1",
+        agent_id="search",
+        message="implement",
+        user_id="user-1",
+        executor=stream,
+        user_message_written=True,
+    )
+    assert result is None and "failed" in statuses and "completed" not in statuses
+    error = next(e for e in writer.written if e.get("event_type") == "error")
+    assert error["data"]["code"] == "model_output_limit"

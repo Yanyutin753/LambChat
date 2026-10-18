@@ -17,20 +17,23 @@ test("tool reading typography compiles with monospace utilities without a cycle"
   expect(result.css).toContain("Source Serif 4");
 });
 
-
-test.each(["base.css", "animations.css", "landing.css", "components.css", "auth.css"])(
-  "%s resolves its shared Tailwind reference",
-  async (file) => {
-    const source = new URL(`../${file}`, import.meta.url);
-    const result = await postcss([tailwindcss()]).process(
-      readFileSync(source, "utf8"),
-      { from: fileURLToPath(source) },
-    );
-    expect(result.css).not.toContain("@reference");
-    expect(result.css).not.toContain("@apply");
-  },
-);
-
+test.each([
+  "base.css",
+  "animations.css",
+  "landing.css",
+  "components.css",
+  "auth.css",
+  "chat.css",
+  "app-content.css",
+])("%s resolves its shared Tailwind reference", async (file) => {
+  const source = new URL(`../${file}`, import.meta.url);
+  const result = await postcss([tailwindcss()]).process(
+    readFileSync(source, "utf8"),
+    { from: fileURLToPath(source) },
+  );
+  expect(result.css).not.toContain("@reference");
+  expect(result.css).not.toContain("@apply");
+});
 
 test("production utilities exclude test fixtures while retaining application styles", async () => {
   const source = new URL("../tailwind.css", import.meta.url);
@@ -39,7 +42,9 @@ test("production utilities exclude test fixtures while retaining application sty
     { from: fileURLToPath(source) },
   );
   const testOnlyUtility = "z-[8675309]";
-  expect(css).not.toContain(testOnlyUtility.replace("[", "\\[").replace("]", "\\]"));
+  expect(css).not.toContain(
+    testOnlyUtility.replace("[", "\\[").replace("]", "\\]"),
+  );
   expect(css).not.toContain("z-index: 8675309");
   expect(css).toContain(".items-center");
   expect(css).toContain("var(--theme-border)");

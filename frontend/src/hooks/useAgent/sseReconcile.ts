@@ -61,7 +61,10 @@ function resolveStreamingMessageId(ctx: StreamReconcileContext): string | null {
   return (
     [...ctx.messagesRef.current]
       .reverse()
-      .find((message: Message) => message.role === "assistant")?.id ?? null
+      .find(
+        (message: Message) =>
+          message.role === "assistant" && !message.metadata?.scheduledTaskId,
+      )?.id ?? null
   );
 }
 
@@ -141,8 +144,10 @@ export async function reconcileActiveStream(
 
 export interface ReconcileOpenSessionOptions {
   loadHistory: (targetSessionId: string) => Promise<unknown>;
+  targetRunId?: string | null;
   isSending: boolean;
   isLoadingHistory: boolean;
+  isBusy?: () => boolean;
 }
 
 /**
@@ -174,17 +179,29 @@ export async function reconcileOpenSession(
     !sessionData ||
     ctx.sessionIdRef.current !== currentSessId ||
     ctx.currentRunIdRef.current !== localRunId ||
-    ctx.sseGenerationRef.current !== generation
+    ctx.sseGenerationRef.current !== generation ||
+    opts.isBusy?.()
   )
     return;
 
   const serverRunId =
     (sessionData.metadata?.current_run_id as string | undefined) || null;
+  const taskStatus = sessionData.metadata?.task_status;
+  const missingReply =
+    taskStatus === "completed" &&
+    !ctx.messagesRef.current.some(
+      (message) =>
+        message.role === "assistant" && message.runId === serverRunId,
+    );
+  if (opts.targetRunId && taskStatus === "completed" && !missingReply) return;
   if (
     shouldReloadOpenSession({
       serverRunId,
       localRunId: ctx.currentRunIdRef.current,
-    })
+    }) ||
+    (serverRunId &&
+      !ctx.streamingMessageIdRef.current &&
+      (taskStatus === "running" || missingReply))
   ) {
     console.log(
       `[SSE Reconcile] Server moved on (server run=${serverRunId}); reloading history`,
@@ -204,8 +221,9 @@ export interface StreamReconcileOptions {
   isSendingRef: React.MutableRefObject<boolean>;
   isLoadingHistoryRef: React.MutableRefObject<boolean>;
   loadHistoryRef: React.MutableRefObject<
-    ((targetSessionId: string) => Promise<unknown>) | null
+    ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
   >;
+  historyTargetRunIdRef?: React.MutableRefObject<string | null>;
 }
 
 /**
@@ -226,6 +244,7 @@ export function useStreamReconcile(
     isSendingRef,
     isLoadingHistoryRef,
     loadHistoryRef,
+    historyTargetRunIdRef,
   } = opts;
 
   const connectionStatusRef = useRef(opts.connectionStatus);
@@ -263,11 +282,22 @@ export function useStreamReconcile(
         }
         if (!runStillActive) {
           await reconcileOpenSession(ctx, {
-            loadHistory: (targetSessionId) =>
-              loadHistoryRef.current?.(targetSessionId) ??
-              Promise.resolve(null),
+            loadHistory: async (targetSessionId) => {
+              const targetRunId = historyTargetRunIdRef?.current;
+              await loadHistoryRef.current?.(targetSessionId);
+              if (
+                targetRunId &&
+                sessionIdRef.current === targetSessionId &&
+                historyTargetRunIdRef?.current === targetRunId &&
+                !isSendingRef.current
+              ) {
+                await loadHistoryRef.current?.(targetSessionId, targetRunId);
+              }
+            },
+            targetRunId: historyTargetRunIdRef?.current,
             isSending: isSendingRef.current,
             isLoadingHistory: isLoadingHistoryRef.current,
+            isBusy: () => isSendingRef.current || isLoadingHistoryRef.current,
           });
         }
       } finally {
@@ -283,6 +313,7 @@ export function useStreamReconcile(
       isSendingRef,
       isLoadingHistoryRef,
       loadHistoryRef,
+      historyTargetRunIdRef,
     ],
   );
 
@@ -320,12 +351,11 @@ export function useStreamReconcile(
     };
   }, [setConnectionStatus]);
 
-  // 可见的活动流持续对账，也覆盖断开和重连中丢失恢复信号的情况。
+  // 空闲的可见会话也要对账，发现定时任务或其他端新启动的 run 后接上流。
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      if (!sessionIdRef.current || !currentRunIdRef.current) return;
-      if (!streamingMessageIdRef.current) return;
+      if (!sessionIdRef.current) return;
       void reconcileRef.current();
     }, WATCHDOG_INTERVAL_MS);
     return () => clearInterval(timer);

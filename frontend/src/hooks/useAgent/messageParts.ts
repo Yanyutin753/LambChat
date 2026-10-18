@@ -13,6 +13,7 @@ import type {
   SubagentPart,
   SummaryPart,
   ThinkingPart,
+  TextPart,
   ToolPart,
   TodoPart,
 } from "../../types";
@@ -380,9 +381,23 @@ export function createSubagentPart(
  * Merge a thinking chunk into an existing parts array (reverse scan).
  * Returns a new array with content concatenated, or null if no match found.
  */
-function mergeThinkingPart(
+function beforeToolDrafts(parts: MessagePart[]): number {
+  let anchor = parts.length;
+  while (anchor > 0) {
+    const part = parts[anchor - 1];
+    if (part.type === "tool" && (part as ToolPart).argsPartial) {
+      anchor--;
+      continue;
+    }
+    break;
+  }
+  return anchor;
+}
+
+export function mergeThinkingPart(
   parts: MessagePart[],
   part: ThinkingPart,
+  isStreaming = true,
 ): MessagePart[] | null {
   const thinkingId = part.thinking_id;
   let existingIndex = -1;
@@ -411,7 +426,12 @@ function mergeThinkingPart(
     }
   }
 
-  if (existingIndex < 0) return null;
+  if (existingIndex < 0) {
+    const anchor = beforeToolDrafts(parts);
+    return anchor < parts.length
+      ? [...parts.slice(0, anchor), part, ...parts.slice(anchor)]
+      : null;
+  }
 
   const newParts = [...parts];
   const existing = newParts[existingIndex] as ThinkingPart;
@@ -422,77 +442,42 @@ function mergeThinkingPart(
     lastUpdatedAt: part.lastUpdatedAt ?? existing.lastUpdatedAt,
     completedAt: undefined,
     ...(existing.status ? { status: undefined } : {}),
-    isStreaming: true,
+    isStreaming: isStreaming ? true : existing.isStreaming,
   };
   return newParts;
 }
 
 /**
  * Merge a text chunk into an existing parts array.
- * If the last part is text, concatenates content and returns a new array.
- * Otherwise returns null (caller should append).
+ * Late text belongs before trailing argument drafts, but never before a started tool.
  */
 function mergeTextPart(
   parts: MessagePart[],
-  content: string,
+  textPart: TextPart,
 ): MessagePart[] | null {
-  const lastPart = parts[parts.length - 1];
-  if (lastPart?.type === "text") {
+  const anchor = beforeToolDrafts(parts);
+
+  const before = parts[anchor - 1];
+  if (before?.type === "text" && (textPart.depth || !before.depth)) {
     const newParts = [...parts];
-    newParts[newParts.length - 1] = {
-      ...lastPart,
-      content: lastPart.content + content,
+    newParts[anchor - 1] = {
+      ...before,
+      content: before.content + textPart.content,
     };
     return newParts;
   }
-  return null;
+
+  return anchor < parts.length
+    ? [...parts.slice(0, anchor), textPart, ...parts.slice(anchor)]
+    : null;
 }
 
-/**
- * 追加一段顶层正文（depth 0 的 message:chunk）。
- *
- * 流式下后端按阈值/定时 flush 正文，而工具参数首块直发，导致「先于工具
- * 调用生成的正文」可能在 tool:args:chunk 之后到达。模型输出顺序恒为
- * 「正文 → 工具参数」，仍在参数生成中（argsPartial，tool:start 之前）的
- * 工具不可能先于其前面的正文：把晚到的正文插回这些生成中工具之前并与
- * 相邻正文段合并，避免同一句被工具卡从中间劈开。
- */
 export function appendTopLevelTextChunk(
   parts: MessagePart[],
   content: string,
 ): MessagePart[] {
-  const lastPart = parts[parts.length - 1];
-  if (lastPart?.type === "text" && !lastPart.depth) {
-    const newParts = [...parts];
-    newParts[newParts.length - 1] = {
-      ...lastPart,
-      content: lastPart.content + content,
-    };
-    return newParts;
-  }
-
-  let anchor = parts.length;
-  while (anchor > 0) {
-    const part = parts[anchor - 1];
-    if (part.type === "tool" && (part as ToolPart).argsPartial) {
-      anchor--;
-      continue;
-    }
-    break;
-  }
-
-  const before = parts[anchor - 1];
-  if (before?.type === "text" && !before.depth) {
-    const newParts = [...parts];
-    newParts[anchor - 1] = {
-      ...before,
-      content: before.content + content,
-    };
-    return newParts;
-  }
-
-  const textPart: MessagePart = { type: "text", content };
-  return [...parts.slice(0, anchor), textPart, ...parts.slice(anchor)];
+  const textPart: TextPart = { type: "text", content };
+  return mergeTextPart(parts, textPart) ?? [...parts, textPart];
 }
 
 /**
@@ -568,7 +553,7 @@ function mergeOrAppendPart(
       return merged ?? [...existingParts, part];
     }
     case "text": {
-      const merged = mergeTextPart(existingParts, part.content);
+      const merged = mergeTextPart(existingParts, part);
       return merged ?? [...existingParts, part];
     }
     case "summary": {
@@ -734,7 +719,7 @@ export function addPartToDepth(
     const merged = mergeThinkingPart(parts, part);
     if (merged) return merged;
   } else if (part.type === "text") {
-    const merged = mergeTextPart(parts, part.content);
+    const merged = mergeTextPart(parts, part);
     if (merged) return merged;
   } else if (part.type !== "subagent") {
     console.warn(
@@ -775,6 +760,12 @@ function findSummaryStubIndex(parts: MessagePart[]): number {
 
 /**
  * Update subagent result. Returns new parts array.
+ *
+ * Two-pass scan: a result first settles the newest still-pending card with the
+ * same agent_id/depth, so parallel runs sharing one agent_id cannot rewrite
+ * each other's cards. When no pending card exists (replayed or out-of-order
+ * events after reconnect), the newest matching card of any state is refreshed
+ * in place instead.
  */
 export function updateSubagentResult(
   parts: MessagePart[],
@@ -796,57 +787,31 @@ export function updateSubagentResult(
           ? "complete"
           : "error";
 
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
-    if (
-      p.type === "subagent" &&
-      p.agent_id === agentId &&
-      p.depth === targetDepth
-    ) {
-      const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: status === "waiting_human",
-        status,
-        completedAt: status === "waiting_human" ? undefined : completedAt,
-        parts:
-          status === "waiting_human"
-            ? p.parts
-            : clearAllLoadingStates(p.parts ?? [], {
-                discardToolDrafts: true,
-                terminalStatus:
-                  status === "cancelled"
-                    ? "cancelled"
-                    : status === "error" || status === "timed_out"
-                      ? "error"
-                      : undefined,
-                error,
-              }),
-      };
-      return newParts;
-    }
-    if (p.type === "subagent" && p.parts) {
-      const updatedSubagent = updateSubagentResultInParts(
-        p.parts,
-        agentId,
-        result,
-        success,
-        targetDepth,
-        error,
-        completedAt,
-        status,
-      );
-      if (updatedSubagent) {
-        const newParts = [...parts];
-        newParts[i] = { ...p, parts: updatedSubagent };
-        return newParts;
-      }
-    }
-  }
-  return parts;
+  return (
+    updateSubagentResultInParts(
+      parts,
+      agentId,
+      result,
+      success,
+      targetDepth,
+      error,
+      completedAt,
+      status,
+      true,
+    ) ??
+    updateSubagentResultInParts(
+      parts,
+      agentId,
+      result,
+      success,
+      targetDepth,
+      error,
+      completedAt,
+      status,
+      false,
+    ) ??
+    parts
+  );
 }
 
 /**
@@ -861,13 +826,15 @@ export function updateSubagentResultInParts(
   error?: string,
   completedAt?: number,
   status?: SubagentPart["status"],
+  pendingOnly = false,
 ): MessagePart[] | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (
       p.type === "subagent" &&
       p.agent_id === agentId &&
-      p.depth === targetDepth
+      p.depth === targetDepth &&
+      (!pendingOnly || p.isPending)
     ) {
       const newParts = [...parts];
       newParts[i] = {
@@ -904,6 +871,7 @@ export function updateSubagentResultInParts(
         error,
         completedAt,
         status,
+        pendingOnly,
       );
       if (updatedParts) {
         const newParts = [...parts];
@@ -1089,14 +1057,14 @@ export function isSandboxConfirmApprovalEvent(data: {
 }
 
 /**
- * Whether a message still contains an unanswered ask-human interrupt.
+ * Whether a message still awaits a human response or sandbox confirmation.
  * Ask-human may be nested inside one or more subagent parts.
  */
 export function hasPendingAskHuman(parts: MessagePart[]): boolean {
   return parts.some((part) => {
     if (part.type === "tool") {
       return (
-        part.name === "ask_human" &&
+        (part.name === "ask_human" || part.awaitingConfirmation === true) &&
         part.isPending === true &&
         part.cancelled !== true
       );
@@ -1120,6 +1088,7 @@ export function clearAllLoadingStates(
   parts: MessagePart[],
   options?: {
     preserveAskHuman?: boolean;
+    preserveTodos?: boolean;
     discardToolDrafts?: boolean;
     terminalStatus?: "error" | "cancelled";
     error?: string;
@@ -1215,6 +1184,7 @@ export function clearAllLoadingStates(
       }
       case "todo": {
         const todoPart = part as TodoPart;
+        if (options?.preserveTodos) return { ...todoPart, isStreaming: false };
         const hasUnfinished = todoPart.items.some(
           (i) => i.status === "pending" || i.status === "in_progress",
         );

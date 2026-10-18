@@ -76,6 +76,7 @@ const INITIAL_STATE: UpdateState = {
   readyToInstall: false,
   error: null,
   linuxInstallSource: null,
+  linuxPackageAssetMissing: false,
 };
 
 /** 当前 runtime 是否是 Linux 桌面（deb/rpm/AppImage 分流只在这类设备生效） */
@@ -446,22 +447,19 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             readSkippedUpdateVersions(window.localStorage),
             { manual },
           );
-          // 复检（手动/聚焦/周期）不能清掉进行中的下载进度或待安装态：
-          // 否则进度条中途消失重来、readyToInstall 错乱
-          const preserve =
-            downloadInFlightRef.current || pendingUpdateRef.current !== null;
+          // 能走到这里说明下载/待装均为空（函数开头的卫兵已提前返回），
+          // 状态可安全整体重建；进行中进度/待装态由卫兵保护，不会被清掉
           if (prompt) {
             updateVersionRef.current = update.version;
-            setState((prev) => ({
-              ...(preserve ? prev : INITIAL_STATE),
+            setState({
+              ...INITIAL_STATE,
               available: true,
               version: update.version,
-              releaseNotes:
-                update.body ?? (preserve ? prev.releaseNotes : null),
+              releaseNotes: update.body ?? null,
               releaseUrl: `${GITHUB_URL}/releases/tag/v${update.version}`,
               publishedAt: update.date ?? null,
               releaseAssets: [],
-            }));
+            });
             // 桌面端不弹框：发现即后台静默下载（不阻塞用户），完成后标题栏
             // 指示器一键重启安装
             void startBackgroundDownload(update);
@@ -469,7 +467,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
               notifiedVersionRef.current = update.version;
               void notifyUpdateAvailable(update.version, true);
             }
-          } else if (!preserve) {
+          } else {
             // 被跳过的版本：不弹窗、指示器熄灭（保持初始态）
             setState(INITIAL_STATE);
           }
@@ -511,9 +509,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
             readSkippedUpdateVersions(window.localStorage),
             { manual },
           );
-          // 复检不能清掉进行中的下载进度或待安装态（与 updater 路径同款）
-          const preserve =
-            downloadInFlightRef.current || linuxDownloadedRef.current !== null;
+          // 能走到这里说明下载/已缓存均为空（函数开头的卫兵已提前返回），
+          // 状态可安全整体重建；进行中进度/已缓存态由卫兵保护，不会被清掉
           if (prompt) {
             updateVersionRef.current = v;
             linuxTargetAssetRef.current = null;
@@ -535,17 +532,21 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
                 };
               }
             }
-            setState((prev) => ({
-              ...(preserve ? prev : INITIAL_STATE),
+            setState({
+              ...INITIAL_STATE,
               available: true,
               version: v,
-              releaseNotes:
-                info.release_notes ?? (preserve ? prev.releaseNotes : null),
+              releaseNotes: info.release_notes ?? null,
               publishedAt: info.published_at ?? null,
               releaseUrl: info.release_url ?? null,
               releaseAssets: info.release_assets ?? [],
               linuxInstallSource: source,
-            }));
+              // 资产缺失（Release 无匹配架构的 deb/rpm）：实际动作是
+              // openDownloadPage，状态要如实体现在按钮文案上
+              linuxPackageAssetMissing:
+                (source === "deb" || source === "rpm") &&
+                linuxTargetAssetRef.current === null,
+            });
             // 主流 deb 客户端模式：发现即后台缓存下载（版本化缓存保证
             // 不重复下载），完成后指示器一键「重启并安装」
             if (linuxTargetAssetRef.current) {
@@ -558,7 +559,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
                 linuxTargetAssetRef.current !== null,
               );
             }
-          } else if (!preserve) {
+          } else {
             setState(INITIAL_STATE);
           }
         }

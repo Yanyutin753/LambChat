@@ -24,6 +24,12 @@ class _FakeStorage:
     async def update(self, session_id, session_update) -> None:
         self.updates.append((session_id, session_update))
 
+    async def update_metadata_for_run(self, session_id, run_id, metadata):
+        if self.session and self.session.metadata.get("current_run_id") != run_id:
+            return False
+        await self.update(session_id, SimpleNamespace(metadata=metadata))
+        return True
+
 
 class _FakeExecutor:
     def __init__(self) -> None:

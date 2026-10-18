@@ -24,6 +24,8 @@ class TestPresentTokenUsageCost:
             model_id="model-1",
             model="openai/gpt-4o",
             cost=_breakdown(),
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
             rates=PriceRates(input=2.5, output=10, cache_read=1.25),
         )
         data = event["data"]
@@ -51,13 +53,16 @@ class TestProcessorEmitsCost:
     def _make_processor(self):
         from src.infra.agent.events.processor import AgentEventProcessor
 
-        processor = AgentEventProcessor.__new__(AgentEventProcessor)
+        processor = AgentEventProcessor(create_presenter(session_id="s1", agent_id="search"))
         processor.total_input_tokens = 1_000_000
         processor.total_output_tokens = 100_000
         processor.total_tokens = 1_100_000
         processor.total_cache_creation_tokens = 0
         processor.total_cache_read_tokens = 200_000
         processor._token_usage_emitted = False
+        processor._usage_unknown_fields = set()
+        processor._usage_observed = True
+        processor._input_includes_cache = True
 
         captured: dict = {}
 
@@ -150,6 +155,10 @@ class TestUsageLogCost:
                     "output_tokens": 500,
                     "total_tokens": 1500,
                     "cost_usd": 0.0246,
+                    "cache_read_tokens": 0,
+                    "cache_creation_tokens": 0,
+                    "usage_incomplete": False,
+                    "input_includes_cache": True,
                     "cost_breakdown": {"total": 0.0246},
                 },
             )

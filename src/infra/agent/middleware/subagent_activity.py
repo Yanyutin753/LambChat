@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 from langchain.agents.middleware.types import (
@@ -17,6 +18,7 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, ToolMessage
 
+from src.infra.agent.events.buffers import ActivityReferenceFilter
 from src.infra.agent.middleware.main_agent_context import (
     format_messages_as_markdown,
     redact_sensitive_text,
@@ -34,11 +36,73 @@ _ACTIVITY_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
 #: deepagents 把同一类型的所有 task 调用路由到同一个编译好的子代理图，
 #: 中间件实例因此被多次调用（含 asyncio.gather 并行）共享。这里不能持有
-#: 任何跨调用可变状态；活动日志在最终响应时按当次请求的 state 全量派生。
+#: 任何跨调用可变状态；活动日志在最终响应时按当次执行的消息派生。
 ActivityCompressor = Callable[[str], Awaitable[str]]
 
 
-class SubagentActivityMiddleware(AgentMiddleware):
+class ActivityReferenceMiddleware(AgentMiddleware):
+    """Sanitize model-authored receipts before response checkpointing."""
+
+    @property
+    def name(self) -> str:
+        # Forked children replace this guard with their activity writer by middleware name.
+        return "SubagentActivityMiddleware"
+
+    @staticmethod
+    def _copy_ai_message_with_content(message: AIMessage, content: str | list[Any]) -> AIMessage:
+        return message.model_copy(update={"content": content})
+
+    @staticmethod
+    def _strip_model_references(message: AIMessage) -> AIMessage:
+        # This footer is a write receipt owned by the middleware, never by the model.
+        stream_filter = ActivityReferenceFilter()
+        if isinstance(message.content, str):
+            content: str | list[Any] = stream_filter.feed(message.content) + stream_filter.finish()
+        else:
+            content = []
+            last_text = -1
+            for block in message.content:
+                if isinstance(block, str):
+                    last_text = len(content)
+                    block = stream_filter.feed(block)
+                elif (
+                    isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and isinstance(block.get("text"), str)
+                ):
+                    last_text = len(content)
+                    block = {**block, "text": stream_filter.feed(block["text"])}
+                content.append(block)
+            tail = stream_filter.finish()
+            if tail and last_text >= 0:
+                last = content[last_text]
+                content[last_text] = (
+                    last + tail if isinstance(last, str) else {**last, "text": last["text"] + tail}
+                )
+        if content == message.content:
+            return message
+        return ActivityReferenceMiddleware._copy_ai_message_with_content(message, content)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        response = await handler(request)
+        if isinstance(response, AIMessage):
+            return self._strip_model_references(response)  # type: ignore[return-value]
+        if hasattr(response, "result"):
+            messages = getattr(response, "result") or []
+            cleaned = [
+                self._strip_model_references(message) if isinstance(message, AIMessage) else message
+                for message in messages
+            ]
+            if any(before is not after for before, after in zip(messages, cleaned)):
+                return replace(response, result=cleaned)
+        return response
+
+
+class SubagentActivityMiddleware(ActivityReferenceMiddleware):
     """Record a subagent's activity to a backend-readable file, derived per invocation."""
 
     def __init__(
@@ -145,16 +209,6 @@ class SubagentActivityMiddleware(AgentMiddleware):
         return wrapped if len(wrapped) <= self._max_log_chars else self._hard_truncate(wrapped)
 
     @staticmethod
-    def _copy_ai_message_with_content(message: AIMessage, content: str | list[Any]) -> AIMessage:
-        return AIMessage(
-            content=content,
-            tool_calls=message.tool_calls,
-            id=message.id,
-            additional_kwargs=message.additional_kwargs,
-            response_metadata=message.response_metadata,
-        )
-
-    @staticmethod
     def _append_reference(message: AIMessage, path: str) -> AIMessage:
         reference = f"\n\n[Activity log saved to: {path}]"
         if isinstance(message.content, list):
@@ -168,7 +222,7 @@ class SubagentActivityMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        response = await handler(request)
+        response = await super().awrap_model_call(request, handler)
 
         messages: list[Any] = []
         if isinstance(response, AIMessage):
@@ -180,12 +234,21 @@ class SubagentActivityMiddleware(AgentMiddleware):
             return response
 
         ai_message = messages[0]
+
         if getattr(ai_message, "tool_calls", None):
             return response
 
-        # 最终响应：按本次调用的 state 派生活动记录（含全部工具往返证据），
-        # 逐调用隔离——不读也不写任何跨调用实例状态。
+        # 续聊只归档本次执行；旧 checkpoint/日志仍保留，避免重复压缩整段历史。
         state_messages = self._messages_from_request(request)
+        for index in range(len(state_messages) - 1, -1, -1):
+            message = state_messages[index]
+            if (
+                isinstance(message, AIMessage)
+                and not message.tool_calls
+                and not message.invalid_tool_calls
+            ):
+                state_messages = state_messages[index + 1 :]
+                break
         if not state_messages or not self._messages_have_process_activity(state_messages):
             return response
 
@@ -213,5 +276,5 @@ class SubagentActivityMiddleware(AgentMiddleware):
 
         new_ai = self._append_reference(ai_message, path)
         if hasattr(response, "result"):
-            return type(response)(result=[new_ai])
+            return replace(response, result=[new_ai, *messages[1:]])
         return new_ai  # type: ignore[return-value]

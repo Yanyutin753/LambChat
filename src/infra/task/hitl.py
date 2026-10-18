@@ -15,6 +15,7 @@ import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
+from src.infra.agent.handoff import resolve_execution_agent_id
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.infra.utils.datetime import utc_now_iso
@@ -509,17 +510,17 @@ async def submit_hitl_resume_run(
         )
         manager = get_task_manager()
         common_kwargs: dict[str, Any] = {
-            "disabled_tools": metadata.get("disabled_tools") or None,
+            "disabled_tools": metadata.get("disabled_tools"),
             "agent_options": metadata.get("agent_options") or None,
-            "disabled_skills": metadata.get("disabled_skills") or None,
-            "enabled_skills": metadata.get("enabled_skills") or None,
+            "disabled_skills": metadata.get("disabled_skills"),
+            "enabled_skills": metadata.get("enabled_skills"),
             "persona_system_prompt": (
                 (metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(metadata.get("persona_snapshot"), dict)
                 else None
             ),
-            "disabled_mcp_tools": metadata.get("disabled_mcp_tools") or None,
-            "enabled_mcp_servers": metadata.get("enabled_mcp_servers") or None,
+            "disabled_mcp_tools": metadata.get("disabled_mcp_tools"),
+            "enabled_mcp_servers": metadata.get("enabled_mcp_servers"),
             "session_name": getattr(session, "name", None),
             "user_message_written": True,
             "run_id": source_run_id,
@@ -555,7 +556,7 @@ async def submit_hitl_resume_run(
             dispatch_id = resume_attempt_id or f"hitl-resume:{approval.id}:{uuid.uuid4().hex}"
             run_id, _ = await manager.submit_arq(
                 session_id=session_id,
-                agent_id=str(metadata.get("agent_id") or "search"),
+                agent_id=resolve_execution_agent_id(metadata),
                 message="",
                 user_id=str(session.user_id),
                 executor_key=executor_key,
@@ -578,7 +579,7 @@ async def submit_hitl_resume_run(
                 }
             run_id, _ = await manager.submit(
                 session_id,
-                str(metadata.get("agent_id") or "search"),
+                resolve_execution_agent_id(metadata),
                 "",
                 str(session.user_id),
                 executor_fn,

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import re
 from dataclasses import dataclass
@@ -146,7 +147,11 @@ async def find_candidate_sessions(db, user_id: str, *, limit: int) -> list[dict[
         .limit(limit)
     )
     docs = await cursor.to_list(length=limit)
-    return [doc for doc in docs if doc.get("session_id")]
+    return [
+        {**doc, "session_id": str(doc.get("session_id") or doc["_id"])}
+        for doc in docs
+        if doc.get("session_id") or doc.get("_id")
+    ]
 
 
 async def ensure_extraction_job_indexes(jobs_collection) -> None:
@@ -598,7 +603,11 @@ async def extract_session_memory(
         )
         return ExtractionOutcome("failed", error=str(exc))
     if not result.get("success"):
-        return ExtractionOutcome("failed", error=str(result.get("error") or "retain_rejected"))
+        return ExtractionOutcome(
+            "failed",
+            error=str(result.get("error") or "retain_rejected"),
+            retryable=result.get("retryable") is not False,
+        )
     memory_id = result.get("memory_id")
     if memory_id and getattr(backend, "_collection", None) is not None:
         try:
@@ -783,7 +792,8 @@ def schedule_memory_extraction(user_id: str) -> None:
             await run_extraction_pass(user_id)
 
     _extraction_inflight_users.add(user_id)
-    task = loop.create_task(_detached())
+    # A pass may process older sessions; foreground callbacks and runtime must not follow it.
+    task = loop.create_task(_detached(), context=contextvars.Context())
     _extraction_tasks.add(task)
 
     def _done(t: asyncio.Task) -> None:

@@ -20,6 +20,7 @@ mod macos {
     };
     use objc2_foundation::{NSNotificationCenter, NSObjectProtocol, NSOperationQueue};
     use std::cell::RefCell;
+    use std::io::Write;
 
     struct Observer(Retained<ProtocolObject<dyn NSObjectProtocol>>);
 
@@ -98,7 +99,10 @@ mod macos {
                 let window = window.clone();
                 let callback = RcBlock::new(move |_| {
                     if let Err(error) = align(&window) {
-                        eprintln!("[lambchat-titlebar] alignment failed: {error}");
+                        let _ = writeln!(
+                            std::io::stderr(),
+                            "[lambchat-titlebar] alignment failed: {error}"
+                        );
                     }
                 });
                 // Window notifications are scoped to this NSWindow; the Send

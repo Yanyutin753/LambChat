@@ -2,9 +2,6 @@ import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import {
-  ShieldCheck,
-  X,
-  Send,
   ChevronLeft,
   ChevronRight,
   ListOrdered,
@@ -314,7 +311,6 @@ export function ApprovalPanel({
 }: ApprovalPanelProps) {
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [formValues, setFormValues] = useState<
     Record<string, Record<string, unknown>>
   >({});
@@ -525,7 +521,7 @@ export function ApprovalPanel({
   };
 
   const handleSubmit = () => {
-    if (isAskHuman && !isFormFieldsValid(askHumanFields, currentFormValues)) {
+    if (isSubmitDisabled) {
       return;
     }
     onRespond(currentApproval.id, currentFormValues, true);
@@ -536,6 +532,9 @@ export function ApprovalPanel({
   };
 
   const isAskHuman = currentApproval.metadata?.mode === "interrupt";
+  const isScheduledTask =
+    currentApproval.metadata?.approval_type === "scheduled_task_create" &&
+    Boolean(currentApproval.metadata.preview);
   const askHumanFields = currentApproval.fields;
   const askHumanDisplayFields = askHumanFields.map((field) =>
     field.name === "_other"
@@ -561,10 +560,10 @@ export function ApprovalPanel({
 
   return (
     <div
-      className="approval-scroll-container h-full w-full min-h-0 overflow-visible px-2 py-2 sm:px-8 sm:py-3"
+      className="approval-scroll-container h-full w-full min-h-0 overflow-visible py-2 sm:py-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
-      <div className="approval-panel-content-shell mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col lg:max-w-5xl xl:max-w-6xl">
+      <div className="approval-panel-content-shell chat-content-column flex min-h-0 flex-1 flex-col">
         {/* Pagination */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
@@ -580,6 +579,7 @@ export function ApprovalPanel({
             <div className="flex items-center gap-1">
               <button
                 onClick={goToPrev}
+                aria-label={t("approvals.previous")}
                 disabled={currentIndex === 0}
                 className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-theme-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
@@ -590,6 +590,7 @@ export function ApprovalPanel({
               </button>
               <button
                 onClick={goToNext}
+                aria-label={t("approvals.next")}
                 disabled={currentIndex === approvals.length - 1}
                 className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-theme-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                 style={{ color: "var(--theme-text)" }}
@@ -603,11 +604,7 @@ export function ApprovalPanel({
         )}
 
         <div
-          className={`approval-card approval-card--composer ${
-            isAskHuman ? "approval-card--ask-human" : ""
-          } animate-glass-enter ${
-            isExpanded ? "approval-card--expanded" : "approval-card--compact"
-          }`}
+          className="approval-card approval-card--composer approval-card--ask-human animate-glass-enter"
           key={currentApproval.id}
           onKeyDown={(event) => {
             // 唯一快捷键：Enter 提交。文本控件内走原生（换行），按钮上走原生激活，
@@ -620,115 +617,86 @@ export function ApprovalPanel({
           }}
           tabIndex={isAskHuman ? 0 : undefined}
         >
-          {!isAskHuman ? (
-            <button
-              type="button"
-              className="approval-header approval-compact"
-              onClick={() => setIsExpanded((expanded) => !expanded)}
-              aria-expanded={isExpanded}
-              aria-controls={`approval-details-${currentApproval.id}`}
-            >
-              <div className="approval-icon">
-                <InteractiveIcon>
-                  <ShieldCheck size={16} strokeWidth={2} />
-                </InteractiveIcon>
-              </div>
-              <div className="min-w-0 flex-1 text-left">
-                <span className="approval-title block">
-                  {t("approvals.needsConfirmation")}
-                </span>
-                {!isExpanded && (
-                  <span className="approval-summary block">
-                    {approvalSummary}
-                  </span>
-                )}
-              </div>
-              {currentRemaining !== undefined && (
-                <span
-                  className={`approval-timer ml-auto flex items-center gap-1 text-12 tabular-nums ${
-                    isUrgent ? "approval-timer-urgent" : ""
-                  }`}
-                >
-                  <InteractiveIcon>
-                    <Clock size={14} />
-                  </InteractiveIcon>
-                  {formatCountdown(currentRemaining)}
-                </span>
-              )}
-              <InteractiveIcon>
-                <ChevronRight
-                  size={16}
-                  className={`approval-expand-icon shrink-0 transition-transform ${
-                    isExpanded ? "rotate-90" : ""
-                  }`}
-                  aria-hidden="true"
-                />
-              </InteractiveIcon>
-            </button>
-          ) : (
-            <div className="approval-ask-human-header">
-              <div className="approval-ask-human-title-row font-serif">
-                <span className="approval-ask-human-question">
-                  {askHumanQuestion}
-                </span>
-              </div>
+          <div className="approval-ask-human-header">
+            <div className="approval-ask-human-title-row font-serif">
+              <span className="approval-ask-human-question">
+                {isAskHuman
+                  ? askHumanQuestion
+                  : isScheduledTask
+                    ? t("approvals.scheduledTask.confirmCreation")
+                    : t("approvals.needsConfirmation")}
+              </span>
             </div>
-          )}
+            {currentRemaining !== undefined && (
+              <span
+                className={`approval-timer ml-auto flex shrink-0 items-center gap-1 text-12 tabular-nums ${
+                  isUrgent ? "approval-timer-urgent" : ""
+                }`}
+              >
+                <InteractiveIcon>
+                  <Clock size={14} />
+                </InteractiveIcon>
+                {formatCountdown(currentRemaining)}
+              </span>
+            )}
+          </div>
 
-          {(isExpanded || isAskHuman) && (
-            <div id={`approval-details-${currentApproval.id}`}>
-              <div className="approval-details-scroll">
-                {/* Message */}
-                {!isAskHuman && (
-                  <div className="approval-message">
-                    <div
-                      className="prose prose-stone dark:prose-invert max-w-none text-14 leading-relaxed prose-p:my-0.5 prose-headings:my-1"
-                      style={{ color: "var(--theme-text)" }}
-                    >
-                      {currentApproval.metadata?.approval_type ===
-                        "scheduled_task_create" &&
-                      currentApproval.metadata.preview ? (
-                        <ScheduledTaskApprovalContent
-                          preview={
-                            currentApproval.metadata.preview as {
-                              name: string;
-                              agent_id: string;
-                              schedule: string;
-                              run_on_start: boolean;
-                              timeout_seconds: number;
-                              message: string;
-                            }
+          <div id={`approval-details-${currentApproval.id}`}>
+            <div className="approval-details-scroll">
+              {/* Message */}
+              {!isAskHuman && (
+                <div className="approval-message">
+                  <div
+                    className={
+                      isScheduledTask
+                        ? undefined
+                        : "prose prose-stone dark:prose-invert max-w-none text-14 leading-relaxed prose-p:my-0.5 prose-headings:my-1"
+                    }
+                    style={{ color: "var(--theme-text)" }}
+                  >
+                    {isScheduledTask ? (
+                      <ScheduledTaskApprovalContent
+                        preview={
+                          currentApproval.metadata?.preview as {
+                            name: string;
+                            agent_id: string;
+                            schedule: string;
+                            run_on_start: boolean;
+                            timeout_seconds: number;
+                            message: string;
                           }
-                        />
-                      ) : (
-                        <ReactMarkdown
-                          remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
-                        >
-                          {currentApproval.message}
-                        </ReactMarkdown>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {isAskHuman && (askHumanParsed.ops || askHumanParsed.prose) && (
-                  <div className="approval-ask-human-context">
-                    {askHumanParsed.ops ? (
-                      <ApprovalOpList ops={askHumanParsed.ops} />
+                        }
+                      />
                     ) : (
-                      <p className="approval-ask-human-context-prose">
-                        {askHumanParsed.prose}
-                      </p>
+                      <ReactMarkdown
+                        remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
+                      >
+                        {currentApproval.message}
+                      </ReactMarkdown>
                     )}
                   </div>
-                )}
+                </div>
+              )}
 
-                {isAskHuman && (
-                  <div className="approval-form approval-form--ask-human">
-                    {askHumanDisplayFields.map((field) => {
-                      const isChoice = askHumanChoiceFields.includes(field);
-                      return (
-                        <div key={field.name} className="space-y-1">
+              {isAskHuman && (askHumanParsed.ops || askHumanParsed.prose) && (
+                <div className="approval-ask-human-context">
+                  {askHumanParsed.ops ? (
+                    <ApprovalOpList ops={askHumanParsed.ops} />
+                  ) : (
+                    <p className="approval-ask-human-context-prose">
+                      {askHumanParsed.prose}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {askHumanDisplayFields.length > 0 && (
+                <div className="approval-form approval-form--ask-human">
+                  {askHumanDisplayFields.map((field) => {
+                    const isChoice = askHumanChoiceFields.includes(field);
+                    return (
+                      <div key={field.name} className="space-y-1">
+                        {field.type !== "checkbox" && (
                           <label
                             className="block text-12 font-medium"
                             style={{ color: "var(--theme-text-secondary)" }}
@@ -743,151 +711,83 @@ export function ApprovalPanel({
                               </span>
                             )}
                           </label>
-                          {isChoice ? (
-                            <AskHumanChoiceList
-                              field={field}
-                              value={currentFormValues[field.name]}
-                              disabled={isLoading}
-                              onInteract={handleInteract(currentApproval.id)}
-                              onSelect={(option) => {
-                                // 鼠标点击：单选再点同一项取消，多选增删
-                                handleFieldChange(
-                                  field.name,
-                                  field.type === "multi_select"
-                                    ? toggleMultiSelectValue(
-                                        currentFormValues[field.name],
-                                        option,
-                                      )
-                                    : toggleSingleSelectValue(
-                                        currentFormValues[field.name],
-                                        option,
-                                      ),
-                                );
-                              }}
-                            />
-                          ) : (
-                            <FormFieldRenderer
-                              field={field}
-                              value={currentFormValues[field.name]}
-                              onChange={(value) =>
-                                handleFieldChange(field.name, value)
-                              }
-                              disabled={isLoading}
-                              onInteract={handleInteract(currentApproval.id)}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Form fields */}
-                {!isAskHuman && currentApproval.fields.length > 0 && (
-                  <>
-                    <div className="approval-divider" />
-                    <div className="approval-form space-y-3">
-                      {currentApproval.fields
-                        .filter(
-                          (field) => !askHumanChoiceFields.includes(field),
-                        )
-                        .map((field) => {
-                          const isOther = field.name === "_other";
-                          const displayField = isOther
-                            ? {
-                                ...field,
-                                label: t("chat.message.askHumanOtherLabel"),
-                                placeholder:
-                                  field.placeholder ||
-                                  t("chat.message.askHumanOtherPlaceholder"),
-                              }
-                            : field;
-                          return (
-                            <div key={field.name} className="space-y-1">
-                              {displayField.type !== "checkbox" && (
-                                <label
-                                  className="block text-12 font-medium"
-                                  style={{
-                                    color: "var(--theme-text-secondary)",
-                                  }}
-                                >
-                                  {displayField.label}
-                                  {displayField.required && (
-                                    <span
-                                      className="ml-0.5"
-                                      style={{ color: "#ef4444" }}
-                                    >
-                                      *
-                                    </span>
-                                  )}
-                                </label>
-                              )}
-                              <FormFieldRenderer
-                                field={displayField}
-                                value={currentFormValues[field.name]}
-                                onChange={(value) =>
-                                  handleFieldChange(field.name, value)
-                                }
-                                disabled={isLoading}
-                                onInteract={handleInteract(currentApproval.id)}
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div
-                className={`approval-actions font-serif ${
-                  isAskHuman ? "approval-ask-human-footer" : ""
-                }`}
-              >
-                {isAskHuman && (
-                  <span
-                    className="approval-ask-human-shortcut-hint hidden sm:inline-flex"
-                    aria-hidden="true"
-                  >
-                    {t("approvals.shortcutHint")}
-                  </span>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCancel}
-                    disabled={isLoading}
-                    aria-label={
-                      isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
-                    }
-                    title={
-                      isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
-                    }
-                    className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <InteractiveIcon>
-                      <X size={14} />
-                    </InteractiveIcon>
-                    <span>
-                      {isAskHuman
-                        ? t("approvals.ignore")
-                        : t("approvals.cancel")}
-                    </span>
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitDisabled}
-                    aria-label={t("approvals.submit")}
-                    title={t("approvals.submit")}
-                    className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <InteractiveIcon>
-                      <Send size={14} />
-                    </InteractiveIcon>
-                    <span>{t("approvals.submit")}</span>
-                  </button>
+                        )}
+                        {isChoice ? (
+                          <AskHumanChoiceList
+                            field={field}
+                            value={currentFormValues[field.name]}
+                            disabled={isLoading}
+                            onInteract={handleInteract(currentApproval.id)}
+                            onSelect={(option) => {
+                              // 鼠标点击：单选再点同一项取消，多选增删
+                              handleFieldChange(
+                                field.name,
+                                field.type === "multi_select"
+                                  ? toggleMultiSelectValue(
+                                      currentFormValues[field.name],
+                                      option,
+                                    )
+                                  : toggleSingleSelectValue(
+                                      currentFormValues[field.name],
+                                      option,
+                                    ),
+                              );
+                            }}
+                          />
+                        ) : (
+                          <FormFieldRenderer
+                            field={field}
+                            value={currentFormValues[field.name]}
+                            onChange={(value) =>
+                              handleFieldChange(field.name, value)
+                            }
+                            disabled={isLoading}
+                            onInteract={handleInteract(currentApproval.id)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
+            </div>
+            <div className="approval-actions approval-ask-human-footer font-serif">
+              {isAskHuman && (
+                <span
+                  className="approval-ask-human-shortcut-hint hidden sm:inline-flex"
+                  aria-hidden="true"
+                >
+                  {t("approvals.shortcutHint")}
+                </span>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                  aria-label={
+                    isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
+                  }
+                  title={
+                    isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
+                  }
+                  className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>
+                    {isAskHuman ? t("approvals.ignore") : t("approvals.cancel")}
+                  </span>
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitDisabled}
+                  aria-label={t("approvals.submit")}
+                  title={t("approvals.submit")}
+                  className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-12 transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>{t("approvals.submit")}</span>
+                </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

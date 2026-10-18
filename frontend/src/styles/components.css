@@ -3449,6 +3449,9 @@
 }
 
 .scheduled-task-session-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
   overflow: hidden;
   color: var(--theme-text);
@@ -3641,6 +3644,8 @@
    ═══════════════════════════════════════════ */
 
 .tool-detail-section {
+  min-width: 0;
+  max-width: 100%;
   border-radius: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--theme-border) 92%, transparent);
   background: var(--theme-bg-card);
@@ -3960,6 +3965,8 @@
 
 /* Collapsible body */
 .tool-detail-section__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 0 0.75rem 0.75rem;
   animation: tool-section-expand 0.22s cubic-bezier(0.2, 0, 0, 1);
 }
@@ -5033,15 +5040,17 @@
   }
 }
 
-/* Reveal per row, independent of viewport width or ancestor Tailwind groups.
-   WKWebView can report hover:none on desktop; native chrome is still mouse UI. */
+/* Keep action feedback local to each row; touch controls stay discoverable. */
 .sidebar-action-reveal:where(:not(.opacity-100)) {
   opacity: 0;
+  pointer-events: none;
 }
 
 @media (hover: hover) {
-  .sidebar-session-row:not([data-selected="true"]):hover {
-    background: var(--theme-bg-hover);
+  :is(.sidebar-session-row, .sidebar-project-row, .sidebar-nav-btn):not(
+      [data-selected="true"]
+    ):not(.ring-1):hover {
+    background: color-mix(in srgb, var(--theme-text) 5%, transparent);
   }
 }
 
@@ -5053,6 +5062,7 @@
   background: color-mix(in srgb, var(--theme-text) 10%, transparent);
 }
 
+.sidebar-action-reveal[data-revealed="true"],
 .sidebar-action-row:hover > .sidebar-action-reveal,
 .sidebar-action-row:focus-within > .sidebar-action-reveal,
 .sidebar-action-row:hover > button > .sidebar-action-reveal,
@@ -5060,6 +5070,20 @@
 .sidebar-action-row:hover > span > .sidebar-action-reveal,
 .sidebar-action-row:focus-within > span > .sidebar-action-reveal {
   opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .sidebar-action-reveal:where(:not(.opacity-100)) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.sidebar-action-row, .sidebar-nav-btn, .sidebar-action-reveal) {
+    transition: none;
+  }
 }
 
 .sidebar-session-menu button:focus-visible,
@@ -5195,8 +5219,11 @@
 
 /* Shared reading scale for built-in and MCP tool detail panels. */
 .tool-readable {
-  @apply font-serif;
-  font-size: var(--chat-font-size);
+  font-family: var(--chat-font-family);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   line-height: 1.7;
 }
 .tool-readable :is(.text-10, .text-11) {
@@ -5204,11 +5231,11 @@
   line-height: 1.5;
 }
 .tool-readable :is(.text-12, .text-13) {
-  font-size: 0.9375rem;
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   line-height: 1.65;
 }
 .tool-readable .text-14 {
-  font-size: var(--chat-font-size);
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   line-height: 1.7;
 }
 .tool-readable :is(pre, code) {
@@ -5237,8 +5264,8 @@
 }
 
 .tool-readable .tool-detail-section__title {
-  @apply font-sans;
-  font-size: 0.9375rem;
+  font-family: inherit;
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   line-height: 1.5;
 }
 
@@ -5334,7 +5361,7 @@
 .run-steps-collapse > button,
 .collapsible-section-card__trigger,
 .tool-detail-section__header {
-  font-family: theme("fontFamily.sans");
+  @apply font-serif;
 }
 .sidebar-reasoning-preview__scroll {
   overscroll-behavior: contain;
@@ -5383,13 +5410,13 @@
   border-bottom: 1px solid var(--theme-border);
   background: var(--theme-bg-subtle);
   color: var(--theme-text-secondary);
-  font-family: theme("fontFamily.sans");
+  font-family: var(--chat-font-family);
 }
 .tool-surface__title,
 .tool-surface--collapsible
   .collapsible-section-card__trigger
   > span:last-child {
-  font-size: 0.8125rem;
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   font-weight: 500;
   letter-spacing: normal;
   text-transform: none;

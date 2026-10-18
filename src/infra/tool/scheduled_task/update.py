@@ -37,13 +37,22 @@ async def scheduled_task_update(
     message: Annotated[str | None, "New per-run agent message."] = None,
     description: Annotated[str | None, "New description."] = None,
     enabled: Annotated[bool | None, "Enable or disable."] = None,
-    timeout_seconds: Annotated[int | None, "Timeout seconds (10-7200)."] = None,
+    timeout_seconds: Annotated[
+        int | None, "Deprecated and ignored; scheduled runs have no total execution time limit."
+    ] = None,
     max_retries: Annotated[int | None, "Retry count (0-10)."] = None,
     trigger_config: Annotated[
         dict | None,
         'Full replacement: interval {"seconds":300}; cron '
         '{"hour":"9","minute":"0","day_of_week":"mon-fri"}. '
         "Use create to change trigger_type.",
+    ] = None,
+    notification_policy: Annotated[
+        Literal["always", "meaningful_changes"] | None, "When to notify."
+    ] = None,
+    execution_mode: Annotated[
+        Literal["conversation", "standalone"] | None,
+        "Change destination only after pending/running work finishes.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
@@ -116,6 +125,17 @@ async def scheduled_task_update(
 
     # Build update payload
     updates: dict[str, Any] = {}
+    if notification_policy is not None:
+        updates["notification_policy"] = notification_policy
+    if execution_mode is not None:
+        from src.infra.logging.context import TraceContext
+
+        updates["execution_mode"] = execution_mode
+        updates["target_session_id"] = (
+            TraceContext.get_request_context().session_id
+            if execution_mode == "conversation"
+            else None
+        )
     if name is not None:
         updates["name"] = name
     if message is not None:

@@ -8,6 +8,7 @@ import { Cpu } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { modelApi } from "../../../services/api/model";
 import type { ModelOption } from "../../../services/api/model";
+import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { GlassSelect } from "../../common/GlassSelect";
 
 interface ChannelModelSelectProps {
@@ -52,15 +53,24 @@ export function ChannelModelSelect({
             ? t("common.loading", "Loading...")
             : t("channel.defaultModel", "Default Model")
         }
-        options={[{ value: "", label: t("channel.defaultModel") }, ...models.map((model) => ({
-          value: model.id,
-          label: (
-            <>
-              <span className="font-serif">{model.label}</span>
-              <span className="opacity-60"> ({model.value})</span>
-            </>
-          ),
-        }))]}
+        options={[
+          { value: "", label: t("channel.defaultModel") },
+          ...models.map((model) => ({
+            value: model.id,
+            label: (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <ModelIconImg
+                  model={model.value}
+                  provider={model.provider}
+                  icon={model.icon}
+                  size={16}
+                />
+                <span className="font-serif">{model.label}</span>
+                <span className="opacity-60"> ({model.value})</span>
+              </span>
+            ),
+          })),
+        ]}
       />
       <p className="es-hint">
         {t(

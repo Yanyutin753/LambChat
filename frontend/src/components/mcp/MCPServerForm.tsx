@@ -313,7 +313,7 @@ export function MCPServerForm({
           onChange={(e) => setEnabled(e.target.checked)}
           className="sr-only peer"
         />
-        <div className="h-[1.125rem] w-[1.125rem] rounded-md border-2 border-[var(--theme-border)] flex items-center justify-center transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/30">
+        <div className="h-[1.125rem] w-[1.125rem] rounded-md border-2 border-[var(--theme-border)] flex items-center justify-center transition-all peer-checked:bg-theme-success peer-checked:border-theme-success peer-focus-visible:ring-2 peer-focus-visible:ring-theme-success/30">
           {enabled && (
             <svg
               xmlns="http://www.w3.org/2000/svg"

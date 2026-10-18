@@ -98,3 +98,19 @@ export function consumePendingSelectionActionPrompt(): string | null {
   }
   return prompt;
 }
+
+export function subscribeSelectionActionPrompts(
+  onPrompt: (prompt: string) => void,
+): () => void {
+  const pendingPrompt = consumePendingSelectionActionPrompt();
+  if (pendingPrompt) onPrompt(pendingPrompt);
+  const handleSelectionAction = (event: Event) => {
+    const detail = (event as CustomEvent<SelectionActionEventDetail>).detail;
+    if (!detail?.prompt) return;
+    onPrompt(detail.prompt);
+  };
+  window.addEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
+  return () => {
+    window.removeEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
+  };
+}

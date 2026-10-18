@@ -77,6 +77,7 @@ interface WelcomePageProps {
   chatInputProps: ChatInputProps;
   persistentGoal?: PersistentGoal | null;
   persistentGoalBusy?: boolean;
+  onUpdatePersistentGoal?: ChatInputProps["onUpdatePersistentGoal"];
   onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal?: ActiveGoalSpec | null;
   onClearActiveGoal?: () => void;
@@ -133,6 +134,7 @@ export const WelcomePage = memo(function WelcomePage({
   persistentGoal,
   persistentGoalBusy,
   onControlPersistentGoal,
+  onUpdatePersistentGoal,
   onClearActiveGoal,
   onUsePersonaPreset,
   onClearPersonaPreset,
@@ -494,6 +496,7 @@ export const WelcomePage = memo(function WelcomePage({
           className="mx-auto w-full px-2"
           activeGoal={activeGoal || null}
           persistentGoal={persistentGoal}
+          onUpdatePersistentGoal={onUpdatePersistentGoal}
           persistentGoalBusy={persistentGoalBusy}
           onControlPersistentGoal={onControlPersistentGoal}
           onClearActiveGoal={onClearActiveGoal}

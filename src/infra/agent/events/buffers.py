@@ -1,8 +1,55 @@
 """Small, bounded stream buffers used by agent event processing."""
 
+import re
 import time
 
 BufferKey = tuple[int, str | None, str | None]
+ActivityStreamKey = tuple[str | None, str | None, str]
+ACTIVITY_REFERENCE_REMOVED = "[Unverified activity receipt removed.]"
+
+
+class ActivityReferenceFilter:
+    """Drop model-authored write receipts before any fragment reaches SSE/storage."""
+
+    _MARKER = "[activity log saved to:"
+    _START = re.compile(re.escape(_MARKER), re.IGNORECASE)
+
+    def __init__(self) -> None:
+        self._pending = ""
+        self._discarding = False
+
+    def feed(self, text: str) -> str:
+        text = self._pending + text
+        self._pending = ""
+        visible = []
+        while text:
+            if self._discarding:
+                _, closing, text = text.partition("]")
+                if not closing:
+                    break
+                self._discarding = False
+                continue
+            match = self._START.search(text)
+            if match is not None:
+                visible.append(text[: match.start()])
+                visible.append(ACTIVITY_REFERENCE_REMOVED)
+                text = text[match.end() :]
+                self._discarding = True
+                continue
+            # Keep only a possible marker prefix, never buffer an unbounded path.
+            for size in range(min(len(text), len(self._MARKER) - 1), 0, -1):
+                if self._MARKER.startswith(text[-size:].lower()):
+                    self._pending = text[-size:]
+                    text = text[:-size]
+                    break
+            visible.append(text)
+            break
+        return "".join(visible)
+
+    def finish(self) -> str:
+        pending, self._pending = self._pending, ""
+        self._discarding = False
+        return pending
 
 
 class TextChunkBuffer:

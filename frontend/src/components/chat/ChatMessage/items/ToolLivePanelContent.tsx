@@ -24,6 +24,7 @@ export interface ToolDetailProps {
   result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
+  awaitingConfirmation?: boolean;
   cancelled?: boolean;
   startedAt?: string;
   completedAt?: string;
@@ -37,6 +38,7 @@ export function toolDetailPropsFromPanelData(
     result: data.result,
     success: data.success,
     isPending: data.isPending,
+    awaitingConfirmation: data.awaitingConfirmation,
     cancelled: data.cancelled,
     startedAt: data.startedAt,
     completedAt: data.completedAt,

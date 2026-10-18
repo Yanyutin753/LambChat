@@ -18,6 +18,7 @@ export interface UsageLog {
   scheduled_task_run_id: string;
   scheduled_task_trigger_type: string;
   model: string;
+  model_id?: string;
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
@@ -25,6 +26,9 @@ export interface UsageLog {
   cache_read_tokens: number;
   cost_usd?: number;
   cost_available?: boolean;
+  usage_incomplete?: boolean;
+  unknown_usage_fields?: string[] | null;
+  cache_metrics_available?: boolean;
   duration: number;
   started_at: string | null;
   completed_at: string | null;
@@ -44,6 +48,9 @@ export interface UsageStats {
   total_cache_read_tokens: number;
   total_cost_usd?: number;
   unpriced_requests?: number;
+  priced_requests?: number;
+  usage_unknown_requests?: number;
+  cache_unknown_requests?: number;
   total_duration: number;
 }
 
@@ -61,6 +68,9 @@ export interface UsageDashboardSummary {
   total_cache_read_tokens: number;
   total_cost_usd?: number;
   unpriced_requests?: number;
+  priced_requests?: number;
+  usage_unknown_requests?: number;
+  cache_unknown_requests?: number;
   total_duration: number;
   total_tool_calls: number;
   scheduled_runs: number;
@@ -70,7 +80,7 @@ export interface UsageDashboardSummary {
   avg_tokens_per_request: number;
   avg_duration_per_request: number;
   scheduled_share: number;
-  cache_read_share: number;
+  cache_read_share: number | null;
   tool_calls_per_request: number;
   max_duration: number;
   peak_day: UsageDailyPoint | null;
@@ -81,6 +91,10 @@ export interface UsageDailyPoint {
   requests: number;
   tokens: number;
   cost_usd?: number;
+  priced_requests?: number;
+  unpriced_requests?: number;
+  usage_unknown_requests?: number;
+  cache_unknown_requests?: number;
   duration: number;
   scheduled_runs: number;
   failed_requests: number;
@@ -93,11 +107,15 @@ export interface UsageRankingItem {
   requests: number;
   tokens: number;
   cost_usd?: number;
+  priced_requests?: number;
+  unpriced_requests?: number;
+  usage_unknown_requests?: number;
+  cache_unknown_requests?: number;
   duration: number;
   input_tokens: number;
   cache_creation_tokens: number;
   cache_read_tokens: number;
-  cache_read_share: number;
+  cache_read_share: number | null;
   zero_cache_requests: number;
 }
 

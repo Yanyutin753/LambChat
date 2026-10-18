@@ -199,7 +199,35 @@ async def list_task_sessions(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """List sessions (conversations) created by a scheduled task's executions."""
-    await _require_owned_task(task_id, user, service)
+    task = await _require_owned_task(task_id, user, service)
+    if task.execution_mode == "conversation":
+        from src.infra.task.manager import get_task_manager
+        from src.infra.task.status import TaskStatus
+
+        records, total = await service.get_task_runs(task_id, limit=limit, offset=skip)
+        items = []
+        for record in records:
+            session_id = record.session_id or task.target_session_id or ""
+            status = record.status.value
+            if status == "running" and session_id:
+                live_status = await get_task_manager().get_run_status(session_id, record.id)
+                if live_status == TaskStatus.WAITING_HUMAN:
+                    status = live_status.value
+            items.append(
+                TaskSessionResponse(
+                    id=session_id,
+                    name=task.name,
+                    agent_id=task.agent_id,
+                    created_at=record.created_at,
+                    updated_at=record.finished_at or record.started_at,
+                    is_active=record.status.value in {"pending", "running"},
+                    metadata={"run_id": record.id, "run_status": status},
+                )
+            )
+        return TaskSessionListResponse(
+            items=items,
+            total=total,
+        )
     from src.infra.session.storage import SessionStorage
 
     storage = SessionStorage()
@@ -223,3 +251,14 @@ async def list_task_sessions(
         for s in sessions
     ]
     return TaskSessionListResponse(items=items, total=total)
+
+
+@router.get("/session/{session_id}/progress")
+async def get_scheduled_session_progress(
+    session_id: str,
+    run_id: list[str] | None = Query(None, max_length=100),
+    user: TokenPayload = Depends(require_permissions(Permission.CHAT_WRITE.value)),
+):
+    from src.infra.scheduler.results import get_session_progress
+
+    return {"progress": await get_session_progress(session_id, user.sub, run_ids=run_id or [])}

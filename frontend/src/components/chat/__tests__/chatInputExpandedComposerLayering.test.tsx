@@ -48,7 +48,9 @@ test.each([{ isComposing: true }, { keyCode: 229 }])(
       />,
     );
     const editor = await screen.findByRole("textbox");
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
     fireEvent.keyDown(editor, { key: "Escape", ...composition });
     expect(document.querySelector("[data-composer-expanded]")).not.toBeNull();
     fireEvent.keyDown(editor, { key: "Escape" });
@@ -73,7 +75,9 @@ test("directory header shares the composer boundary and follows expand and colla
     header.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
   });
   expect(header.parentElement).toBe(container);
   expect(header.closest(".chat-input-shell")).toBeNull();
@@ -101,7 +105,9 @@ test("expanded composer renders at body level outside the chat shell", async () 
   expect(collapsedContainer?.closest("form")).not.toBeNull();
 
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
   });
 
   const expandedContainer = document.querySelector(
@@ -134,7 +140,9 @@ test("collapsing restores the composer inside the form without remounting the ed
 
   const editor = await screen.findByRole("textbox");
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
   });
   expect(
     document.querySelector(".chat-input-container[data-composer-expanded]"),
@@ -168,7 +176,9 @@ test("Enter still submits from the body-level expanded composer", async () => {
 
   const editor = await screen.findByRole("textbox");
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
   });
   editor.focus();
   await act(async () => {
@@ -195,7 +205,9 @@ test("Escape closes the foreground modal and keeps the expanded draft in place",
   );
   const { rerender } = render(view(false));
   await screen.findByRole("textbox");
-  fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  fireEvent.click(
+    screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+  );
   rerender(view(true));
   expect(
     (document.querySelector("body > [data-chat-composer-host]") as HTMLElement)
@@ -213,23 +225,47 @@ test("Escape closes the foreground modal and keeps the expanded draft in place",
   ).toBe(false);
 });
 
-test.each([false, true])("clicking Send submits the draft (expanded=%s)", async (expanded) => {
-  const onSend = vi.fn();
-  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={longDraft} />);
-  await screen.findByRole("textbox");
-  if (expanded) fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
-  const send = screen.getByRole("button", { name: /^(send message|发送|chat.send)$/i });
-  fireEvent.click(send);
-  expect(onSend).toHaveBeenCalledOnce();
-  expect(onSend.mock.calls[0][0]).toBe(longDraft.trim());
-});
+test.each([false, true])(
+  "clicking Send submits the draft (expanded=%s)",
+  async (expanded) => {
+    const onSend = vi.fn();
+    render(
+      <ChatInput
+        onSend={onSend}
+        onStop={vi.fn()}
+        isLoading={false}
+        pendingInput={longDraft}
+      />,
+    );
+    await screen.findByRole("textbox");
+    if (expanded)
+      fireEvent.click(
+        screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+      );
+    const send = screen.getByRole("button", {
+      name: /^(send message|发送|chat.send)$/i,
+    });
+    fireEvent.click(send);
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(onSend.mock.calls[0][0]).toBe(longDraft.trim());
+  },
+);
 
 test("rejected expanded submission restores the complete multilingual draft", async () => {
   const draft = "中文输入，emoji 🐑\n第二行 English <tag> & code";
   const onSend = vi.fn();
-  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={draft} />);
+  render(
+    <ChatInput
+      onSend={onSend}
+      onStop={vi.fn()}
+      isLoading={false}
+      pendingInput={draft}
+    />,
+  );
   const editor = await screen.findByRole("textbox");
-  fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+  fireEvent.click(
+    screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+  );
   fireEvent.click(screen.getByRole("button", { name: /send message/i }));
   expect(onSend.mock.calls[0][0]).toBe(draft);
   await act(async () => onSend.mock.calls[0][4].onRejected());
@@ -243,12 +279,59 @@ test.each([{ isComposing: true }, { keyCode: 229 }])(
   "confirming IME text in expanded mode does not submit (%j)",
   async (composition) => {
     const onSend = vi.fn();
-    render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} pendingInput={longDraft} />);
+    render(
+      <ChatInput
+        onSend={onSend}
+        onStop={vi.fn()}
+        isLoading={false}
+        pendingInput={longDraft}
+      />,
+    );
     const editor = await screen.findByRole("textbox");
-    fireEvent.click(screen.getByRole("button", { name: /(expand|展开编辑)/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+    );
     editor.focus();
     fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true, ...composition });
     expect(onSend).not.toHaveBeenCalled();
     expect(editor).toHaveTextContent(longDraft.trim());
   },
 );
+
+test("the Goal header follows the expanded editor and returns above the composer", async () => {
+  render(
+    <ChatInput
+      onSend={vi.fn()}
+      onStop={vi.fn()}
+      isLoading={false}
+      pendingInput={longDraft}
+      persistentGoal={{
+        id: "g",
+        session_id: "s",
+        user_id: "u",
+        objective: "Goal stays visible",
+        rubric: "verified",
+        version: 1,
+        revision: 1,
+        status: "active",
+        accounting: { turns: 0, tokens: 0 },
+        started_at: null,
+        current_run_id: "r",
+      }}
+    />,
+  );
+  const editor = await screen.findByRole("textbox");
+  expect(
+    screen.getByText("Goal stays visible").closest(".chat-input-container"),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
+  );
+  expect(
+    screen.getByText("Goal stays visible").closest("[data-composer-expanded]"),
+  ).toBeTruthy();
+  fireEvent.keyDown(editor, { key: "Escape" });
+  expect(
+    screen.getByText("Goal stays visible").closest(".chat-input-container"),
+  ).toBeNull();
+});

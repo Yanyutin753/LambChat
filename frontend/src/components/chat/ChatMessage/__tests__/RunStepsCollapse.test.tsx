@@ -15,6 +15,7 @@ vi.mock("react-i18next", () => ({
         "chat.message.runStepsWorking": "Working… {{duration}}",
         "chat.message.runStepsWorkingNoTimer": "Working…",
         "chat.message.runStepsStopped": "Stopped",
+        "chat.message.waitingConfirm": "Waiting for confirmation",
       };
       let out = templates[key] ?? key;
       if (opts && typeof opts === "object") {
@@ -42,6 +43,32 @@ function WorkingRowText() {
 }
 
 describe("RunStepsCollapse", () => {
+  test("confirmation uses the shared status row and keeps the process visible until resumed", () => {
+    const view = render(
+      <RunStepsCollapse
+        active
+        awaitingConfirmation
+        steps={1}
+        durationMs={1000}
+        renderExpanded={() => <div>command details</div>}
+      />,
+    );
+    expect(
+      screen.getByRole("status", { name: "Waiting for confirmation" }),
+    ).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("command details")).toBeVisible();
+    expect(screen.queryByText(/Working/)).toBeNull();
+    view.rerender(
+      <RunStepsCollapse
+        active
+        steps={1}
+        durationMs={1000}
+        renderExpanded={() => <div>command details</div>}
+      />,
+    );
+    expect(screen.getByRole("status", { name: "Working…" })).toBeVisible();
+    expect(screen.queryByText("Waiting for confirmation")).toBeNull();
+  });
   test("active work has a named status without announcing every timer tick", () => {
     render(
       <RunStepsCollapse

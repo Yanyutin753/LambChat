@@ -14,6 +14,11 @@ from langchain_core.runnables.config import ensure_config, merge_configs
 
 from src.kernel.config import settings
 
+try:
+    import httpx2 as provider_httpx
+except ImportError:
+    import httpx as provider_httpx  # type: ignore[no-redef]
+
 logger = logging.getLogger(__name__)
 
 
@@ -89,13 +94,13 @@ def is_retryable_model_error(exc: BaseException) -> bool:
             return True
         if isinstance(current, EmptyModelResponseError):
             return True
-        if isinstance(current, httpx.HTTPStatusError):
+        if isinstance(current, (httpx.HTTPStatusError, provider_httpx.HTTPStatusError)):
             status = current.response.status_code
             if status in (408, 409, 429) or 500 <= status < 600:
                 return True
         if isinstance(current, TimeoutError):
             return True
-        if isinstance(current, httpx.TransportError):
+        if isinstance(current, (httpx.TransportError, provider_httpx.TransportError)):
             return True
         if _is_provider_retryable_error(current):
             return True
@@ -135,7 +140,9 @@ def is_auth_model_error(exc: BaseException) -> bool:
     instead of surfacing the raw 401/403 to the user.
     """
     for current in _exception_chain(exc):
-        if isinstance(current, httpx.HTTPStatusError) and current.response.status_code in (
+        if isinstance(
+            current, (httpx.HTTPStatusError, provider_httpx.HTTPStatusError)
+        ) and current.response.status_code in (
             401,
             403,
         ):
@@ -185,6 +192,17 @@ def _empty_answer(response: Any) -> bool:
     )
 
 
+def _is_output_limit_response(response: AIMessage) -> bool:
+    metadata = response.response_metadata
+    incomplete = metadata.get("incomplete_details")
+    return (
+        metadata.get("stop_reason") == "max_tokens"
+        or metadata.get("finish_reason") == "length"
+        or isinstance(incomplete, dict)
+        and incomplete.get("reason") == "max_output_tokens"
+    )
+
+
 async def ainvoke_with_retry(
     model: Any,
     prompt: Any,
@@ -195,6 +213,7 @@ async def ainvoke_with_retry(
     retry_if: Callable[[BaseException], bool] = is_retryable_model_error,
     fallback_model: str | None = None,
     thinking: dict | None = None,
+    tools: list | None = None,
     **kwargs: Any,
 ) -> Any:
     """Retry transient/empty calls, then use the configured fallback once.
@@ -204,23 +223,36 @@ async def ainvoke_with_retry(
     """
     retries = settings.LLM_MAX_RETRIES if max_retries is None else max(0, max_retries)
     base_delay = settings.LLM_RETRY_DELAY if retry_delay is None else max(0, retry_delay)
+    if tools:
+        try:
+            model = model.bind_tools(tools)
+        except NotImplementedError:
+            logger.info("[%s] model does not support tool binding", operation)
     tracker = _ModelOutputTracker()
     config = ensure_config(kwargs.get("config"))
     if "config" in kwargs or config.get("callbacks"):
         kwargs["config"] = merge_configs(config, {"callbacks": [tracker]})
 
     for attempt in range(retries + 1):
+        output_limited = False
         try:
             response = await model.ainvoke(prompt, **kwargs)
             if _empty_answer(response) and not tracker.emitted:
+                output_limited = _is_output_limit_response(response)
+                if output_limited:
+                    logger.warning(
+                        "[%s] output limit reached; not retrying the same budget", operation
+                    )
+                    if not fallback_model:
+                        return response
                 raise EmptyModelResponseError("Model returned no final answer")
             return response
         except Exception as exc:
             if tracker.emitted:
                 raise
-            retryable = retry_if(exc)
+            retryable = not output_limited and retry_if(exc)
             if attempt >= retries or not retryable:
-                if fallback_model and (retryable or is_auth_model_error(exc)):
+                if fallback_model and (retryable or output_limited or is_auth_model_error(exc)):
                     from src.infra.llm.client import LLMClient
 
                     logger.warning(
@@ -237,6 +269,7 @@ async def ainvoke_with_retry(
                         retry_delay=base_delay,
                         operation=operation,
                         retry_if=retry_if,
+                        tools=tools,
                         **kwargs,
                     )
                 raise

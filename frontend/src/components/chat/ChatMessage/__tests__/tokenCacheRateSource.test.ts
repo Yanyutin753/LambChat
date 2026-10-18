@@ -78,3 +78,16 @@ test("cache rate label is available in every locale", () => {
     expect(messages.tokenCacheRate.trim()).not.toBe("");
   }
 });
+
+test("known zero rate remains visible and unknown rate explains the missing observation", () => {
+  const source = readFileSync(resolve(currentDir, "../index.tsx"), "utf8");
+  expect(source).not.toMatch(/cacheRate !== null && cacheRate > 0/);
+  expect(source).toMatch(/input_includes_cache/);
+  expect(source).toMatch(/usage\.cacheRateUnknown/);
+  for (const locale of ["en", "zh", "ja", "ko", "ru"]) {
+    expect(
+      readJson(resolve(frontendSrc, "i18n", "locales", `${locale}.json`)).usage
+        .cacheRateUnknown,
+    ).toBeTruthy();
+  }
+});

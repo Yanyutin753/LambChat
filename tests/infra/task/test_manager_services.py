@@ -34,8 +34,12 @@ class _FakeStorage:
 
     async def update(self, session_id: str, session_update) -> None:
         self.updates.append((session_id, session_update))
+        if self.session is not None:
+            self.session.metadata = {**self.session.metadata, **session_update.metadata}
 
-    async def claim_run_recovery(self, session_id, run_id, metadata):
+    async def claim_run_recovery(
+        self, session_id, run_id, metadata, *, expected_recovery_token=None
+    ):
         previous = self.session.metadata if self.session else {}
         allowed = previous.get("task_status") in {
             "running",
@@ -51,13 +55,28 @@ class _FakeStorage:
             or previous.get("task_error_code") in {"cancelled", "task_recovery_uncertain_effect"}
         ):
             return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
 
     async def update_metadata_for_run(
-        self, session_id, run_id, metadata, *, expected_statuses=None
+        self, session_id, run_id, metadata, *, expected_statuses=None, expected_recovery_token=None
     ):
         if self.session.metadata.get("current_run_id") != run_id:
+            return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
+        if (
+            expected_statuses is not None
+            and self.session.metadata.get("task_status") not in expected_statuses
+        ):
             return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
@@ -288,7 +307,17 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
             "task_status": "failed",
             "agent_id": "search",
             "executor_key": "agent_stream",
-            "enabled_skills": [],
+            **{
+                key: []
+                for key in (
+                    "disabled_tools",
+                    "disabled_skills",
+                    "enabled_skills",
+                    "disabled_mcp_tools",
+                    "enabled_mcp_servers",
+                )
+            },
+            "auto_mode": False,
         },
     )
     storage = _FakeStorage(session)
@@ -336,7 +365,15 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
     result = await service.resume_session("session-1")
 
     assert result["success"] is True
-    assert submit_calls[0]["enabled_skills"] == []
+    for key in (
+        "disabled_tools",
+        "disabled_skills",
+        "enabled_skills",
+        "disabled_mcp_tools",
+        "enabled_mcp_servers",
+    ):
+        assert submit_calls[0][key] == []
+    assert submit_calls[0]["auto_mode"] is False
     assert submit_calls[0]["user_message_written"] is True
 
 

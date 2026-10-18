@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 
 from src.api.routes.chat import cancel_session
 from src.infra.task.status import TaskStatus
+from tests.infra.agent.test_goal_runtime import runtime_redis  # noqa: F401
 
 
 def _user(sub="user-1"):

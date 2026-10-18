@@ -7,10 +7,12 @@ import json
 import math
 import re
 from collections.abc import Callable, Coroutine
+from contextvars import Context
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import var_child_runnable_config
 
 from src.agents.core.base import get_presenter
 from src.agents.core.subagent_prompts import RESPONSE_LANGUAGE_NAMES
@@ -91,6 +93,7 @@ def _schedule_recommend_background_task(
     task_factory: Callable[[], Coroutine[Any, Any, None]],
     *,
     failure_level: str = "warning",
+    presenter: Any = None,
 ) -> asyncio.Task[None]:
     limit = _get_recommend_background_task_limit()
     if limit <= 0 or len(_recommend_background_tasks) >= limit:
@@ -100,9 +103,21 @@ def _schedule_recommend_background_task(
             len(_recommend_background_tasks),
             limit,
         )
-        return asyncio.create_task(_noop_recommend_task())
+        return asyncio.create_task(_noop_recommend_task(), context=Context())
 
-    task: asyncio.Task[None] = asyncio.create_task(task_factory())
+    owner = getattr(presenter, "config", None)
+    identity = {
+        key: value
+        for key in ("user_id", "session_id", "run_id", "trace_id")
+        if isinstance(value := getattr(presenter, key, None) or getattr(owner, key, None), str)
+        and value
+    }
+    context = Context()
+    context.run(
+        var_child_runnable_config.set,
+        {"configurable": identity, "metadata": {"lc_source": "recommendation"}, "callbacks": []},
+    )
+    task: asyncio.Task[None] = asyncio.create_task(task_factory(), context=context)
     _recommend_background_tasks.add(task)
 
     def log_failure(done_task: asyncio.Task[None]) -> None:
@@ -290,6 +305,20 @@ def format_history_from_messages(
         if not content:
             continue
         if role == "user":
+            name = (
+                message.get("name") if isinstance(message, dict) else getattr(message, "name", None)
+            )
+            metadata = (
+                message.get("additional_kwargs")
+                if isinstance(message, dict)
+                else getattr(message, "additional_kwargs", None)
+            )
+            if (
+                name == "evidence_context"
+                and isinstance(metadata, dict)
+                and metadata.get("lambchat_evidence_snapshot") is True
+            ):
+                continue
             if current_input and content == current_input:
                 continue
             events.append(
@@ -577,7 +606,7 @@ def schedule_recommend_questions(
         if questions:
             await _publish_recommend_questions(presenter, questions)
 
-    return _schedule_recommend_background_task(run)
+    return _schedule_recommend_background_task(run, presenter=presenter)
 
 
 def schedule_recommend_questions_from_state(
@@ -622,7 +651,7 @@ def schedule_recommend_questions_from_state(
         if questions:
             await _publish_recommend_questions(presenter, questions)
 
-    return _schedule_recommend_background_task(run, failure_level="debug")
+    return _schedule_recommend_background_task(run, failure_level="debug", presenter=presenter)
 
 
 def schedule_recommendations_best_effort(

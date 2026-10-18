@@ -224,3 +224,31 @@ test("connecting a resumed stream restores the settled bubble's running state", 
   await connectToSSE("session-a", "run-a", "assistant-a", ctx);
   expect(readMessages()[0].isStreaming).toBe(true);
 });
+
+test("reconnect settlement finds the main assistant instead of the latest scheduled progress bubble", async () => {
+  mocks.getStatus.mockResolvedValueOnce({ status: "completed" });
+  const scheduled: Message = {
+    id: "scheduled-result:task",
+    role: "assistant",
+    content: "working",
+    runId: "task",
+    timestamp: new Date(2),
+    isStreaming: true,
+    metadata: { scheduledTaskId: "task" },
+  };
+  const { ctx, readMessages } = createReconnectContext([
+    {
+      id: "main",
+      role: "assistant",
+      content: "answer",
+      runId: "run-a",
+      timestamp: new Date(1),
+      isStreaming: true,
+    },
+    scheduled,
+  ]);
+  ctx.streamingMessageIdRef.current = null;
+  await reconnectSSE(ctx);
+  expect(readMessages()[0].isStreaming).toBe(false);
+  expect(readMessages()[1]).toBe(scheduled);
+});

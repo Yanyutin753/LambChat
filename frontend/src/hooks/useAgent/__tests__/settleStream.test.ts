@@ -2,6 +2,7 @@ import type { Message } from "../../../types";
 import {
   assistantMessageHasContent,
   settleAssistantMessage,
+  settleRunMessages,
 } from "../settleStream.ts";
 
 function assistant(overrides: Partial<Message> = {}): Message {
@@ -15,6 +16,20 @@ function assistant(overrides: Partial<Message> = {}): Message {
     ...overrides,
   };
 }
+
+test("stopping the main run preserves other run and scheduled progress loading states", () => {
+  const main = assistant({ runId: "main" });
+  const scheduled = assistant({
+    id: "scheduled-result:task",
+    runId: "task",
+    metadata: { scheduledTaskId: "task" },
+  });
+  const other = assistant({ id: "other", runId: "other" });
+  const result = settleRunMessages([main, scheduled, other], "main");
+  expect(result[0].isStreaming).toBe(false);
+  expect(result[1]).toBe(scheduled);
+  expect(result[2]).toBe(other);
+});
 
 function user(): Message {
   return {

@@ -24,8 +24,8 @@ export function usageStatusKind(status: string): UsageStatusKind {
   return "error";
 }
 
-export function pct(value: number): string {
-  if (!Number.isFinite(value)) return "0%";
+export function pct(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return `${Math.round(value * 100)}%`;
 }
 
@@ -81,6 +81,8 @@ export function normalizeTrendPoints(
 }
 
 export interface CostFormatOpts {
+  pricedRequests?: number;
+  unpricedRequests?: number;
   language?: string;
   rates?: FxRatesDoc | null;
   /** 小数位上限；手机端窄格子传 3 截短小金额精度 */
@@ -93,6 +95,9 @@ export function fmtCostUsd(
   available: boolean,
   opts: CostFormatOpts,
 ): string {
-  if (!available) return "—";
-  return formatCostUsd(usd ?? 0, opts);
+  if (!available || typeof usd !== "number" || !Number.isFinite(usd))
+    return "—";
+  const unknown = (opts.unpricedRequests ?? 0) > 0;
+  if (unknown && opts.pricedRequests === 0) return "—";
+  return `${formatCostUsd(usd, opts)}${unknown ? "+" : ""}`;
 }

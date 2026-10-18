@@ -14,6 +14,9 @@ from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
 from src.api.routes.session_history_render import (
+    parse_event_types_filter as _parse_event_types_filter,
+)
+from src.api.routes.session_history_render import (
     prepare_history_events,
     render_history_response_offloaded,
 )
@@ -55,22 +58,6 @@ SESSION_TRACE_WINDOW_LIMIT_MAX = 200
 
 class MessageCheckpointCreatePayload(BaseModel):
     name: str | None = None
-
-
-def _parse_event_types_filter(event_types: str | None) -> list[str] | None:
-    if not event_types:
-        return None
-    parsed: list[str] = []
-    seen = set()
-    for raw_type in event_types.split(","):
-        event_type = raw_type.strip()
-        if not event_type or event_type in seen:
-            continue
-        seen.add(event_type)
-        parsed.append(event_type)
-        if len(parsed) >= SESSION_EVENT_TYPE_FILTER_LIMIT:
-            break
-    return parsed or None
 
 
 def verify_session_ownership(session: Session, user: TokenPayload) -> None:
@@ -315,6 +302,9 @@ async def get_session_events(
         False,
         description="包含活动 run 的用户消息，并返回是否需要继续 SSE 回放",
     ),
+    include_active_events: bool = Query(
+        False, description="包含指定 run 的活动执行事件；必须同时提供 run_id"
+    ),
     trace_limit: Optional[int] = Query(
         None,
         ge=1,
@@ -348,10 +338,16 @@ async def get_session_events(
 
     verify_session_ownership(session, user)
 
+    active_events_requested = include_active_events is True
+    if active_events_requested and (
+        not isinstance(run_id, str) or not run_id.strip() or isinstance(exclude_run_id, str)
+    ):
+        raise AppError(ErrorCode.BAD_REQUEST)
+
     dual_writer = get_dual_writer()
 
     # 解析事件类型过滤
-    types_list = _parse_event_types_filter(event_types)
+    types_list = _parse_event_types_filter(event_types, SESSION_EVENT_TYPE_FILTER_LIMIT)
 
     # 直接调用（绕过 FastAPI 依赖解析）时 Query 默认对象会原样传入，
     # 按类型收窄为真实值
@@ -386,9 +382,13 @@ async def get_session_events(
                 types_list,
                 run_id=run_id,
                 exclude_run_id=exclude_run_id,
-                completed_only=True,
+                completed_only=not active_events_requested,
                 max_events=events_probe_limit,
-                active_run_id=current_run_id if include_active_user_message else None,
+                active_run_id=(
+                    current_run_id
+                    if include_active_user_message and not active_events_requested
+                    else None
+                ),
                 trace_limit=trace_limit_value,
                 before_trace_started_at=before_trace_started_at_dt,
                 before_trace_id=before_trace_id_param,
@@ -409,7 +409,7 @@ async def get_session_events(
                 types_list,
                 run_id=run_id,
                 exclude_run_id=exclude_run_id,
-                completed_only=True,
+                completed_only=not active_events_requested,
                 max_events=events_probe_limit,
             )
     # 预算按 trace 整轮消费：每个 run 的事件完整返回（最新单轮超预算也完整），

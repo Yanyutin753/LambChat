@@ -42,14 +42,20 @@ def build_conversation_config(
     trace_id: str | None = None,
 ) -> dict:
     """Build session metadata for conversation configuration."""
+    from src.infra.scheduler.conversation import SCHEDULED_SUBMISSION
     from src.infra.task.background_tasks import BACKGROUND_EXECUTOR_KEY, BACKGROUND_SUBMISSION_RUN
 
+    scheduled = SCHEDULED_SUBMISSION.get()
     conversation_config = {
         "current_run_id": run_id,
         "agent_id": agent_id,
-        "executor_key": BACKGROUND_EXECUTOR_KEY
-        if BACKGROUND_SUBMISSION_RUN.get()
-        else "agent_stream",
+        "executor_key": (
+            "conversation_schedule"
+            if scheduled
+            else BACKGROUND_EXECUTOR_KEY
+            if BACKGROUND_SUBMISSION_RUN.get()
+            else "agent_stream"
+        ),
         "agent_options": request.agent_options or {},
         "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],
@@ -58,6 +64,11 @@ def build_conversation_config(
         "enabled_mcp_servers": request.enabled_mcp_servers,
         "language": language,
         "auto_mode": request.auto_mode,
+        "persona_preset_id": None,
+        "persona_preset_name": None,
+        "persona_snapshot": None,
+        "persona_avatar": None,
+        "team_id": request.team_id if agent_id == "team" else None,
     }
     if trace_id:
         conversation_config["trace_id"] = trace_id

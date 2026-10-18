@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pymongo.errors import DuplicateKeyError
@@ -14,6 +13,7 @@ from src.kernel.schemas.persistent_goal import (
     GoalStatus,
     PersistentGoal,
     PersistentGoalCreate,
+    PersistentGoalUpdate,
 )
 
 
@@ -40,9 +40,9 @@ def advance_goal(
     verdict: dict | None,
     tools: int,
     evidence_ready: bool = False,
-    now: datetime | None = None,
     progress_signature: str = "",
     evidence_ids: Sequence[str] = (),
+    main_output_limited: bool = False,
 ) -> PersistentGoal:
     result = goal.model_copy(deep=True)
     if result.current_run_id:
@@ -71,17 +71,7 @@ def advance_goal(
     result.stagnant_turns = 0 if progress else result.stagnant_turns + 1
     if progress_signature:
         result.last_progress_signature = progress_signature
-    elapsed = ((now or datetime.now(timezone.utc)) - result.started_at).total_seconds()
     if (
-        result.accounting.turns >= result.limits.max_turns
-        or elapsed >= result.limits.max_seconds
-        or (
-            result.accounting.tokens is not None
-            and result.accounting.tokens >= result.limits.max_tokens
-        )
-    ):
-        result.status = "budget_limited"
-    elif (
         evidence_ready
         and verdict
         and verdict.get("result") == "satisfied"
@@ -95,8 +85,21 @@ def advance_goal(
         )
     ):
         result.status = "completed"
-    elif result.stagnant_turns >= 2 or (verdict and verdict.get("result") == "failed"):
+        result.stop_reason = None
+    elif (
+        main_output_limited
+        and not progress
+        or result.stagnant_turns >= 3
+        or (verdict and verdict.get("result") == "failed")
+    ):
         result.status = "blocked"
+        result.stop_reason = (
+            "invalid_rubric"
+            if verdict and verdict.get("result") == "failed"
+            else "model_output_limit"
+            if main_output_limited and not progress
+            else "no_progress"
+        )
     result.current_run_id = None
     result.intent_submitted = False
     result.dispatch_token = None
@@ -168,11 +171,38 @@ class GoalService:
             raise AppError(ErrorCode.GOAL_CONFLICT)
         return saved
 
+    async def update(
+        self, session_id: str, user_id: str, payload: PersistentGoalUpdate
+    ) -> PersistentGoal:
+        value = await self.get(session_id, user_id)
+        if (
+            value is None
+            or value.status == "cleared"
+            or value.revision != payload.expected_revision
+        ):
+            raise AppError(ErrorCode.GOAL_CONFLICT)
+        value.objective = payload.objective
+        value.rubric = payload.rubric
+        value.version += 1
+        value.status = "active" if value.status in {"active", "waiting_human"} else "paused"
+        value.stop_reason = None
+        value.current_run_id = None
+        value.intent_submitted = False
+        value.dispatch_token = None
+        value.dispatch_expires_at = None
+        value.stagnant_turns = 0
+        value.last_progress_signature = ""
+        value.last_verdict = None
+        saved = await self._save(value)
+        if saved is None:
+            raise AppError(ErrorCode.GOAL_CONFLICT)
+        return saved
+
     async def control(
         self,
         session_id: str,
         user_id: str,
-        action: Literal["pause", "resume", "clear", "waiting_human", "block", "limit"],
+        action: Literal["pause", "resume", "clear", "waiting_human", "block"],
         *,
         expected_version: int | None = None,
         expected_run_id: str | None = None,
@@ -192,7 +222,11 @@ class GoalService:
                     return None
                 raise AppError(ErrorCode.GOAL_CONFLICT)
             authority = (value.id, value.version)
-            if action == "resume" and value.status == "waiting_human":
+            if value.status == "cleared" or (value.status == "completed" and action != "clear"):
+                return value
+            if (action == "resume" and value.status in {"active", "waiting_human"}) or (
+                action == "pause" and value.status == "paused"
+            ):
                 return value
             statuses: dict[str, GoalStatus] = {
                 "pause": "paused",
@@ -200,9 +234,12 @@ class GoalService:
                 "clear": "cleared",
                 "waiting_human": "waiting_human",
                 "block": "blocked",
-                "limit": "budget_limited",
             }
             value.status = statuses[action]
+            value.stop_reason = {
+                "pause": "user_paused",
+                "block": "execution_error",
+            }.get(action)
             if action != "waiting_human":
                 value.version += 1
                 value.current_run_id = None
@@ -225,23 +262,12 @@ class GoalService:
             or value.current_run_id
         ):
             return None
-        elapsed = (datetime.now(timezone.utc) - value.started_at).total_seconds()
-        if (
-            value.accounting.turns >= value.limits.max_turns
-            or elapsed >= value.limits.max_seconds
-            or (
-                value.accounting.tokens is not None
-                and value.accounting.tokens >= value.limits.max_tokens
-            )
-        ):
-            value.status = "budget_limited"
-        else:
-            value.continuation_sequence += 1
-            value.current_run_id = f"goal-{value.id}-{value.version}-{value.continuation_sequence}"
-            value.run_accounting.append(
-                GoalRunAccounting(run_id=value.current_run_id, version=value.version)
-            )
-            value.intent_submitted = False
+        value.continuation_sequence += 1
+        value.current_run_id = f"goal-{value.id}-{value.version}-{value.continuation_sequence}"
+        value.run_accounting.append(
+            GoalRunAccounting(run_id=value.current_run_id, version=value.version)
+        )
+        value.intent_submitted = False
         return await self._save(value)
 
     async def finish(

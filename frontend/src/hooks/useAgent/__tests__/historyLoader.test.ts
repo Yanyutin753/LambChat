@@ -17,6 +17,87 @@ import * as suspendedParts from "../suspendedToolParts";
 import type { Message } from "../../../types";
 import type { EventData, HistoryEvent, SubagentStackItem } from "../types.ts";
 
+test("interleaved historical runs keep text and usage on their own assistant", () => {
+  const events = [
+    { event_type: "user:message", run_id: "r1", data: { content: "first" } },
+    {
+      event_type: "message:chunk",
+      run_id: "r1",
+      data: { content: "A", text_id: "a" },
+    },
+    { event_type: "user:message", run_id: "r2", data: { content: "second" } },
+    {
+      event_type: "message:chunk",
+      run_id: "r2",
+      data: { content: "B", text_id: "b" },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "r1",
+      data: { content: "A2", text_id: "a" },
+    },
+    { event_type: "token:usage", run_id: "r1", data: { total_tokens: 123 } },
+    { event_type: "done", run_id: "r1", data: {} },
+    { event_type: "done", run_id: "r2", data: {} },
+  ].map((event, i) => ({
+    ...event,
+    timestamp: new Date(1700000000000 + i * 1000).toISOString(),
+  })) as HistoryEvent[];
+  const messages = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  });
+  expect(
+    messages
+      .filter((message) => message.role === "assistant")
+      .map((message) => [
+        message.runId,
+        message.content,
+        message.tokenUsage?.total_tokens,
+      ]),
+  ).toEqual([
+    ["r1", "AA2", 123],
+    ["r2", "B", undefined],
+  ]);
+  expect(messages.map((message) => message.content)).toEqual([
+    "first",
+    "AA2",
+    "second",
+    "B",
+  ]);
+});
+
+test("preparing the main stream preserves an independent scheduled progress bubble", () => {
+  const scheduled: Message = {
+    id: "scheduled-result:task",
+    role: "assistant",
+    content: "working",
+    runId: "task",
+    timestamp: new Date(3),
+    isStreaming: true,
+    metadata: { scheduledTaskId: "task" },
+  };
+  const messages: Message[] = [
+    {
+      id: "user",
+      role: "user",
+      content: "question",
+      runId: "main",
+      timestamp: new Date(1),
+    },
+    {
+      id: "main",
+      role: "assistant",
+      content: "answer",
+      runId: "main",
+      timestamp: new Date(2),
+    },
+    scheduled,
+  ];
+  const prepared = prepareMessagesForRunningRun(messages, "main");
+  expect(prepared.streamingMessageId).toBe("main");
+  expect(prepared.messages[2]).toBe(scheduled);
+});
+
 test("history replay keeps one pending execution and one stack entry for repeated agent calls", () => {
   const activeSubagentStack: SubagentStackItem[] = [];
   const events: HistoryEvent[] = [
@@ -1834,11 +1915,11 @@ test("steer delivered marks the pre-steer assistant turn as cancelled", () => {
     { activeSubagentStack: [] },
   );
 
-  // [user, assistant(已停止), steer-user, assistant(final)]
+  // [user, assistant(前段输出), steer-user, assistant(final)]
   expect(messages).toHaveLength(4);
   const sealed = messages[1];
   expect(sealed.role).toBe("assistant");
-  expect(sealed.cancelled).toBe(true);
+  expect(sealed.cancelled).not.toBe(true);
   // 已停止是状态行文字切换，不追加 cancelled part 胶囊
   expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(false);
   const final = messages[3];
@@ -2119,6 +2200,34 @@ test("completed runs discard tool drafts in turns sealed by steer messages", () 
   ]);
 });
 
+test("history restores completed goal timing for the persistent goal bar", () => {
+  expect(
+    extractGoalFromEvents([
+      {
+        event_type: "goal:start",
+        run_id: "r1",
+        data: {
+          goal: { objective: "docs", _persistent_id: "g1" },
+          started_at: "2026-10-17T01:00:00Z",
+        },
+      },
+      {
+        event_type: "goal:end",
+        run_id: "r1",
+        data: {
+          goal: { objective: "docs", _persistent_id: "g1" },
+          started_at: "2026-10-17T01:00:00Z",
+          ended_at: "2026-10-17T01:00:04Z",
+        },
+      },
+    ]),
+  ).toMatchObject({
+    _persistent_id: "g1",
+    started_at: "2026-10-17T01:00:00Z",
+    ended_at: "2026-10-17T01:00:04Z",
+  });
+});
+
 test("history preserves persistent projection ID without leaking it into ordinary runs", () => {
   const events: HistoryEvent[] = [
     {
@@ -2314,7 +2423,7 @@ test("anonymous steer ids keep original sorted positions without repeated full-a
       activeSubagentStack: [],
     });
     expect(messages.map((message) => message.id)).toEqual(
-      events.map((_, index) => `steer-h-${index}`),
+      events.map((_, index) => `steer-h-anonymous-steers-${index}`),
     );
     expect(eventSearchWork).toBeLessThanOrEqual(events.length * 2);
   } finally {
@@ -5621,4 +5730,174 @@ test("private streaming replay reuses parts indexes across metadata clones for 1
       isStreaming: true,
     });
   }
+});
+
+test("goal continuations remain separate assistant turns without synthetic user messages", () => {
+  const events: HistoryEvent[] = [
+    {
+      event_type: "user:message",
+      run_id: "r1",
+      data: { content: "finish docs" },
+    },
+    {
+      event_type: "goal:start",
+      run_id: "r1",
+      data: { goal: { objective: "finish docs" } },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "r1",
+      data: { content: "First result", text_id: "t1" },
+    },
+    { event_type: "done", run_id: "r1", data: {} },
+    { event_type: "goal:continuation", run_id: "r2", data: { turn: 2 } },
+    {
+      event_type: "goal:start",
+      run_id: "r2",
+      data: { goal: { objective: "finish docs" } },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "r2",
+      data: { content: "Second result", text_id: "t2" },
+    },
+    { event_type: "done", run_id: "r2", data: {} },
+  ];
+  const messages = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  });
+  expect(messages.map((m) => [m.role, m.runId, m.content])).toEqual([
+    ["user", "r1", "finish docs"],
+    ["assistant", "r1", "First result"],
+    ["assistant", "r2", "Second result"],
+  ]);
+});
+
+test("paused Goal rounds and the response after steer retain generated text", () => {
+  const events = [
+    {
+      event_type: "user:message",
+      run_id: "goal-1",
+      data: { content: "目标", message_id: "objective" },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "goal-1",
+      data: { content: "第一轮" },
+    },
+    { event_type: "done", run_id: "goal-1", data: {} },
+    {
+      event_type: "goal:continuation",
+      run_id: "goal-2",
+      data: { goal_id: "g", turn: 2 },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "goal-2",
+      data: { content: "第二轮已生成的内容" },
+    },
+    {
+      event_type: "error",
+      run_id: "goal-2",
+      data: {
+        type: "TaskInterruptedError",
+        error: "Goal was paused or superseded",
+      },
+    },
+    { event_type: "done", run_id: "goal-2", data: {} },
+    {
+      event_type: "goal:continuation",
+      run_id: "goal-3",
+      data: { goal_id: "g", turn: 3 },
+    },
+    {
+      event_type: "steer:message",
+      run_id: "goal-3",
+      data: { content: "补充要求", message_id: "steer-live" },
+    },
+    {
+      event_type: "message:chunk",
+      run_id: "goal-3",
+      data: { content: "插话确认，小林负责" },
+    },
+    {
+      event_type: "error",
+      run_id: "goal-3",
+      data: {
+        type: "TaskInterruptedError",
+        error: "Goal was paused or superseded",
+      },
+    },
+  ].map((event, i) => ({
+    ...event,
+    timestamp: new Date(1700000000000 + i * 1000).toISOString(),
+  })) as HistoryEvent[];
+  const messages = reconstructMessagesFromEvents(events, new Set(), {
+    activeSubagentStack: [],
+  });
+  expect(messages.map((message) => message.content)).toEqual([
+    "目标",
+    "第一轮",
+    "第二轮已生成的内容",
+    "补充要求",
+    "插话确认，小林负责",
+  ]);
+  expect(
+    messages
+      .filter((message) => message.role === "assistant")
+      .slice(1)
+      .every((message) => message.cancelled),
+  ).toBe(true);
+});
+
+test("a trusted Goal continuation keeps a streaming assistant without a synthetic user", () => {
+  const previous: Message = {
+    id: "previous",
+    role: "assistant",
+    content: "First turn",
+    parts: [],
+    timestamp: new Date(),
+    runId: "goal-1",
+  };
+  const current: Message = {
+    id: "current",
+    role: "assistant",
+    content: "Second turn",
+    parts: [{ type: "text", content: "Second turn" }],
+    timestamp: new Date(),
+    runId: "goal-2",
+  };
+  const result = prepareMessagesForRunningRun(
+    [previous, current],
+    "goal-2",
+    () => "placeholder",
+    [],
+    true,
+  );
+  expect(result.streamingMessageId).toBe("current");
+  expect(result.messages.map((message) => message.id)).toEqual([
+    "previous",
+    "current",
+  ]);
+  expect(result.messages[1].isStreaming).toBe(true);
+  expect(result.messages.some((message) => message.role === "user")).toBe(
+    false,
+  );
+});
+
+test("a reserved Goal run has a visible assistant before its first event", () => {
+  const result = prepareMessagesForRunningRun(
+    [],
+    "goal-2",
+    () => "placeholder",
+    [],
+    true,
+  );
+  expect(result.messages).toHaveLength(1);
+  expect(result.messages[0]).toMatchObject({
+    id: "placeholder",
+    role: "assistant",
+    runId: "goal-2",
+    isStreaming: true,
+  });
 });

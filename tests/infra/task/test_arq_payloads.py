@@ -64,6 +64,14 @@ async def test_task_arq_payload_store_deletes_context() -> None:
     assert await store.load("run-1") is None
 
 
+@pytest.mark.parametrize("executor_key", ["conversation_schedule", "scheduled_agent_stream"])
+async def test_scheduled_payload_survives_unbounded_queue_wait(executor_key):
+    redis = _FakeRedis()
+    store = TaskArqPayloadStore(redis=redis)
+    await store.save("run-1", {"executor_key": executor_key})
+    assert "task:arq:payload:run-1" not in redis.expirations
+
+
 @pytest.mark.asyncio
 async def test_task_arq_payload_store_rejects_oversized_payload_before_redis_write(
     monkeypatch: pytest.MonkeyPatch,

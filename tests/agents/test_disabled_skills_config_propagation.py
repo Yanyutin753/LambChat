@@ -44,6 +44,9 @@ class _FakeEventProcessor:
     async def flush(self) -> None:
         return None
 
+    async def drain_activity_references(self) -> None:
+        return None
+
     async def finalize(self) -> None:
         self.output_text = ""
         return None

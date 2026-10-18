@@ -27,6 +27,7 @@ vi.mock("../../../services/api", () => ({
     getEvents: vi.fn().mockResolvedValue({ events: [] }),
     getPendingSteers: vi.fn().mockResolvedValue({ items: [] }),
     getPersistentGoal: vi.fn().mockResolvedValue({ goal: null }),
+    getStatus: vi.fn().mockResolvedValue({ status: "completed" }),
     generateTitle: vi.fn().mockRejectedValue(new Error("skip title")),
   },
 }));
@@ -90,6 +91,9 @@ beforeEach(() => {
         }) as Awaited<ReturnType<typeof sessionApi.get>>,
     );
   vi.mocked(sessionApi.getEvents).mockReset().mockResolvedValue({ events: [] });
+  vi.mocked(sessionApi.getStatus)
+    .mockReset()
+    .mockResolvedValue({ session_id: "session-a", status: "completed" });
   cancel.mockClear();
 });
 
@@ -525,4 +529,82 @@ test("loading another chat revokes a pending POST before its admission returns",
   expect(result.current.currentRunId).toBeNull();
   expect(connectToSSE).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
+});
+
+test("a supplement cannot follow a pending cancellation into another chat", async () => {
+  let releaseCancel!: () => void;
+  cancel.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseCancel = resolve;
+      }),
+  );
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+  await act(async () => {
+    await result.current.loadHistory("session-a");
+  });
+  let supplement!: Promise<void>;
+  act(() => {
+    supplement = result.current.supplementFollowUp("A 的补充");
+  });
+  await act(async () => {
+    await result.current.loadHistory("session-b");
+  });
+  await act(async () => {
+    releaseCancel();
+    await supplement;
+  });
+  expect(result.current.sessionId).toBe("session-b");
+  expect(submitChat).not.toHaveBeenCalled();
+  expect(result.current.messages).toEqual([]);
+});
+
+test("a failed cancellation does not submit the supplement concurrently", async () => {
+  cancel.mockRejectedValueOnce(new Error("cancel unavailable"));
+  vi.mocked(sessionApi.getStatus).mockResolvedValue({
+    session_id: "session-a",
+    status: "running",
+  });
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+  await act(async () => {
+    await result.current.loadHistory("session-a");
+  });
+  await act(async () => {
+    await result.current.supplementFollowUp("保留当前任务");
+  });
+  expect(submitChat).not.toHaveBeenCalled();
+});
+
+test("multiple follow-ups queued before session creation are admitted once in order", async () => {
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+  const accept = pendingSubmit();
+  submitChat.mockImplementation(async (_agent, content) => ({
+    session_id: "session-a",
+    run_id: `run-${content}`,
+    trace_id: `trace-${content}`,
+    status: "started",
+  }));
+  let sending!: Promise<void>;
+  act(() => {
+    sending = result.current.sendMessage("first");
+  });
+  act(() => {
+    result.current.queueFollowUp("follow one");
+    result.current.queueFollowUp("follow two");
+  });
+  await act(async () => {
+    accept("session-a", "run-first");
+    await sending;
+  });
+  await waitFor(() =>
+    expect(submitChat.mock.calls.map((call) => call[1])).toEqual([
+      "first",
+      "follow one",
+      "follow two",
+    ]),
+  );
+  await waitFor(() => expect(result.current.steerMessages).toEqual([]));
 });

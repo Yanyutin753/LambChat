@@ -93,6 +93,30 @@ test("open session reloads only when the server knows a newer run", () => {
   ).toBe(true);
 });
 
+test("an idle-session probe cannot reload over a user send that began while awaiting the server", async () => {
+  let release!: (value: unknown) => void;
+  mocks.get.mockReturnValueOnce(
+    new Promise((resolve) => {
+      release = resolve;
+    }),
+  );
+  const { ctx } = createReconcileContext([], {
+    currentRunIdRef: { current: null },
+  });
+  const loadHistory = vi.fn();
+  let busy = false;
+  const pending = reconcileOpenSession(ctx, {
+    loadHistory,
+    isSending: false,
+    isLoadingHistory: false,
+    isBusy: () => busy,
+  });
+  busy = true;
+  release({ metadata: { current_run_id: "old-server-run" } });
+  await pending;
+  expect(loadHistory).not.toHaveBeenCalled();
+});
+
 function createReconcileContext(
   messages: Message[],
   overrides: Record<string, unknown> = {},
@@ -448,6 +472,163 @@ test("a delayed open-session probe cannot navigate back after switching conversa
     metadata: { current_run_id: "new-run-a" },
   });
   await pending;
+
+  expect(loadHistory).not.toHaveBeenCalled();
+});
+
+test("an idle open conversation discovers a scheduled run without a foreground event", async () => {
+  vi.useFakeTimers();
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "scheduled-run", task_status: "running" },
+  });
+  const { ctx } = createReconcileContext([], {
+    currentRunIdRef: { current: null },
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn().mockResolvedValue(null);
+  renderHook(() =>
+    useStreamReconcile({
+      createSSEContext: () => ctx,
+      sessionIdRef: ctx.sessionIdRef,
+      currentRunIdRef: ctx.currentRunIdRef,
+      isReconnectFromHistoryRef: ctx.isReconnectFromHistoryRef,
+      streamingMessageIdRef: ctx.streamingMessageIdRef,
+      connectionStatus: "disconnected",
+      setConnectionStatus: ctx.setConnectionStatus,
+      isSendingRef: { current: false },
+      isLoadingHistoryRef: { current: false },
+      loadHistoryRef: { current: loadHistory },
+    }),
+  );
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+
+  expect(loadHistory).toHaveBeenCalledWith("session-a");
+});
+
+test("idle history refresh retains the explicitly requested older execution", async () => {
+  vi.useFakeTimers();
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "latest-run", task_status: "completed" },
+  });
+  const { ctx } = createReconcileContext([], {
+    currentRunIdRef: { current: "requested-old-run" },
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn().mockResolvedValue(null);
+  renderHook(() =>
+    useStreamReconcile({
+      createSSEContext: () => ctx,
+      sessionIdRef: ctx.sessionIdRef,
+      currentRunIdRef: ctx.currentRunIdRef,
+      isReconnectFromHistoryRef: ctx.isReconnectFromHistoryRef,
+      streamingMessageIdRef: ctx.streamingMessageIdRef,
+      connectionStatus: "disconnected",
+      setConnectionStatus: ctx.setConnectionStatus,
+      isSendingRef: { current: false },
+      isLoadingHistoryRef: { current: false },
+      historyTargetRunIdRef: { current: "requested-old-run" },
+      loadHistoryRef: { current: loadHistory },
+    }),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(loadHistory).toHaveBeenCalledWith("session-a", "requested-old-run");
+});
+
+test("a pinned older run does not reload a latest completed reply already visible", async () => {
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "latest-run", task_status: "completed" },
+  });
+  const latest = {
+    id: "latest",
+    role: "assistant",
+    runId: "latest-run",
+    content: "done",
+    timestamp: new Date(),
+  } as Message;
+  const { ctx } = createReconcileContext([latest], {
+    currentRunIdRef: { current: "requested-old-run" },
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn();
+  await reconcileOpenSession(ctx, {
+    loadHistory,
+    targetRunId: "requested-old-run",
+    isSending: false,
+    isLoadingHistory: false,
+  });
+  expect(loadHistory).not.toHaveBeenCalled();
+});
+
+test("a run discovered while queued attaches when it starts with the same run ID", async () => {
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "run-a", task_status: "running" },
+  });
+  const { ctx } = createReconcileContext([], {
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn().mockResolvedValue(null);
+
+  await reconcileOpenSession(ctx, {
+    loadHistory,
+    isSending: false,
+    isLoadingHistory: false,
+  });
+
+  expect(loadHistory).toHaveBeenCalledWith("session-a");
+});
+
+test("a scheduled run that finishes before attachment still loads its missing reply", async () => {
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "run-a", task_status: "completed" },
+  });
+  const { ctx } = createReconcileContext([], {
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn().mockResolvedValue(null);
+
+  await reconcileOpenSession(ctx, {
+    loadHistory,
+    isSending: false,
+    isLoadingHistory: false,
+  });
+
+  expect(loadHistory).toHaveBeenCalledWith("session-a");
+});
+
+test("a completed reply already displayed is not reloaded on each idle probe", async () => {
+  mocks.get.mockResolvedValue({
+    id: "session-a",
+    metadata: { current_run_id: "run-a", task_status: "completed" },
+  });
+  const { ctx } = createReconcileContext(
+    [
+      {
+        id: "reply",
+        role: "assistant",
+        content: "已完成",
+        runId: "run-a",
+        timestamp: new Date(),
+      },
+    ],
+    { streamingMessageIdRef: { current: null } },
+  );
+  const loadHistory = vi.fn().mockResolvedValue(null);
+
+  await reconcileOpenSession(ctx, {
+    loadHistory,
+    isSending: false,
+    isLoadingHistory: false,
+  });
 
   expect(loadHistory).not.toHaveBeenCalled();
 });

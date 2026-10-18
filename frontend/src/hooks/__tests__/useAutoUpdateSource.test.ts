@@ -60,6 +60,18 @@ test("MainActivity registers ApkInstallerPlugin before the bridge loads", () => 
   expect(superIdx).toBeGreaterThan(registerIdx);
 });
 
+test("linux detection failure maps to unknown source, never the updater chain", () => {
+  // 检测桥故障（getLinuxInstallInfo 返回 null）必须映射为 "unknown" 走后端
+  // 版本检查 +「前往下载」兜底；一旦落回 Tauri updater 链，latest.json 无
+  // Linux 平台条目 → 永远「已是最新」且无任何报错（静默装死）
+  const hook = readRepoFile("frontend/src/hooks/useAutoUpdate.ts");
+  expect(hook).toMatch(/info\?\.source \?\? "unknown"/);
+  expect(hook).toMatch(/linuxSource\s*\?\s*await checkLinuxUpdate/);
+  const svc = readRepoFile("frontend/src/services/tauri/linuxUpdate.ts");
+  // 桥层失败语义：非壳环境 null、invoke 异常也 null——由上层映射兜住
+  expect(svc).toMatch(/catch \{\s*return null;\s*\}/);
+});
+
 test("ApkInstallerPlugin opens the system installer via ACTION_VIEW", () => {
   const plugin = readRepoFile(
     "frontend/android/app/src/main/java/com/lambchat/app/ApkInstallerPlugin.java",
@@ -230,10 +242,21 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   // 失败路径必须复位在飞标志（否则一次失败永久卡死后续下载）
   const resets = hook.match(/downloadInFlightRef\.current = false/g) ?? [];
   expect(resets.length).toBeGreaterThanOrEqual(4);
-  // 复检不能清掉进行中下载/待安装态（进度条中途消失重来的来源）
-  expect(hook).toMatch(
-    /const preserve =\n\s+downloadInFlightRef\.current \|\| pendingUpdateRef\.current !== null/,
-  );
+  // 复检不能清掉进行中下载/待安装态：桌面与 Linux 检查都在函数开头
+  // 卫兵提前返回（下载中/待装时直接带原结果返回），走到状态重建处说明
+  // 必然无进行中态，可安全整体重建——preserve 变量曾是对该卫兵的多余
+  // 重复（恒 false 的死分支），已删除
+  const earlyReturns =
+    hook.match(
+      /if \(downloadInFlightRef\.current \|\| pendingUpdateRef\.current\) \{/g,
+    ) ?? [];
+  expect(earlyReturns.length).toBeGreaterThanOrEqual(1);
+  const linuxEarlyReturns =
+    hook.match(
+      /if \(downloadInFlightRef\.current \|\| linuxDownloadedRef\.current\) \{/g,
+    ) ?? [];
+  expect(linuxEarlyReturns.length).toBeGreaterThanOrEqual(1);
+  expect(hook).not.toMatch(/const preserve =/);
   // 迟到的 Linux 进度事件不污染非下载态
   expect(hook).toMatch(/if \(!prev\.downloading\) return prev/);
 });

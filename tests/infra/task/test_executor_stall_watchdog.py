@@ -94,7 +94,7 @@ def _executor_fixture(
 
     status_updates: list[tuple[TaskStatus, str | None]] = []
 
-    async def _record_status(session_id, status, error=None, run_id=None):
+    async def _record_status(session_id, status, error=None, run_id=None, *, expected_run_id=None):
         status_updates.append((status, error))
 
     executor = TaskExecutor(

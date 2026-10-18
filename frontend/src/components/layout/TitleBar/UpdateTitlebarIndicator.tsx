@@ -154,10 +154,15 @@ export function UpdateTitlebarIndicator({
         : t("update.availableTitle", "发现新版本");
 
   // 主按钮文案与 UpdateDialog 的分流保持一致（deb/rpm 已缓存待装 /
-  // appimage+unknown 前往下载 / updater 重启安装）
+  // appimage+unknown 前往下载 / deb+rpm 资产缺失同样降级前往下载——实际
+  // 动作是 openDownloadPage，不承诺不会发生的下载安装 / updater 重启安装）
   const source = state.linuxInstallSource;
-  const isLinuxPackage = source === "deb" || source === "rpm";
-  const isGoToDownload = source === "unknown" || source === "appimage";
+  const isLinuxPackage =
+    (source === "deb" || source === "rpm") && !state.linuxPackageAssetMissing;
+  const isGoToDownload =
+    source === "unknown" ||
+    source === "appimage" ||
+    state.linuxPackageAssetMissing;
   const primaryLabel = state.downloading
     ? t("updateDownloading", "正在下载...")
     : state.error

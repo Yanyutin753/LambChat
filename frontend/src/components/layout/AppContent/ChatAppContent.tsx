@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
-import { SessionSidebar, type SessionSidebarHandle } from "../../panels/SessionSidebar";
+import {
+  SessionSidebar,
+  type SessionSidebarHandle,
+} from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAgent } from "../../../hooks/useAgent";
-import { useApprovals } from "../../../hooks/useApprovals";
+import { useApprovalRefresh, useApprovals } from "../../../hooks/useApprovals";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
@@ -23,7 +26,7 @@ import {
 import { useDragAndDrop } from "./useDragAndDrop";
 import { WORKSPACE_OPTION } from "../../chat/workspaceSelection";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
-import { useAgentOptions } from "./useAgentOptions";
+import { useAgentOptions, useScheduledTaskDefaults } from "./useAgentOptions";
 import { useSessionSync } from "./useSessionSync";
 import { useExternalNavigationTarget } from "./useExternalNavigationTarget";
 import { resolveModelSelection, type ModelSelection } from "./modelSelection";
@@ -48,7 +51,6 @@ import {
   useWorkspaceOptionActions,
 } from "./sessionToggleCallbacks";
 import type { ChatAppContentProps } from "./types";
-const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
 export function ChatAppContent({
   showProfileModal,
@@ -65,9 +67,9 @@ export function ChatAppContent({
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
   const { user, hasPermission, isAuthenticated } = useAuth();
-  const ensureResumeStreamRef = useRef<(runId?: string | null) => void>(
-    () => {},
-  );
+  const ensureResumeStreamRef = useRef<
+    (runId?: string | null, sourceSessionId?: string | null) => void
+  >(() => {});
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
   const {
@@ -80,7 +82,8 @@ export function ChatAppContent({
     isLoading: approvalLoading,
   } = useApprovals({
     sessionId: null,
-    onInterruptResume: (runId) => ensureResumeStreamRef.current(runId),
+    onInterruptResume: (runId, sourceSessionId) =>
+      ensureResumeStreamRef.current(runId, sourceSessionId),
   });
   const {
     tools,
@@ -173,6 +176,7 @@ export function ChatAppContent({
     persistentGoal,
     persistentGoalBusy,
     controlPersistentGoal,
+    updatePersistentGoal,
     goalsByRunId,
     sendMessage,
     queueFollowUp,
@@ -213,7 +217,9 @@ export function ChatAppContent({
         type: "form",
         fields: approval.fields || [],
         status: "pending",
-        session_id: sessionId,
+        session_id: approval.session_id ?? sessionId,
+        expires_at: approval.expires_at,
+        timeout: approval.timeout,
         metadata: approval.metadata,
       });
     },
@@ -241,10 +247,11 @@ export function ChatAppContent({
       setTimeout(() => fetchSkills(), 500);
     },
   });
-  ensureResumeStreamRef.current = (runId) => {
+  ensureResumeStreamRef.current = (runId, sourceSessionId) => {
+    if (sourceSessionId && sourceSessionId !== sessionId) return;
     void reconnectSSE(runId);
   };
-  useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
+  useApprovalRefresh(sessionId, refreshApprovals);
   const switchToPersonaAgentMode = useCallback(() => {
     if (currentAgent !== "team") return;
     const nextAgentId = resolvePersonaAgentId(currentAgent, undefined, agents);
@@ -440,17 +447,7 @@ export function ChatAppContent({
     setSessionAgentOption,
   ]);
 
-  useEffect(() => {
-    if (!currentAgent && !currentModelId && !currentModelValue) return;
-    localStorage.setItem(
-      SCHEDULED_TASK_DEFAULTS_KEY,
-      JSON.stringify({
-        agentId: currentAgent,
-        modelId: currentModelId,
-        modelValue: currentModelValue,
-      }),
-    );
-  }, [currentAgent, currentModelId, currentModelValue]);
+  useScheduledTaskDefaults(currentAgent, currentModelId, currentModelValue);
 
   const handleSelectModel = useCallback(
     (modelId: string, modelValue: string) => {
@@ -601,6 +598,10 @@ export function ChatAppContent({
       sidebarRef.current?.updateSessionMetadata(data.session_id, {
         task_status: data.task_status,
       });
+      if (data.task_status === "waiting_human") void refreshApprovals();
+      if (data.session_id === sessionId) {
+        void reconcileActiveRun();
+      }
     },
     onCurrentSessionTaskComplete: () => {
       void reconcileActiveRun();
@@ -919,7 +920,8 @@ export function ChatAppContent({
             void promptAppNotificationPermissionOnce({
               appRuntime: appNotificationService.getRuntime(),
               storage: null,
-              requestPermission: () => appNotificationService.requestPermission(),
+              requestPermission: () =>
+                appNotificationService.requestPermission(),
             });
             return void sendMessage(
               content,
@@ -937,7 +939,10 @@ export function ChatAppContent({
           activeGoal={activeGoal}
           persistentGoal={persistentGoal}
           persistentGoalBusy={persistentGoalBusy}
-          onControlPersistentGoal={(action) => void controlPersistentGoal(action)}
+          onUpdatePersistentGoal={updatePersistentGoal}
+          onControlPersistentGoal={(action) =>
+            void controlPersistentGoal(action)
+          }
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}
           autoModeEnabled={autoModeEnabled}

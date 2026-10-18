@@ -23,7 +23,7 @@
   --approval-section-gap: 0.75rem;
 }
 
-/* Composer placement: compact Codex-style attention bar above the input. */
+/* Confirmations follow the composer column with a slightly narrower card. */
 .approval-scroll-container {
   box-sizing: border-box;
   display: flex;
@@ -31,6 +31,17 @@
   height: 100%;
   min-height: 0;
   overflow: visible;
+}
+
+.approval-panel-content-shell {
+  box-sizing: border-box;
+  padding-inline: 0.75rem;
+}
+
+@container (max-width: 40rem) {
+  .approval-panel-content-shell {
+    padding-inline: 0.25rem;
+  }
 }
 
 /* The ChatView owns this scroll region so the approval card cannot be clipped
@@ -53,15 +64,9 @@
   flex: 1 1 auto;
   flex-direction: column;
   overflow: clip;
-  border-radius: 1.5rem;
-  border-color: color-mix(
-    in srgb,
-    var(--approval-accent) 24%,
-    var(--approval-border)
-  );
-  box-shadow:
-    0 12px 28px -20px color-mix(in srgb, var(--approval-accent) 40%, transparent),
-    0 2px 8px -4px rgb(0 0 0 / 0.18);
+  border-radius: 1rem;
+  border-color: var(--approval-border);
+  box-shadow: none;
 }
 
 .approval-card.approval-card--composer > div[id^="approval-details-"] {
@@ -79,14 +84,14 @@
   scrollbar-gutter: stable;
 }
 
-/* Full-width Codex-style ask-human prompt. */
+/* Shared full-width confirmation card. */
 .approval-card.approval-card--composer.approval-card--ask-human {
   --approval-section-x: 1.25rem;
   --approval-section-y: 0.875rem;
   flex: 0 1 auto;
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   background: var(--approval-bg);
-  box-shadow: 0 10px 30px -24px rgb(0 0 0 / 0.45);
+  box-shadow: none;
 }
 
 .approval-card.approval-card--composer.approval-card--ask-human
@@ -101,7 +106,7 @@
   gap: 1rem;
   border-bottom: 1px solid
     color-mix(in srgb, var(--approval-border) 45%, transparent);
-  padding: 0.9rem var(--approval-section-x) 0.8rem;
+  padding: var(--approval-section-y) var(--approval-section-x);
 }
 
 .approval-ask-human-title-row {
@@ -384,6 +389,10 @@
   padding: var(--approval-section-y) var(--approval-section-x) 0;
 }
 
+.approval-ask-human-context:last-child {
+  padding-bottom: var(--approval-section-y);
+}
+
 .approval-ask-human-context-prose {
   color: var(--approval-text-dim, var(--theme-text-secondary));
   font-size: 0.8125rem;
@@ -392,194 +401,120 @@
   overflow-wrap: anywhere;
 }
 
-/* ── 定时任务创建审批（spec-sheet 式参数单） ── */
+/* Scheduled confirmations keep their structured details inside the shared card. */
 .approval-st {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.approval-st-lead {
-  margin: 0;
-  color: var(--approval-text, var(--theme-text));
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.5;
+  font-size: 0.8125rem;
+  line-height: 1.6;
 }
 
 .approval-st-note {
   margin: 0;
-  color: var(--approval-text-dim, var(--theme-text-secondary));
+  color: var(--approval-text-dim);
   font-size: 0.75rem;
-  line-height: 1.5;
 }
 
 .approval-st-sheet {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid
-    var(
-      --theme-border,
-      color-mix(in srgb, var(--approval-border) 55%, transparent)
-    );
-  border-radius: 0.75rem;
-  background: color-mix(
-    in srgb,
-    var(--theme-bg-card, var(--approval-bg)) 88%,
-    var(--theme-bg, transparent)
-  );
-  overflow: hidden;
+  display: grid;
+  gap: 0.875rem 1.25rem;
+  margin: 0;
+  padding-block: 0.25rem;
 }
 
 .approval-st-row {
   display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 0.5rem 0.9rem;
-}
-
-.approval-st-row + .approval-st-row {
-  border-top: 1px dashed
-    var(
-      --theme-border,
-      color-mix(in srgb, var(--approval-border) 40%, transparent)
-    );
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .approval-st-label {
-  flex: 0 0 4.5rem;
-  color: var(--approval-text-dim, var(--theme-text-secondary));
+  color: var(--approval-text-dim);
   font-size: 0.75rem;
-  line-height: 1.5;
-  user-select: none;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .approval-st-value {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
-  display: flex;
   align-items: center;
+  margin: 0;
+  color: var(--approval-text);
   overflow-wrap: anywhere;
 }
 
 .approval-st-name {
-  color: var(--approval-text, var(--theme-text));
-  font-size: 0.8125rem;
   font-weight: 500;
-  line-height: 1.5;
 }
 
-.approval-st-mono {
+.approval-st-parameter,
+.approval-st-flag {
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  min-width: 0;
   max-width: 100%;
-  padding: 0.14rem 0.55rem;
-  border: 1px solid
-    color-mix(in srgb, var(--approval-accent, #f59e0b) 18%, transparent);
-  border-radius: 0.45rem;
-  background: color-mix(
-    in srgb,
-    var(--approval-accent-light, #fef3c7) 10%,
-    transparent
-  );
-  color: var(--approval-text, var(--theme-text));
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
-  font-size: 0.75rem;
-  line-height: 1.5;
+  align-items: center;
+  gap: 0.375rem;
   overflow-wrap: anywhere;
 }
 
 .approval-st-chip-icon {
   flex-shrink: 0;
-  opacity: 0.55;
 }
 
-.approval-st-flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.14rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.approval-st-flag--on {
-  background: color-mix(in srgb, #10b981 12%, transparent);
-  color: #059669;
+.approval-st-flag svg {
+  flex-shrink: 0;
 }
 
 .approval-st-flag--off {
-  background: color-mix(
-    in srgb,
-    var(--theme-text-secondary, #78716c) 10%,
-    transparent
-  );
-  color: var(--approval-text-dim, var(--theme-text-secondary));
-}
-
-.dark .approval-st-flag--on {
-  background: color-mix(in srgb, #10b981 16%, transparent);
-  color: #34d399;
+  color: var(--approval-text-dim);
 }
 
 .approval-st-effect {
   margin: 0;
-  color: var(--approval-text-dim, var(--theme-text-secondary));
+  color: var(--approval-text-dim);
   font-size: 0.75rem;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .approval-st-prompt {
-  border: 1px solid
-    var(
-      --theme-border,
-      color-mix(in srgb, var(--approval-border) 55%, transparent)
-    );
-  border-radius: 0.75rem;
-  background: color-mix(
-    in srgb,
-    var(--theme-bg-card, var(--approval-bg)) 88%,
-    var(--theme-bg, transparent)
-  );
-  overflow: hidden;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .approval-st-prompt-header {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 0.9rem;
-  border-bottom: 1px solid
-    color-mix(
-      in srgb,
-      var(--approval-border, var(--theme-border)) 35%,
-      transparent
-    );
-  color: var(--approval-text-dim, var(--theme-text-secondary));
-  font-family: var(--font-serif, ui-serif, Georgia, serif);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  user-select: none;
+  gap: 0.375rem;
+  color: var(--approval-text-dim);
+  font-size: 0.75rem;
 }
 
 .approval-st-prompt-body {
   margin: 0;
-  max-height: 14rem;
-  padding: 0.65rem 0.9rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  color: var(--approval-text, var(--theme-text));
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
-  font-size: 0.75rem;
-  line-height: 1.65;
+  padding: 0;
+  color: var(--approval-text);
+  line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+@container (min-width: 24rem) {
+  .approval-st-sheet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 44rem) {
+  .approval-st-sheet {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .approval-ask-human-shortcut-hint {
@@ -607,20 +542,17 @@
   gap: 1rem;
   border-top: 1px solid
     color-mix(in srgb, var(--approval-border) 55%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--approval-bg) 96%,
-    var(--approval-accent-light)
-  );
-  padding: 0.7rem var(--approval-section-x) 0.8rem;
+  background: var(--approval-bg);
 }
 
 .approval-ask-human-footer .approval-ask-human-shortcut-hint {
   margin-right: auto;
   padding: 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
-.approval-ask-human-footer .flex {
+.approval-ask-human-footer > .flex {
   display: flex;
   width: auto;
   margin-left: auto;
@@ -628,35 +560,15 @@
 }
 
 @media (max-width: 640px) {
-  .approval-scroll-container {
-    padding-right: 0.25rem;
-    padding-left: 0.25rem;
-  }
-
   .approval-card.approval-card--composer {
     --approval-section-x: 1rem;
-    border-radius: 1.25rem;
-  }
-
-  /* 参数单标签列放宽：四字标签 + 间距在窄屏不换行 */
-  .approval-st-label {
-    flex-basis: 5rem;
-  }
-
-  .approval-st-row {
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-  }
-
-  .approval-st-prompt-body {
-    padding: 0.55rem 0.75rem;
+    border-radius: 1rem;
   }
 
   .approval-ask-human-header {
     align-items: flex-start;
     flex-direction: row;
     gap: 0.6rem;
-    padding: 1rem 1rem 0.75rem;
   }
 
   .approval-ask-human-title-row {
@@ -697,15 +609,14 @@
     align-items: center;
     flex-direction: row;
     gap: 0.6rem;
-    padding: 0.2rem var(--approval-section-x) 0.85rem;
   }
 
-  .approval-ask-human-footer .flex {
+  .approval-ask-human-footer > .flex {
     width: auto;
     gap: 0.45rem;
   }
 
-  .approval-ask-human-footer .flex button {
+  .approval-ask-human-footer > .flex button {
     min-height: 2.75rem;
     min-width: 6.5rem;
     flex: 0 1 auto;
@@ -713,7 +624,7 @@
     padding-left: 0.75rem;
   }
 
-  .approval-ask-human-footer .flex button span {
+  .approval-ask-human-footer > .flex button > span:last-child {
     display: inline;
   }
 }
@@ -728,43 +639,8 @@
   }
 }
 
-.approval-ask-human-footer .flex {
+.approval-ask-human-footer > .flex {
   flex-shrink: 0;
-}
-
-.approval-compact {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 0.15s ease;
-}
-
-.approval-compact:hover {
-  background: color-mix(in srgb, var(--approval-accent) 5%, transparent);
-}
-
-.approval-summary {
-  margin-top: 0.125rem;
-  color: var(--approval-text-dim);
-  font-size: 0.75rem;
-  line-height: 1.25;
-  /* 折叠态摘要最多两行：长确认文案（如定时任务创建）不再撑爆卡片 */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.approval-expand-icon {
-  color: var(--approval-text-dim);
-}
-
-.approval-card--compact .approval-header {
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
 }
 
 .approval-card--composer > div[id^="approval-details-"] {
@@ -838,7 +714,7 @@
 
 /* Message area */
 .approval-message {
-  padding: 0.25rem var(--approval-section-x) var(--approval-section-gap);
+  padding: var(--approval-section-y) var(--approval-section-x);
   overflow-x: hidden;
 }
 
@@ -940,8 +816,6 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
 }
 
 .approval-form--ask-human > div {
@@ -1220,7 +1094,16 @@
 
 /* ── Action buttons ── */
 .approval-actions {
-  padding: var(--approval-section-gap) var(--approval-section-x) 1rem;
+  padding: var(--approval-section-y) var(--approval-section-x);
+}
+
+.approval-actions button {
+  min-height: 2.75rem;
+}
+
+.approval-actions button:focus-visible {
+  outline: 2px solid var(--approval-accent);
+  outline-offset: -3px;
 }
 
 .approval-btn-submit {
@@ -1229,12 +1112,10 @@
   color: var(--approval-submit-text);
   font-weight: 600;
   border-radius: 0.625rem;
-  box-shadow: 0 1px 3px -1px color-mix(in srgb, var(--approval-accent) 30%, transparent);
 }
 
 .approval-btn-submit:hover:not(:disabled) {
   background-color: var(--approval-submit-hover);
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--approval-accent) 40%, transparent);
 }
 
 .approval-btn-cancel {

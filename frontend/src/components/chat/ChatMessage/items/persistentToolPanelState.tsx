@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { useTranslation } from "react-i18next";
 import {
   useCallback,
   useEffect,
@@ -73,10 +74,13 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 
 export function isPersistentToolPanelActive(panelKey: string): boolean {
   const snapshot = getRightPanelSnapshot();
-  return !snapshot.collapsed && snapshot.entries.some(
-    (entry) =>
-      entry.id === snapshot.activeId &&
-      entry.registryKey === `persistent:${panelKey}`,
+  return (
+    !snapshot.collapsed &&
+    snapshot.entries.some(
+      (entry) =>
+        entry.id === snapshot.activeId &&
+        entry.registryKey === `persistent:${panelKey}`,
+    )
   );
 }
 
@@ -116,6 +120,7 @@ export function closePersistentToolPanel(panelKey?: string): void {
 }
 
 interface LivePanelChrome {
+  title?: string;
   status: CollapsibleStatus;
   subtitle?: string;
   footer?: ReactNode;
@@ -130,6 +135,7 @@ function useLivePanelChrome(
   active: boolean,
   panelKey?: string,
 ): LivePanelChrome | null {
+  useTranslation();
   const toolCallId = panelKey?.startsWith("tool:")
     ? panelKey.slice("tool:".length)
     : null;
@@ -162,10 +168,12 @@ function useLivePanelChrome(
     ? subagentPanelStore.get(subagentId)
     : undefined;
   if (subagentData) {
-    const { panelStatus, subtitle } = buildSubagentPanelState(subagentData);
+    const { panelStatus, subtitle, formattedInput, formattedAgentName } =
+      buildSubagentPanelState(subagentData);
     return {
+      title: formattedAgentName,
       status: panelStatus,
-      subtitle: buildPanelSummary(subagentData.input),
+      subtitle: buildPanelSummary(formattedInput),
       footer: createSubagentPanelFooter(subtitle),
     };
   }
@@ -185,9 +193,12 @@ const PersistentToolPanelTab = memo(function PersistentToolPanelTab({
   const registryKey = panelRegistryKey(panel);
   const active = useSyncExternalStore(subscribeRightPanels, () => {
     const snapshot = getRightPanelSnapshot();
-    return !snapshot.collapsed && snapshot.entries.some(
-      (entry) =>
-        entry.id === snapshot.activeId && entry.registryKey === registryKey,
+    return (
+      !snapshot.collapsed &&
+      snapshot.entries.some(
+        (entry) =>
+          entry.id === snapshot.activeId && entry.registryKey === registryKey,
+      )
     );
   });
   const liveChrome = useLivePanelChrome(active, panel.panelKey);
@@ -220,7 +231,7 @@ const PersistentToolPanelTab = memo(function PersistentToolPanelTab({
       onClose={close}
       registryKey={`persistent:${panel.panelKey ?? panel.title}`}
       automatic={panel.auto}
-      title={panel.title}
+      title={liveChrome?.title ?? panel.title}
       icon={panel.icon}
       status={liveChrome?.status ?? panel.status}
       subtitle={liveChrome?.subtitle ?? panel.subtitle}

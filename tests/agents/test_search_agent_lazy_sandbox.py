@@ -962,15 +962,14 @@ async def test_search_stream_subagent_receives_public_workspace_before_handoff_i
     assert len(model.calls) >= 4
     main_prompt = "\n".join(content for _kind, content in model.calls[0])
     subagent_prompt = "\n".join(content for _kind, content in model.calls[2])
-    # Codex-style layering: the workspace path lives on the file-tool
-    # descriptions (framed <sandbox_workspace_context>), not in prompts.
-    assert "/workspace/session-1" not in main_prompt
-    # The subagent prompt may legitimately reference the handoff context
-    # file path; the runtime policy block itself must be gone.
-    assert "Sandbox Runtime" not in subagent_prompt
+    # Session metadata follows reusable system instructions instead of changing tool prefixes.
+    assert "/workspace/session-1" in main_prompt
+    assert "<sandbox_workspace_context>" in main_prompt
+    assert "/workspace/session-1" in subagent_prompt
+    assert "<sandbox_workspace_context>" in subagent_prompt
     assert model.tool_sets, "expected bound tool sets to be recorded"
-    assert any("/workspace/session-1" in tool_set for tool_set in model.tool_sets)
-    assert any("<sandbox_workspace_context>" in tool_set for tool_set in model.tool_sets)
+    assert all("/workspace/session-1" not in tool_set for tool_set in model.tool_sets)
+    assert all("<sandbox_workspace_context>" not in tool_set for tool_set in model.tool_sets)
     # 慢沙箱先答概念指引：每个含 execute 的工具绑定都必须带指引帧——
     # 主 agent 与子代理都要收到（子代理 system prompt 被 harness profile
     # 替换，工具描述是其唯一强信号通道）。

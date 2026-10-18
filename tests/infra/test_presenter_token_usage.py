@@ -2,6 +2,17 @@ from src.infra.writer.present import create_presenter
 from src.infra.writer.presenter_config import _extract_attachment_keys
 
 
+def test_read_denominator_certificate_does_not_make_missing_writes_priced():
+    presenter = create_presenter(session_id="s", agent_id="search", agent_name="Search")
+    data = presenter.present_token_usage(
+        input_tokens=100, output_tokens=5, cache_read_tokens=80, input_includes_cache=True
+    )["data"]
+    assert data["input_includes_cache"] is True
+    assert data["unknown_usage_fields"] == ["cache_creation_tokens"]
+    assert data["usage_incomplete"] is True
+    assert "cost_usd" not in data
+
+
 def test_present_token_usage_includes_model_identifiers() -> None:
     presenter = create_presenter(session_id="session-1", agent_id="search", agent_name="Search")
 
@@ -115,6 +126,23 @@ async def test_complete_writes_zero_token_usage_when_missing(monkeypatch) -> Non
     assert usage_events[0]["data"]["input_tokens"] == 0
     assert usage_events[0]["data"]["output_tokens"] == 0
     assert usage_events[0]["data"]["total_tokens"] == 0
+
+
+async def test_complete_checks_only_its_own_trace_durability(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    writer = _FakeDualWriter()
+    writer.flush_mongo_buffer = AsyncMock()
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+    await presenter.complete("completed")
+    writer.flush_mongo_buffer.assert_awaited_once_with(require_trace_id="trace-1")
 
 
 async def test_complete_writes_zero_token_usage_with_configured_model(monkeypatch) -> None:

@@ -62,6 +62,7 @@ export interface SessionEventsQuery {
   run_id?: string;
   exclude_run_id?: string;
   include_active_user_message?: boolean;
+  include_active_events?: boolean;
   compact_message_chunks?: boolean;
   include_approval_statuses?: boolean;
   /** 按 trace(run) 窗口读取：只取最新 N 轮（历史分页首屏） */
@@ -87,8 +88,9 @@ export interface PersistentGoal {
     | "completed"
     | "budget_limited"
     | "cleared";
-  limits: { max_turns: number; max_tokens: number; max_seconds: number };
+  stop_reason?: string | null;
   accounting: { turns: number; tokens: number | null };
+  run_accounting?: { run_id: string; completed: boolean }[];
   started_at: string | null;
   current_run_id: string | null;
 }
@@ -96,7 +98,6 @@ export interface PersistentGoal {
 export interface PersistentGoalRequest {
   objective: string;
   rubric: string;
-  limits?: Partial<PersistentGoal["limits"]>;
   expected_revision?: number;
 }
 
@@ -238,6 +239,9 @@ export function buildSessionEventsUrl(
   if (options?.include_active_user_message) {
     searchParams.set("include_active_user_message", "true");
   }
+  if (options?.include_active_events) {
+    searchParams.set("include_active_events", "true");
+  }
   if (options?.compact_message_chunks) {
     searchParams.set("compact_message_chunks", "true");
   }
@@ -282,6 +286,17 @@ export const sessionApi = {
       options,
     );
   },
+  async updatePersistentGoal(
+    sessionId: string,
+    payload: PersistentGoalRequest & { expected_revision: number },
+  ): Promise<{ goal: PersistentGoal }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/goal`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
   async putPersistentGoal(
     sessionId: string,
     data: PersistentGoalRequest,
@@ -352,6 +367,22 @@ export const sessionApi = {
   /**
    * Get all session events
    */
+  async getScheduledProgress(
+    sessionId: string,
+    signal?: AbortSignal,
+    runIds: string[] = [],
+  ): Promise<{ progress: unknown[] }> {
+    const query = new URLSearchParams();
+    runIds.forEach((runId) => query.append("run_id", runId));
+    const suffix = query.size ? `?${query}` : "";
+    return authFetch(
+      `${API_BASE}/api/scheduled-tasks/session/${encodeURIComponent(
+        sessionId,
+      )}/progress${suffix}`,
+      { signal },
+    );
+  },
+
   async getEvents(
     sessionId: string,
     options?: {

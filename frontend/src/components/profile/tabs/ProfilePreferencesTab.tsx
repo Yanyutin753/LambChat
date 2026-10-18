@@ -1,3 +1,4 @@
+import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { UpdateChannelSelect } from "../../update/UpdateChannelSelect";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useLanguagePreference } from "../../../hooks/useLanguagePreference";
@@ -169,6 +170,7 @@ function PreferencesContent() {
     useState<ThinkingLevel>(() => {
       // "off" 档已下线：历史存量值降级到最低档
       const stored = localStorage.getItem(DEFAULT_THINKING_LEVEL_STORAGE_KEY);
+      if (!stored) return "medium";
       if (
         stored === "low" ||
         stored === "medium" ||
@@ -472,6 +474,7 @@ function PreferencesContent() {
             <SelectRow
               label={t("profile.defaultModel")}
               value={selectedModelId}
+              placeholder={!selectedModelId ? t("common.default") : undefined}
               loading={
                 modelsLoading || modelsError || states.model === "saving"
               }
@@ -484,7 +487,19 @@ function PreferencesContent() {
               onSelect={handleModelChange}
               renderLabel={(id) => {
                 const m = availableModels.find((m) => m.id === id);
-                return m ? m.label : id;
+                return m ? (
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <ModelIconImg
+                      model={m.value}
+                      provider={m.provider}
+                      icon={m.icon}
+                      size={16}
+                    />
+                    {m.label}
+                  </span>
+                ) : (
+                  id
+                );
               }}
             >
               {renderSaveStatus("model", "profile.defaultModel", true)}

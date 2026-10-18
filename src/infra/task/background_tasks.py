@@ -68,7 +68,7 @@ def _request_options(metadata):
 def apply_background_restrictions(request, restrictions):
     for field in ("disabled_tools", "disabled_skills", "disabled_mcp_tools"):
         existing = getattr(request, field) or []
-        setattr(request, field, list(dict.fromkeys([*existing, *restrictions.get(field, [])])))
+        setattr(request, field, list(dict.fromkeys([*existing, *(restrictions.get(field) or [])])))
     for field in ("enabled_skills", "enabled_mcp_servers"):
         allowed = restrictions.get(field)
         if allowed is not None:

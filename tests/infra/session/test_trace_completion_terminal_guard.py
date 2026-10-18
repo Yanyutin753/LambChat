@@ -200,3 +200,25 @@ async def test_complete_trace_accepts_already_finalized_same_status(monkeypatch,
     storage, collection = _make_storage(monkeypatch, trace_doc)
     assert await storage.complete_trace("trace-1", status=status, ensure_token_usage=False) is True
     assert collection.doc == trace_doc
+
+
+@pytest.mark.parametrize("stored_status", ["cancelled", "completed", "error"])
+async def test_repeat_finalization_refreshes_late_usage_without_changing_terminal_status(
+    monkeypatch, stored_status
+):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from src.infra.session import trace_usage_log
+
+    storage, collection = _make_storage(
+        monkeypatch, {"trace_id": "trace-1", "status": stored_status, "event_revision": 9}
+    )
+    monkeypatch.setattr(writes_module, "_USAGE_LOGS_ENABLED", True)
+    refresh = AsyncMock()
+    monkeypatch.setattr(trace_usage_log, "_write_usage_log", refresh)
+    result = await storage.complete_trace("trace-1", status="cancelled", ensure_token_usage=False)
+    await asyncio.sleep(0)
+    assert result is (stored_status == "cancelled")
+    assert collection.doc["status"] == stored_status
+    refresh.assert_awaited_once_with("trace-1")

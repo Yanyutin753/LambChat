@@ -340,7 +340,10 @@ export async function reconnectSSE(
     streamingMessageIdRef.current ??
     [...messagesRef.current]
       .reverse()
-      .find((message) => message.role === "assistant")?.id ??
+      .find(
+        (message) =>
+          message.role === "assistant" && !message.metadata?.scheduledTaskId,
+      )?.id ??
     currentRId;
 
   if (!currentSessId || !currentRId) {

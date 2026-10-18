@@ -1,3 +1,4 @@
+import { ModelIconImg } from "../agent/modelIcon.tsx";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useId, useRef, useState } from "react";
 import { Bot, ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
@@ -86,7 +87,17 @@ export function TeamMemberCard({
     { value: "", label: t("team.followSessionModel", "跟随会话模型") },
     ...availableModels.map((model) => ({
       value: model.id,
-      label: <span className="font-serif">{model.label || model.value}</span>,
+      label: (
+        <span className="inline-flex min-w-0 items-center gap-2 font-serif">
+          <ModelIconImg
+            model={model.value}
+            provider={model.provider}
+            icon={model.icon}
+            size={18}
+          />
+          {model.label || model.value}
+        </span>
+      ),
     })),
   ];
 
@@ -149,9 +160,16 @@ export function TeamMemberCard({
                   <span className="font-serif">{agentLabel}</span>
                 </span>
                 <span className="team-member-card__model" title={modelLabel}>
-                  <InteractiveIcon>
+                  {selectedModel ? (
+                    <ModelIconImg
+                      model={selectedModel.value}
+                      provider={selectedModel.provider}
+                      icon={selectedModel.icon}
+                      size={14}
+                    />
+                  ) : (
                     <Cpu size={11} />
-                  </InteractiveIcon>
+                  )}
                   <span className="font-serif">{modelLabel}</span>
                 </span>
               </span>

@@ -45,14 +45,12 @@ from src.agents.core.subagent_prompts import (
 from src.agents.core.thinking import build_thinking_config
 from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
-from src.agents.search_agent.prompt import (
-    SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
-)
 from src.agents.team_agent import backend_setup
 from src.agents.team_agent.context import TeamAgentContext
 from src.agents.team_agent.member_config import (
     _build_member_agent_mode_sections,
     _safe_member_model_config_dict,
+    build_no_team_fallback_system_prompt,
     resolve_team_member_agent_id,
     resolve_team_member_model_config,
 )
@@ -69,6 +67,7 @@ from src.agents.team_agent.prompt import (
 from src.agents.team_agent.subagent_scope import create_team_subagent_resolver
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    ActivityReferenceMiddleware,
     ArtifactDeliveryMiddleware,
     EnvVarPromptMiddleware,
     MainAgentContextMiddleware,
@@ -106,13 +105,6 @@ logger = get_logger(__name__)
 # ============================================================================
 # 节点函数
 # ============================================================================
-
-
-def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
-    """Choose the single-agent fallback prompt when no explicit team is selected."""
-    if sandbox_active:
-        return SEARCH_SANDBOX_SYSTEM_PROMPT
-    return DEFAULT_SYSTEM_PROMPT
 
 
 async def resolve_runtime_team(
@@ -169,7 +161,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     selected_model = agent_options.get("model")
     model_id = agent_options.get("model_id")
     resolved_model_config = agent_options.get("_resolved_model_config")
-    thinking_config = build_thinking_config(agent_options)
+    thinking_config = build_thinking_config(agent_options, default_level="medium")
 
     # 获取附件
     attachments = state.get("attachments", [])
@@ -387,7 +379,14 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 mw.append(SandboxWorkspaceMiddleware(policy_text=subagent_runtime_section))
             mw.append(SandboxSlowRunMiddleware())
         append_memory_recall_middleware(
-            mw, settings.ENABLE_MEMORY, context.user_id, session_id, active_goal
+            mw,
+            settings.ENABLE_MEMORY,
+            context.user_id,
+            session_id,
+            active_goal,
+            tools=list(tool_context.filter_tools())
+            if tool_context is not None
+            else filtered_tool_list,
         )
         manager = (
             deferred_manager
@@ -615,6 +614,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     # ── 主代理中间件栈 ──
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
+    user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(
         0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
@@ -649,12 +649,30 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 user_id=context.user_id,
                 session_id=str(state.get("session_id") or "") or None,
                 active_goal=active_goal,
+                recall_available=any(
+                    getattr(tool, "name", "") == "memory_recall" for tool in filtered_tool_list
+                ),
             )
         )
     if sandbox_backend:
         user_middleware.append(
             EnvVarPromptMiddleware(
                 user_id=context.user_id or "default", additional_keys=runtime_env_keys
+            )
+        )
+        from src.infra.agent.middleware.sandbox_confirm import (
+            SandboxConfirmMiddleware,
+            _CloudPolicyResolver,
+        )
+        from src.infra.backend.local import WorkspaceAliasBackend
+
+        local_sandbox = isinstance(sandbox_backend, WorkspaceAliasBackend)
+        machine_id = agent_options.get("sandbox_machine_id") if local_sandbox else None
+        user_middleware.append(
+            SandboxConfirmMiddleware(
+                user_id=tenant_id,
+                policy_resolver=None if local_sandbox else _CloudPolicyResolver(tenant_id),
+                machine_id=machine_id or None,
             )
         )
         if sandbox_work_dir:
@@ -868,7 +886,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
-        async with isolated_nested_graph_run():
+        async with isolated_nested_graph_run(presenter=presenter):
             from src.infra.agent.recovery_guard import guard_graph_recovery
 
             await guard_graph_recovery(inner_graph, inner_config)
@@ -884,17 +902,22 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 hitl_interrupt_supported.reset(token_supported)
     finally:
         current_task = asyncio.current_task()
-        await subagent_sessions.close(
-            preserve_approvals=current_task is None or not current_task.cancelling()
-        )
-        await event_processor.flush()
-        await emit_token_usage(
-            event_processor,
-            presenter,
-            run_started_at,
-            model_id=model_id,
-            model=selected_model,
-        )
+        try:
+            await subagent_sessions.close(
+                preserve_approvals=current_task is None or not current_task.cancelling()
+            )
+        finally:
+            try:
+                await event_processor.drain_activity_references()
+                await event_processor.flush()
+            finally:
+                await emit_token_usage(
+                    event_processor,
+                    presenter,
+                    run_started_at,
+                    model_id=model_id,
+                    model=selected_model,
+                )
     logger.info("[TeamAgent] astream_events completed")
 
     # 检测 interrupt 挂起（issue #218）：图存在待恢复任务时标记 WAITING_HUMAN，

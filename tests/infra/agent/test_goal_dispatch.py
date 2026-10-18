@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.infra.goal_continuation import dispatch_goal
 from src.infra.persistent_goal import GoalService
 from src.kernel.schemas.persistent_goal import PersistentGoalCreate
@@ -259,3 +261,123 @@ async def test_scanner_uncertain_finished_run_publishes_durable_blocked_goal(mon
     )
     assert len(observed) == 1
     assert observed[0].status == "blocked"
+
+
+def test_continuation_prompt_carries_remaining_gaps_and_budget():
+    from src.infra.goal_continuation import build_continuation_prompt
+    from src.kernel.schemas.persistent_goal import PersistentGoal
+
+    goal = PersistentGoal(session_id="s", user_id="u", objective="finish docs", rubric="verified")
+    goal.accounting.turns = 2
+    goal.accounting.tokens = 1250
+    goal.last_verdict = {"criteria": [{"passed": False, "gap": "Check the example command"}]}
+    prompt = build_continuation_prompt(goal)
+    assert "Check the example command" in prompt
+    assert '"turn": 3' in prompt
+    assert "1250" in prompt
+    assert "Do not repeat" in prompt
+
+
+async def test_busy_admission_releases_dispatch_claim_without_changing_reserved_run():
+    from unittest.mock import AsyncMock
+
+    from src.infra.scheduler.conversation import ConversationBusyError
+
+    service = GoalService(Store())
+    value = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="checked")
+    )
+    result = await dispatch_goal(
+        "s",
+        "u",
+        value.version,
+        service=service,
+        load_session=AsyncMock(return_value=SimpleNamespace(user_id="u", metadata={})),
+        load_user=AsyncMock(return_value=SimpleNamespace(permissions=["chat:write"])),
+        has_pending=AsyncMock(return_value=False),
+        submit=AsyncMock(side_effect=ConversationBusyError()),
+    )
+    assert result is None
+    current = await service.get("s", "u")
+    assert current.current_run_id
+    assert current.dispatch_token is None
+    assert current.intent_submitted is False
+
+
+async def test_deleted_owner_blocks_goal_instead_of_retrying_forever(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    service = GoalService(Store())
+    value = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="checked")
+    )
+    publish = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_continuation.publish_goal", publish)
+    await dispatch_goal(
+        "s",
+        "u",
+        value.version,
+        service=service,
+        load_session=AsyncMock(return_value=SimpleNamespace(user_id="u", metadata={})),
+        load_user=AsyncMock(side_effect=AppError(ErrorCode.USER_NOT_FOUND)),
+        has_pending=AsyncMock(return_value=False),
+    )
+    assert (await service.get("s", "u")).status == "blocked"
+    publish.assert_awaited_once()
+
+
+async def test_temporary_authority_outage_keeps_goal_active():
+    from unittest.mock import AsyncMock
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    service = GoalService(Store())
+    value = await service.create(
+        "s", "u", PersistentGoalCreate(objective="Finish the work", rubric="Verified")
+    )
+    with pytest.raises(AppError):
+        await dispatch_goal(
+            "s",
+            "u",
+            value.version,
+            service=service,
+            load_session=AsyncMock(return_value=SimpleNamespace(user_id="u", metadata={})),
+            load_user=AsyncMock(side_effect=AppError(ErrorCode.SERVICE_UNAVAILABLE)),
+            has_pending=AsyncMock(return_value=False),
+        )
+    current = await service.get("s", "u")
+    assert current.status == "active"
+    assert current.current_run_id is None
+
+
+async def test_automatic_goal_binding_carries_trusted_turn_origin():
+    from src.infra.goal_continuation import GOAL_DISPATCH
+    from src.infra.goal_runtime import bind_submission_goal
+
+    service = GoalService(Store())
+    value = await service.create(
+        "s", "u", PersistentGoalCreate(objective="finish", rubric="checked")
+    )
+    reserved = await service.reserve("s", "u", value.version)
+    token = GOAL_DISPATCH.set(reserved)
+    try:
+        bound, run_id = await bind_submission_goal(
+            SimpleNamespace(goal=None),
+            {"persistent_goal_id": value.id},
+            "s",
+            "u",
+            "unused",
+            service=service,
+        )
+    finally:
+        GOAL_DISPATCH.reset(token)
+    assert run_id == reserved.current_run_id
+    assert bound["max_iterations"] == 1
+    assert bound["_continuation"] == {
+        "goal_id": value.id,
+        "objective": "finish",
+        "turn": 1,
+        "initial": True,
+    }

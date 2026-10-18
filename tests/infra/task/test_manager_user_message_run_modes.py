@@ -80,6 +80,7 @@ async def test_submit_persists_auto_run_mode_on_initial_user_message(
             "schedule_search_index": True,
             "run_modes": ["auto"],
             "assistant_identity": None,
+            "goal_continuation": None,
         }
     ]
 
@@ -121,6 +122,7 @@ async def test_submit_persists_goal_run_mode_on_initial_user_message(
             "schedule_search_index": True,
             "run_modes": ["goal"],
             "assistant_identity": None,
+            "goal_continuation": None,
         }
     ]
 

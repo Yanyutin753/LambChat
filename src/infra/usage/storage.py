@@ -8,8 +8,24 @@ Usage storage layer.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from pymongo.errors import DuplicateKeyError
+
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
+from src.infra.usage.formatting import (
+    _aggregate_cache_unknown_requests,
+    _as_float,
+    _as_int,
+    _empty_dashboard,
+    _empty_stats,
+    _format_dashboard,
+)
+from src.infra.usage.formatting import (
+    _cache_read_share as _cache_read_share,
+)
+from src.infra.usage.formatting import (
+    _format_ranking_item as _format_ranking_item,
+)
 from src.infra.utils.datetime import parse_iso
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
@@ -18,6 +34,18 @@ logger = get_logger(__name__)
 
 USAGE_LOG_LIMIT_MAX = 200
 USAGE_RANKING_LIMIT = 8
+COMPLETE_USAGE_CONDITION = {"$eq": ["$usage_incomplete", False]}
+PRICED_USAGE_CONDITION = {
+    "$and": [
+        {"$eq": ["$cost_available", True]},
+        COMPLETE_USAGE_CONDITION,
+        {"$eq": ["$input_includes_cache", True]},
+    ]
+}
+CACHE_METRICS_CONDITION = {"$eq": ["$cache_metrics_available", True]}
+CERTIFIED_CACHE_METRICS_CONDITION = {
+    "$and": [CACHE_METRICS_CONDITION, {"$eq": ["$input_includes_cache", True]}]
+}
 SCHEDULED_USAGE_CONDITION = {
     "$or": [
         {"$eq": ["$source", "scheduled_task"]},
@@ -29,34 +57,6 @@ SCHEDULED_USAGE_CONDITION = {
         },
     ]
 }
-
-
-def _as_int(value: Any) -> int:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return max(value, 0)
-    if isinstance(value, float):
-        return max(int(value), 0)
-    if isinstance(value, str):
-        try:
-            return max(int(float(value)), 0)
-        except ValueError:
-            return 0
-    return 0
-
-
-def _as_float(value: Any) -> float:
-    if isinstance(value, bool):
-        return float(value)
-    if isinstance(value, (int, float)):
-        return max(float(value), 0.0)
-    if isinstance(value, str):
-        try:
-            return max(float(value), 0.0)
-        except ValueError:
-            return 0.0
-    return 0.0
 
 
 def _as_datetime(value: Any) -> datetime | None:
@@ -200,7 +200,7 @@ class UsageStorage:
 
         Args:
             trace_doc: trace 元数据（不需要包含完整 events）
-            usage_data: 最后一条 token:usage 事件的 data；缺失时按 0 处理
+            usage_data: 最后一条 token:usage；缺失计数只保留占位下界，不证明零费用
             error_data: 最后一条 error 事件的 data；失败任务记录原因
 
         Returns:
@@ -228,6 +228,39 @@ class UsageStorage:
         error_message = _as_str(error_data.get("error"))[:300]
         error_type = _as_str(error_data.get("type"))
         status = trace_doc.get("status", "unknown")
+        token_fields = (
+            "input_tokens",
+            "output_tokens",
+            "cache_read_tokens",
+            "cache_creation_tokens",
+        )
+        fields = {*token_fields, "total_tokens"}
+        supplied_unknown = usage_data.get("unknown_usage_fields")
+        if isinstance(supplied_unknown, list) and all(
+            isinstance(key, str) and key in fields for key in supplied_unknown
+        ):
+            unknown_fields = set(supplied_unknown)
+        elif usage_data.get("usage_incomplete") is False:
+            unknown_fields = set()
+        else:
+            unknown_fields = set(fields)
+        for key in token_fields:
+            if (
+                not isinstance(usage_data.get(key), int)
+                or isinstance(usage_data.get(key), bool)
+                or usage_data[key] < 0
+            ):
+                unknown_fields.add(key)
+        if usage_data.get("usage_incomplete") is True and not unknown_fields:
+            unknown_fields.update(fields)
+        usage_incomplete = bool(unknown_fields)
+        reported_rates = usage_data.get("cost_rates")
+        pricing_incomplete = isinstance(reported_rates, dict) and (
+            _as_int(usage_data.get("cache_read_tokens")) > 0
+            and reported_rates.get("cache_read") is None
+            or _as_int(usage_data.get("cache_creation_tokens")) > 0
+            and reported_rates.get("cache_write") is None
+        )
         if status == "cancelled" and not error_message:
             # 取消路径竞态：API 副本先终结 trace、worker 的 error 事件后落库时
             # 没有 error 事件可读——从 trace 元数据兜底，面板才不会显示空原因
@@ -237,6 +270,7 @@ class UsageStorage:
 
         doc = {
             "trace_id": trace_id,
+            "trace_event_revision": _as_int(trace_doc.get("event_revision", 0)),
             "session_id": trace_doc.get("session_id", ""),
             "run_id": trace_doc.get("run_id", ""),
             "user_id": trace_doc.get("user_id", ""),
@@ -263,13 +297,33 @@ class UsageStorage:
             )
             or _merge_metadata_value(metadata, session_metadata, "trigger_type"),
             "model": usage_data.get("model") or metadata.get("model") or "",
+            "model_id": usage_data.get("model_id") or metadata.get("model_id") or "",
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
             "cache_creation_tokens": _as_int(usage_data.get("cache_creation_tokens", 0)),
             "cache_read_tokens": _as_int(usage_data.get("cache_read_tokens", 0)),
             "cost_usd": _as_float(usage_data.get("cost_usd", 0.0)),
-            "cost_available": "cost_usd" in usage_data and usage_data["cost_usd"] is not None,
+            "usage_incomplete": usage_incomplete,
+            "unknown_usage_fields": sorted(unknown_fields),
+            "input_includes_cache": usage_data.get("input_includes_cache") is True,
+            "cache_metrics_available": not {
+                "input_tokens",
+                "cache_read_tokens",
+            }.intersection(unknown_fields)
+            and (
+                input_tokens > 0
+                and usage_data.get("cache_read_tokens") == 0
+                or usage_data.get("input_includes_cache") is True
+                and 0 <= _as_int(usage_data.get("cache_read_tokens")) <= input_tokens
+            ),
+            "cost_available": (
+                "cost_usd" in usage_data
+                and usage_data["cost_usd"] is not None
+                and not usage_incomplete
+                and not pricing_incomplete
+                and usage_data.get("input_includes_cache") is True
+            ),
             "duration": _as_float(usage_data.get("duration", 0.0)),
             "started_at": _as_datetime(trace_doc.get("started_at")),
             "completed_at": _as_datetime(trace_doc.get("completed_at")),
@@ -282,11 +336,20 @@ class UsageStorage:
 
         try:
             await self.collection.update_one(
-                {"trace_id": trace_id},
+                {
+                    "trace_id": trace_id,
+                    "$or": [
+                        {"trace_event_revision": {"$exists": False}},
+                        {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
+                    ],
+                },
                 {"$set": doc},
                 upsert=True,
             )
             return True
+        except DuplicateKeyError:
+            # A newer terminal snapshot won the unique trace_id upsert race.
+            return False
         except Exception as e:
             logger.error(f"Failed to upsert usage log for trace {trace_id}: {e}")
             return False
@@ -332,11 +395,11 @@ class UsageStorage:
             # 并行执行 count + stats + items
             import asyncio
 
-            count_task = asyncio.create_task(self._count_and_stats(query))
-            items_task = asyncio.create_task(self._fetch_items(query, skip, limit))
-
-            total, stats = await count_task
-            items = await items_task
+            async with asyncio.TaskGroup() as tasks:
+                count_task = tasks.create_task(self._count_and_stats(query))
+                items_task = tasks.create_task(self._fetch_items(query, skip, limit))
+            total, stats = count_task.result()
+            items = items_task.result()
 
             return items, total, stats
         except AppError:
@@ -344,7 +407,7 @@ class UsageStorage:
             raise
         except Exception as e:
             logger.error(f"Failed to list usage logs: {e}")
-            return [], 0, _empty_stats()
+            raise
 
     async def get_usage_stats_only(
         self,
@@ -366,7 +429,7 @@ class UsageStorage:
             raise
         except Exception as e:
             logger.error(f"Failed to aggregate usage stats (stats-only): {e}")
-            return _empty_stats()
+            raise
 
     def _build_query(
         self,
@@ -428,9 +491,23 @@ class UsageStorage:
                                 "total_duration": {"$sum": "$duration"},
                                 "total_tool_calls": {"$sum": "$tool_calls"},
                                 "max_duration": {"$max": "$duration"},
-                                "total_cost_usd": {"$sum": "$cost_usd"},
+                                "total_cost_usd": {
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}
+                                },
                                 "unpriced_requests": {
-                                    "$sum": {"$cond": [{"$ne": ["$cost_available", True]}, 1, 0]}
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
+                                },
+                                "priced_requests": {
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
+                                },
+                                "usage_unknown_requests": {
+                                    "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
+                                },
+                                "cache_unknown_requests": {
+                                    "$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}
+                                },
+                                "cache_uncertified_requests": {
+                                    "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
                                 },
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
@@ -474,7 +551,24 @@ class UsageStorage:
                                 "cache_read_tokens": {"$sum": "$cache_read_tokens"},
                                 "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
                                 "duration": {"$sum": "$duration"},
-                                "cost_usd": {"$sum": "$cost_usd"},
+                                "cost_usd": {
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}
+                                },
+                                "priced_requests": {
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
+                                },
+                                "unpriced_requests": {
+                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
+                                },
+                                "usage_unknown_requests": {
+                                    "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
+                                },
+                                "cache_unknown_requests": {
+                                    "$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}
+                                },
+                                "cache_uncertified_requests": {
+                                    "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
+                                },
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
                                 },
@@ -522,6 +616,7 @@ class UsageStorage:
                 return _format_dashboard(doc)
         except Exception as e:
             logger.error(f"Failed to aggregate usage dashboard: {e}")
+            raise
         return _empty_dashboard()
 
     def _ranking_pipeline(
@@ -547,24 +642,36 @@ class UsageStorage:
             "_id": group_id,
             "requests": {"$sum": 1},
             "tokens": {"$sum": "$total_tokens"},
+            "input_tokens": {"$sum": "$input_tokens"},
+            "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+            "cache_read_tokens": {"$sum": "$cache_read_tokens"},
             "duration": {"$sum": "$duration"},
-            "cost_usd": {"$sum": "$cost_usd"},
+            "cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+            "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
+            "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
+            "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
+            "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
+            "cache_uncertified_requests": {
+                "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
+            },
         }
         if name_field:
             group["name"] = {"$first": f"${name_field}"}
         if include_cache_metrics:
             group.update(
                 {
-                    "input_tokens": {"$sum": "$input_tokens"},
-                    "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
-                    "cache_read_tokens": {"$sum": "$cache_read_tokens"},
                     "zero_cache_requests": {
                         "$sum": {
                             "$cond": [
                                 {
-                                    "$lte": [
-                                        {"$ifNull": ["$cache_read_tokens", 0]},
-                                        0,
+                                    "$and": [
+                                        CACHE_METRICS_CONDITION,
+                                        {
+                                            "$lte": [
+                                                {"$ifNull": ["$cache_read_tokens", 0]},
+                                                0,
+                                            ]
+                                        },
                                     ]
                                 },
                                 1,
@@ -601,9 +708,13 @@ class UsageStorage:
                     "total_cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
                     "total_cache_read_tokens": {"$sum": "$cache_read_tokens"},
                     "total_duration": {"$sum": "$duration"},
-                    "total_cost_usd": {"$sum": "$cost_usd"},
-                    "unpriced_requests": {
-                        "$sum": {"$cond": [{"$ne": ["$cost_available", True]}, 1, 0]}
+                    "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+                    "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
+                    "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
+                    "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
+                    "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
+                    "cache_uncertified_requests": {
+                        "$sum": {"$cond": [CERTIFIED_CACHE_METRICS_CONDITION, 0, 1]}
                     },
                 }
             },
@@ -624,11 +735,17 @@ class UsageStorage:
                         "total_duration": doc.get("total_duration", 0.0),
                         "total_cost_usd": doc.get("total_cost_usd", 0.0),
                         "unpriced_requests": doc.get("unpriced_requests", 0),
+                        "priced_requests": doc.get("priced_requests", 0),
+                        "usage_unknown_requests": doc.get("usage_unknown_requests", 0),
+                        "cache_unknown_requests": _aggregate_cache_unknown_requests(
+                            doc, "total_cache_read_tokens"
+                        ),
                     }
                 )
                 break  # only one group result
         except Exception as e:
             logger.error(f"Failed to aggregate usage stats: {e}")
+            raise
 
         return total, stats
 
@@ -643,35 +760,62 @@ class UsageStorage:
                 .skip(skip)
                 .limit(limit)
             )
-            return await cursor.to_list(length=limit)
+            items = await cursor.to_list(length=limit)
+            for item in items:
+                item["cost_available"] = (
+                    item.get("cost_available") is True
+                    and item.get("usage_incomplete") is False
+                    and item.get("input_includes_cache") is True
+                )
+                item["usage_incomplete"] = item.get("usage_incomplete") is not False
+            return items
         except Exception as e:
             logger.error(f"Failed to fetch usage items: {e}")
-            return []
+            raise
 
-    async def list_unpriced_usage_logs(self, *, limit: int = 500) -> List[Dict[str, Any]]:
+    async def list_unpriced_usage_logs(
+        self, *, limit: int = 500, exclude_trace_ids: set[str] | None = None
+    ) -> List[Dict[str, Any]]:
         """读取未计价（cost_available != True）的记录，按时间升序分批。
 
         回填用：已回填的记录不再命中查询，重复执行天然幂等。
         """
         try:
-            cursor = (
-                self.collection.find({"cost_available": {"$ne": True}}, {"_id": 0})
-                .sort("started_at", 1)
-                .limit(limit)
-            )
+            query: Dict[str, Any] = {"cost_available": {"$ne": True}}
+            if exclude_trace_ids:
+                query["trace_id"] = {"$nin": list(exclude_trace_ids)}
+            cursor = self.collection.find(query, {"_id": 0}).sort("started_at", 1).limit(limit)
             return await cursor.to_list(length=limit)
         except Exception as e:
             logger.error(f"Failed to list unpriced usage logs: {e}")
-            return []
+            raise
 
-    async def update_usage_cost(self, trace_id: str, cost_usd: float) -> bool:
+    async def update_usage_cost(
+        self, trace_id: str, cost_usd: float, *, expected_usage: Dict[str, Any] | None = None
+    ) -> bool:
         """回填单条记录的 USD 费用快照。"""
         try:
-            await self.collection.update_one(
-                {"trace_id": trace_id},
+            query = {
+                "trace_id": trace_id,
+                "cost_available": {"$ne": True},
+                "usage_incomplete": False,
+                "input_includes_cache": {"$eq": True, "$type": "bool"},
+            }
+            if expected_usage is not None:
+                for key in (
+                    "input_tokens",
+                    "output_tokens",
+                    "cache_read_tokens",
+                    "cache_creation_tokens",
+                ):
+                    query[key] = expected_usage[key]
+                query["model"] = expected_usage.get("model")
+                query["model_id"] = expected_usage.get("model_id")
+            result = await self.collection.update_one(
+                query,
                 {"$set": {"cost_usd": cost_usd, "cost_available": True}},
             )
-            return True
+            return bool(result.matched_count)
         except Exception as e:
             logger.error(f"Failed to update usage cost for trace {trace_id}: {e}")
             return False
@@ -710,169 +854,6 @@ class UsageStorage:
             logger.error(f"Failed to get user usage summary: {e}")
 
         return summary
-
-
-def _empty_stats() -> Dict[str, Any]:
-    return {
-        "total_requests": 0,
-        "total_input_tokens": 0,
-        "total_output_tokens": 0,
-        "total_tokens": 0,
-        "total_cache_creation_tokens": 0,
-        "total_cache_read_tokens": 0,
-        "total_duration": 0.0,
-        "total_cost_usd": 0.0,
-        "unpriced_requests": 0,
-    }
-
-
-def _cache_read_share(
-    input_tokens: int, cache_read_tokens: int, cache_creation_tokens: int
-) -> float:
-    """缓存命中率：分母取 max(input, cache_read+cache_creation)。
-
-    provider 口径不一：部分（如 Anthropic 协议）的 input_tokens 不含缓存 token，
-    裸除法会低估甚至除零；统一取两者较大值，并把结果 clamp 到 ≤1。
-    """
-    effective_input = max(input_tokens, cache_read_tokens + cache_creation_tokens)
-    if effective_input <= 0:
-        return 0.0
-    return min(cache_read_tokens / effective_input, 1.0)
-
-
-def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
-    item_id = str(doc.get("_id") or "")
-    input_tokens = _as_int(doc.get("input_tokens"))
-    cache_read_tokens = _as_int(doc.get("cache_read_tokens"))
-    cache_creation_tokens = _as_int(doc.get("cache_creation_tokens"))
-    return {
-        "id": item_id,
-        "name": str(doc.get("name") or item_id or "Unknown"),
-        "requests": _as_int(doc.get("requests")),
-        "tokens": _as_int(doc.get("tokens")),
-        "duration": _as_float(doc.get("duration")),
-        "cost_usd": _as_float(doc.get("cost_usd")),
-        "input_tokens": input_tokens,
-        "cache_creation_tokens": cache_creation_tokens,
-        "cache_read_tokens": cache_read_tokens,
-        "cache_read_share": _cache_read_share(
-            input_tokens, cache_read_tokens, cache_creation_tokens
-        ),
-        "zero_cache_requests": _as_int(doc.get("zero_cache_requests")),
-    }
-
-
-def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
-    summary_doc = (doc.get("summary") or [{}])[0] if isinstance(doc.get("summary"), list) else {}
-    total_requests = _as_int(summary_doc.get("total_requests"))
-    successful_requests = _as_int(summary_doc.get("successful_requests"))
-    total_tokens = _as_int(summary_doc.get("total_tokens"))
-    total_input_tokens = _as_int(summary_doc.get("total_input_tokens"))
-    total_cache_read_tokens = _as_int(summary_doc.get("total_cache_read_tokens"))
-    total_cache_creation_tokens = _as_int(summary_doc.get("total_cache_creation_tokens"))
-    total_duration = _as_float(summary_doc.get("total_duration"))
-    scheduled_runs = _as_int(summary_doc.get("scheduled_runs"))
-    total_tool_calls = _as_int(summary_doc.get("total_tool_calls"))
-    failed_requests = _as_int(summary_doc.get("failed_requests"))
-    cancelled_requests = _as_int(summary_doc.get("cancelled_requests"))
-    daily_items = [
-        {
-            "date": str(item.get("_id") or ""),
-            "requests": _as_int(item.get("requests")),
-            "tokens": _as_int(item.get("tokens")),
-            "duration": _as_float(item.get("duration")),
-            "cost_usd": _as_float(item.get("cost_usd")),
-            "scheduled_runs": _as_int(item.get("scheduled_runs")),
-            "cancelled_requests": _as_int(item.get("cancelled_requests")),
-            "failed_requests": _as_int(item.get("failed_requests")),
-            "tool_calls": _as_int(item.get("tool_calls")),
-            "input_tokens": _as_int(item.get("input_tokens")),
-            "cache_creation_tokens": _as_int(item.get("cache_creation_tokens")),
-            "cache_read_tokens": _as_int(item.get("cache_read_tokens")),
-            "cache_read_share": _cache_read_share(
-                _as_int(item.get("input_tokens")),
-                _as_int(item.get("cache_read_tokens")),
-                _as_int(item.get("cache_creation_tokens")),
-            ),
-        }
-        for item in doc.get("daily", [])
-        if item.get("_id")
-    ]
-    peak_day = max(
-        daily_items,
-        key=lambda item: (item["tokens"], item["requests"], item["duration"]),
-        default=None,
-    )
-    summary = {
-        "total_requests": total_requests,
-        "total_tokens": total_tokens,
-        "total_input_tokens": total_input_tokens,
-        "total_output_tokens": _as_int(summary_doc.get("total_output_tokens")),
-        "total_cache_read_tokens": total_cache_read_tokens,
-        "total_duration": total_duration,
-        "total_tool_calls": total_tool_calls,
-        "total_cost_usd": _as_float(summary_doc.get("total_cost_usd")),
-        "unpriced_requests": _as_int(summary_doc.get("unpriced_requests")),
-        "scheduled_runs": scheduled_runs,
-        "failed_requests": failed_requests,
-        "cancelled_requests": cancelled_requests,
-        "success_rate": (successful_requests / total_requests) if total_requests else 0.0,
-        "avg_tokens_per_request": (total_tokens / total_requests) if total_requests else 0.0,
-        "avg_duration_per_request": (total_duration / total_requests) if total_requests else 0.0,
-        "scheduled_share": (scheduled_runs / total_requests) if total_requests else 0.0,
-        "cache_read_share": _cache_read_share(
-            total_input_tokens, total_cache_read_tokens, total_cache_creation_tokens
-        ),
-        "tool_calls_per_request": ((total_tool_calls / total_requests) if total_requests else 0.0),
-        "max_duration": _as_float(summary_doc.get("max_duration")),
-        "peak_day": peak_day,
-    }
-    return {
-        "summary": summary,
-        "daily": daily_items,
-        "top_agents": [_format_ranking_item(item) for item in doc.get("agents", [])],
-        "top_teams": [_format_ranking_item(item) for item in doc.get("teams", [])],
-        "top_personas": [_format_ranking_item(item) for item in doc.get("personas", [])],
-        "top_models": [_format_ranking_item(item) for item in doc.get("models", [])],
-        "top_users": [_format_ranking_item(item) for item in doc.get("users", [])],
-        "sources": [_format_ranking_item(item) for item in doc.get("sources", [])],
-        "triggers": [_format_ranking_item(item) for item in doc.get("triggers", [])],
-    }
-
-
-def _empty_dashboard() -> Dict[str, Any]:
-    return {
-        "summary": {
-            "total_requests": 0,
-            "total_tokens": 0,
-            "total_input_tokens": 0,
-            "total_output_tokens": 0,
-            "total_cache_read_tokens": 0,
-            "total_duration": 0.0,
-            "total_tool_calls": 0,
-            "total_cost_usd": 0.0,
-            "unpriced_requests": 0,
-            "scheduled_runs": 0,
-            "failed_requests": 0,
-            "cancelled_requests": 0,
-            "success_rate": 0.0,
-            "avg_tokens_per_request": 0.0,
-            "avg_duration_per_request": 0.0,
-            "scheduled_share": 0.0,
-            "cache_read_share": 0.0,
-            "tool_calls_per_request": 0.0,
-            "max_duration": 0.0,
-            "peak_day": None,
-        },
-        "daily": [],
-        "top_agents": [],
-        "top_teams": [],
-        "top_personas": [],
-        "top_models": [],
-        "top_users": [],
-        "sources": [],
-        "triggers": [],
-    }
 
 
 def get_usage_storage() -> UsageStorage:

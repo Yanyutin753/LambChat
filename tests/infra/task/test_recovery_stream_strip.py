@@ -77,7 +77,7 @@ async def test_strip_removes_only_terminal_events(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_strip_returns_zero_and_swallows_redis_errors(monkeypatch):
+async def test_strip_propagates_redis_errors_for_retryable_admission(monkeypatch):
     class _BrokenRedis:
         async def xrange(self, *args, **kwargs):
             raise RuntimeError("redis down")
@@ -88,9 +88,8 @@ async def test_strip_returns_zero_and_swallows_redis_errors(monkeypatch):
     )
     service = _make_service()
 
-    removed = await service._strip_terminal_stream_events("session-1", "run-1")
-
-    assert removed == 0
+    with pytest.raises(RuntimeError, match="redis down"):
+        await service._strip_terminal_stream_events("session-1", "run-1")
 
 
 @pytest.mark.asyncio

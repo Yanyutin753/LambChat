@@ -32,6 +32,7 @@ class _FakePresenter:
         enabled_skills=None,
         attachment_references_claimed: bool = False,
         run_modes: list[str] | None = None,
+        goal_continuation: dict | None = None,
     ) -> None:
         self.emitted_user_messages.append(
             {

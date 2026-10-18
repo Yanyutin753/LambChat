@@ -567,12 +567,14 @@ class EventPresenterMixin:
         output_tokens: int = 0,
         total_tokens: int = 0,
         duration: float = 0.0,
-        cache_creation_tokens: int = 0,
-        cache_read_tokens: int = 0,
+        cache_creation_tokens: int | None = None,
+        cache_read_tokens: int | None = None,
         model_id: str | None = None,
         model: str | None = None,
         cost: Any = None,
         rates: Any = None,
+        unknown_usage_fields: list[str] | None = None,
+        input_includes_cache: bool = False,
     ) -> Dict[str, Any]:
         """输出 Token 使用统计
 
@@ -595,17 +597,25 @@ class EventPresenterMixin:
             "duration": duration,
             "timestamp": utc_now_iso(),
         }
-        # 添加缓存token统计（如果有）
-        if cache_creation_tokens > 0:
+        unknown = set(unknown_usage_fields or [])
+        if cache_creation_tokens is None:
+            unknown.add("cache_creation_tokens")
+        if cache_read_tokens is None:
+            unknown.add("cache_read_tokens")
+        data["usage_incomplete"] = bool(unknown)
+        data["unknown_usage_fields"] = sorted(unknown)
+        if input_includes_cache:
+            data["input_includes_cache"] = True
+        if cache_creation_tokens is not None:
             data["cache_creation_tokens"] = cache_creation_tokens
-        if cache_read_tokens > 0:
+        if cache_read_tokens is not None:
             data["cache_read_tokens"] = cache_read_tokens
         if model_id:
             data["model_id"] = model_id
         if model:
             data["model"] = model
         # 金额字段仅在可计价时携带，前端据此区分「未计价」与「0 美元」
-        if cost is not None:
+        if cost is not None and not unknown:
             data["cost_usd"] = cost.total_usd
             data["cost_breakdown"] = cost.to_event_data()
         if rates is not None:

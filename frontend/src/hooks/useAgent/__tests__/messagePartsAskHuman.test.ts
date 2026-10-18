@@ -38,6 +38,28 @@ describe("clearAllLoadingStates ask-human behavior", () => {
 });
 
 describe("hasPendingAskHuman", () => {
+  it("treats a sandbox command awaiting confirmation as a human wait, not an interrupted answer", () => {
+    expect(
+      hasPendingAskHuman([
+        { ...pendingAskHuman, name: "execute", awaitingConfirmation: true },
+      ]),
+    ).toBe(true);
+    expect(
+      hasPendingAskHuman([
+        { ...pendingAskHuman, name: "execute", awaitingConfirmation: false },
+      ]),
+    ).toBe(false);
+    expect(
+      hasPendingAskHuman([
+        {
+          ...pendingAskHuman,
+          name: "execute",
+          awaitingConfirmation: true,
+          isPending: false,
+        },
+      ]),
+    ).toBe(false);
+  });
   it("finds pending ask-human calls nested inside a subagent", () => {
     expect(
       hasPendingAskHuman([

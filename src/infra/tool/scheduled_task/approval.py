@@ -1,10 +1,13 @@
 """Human-in-the-loop approval flow for scheduled-task creation."""
 
+import asyncio
 from typing import Any
 
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
+from src.infra.storage.mongodb import get_approval_storage
 from src.infra.team.manager import TeamManager
+from src.infra.utils.datetime import to_iso
 
 logger = get_logger(__name__)
 
@@ -31,7 +34,7 @@ def _format_approval_message(preview: dict[str, Any]) -> str:
         f"| **Agent** | `{preview['agent_id']}` |\n"
         f"| **Schedule** | {preview['schedule']} |\n"
         f"| **Run immediately** | {immediate} |\n"
-        f"| **Timeout** | {preview['timeout_seconds']}s |\n"
+        "| **Execution time** | Unlimited |\n"
         "\n"
         f"{preview['effect']}\n\n"
         "**Prompt sent on each run:**\n\n"
@@ -124,6 +127,7 @@ async def _send_scheduled_task_approval_event(
     session_id: str | None,
     run_id: str | None,
     timeout: int,
+    expires_at: str | None = None,
     trace_id: str | None = None,
     preview: dict[str, Any] | None = None,
 ) -> None:
@@ -137,6 +141,7 @@ async def _send_scheduled_task_approval_event(
         "type": "confirm",
         "fields": [],
         "timeout": timeout,
+        "expires_at": expires_at,
     }
     if preview is not None:
         # 前端实时路径只从事件 data 取 metadata；缺失会退回通用 Markdown
@@ -177,7 +182,9 @@ async def _send_scheduled_task_resolved_event(
         return
 
     success = status == "approved"
-    result_status = "success" if success else ("timeout" if status == "timeout" else "rejected")
+    result_status = (
+        "success" if success else (status if status in ("timeout", "cancelled") else "rejected")
+    )
     try:
         from src.infra.session.dual_writer import get_dual_writer
         from src.infra.utils.datetime import utc_now_iso
@@ -242,22 +249,42 @@ async def _confirm_scheduled_task_creation(
         fields=[],
         session_id=ctx.session_id or None,
         user_id=user_id,
+        ttl=timeout,
         metadata={
             "approval_type": "scheduled_task_create",
             "preview": preview,
+            "run_id": ctx.run_id or None,
+            "trace_id": ctx.trace_id,
         },
     )
-    await _send_scheduled_task_approval_event(
-        approval_id=approval.id,
-        message=approval_message,
-        session_id=ctx.session_id or None,
-        run_id=ctx.run_id or None,
-        timeout=timeout,
-        trace_id=ctx.trace_id,
-        preview=preview,
-    )
+    storage = get_approval_storage()
+    try:
+        await _send_scheduled_task_approval_event(
+            approval_id=approval.id,
+            message=approval_message,
+            session_id=ctx.session_id or None,
+            run_id=ctx.run_id or None,
+            timeout=timeout,
+            expires_at=to_iso(approval.expires_at)
+            if getattr(approval, "expires_at", None)
+            else None,
+            trace_id=ctx.trace_id,
+            preview=preview,
+        )
+        response = await wait_for_response(approval.id, timeout=timeout)
+    except asyncio.CancelledError:
+        await storage.finish_if_pending(approval.id, "cancelled")
+        await _send_scheduled_task_resolved_event(
+            approval_id=approval.id,
+            status="cancelled",
+            session_id=ctx.session_id or None,
+            run_id=ctx.run_id or None,
+            trace_id=ctx.trace_id,
+        )
+        raise
 
-    response = await wait_for_response(approval.id, timeout=timeout)
+    if response is None and not await storage.finish_if_pending(approval.id, "timeout"):
+        response = await storage.get_response(approval.id)
     if response is None:
         await _send_scheduled_task_resolved_event(
             approval_id=approval.id,

@@ -164,10 +164,10 @@ def test_create_tool_timeout_prompt_prefers_3600s_default() -> None:
     fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
     timeout_field = fields["timeout_seconds"]
 
-    assert timeout_field.default == 3600
+    assert timeout_field.default == 0
     assert timeout_field.description is not None
-    assert "Default: 3600s" in timeout_field.description
-    assert "Do not set this too short" in timeout_field.description
+    assert "no total execution time limit" in timeout_field.description
+    assert "ignored" in timeout_field.description
 
 
 def test_list_tool_can_fetch_single_task_details() -> None:
@@ -236,6 +236,7 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Verify service was called with correct trigger config
     request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.notification_policy == "meaningful_changes"
     assert request.trigger_type == TriggerType.INTERVAL
     assert request.trigger_config == {"seconds": 300}
     assert request.input_payload == {"message": "Clean up expired cache entries"}
@@ -878,6 +879,7 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
         session_id="session-1",
         run_id="run-1",
         timeout=120,
+        expires_at=None,
         trace_id=None,
         preview=preview,
     )
@@ -1412,3 +1414,9 @@ async def test_service_error_handled_gracefully(monkeypatch: pytest.MonkeyPatch)
 
     assert "error" in result
     assert "DB connection lost" in result["error"]
+
+
+def test_chat_schedule_defaults_to_conversation_with_quiet_notifications():
+    fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
+    assert fields["execution_mode"].default == "conversation"
+    assert fields["notification_policy"].default is None

@@ -141,6 +141,56 @@ def test_zhipu_glm5_receives_enabled_thinking() -> None:
     assert model.extra_body["thinking"] == {"type": "enabled"}
 
 
+def test_glm53_effort_reaches_openai_and_anthropic_payloads() -> None:
+    from langchain_core.messages import HumanMessage
+
+    for name in ("glm-5.3", "glm-5.3-flash", "glm-5.3-flash[1m]"):
+        for level, expected in (
+            ("low", "low"),
+            ("medium", "high"),
+            ("high", "high"),
+            ("max", "max"),
+        ):
+            for provider in ("zhipu", "openai", "siliconflow"):
+                model = _openai_model(provider, name, ENABLED(level))
+                payload = model._get_request_payload([HumanMessage(content="payload only")])
+                assert payload["reasoning_effort"] == expected, (provider, name, level)
+                assert model.extra_body["thinking"] == {"type": "enabled"}
+            model = _anthropic_model(name, ENABLED(level), provider="zai")
+            payload = model._get_request_payload([HumanMessage(content="payload only")])
+            assert payload["output_config"]["effort"] == expected, (name, level)
+            assert model.temperature == 0.7
+
+
+def test_glm52_effort_folds_low_to_high_without_affecting_legacy_models() -> None:
+    for level, expected in (("low", "high"), ("medium", "high"), ("high", "high"), ("max", "max")):
+        assert _openai_model("zhipu", "glm-5.2", ENABLED(level)).reasoning_effort == expected
+        assert (
+            _anthropic_model("glm-5.2", ENABLED(level), provider="zai").reasoning_effort == expected
+        )
+    for name in ("glm-5", "glm-5.1", "glm-4.6", "glm-5.20", "glm-5.30"):
+        assert _openai_model("zhipu", name, ENABLED("low")).reasoning_effort is None
+        assert _anthropic_model(name, ENABLED("low"), provider="zai").reasoning_effort is None
+
+
+def test_glm_effort_preserves_unconfigured_provider_defaults() -> None:
+    for name in ("glm-5.2", "glm-5.3", "glm-5.3-flash"):
+        for thinking in (None, {"type": "enabled"}):
+            assert _openai_model("zhipu", name, thinking).reasoning_effort is None
+            assert _anthropic_model(name, thinking, provider="zai").reasoning_effort is None
+
+
+def test_glm53_effort_reaches_responses_without_chat_thinking_body() -> None:
+    from langchain_core.messages import HumanMessage
+
+    model = LLMClient._create_model(
+        "zhipu", "glm-5.3", api_key="sk-test", thinking=ENABLED("low"), api_format="responses"
+    )
+    payload = model._get_request_payload([HumanMessage(content="payload only")])
+    assert payload["reasoning"]["effort"] == "low"
+    assert "thinking" not in (model.extra_body or {})
+
+
 def test_zhipu_thinking_never_rides_model_kwargs() -> None:
     # 回归：model_kwargs 会被 langchain-openai 平铺为 create() 顶层 kwarg，
     # openai SDK 严格签名下未知参数直接 TypeError；必须走 extra_body 并入请求体
@@ -253,11 +303,10 @@ def test_anthropic_protocol_third_party_models_receive_nothing() -> None:
 
 
 def test_zai_glm_receives_thinking_enabled() -> None:
-    # 智谱 Anthropic 兼容端点接受 Claude Code 同款 thinking 体；GLM 无档位语义，
-    # 任何强度都只是 enabled；不覆盖 temperature（智谱无 Claude 的 temp=1 约束）
+    # Explicit low effort must survive the Anthropic compatibility endpoint.
     model = _anthropic_model("glm-5.3", ENABLED("low"), provider="zai")
     assert model.thinking == {"type": "enabled", "budget_tokens": 1024}
-    assert model.reasoning_effort is None
+    assert model.reasoning_effort == "low"
     assert model.temperature == 0.7
 
 

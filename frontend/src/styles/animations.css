@@ -219,8 +219,9 @@
 
 /* Base pill hover/transition */
 .pill-btn {
-  font-family: theme("fontFamily.sans");
-  @apply flex w-full max-w-full items-center gap-2 rounded-xl px-3 py-1 text-13 font-medium leading-5;
+  @apply flex w-full max-w-full items-center gap-2 rounded-xl px-3 py-1 font-normal leading-6;
+  font-family: var(--chat-font-family);
+  font-size: calc(var(--chat-font-size) - 0.0625rem);
   min-height: 2.375rem;
   border: 1px solid
     color-mix(in srgb, var(--theme-border-subtle) 65%, transparent);
@@ -267,6 +268,10 @@
 }
 .pill-btn__icon :is(span, div) {
   opacity: 1;
+}
+.pill-btn__icon .interactive-action-icon > div {
+  width: 1rem;
+  height: 1rem;
 }
 .pill-btn__icon svg {
   display: block;
@@ -325,7 +330,6 @@
     animation: none !important;
   }
   .pill-btn {
-    font-family: theme("fontFamily.sans");
     transition: background-color 0.15s ease !important;
   }
   .pill-btn:hover:not(:disabled),

@@ -87,6 +87,23 @@
       ]
     },
     {
+      "event": "on_chat_model_error",
+      "lc_type": "StandardStreamEvent",
+      "description": "A started model attempt failed without complete usage; preserve unknown accounting while retaining successful attempt totals.",
+      "handled_by_processor": true,
+      "handler": "processor.process_event -> _mark_unknown_model_usage",
+      "emits_sse": [],
+      "data_shape": {
+        "event": "on_chat_model_error",
+        "run_id": "<uuid>",
+        "data": {
+          "error": "<provider error>"
+        },
+        "metadata": {}
+      },
+      "note": "UUID lifecycle accounting deduplicates terminal callbacks. Aggregate token:usage is emitted during cleanup, not on this event."
+    },
+    {
       "event": "on_tool_start",
       "lc_type": "StandardStreamEvent",
       "description": "Emitted when a tool invocation begins.",

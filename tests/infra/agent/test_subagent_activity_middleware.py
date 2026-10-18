@@ -10,6 +10,134 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
 
 
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_activity_reference_preserves_model_usage_and_structured_response(wrapped):
+    from langchain.agents.middleware.types import ModelResponse
+
+    class Backend:
+        async def awrite(self, path, content):
+            return SimpleNamespace(error=None, path=path)
+
+    original = AIMessage(
+        "Final report",
+        id="final-1",
+        usage_metadata={
+            "input_tokens": 2048,
+            "output_tokens": 64,
+            "total_tokens": 2112,
+            "input_token_details": {"cache_read": 1536},
+        },
+        response_metadata={"model_name": "test-model"},
+    )
+    extra = ToolMessage("Structured output", tool_call_id="structured-1")
+    response = ModelResponse(result=[original, extra], structured_response={"ok": True})
+
+    async def handler(request):
+        return response if wrapped else original
+
+    result = await SubagentActivityMiddleware(backend=Backend()).awrap_model_call(
+        SimpleNamespace(state={"messages": [ToolMessage("Evidence", tool_call_id="read-1")]}),
+        handler,
+    )
+    message = result.result[0] if wrapped else result
+    assert "Activity log saved to:" in message.text
+    assert message.usage_metadata == original.usage_metadata
+    assert message.response_metadata == original.response_metadata
+    assert original.content == "Final report"
+    if wrapped:
+        assert result.structured_response == {"ok": True}
+        assert result.result[1:] == [extra]
+
+
+@pytest.mark.parametrize("new_activity", [True, False])
+async def test_continued_child_logs_only_current_execution_without_recompressing_history(
+    new_activity,
+):
+    from unittest.mock import AsyncMock
+
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(error=None, path=path)
+
+    compress = AsyncMock(return_value="compressed")
+    middleware = SubagentActivityMiddleware(
+        backend=Backend(), compressor=compress, max_log_chars=4000
+    )
+    previous = [
+        HumanMessage("Old assignment"),
+        AIMessage("Inspecting", tool_calls=[{"id": "old", "name": "read_file", "args": {}}]),
+        ToolMessage("OLD_RESULTS " * 1000, tool_call_id="old"),
+        AIMessage("Previous final report"),
+    ]
+    messages = [*previous, HumanMessage("New assignment")]
+    if new_activity:
+        messages.extend(
+            [
+                AIMessage("Checking", tool_calls=[{"id": "new", "name": "read_file", "args": {}}]),
+                ToolMessage("NEW_RESULTS", tool_call_id="new"),
+                HumanMessage("Current task metadata", name="task_context"),
+            ]
+        )
+
+    async def handler(request):
+        return AIMessage("New final report")
+
+    await middleware.awrap_model_call(
+        SimpleNamespace(state={"messages": messages}, runtime=object()), handler
+    )
+
+    compress.assert_not_awaited()
+    assert len(writes) == int(new_activity)
+    if new_activity:
+        assert "New assignment" in writes[0]
+        assert "NEW_RESULTS" in writes[0]
+        assert "OLD_RESULTS" not in writes[0]
+        assert "Previous final report" not in writes[0]
+    assert messages[:4] == previous
+
+
+async def test_activity_keeps_current_tools_before_a_parent_followup_message():
+    writes = []
+
+    class Backend:
+        async def awrite(self, path, content):
+            writes.append(content)
+            return SimpleNamespace(error=None, path=path)
+
+    middleware = SubagentActivityMiddleware(backend=Backend())
+    messages = [
+        AIMessage("Previous execution finished"),
+        HumanMessage("Current assignment"),
+        AIMessage("Checking A", tool_calls=[{"id": "a", "name": "read_file", "args": {}}]),
+        ToolMessage("CURRENT_A", tool_call_id="a"),
+        AIMessage(
+            "",
+            invalid_tool_calls=[
+                {"name": "read_file", "args": "{", "id": "invalid", "error": "Bad JSON"}
+            ],
+        ),
+        HumanMessage("Also inspect B before finishing"),
+        AIMessage("Checking B", tool_calls=[{"id": "b", "name": "read_file", "args": {}}]),
+        ToolMessage("CURRENT_B", tool_call_id="b"),
+    ]
+
+    async def handler(request):
+        return AIMessage("Verified both")
+
+    await middleware.awrap_model_call(
+        SimpleNamespace(state={"messages": messages}, runtime=object()), handler
+    )
+
+    assert len(writes) == 1
+    assert "CURRENT_A" in writes[0] and "CURRENT_B" in writes[0]
+    assert "Current assignment" in writes[0]
+    assert "Also inspect B" in writes[0]
+    assert "Previous execution finished" not in writes[0]
+
+
 @pytest.mark.asyncio
 async def test_subagent_activity_middleware_writes_log_and_appends_reference_to_final_response() -> (
     None

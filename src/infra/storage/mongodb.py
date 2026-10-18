@@ -7,7 +7,7 @@ import fnmatch
 import json
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Literal, Optional
 
 from pydantic import BaseModel
 from pymongo import ReturnDocument
@@ -271,10 +271,10 @@ class ApprovalStorage:
         """
         await self.ensure_indexes()
         now = utc_now()
+        approval.created_at = now
+        approval.expires_at = now + timedelta(seconds=ttl) if ttl is not None else None
         doc = approval.model_dump()
         doc["_id"] = approval.id
-        doc["created_at"] = now
-        doc["expires_at"] = now + timedelta(seconds=ttl) if ttl is not None else None
 
         await self.collection.insert_one(doc)
         return approval
@@ -316,6 +316,16 @@ class ApprovalStorage:
             update_doc["response"] = response.model_dump()
 
         result = await self.collection.update_one({"_id": approval_id}, {"$set": update_doc})
+        return result.modified_count > 0
+
+    async def finish_if_pending(
+        self, approval_id: str, status: Literal["timeout", "cancelled"]
+    ) -> bool:
+        """Close an unanswered request without overwriting a concurrent human response."""
+        result = await self.collection.update_one(
+            {"_id": approval_id, "status": "pending"},
+            {"$set": {"status": status, "updated_at": utc_now()}},
+        )
         return result.modified_count > 0
 
     async def respond_if_pending(

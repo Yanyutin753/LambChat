@@ -68,13 +68,19 @@ export function useQueuedFollowUpState(initialSessionId: string | null) {
   const ownerRef = useRef(initialSessionId);
 
   const setSteerMessages = useCallback(
-    (update: (items: SteerItem[]) => SteerItem[]) => {
-      const next = update(queueRef.current);
-      queueRef.current = next;
+    (update: (items: SteerItem[]) => SteerItem[], sessionId?: string) => {
+      const ownsQueue =
+        sessionId === undefined || ownerRef.current === sessionId;
+      const next = update(
+        ownsQueue ? queueRef.current : readQueue(sessionId ?? null),
+      );
       // Persist at the action boundary, before the browser can reload. Do not
       // write inside React state updaters, which StrictMode can replay.
-      saveQueue(ownerRef.current, next);
-      setMessages(next);
+      saveQueue(sessionId ?? ownerRef.current, next);
+      if (ownsQueue) {
+        queueRef.current = next;
+        setMessages(next);
+      }
     },
     [],
   );
@@ -98,11 +104,22 @@ export function useQueuedFollowUpState(initialSessionId: string | null) {
     saveQueue(sessionId, queueRef.current);
   }, []);
 
+  const clearSessionFollowUp = useCallback(
+    (sessionId: string, messageId: string) => {
+      setSteerMessages(
+        (items) => items.filter((item) => item.id !== messageId),
+        sessionId,
+      );
+    },
+    [setSteerMessages],
+  );
+
   return {
     steerMessages,
     setSteerMessages,
     clearSteerMessages,
     restoreSteerMessages,
     bindSteerSession,
+    clearSessionFollowUp,
   };
 }

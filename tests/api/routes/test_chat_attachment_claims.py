@@ -117,6 +117,7 @@ class _Presenter:
         schedule_search_index: bool = True,
         run_modes: list[str] | None = None,
         assistant_identity: dict[str, Any] | None = None,
+        goal_continuation: dict[str, Any] | None = None,
     ) -> None:
         self.calls.append(
             (

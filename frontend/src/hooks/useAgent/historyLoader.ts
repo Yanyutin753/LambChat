@@ -1,3 +1,4 @@
+import { isScheduledResult, mergeScheduledResult } from "./scheduledResults";
 /**
  * History event loader for useAgent hook
  * Reconstructs messages from stored events.
@@ -38,7 +39,7 @@ import {
   isSandboxConfirmApprovalEvent,
 } from "./messageParts";
 import { assistantMessageHasContent } from "./settleStream";
-import { markInterruptedBySteer } from "./steerTurnSplit";
+import { sealAssistantBeforeSteer } from "./steerTurnSplit";
 import { parseDate } from "../../utils/datetime";
 
 function resolveUserMessageId(
@@ -55,6 +56,7 @@ function resolveUserMessageId(
 }
 
 interface ProcessHistoryOptions {
+  streaming?: boolean;
   options?: {
     onApprovalRequired?: (approval: {
       id: string;
@@ -324,7 +326,7 @@ function processHistoryEvent(
     msg.toolCalls || [],
     depth,
     opts.activeSubagentStack,
-    false, // isStreaming = false for history
+    Boolean(opts.streaming),
     msg.id,
   );
 
@@ -388,6 +390,31 @@ export function reconstructMessagesFromEvents(
   // message with an undefined run id.
   const normalizedEvents = normalizeEventRunIds(sortedEvents);
 
+  // Concurrent old runs and delayed final events must not share an assistant builder.
+  const eventsByRun = new Map<string | undefined, HistoryEvent[]>();
+  for (const event of normalizedEvents) {
+    const runEvents = eventsByRun.get(event.run_id);
+    if (runEvents) runEvents.push(event);
+    else eventsByRun.set(event.run_id, [event]);
+  }
+  if (eventsByRun.size > 1) {
+    const messages: Message[] = [];
+    opts.activeSubagentStack.length = 0;
+    for (const runEvents of eventsByRun.values()) {
+      const activeSubagentStack: SubagentStackItem[] = [];
+      messages.push(
+        ...reconstructMessagesFromEvents(runEvents, processedEventIds, {
+          ...opts,
+          activeSubagentStack,
+        }),
+      );
+      opts.activeSubagentStack.push(...activeSubagentStack);
+    }
+    return messages.sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
+  }
+
   const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
   const sortedEventIndexes = new Map<HistoryEvent, number>();
   const resolvedApprovalIds = new Set<string>();
@@ -402,7 +429,7 @@ export function reconstructMessagesFromEvents(
     ...opts,
     resolvedApprovalIds,
     queriedApprovalIds: new Set(),
-    partReplay: new HistoryPartReplay(),
+    partReplay: new HistoryPartReplay(Boolean(opts.streaming)),
     replayStack: new HistoryReplayStack(opts.activeSubagentStack),
   };
 
@@ -411,6 +438,7 @@ export function reconstructMessagesFromEvents(
     NonNullable<Message["assistantIdentity"]>
   >();
   const reconstructedMessages: Message[] = [];
+  const scheduledResults: import("./scheduledResults").ScheduledResult[] = [];
   // run 内每完成一个 assistant 轮次（入列）计数一次，替代循环内对
   // reconstructedMessages 的全量 filter（长会话 O(n²) 热点）
   const assistantTurnCountsByRunId = new Map<string, number>();
@@ -432,6 +460,21 @@ export function reconstructMessagesFromEvents(
   for (const event of anchoredEvents) {
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
+    if (eventType === "scheduled:result") {
+      if (isScheduledResult(eventData)) scheduledResults.push(eventData);
+      continue;
+    }
+    if (
+      currentAssistantMessage &&
+      event.run_id &&
+      currentAssistantMessage.runId !== event.run_id &&
+      ["goal:continuation", "goal:start"].includes(eventType)
+    ) {
+      pushMessage(currentAssistantMessage);
+      currentAssistantMessage = null;
+      replayOptions.replayStack?.clear();
+    }
+    if (eventType === "goal:continuation") continue;
     if (
       currentAssistantMessage &&
       ["steer:message", "user:message", "user:cancel", "run:resumed"].includes(
@@ -457,8 +500,8 @@ export function reconstructMessagesFromEvents(
     // Handle steer message separately（独立事件，不参与用户消息去重）
     if (eventType === "steer:message") {
       if (currentAssistantMessage) {
-        // 插话即打断：封存的前一段回答标记「已停止」，与实时分割视觉一致
-        pushMessage(markInterruptedBySteer(currentAssistantMessage));
+        // 普通插话封存前段输出，只有明确的取消事件才标记停止。
+        pushMessage(sealAssistantBeforeSteer(currentAssistantMessage));
         currentAssistantMessage = null;
       }
       const steerData = eventData as HistoryEventData & {
@@ -468,7 +511,9 @@ export function reconstructMessagesFromEvents(
       const steerId =
         typeof steerData.message_id === "string" && steerData.message_id.trim()
           ? steerData.message_id
-          : `steer-h-${sortedEventIndexes.get(event) ?? -1}`;
+          : `steer-h-${event.run_id || "unknown"}-${
+              sortedEventIndexes.get(event) ?? -1
+            }`;
       // 模型调用失败后消息原 ID 回队，重试送达会再次写出同
       // message_id 事件；按 ID 去重只渲染第一次（即用户发送位置）
       if (
@@ -670,6 +715,7 @@ export function reconstructMessagesFromEvents(
     if (
       message.role === "assistant" &&
       message.runId &&
+      (!opts.streaming || settledRunIds.has(message.runId)) &&
       (!settledRunIds.has(message.runId) || completedRunIds.has(message.runId))
     ) {
       reconstructedMessages[index] = {
@@ -694,7 +740,8 @@ export function reconstructMessagesFromEvents(
   // happens when an active-run snapshot synthesizes a recommend event next to
   // a withheld content stream).
   replayOptions.replayStack?.flush();
-  return reconstructedMessages
+  return scheduledResults
+    .reduce(mergeScheduledResult, reconstructedMessages)
     .map((message) =>
       message.role === "assistant" &&
       message.runId &&
@@ -743,6 +790,7 @@ export function prepareMessagesForRunningRun(
   runId: string,
   createId: () => string = () => uuid(),
   currentMessages: Message[] = [],
+  isGoalRun = false,
 ): RunningAssistantPreparationResult {
   const pendingOptimisticUser = getPendingOptimisticUserForRun(
     currentMessages,
@@ -763,7 +811,7 @@ export function prepareMessagesForRunningRun(
   const hasRunUser = messagesWithPendingUser.some(
     (message) => message.role === "user" && message.runId === runId,
   );
-  if (!hasRunUser) {
+  if (!hasRunUser && !isGoalRun) {
     return {
       streamingMessageId: existingAssistant?.id ?? createId(),
       messages: messagesWithPendingUser.filter(
@@ -866,8 +914,8 @@ export function extractGoalFromEvents(
     goal = next;
   }
 
-  // Don't restore completed goals — only show the bar for still-active ones.
-  if (!goal || !goal.objective || goal.ended_at) return null;
+  if (!goal || !goal.objective || (goal.ended_at && !goal._persistent_id))
+    return null;
   return goal;
 }
 

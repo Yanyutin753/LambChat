@@ -167,9 +167,11 @@ def _build_task_preview(
     description: str | None,
     timeout_seconds: int,
     run_on_start: bool,
+    execution_mode: str = "standalone",
 ) -> dict[str, Any]:
     schedule = _format_trigger_preview(trigger_type, trigger_config, timezone_name)
     return {
+        "execution_mode": execution_mode,
         "name": name,
         "description": description,
         "agent_id": agent_id,
@@ -178,11 +180,15 @@ def _build_task_preview(
         "timezone": timezone_name,
         "schedule": schedule,
         "message": message,
-        "timeout_seconds": timeout_seconds,
+        "timeout_seconds": 0,
         "run_on_start": run_on_start,
         "effect": (
             f"After creation, agent '{agent_id}' will run on {schedule}. "
-            "Each run will start a new session and send the prompt listed below to the agent."
+            + (
+                "Each run continues this conversation with its latest context. "
+                if execution_mode == "conversation"
+                else "Each run will start a new session and send the prompt listed below to the agent."
+            )
             + (" The task will also run immediately after creation." if run_on_start else "")
         ),
     }

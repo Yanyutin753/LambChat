@@ -492,7 +492,7 @@ const WebSearchItem = memo(function WebSearchItem({
                   size={12}
                   className="shrink-0 text-[var(--theme-primary)]"
                 />
-                <span className="text-[color-mix(in_srgb,var(--theme-primary)_78%,var(--theme-text))] font-mono font-medium min-w-0 truncate">
+                <span className="text-[color-mix(in_srgb,var(--theme-primary)_78%,var(--theme-text))] font-medium min-w-0 truncate">
                   {truncate(query, 50)}
                 </span>
               </ToolArgsBlock>

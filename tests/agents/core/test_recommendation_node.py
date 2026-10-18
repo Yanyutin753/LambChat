@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agents.core.recommendations import (
@@ -772,3 +773,121 @@ async def test_recommendation_node_defaults_to_mirror_without_language_option(
     )
 
     assert captured["response_language"] is None
+
+
+@pytest.mark.parametrize("from_state", [False, True])
+async def test_detached_recommendations_keep_explicit_owner_but_drop_foreground_execution(
+    monkeypatch, from_state
+):
+    from types import SimpleNamespace
+
+    from langchain_core.runnables.config import ensure_config, var_child_runnable_config
+
+    from src.infra.goal_runtime import GOAL_RUN_LEASE
+
+    captured = []
+
+    async def generate(*args, **kwargs):
+        config = ensure_config()
+        captured.append((config, GOAL_RUN_LEASE.get()))
+        return ["a?", "b?", "c?"]
+
+    monkeypatch.setattr("src.agents.core.recommendations.generate_recommend_questions", generate)
+    presenter = _FakePresenter()
+    presenter.config = SimpleNamespace(user_id="owner")
+    presenter.session_id, presenter.run_id, presenter.trace_id = (
+        "own-session",
+        "own-run",
+        "own-trace",
+    )
+    parent = var_child_runnable_config.set(
+        {
+            "callbacks": [object()],
+            "configurable": {"thread_id": "foreign", "presenter": object()},
+            "metadata": {"secret_parent_marker": True},
+        }
+    )
+    lease = GOAL_RUN_LEASE.set(object())
+    try:
+        if from_state:
+            from unittest.mock import AsyncMock
+
+            graph = SimpleNamespace(aget_state=AsyncMock(return_value=SimpleNamespace(values={})))
+            await schedule_recommend_questions_from_state(
+                presenter, "next", "", graph, {"configurable": {"thread_id": "own-session"}}
+            )
+        else:
+            await schedule_recommend_questions(presenter, "next")
+    finally:
+        GOAL_RUN_LEASE.reset(lease)
+        var_child_runnable_config.reset(parent)
+    config, inherited = captured[0]
+    assert inherited is None and not config.get("callbacks")
+    assert config["configurable"] == {
+        "user_id": "owner",
+        "session_id": "own-session",
+        "run_id": "own-run",
+        "trace_id": "own-trace",
+    }
+    assert config["metadata"].get("lc_source") == "recommendation"
+    assert "secret_parent_marker" not in config["metadata"]
+    assert presenter.questions == ["a?", "b?", "c?"]
+
+
+@pytest.mark.parametrize("as_dict", [False, True])
+@pytest.mark.parametrize("marker", [None, False, 1, True])
+def test_recommendation_history_excludes_only_certified_internal_evidence(as_dict, marker):
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    internal = HumanMessage(
+        "System-recorded evidence snapshot: private technical evidence index",
+        name="evidence_context",
+        additional_kwargs={} if marker is None else {"lambchat_evidence_snapshot": marker},
+    )
+    message = internal.model_dump() if as_dict else internal
+    messages = [
+        HumanMessage("Real historical user requirement"),
+        message,
+        AIMessage("Visible answer"),
+    ]
+    before = internal.model_dump()
+    context = format_history_from_messages(messages)
+    assert "Real historical user requirement" in context and "Visible answer" in context
+    assert ("private technical evidence index" not in context) is (marker is True)
+    assert internal.model_dump() == before
+
+
+def test_internal_evidence_cannot_crowd_real_user_history_out_of_recommendations():
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    messages = [
+        HumanMessage("Preserve the real user delivery constraint"),
+        AIMessage("Useful completed answer"),
+    ]
+    messages += [
+        HumanMessage(
+            "System-recorded evidence snapshot " + "x" * 2000,
+            name="evidence_context",
+            additional_kwargs={"lambchat_evidence_snapshot": True},
+        )
+        for _ in range(20)
+    ]
+    context = format_history_from_messages(messages, max_chars=300)
+    assert "Preserve the real user delivery constraint" in context
+    assert "Useful completed answer" in context
+    assert "System-recorded evidence snapshot" not in context
+
+
+def test_user_quotation_of_evidence_text_and_other_named_messages_remain_in_history():
+    from langchain_core.messages import HumanMessage
+
+    messages = [
+        HumanMessage("System-recorded evidence snapshot is part of my question"),
+        HumanMessage(
+            "Real named user message",
+            name="user_note",
+            additional_kwargs={"lambchat_evidence_snapshot": True},
+        ),
+    ]
+    context = format_history_from_messages(messages)
+    assert "part of my question" in context and "Real named user message" in context

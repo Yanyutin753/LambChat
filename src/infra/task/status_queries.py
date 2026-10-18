@@ -17,6 +17,14 @@ class TaskStatusQueries:
         self._storage = storage
         self._run_info = run_info
 
+    async def load_session_record(self, raw_session: dict[str, Any]) -> Any | None:
+        """Load a normalized session model from a raw MongoDB session document."""
+        session_id = raw_session.get("session_id") or str(raw_session.get("_id"))
+        session = await self._storage.get_by_session_id(session_id)
+        if session is not None:
+            return session
+        return await self._storage.get_by_id(session_id)
+
     async def get_status(self, session_id: str) -> TaskStatus:
         """Get the current task status for a session."""
         try:
@@ -33,7 +41,7 @@ class TaskStatusQueries:
         """Get status for a specific run."""
         try:
             session = await self._storage.get_by_session_id(session_id)
-            if session and session.metadata:
+            if session and session.metadata and session.metadata.get("current_run_id") == run_id:
                 task_status = session.metadata.get("task_status")
                 if task_status:
                     return TaskStatus(task_status)
@@ -55,6 +63,10 @@ class TaskStatusQueries:
                         "running": TaskStatus.RUNNING,
                         "completed": TaskStatus.COMPLETED,
                         "error": TaskStatus.FAILED,
+                        "failed": TaskStatus.FAILED,
+                        "cancelled": TaskStatus.CANCELLED,
+                        "expired": TaskStatus.EXPIRED,
+                        "waiting_human": TaskStatus.WAITING_HUMAN,
                     }
                     return status_map.get(trace_status, TaskStatus.PENDING)
         except Exception as e:
@@ -112,6 +124,24 @@ class TaskStatusQueries:
                 except Exception as e:
                     logger.warning("Failed to get run error from session storage: %s", e)
 
+        return None
+
+    async def lookup_trace_id_for_run(self, run_id: str) -> str | None:
+        try:
+            from src.infra.session.trace_storage import get_trace_storage
+
+            trace_storage = get_trace_storage()
+            cursor = (
+                trace_storage.collection.find({"run_id": run_id}, {"trace_id": 1, "_id": 0})
+                .sort("started_at", -1)
+                .limit(1)
+            )
+            traces = await cursor.to_list(length=1)
+            if traces:
+                trace_id = traces[0].get("trace_id")
+                return str(trace_id) if trace_id else None
+        except Exception as e:
+            logger.warning("Failed to lookup trace_id for run %s: %s", run_id, e)
         return None
 
     def get_trace_id(self, run_id: str) -> str | None:

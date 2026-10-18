@@ -28,11 +28,15 @@ class _FakeStorage:
 
     async def update(self, session_id, session_update) -> None:
         self.updates.append((session_id, session_update))
+        if self.session is not None:
+            self.session.metadata = {**self.session.metadata, **session_update.metadata}
 
     async def get_by_session_id(self, session_id):
         return self.session
 
-    async def claim_run_recovery(self, session_id, run_id, metadata):
+    async def claim_run_recovery(
+        self, session_id, run_id, metadata, *, expected_recovery_token=None
+    ):
         previous = self.session.metadata if self.session else {}
         allowed = previous.get("task_status") in {
             "running",
@@ -48,13 +52,28 @@ class _FakeStorage:
             or previous.get("task_error_code") in {"cancelled", "task_recovery_uncertain_effect"}
         ):
             return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
 
     async def update_metadata_for_run(
-        self, session_id, run_id, metadata, *, expected_statuses=None
+        self, session_id, run_id, metadata, *, expected_statuses=None, expected_recovery_token=None
     ):
         if self.session.metadata.get("current_run_id") != run_id:
+            return False
+        if (
+            expected_recovery_token is not None
+            and self.session.metadata.get("recovery_token") != expected_recovery_token
+        ):
+            return False
+        if (
+            expected_statuses is not None
+            and self.session.metadata.get("task_status") not in expected_statuses
+        ):
             return False
         await self.update(session_id, SimpleNamespace(metadata=metadata))
         return True
@@ -241,17 +260,26 @@ async def test_resume_reuses_run_and_trace(monkeypatch: pytest.MonkeyPatch) -> N
     last_metadata = artifacts["storage"].updates[-1][1].metadata
     assert last_metadata["resume_attempts"] == 1
     assert last_metadata["task_recoverable"] is False
-    assert last_metadata["task_error_code"] is None
+    assert artifacts["storage"].session.metadata["task_error_code"] == "server_restart"
+    # Dispatch alone must retain the interrupted run diagnostic until execution starts.
 
 
 @pytest.mark.asyncio
-async def test_resume_reopens_error_trace_and_strips_terminal_stream(
+async def test_only_admitted_executor_reopens_trace_and_strips_terminal_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, session, artifacts = _fixture(monkeypatch)
 
     await service.resume_interrupted_run(session, "run-old", "server_restart")
 
+    assert artifacts["trace_storage"].reopened == []
+    assert artifacts["redis_stream"].deleted == []
+    storage = artifacts["storage"]
+    storage.session.metadata["task_status"] = "starting"
+    claim = artifacts["submit_task"].call_args.kwargs["recovery_claim"]
+    await recovery_module.prepare_interrupted_recovery(
+        storage, session.id, "run-old", "trace-1", claim
+    )
     assert artifacts["trace_storage"].reopened == ["trace-1"]
     assert artifacts["redis_stream"].deleted == ["1-2"]  # 只删 error，保留 thinking
     remaining = [fields["event_type"] for _, fields in artifacts["redis_stream"].entries]

@@ -57,6 +57,7 @@ class _AnswerModel(BaseChatModel):
             )
         else:
             message = AIMessage(content="ready")
+        message.usage_metadata = {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
         return ChatResult(generations=[ChatGeneration(message=message)])
 
     async def _agenerate(self, messages, **kwargs):
@@ -73,7 +74,10 @@ class _AnswerModel(BaseChatModel):
         ("quick", False),
     ],
 )
-async def test_agents_work_without_sandbox_and_keep_prefixes(monkeypatch, agent_id, write_file):
+@pytest.mark.parametrize("with_goal", [False, True])
+async def test_agents_work_without_sandbox_and_keep_prefixes(
+    monkeypatch, agent_id, write_file, with_goal
+):
     from src.agents.core.base import AgentFactory
     from src.infra.llm.client import LLMClient
     from src.kernel.config import settings
@@ -125,6 +129,12 @@ async def test_agents_work_without_sandbox_and_keep_prefixes(monkeypatch, agent_
             )
         )
         monkeypatch.setattr(presenter, "build_langsmith_metadata", AsyncMock(return_value={}))
+        before = len(model.calls)
+        if with_goal:
+            from src.infra.goal_runtime import GoalRunMetrics
+
+            metrics = GoalRunMetrics()
+            presenter.persistent_goal_metrics = metrics
         events = [
             event
             async for event in agent.stream(
@@ -141,6 +151,10 @@ async def test_agents_work_without_sandbox_and_keep_prefixes(monkeypatch, agent_
             )
         ]
         assert events[-1]["event"] == "done"
+        if with_goal:
+            assert metrics.model_tokens == 5 * (len(model.calls) - before)
+            assert not metrics.pending_models
+            assert not metrics.unknown_model_usage
     assert len(model.calls) >= 2
     assert model.cache_keys == ["no-sandbox"] * len(model.calls)
     assert all(schema == model.schemas[0] for schema in model.schemas)

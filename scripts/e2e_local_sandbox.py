@@ -76,7 +76,10 @@ def _env_map() -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 k, _, v = line.partition("=")
                 out[k.strip()] = v.split(" #")[0].strip()
-    return out
+    # 真实环境变量优先于 .env（与后端 pydantic-settings 优先级对齐）：
+    # 本机 6379 落在 Windows 端口排除段之类的场景，只能靠 env 把
+    # REDIS_URL 指到别处，脚本自身与它拉起的后端须看到同一个地址。
+    return {k: os.environ.get(k, v) for k, v in out.items()}
 
 
 def ensure_backend() -> subprocess.Popen | None:

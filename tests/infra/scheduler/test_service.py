@@ -271,7 +271,7 @@ async def test_load_persisted_tasks_does_not_honor_run_on_start(
 
 
 @pytest.mark.asyncio
-async def test_register_interval_task_aligns_trigger_to_last_run(
+async def test_register_interval_task_keeps_creation_cadence_after_completion(
     service: ScheduledTaskService,
     mock_storage: AsyncMock,
     mock_scheduler: MagicMock,
@@ -287,7 +287,7 @@ async def test_register_interval_task_aligns_trigger_to_last_run(
     await service.load_persisted_tasks()
 
     job = mock_scheduler.register_job.call_args.args[0]
-    assert job.trigger.start_date == last_run_at + timedelta(seconds=300)
+    assert job.trigger.start_date == task.created_at + timedelta(seconds=300)
 
 
 @pytest.mark.asyncio
@@ -545,3 +545,24 @@ def test_build_trigger_date_rejects_past_run_date() -> None:
 def test_build_trigger_unsupported_raises() -> None:
     with pytest.raises(ValueError, match="Unsupported"):
         ScheduledTaskService._build_trigger(cast(Any, "unknown"), {})
+
+
+def test_completion_stats_do_not_change_scheduler_registration():
+    task = _make_task()
+    signature = ScheduledTaskService._scheduler_signature(task)
+    task.last_run_at = datetime(2026, 6, 8, 5, 1, 10, tzinfo=timezone.utc)
+    task.total_runs = 1
+    assert ScheduledTaskService._scheduler_signature(task) == signature
+
+
+def test_restart_resumes_next_fixed_minute_without_completion_drift():
+    anchor = datetime(2026, 10, 16, 17, 36, 41, tzinfo=timezone.utc)
+    task = _make_task(
+        created_at=anchor,
+        last_run_at=anchor + timedelta(seconds=69),
+        trigger_config={"seconds": 60},
+    )
+    trigger = ScheduledTaskService._build_task_trigger(task)
+    assert trigger.get_next_fire_time(None, anchor + timedelta(seconds=90)) == (
+        anchor + timedelta(seconds=120)
+    )

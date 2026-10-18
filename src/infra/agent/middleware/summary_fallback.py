@@ -13,11 +13,16 @@ deepagents 的 SummarizationMiddleware 在自己的 ``awrap_model_call`` 里直�
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Awaitable, Iterator, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
+from src.infra.agent.events.buffers import ActivityReferenceFilter
 from src.infra.agent.middleware.summary_stats import attach_summary_token_stats
 from src.infra.llm.retry import is_auth_model_error, is_retryable_model_error
 
@@ -27,6 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _FALLBACK_MARKER = "_lambchat_summary_fallback"
+_PREFIX_MARKER = "_lambchat_summary_prefix"
 
 # 图片的真实上下文成本估算（对齐 codex RESIZED_IMAGE_BYTES_ESTIMATE=7373 字节 ÷ 4
 # 字节/token ≈ 1844）。langchain 默认按 85 token/张计，图片再多也推不动压缩触发器。
@@ -35,6 +41,164 @@ _IMAGE_TOKEN_ESTIMATE = 1844
 # 从 lc SummarizationMiddleware 实例上拷贝到兜底 helper 的配置项，
 # 保证兜底摘要使用与主摘要一致的提示词与裁剪预算。
 _HELPER_SETTINGS = ("summary_prompt", "trim_tokens_to_summarize", "token_counter", "keep")
+
+
+def _reuse_summary_prefix(
+    middleware: Any, *, fallback_model: str | None = None, thinking: dict | None = None
+) -> Any:
+    """Summarize native history with the current request's stable system and tools."""
+    from langchain.agents.middleware._retry import default_retry_on
+    from langchain.agents.middleware.internal_call_transformer import internal_call_metadata
+    from langchain_core.exceptions import ContextOverflowError, ModelInvalidRequestError
+    from langchain_core.messages import HumanMessage
+    from langchain_core.runnables.config import ensure_config
+
+    from src.kernel.config import settings
+
+    if getattr(middleware, _PREFIX_MARKER, False):
+        return middleware
+    helper = middleware._lc_helper
+    helper.summary_prompt += (
+        "\n\nProduce only concise replacement context; do not execute tools or continue the task. "
+        "Preserve exact user constraints, important identifiers, decisions, evidence references, "
+        "artifact paths and unresolved work. Refer to saved artifacts instead of repeating "
+        "full source code, datasets or tool logs."
+    )
+    original_summary = middleware._acreate_summary
+    original_wrap = middleware.awrap_model_call
+    current_request: ContextVar[Any] = ContextVar("summary_request", default=None)
+
+    async def summarize(messages):
+        request = current_request.get()
+        if request is None or not messages or helper.summarizer is not None:
+            return await original_summary(messages)
+        trimmed = helper._trim_messages_for_summary(list(messages))
+        instruction = HumanMessage(
+            content=helper.summary_prompt.format(
+                messages="The preceding native conversation messages are the historical data to summarize."
+            )
+        )
+        candidate = request.override(messages=[*trimmed, instruction])
+        budget = middleware._input_budget(candidate)
+        if budget is None:
+            budget = int(
+                settings.DEEPAGENT_DEFAULT_MAX_INPUT_TOKENS
+                * settings.DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO
+            )
+        if (
+            not trimmed
+            or budget <= 0
+            or middleware._count_tokens(
+                candidate.messages, candidate.system_message, candidate.tools
+            )
+            > budget
+        ):
+            return await original_summary(messages)
+        try:
+            model = (
+                request.model.bind_tools(
+                    request.tools,
+                    tool_choice=(
+                        {"type": "none"}
+                        if request.model._llm_type.startswith("anthropic")
+                        else "none"
+                    ),
+                    **request.model_settings,
+                )
+                if request.tools
+                else request.model.bind(**request.model_settings)
+            )
+        except NotImplementedError:
+            return await original_summary(messages)
+        prompt = (
+            [candidate.system_message, *candidate.messages]
+            if candidate.system_message
+            else candidate.messages
+        )
+        try:
+            response = await model.with_retry(retry_if_exception_type=default_retry_on).ainvoke(
+                prompt,
+                config={"metadata": {"lc_source": "summarization", **internal_call_metadata()}},
+            )
+        except (ContextOverflowError, ModelInvalidRequestError):
+            return await original_summary(messages)
+        # Reject noncompliant tool calls even when the provider ignores the no-tool policy.
+        if response.tool_calls or response.invalid_tool_calls or not response.text.strip():
+            return await original_summary(messages)
+        return response.text.strip()
+
+    async def wrap(request, handler):
+        token = current_request.set(request)
+        try:
+            return await original_wrap(request, handler)
+        finally:
+            current_request.reset(token)
+
+    middleware._acreate_summary = summarize
+    if fallback_model:
+        try:
+            middleware = protect_summarization_middleware(
+                middleware, fallback_model=fallback_model, thinking=thinking
+            )
+        except Exception:
+            logger.warning(
+                "[SummaryFallback] Could not wrap summarization middleware; "
+                "summaries stay on the primary model",
+                exc_info=True,
+            )
+    generated_summary = middleware._acreate_summary
+
+    @wraps(generated_summary)
+    async def clean_summary(messages):
+        summary = await generated_summary(messages)
+        stream_filter = ActivityReferenceFilter()
+        return stream_filter.feed(summary) + stream_filter.finish()
+
+    middleware._acreate_summary = clean_summary
+    middleware = attach_summary_token_stats(middleware, passthrough_markers=(_FALLBACK_MARKER,))
+    complete_summary = middleware._acreate_summary
+    last_summary: tuple[str, str] | None = None
+
+    @wraps(complete_summary)
+    async def reuse_retry(messages):
+        nonlocal last_summary
+        request = current_request.get()
+        if request is None:
+            return await complete_summary(messages)
+        configurable = ensure_config().get("configurable", {})
+        serialized = json.dumps(
+            {
+                "scope": [
+                    configurable.get(k)
+                    for k in ("thread_id", "session_id", "user_id", "checkpoint_ns")
+                ],
+                "model": id(request.model),
+                "system": request.system_message.model_dump() if request.system_message else None,
+                "tools": request.tools,
+                "tool_choice": request.tool_choice,
+                "summary_tool_choice": {"type": "none"}
+                if request.model._llm_type.startswith("anthropic")
+                else "none",
+                "settings": request.model_settings,
+                "prompt": helper.summary_prompt,
+                "messages": [message.model_dump() for message in messages],
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+        key = hashlib.sha256(serialized.encode()).hexdigest()
+        if last_summary is not None and last_summary[0] == key:
+            return last_summary[1]
+        summary = await complete_summary(messages)
+        if summary.strip():
+            # One graph-local snapshot avoids repeating summary generation and UI stats on retry.
+            last_summary = (key, summary)
+        return summary
+
+    middleware._acreate_summary = reuse_retry
+    middleware.awrap_model_call = wrap
+    setattr(middleware, _PREFIX_MARKER, True)
+    return middleware
 
 
 def _image_aware_counter_for(model: Any):
@@ -139,7 +303,7 @@ def summarization_fallback_patch(
 ) -> Iterator[None]:
     """在窗口内增强 ``create_deep_agent`` 内部创建的所有摘要中间件。
 
-    无论是否配置兜底模型，都注入图片感知 token 计数器（图片按真实成本计价，
+    无论是否配置兜底模型，都保留原生摘要前缀并注入图片感知 token 计数器（图片按真实成本计价，
     否则带图会话永远达不到压缩触发线）；配置了兜底模型时额外给摘要调用加
     "换模型重做"保护。
 
@@ -149,28 +313,29 @@ def summarization_fallback_patch(
     import deepagents.graph as deepagents_graph
 
     original = deepagents_graph.create_summarization_middleware
+    original_merge = deepagents_graph._apply_custom_middleware
+    summaries: dict[int, Any] = {}
 
     def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("token_counter", _image_aware_counter_for(model))
         middleware = original(model, backend, **kwargs)
-        # 兜底保护先套、stats 包装在最外层：主模型或兜底模型任一路径成功，
-        # stats 都能基于最终摘要文本计算；stats 包装同时透传兜底标记，
-        # 保证 protect 的幂等检查与外层 introspection 不失效。
-        if fallback_model:
-            try:
-                middleware = protect_summarization_middleware(
-                    middleware, fallback_model=fallback_model, thinking=thinking
-                )
-            except Exception:
-                logger.warning(
-                    "[SummaryFallback] Could not wrap summarization middleware; "
-                    "summaries stay on the primary model",
-                    exc_info=True,
-                )
-        return attach_summary_token_stats(middleware, passthrough_markers=(_FALLBACK_MARKER,))
+        middleware = _reuse_summary_prefix(
+            middleware, fallback_model=fallback_model, thinking=thinking
+        )
+        summaries[id(middleware)] = middleware
+        return middleware
+
+    def merge(*args: Any, **kwargs: Any) -> Any:
+        middleware = original_merge(*args, **kwargs)
+        # Count and summarize the actual system/tools after all prompt-producing hooks.
+        return [m for m in middleware if id(m) not in summaries] + [
+            m for m in middleware if id(m) in summaries
+        ]
 
     deepagents_graph.create_summarization_middleware = patched
+    deepagents_graph._apply_custom_middleware = merge
     try:
         yield
     finally:
         deepagents_graph.create_summarization_middleware = original
+        deepagents_graph._apply_custom_middleware = original_merge
