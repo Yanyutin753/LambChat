@@ -13,9 +13,7 @@ test("sidebar brand header exposes notifications with a count and opens the exis
   expect(header).toContain('t("nav.notifications")');
   expect(header).toContain("<Bell size={16}");
   expect(header).toContain("notificationCount > 0");
-  expect(header).toContain(
-    'notificationCount > 99 ? "99+" : notificationCount',
-  );
+  expect(header).toContain("Math.min(notificationCount, 99)");
   expect(header).toMatch(
     /onCollapse\(\);[\s\S]*new Event\(OPEN_NOTIFICATIONS_EVENT\)/,
   );

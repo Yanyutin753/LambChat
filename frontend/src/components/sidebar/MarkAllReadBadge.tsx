@@ -29,14 +29,13 @@ export function MarkAllReadBadge({
   tooltip,
 }: MarkAllReadBadgeProps) {
   const isLoading = markingReadId === badgeId;
-  const isSingleDigit = count >= 1 && count <= 9;
 
   const handleClick = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
-      onMarkAllRead();
+      if (!isLoading) onMarkAllRead();
     },
-    [onMarkAllRead],
+    [isLoading, onMarkAllRead],
   );
 
   const handleKeyDown = useCallback(
@@ -44,10 +43,10 @@ export function MarkAllReadBadge({
       if (e.key === "Enter" || e.key === " ") {
         e.stopPropagation();
         e.preventDefault();
-        onMarkAllRead();
+        if (!isLoading) onMarkAllRead();
       }
     },
-    [onMarkAllRead],
+    [isLoading, onMarkAllRead],
   );
 
   // Keep the badge visible while loading even if the count has already been
@@ -62,20 +61,25 @@ export function MarkAllReadBadge({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         aria-label={tooltip}
-        className={[
-          "inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white cursor-pointer select-none",
-          isLoading
-            ? "w-4 h-4 badge-scale"
-            : isSingleDigit
-              ? "w-4 h-4 hover:opacity-70 transition-opacity"
-              : "h-4 min-w-[20px] px-1.5 hover:opacity-70 transition-opacity",
-        ].join(" ")}
+        aria-disabled={isLoading || undefined}
+        aria-busy={isLoading || undefined}
+        className="group/mark-read inline-flex size-8 shrink-0 items-center justify-center rounded-md cursor-pointer select-none aria-disabled:cursor-wait focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
-        {isLoading ? (
-          <LoadingSpinner size={10} color="text-current" />
-        ) : (
-          formatUnreadCount(count)
-        )}
+        <span
+          aria-hidden="true"
+          className={[
+            "count-badge pointer-events-none",
+            isLoading
+              ? "count-badge--loading badge-scale"
+              : "group-hover/mark-read:opacity-70 transition-opacity",
+          ].join(" ")}
+        >
+          {isLoading ? (
+            <LoadingSpinner size={10} color="text-current" />
+          ) : (
+            formatUnreadCount(count)
+          )}
+        </span>
       </span>
     </Tooltip>
   );

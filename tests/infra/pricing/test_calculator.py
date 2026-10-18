@@ -68,7 +68,7 @@ class TestComputeCost:
         )
         assert cost is None
 
-    def test_negative_billable_input_clamped_to_zero(self):
+    def test_contradictory_inclusive_input_is_not_confirmed(self):
         rates = PriceRates(input=3.0, output=15.0, cache_read=0, cache_write=0)
         cost = compute_cost(
             input_tokens=100,
@@ -77,8 +77,7 @@ class TestComputeCost:
             cache_creation_tokens=80,
             rates=rates,
         )
-        assert cost is not None
-        assert cost.input_usd == 0.0
+        assert cost is None
 
     def test_zero_tokens_zero_cost(self):
         rates = PriceRates(input=3.0, output=15.0)

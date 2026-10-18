@@ -100,7 +100,13 @@ export interface TokenUsagePart {
   model_id?: string;
   model?: string;
   // USD 金额（models.dev 计价；undefined 表示该模型未匹配到价格）
-  cost_usd?: number;
+  cost_complete?: boolean;
+  cost_usd?: number | null;
+  partial_cost_usd?: number | null;
+  estimated_cost_usd?: number | null;
+  partial_cost_breakdown?: Partial<
+    Record<"input" | "output" | "cache_read" | "cache_write", number>
+  >;
   cost_breakdown?: {
     input: number;
     output: number;
@@ -114,6 +120,7 @@ export interface TokenUsagePart {
     output: number | null;
     cache_read: number | null;
     cache_write: number | null;
+    cache_write_included?: boolean;
   };
 }
 

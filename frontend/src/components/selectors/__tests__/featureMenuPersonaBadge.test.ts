@@ -18,7 +18,7 @@ test("feature menu persona item shows count fallback and prefers persona name", 
   expect(featureMenuSource).toMatch(/totalPersonaCount\?: number/);
   expect(featureMenuSource).toMatch(/badge=\{\s*personaName \|\|/);
   expect(featureMenuSource).toMatch(
-    /totalPersonaCount > 0\s*\? `\$\{totalPersonaCount\}`\s*: undefined/,
+    /totalPersonaCount > 0\s*\? totalPersonaCount\s*: undefined/,
   );
 });
 

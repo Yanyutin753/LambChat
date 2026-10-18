@@ -98,7 +98,7 @@ async def test_scheduled_payload_ignores_total_watchdog(executor_key):
     executor = SimpleNamespace(
         run_task=AsyncMock(side_effect=execute), _update_session_status=AsyncMock()
     )
-    manager = SimpleNamespace(_ensure_executor=lambda: executor, _run_info={})
+    manager = SimpleNamespace(_ensure_executor=lambda: executor, _tasks={}, _run_info={})
     store = SimpleNamespace(delete=AsyncMock())
     payload = {
         "session_id": "chat",

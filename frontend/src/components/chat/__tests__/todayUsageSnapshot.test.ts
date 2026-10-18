@@ -154,7 +154,9 @@ test("uncertified provider input cannot produce a positive rate", () => {
 
   expect(snap!.cacheHitRate).toBeNull();
   const byKey = Object.fromEntries(snap!.shares.map((s) => [s.key, s]));
-  expect(byKey.input.tokens).toBe(0);
+  expect(byKey.input.tokens).toBe(108);
+  expect(byKey.input.reported).toBe(true);
+  expect(snap!.sharesKnown).toBe(false);
   expect(byKey.cacheRead.tokens).toBe(14813);
 });
 
@@ -181,4 +183,60 @@ test("cacheHitRateFromTokens rejects ambiguous or inconsistent provider counts",
   expect(cacheHitRateFromTokens(10, 100, 0, [], true)).toBeNull();
   // 无任何 token → null（调用方隐藏该指标）
   expect(cacheHitRateFromTokens(0, 0, 0)).toBeNull();
+});
+
+test("56 historical requests retain reportable rows when only cache writes are unknown", () => {
+  const snap = buildTodayUsageSnapshot(
+    stats({
+      total_requests: 56,
+      total_input_tokens: 100,
+      total_output_tokens: 50,
+      total_cache_read_tokens: 30,
+      total_cache_creation_tokens: 0,
+      usage_unknown_requests: 56,
+      cache_unknown_requests: 56,
+      unknown_usage_fields: ["cache_creation_tokens"],
+    }),
+    { language: "en" },
+  )!;
+  const byKey = Object.fromEntries(snap.shares.map((row) => [row.key, row]));
+  expect(byKey.input.tokens).toBe(100);
+  expect(byKey.input.reported).toBe(true);
+  expect(byKey.output.tokens).toBe(50);
+  expect(byKey.cacheRead.tokens).toBe(30);
+  expect(byKey.cacheWrite.tokens).toBeNull();
+  expect(snap.sharesKnown).toBe(false);
+  expect(snap.cacheHitRate).toBeNull();
+});
+
+test("field metadata preserves measured zero while invalid counters stay unknown", () => {
+  const snap = buildTodayUsageSnapshot(
+    stats({
+      total_input_tokens: Number.NaN,
+      total_output_tokens: 0,
+      total_cache_read_tokens: 0,
+      total_cache_creation_tokens: -1,
+      usage_unknown_requests: 1,
+      cache_unknown_requests: 1,
+      unknown_usage_fields: ["input_tokens", "cache_creation_tokens"],
+    }),
+    { language: "en" },
+  )!;
+  const byKey = Object.fromEntries(snap.shares.map((row) => [row.key, row]));
+  expect(byKey.input.tokens).toBeNull();
+  expect(byKey.output.tokens).toBe(0);
+  expect(byKey.cacheRead.tokens).toBe(0);
+  expect(byKey.cacheWrite.tokens).toBeNull();
+  expect(snap.sharesKnown).toBe(false);
+});
+
+test("legacy valid counters are reportable without certifying a token partition", () => {
+  const snap = buildTodayUsageSnapshot(
+    stats({ cache_unknown_requests: undefined }),
+    { language: "en" },
+  )!;
+  expect(snap.sharesKnown).toBe(false);
+  expect(snap.shares.find((row) => row.key === "input")?.tokens).toBe(100);
+  expect(snap.shares.find((row) => row.key === "input")?.reported).toBe(true);
+  expect(snap.shares.find((row) => row.key === "output")?.tokens).toBe(50);
 });

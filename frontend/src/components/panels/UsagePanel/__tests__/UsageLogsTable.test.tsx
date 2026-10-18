@@ -13,7 +13,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../../hooks/useFxRates", () => ({ useFxRates: () => null }));
 afterEach(cleanup);
 
-function show(overrides: Partial<UsageLog> = {}) {
+function show(overrides: Partial<UsageLog> = {}, hasAnyCache = false) {
   const log = {
     trace_id: "trace",
     session_id: "session",
@@ -39,7 +39,7 @@ function show(overrides: Partial<UsageLog> = {}) {
       page={1}
       pageSize={20}
       isAdmin={false}
-      hasAnyCache={false}
+      hasAnyCache={hasAnyCache}
     />,
   );
 }
@@ -64,4 +64,49 @@ test("measured zero survives and legacy incomplete values remain unknown", () =>
   show({ unknown_usage_fields: undefined });
   expect(screen.queryAllByText("456")).toHaveLength(0);
   expect(screen.queryAllByText("789")).toHaveLength(0);
+});
+
+test("historical estimates are labelled in every responsive layout", () => {
+  show({ cost_available: false, estimated_cost_usd: 0.4 });
+  expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
+  expect(screen.getAllByText(/usage.historicalEstimate/)).toHaveLength(3);
+});
+test("partial zero remains visible alongside a separate historical estimate", () => {
+  show({ cost_available: false, partial_cost_usd: 0, estimated_cost_usd: 0.4 });
+  expect(screen.getAllByText("$0.00+")).toHaveLength(3);
+  expect(screen.getAllByText(/usage.historicalEstimate/)).toHaveLength(3);
+});
+
+test("known cache reads remain reportable even when cache writes and ratios are incomplete", () => {
+  show(
+    {
+      cache_read_tokens: 321,
+      cache_metrics_available: false,
+      unknown_usage_fields: ["cache_creation_tokens"],
+    },
+    true,
+  );
+  expect(screen.getAllByText("321")).toHaveLength(3);
+});
+
+test("legacy null completeness reports valid counts and labels its estimate while explicit incomplete stays unknown", () => {
+  const legacy: Partial<UsageLog> = {
+    usage_incomplete: null,
+    unknown_usage_fields: [],
+    cache_read_tokens: 321,
+    cost_available: false,
+    estimated_cost_usd: 0.4,
+  };
+  show(legacy, true);
+  for (const count of ["456", "789", "321", "1.2K"]) {
+    expect(screen.getAllByText(count)).toHaveLength(3);
+  }
+  expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
+  expect(screen.getAllByText(/usage.historicalEstimate/)).toHaveLength(3);
+  cleanup();
+  show({ ...legacy, usage_incomplete: true }, true);
+  for (const count of ["456", "789", "321", "1.2K"]) {
+    expect(screen.queryAllByText(count)).toHaveLength(0);
+  }
+  expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
 });

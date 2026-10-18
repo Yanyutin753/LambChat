@@ -1,3 +1,4 @@
+import { reportedTokenCount } from "../../utils/usageTokens";
 // 当日个人用量 → 输入框用量卡快照：金额、请求数、Token 四类占比与缓存命中率。
 import type { UsageStats } from "../../types/usage";
 import {
@@ -9,7 +10,9 @@ export type TokenShareKey = "input" | "output" | "cacheWrite" | "cacheRead";
 
 export interface TokenShareRow {
   key: TokenShareKey;
-  tokens: number;
+  tokens: number | null;
+  /** 原始报告输入，尚不能拆分为普通输入与缓存。 */
+  reported?: boolean;
   /** 占四类 token 总量的百分比（0-100，无 token 时全为 0） */
   share: number;
 }
@@ -17,7 +20,7 @@ export interface TokenShareRow {
 export interface TodayUsageSnapshot {
   amount: string | null;
   requests: number;
-  totalTokens: number;
+  totalTokens: number | null;
   /** 缓存命中率 = 缓存读取 / 已认证包含缓存的 prompt 输入 */
   cacheHitRate: number | null;
   shares: TokenShareRow[];
@@ -79,35 +82,54 @@ export function buildTodayUsageSnapshot(
 ): TodayUsageSnapshot | null {
   if (!stats) return null;
 
-  const input = stats.total_input_tokens ?? 0;
-  const output = stats.total_output_tokens ?? 0;
-  const cacheWrite = stats.total_cache_creation_tokens ?? 0;
-  const cacheRead = stats.total_cache_read_tokens ?? 0;
-  const effectiveInput = effectivePromptInput(input, cacheRead, cacheWrite);
-  const uncachedInput = Math.max(effectiveInput - cacheRead - cacheWrite, 0);
-  const denominator = effectiveInput + output;
-
-  const pct = (tokens: number) =>
-    denominator > 0 ? (tokens / denominator) * 100 : 0;
+  const unknownFields = stats.unknown_usage_fields ?? [];
+  const knownCount = (value: unknown, field: string) =>
+    reportedTokenCount(value, field, unknownFields);
+  const input = knownCount(stats.total_input_tokens, "input_tokens");
+  const output = knownCount(stats.total_output_tokens, "output_tokens");
+  const cacheWrite = knownCount(
+    stats.total_cache_creation_tokens,
+    "cache_creation_tokens",
+  );
+  const cacheRead = knownCount(
+    stats.total_cache_read_tokens,
+    "cache_read_tokens",
+  );
+  const sharesKnown =
+    stats.cache_unknown_requests === 0 &&
+    (stats.usage_unknown_requests ?? 0) === 0 &&
+    input !== null &&
+    output !== null &&
+    cacheRead !== null &&
+    cacheWrite !== null &&
+    input >= cacheRead + cacheWrite;
+  const uncachedInput = sharesKnown ? input - cacheRead - cacheWrite : input;
+  const denominator = sharesKnown ? input + output : 0;
+  const pct = (tokens: number | null) =>
+    denominator > 0 && tokens !== null ? (tokens / denominator) * 100 : 0;
 
   return {
     amount: buildDailyUsageAmount(stats, opts),
     requests: stats.total_requests ?? 0,
-    totalTokens: stats.total_tokens ?? 0,
-    sharesKnown:
-      (stats.usage_unknown_requests ?? stats.cache_unknown_requests ?? 0) === 0,
+    totalTokens: knownCount(stats.total_tokens, "total_tokens"),
+    sharesKnown,
     cacheHitRate:
       (stats.cache_unknown_requests ?? 0) > 0
         ? null
         : cacheHitRateFromTokens(
-            input,
-            cacheRead,
-            cacheWrite,
-            [],
+            input ?? undefined,
+            cacheRead ?? undefined,
+            cacheWrite ?? undefined,
+            unknownFields,
             stats.cache_unknown_requests === 0,
           ),
     shares: [
-      { key: "input", tokens: uncachedInput, share: pct(uncachedInput) },
+      {
+        key: "input",
+        tokens: uncachedInput,
+        share: pct(uncachedInput),
+        reported: !sharesKnown,
+      },
       { key: "output", tokens: output, share: pct(output) },
       { key: "cacheWrite", tokens: cacheWrite, share: pct(cacheWrite) },
       { key: "cacheRead", tokens: cacheRead, share: pct(cacheRead) },

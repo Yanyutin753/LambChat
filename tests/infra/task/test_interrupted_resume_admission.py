@@ -82,7 +82,7 @@ async def test_arq_resume_losing_authority_during_slot_await_drops_only_own_disp
 
     limiter = CompletingLimiter()
     manager = SimpleNamespace(
-        storage=storage, _run_info=executor._run_info, _ensure_executor=lambda: executor
+        storage=storage, _tasks={}, _run_info=executor._run_info, _ensure_executor=lambda: executor
     )
     manager._run_info["new-run"] = {"owner": "new-worker"}
     payload = {

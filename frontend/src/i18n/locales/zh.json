@@ -208,6 +208,7 @@
     "parameters": "参数",
     "preferenceSaved": "默认助手已保存",
     "pricingBackfill": "补算历史费用",
+    "pricingBackfillPartial": "{{count}} 条已计算部分费用",
     "pricingBackfillFailed": "补算历史费用失败",
     "pricingBackfillSuccess": "补算完成：{{priced}}/{{scanned}} 条",
     "pricingBackfillUnpriced": "{{count}} 条未计价",
@@ -4329,6 +4330,9 @@
   "updateRetry": "重试",
   "updateSkip": "以后再说",
   "usage": {
+    "tokensInputReported": "输入（报告值）",
+    "historicalEstimate": "历史估算",
+    "partialCostHint": "仅含已知金额，其余费用未知。",
     "sources": {
       "chat": "对话",
       "scheduled_task": "定时任务"
@@ -4552,7 +4556,7 @@
     "readyToast": "v{{version}} 已下载，可重启安装",
     "downloadingToast": "正在下载 v{{version}}，完成后即可安装",
     "channel": "更新通道",
-    "channelStable": "正式版（默认）",
+    "channelStable": "正式版",
     "channelDev": "测试版",
     "channelDevHint": "测试版可能存在尚未发现的问题。旧 dev.2 及更早版本需手动安装一次新版，之后可正常更新。"
   },

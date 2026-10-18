@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+from src.infra.usage.counter_availability import TOKEN_FIELDS
+
 
 def _as_int(value: Any) -> int:
     if isinstance(value, bool):
@@ -31,6 +33,23 @@ def _as_float(value: Any) -> float:
     return 0.0
 
 
+def _format_cost_certainty(doc: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "partial_cost_usd": _as_float(doc.get("partial_cost_usd")),
+        "partial_requests": _as_int(doc.get("partial_requests")),
+        "estimated_cost_usd": _as_float(doc.get("estimated_cost_usd")),
+        "estimated_requests": _as_int(doc.get("estimated_requests")),
+    }
+
+
+def _format_counter_availability(doc: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "unknown_usage_fields": [
+            field for field in TOKEN_FIELDS if _as_int(doc.get(f"unreported_{field}_requests")) > 0
+        ]
+    }
+
+
 def _empty_stats() -> Dict[str, Any]:
     return {
         "total_requests": 0,
@@ -41,6 +60,8 @@ def _empty_stats() -> Dict[str, Any]:
         "total_cache_read_tokens": 0,
         "total_duration": 0.0,
         "total_cost_usd": 0.0,
+        **_format_cost_certainty({}),
+        **_format_counter_availability({}),
         "unpriced_requests": 0,
         "priced_requests": 0,
         "usage_unknown_requests": 0,
@@ -86,6 +107,8 @@ def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "tokens": _as_int(doc.get("tokens")),
         "duration": _as_float(doc.get("duration")),
         "cost_usd": _as_float(doc.get("cost_usd")),
+        **_format_cost_certainty(doc),
+        **_format_counter_availability(doc),
         "priced_requests": _as_int(doc.get("priced_requests")),
         "unpriced_requests": _as_int(doc.get("unpriced_requests")),
         "usage_unknown_requests": _as_int(doc.get("usage_unknown_requests")),
@@ -120,6 +143,8 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "tokens": _as_int(item.get("tokens")),
             "duration": _as_float(item.get("duration")),
             "cost_usd": _as_float(item.get("cost_usd")),
+            **_format_cost_certainty(item),
+            **_format_counter_availability(item),
             "priced_requests": _as_int(item.get("priced_requests")),
             "unpriced_requests": _as_int(item.get("unpriced_requests")),
             "usage_unknown_requests": _as_int(item.get("usage_unknown_requests")),
@@ -161,6 +186,8 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "total_duration": total_duration,
         "total_tool_calls": total_tool_calls,
         "total_cost_usd": _as_float(summary_doc.get("total_cost_usd")),
+        **_format_cost_certainty(summary_doc),
+        **_format_counter_availability(summary_doc),
         "unpriced_requests": _as_int(summary_doc.get("unpriced_requests")),
         "scheduled_runs": scheduled_runs,
         "failed_requests": failed_requests,
@@ -202,6 +229,8 @@ def _empty_dashboard() -> Dict[str, Any]:
             "total_duration": 0.0,
             "total_tool_calls": 0,
             "total_cost_usd": 0.0,
+            **_format_cost_certainty({}),
+            **_format_counter_availability({}),
             "unpriced_requests": 0,
             "priced_requests": 0,
             "cache_unknown_requests": 0,

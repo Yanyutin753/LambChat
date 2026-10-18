@@ -1,3 +1,7 @@
+import {
+  usageCostOptions,
+  historicalEstimateHint,
+} from "../../../utils/currency";
 import { formatUsageTokenCount } from "../../chat/ChatMessage/tokenCostDisplay";
 import { EmptyState } from "../../common/EmptyState";
 import { Activity, Bot, FileText, Clock } from "lucide-react";
@@ -36,6 +40,27 @@ const _STATUS_PILL_STYLES: Record<
     labelKey: "usage.statusError",
   },
 };
+
+function LogCost({ log, opts }: { log: UsageLog; opts: CostFormatOpts }) {
+  const { t } = useTranslation();
+  const amountOpts = { ...opts, ...usageCostOptions(log) };
+  const hint = historicalEstimateHint(
+    amountOpts,
+    t("usage.historicalEstimate"),
+  );
+  return (
+    <span className="block min-w-0">
+      <span>
+        {fmtCostUsd(log.cost_usd, log.cost_available === true, amountOpts)}
+      </span>
+      {hint && (
+        <span className="block whitespace-normal text-10 font-normal text-theme-text-tertiary">
+          {hint}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function StatusPill({ status, title }: { status: string; title?: string }) {
   const { t } = useTranslation();
@@ -219,9 +244,7 @@ function DesktopTable({
                     <div
                       className={`${numericCellClass} text-theme-text-tertiary`}
                     >
-                      {log.cache_metrics_available === true
-                        ? fmt(log.cache_read_tokens)
-                        : "—"}
+                      {formatUsageTokenCount(log, "cache_read_tokens", fmt)}
                     </div>
                   )}
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 font-semibold tabular-nums text-[var(--theme-primary)]">
@@ -230,11 +253,7 @@ function DesktopTable({
                   <div
                     className={`${numericCellClass} text-theme-text-tertiary`}
                   >
-                    {fmtCostUsd(
-                      log.cost_usd,
-                      Boolean(log.cost_available),
-                      costOpts,
-                    )}
+                    <LogCost log={log} opts={costOpts} />
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 tabular-nums text-theme-text-tertiary">
                     {fmtDur(log.duration)}
@@ -330,9 +349,7 @@ function TabletRow({
           ],
           [
             t("usage.cache"),
-            log.cache_metrics_available === true
-              ? fmt(log.cache_read_tokens)
-              : "—",
+            formatUsageTokenCount(log, "cache_read_tokens", fmt),
             false,
           ],
           [
@@ -340,11 +357,7 @@ function TabletRow({
             formatUsageTokenCount(log, "total_tokens", fmt),
             true,
           ],
-          [
-            t("usage.cost"),
-            fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),
-            false,
-          ],
+          [t("usage.cost"), <LogCost log={log} opts={costOpts} />, false],
         ].map(([label, value, strong]) => (
           <div key={String(label)} className="min-w-0">
             <span className="block text-9 text-theme-text-tertiary">
@@ -451,9 +464,7 @@ function MobileCard({
             ],
             [
               t("usage.cacheRead"),
-              log.cache_metrics_available === true
-                ? fmt(log.cache_read_tokens)
-                : "—",
+              formatUsageTokenCount(log, "cache_read_tokens", fmt),
               false,
             ],
             [
@@ -461,11 +472,7 @@ function MobileCard({
               formatUsageTokenCount(log, "total_tokens", fmt),
               true,
             ],
-            [
-              t("usage.cost"),
-              fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),
-              false,
-            ],
+            [t("usage.cost"), <LogCost log={log} opts={costOpts} />, false],
           ].map(([label, value, strong], i) => (
             <div
               key={String(label)}

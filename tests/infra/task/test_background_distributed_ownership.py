@@ -25,7 +25,10 @@ async def test_two_background_worker_dispatches_share_one_execution_owner(
 
     executor = SimpleNamespace(run_task=execute, _update_session_status=AsyncMock())
     manager = SimpleNamespace(
-        _run_info={}, _ensure_executor=lambda: executor, _mark_run_recoverable_failure=AsyncMock()
+        _tasks={},
+        _run_info={},
+        _ensure_executor=lambda: executor,
+        _mark_run_recoverable_failure=AsyncMock(),
     )
     limiter = _FakeLimiter()
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: manager)
@@ -73,7 +76,7 @@ async def test_background_execution_owner_releases_after_original_worker_finishe
         run_task=AsyncMock(side_effect=lambda **kwargs: calls.append(kwargs)),
         _update_session_status=AsyncMock(),
     )
-    manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: executor)
+    manager = SimpleNamespace(_tasks={}, _run_info={}, _ensure_executor=lambda: executor)
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: _FakeLimiter())
     monkeypatch.setattr(arq_worker, "_resolve_executor", lambda _: object())
@@ -127,7 +130,7 @@ async def test_resume_defers_until_previous_execution_lease_expires(
     executor = SimpleNamespace(run_task=AsyncMock(), _update_session_status=AsyncMock())
     owner_info = {"owner": "first-worker"}
     manager = SimpleNamespace(
-        _run_info={"background-run": owner_info}, _ensure_executor=lambda: executor
+        _tasks={}, _run_info={"background-run": owner_info}, _ensure_executor=lambda: executor
     )
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)

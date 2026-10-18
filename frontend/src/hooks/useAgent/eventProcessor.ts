@@ -645,7 +645,11 @@ export function processMessageEvent(
           ? undefined
           : data.cache_read_tokens,
         usage_incomplete:
-          data.usage_incomplete !== false || unknownUsageFields.size > 0,
+          unknownUsageFields.size > 0
+            ? true
+            : typeof data.usage_incomplete === "boolean"
+              ? data.usage_incomplete
+              : undefined,
         ...(unknownUsageFields.size > 0
           ? { unknown_usage_fields: [...unknownUsageFields] }
           : {}),
@@ -654,7 +658,11 @@ export function processMessageEvent(
           : {}),
         model_id: data.model_id,
         model: data.model,
+        cost_complete: data.cost_complete,
         cost_usd: data.cost_usd,
+        partial_cost_usd: data.partial_cost_usd,
+        estimated_cost_usd: data.estimated_cost_usd,
+        partial_cost_breakdown: data.partial_cost_breakdown,
         cost_breakdown: data.cost_breakdown,
         cost_rates: data.cost_rates,
       };

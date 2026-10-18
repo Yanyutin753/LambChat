@@ -208,6 +208,7 @@
     "parameters": "Параметры",
     "preferenceSaved": "Настройки агента по умолчанию сохранены",
     "pricingBackfill": "Пересчитать расходы",
+    "pricingBackfillPartial": "{{count}} записей с частично рассчитанной стоимостью",
     "pricingBackfillFailed": "Не удалось пересчитать расходы",
     "pricingBackfillSuccess": "Пересчитано: {{priced}}/{{scanned}} записей",
     "pricingBackfillUnpriced": "{{count}} без цены",
@@ -4329,6 +4330,9 @@
   "updateRetry": "Повторить",
   "updateSkip": "Позже",
   "usage": {
+    "tokensInputReported": "Вход (сообщённое значение)",
+    "historicalEstimate": "Историческая оценка",
+    "partialCostHint": "Указана только известная сумма; остальная стоимость неизвестна.",
     "sources": {
       "chat": "Чат",
       "scheduled_task": "Задача по расписанию"
@@ -4552,7 +4556,7 @@
     "readyToast": "v{{version}} готова к установке",
     "downloadingToast": "Загружается v{{version}}; установка доступна после завершения",
     "channel": "Канал обновлений",
-    "channelStable": "Стабильный (по умолчанию)",
+    "channelStable": "Стабильный",
     "channelDev": "Тестовый",
     "channelDevHint": "Тестовые сборки могут содержать нерешённые проблемы. Для dev.2 и более ранних версий сначала требуется одна ручная переустановка, затем доступны обновления канала."
   },

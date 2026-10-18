@@ -483,6 +483,10 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
         "attachment_references_claimed": payload.get("attachment_references_claimed", False),
     }
 
+    # Cancel must reach ARQ execution even before the agent registers its graph task.
+    owner = asyncio.current_task()
+    assert owner is not None
+    task_manager._tasks[run_id] = owner
     try:
         run_kwargs = dict(
             session_id=payload["session_id"],
@@ -567,7 +571,9 @@ async def _run_agent_payload(payload_store, payload, dispatch_id: str, run_id: s
         if suspended:
             await mark_hitl_source_released(run_id)
     finally:
-        task_manager._run_info.pop(run_id, None)
+        if task_manager._tasks.get(run_id) is owner:
+            task_manager._tasks.pop(run_id)
+            task_manager._run_info.pop(run_id, None)
 
 
 async def update_user_message_search_index(ctx: dict[str, Any], run_id: str) -> None:

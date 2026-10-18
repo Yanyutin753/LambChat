@@ -35,7 +35,7 @@ from src.infra.agent.events.tool_outputs import (
 from src.infra.agent.events.types import TOOL_TASK, StreamEvent
 from src.infra.agent.first_event_timing import FirstEventTiming
 from src.infra.logging import get_logger
-from src.infra.pricing.service import compute_usage_cost
+from src.infra.pricing.service import compute_partial_usage_cost, compute_usage_cost
 from src.infra.writer.present import Presenter
 from src.kernel.config import settings
 
@@ -294,7 +294,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         cost, rates = (
             (None, None)
             if pending
-            else await self._resolve_usage_cost(model=model, model_id=model_id)
+            else await self._resolve_usage_cost(model=model, model_id=model_id, usage=snapshot)
         )
         event = self.presenter.present_token_usage(
             input_tokens=snapshot["input_tokens"],
@@ -324,27 +324,42 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         return True
 
     async def _resolve_usage_cost(
-        self, *, model: str | None, model_id: str | None
+        self, *, model: str | None, model_id: str | None, usage: dict
     ) -> tuple[Any, Any]:
         """best-effort 计算本次用量成本；失败或未匹配价格时返回 (None, None)。"""
-        if self._usage_unknown_fields or not self._input_includes_cache:
+        if usage.get("input_includes_cache") is not True:
             return None, None
+        unknown = set(usage.get("unknown_usage_fields") or [])
         try:
-            result = await compute_usage_cost(
+            if not unknown:
+                result = await compute_usage_cost(
+                    model_value=model,
+                    model_config_id=model_id,
+                    input_tokens=usage["input_tokens"],
+                    output_tokens=usage["output_tokens"],
+                    cache_read_tokens=usage["cache_read_tokens"],
+                    cache_creation_tokens=usage["cache_creation_tokens"],
+                )
+                if result is not None:
+                    return result[0], result[1]
+            partial_result = await compute_partial_usage_cost(
                 model_value=model,
                 model_config_id=model_id,
-                input_tokens=self.total_input_tokens,
-                output_tokens=self.total_output_tokens,
-                cache_read_tokens=self.total_cache_read_tokens,
-                cache_creation_tokens=self.total_cache_creation_tokens,
+                input_tokens=None if "input_tokens" in unknown else usage["input_tokens"],
+                output_tokens=None if "output_tokens" in unknown else usage["output_tokens"],
+                cache_read_tokens=None
+                if "cache_read_tokens" in unknown
+                else usage["cache_read_tokens"],
+                cache_creation_tokens=None
+                if "cache_creation_tokens" in unknown
+                else usage["cache_creation_tokens"],
+                input_includes_cache=usage.get("input_includes_cache") is True,
             )
+            if partial_result is not None:
+                return partial_result[0], partial_result[1]
         except Exception as e:
             logger.debug(f"Pricing: usage cost computation failed: {e}")
-            return None, None
-        if result is None:
-            return None, None
-        breakdown, rates, _source = result
-        return breakdown, rates
+        return None, None
 
     def clear(self) -> None:
         """Release memory held by this session while preserving token counters."""

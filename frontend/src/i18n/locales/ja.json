@@ -208,6 +208,7 @@
     "parameters": "パラメータ",
     "preferenceSaved": "デフォルトエージェントの設定を保存しました",
     "pricingBackfill": "履歴費用を再計算",
+    "pricingBackfillPartial": "{{count}} 件の費用を一部算出",
     "pricingBackfillFailed": "履歴費用の再計算に失敗しました",
     "pricingBackfillSuccess": "再計算完了：{{priced}}/{{scanned}} 件",
     "pricingBackfillUnpriced": "{{count}} 件は未計価",
@@ -4329,6 +4330,9 @@
   "updateRetry": "再試行",
   "updateSkip": "後で",
   "usage": {
+    "tokensInputReported": "入力（報告値）",
+    "historicalEstimate": "過去の概算",
+    "partialCostHint": "判明している金額のみです。残りの費用は不明です。",
     "sources": {
       "chat": "チャット",
       "scheduled_task": "定期タスク"
@@ -4552,7 +4556,7 @@
     "readyToast": "v{{version}} のインストール準備ができました",
     "downloadingToast": "v{{version}} をダウンロード中です。完了後にインストールできます",
     "channel": "更新チャンネル",
-    "channelStable": "安定版（既定）",
+    "channelStable": "安定版",
     "channelDev": "テスト版",
     "channelDevHint": "テスト版には未解決の問題が含まれる場合があります。dev.2 以前は一度手動で新版をインストールしてください。以後は通常の更新を利用できます。"
   },

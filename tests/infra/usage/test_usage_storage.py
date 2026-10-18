@@ -429,7 +429,16 @@ async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
         limit=999,
     )
 
-    assert items == [{"trace_id": "trace-1", "cost_available": False, "usage_incomplete": True}]
+    assert items == [
+        {
+            "trace_id": "trace-1",
+            "cost_available": False,
+            "usage_incomplete": None,
+            "cost_complete": False,
+            "partial_cost_usd": None,
+            "estimated_cost_usd": None,
+        }
+    ]
     assert total == 1
     assert stats["total_requests"] == 1
     query = collection.count_queries[0]
@@ -457,7 +466,10 @@ async def test_list_usage_logs_paginates_items_but_keeps_stats_global() -> None:
             "output_tokens": 8,
             "total_tokens": 28,
             "cost_available": False,
-            "usage_incomplete": True,
+            "usage_incomplete": None,
+            "cost_complete": False,
+            "partial_cost_usd": None,
+            "estimated_cost_usd": None,
         }
     ]
     assert total == 3
@@ -704,6 +716,11 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
     assert dashboard["top_models"][0] == {
         "id": "openai/gpt-5",
         "name": "openai/gpt-5",
+        "partial_cost_usd": 0.0,
+        "partial_requests": 0,
+        "estimated_cost_usd": 0.0,
+        "estimated_requests": 0,
+        "unknown_usage_fields": [],
         "requests": 2,
         "tokens": 150,
         "duration": 60.0,

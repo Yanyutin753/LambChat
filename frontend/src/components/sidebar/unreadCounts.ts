@@ -150,5 +150,5 @@ export function getUnreadCountForFavorites(
 }
 
 export function formatUnreadCount(count: number): string {
-  return count > 99 ? "99+" : String(count);
+  return String(Math.min(count, 99));
 }

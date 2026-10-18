@@ -1,5 +1,9 @@
+import { reportedTokenCount } from "../../../utils/usageTokens";
 import { formatDuration } from "../../../utils/datetime";
-import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
+import {
+  formatUsageCost,
+  type UsageCostFormatOpts,
+} from "../../../utils/currency";
 import type { UsageDailyPoint } from "../../../types/usage";
 
 export function fmt(n: number): string {
@@ -80,24 +84,22 @@ export function normalizeTrendPoints(
   return result;
 }
 
-export interface CostFormatOpts {
-  pricedRequests?: number;
-  unpricedRequests?: number;
-  language?: string;
-  rates?: FxRatesDoc | null;
-  /** 小数位上限；手机端窄格子传 3 截短小金额精度 */
-  maxDecimals?: number;
-}
+export type CostFormatOpts = UsageCostFormatOpts;
 
-/** 用量日志成本展示：未计价显示占位符，已计价按展示货币格式化 */
+/** Shared certainty-aware cost display for usage logs and aggregates. */
 export function fmtCostUsd(
-  usd: number | undefined,
+  usd: number | null | undefined,
   available: boolean,
   opts: CostFormatOpts,
 ): string {
-  if (!available || typeof usd !== "number" || !Number.isFinite(usd))
-    return "—";
-  const unknown = (opts.unpricedRequests ?? 0) > 0;
-  if (unknown && opts.pricedRequests === 0) return "—";
-  return `${formatCostUsd(usd, opts)}${unknown ? "+" : ""}`;
+  return formatUsageCost(usd, available, opts);
+}
+
+export function fmtUsageCount(
+  value: unknown,
+  field: string,
+  unknownFields?: readonly string[] | null,
+): string {
+  const count = reportedTokenCount(value, field, unknownFields);
+  return count === null ? "—" : fmt(count);
 }

@@ -34,6 +34,19 @@
   --glass-blur: none;
 }
 
+/* Older WebViews accept color-mix in variables, then invalidate their consumers. */
+@supports not (color: color-mix(in srgb, black, white)) {
+  .glass-shell,
+  .dark .glass-shell {
+    --glass-bg: var(--theme-bg-card);
+    --glass-bg-hover: var(--theme-bg-elevated);
+    --glass-bg-subtle: var(--theme-bg-subtle);
+    --glass-border: var(--theme-border);
+    --glass-border-hover: var(--theme-border-hover);
+    --glass-glow: 0 0 0 transparent;
+  }
+}
+
 .glass-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);

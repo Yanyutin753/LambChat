@@ -1,0 +1,84 @@
+.update-channel-control {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+.update-channel-options {
+  display: flex;
+  gap: 1.25rem;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.update-channel-option {
+  position: relative;
+  min-width: 0;
+}
+
+.update-channel-option > span {
+  display: flex;
+  position: relative;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.125rem;
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.update-channel-option > input:checked + span {
+  color: var(--theme-text);
+  font-weight: 500;
+}
+
+.update-channel-option > input:checked + span::after {
+  position: absolute;
+  right: 0.125rem;
+  bottom: 0.25rem;
+  left: 0.125rem;
+  height: 1px;
+  background: currentColor;
+  content: "";
+}
+
+.update-channel-option > input:focus-visible + span {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.update-channel-option > input:not(:disabled):not(:checked) + span:hover {
+  color: var(--theme-text);
+}
+
+.update-channel-options:disabled {
+  opacity: 0.5;
+}
+
+.update-channel-options:disabled span {
+  cursor: not-allowed;
+}
+
+.update-channel-hint {
+  flex-basis: 100%;
+  margin: 0;
+  max-width: 32rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px), (pointer: coarse) {
+  .update-channel-option > span {
+    min-height: 2.75rem;
+  }
+}

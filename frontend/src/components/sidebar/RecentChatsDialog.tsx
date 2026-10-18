@@ -328,7 +328,7 @@ export function RecentChatsDialog({
                         aria-label={t("sidebar.unreadMessages", {
                           count: session.unread_count,
                         })}
-                        className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white"
+                        className="count-badge"
                       >
                         {formatUnreadCount(session.unread_count)}
                       </span>

@@ -9,6 +9,7 @@ from __future__ import annotations
 from itertools import islice
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
+from src.infra.pricing.calculator import PartialCostBreakdown
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.presenter_config import _bounded_attachments
 
@@ -604,7 +605,7 @@ class EventPresenterMixin:
             unknown.add("cache_read_tokens")
         data["usage_incomplete"] = bool(unknown)
         data["unknown_usage_fields"] = sorted(unknown)
-        if input_includes_cache:
+        if input_includes_cache is True:
             data["input_includes_cache"] = True
         if cache_creation_tokens is not None:
             data["cache_creation_tokens"] = cache_creation_tokens
@@ -615,15 +616,31 @@ class EventPresenterMixin:
         if model:
             data["model"] = model
         # 金额字段仅在可计价时携带，前端据此区分「未计价」与「0 美元」
-        if cost is not None and not unknown:
+        if isinstance(cost, PartialCostBreakdown):
+            if cost.components and input_includes_cache is True:
+                data["partial_cost_usd"] = cost.total_usd
+                data["partial_cost_breakdown"] = dict(cost.components)
+        elif cost is not None and (
+            not unknown
+            or unknown <= {"cache_creation_tokens", "total_tokens"}
+            and input_includes_cache is True
+            and rates is not None
+            and getattr(rates, "cache_write_included", False) is True
+        ):
             data["cost_usd"] = cost.total_usd
             data["cost_breakdown"] = cost.to_event_data()
+            data["cost_complete"] = True
         if rates is not None:
             data["cost_rates"] = {
                 "input": rates.input,
                 "output": rates.output,
                 "cache_read": rates.cache_read,
                 "cache_write": rates.cache_write,
+                **(
+                    {"cache_write_included": True}
+                    if getattr(rates, "cache_write_included", False) is True
+                    else {}
+                ),
             }
         return self._build_event("token:usage", data)
 

@@ -1,3 +1,4 @@
+import { reportedTokenCount } from "../../../utils/usageTokens";
 import { useMemo } from "react";
 import {
   AreaChart,
@@ -12,7 +13,13 @@ import {
 import { LineChart, TrendingUp, Zap, Calendar, Flame } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageDailyPoint } from "../../../types/usage";
-import { fmt, fmtDur, normalizeTrendPoints, shortDate } from "./formatters";
+import {
+  fmt,
+  fmtUsageCount,
+  fmtDur,
+  normalizeTrendPoints,
+  shortDate,
+} from "./formatters";
 
 // ── Custom tooltip ──
 function ChartTooltip({
@@ -21,7 +28,7 @@ function ChartTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
+  payload?: Array<{ name: string; value: number | null; color: string }>;
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
@@ -39,7 +46,7 @@ function ChartTooltip({
           />
           <span className="text-theme-text-secondary">{entry.name}</span>
           <span className="ml-auto font-semibold tabular-nums text-theme-text">
-            {fmt(entry.value)}
+            {fmtUsageCount(entry.value, "total_tokens")}
           </span>
         </div>
       ))}
@@ -54,7 +61,17 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
     [points],
   );
 
-  const totalTokens = visible.reduce((s, p) => s + p.tokens, 0);
+  const tokensKnown = visible.every(
+    (point) =>
+      reportedTokenCount(
+        point.tokens,
+        "total_tokens",
+        point.unknown_usage_fields,
+      ) !== null,
+  );
+  const totalTokens = tokensKnown
+    ? visible.reduce((sum, point) => sum + point.tokens, 0)
+    : null;
   const totalRequests = visible.reduce((s, p) => s + p.requests, 0);
   const totalScheduled = visible.reduce((s, p) => s + p.scheduled_runs, 0);
   const totalFailures = visible.reduce((s, p) => s + p.failed_requests, 0);
@@ -64,7 +81,8 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
   ).length;
   const hasData = visible.some((p) => p.tokens > 0 || p.requests > 0);
   const peakIdx = visible.reduce(
-    (best, p, i) => (p.tokens > visible[best].tokens ? i : best),
+    (best, point, index) =>
+      point.tokens > visible[best].tokens ? index : best,
     0,
   );
   const peakPoint = visible[peakIdx];
@@ -73,7 +91,11 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
     () =>
       visible.map((p) => ({
         date: shortDate(p.date),
-        Tokens: p.tokens,
+        Tokens: reportedTokenCount(
+          p.tokens,
+          "total_tokens",
+          p.unknown_usage_fields,
+        ),
         requests: p.requests,
       })),
     [visible],
@@ -185,6 +207,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
 
               <Tooltip
                 content={<ChartTooltip />}
+                filterNull={false}
                 cursor={{
                   stroke: "var(--theme-primary)",
                   strokeWidth: 0,
@@ -227,7 +250,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
               />
 
               {/* Peak indicator dot — always visible when data exists */}
-              {hasData && peakPoint.tokens > 0 && (
+              {hasData && tokensKnown && peakPoint.tokens > 0 && (
                 <ReferenceDot
                   x={shortDate(peakPoint.date)}
                   y={peakPoint.tokens}
@@ -250,7 +273,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             {t("usage.trend.tokens")}
           </span>
           <span className="text-13 font-bold tabular-nums text-theme-text">
-            {fmt(totalTokens)}
+            {fmtUsageCount(totalTokens, "total_tokens")}
           </span>
         </div>
         <div className="flex flex-col">
@@ -266,7 +289,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             {t("usage.trend.peak")}
           </span>
           <span className="text-13 font-bold tabular-nums text-theme-text">
-            {hasData ? shortDate(peakPoint.date) : "-"}
+            {tokensKnown && hasData ? shortDate(peakPoint.date) : "—"}
           </span>
         </div>
       </div>
@@ -277,7 +300,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
           {
             icon: Zap,
             label: t("usage.trend.tokens"),
-            value: fmt(totalTokens),
+            value: fmtUsageCount(totalTokens, "total_tokens"),
           },
           {
             icon: TrendingUp,
@@ -292,9 +315,14 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
           {
             icon: Flame,
             label: t("usage.trend.peak"),
-            value: hasData
-              ? `${shortDate(peakPoint.date)} · ${fmt(peakPoint.tokens)}`
-              : "-",
+            value:
+              tokensKnown && hasData
+                ? `${shortDate(peakPoint.date)} · ${fmtUsageCount(
+                    peakPoint.tokens,
+                    "total_tokens",
+                    peakPoint.unknown_usage_fields,
+                  )}`
+                : "—",
           },
         ].map((item) => (
           <div key={item.label} className="flex flex-col">
