@@ -39,7 +39,7 @@ class PriceRates:
     output: float | None = None
     cache_read: float | None = None
     cache_write: float | None = None
-    # Z.AI charges newly cached content at the ordinary input rate.
+    # Certified provider/model policies charge newly cached content as ordinary input.
     cache_write_included: bool = False
 
     def is_priced(self) -> bool:

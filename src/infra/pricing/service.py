@@ -3,6 +3,7 @@
 进程内缓存价格索引与汇率；所有查询 best-effort，失败不阻塞调用方。
 """
 
+import re
 from dataclasses import dataclass, replace
 from typing import Optional
 
@@ -14,10 +15,30 @@ from src.infra.pricing.calculator import (
     compute_cost,
     compute_partial_cost,
 )
-from src.infra.pricing.matching import PriceEntry, PriceIndex, restore_price_index
+from src.infra.pricing.matching import (
+    PriceEntry,
+    PriceIndex,
+    normalize_model_key,
+    restore_price_index,
+)
 from src.infra.pricing.storage import get_pricing_storage
 
 logger = get_logger(__name__)
+
+_LEGACY_OPENAI_CACHE_MODEL = re.compile(
+    r"(?:gpt-4o(?:-mini)?|gpt-4\.1(?:-(?:mini|nano))?"
+    r"|gpt-5(?:\.[1-5])?(?:-(?:mini|nano|pro|codex(?:-(?:mini|max))?))?)"
+    r"(?:-20(?:\d{6}|\d{2}-\d{2}-\d{2}))?"
+)
+
+
+def _legacy_openai_cache_model(value: str | None, matched_model: str) -> bool:
+    # Validate raw names before normalization, which also strips drifting latest aliases.
+    return all(
+        isinstance(name, str)
+        and _LEGACY_OPENAI_CACHE_MODEL.fullmatch(name.rsplit("/", 1)[-1].lower()) is not None
+        for name in (value, matched_model)
+    ) and normalize_model_key(value or "") == normalize_model_key(matched_model)
 
 
 @dataclass(frozen=True)
@@ -121,13 +142,17 @@ async def resolve_price(
             logger.debug(f"Pricing: index match failed for {value!r}: {e}")
 
     base = entry.rates if entry is not None else PriceRates()
-    if (
-        entry is not None
-        and entry.provider == "zai"
-        and type(base.cache_write) in (int, float)
-        and base.cache_write == 0
+    zero_write_price = type(base.cache_write) in (int, float) and base.cache_write == 0
+    if entry is not None and (
+        entry.provider == "zai"
+        and zero_write_price
+        or entry.provider == "openai"
+        and (base.cache_write is None or zero_write_price)
+        and _legacy_openai_cache_model(value, entry.model_id)
     ):
-        # https://docs.z.ai/guides/capabilities/cache: new content uses the input rate.
+        # Official Z.AI and pre-5.6 OpenAI models charge cache writes as ordinary input.
+        # https://docs.z.ai/guides/capabilities/cache
+        # https://developers.openai.com/api/docs/guides/prompt-caching#summary-of-model-differences
         base = replace(base, cache_write_included=True)
 
     if override is not None:
