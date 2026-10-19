@@ -1,4 +1,4 @@
-"""Web fetch providers: SSRF-guarded direct fetch + Jina Reader fallback.
+"""Web fetch providers: SSRF-guarded direct fetch with multi-key provider fallbacks.
 
 供应商层约定（对齐 web_search_providers 的结构）：
 - 归一化输出统一为 ``{"success", "url", "final_url", "provider", "title",
@@ -7,7 +7,8 @@
   trafilatura 提取正文并转 Markdown（开源基准长期第一），纯文本原样透传；
 - ``jina``：r.jina.ai URL 前缀协议，返回 LLM 友好 Markdown——SPA/JS 渲染页
   direct 拿到空正文时的兜底；多 key 复用 ApiKeyPool 轮询 + 错误冷却；
-- ``auto``（默认）：direct → jina（配置了 key 才启用）；钉死供应商不回退。
+- ``auto``（默认）：direct → deepseek → tavily → firecrawl → exa → jina；
+  仅启用已配置的远程供应商，钉死供应商不回退。
 
 SSRF 防护（安全底线，与 sandbox 确认门同级敏感）：
 - 仅 http/https scheme；DNS 解析后逐 IP 校验，拒绝环回/内网/链路本地/
@@ -34,6 +35,7 @@ from src.infra.tool.web_search_providers import (
     COOLDOWN_RATE_LIMIT_SECONDS,
     ApiKeyPool,
     ProviderRequestError,
+    _cooldown_seconds,
     _get_pool,
     _raise_for_status,
 )
@@ -44,6 +46,7 @@ logger = get_logger(__name__)
 JINA_READER_PREFIX = "https://r.jina.ai/"
 TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 FIRECRAWL_DEFAULT_BASE = "https://api.firecrawl.dev"
+DEEPSEEK_FETCH_URL = "https://api.deepseek.com/v1/tools/fetch"
 EXA_CONTENTS_URL = "https://api.exa.ai/contents"
 
 # 直连抓取限制：读超时 30s；下载体积上限 5MB（Markdown 提取前的原始 body 上限，
@@ -188,10 +191,13 @@ async def _request_no_redirect(
             if received >= DIRECT_MAX_BODY_BYTES:
                 break
         body = b"".join(chunks[: (DIRECT_MAX_BODY_BYTES // 4096) + 1])[:DIRECT_MAX_BODY_BYTES]
-        # 重新构造为普通 Response（调用方只读 status/headers/body）
+        # aiter_bytes already decodes compression; the buffered body needs fresh headers.
+        headers = dict(response.headers)
+        headers.pop("content-encoding", None)
+        headers.pop("content-length", None)
         return httpx.Response(
             response.status_code,
-            headers=dict(response.headers),
+            headers=headers,
             content=body,
             request=httpx.Request(method, url),
         )
@@ -500,6 +506,50 @@ async def exa_fetch(
     )
 
 
+async def deepseek_fetch(
+    client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
+) -> dict[str, Any]:
+    parts = urlsplit(url)
+    if len(url) > 8192 or parts.username is not None or parts.password is not None:
+        return {"success": False, "error": "web_fetch_deepseek_invalid_url"}
+    ok, err = await validate_public_http_url(url)
+    if not ok:
+        return {"success": False, "error": err}
+    async with unpriced_usage():
+        response = await _request_no_redirect(
+            client,
+            "POST",
+            DEEPSEEK_FETCH_URL,
+            json={"url": url},
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
+    try:
+        _raise_for_status(response)
+    except ProviderRequestError as exc:
+        raise ProviderRequestError(
+            exc.status_code, "DeepSeek request failed", exc.retry_after
+        ) from None
+    try:
+        body = response.json()
+    except ValueError:
+        raise ProviderRequestError(502, "Invalid DeepSeek response") from None
+    if not isinstance(body, dict) or not isinstance(body.get("content"), str):
+        raise ProviderRequestError(502, "Invalid DeepSeek response")
+    raw = body["content"].strip()
+    if not raw:
+        return {"success": False, "error": "web_fetch_empty_content"}
+    content, truncated = _truncate(raw, max_chars)
+    return _fetch_result(
+        url=url,
+        final_url=url,
+        provider="deepseek",
+        title=body.get("title") if isinstance(body.get("title"), str) else None,
+        content=content,
+        content_type="text/markdown",
+        truncated=truncated,
+    )
+
+
 async def tavily_extract(
     client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
 ) -> dict[str, Any]:
@@ -609,16 +659,18 @@ def _tavily_available() -> bool:
 
 
 def resolve_fetch_chain() -> list[str]:
-    """供应商链：auto 按配置拼接 direct → tavily → firecrawl → exa → jina。
+    """供应商链：auto 按配置拼接 direct → deepseek → tavily → firecrawl → exa → jina。
 
-    direct 被拦（UA 门禁/反爬，微信公众号典型）由 tavily extract 接住；
+    direct 被拦时先尝试 DeepSeek，再由 tavily extract 等供应商接住；
     firecrawl（可自建）与 exa（缓存+实爬）做中段兜底；jina 收尾 JS 渲染页。
     钉死供应商时只返回它。
     """
     provider = str(getattr(settings, "WEB_FETCH_PROVIDER", "auto") or "auto").strip().lower()
-    if provider in ("direct", "tavily", "firecrawl", "exa", "jina"):
+    if provider in ("direct", "deepseek", "tavily", "firecrawl", "exa", "jina"):
         return [provider]
     chain = ["direct"]
+    if _get_pool("deepseek") is not None:
+        chain.append("deepseek")
     if _tavily_available():
         chain.append("tavily")
     if _firecrawl_keys() or str(getattr(settings, "FIRECRAWL_BASE_URL", "") or "").strip():
@@ -638,7 +690,7 @@ async def execute_web_fetch(
     if not ok:
         return {"success": False, "error": err}
 
-    if provider in ("direct", "jina"):
+    if provider in ("direct", "deepseek", "jina"):
         chain = [provider]
     else:
         chain = resolve_fetch_chain()
@@ -658,6 +710,37 @@ async def execute_web_fetch(
             if result.get("success"):
                 return result
             errors.append(str(result.get("error")))
+            continue
+
+        if name == "deepseek":
+            pool = _get_pool(name)
+            if pool is None:
+                errors.append("deepseek: no api keys configured")
+                continue
+            for _ in range(len(pool)):
+                picked = pool.next_key()
+                if picked is None:
+                    break
+                index, key = picked
+                try:
+                    result = await deepseek_fetch(client, url, key, max_chars)
+                except ProviderRequestError as exc:
+                    errors.append(f"deepseek key#{index + 1}: HTTP {exc.status_code}")
+                    if exc.status_code in (400, 403, 404, 413):
+                        break  # URL/security failures cannot be repaired by another key.
+                    pool.mark_cooldown(index, _cooldown_seconds(exc))
+                    continue
+                except Exception as exc:  # noqa: BLE001
+                    if is_quota_error(exc):
+                        raise
+                    pool.mark_cooldown(index, 30.0)
+                    errors.append(f"deepseek key#{index + 1}: {type(exc).__name__}")
+                    continue
+                if result.get("success"):
+                    return result
+                errors.append(str(result.get("error")))
+                break
+            errors.append("deepseek: no usable result or all keys cooling down")
             continue
 
         if name in ("tavily", "firecrawl", "exa"):

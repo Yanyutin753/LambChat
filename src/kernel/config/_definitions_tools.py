@@ -559,7 +559,7 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "auto",
         "depends_on": "ENABLE_WEB_SEARCH",
         "frontend_visible": True,
-        "options": ["auto", "anysearch", "tavily", "brave", "searxng"],
+        "options": ["auto", "anysearch", "deepseek", "tavily", "brave", "searxng"],
     },
     "ANYSEARCH_API_KEYS": {
         "type": SettingType.STRING,
@@ -569,6 +569,15 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "",
         "is_sensitive": True,
         "depends_on": "ENABLE_WEB_SEARCH",
+        "frontend_visible": True,
+    },
+    "DEEPSEEK_API_KEYS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_search",
+        "description": "settingDesc.DEEPSEEK_API_KEYS",
+        "default": "",
+        "is_sensitive": True,
         "frontend_visible": True,
     },
     "TAVILY_API_KEYS": {
@@ -629,7 +638,7 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "auto",
         "depends_on": "ENABLE_WEB_FETCH",
         "frontend_visible": True,
-        "options": ["auto", "direct", "tavily", "firecrawl", "exa", "jina"],
+        "options": ["auto", "direct", "deepseek", "tavily", "firecrawl", "exa", "jina"],
     },
     "JINA_API_KEYS": {
         "type": SettingType.STRING,

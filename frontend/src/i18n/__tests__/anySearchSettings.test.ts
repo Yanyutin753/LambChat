@@ -11,5 +11,7 @@ test.each(["zh", "en", "ja", "ko", "ru"])(
       ),
     );
     expect(messages.settingDesc.ANYSEARCH_API_KEYS).toContain("AnySearch");
+    expect(messages.settingDesc.DEEPSEEK_API_KEYS).toContain("DeepSeek");
+    expect(messages.settingDesc.WEB_FETCH_PROVIDER).toContain("DeepSeek");
   },
 );
