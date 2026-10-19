@@ -59,7 +59,7 @@ test("keeps cache metrics hidden for ordinary rankings", () => {
   expect(screen.queryByText(/usage\.cacheRead/)).not.toBeInTheDocument();
 });
 
-test("unknown ranking cache rate explains the missing observation while explicit zero stays zero", () => {
+test("ranking omits missing-data disclaimers while explicit zero stays zero", () => {
   const { rerender } = render(
     <RankingList
       title="Models"
@@ -69,7 +69,7 @@ test("unknown ranking cache rate explains the missing observation while explicit
       showCacheMetrics
     />,
   );
-  expect(screen.getByText("usage.cacheRateUnknown")).toBeVisible();
+  expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
   rerender(
     <RankingList
       title="Models"
@@ -83,7 +83,7 @@ test("unknown ranking cache rate explains the missing observation while explicit
   expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
 });
 
-test("cache insight explains unknown input without replacing known zero", () => {
+test("cache insight omits missing-data disclaimers", () => {
   const dashboard = (rate: number | null) =>
     ({
       summary: {
@@ -105,7 +105,9 @@ test("cache insight explains unknown input without replacing known zero", () => 
   const insight = screen.getByText("usage.insight.cacheReuse").parentElement!
     .parentElement!;
   expect(within(insight).getByText("—")).toBeVisible();
-  expect(within(insight).getByText("0 · usage.cacheRateUnknown")).toBeVisible();
+  expect(
+    within(insight).queryByText(/usage\.cacheRateUnknown/),
+  ).not.toBeInTheDocument();
   rerender(<InsightStrip dashboard={dashboard(0)} />);
   expect(within(insight).getByText("0%")).toBeVisible();
   expect(within(insight).getByText("0")).toBeVisible();

@@ -273,9 +273,9 @@ async def test_usage_aggregates_only_certified_costs_and_keeps_free_zero(monkeyp
         assert dashboard["summary"]["unpriced_requests"] == 2
         assert dashboard["top_models"][0]["cost_usd"] == 0.2
         assert dashboard["top_models"][0]["unpriced_requests"] == 2
-        assert dashboard["top_models"][0]["cache_read_share"] is None
+        assert dashboard["top_models"][0]["cache_read_share"] == 0.0
         assert dashboard["top_models"][0]["zero_cache_requests"] == 2
-        assert dashboard["summary"]["cache_read_share"] is None
+        assert dashboard["summary"]["cache_read_share"] == 0.0
         assert dashboard["daily"][0]["cost_usd"] == 0.2
         assert dashboard["daily"][0]["unpriced_requests"] == 2
     finally:
