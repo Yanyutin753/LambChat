@@ -559,7 +559,17 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "auto",
         "depends_on": "ENABLE_WEB_SEARCH",
         "frontend_visible": True,
-        "options": ["auto", "tavily", "brave", "searxng"],
+        "options": ["auto", "anysearch", "tavily", "brave", "searxng"],
+    },
+    "ANYSEARCH_API_KEYS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "web_search",
+        "description": "settingDesc.ANYSEARCH_API_KEYS",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": "ENABLE_WEB_SEARCH",
+        "frontend_visible": True,
     },
     "TAVILY_API_KEYS": {
         "type": SettingType.STRING,

@@ -1,12 +1,132 @@
 /** @vitest-environment jsdom */
 import { act, renderHook } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { useWorkspaceOptionActions } from "../sessionToggleCallbacks";
 import type { AgentInfo } from "../../../../types";
 import {
   useAgentOptions,
   SANDBOX_ONLINE_CHANGED_EVENT,
 } from "../useAgentOptions";
+
+afterEach(() => localStorage.clear());
+
+const onlineStatus = {
+  online: true,
+  defaultMachineId: "remote-pc",
+  currentMachineId: "this-mac",
+  machines: ["remote-pc", "this-mac"].map((machine_id) => ({
+    machine_id,
+    name: machine_id,
+    platform: "darwin",
+    version: "2.15.2",
+    confirm_policy: "all",
+    online: true,
+  })),
+};
+
+test("new local conversations pin the client computer instead of the account default", () => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "fast", onlineStatus),
+  );
+  expect(result.current.agentOptionValues).toMatchObject({
+    sandbox: "local",
+    sandbox_machine_id: "this-mac",
+  });
+});
+
+test("a client identity arriving after presence pins the untouched local draft", () => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ machineId }: { machineId: string | null }) =>
+      useAgentOptions(agents, "fast", {
+        ...onlineStatus,
+        currentMachineId: machineId,
+      }),
+    { initialProps: { machineId: null } },
+  );
+  rerender({ machineId: "this-mac" });
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
+});
+
+test.each(["remote-pc", ""])(
+  "an explicit machine selection %j survives late client identity",
+  (selected) => {
+    const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+    const { result, rerender } = renderHook(
+      ({ machineId }: { machineId: string | null }) =>
+        useAgentOptions(agents, "fast", {
+          ...onlineStatus,
+          currentMachineId: machineId,
+        }),
+      { initialProps: { machineId: null } },
+    );
+    act(() =>
+      result.current.handleToggleAgentOption("sandbox_machine_id", selected),
+    );
+    rerender({ machineId: "this-mac" });
+    expect(result.current.agentOptionValues.sandbox_machine_id).toBe(selected);
+    act(() => result.current.resetAgentOptionDefaults());
+    expect(result.current.agentOptionValues.sandbox_machine_id).toBe(
+      "this-mac",
+    );
+  },
+);
+
+test.each<Record<string, boolean | string | number>>([
+  { sandbox: "local", sandbox_machine_id: "remote-pc" },
+  { sandbox: "local" },
+  { sandbox: "cloud" },
+])("restored options %j survive late client identity", (restored) => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ machineId }: { machineId: string | null }) =>
+      useAgentOptions(agents, "fast", {
+        ...onlineStatus,
+        currentMachineId: machineId,
+      }),
+    { initialProps: { machineId: null } },
+  );
+  act(() => result.current.restoreAgentOptions(restored));
+  rerender({ machineId: "this-mac" });
+  expect(result.current.agentOptionValues).toEqual(restored);
+});
+
+test("cloud preference stays cloud and choosing local then pins the client computer", () => {
+  localStorage.setItem("defaultSandboxMode", "cloud");
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "fast", onlineStatus),
+  );
+  expect(result.current.agentOptionValues).toEqual({ sandbox: "cloud" });
+  act(() => result.current.handleToggleAgentOption("sandbox", "local"));
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
+});
+
+test("without an online client computer the draft keeps server automatic selection", () => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "fast", {
+      ...onlineStatus,
+      machines: [{ ...onlineStatus.machines[1], online: false }],
+    }),
+  );
+  expect(result.current.agentOptionValues).toEqual({ sandbox: "local" });
+});
+
+test("the selected client computer stays pinned when it goes offline", () => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ online }) =>
+      useAgentOptions(agents, "fast", {
+        ...onlineStatus,
+        machines: [{ ...onlineStatus.machines[1], online }],
+      }),
+    { initialProps: { online: true } },
+  );
+  rerender({ online: false });
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
+});
 
 test("restored cloud conversations stay cloud when a daemon reconnects", () => {
   const agents = [{ id: "fast", options: {} }] as AgentInfo[];
@@ -18,7 +138,9 @@ test("restored cloud conversations stay cloud when a daemon reconnects", () => {
 
 test("new conversations use an already online daemon, and reset old directory bindings", () => {
   const agents = [{ id: "fast", options: {} }] as AgentInfo[];
-  const { result } = renderHook(() => useAgentOptions(agents, "fast", true));
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "fast", onlineStatus),
+  );
   expect(result.current.agentOptionValues.sandbox).toBe("local");
   act(() =>
     result.current.restoreAgentOptions({

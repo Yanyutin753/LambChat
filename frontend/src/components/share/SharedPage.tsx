@@ -551,9 +551,9 @@ export function SharedPage({
       </header>
 
       {/* Scrollable article area */}
-      <main className="relative flex-1 overflow-x-hidden scroll-smooth">
+      <main className="chat-view-content-region relative flex-1 overflow-x-hidden scroll-smooth">
         <SessionImageGalleryProvider messages={messages}>
-          <article className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
+          <article className="w-full">
             {/* Editorial hero */}
             <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0">
               {/* Overline label */}

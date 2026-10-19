@@ -273,14 +273,14 @@ export function ChatAppContent({
     if (agentAllowedModelIds.length === 0) return [];
     return availableModels.filter((m) => agentAllowedModelIds.includes(m.id));
   }, [availableModels, agentAllowedModelIds]);
-  const { online: sandboxOnline } = useSandboxStatus();
+  const sandboxStatus = useSandboxStatus();
   const {
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
     restoreAgentOptions,
     resetAgentOptionDefaults,
-  } = useAgentOptions(agents, currentAgent, sandboxOnline);
+  } = useAgentOptions(agents, currentAgent, sandboxStatus);
 
   const { changeOption, selectProject } = useWorkspaceOptionActions(
     sessionId,

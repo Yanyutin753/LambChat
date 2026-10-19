@@ -182,113 +182,111 @@ export const AttachmentCard = memo(function AttachmentCard({
           )}
         </div>
 
-        {/* 文件信息：文件名 + 大小/操作左右布局 */}
+        {/* 文件信息与操作独立，避免按钮高度撑大文字间距 */}
         <div className="pointer-events-none relative flex flex-col min-w-0 flex-1">
           <span className="text-13 font-medium text-theme-text truncate leading-tight">
             {attachment.name}
           </span>
-          <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
-            <span className="text-12 text-theme-text-secondary truncate">
-              {isUploading
-                ? uploadStatusLabel
-                : isFailed
-                  ? t("fileUpload.composerUploadFailed", "Upload failed")
-                  : formatFileSize(attachment.size)}
-            </span>
+          <span className="mt-0.5 text-12 text-theme-text-secondary truncate">
+            {isUploading
+              ? uploadStatusLabel
+              : isFailed
+                ? t("fileUpload.composerUploadFailed", "Upload failed")
+                : formatFileSize(attachment.size)}
+          </span>
+        </div>
 
-            {/* 仍以文本发送 / 删除/取消 */}
-            {variant === "editable" && (
-              <div className="attachment-card__actions pointer-events-auto flex items-center gap-1 shrink-0">
-                {onSendAsText && !isUploading && (
+        {/* 仍以文本发送 / 删除/取消 */}
+        {variant === "editable" && (
+          <div className="attachment-card__actions pointer-events-auto relative flex items-center gap-1 shrink-0">
+            {onSendAsText && !isUploading && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSendAsText();
+                }}
+                className={clsx(
+                  "h-5 px-1.5 rounded-md flex items-center gap-1",
+                  "text-theme-text-secondary",
+                  "transition-all duration-200 text-10 font-medium",
+                  "hover:bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)]",
+                  "hover:text-[var(--theme-primary)]",
+                )}
+                title={t("chat.sendLongTextAsText", "仍以文本发送")}
+              >
+                <InteractiveIcon>
+                  <Type size={12} strokeWidth={2.25} />
+                </InteractiveIcon>
+                <span className="hidden sm:inline">
+                  {t("chat.sendLongTextAsText", "仍以文本发送")}
+                </span>
+              </button>
+            )}
+            {isUploading && onCancel ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancel();
+                }}
+                className={clsx(
+                  "size-5 rounded-md flex items-center justify-center",
+                  "text-red-500 dark:text-red-400",
+                  "opacity-100",
+                  "transition-all duration-200",
+                  "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                )}
+                title={t("fileUpload.cancelUpload")}
+              >
+                <InteractiveIcon>
+                  <X size={12} />
+                </InteractiveIcon>
+              </button>
+            ) : (
+              <>
+                {isFailed && onRetry ? (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSendAsText();
+                      onRetry();
                     }}
                     className={clsx(
                       "h-5 px-1.5 rounded-md flex items-center gap-1",
-                      "text-theme-text-secondary",
-                      "transition-all duration-200 text-10 font-medium",
-                      "hover:bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)]",
-                      "hover:text-[var(--theme-primary)]",
-                    )}
-                    title={t("chat.sendLongTextAsText", "仍以文本发送")}
-                  >
-                    <InteractiveIcon>
-                      <Type size={12} strokeWidth={2.25} />
-                    </InteractiveIcon>
-                    <span className="hidden sm:inline">
-                      {t("chat.sendLongTextAsText", "仍以文本发送")}
-                    </span>
-                  </button>
-                )}
-                {isUploading && onCancel ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCancel();
-                    }}
-                    className={clsx(
-                      "size-5 rounded-md flex items-center justify-center",
-                      "text-red-500 dark:text-red-400",
-                      "opacity-100",
-                      "transition-all duration-200",
+                      "text-red-500 dark:text-red-400 text-10 font-medium",
                       "hover:bg-red-100/80 dark:hover:bg-red-900/40",
                     )}
-                    title={t("fileUpload.cancelUpload")}
+                    title={t("fileUpload.composerRetry", "Retry")}
+                  >
+                    <InteractiveIcon>
+                      <RotateCcw size={11} />
+                    </InteractiveIcon>
+                    <span>{t("fileUpload.composerRetry", "Retry")}</span>
+                  </button>
+                ) : null}
+                {onRemove ? (
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    aria-label={t("common.remove")}
+                    className={clsx(
+                      "size-5 rounded-md flex items-center justify-center",
+                      "text-theme-text-secondary",
+                      "transition-all duration-200",
+                      "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                      "hover:text-red-500 dark:hover:text-red-400",
+                    )}
                   >
                     <InteractiveIcon>
                       <X size={12} />
                     </InteractiveIcon>
                   </button>
-                ) : (
-                  <>
-                    {isFailed && onRetry ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRetry();
-                        }}
-                        className={clsx(
-                          "h-5 px-1.5 rounded-md flex items-center gap-1",
-                          "text-red-500 dark:text-red-400 text-10 font-medium",
-                          "hover:bg-red-100/80 dark:hover:bg-red-900/40",
-                        )}
-                        title={t("fileUpload.composerRetry", "Retry")}
-                      >
-                        <InteractiveIcon>
-                          <RotateCcw size={11} />
-                        </InteractiveIcon>
-                        <span>{t("fileUpload.composerRetry", "Retry")}</span>
-                      </button>
-                    ) : null}
-                    {onRemove ? (
-                      <button
-                        type="button"
-                        onClick={handleRemove}
-                        aria-label={t("common.remove")}
-                        className={clsx(
-                          "size-5 rounded-md flex items-center justify-center",
-                          "text-theme-text-secondary",
-                          "transition-all duration-200",
-                          "hover:bg-red-100/80 dark:hover:bg-red-900/40",
-                          "hover:text-red-500 dark:hover:text-red-400",
-                        )}
-                      >
-                        <InteractiveIcon>
-                          <X size={12} />
-                        </InteractiveIcon>
-                      </button>
-                    ) : null}
-                  </>
-                )}
-              </div>
+                ) : null}
+              </>
             )}
           </div>
-        </div>
+        )}
       </div>
     );
   }

@@ -536,6 +536,7 @@ class Settings(BaseSettings):
     # web_search_no_provider_configured 引导配置，而不是不挂载
     ENABLE_WEB_SEARCH: bool = True
     WEB_SEARCH_PROVIDER: str = "auto"
+    ANYSEARCH_API_KEYS: str = ""
     TAVILY_API_KEYS: str = ""
     BRAVE_API_KEYS: str = ""
     SEARXNG_BASE_URL: str = ""

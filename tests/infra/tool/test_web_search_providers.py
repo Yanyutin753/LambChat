@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import pytest
 
 import src.infra.tool.web_search_providers as wsp
@@ -291,6 +292,7 @@ async def test_searxng_search_without_key_omits_header() -> None:
 def _configure(monkeypatch: pytest.MonkeyPatch, **values: Any) -> None:
     defaults = {
         "WEB_SEARCH_PROVIDER": "tavily",
+        "ANYSEARCH_API_KEYS": "",
         "TAVILY_API_KEYS": "",
         "BRAVE_API_KEYS": "",
         "SEARXNG_BASE_URL": "",
@@ -390,3 +392,168 @@ async def test_execute_web_search_pool_rebuilds_when_keys_setting_changes(
         for r in wsp._get_client().requests  # type: ignore[attr-defined]
     ]
     assert keys_used == ["Bearer key-a", "Bearer key-z"]
+
+
+def _ok_anysearch() -> _FakeResponse:
+    return _FakeResponse(
+        json_data={
+            "code": 0,
+            "request_id": "search-request-1",
+            "data": {
+                "results": [
+                    {"title": "Any result", "url": "https://example.com", "snippet": "Summary"},
+                    {"title": "Content only", "url": "https://example.org", "content": "Body"},
+                    {"title": "No URL"},
+                    {"title": "Invalid URL", "url": "javascript:alert(1)"},
+                ],
+                "metadata": {"search_time_ms": 123},
+            },
+        }
+    )
+
+
+async def test_anysearch_sends_documented_request_and_normalizes_results(monkeypatch):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="anysearch", ANYSEARCH_API_KEYS="key-a")
+    client = _fake_client(monkeypatch, [_ok_anysearch()])
+
+    out = await wsp.execute_web_search("hello", 20)
+
+    assert client.requests == [
+        {
+            "method": "POST",
+            "url": "https://api.anysearch.com/v1/search",
+            "json": {"query": "hello", "max_results": 10},
+            "headers": {"Authorization": "Bearer key-a", "Content-Type": "application/json"},
+        }
+    ]
+    assert out["success"] is True
+    assert out["provider"] == "anysearch"
+    assert out["request_id"] == "search-request-1"
+    assert [result["snippet"] for result in out["results"]] == ["Summary", "Body"]
+    assert out["images"] == []
+
+
+async def test_anysearch_keys_rotate_between_successful_requests(monkeypatch):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="anysearch", ANYSEARCH_API_KEYS="key-a,key-b")
+    client = _fake_client(monkeypatch, [_ok_anysearch(), _ok_anysearch()])
+
+    await wsp.execute_web_search("one", 5)
+    await wsp.execute_web_search("two", 5)
+
+    assert [request["headers"]["Authorization"] for request in client.requests] == [
+        "Bearer key-a",
+        "Bearer key-b",
+    ]
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 429])
+async def test_anysearch_cools_failed_key_and_tries_next_without_logging_body(
+    monkeypatch, caplog, status
+):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="anysearch", ANYSEARCH_API_KEYS="key-a,key-b")
+    client = _fake_client(
+        monkeypatch,
+        [
+            _FakeResponse(
+                status_code=status,
+                json_data={"message": "secret-sentinel", "detail": "secret-sentinel"},
+            ),
+            _ok_anysearch(),
+            _ok_anysearch(),
+        ],
+    )
+
+    assert (await wsp.execute_web_search("one", 5))["success"] is True
+    assert (await wsp.execute_web_search("two", 5))["success"] is True
+    assert [request["headers"]["Authorization"] for request in client.requests] == [
+        "Bearer key-a",
+        "Bearer key-b",
+        "Bearer key-b",
+    ]
+    assert "secret-sentinel" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"code": -1, "message": "secret-sentinel"},
+        {"code": False, "data": {"results": []}},
+        {"code": 0, "data": {"results": "invalid"}},
+        {"code": 0, "data": None},
+    ],
+)
+async def test_anysearch_rejects_business_errors_and_malformed_success(monkeypatch, caplog, body):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="anysearch", ANYSEARCH_API_KEYS="key-a")
+    _fake_client(monkeypatch, [_FakeResponse(json_data=body)])
+
+    out = await wsp.execute_web_search("hello", 5)
+
+    assert out["success"] is False
+    assert "secret-sentinel" not in str(out) + caplog.text
+
+
+async def test_anysearch_auto_falls_back_to_existing_provider(monkeypatch):
+    _configure(
+        monkeypatch,
+        WEB_SEARCH_PROVIDER="auto",
+        ANYSEARCH_API_KEYS="key-a",
+        TAVILY_API_KEYS="tavily-key",
+    )
+    client = _fake_client(monkeypatch, [_FakeResponse(status_code=402), _ok_tavily()])
+
+    out = await wsp.execute_web_search("hello", 5)
+
+    assert out["provider"] == "tavily"
+    assert [request["url"] for request in client.requests] == [
+        "https://api.anysearch.com/v1/search",
+        "https://api.tavily.com/search",
+    ]
+
+
+async def test_anysearch_time_range_uses_capable_fallback_without_unfiltered_request(monkeypatch):
+    _configure(
+        monkeypatch,
+        WEB_SEARCH_PROVIDER="auto",
+        ANYSEARCH_API_KEYS="key-a",
+        TAVILY_API_KEYS="tavily-key",
+    )
+    client = _fake_client(monkeypatch, [_ok_tavily()])
+
+    out = await wsp.execute_web_search("hello", 5, "day")
+
+    assert out["provider"] == "tavily"
+    assert len(client.requests) == 1
+    assert client.requests[0]["json"]["time_range"] == "day"
+
+
+async def test_pinned_anysearch_reports_unsupported_time_range_without_request(monkeypatch):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="anysearch", ANYSEARCH_API_KEYS="key-a")
+    client = _fake_client(monkeypatch, [])
+
+    out = await wsp.execute_web_search("hello", 5, "week")
+
+    assert out["success"] is False
+    assert "anysearch: time_range is not supported" in out["details"]
+    assert client.requests == []
+
+
+@pytest.mark.parametrize("provider", ["anysearch", "tavily", "brave", "searxng"])
+async def test_transport_errors_never_expose_keys_in_logs_or_results(monkeypatch, caplog, provider):
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER=provider, SEARXNG_BASE_URL="https://searx.example")
+    key_setting = wsp._PROVIDER_KEY_SETTINGS.get(provider, "SEARXNG_API_KEY")
+    monkeypatch.setattr(wsp.settings, key_setting, "key-sentinel-one\nkey-sentinel-two")
+    client = _fake_client(monkeypatch, [])
+
+    async def invalid_header(*args, **kwargs):
+        raise httpx.LocalProtocolError(
+            "Illegal header value b'Bearer key-sentinel-one\\nkey-sentinel-two'"
+        )
+
+    monkeypatch.setattr(client, "post", invalid_header)
+    monkeypatch.setattr(client, "get", invalid_header)
+
+    out = await wsp.execute_web_search("hello", 5)
+
+    assert out["success"] is False
+    assert "key-sentinel" not in str(out) + caplog.text
+    assert "LocalProtocolError" in str(out)
