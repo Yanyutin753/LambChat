@@ -17,6 +17,40 @@ def _source(path: str) -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
+def test_release_publish_flags_work_for_stable_and_dev_on_system_bash() -> None:
+    """正式版首次创建不能触发 Bash 3.2 的空数组 nounset 错误。"""
+    import os
+    import subprocess
+
+    import yaml
+
+    workflow = yaml.safe_load(_source(".github/workflows/app-release.yml"))
+    publishers = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("name", "").startswith("Publish ")
+        and step.get("name", "").endswith(" to release immediately")
+    ]
+    assert len(publishers) == 3
+    bash = "/bin/bash" if Path("/bin/bash").exists() else "bash"
+    for tag, expected in [
+        ("v2.15.2", ["--prerelease=false"]),
+        ("v2.15.3-dev.1", ["--prerelease", "--latest=false"]),
+    ]:
+        for step in publishers:
+            initialize = step["run"].split("for delay in", 1)[0]
+            result = subprocess.run(
+                [bash, "-c", initialize + '\nprintf "%s\\n" "${release_flags[@]}"\n'],
+                env={**os.environ, "RELEASE_TAG": tag},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert result.returncode == 0, (step["name"], result.stderr)
+            assert result.stdout.splitlines() == expected, step["name"]
+
+
 def test_spec_bundles_daemon_entry_as_onefile_named_lambchat_daemon() -> None:
     spec = _source("client/pyinstaller.spec")
 
