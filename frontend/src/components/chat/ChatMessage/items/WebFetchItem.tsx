@@ -29,6 +29,7 @@ function truncate(text: string, max: number): string {
 /** 供应商识别色点（对齐 WebSearchItem 的 PROVIDER_DOTS 语义） */
 const PROVIDER_DOTS: Record<string, string> = {
   direct: "bg-theme-success",
+  deepseek: "bg-theme-info",
   tavily: "bg-sky-400",
   firecrawl: "bg-orange-400",
   exa: "bg-teal-400",

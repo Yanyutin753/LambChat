@@ -4,13 +4,14 @@
 - 归一化输出统一为 ``{"success", "query", "provider", "results", "images", "answer"?}``；
 - key 池按 round-robin 轮询，429/432/401 等错误按语义冷却后跳过（比开源项目
   的纯轮询更进一步：单 key 额度耗尽或限速时自动换下一个 key）；
-- auto 模式按 anysearch → tavily → brave → searxng 顺序回退，钉死某供应商时不回退。
+- auto 模式按 anysearch → deepseek → tavily → brave → searxng 顺序回退，钉死某供应商时不回退。
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -23,6 +24,7 @@ logger = get_logger(__name__)
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 ANYSEARCH_SEARCH_URL = "https://api.anysearch.com/v1/search"
+DEEPSEEK_SEARCH_URL = "https://api.deepseek.com/v1/tools/search"
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
 # 归一化 time_range（Tavily/SearXNG 原生支持，Brave 映射为 freshness）
@@ -42,10 +44,11 @@ _MAX_IMAGES = 10
 
 _PROVIDER_KEY_SETTINGS = {
     "anysearch": "ANYSEARCH_API_KEYS",
+    "deepseek": "DEEPSEEK_API_KEYS",
     "tavily": "TAVILY_API_KEYS",
     "brave": "BRAVE_API_KEYS",
 }
-_PROVIDER_ORDER = ("anysearch", "tavily", "brave", "searxng")
+_PROVIDER_ORDER = ("anysearch", "deepseek", "tavily", "brave", "searxng")
 
 
 def normalize_time_range(value: str | None) -> str | None:
@@ -218,6 +221,66 @@ async def anysearch_search(
     return result
 
 
+async def deepseek_search(
+    client: httpx.AsyncClient,
+    api_key: str,
+    query: str,
+    max_results: int,
+    time_range: str | None,
+) -> dict[str, Any]:
+    search_query = query
+    if time_range:
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[time_range]
+        after = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+        search_query = f"{query} after:{after}"
+    if not search_query.strip() or len(search_query) > 128:
+        raise ProviderRequestError(400, "DeepSeek query must contain 1 to 128 characters")
+    async with unpriced_usage():
+        response = await client.post(
+            DEEPSEEK_SEARCH_URL,
+            json={
+                "query": search_query,
+                "count": max(1, min(int(max_results), 50)),
+                "need_content": False,
+            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
+    try:
+        _raise_for_status(response)
+    except ProviderRequestError as exc:
+        raise ProviderRequestError(
+            exc.status_code, "DeepSeek request failed", exc.retry_after
+        ) from None
+    try:
+        body = response.json()
+    except ValueError:
+        raise ProviderRequestError(502, "Invalid DeepSeek response") from None
+    if not isinstance(body, dict) or not isinstance(body.get("results"), list):
+        raise ProviderRequestError(502, "Invalid DeepSeek response")
+    results = []
+    for item in body["results"]:
+        if not isinstance(item, dict):
+            continue
+        url = _clean(item.get("url")) or ""
+        if not url.startswith(("http://", "https://")):
+            continue
+        score = _normalize_score(item.get("rerank_score"))
+        results.append(
+            {
+                "title": _clean(item.get("title")) or "",
+                "url": url,
+                "snippet": _clean(item.get("summary")) or _clean(item.get("snippet")) or "",
+                # DeepSeek reports 0–3; shared search cards display a 0–1 percentage.
+                "score": min(1.0, max(0.0, score / 3)) if score is not None else None,
+                "favicon_url": _clean(item.get("site_icon")),
+                "published_date": _clean(item.get("date")),
+            }
+        )
+        if len(results) >= max(1, min(int(max_results), 50)):
+            break
+    return _result(query=query, provider="deepseek", results=results)
+
+
 # ---------------------------------------------------------------------------
 # Tavily
 # ---------------------------------------------------------------------------
@@ -376,6 +439,7 @@ async def searxng_search(
 
 PROVIDER_FUNCS: dict[str, Callable[..., Any]] = {
     "anysearch": anysearch_search,
+    "deepseek": deepseek_search,
     "tavily": tavily_search,
     "brave": brave_search,
     "searxng": searxng_search,
@@ -475,6 +539,9 @@ async def _search_with_pool(
         try:
             return await func(client, key, query, max_results, time_range)
         except ProviderRequestError as e:
+            if provider == "deepseek" and e.status_code == 400:
+                errors.append("deepseek: query must contain 1 to 128 characters")
+                break
             cooldown = _cooldown_seconds(e)
             pool.mark_cooldown(index, cooldown)
             logger.warning(
