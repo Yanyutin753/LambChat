@@ -95,7 +95,7 @@ test("usage console code chips carry font-serif directly, not via CSS overrides"
 test("model ranking alone exposes per-model cache diagnostics", () => {
   expect(rankingSource).toMatch(/showCacheMetrics\?: boolean/);
   expect(rankingSource).toMatch(/usage\.cacheHitRate/);
-  expect(rankingSource).toMatch(/pct\(item\.cache_read_share\)/);
+  expect(rankingSource).toMatch(/pct\(item\.cache_read_share, 1\)/);
   expect(rankingSource).toMatch(/usage\.cacheRead/);
   expect(rankingSource).toMatch(
     /fmtUsageCount\(\s*item\.cache_read_tokens,\s*"cache_read_tokens",\s*item\.unknown_usage_fields,?\s*\)/,
