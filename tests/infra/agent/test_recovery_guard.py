@@ -342,3 +342,53 @@ async def test_task_messages_history_does_not_settle_a_later_reused_id():
         await guard_graph_recovery(
             graph(history, tasks=[task], writes=[("t", "messages", history)]), {}
         )
+
+
+async def test_real_fresh_input_after_cancelled_write_starts_without_replaying_effect():
+    import asyncio
+
+    from deepagents import create_deep_agent
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+    from langchain_core.tools import tool
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.errors import NodeCancelledError
+
+    class Model(FakeMessagesListChatModel):
+        def bind_tools(self, _tools, **_kwargs):
+            return self
+
+    effects = []
+
+    @tool
+    async def external_write() -> str:
+        """Perform an external write."""
+        effects.append("committed")
+        raise asyncio.CancelledError
+
+    compiled = create_deep_agent(
+        model=Model(responses=[call(), AIMessage(content="fresh answer")]),
+        tools=[external_write],
+        checkpointer=InMemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "cancelled-write-new-input"}}
+    with pytest.raises(NodeCancelledError):
+        await compiled.ainvoke({"messages": [HumanMessage(content="old task")]}, config)
+    with pytest.raises(AppError) as caught:
+        await guard_graph_recovery(compiled, config)
+    assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+
+    result = await compiled.ainvoke({"messages": [HumanMessage(content="new task")]}, config)
+    assert effects == ["committed"]
+    assert result["messages"][-1].content == "fresh answer"
+    assert [
+        message.content for message in result["messages"] if isinstance(message, HumanMessage)
+    ] == [
+        "old task",
+        "new task",
+    ]
+    missing_result = next(
+        message for message in result["messages"] if isinstance(message, ToolMessage)
+    )
+    assert missing_result.tool_call_id == "write-1"
+    assert missing_result.status == "error"
+    assert "no result was recorded" in missing_result.content

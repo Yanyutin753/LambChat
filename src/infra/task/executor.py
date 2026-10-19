@@ -334,6 +334,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                     active_goal=active_goal,
                     auto_mode=auto_mode,
                     hitl_resume=hitl_resume,
+                    interrupted_resume=interrupted_resume,
                     base_url=base_url,
                 ),
                 timeout=_run_stall_timeout_seconds(),

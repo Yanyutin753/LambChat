@@ -59,6 +59,17 @@ async def test_execute_agent_stream_forwards_base_url_to_agent(
     assert agent.stream_kwargs.get("base_url") == "https://chat.example.com"
 
 
+@pytest.mark.parametrize("interrupted_resume", [False, True])
+async def test_execute_agent_stream_preserves_recovery_mode(monkeypatch, interrupted_resume):
+    agent = _Agent()
+    monkeypatch.setattr(chat_agent_execution.AgentFactory, "get", AsyncMock(return_value=agent))
+    async for _ in chat_agent_execution._execute_agent_stream(
+        "session-1", "fast", "hello", "user-1", interrupted_resume=interrupted_resume
+    ):
+        pass
+    assert agent.stream_kwargs["interrupted_resume"] is interrupted_resume
+
+
 class _Limiter:
     def __init__(self, result: ConcurrencyResult) -> None:
         self.result = result

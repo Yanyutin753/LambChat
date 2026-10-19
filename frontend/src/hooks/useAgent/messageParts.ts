@@ -357,10 +357,12 @@ export function createSubagentPart(
   timestamp?: string,
   agentAvatar?: string,
   status?: string,
+  agentCallId?: string,
 ): SubagentPart {
   const startedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
   return {
     type: "subagent",
+    ...(agentCallId ? { agent_call_id: agentCallId } : {}),
     agent_id: agentId,
     agent_name: agentName,
     agent_avatar: agentAvatar,
@@ -596,9 +598,13 @@ function findAndMergeInSubagent(
     if (
       p.type === "subagent" &&
       p.depth === targetDepth &&
-      (p.isPending || part.type !== "subagent")
+      (p.isPending || part.type !== "subagent" || Boolean(part.agent_call_id))
     ) {
-      if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
+      if (
+        part.type === "subagent" && part.agent_call_id
+          ? p.agent_call_id !== part.agent_call_id
+          : effectiveAgentId && p.agent_id !== effectiveAgentId
+      ) {
         continue;
       }
       if (part.type === "subagent") {
@@ -776,6 +782,7 @@ export function updateSubagentResult(
   error?: string,
   timestamp?: string,
   eventStatus?: string,
+  agentCallId?: string,
 ): MessagePart[] {
   const completedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
   const status: SubagentPart["status"] =
@@ -798,6 +805,7 @@ export function updateSubagentResult(
       completedAt,
       status,
       true,
+      agentCallId,
     ) ??
     updateSubagentResultInParts(
       parts,
@@ -809,6 +817,7 @@ export function updateSubagentResult(
       completedAt,
       status,
       false,
+      agentCallId,
     ) ??
     parts
   );
@@ -827,12 +836,15 @@ export function updateSubagentResultInParts(
   completedAt?: number,
   status?: SubagentPart["status"],
   pendingOnly = false,
+  agentCallId?: string,
 ): MessagePart[] | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (
       p.type === "subagent" &&
-      p.agent_id === agentId &&
+      (agentCallId
+        ? p.agent_call_id === agentCallId
+        : p.agent_id === agentId) &&
       p.depth === targetDepth &&
       (!pendingOnly || p.isPending)
     ) {
@@ -872,6 +884,7 @@ export function updateSubagentResultInParts(
         completedAt,
         status,
         pendingOnly,
+        agentCallId,
       );
       if (updatedParts) {
         const newParts = [...parts];

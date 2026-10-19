@@ -62,6 +62,7 @@ export interface EventData {
   /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
   reason?: string;
   agent_id?: string;
+  agent_call_id?: string;
   target_agent_id?: string;
   agent_name?: string;
   agent_avatar?: string;
@@ -240,6 +241,7 @@ export interface ActiveGoalSpec {
 // Subagent tracking item
 export interface SubagentStackItem {
   agent_id: string;
+  agent_call_id?: string;
   depth: number;
   message_id: string;
 }
@@ -265,6 +267,7 @@ export interface HistoryEventData {
   error?: string;
   depth?: number;
   agent_id?: string;
+  agent_call_id?: string;
   agent_name?: string;
   input?: string;
   timestamp?: string;

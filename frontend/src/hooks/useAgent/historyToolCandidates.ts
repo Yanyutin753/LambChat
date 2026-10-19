@@ -252,6 +252,7 @@ export class HistoryToolCandidates {
       if (owner.parent) this.nested = true;
       else {
         local("agent", part.depth, part.agent_id);
+        if (part.agent_call_id) local("agent-call", part.agent_call_id);
         local("route", part.depth);
         if (part.isPending) local("pending-agent", part.depth, part.agent_id);
         const existing = this.children.get(slot.position);

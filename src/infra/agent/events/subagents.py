@@ -26,6 +26,7 @@ def _strip_internal_main_context_snapshot(description: str) -> str:
 
 class SubagentEventMixin:
     checkpoint_to_agent: dict[str, tuple[str, str]]
+    _task_agent_calls: dict[str, tuple[str, int]]
     _agent_context_cache: dict[str, tuple[str | None, int]]
     _subagent_display_names: dict[str, str]
     _subagent_avatars: dict[str, str]
@@ -68,6 +69,7 @@ class SubagentEventMixin:
             await self._presenter_emit(
                 self.presenter.present_agent_call(
                     agent_id=subagent_id,
+                    agent_call_id=data.get("agent_call_id"),
                     agent_name=self._subagent_display_names.get(role_type, role_type),
                     input_message=_strip_internal_main_context_snapshot(
                         data.get("description", "")
@@ -81,6 +83,7 @@ class SubagentEventMixin:
             await self._presenter_emit(
                 self.presenter.present_agent_result(
                     agent_id=subagent_id,
+                    agent_call_id=data.get("agent_call_id"),
                     result=data.get("result", ""),
                     success=data.get("status") == "completed",
                     depth=1,
@@ -156,6 +159,7 @@ class SubagentEventMixin:
             logger.debug("Overwriting existing checkpoint_to_agent entry: %s", checkpoint_ns[:60])
 
         self.checkpoint_to_agent[checkpoint_ns] = (instance_id, subagent_type)
+        self._task_agent_calls[run_id] = (instance_id, current_depth)
         self._agent_context_cache.clear()
 
         logger.info(
@@ -169,6 +173,7 @@ class SubagentEventMixin:
         await self._presenter_emit(
             self.presenter.present_agent_call(
                 agent_id=instance_id,
+                agent_call_id=run_id,
                 agent_name=subagent_display_name,
                 input_message=description,
                 depth=current_depth,
@@ -178,8 +183,15 @@ class SubagentEventMixin:
 
     def _resolve_agent_info(self, event: StreamEvent) -> tuple[str, int]:
         checkpoint_ns = self._get_checkpoint_ns(event.get("metadata", {}))
-        agent_info = self.checkpoint_to_agent.pop(checkpoint_ns, None)
+        agent_info = self.checkpoint_to_agent.get(checkpoint_ns)
+        invocation = self._task_agent_calls.pop(event.get("run_id", ""), None)
+        if not agent_info or not any(
+            call[0] == agent_info[0] for call in self._task_agent_calls.values()
+        ):
+            self.checkpoint_to_agent.pop(checkpoint_ns, None)
         self._agent_context_cache.clear()
+        if invocation:
+            return invocation
         if agent_info:
             return agent_info[0], checkpoint_ns.count("|") + 1 if checkpoint_ns else 1
         return "unknown", 1
@@ -225,6 +237,7 @@ class SubagentEventMixin:
         await self._presenter_emit(
             self.presenter.present_agent_result(
                 agent_id=current_instance_id,
+                agent_call_id=event.get("run_id"),
                 result=result_text,
                 success=error_message is None,
                 depth=current_depth,
@@ -247,6 +260,7 @@ class SubagentEventMixin:
         await self._presenter_emit(
             self.presenter.present_agent_result(
                 agent_id=current_instance_id,
+                agent_call_id=event.get("run_id"),
                 result="",
                 success=False,
                 depth=current_depth,

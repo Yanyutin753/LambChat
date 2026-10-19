@@ -656,7 +656,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         async with isolated_nested_graph_run(presenter=presenter):
             from src.infra.agent.recovery_guard import guard_graph_recovery
 
-            await guard_graph_recovery(inner_graph, inner_config)
+            if hitl_resume is not None or configurable.get("interrupted_resume"):
+                await guard_graph_recovery(inner_graph, inner_config)
             token_supported = hitl_interrupt_supported.set(interrupt_supported)
             try:
                 async for event in inner_graph.astream_events(  # type: ignore[call-overload]

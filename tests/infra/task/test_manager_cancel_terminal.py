@@ -118,3 +118,94 @@ async def test_cancel_reports_no_running_task_when_session_metadata_empty(empty_
     assert result["run_id"] is None
     assert "没有正在运行的任务" in result["message"]
     assert cancellation.calls == []
+
+
+def _remote_manager(status="running"):
+    from src.infra.task.executor import TaskExecutor
+
+    session = SimpleNamespace(
+        id="session-1",
+        user_id=None,
+        metadata={"current_run_id": "run-active", "task_status": status},
+    )
+    manager, cancellation, storage = _manager_with(session)
+
+    async def update_for_run(_session_id, run_id, metadata, *, expected_statuses=None):
+        if run_id != session.metadata["current_run_id"] or (
+            expected_statuses is not None
+            and session.metadata["task_status"] not in expected_statuses
+        ):
+            return False
+        session.metadata.update(metadata)
+        return True
+
+    storage.update_metadata_for_run = update_for_run
+    manager._executor = TaskExecutor(storage, {}, SimpleNamespace())
+    manager._executor._schedule_idle_pause_check = lambda _session_id: None
+    return manager, cancellation, session
+
+
+async def test_remote_cancel_signal_keeps_conversation_busy_until_owner_finishes():
+    from src.infra.scheduler.conversation import BUSY
+
+    manager, cancellation, session = _remote_manager()
+    original_cancel = cancellation.cancel_run
+
+    async def signal(**kwargs):
+        assert session.metadata["task_status"] == "cancelling"
+        return await original_cancel(**kwargs)
+
+    cancellation.cancel_run = signal
+    result = await manager.cancel_run(
+        "run-active", run_info_override={"session_id": "session-1", "user_id": "user-1"}
+    )
+    assert result["success"] is True
+    assert result["cancelled_locally"] is False
+    assert session.metadata["task_status"] in BUSY
+    assert session.metadata["task_status"] == "cancelling"
+
+
+@pytest.mark.parametrize("terminal", ["cancelled", "completed", "failed"])
+@pytest.mark.parametrize("before_signal", [False, True])
+async def test_remote_owner_terminal_is_not_overwritten_after_signal(terminal, before_signal):
+    manager, cancellation, session = _remote_manager(terminal if before_signal else "running")
+    original_cancel = cancellation.cancel_run
+
+    async def signal(**kwargs):
+        session.metadata["task_status"] = terminal
+        return await original_cancel(**kwargs)
+
+    cancellation.cancel_run = signal
+    await manager.cancel_run("run-active", run_info_override={"session_id": "session-1"})
+    assert session.metadata["task_status"] == terminal
+
+
+@pytest.mark.parametrize("status", ["queued", "pending", "waiting_human"])
+async def test_cancel_without_executing_graph_can_finish_immediately(status):
+    manager, _, session = _remote_manager(status)
+    await manager.cancel_run("run-active", run_info_override={"session_id": "session-1"})
+    assert session.metadata["task_status"] == "cancelled"
+
+
+async def test_queued_owner_starting_during_cancel_stays_busy_until_cleanup():
+    manager, cancellation, session = _remote_manager("queued")
+    original_cancel = cancellation.cancel_run
+
+    async def signal(**kwargs):
+        session.metadata["task_status"] = "starting"
+        return await original_cancel(**kwargs)
+
+    cancellation.cancel_run = signal
+    await manager.cancel_run("run-active", run_info_override={"session_id": "session-1"})
+    assert session.metadata["task_status"] == "starting"
+
+
+async def test_local_owner_finished_by_cancel_can_reach_terminal():
+    import asyncio
+
+    manager, _, session = _remote_manager()
+    finished = asyncio.get_running_loop().create_future()
+    finished.set_result(None)
+    manager._tasks["run-active"] = finished
+    await manager.cancel_run("run-active", run_info_override={"session_id": "session-1"})
+    assert session.metadata["task_status"] == "cancelled"
