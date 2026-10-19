@@ -224,7 +224,9 @@ def map_workspace(virtual_cwd: str, data_root: Path) -> Path:
         if not re.fullmatch(r"local-[0-9a-f]{32}", sid):
             raise ExecutorError("Invalid selected workspace identifier")
         try:
-            raw = json.loads((Path(data_root) / ".selected" / f"{sid}.json").read_text())
+            raw = json.loads(
+                (Path(data_root) / ".selected" / f"{sid}.json").read_text(encoding="utf-8")
+            )
             if not isinstance(raw, str):
                 raise ValueError("Invalid workspace binding")
             selected = Path(raw)
@@ -410,6 +412,9 @@ class Executor:
         在 Job 内（POSIX 的 start_new_session 在 exec 前生效、无此竞窗）——窗口
         为毫秒级且仅影响极端抢跑场景，真机验证项记录于 M4 任务报告。
         """
+        # cmd.exe treats verbatim drive paths as UNC and falls back to the Windows directory.
+        if re.match(r"^\\\\\?\\[A-Za-z]:\\", str(workspace)):
+            workspace = Path(str(workspace)[4:])
         winapi = _winapi
         assert winapi is not None  # 仅经 is_windows() 分支进入（mypy 收窄）
         if detach:
