@@ -59,3 +59,15 @@ test("distribution does not report an unknown aggregate token sum as zero", () =
   );
   expect(screen.getByText("usage.ranking.tokensValue: —")).toBeInTheDocument();
 });
+
+test("ranking retains a positive reported subtotal when another call is unknown", () => {
+  render(
+    <RankingList
+      title="Agents"
+      icon={Bot}
+      items={[{ ...item, tokens: 2400 }]}
+      emptyLabel="Empty"
+    />,
+  );
+  expect(screen.getByText("2.4K")).toBeInTheDocument();
+});

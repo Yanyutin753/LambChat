@@ -96,11 +96,24 @@ export function fmtCostUsd(
   return formatUsageCost(usd, available, opts);
 }
 
+/** A missing call does not erase a positive subtotal reported by other calls. */
+export function reportedAggregateCount(
+  value: unknown,
+  field: string,
+  unknownFields?: readonly string[] | null,
+): number | null {
+  return reportedTokenCount(
+    value,
+    field,
+    typeof value === "number" && value > 0 ? [] : unknownFields,
+  );
+}
+
 export function fmtUsageCount(
   value: unknown,
   field: string,
   unknownFields?: readonly string[] | null,
 ): string {
-  const count = reportedTokenCount(value, field, unknownFields);
+  const count = reportedAggregateCount(value, field, unknownFields);
   return count === null ? "—" : fmt(count);
 }

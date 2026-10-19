@@ -1,4 +1,4 @@
-import { reportedTokenCount } from "../../../utils/usageTokens";
+import { reportedAggregateCount } from "./formatters";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageRankingItem } from "../../../types/usage";
@@ -59,7 +59,7 @@ export function RankingList({
   const maxTokens = Math.max(
     ...items.map(
       (item) =>
-        reportedTokenCount(
+        reportedAggregateCount(
           item.tokens,
           "total_tokens",
           item.unknown_usage_fields,
@@ -111,7 +111,7 @@ export function RankingList({
                   )}
                 </span>
               </div>
-              {reportedTokenCount(
+              {reportedAggregateCount(
                 item.tokens,
                 "total_tokens",
                 item.unknown_usage_fields,
