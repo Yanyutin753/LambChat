@@ -661,21 +661,51 @@ const settings = {
           key: "WEB_SEARCH_PROVIDER",
           type: "select",
           value: "auto",
-          options: ["auto", "anysearch", "tavily", "brave", "searxng"],
+          options: [
+            "auto",
+            "anysearch",
+            "deepseek",
+            "tavily",
+            "brave",
+            "searxng",
+          ],
         },
         { key: "ANYSEARCH_API_KEYS", type: "string", value: "********" },
+        { key: "DEEPSEEK_API_KEYS", type: "string", value: "********" },
+        { key: "ENABLE_WEB_FETCH", type: "boolean", value: true },
+        {
+          key: "WEB_FETCH_PROVIDER",
+          type: "select",
+          value: "auto",
+          options: [
+            "auto",
+            "direct",
+            "deepseek",
+            "tavily",
+            "firecrawl",
+            "exa",
+            "jina",
+          ],
+        },
       ].map((item) => ({
         ...item,
-        default_value: item.key === "ANYSEARCH_API_KEYS" ? "" : item.value,
+        default_value: item.key.endsWith("_API_KEYS") ? "" : item.value,
         category: "tools",
-        subcategory: "web_search",
+        subcategory: item.key.includes("WEB_FETCH")
+          ? "web_fetch"
+          : "web_search",
         description: `settingDesc.${item.key}`,
         requires_restart: false,
-        is_sensitive: item.key === "ANYSEARCH_API_KEYS",
+        is_sensitive: item.key.endsWith("_API_KEYS"),
         frontend_visible: true,
-        ...(item.key !== "ENABLE_WEB_SEARCH"
-          ? { depends_on: "ENABLE_WEB_SEARCH" }
-          : {}),
+        ...(item.key === "DEEPSEEK_API_KEYS" || item.key.startsWith("ENABLE_")
+          ? {}
+          : {
+              depends_on:
+                item.key === "WEB_FETCH_PROVIDER"
+                  ? "ENABLE_WEB_FETCH"
+                  : "ENABLE_WEB_SEARCH",
+            }),
       })),
       {
         key: "ENABLE_MCP",

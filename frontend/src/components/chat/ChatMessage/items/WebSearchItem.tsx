@@ -33,6 +33,7 @@ function truncate(text: string, max: number): string {
 /** 供应商识别色点：不同搜索源一眼可辨 */
 const PROVIDER_DOTS: Record<string, string> = {
   anysearch: "bg-theme-info",
+  deepseek: "bg-theme-info",
   tavily: "bg-sky-400",
   brave: "bg-orange-400",
   searxng: "bg-violet-400",

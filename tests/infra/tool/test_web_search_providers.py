@@ -293,6 +293,7 @@ def _configure(monkeypatch: pytest.MonkeyPatch, **values: Any) -> None:
     defaults = {
         "WEB_SEARCH_PROVIDER": "tavily",
         "ANYSEARCH_API_KEYS": "",
+        "DEEPSEEK_API_KEYS": "",
         "TAVILY_API_KEYS": "",
         "BRAVE_API_KEYS": "",
         "SEARXNG_BASE_URL": "",
@@ -537,7 +538,7 @@ async def test_pinned_anysearch_reports_unsupported_time_range_without_request(m
     assert client.requests == []
 
 
-@pytest.mark.parametrize("provider", ["anysearch", "tavily", "brave", "searxng"])
+@pytest.mark.parametrize("provider", ["anysearch", "deepseek", "tavily", "brave", "searxng"])
 async def test_transport_errors_never_expose_keys_in_logs_or_results(monkeypatch, caplog, provider):
     _configure(monkeypatch, WEB_SEARCH_PROVIDER=provider, SEARXNG_BASE_URL="https://searx.example")
     key_setting = wsp._PROVIDER_KEY_SETTINGS.get(provider, "SEARXNG_API_KEY")

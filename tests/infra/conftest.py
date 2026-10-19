@@ -16,6 +16,7 @@ def unlimited_transport_quota(request, monkeypatch):
         ("tool", "test_document_parse_tool.py"),
         ("tool", "test_image_generation_tool.py"),
         ("tool", "test_web_fetch_providers.py"),
+        ("tool", "test_deepseek_web_providers.py"),
         ("tool", "test_web_search_providers.py"),
     }
     if (request.path.parent.name, request.path.name) not in modules:
