@@ -577,12 +577,18 @@ export function handleStreamEvent(
     if (
       !subagentStack.some(
         (item) =>
-          item.agent_id === agentId &&
-          item.depth === depth &&
+          (data.agent_call_id
+            ? item.agent_call_id === data.agent_call_id
+            : item.agent_id === agentId && item.depth === depth) &&
           item.message_id === messageId,
       )
     ) {
-      subagentStack.push({ agent_id: agentId, depth, message_id: messageId });
+      subagentStack.push({
+        agent_id: agentId,
+        depth,
+        message_id: messageId,
+        ...(data.agent_call_id ? { agent_call_id: data.agent_call_id } : {}),
+      });
     }
   }
 
@@ -653,7 +659,11 @@ export function handleStreamEvent(
   if (eventType === "agent:result") {
     const agentId = data.agent_id || "unknown";
     const stackIndex = subagentStack.findIndex(
-      (item) => item.agent_id === agentId && item.message_id === messageId,
+      (item) =>
+        item.message_id === messageId &&
+        (data.agent_call_id
+          ? item.agent_call_id === data.agent_call_id
+          : item.agent_id === agentId && item.depth === depth),
     );
     if (stackIndex !== -1) {
       subagentStack.splice(stackIndex, 1);

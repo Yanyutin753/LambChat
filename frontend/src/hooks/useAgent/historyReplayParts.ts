@@ -412,7 +412,13 @@ export class HistoryPartReplay {
       const agent = data.agent_id || "unknown";
       const ref = index.local(
         index.root,
-        [eventType === "agent:call" ? "pending-agent" : "agent", depth, agent],
+        data.agent_call_id
+          ? ["agent-call", data.agent_call_id]
+          : [
+              eventType === "agent:call" ? "pending-agent" : "agent",
+              depth,
+              agent,
+            ],
         true,
       );
       let next: MessagePart;
@@ -425,6 +431,7 @@ export class HistoryPartReplay {
           data.timestamp,
           data.agent_avatar,
           data.status,
+          data.agent_call_id,
         );
         next = ref
           ? addPartToDepth([ref.slot.part], fresh, depth, [], agent)[0]
@@ -439,6 +446,8 @@ export class HistoryPartReplay {
             depth,
             data.timestamp,
             data.agent_avatar,
+            data.status,
+            data.agent_call_id,
           );
         const child = ref ? index.child(ref) : undefined;
         next = updateSubagentResult(
@@ -450,6 +459,7 @@ export class HistoryPartReplay {
           data.error,
           data.timestamp,
           data.status,
+          data.agent_call_id,
         )[0];
         if (child) {
           for (const thought of child.slots.all(
@@ -721,10 +731,12 @@ export class HistoryReplayStack {
     for (const item of output) this.insert(item);
   }
   private key(item: SubagentStackItem): string {
-    return key(item.agent_id, item.message_id, item.depth);
+    return key(item.agent_id, item.message_id, item.depth, item.agent_call_id);
   }
   private agent(item: SubagentStackItem): string {
-    return key(item.agent_id, item.message_id);
+    return item.agent_call_id
+      ? key("call", item.agent_call_id, item.message_id)
+      : key("agent", item.agent_id, item.message_id);
   }
   private insert(item: SubagentStackItem): void {
     const id = this.nextId++;
@@ -754,8 +766,12 @@ export class HistoryReplayStack {
   add(item: SubagentStackItem): void {
     if (!this.exact.has(this.key(item))) this.insert(item);
   }
-  remove(agent_id: string, message_id: string): void {
-    const ids = this.agents.get(key(agent_id, message_id));
+  remove(agent_id: string, message_id: string, agent_call_id?: string): void {
+    const ids = this.agents.get(
+      agent_call_id
+        ? key("call", agent_call_id, message_id)
+        : key("agent", agent_id, message_id),
+    );
     const id = ids?.values().next().value;
     if (id === undefined) return;
     const item = this.entries.get(id)!;

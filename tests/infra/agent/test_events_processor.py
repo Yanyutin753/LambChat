@@ -197,6 +197,7 @@ class FakePresenter:
         depth: int = 1,
         agent_avatar: str | None = None,
         status: str | None = None,
+        agent_call_id: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:call",
@@ -205,6 +206,7 @@ class FakePresenter:
                 "agent_name": agent_name,
                 "agent_avatar": agent_avatar,
                 **({"status": status} if status else {}),
+                **({"agent_call_id": agent_call_id} if agent_call_id else {}),
                 "input": input_message,
                 "depth": depth,
             },
@@ -218,6 +220,7 @@ class FakePresenter:
         depth: int = 1,
         error: str | None = None,
         status: str | None = None,
+        agent_call_id: str | None = None,
     ) -> dict[str, Any]:
         return {
             "event": "agent:result",
@@ -225,6 +228,7 @@ class FakePresenter:
                 "agent_id": agent_id,
                 "result": result,
                 **({"status": status} if status else {}),
+                **({"agent_call_id": agent_call_id} if agent_call_id else {}),
                 "success": success,
                 "depth": depth,
                 "error": error,

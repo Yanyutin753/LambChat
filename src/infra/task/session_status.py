@@ -75,6 +75,7 @@ class TaskSessionStatusMixin:
         run_id: Optional[str] = None,
         *,
         expected_run_id: str | None = None,
+        expected_statuses: list[str] | None = None,
     ) -> None:
         """更新 session 状态；恢复接入要求原子保留当前 run 的所有权。"""
         try:
@@ -145,9 +146,20 @@ class TaskSessionStatusMixin:
                 and status not in {TaskStatus.QUEUED, TaskStatus.PENDING, TaskStatus.STARTING}
                 and callable(update_for_run)
             ):
-                if not await update_for_run(session_id, run_id, metadata):
+                if not await update_for_run(
+                    session_id,
+                    run_id,
+                    metadata,
+                    **(
+                        {"expected_statuses": expected_statuses}
+                        if expected_statuses is not None
+                        else {}
+                    ),
+                ):
                     return
             else:
+                if expected_statuses is not None:
+                    return
                 await self._storage.update(
                     session_id,
                     SessionUpdate(metadata=metadata),

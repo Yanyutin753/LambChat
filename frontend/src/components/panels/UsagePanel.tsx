@@ -241,7 +241,7 @@ export function UsagePanel() {
       stats.total_cache_read_tokens,
       stats.total_cache_creation_tokens,
     );
-    return pct(rate);
+    return pct(rate, 1);
   }, [stats]);
 
   const dashboardSummary = dashboard?.summary;

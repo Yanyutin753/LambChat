@@ -70,6 +70,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
     __slots__ = (
         "presenter",
         "checkpoint_to_agent",
+        "_task_agent_calls",
         "thinking_ids",
         "_output_buffer",
         "total_input_tokens",
@@ -138,6 +139,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         if self._usage_owner is None:
             presenter._usage_accounting_owner = self
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
+        self._task_agent_calls: dict[str, tuple[str, int]] = {}
         if not base_url:
             base_url = settings.APP_BASE_URL.rstrip("/")
         self._base_url = base_url
@@ -477,6 +479,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._output_buffer = StringIO()
         self._output_buffer_chars = 0
         self.checkpoint_to_agent.clear()
+        self._task_agent_calls.clear()
         self.thinking_ids.clear()
         self._agent_context_cache.clear()
         self._chunk_buffer.reset()
@@ -543,6 +546,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                         self.presenter.present_agent_call(
                             agent_id=self._rubric_grader_id,
                             agent_name="Rubric Grader",
+                            agent_call_id=run_id or self._rubric_grader_id,
                             input_message="Evaluating against rubric criteria",
                             depth=1,
                         )
@@ -558,6 +562,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                     await self._presenter_emit(
                         self.presenter.present_agent_result(
                             agent_id=self._rubric_grader_id or "rubric_grader",
+                            agent_call_id=run_id or self._rubric_grader_id,
                             result=result_text,
                             success=success,
                             depth=1,

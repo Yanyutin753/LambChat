@@ -29,9 +29,9 @@ export function usageStatusKind(status: string): UsageStatusKind {
   return "error";
 }
 
-export function pct(value: number | null | undefined): string {
+export function pct(value: number | null | undefined, digits = 0): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  return `${Math.round(value * 100)}%`;
+  return `${(value * 100).toFixed(digits)}%`;
 }
 
 export function precise(n: number, digits = 1): string {

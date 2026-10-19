@@ -356,7 +356,7 @@ class BackgroundTaskManager:
                         session_id,
                         TaskStatus.PENDING,
                         run_id=run_id,
-                        **({"expected_run_id": run_id} if fenced_resume else {}),
+                        expected_run_id=run_id if fenced_resume else None,
                     )
             except Exception:
                 if not user_message_written:
@@ -766,23 +766,19 @@ class BackgroundTaskManager:
         user_id: Optional[str] = None,
         run_info_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        取消特定 run 的任务（支持分布式）
-
-        Args:
-            run_id: 运行 ID
-            publish: 是否通过 Redis pub/sub 广播取消信号（用于分布式场景）
-            user_id: 取消任务的用户 ID
-
-        Returns:
-            {
-                "success": bool,  # 中断信号是否成功设置
-                "cancelled_locally": bool,  # 是否在本地实例取消
-                "run_id": str,  # 被取消的 run_id
-                "message": str  # 状态信息
-            }
-        """
+        """Signal cancellation; only a stopped owner may release conversation admission."""
         run_info = run_info_override or self._run_info.get(run_id)
+        local_task = self._tasks.get(run_id)
+        session_id = run_info.get("session_id") if run_info else None
+        if session_id and local_task is None:
+            # A remote signal is not proof that its graph has stopped writing checkpoints.
+            await self._ensure_executor()._update_session_status(
+                session_id,
+                TaskStatus.CANCELLING,
+                "Task cancellation requested",
+                run_id=run_id,
+                expected_statuses=["starting", "running", "cancelling", "recovering"],
+            )
 
         result = await self._cancellation.cancel_run(
             run_id=run_id,
@@ -797,7 +793,23 @@ class BackgroundTaskManager:
             if session_id:
                 executor = self._ensure_executor()
                 await executor._update_session_status(
-                    session_id, TaskStatus.CANCELLED, "Task cancelled", run_id=run_id
+                    session_id,
+                    TaskStatus.CANCELLED,
+                    "Task cancelled",
+                    run_id=run_id,
+                    expected_statuses=(
+                        [
+                            "queued",
+                            "pending",
+                            "starting",
+                            "running",
+                            "waiting_human",
+                            "cancelling",
+                            "recovering",
+                        ]
+                        if local_task is not None and local_task.done()
+                        else ["queued", "pending", "waiting_human"]
+                    ),
                 )
 
         return result

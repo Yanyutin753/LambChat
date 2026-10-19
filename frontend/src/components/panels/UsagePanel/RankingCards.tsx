@@ -162,7 +162,7 @@ export function RankingList({
               {showCacheMetrics && (
                 <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-10 text-theme-text-tertiary">
                   <span>
-                    {t("usage.cacheHitRate")}: {pct(item.cache_read_share)}
+                    {t("usage.cacheHitRate")}: {pct(item.cache_read_share, 1)}
                   </span>
                   <span>
                     {t("usage.cacheRead")}:{" "}

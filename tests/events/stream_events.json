@@ -11,7 +11,8 @@
         "input": "Find project context",
         "timestamp": "2026-05-30T00:00:00Z",
         "depth": 1,
-        "agent_id": "search-agent"
+        "agent_id": "search-agent",
+        "agent_call_id": "search-execution-1"
       }
     },
     {
@@ -21,7 +22,8 @@
         "success": true,
         "timestamp": "2026-05-30T00:00:00Z",
         "depth": 1,
-        "agent_id": "search-agent"
+        "agent_id": "search-agent",
+        "agent_call_id": "search-execution-1"
       }
     },
     {
