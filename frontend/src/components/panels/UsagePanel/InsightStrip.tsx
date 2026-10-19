@@ -73,7 +73,7 @@ export function InsightStrip({
     {
       icon: DatabaseZap,
       label: t("usage.insight.cacheReuse"),
-      value: pct(s.cache_read_share),
+      value: pct(s.cache_read_share, 1),
       detail: t("usage.tokensValue", {
         count: fmtUsageCount(
           s.total_cache_read_tokens,

@@ -41,7 +41,7 @@ test("shows cache metrics when the ranking opts in", () => {
     />,
   );
 
-  expect(screen.getByText("usage.cacheHitRate: 75%")).toBeInTheDocument();
+  expect(screen.getByText("usage.cacheHitRate: 75.0%")).toBeInTheDocument();
   expect(screen.getByText("usage.cacheRead: 1.5K")).toBeInTheDocument();
 });
 
@@ -79,7 +79,7 @@ test("ranking omits missing-data disclaimers while explicit zero stays zero", ()
       showCacheMetrics
     />,
   );
-  expect(screen.getByText("usage.cacheHitRate: 0%")).toBeVisible();
+  expect(screen.getByText("usage.cacheHitRate: 0.0%")).toBeVisible();
   expect(screen.queryByText("usage.cacheRateUnknown")).not.toBeInTheDocument();
 });
 
@@ -109,7 +109,7 @@ test("cache insight omits missing-data disclaimers", () => {
     within(insight).queryByText(/usage\.cacheRateUnknown/),
   ).not.toBeInTheDocument();
   rerender(<InsightStrip dashboard={dashboard(0)} />);
-  expect(within(insight).getByText("0%")).toBeVisible();
+  expect(within(insight).getByText("0.0%")).toBeVisible();
   expect(within(insight).getByText("0")).toBeVisible();
   expect(
     within(insight).queryByText(/usage\.cacheRateUnknown/),

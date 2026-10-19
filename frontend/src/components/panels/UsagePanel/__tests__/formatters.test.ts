@@ -218,3 +218,10 @@ test("aggregate cache share uses available counts and handles empty or exclusive
   expect(aggregateCacheShare(undefined, 60, 40)).toBe(0.6);
   expect(aggregateCacheShare()).toBe(0);
 });
+
+test("cache percentage precision retains one decimal including zero and whole values", () => {
+  expect(pct(0.67149, 1)).toBe("67.1%");
+  expect(pct(0.67151, 1)).toBe("67.2%");
+  expect(pct(0, 1)).toBe("0.0%");
+  expect(pct(1, 1)).toBe("100.0%");
+});
