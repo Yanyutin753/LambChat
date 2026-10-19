@@ -19,16 +19,14 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.parametrize(
     "scenario, expected_unknown, expected_share",
     [
-        ("mixed_zero", 1, None),
+        ("mixed_zero", 1, 0.4),
         ("all_certified", 0, 0.4),
-        ("legacy", 2, None),
+        ("legacy", 2, 0.4),
         ("all_zero", 0, 0.0),
-        ("unknown_union", 2, None),
+        ("unknown_union", 2, 0.4),
     ],
 )
-async def test_positive_cache_aggregates_require_every_input_to_be_certified(
-    scenario, expected_unknown, expected_share
-):
+async def test_cache_aggregates_use_available_counts(scenario, expected_unknown, expected_share):
     client = AsyncMongoClient(build_mongo_connection_string(), tz_aware=True)
     collection = client[settings.MONGODB_DB][f"test_cache_aggregate_{uuid4().hex}"]
     storage = UsageStorage()

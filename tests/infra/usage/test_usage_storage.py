@@ -1059,3 +1059,32 @@ async def test_usage_listing_does_not_recertify_legacy_cost(certificate):
     [stored] = await storage._fetch_items({}, 0, 10)
     assert stored["cost_usd"] == 0.9
     assert stored["cost_available"] is (certificate is True)
+
+
+def test_cache_rates_use_available_counts_despite_missing_calls() -> None:
+    from src.infra.usage.formatting import _format_dashboard
+
+    counts = {
+        "input_tokens": 100,
+        "cache_read_tokens": 60,
+        "cache_creation_tokens": 0,
+        "cache_unknown_requests": 2,
+        "cache_uncertified_requests": 2,
+    }
+    result = _format_dashboard(
+        {
+            "summary": [
+                {
+                    "total_input_tokens": 100,
+                    "total_cache_read_tokens": 60,
+                    "cache_unknown_requests": 2,
+                    "cache_uncertified_requests": 2,
+                }
+            ],
+            "daily": [{"_id": "2026-10-19", **counts}],
+            "models": [{"_id": "model", **counts}],
+        }
+    )
+    assert result["summary"]["cache_read_share"] == 0.6
+    assert result["daily"][0]["cache_read_share"] == 0.6
+    assert result["top_models"][0]["cache_read_share"] == 0.6

@@ -74,20 +74,13 @@ export function InsightStrip({
       icon: DatabaseZap,
       label: t("usage.insight.cacheReuse"),
       value: pct(s.cache_read_share),
-      detail: [
-        t("usage.tokensValue", {
-          count: fmtUsageCount(
-            s.total_cache_read_tokens,
-            "cache_read_tokens",
-            s.unknown_usage_fields,
-          ),
-        }),
-        pct(s.cache_read_share) === "—"
-          ? t("usage.cacheRateUnknown")
-          : undefined,
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      detail: t("usage.tokensValue", {
+        count: fmtUsageCount(
+          s.total_cache_read_tokens,
+          "cache_read_tokens",
+          s.unknown_usage_fields,
+        ),
+      }),
     },
     {
       icon: AlertTriangle,
