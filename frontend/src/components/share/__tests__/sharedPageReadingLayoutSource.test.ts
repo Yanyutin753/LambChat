@@ -6,6 +6,14 @@ const source = readFileSync(
   "utf8",
 );
 
+test("shared messages use the original chat pane spacing without a second width limit", () => {
+  const mainClasses = source.match(/<main className="([^"]+)"/)?.[1];
+  expect(mainClasses?.split(/\s+/)).toContain("chat-view-content-region");
+  const articleClasses = source.match(/<article className="([^"]+)"/)?.[1];
+  expect(articleClasses).toBeDefined();
+  expect(articleClasses).not.toMatch(/max-w-|px-|p-/);
+});
+
 test("public conversation titles and identity metadata wrap inside their reading column", () => {
   const title = source.match(
     /<h1 className="([^"]+)">\s*\{sessionTitle\}/,

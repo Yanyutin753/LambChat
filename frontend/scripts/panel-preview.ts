@@ -655,6 +655,28 @@ const settings = {
       },
     ],
     tools: [
+      ...[
+        { key: "ENABLE_WEB_SEARCH", type: "boolean", value: true },
+        {
+          key: "WEB_SEARCH_PROVIDER",
+          type: "select",
+          value: "auto",
+          options: ["auto", "anysearch", "tavily", "brave", "searxng"],
+        },
+        { key: "ANYSEARCH_API_KEYS", type: "string", value: "********" },
+      ].map((item) => ({
+        ...item,
+        default_value: item.key === "ANYSEARCH_API_KEYS" ? "" : item.value,
+        category: "tools",
+        subcategory: "web_search",
+        description: `settingDesc.${item.key}`,
+        requires_restart: false,
+        is_sensitive: item.key === "ANYSEARCH_API_KEYS",
+        frontend_visible: true,
+        ...(item.key !== "ENABLE_WEB_SEARCH"
+          ? { depends_on: "ENABLE_WEB_SEARCH" }
+          : {}),
+      })),
       {
         key: "ENABLE_MCP",
         value: true,

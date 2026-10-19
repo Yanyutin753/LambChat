@@ -3569,6 +3569,7 @@
     "SESSION_TITLE_PROMPT": "セッションタイトル生成のプロンプトテンプレート。{lang}と{message}をプレースホルダーとして使用。",
     "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "スキル数がこの値以下の場合はプロンプトに各スキルの説明を含め、超える場合はトークン節約のため名前のみ列挙します。",
     "SSE_CACHE_TTL": "SSEイベントのRedis TTL（秒）",
+    "ANYSEARCH_API_KEYS": "AnySearch API キー。カンマ区切りでローテーション。auto は AnySearch を優先し、期間指定の検索は他のプロバイダーを使用します。",
     "TAVILY_API_KEYS": "Tavily API キー。カンマ区切りでローテーション",
     "TASK_BACKEND": "タスク実行バックエンド。arq を使うとデフォルトのチャット実行を内蔵 Redis worker キューに入れます。",
     "TASK_STARTUP_CLEANUP_CONCURRENCY": "タスク起動クリーンアップ操作の並行数",

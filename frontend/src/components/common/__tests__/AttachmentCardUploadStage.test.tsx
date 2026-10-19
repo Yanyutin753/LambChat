@@ -132,3 +132,34 @@ test("compact attachments expose separate preview and remove buttons", () => {
   expect(remove).toHaveBeenCalledOnce();
   expect(preview).toHaveBeenCalledOnce();
 });
+
+test.each([
+  ["preparing", true],
+  ["uploading", true],
+  ["processing", true],
+  ["processing", false],
+] as const)(
+  "keeps action buttons outside the text layout in %s (uploading: %s)",
+  (uploadStage, isUploading) => {
+    render(
+      <AttachmentCard
+        attachment={{ ...baseAttachment, uploadStage, isUploading }}
+        size="compact"
+        variant="editable"
+        isUploading={isUploading}
+        onCancel={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    const textLayout = screen.getByText("capture.png").parentElement!;
+    expect(textLayout.querySelector("button")).toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: isUploading
+          ? i18n.t("fileUpload.cancelUpload")
+          : i18n.t("common.remove"),
+      }),
+    ).toBeEnabled();
+  },
+);

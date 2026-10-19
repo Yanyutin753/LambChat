@@ -3569,6 +3569,7 @@
     "SESSION_TITLE_PROMPT": "세션 제목 생성 프롬프트 템플릿. {lang} 및 {message}를 플레이스홀더로 사용.",
     "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "스킬 수가 이 값 이하면 프롬프트에 각 스킬 설명을 포함하고, 초과하면 토큰 절약을 위해 이름만 나열합니다.",
     "SSE_CACHE_TTL": "SSE 이벤트의 Redis TTL(초)",
+    "ANYSEARCH_API_KEYS": "AnySearch API 키. 쉼표로 구분하여 순환합니다. auto는 AnySearch를 우선하며, 기간 지정 검색은 다른 제공자를 사용합니다.",
     "TAVILY_API_KEYS": "Tavily API 키. 쉼표로 구분하여 로테이션",
     "TASK_BACKEND": "작업 실행 백엔드입니다. arq를 사용하면 기본 채팅 실행이 내장 Redis worker 큐에 들어갑니다.",
     "TASK_STARTUP_CLEANUP_CONCURRENCY": "작업 시작 정리 작업 동시 실행 수",

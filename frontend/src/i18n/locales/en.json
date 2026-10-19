@@ -3569,6 +3569,7 @@
     "SESSION_TITLE_PROMPT": "Prompt template for generating session titles. Use {lang} and {message} as placeholders.",
     "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "When the number of skills is at or below this value, each skill's description is included in the prompt; beyond it only skill names are listed to save tokens.",
     "SSE_CACHE_TTL": "Redis TTL for SSE events in seconds",
+    "ANYSEARCH_API_KEYS": "AnySearch API keys, comma-separated for rotation. Auto tries AnySearch first; time-filtered searches use another provider.",
     "TAVILY_API_KEYS": "Tavily API keys, comma-separated for rotation",
     "TASK_BACKEND": "Task execution backend. Use arq to enqueue default chat runs through the embedded Redis worker.",
     "TASK_STARTUP_CLEANUP_CONCURRENCY": "Concurrency level for task startup cleanup operations",
