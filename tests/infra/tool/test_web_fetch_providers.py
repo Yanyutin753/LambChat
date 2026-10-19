@@ -574,3 +574,31 @@ async def test_execute_web_fetch_skips_unkeyed_providers_gracefully(
     assert result["success"] is False
     assert calls == ["direct"]
     assert result["error"] == "web_fetch_all_providers_failed"
+
+
+async def test_streamed_compressed_response_is_decoded_only_once() -> None:
+    import gzip
+    import json
+
+    payload = {"title": "Python", "content": "# Python documentation"}
+    body = json.dumps(payload).encode()
+    compressed = gzip.compress(body)
+
+    def respond(request):
+        return httpx.Response(
+            200,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
+                "Content-Length": str(len(compressed)),
+                "Retry-After": "5",
+            },
+            stream=httpx.ByteStream(compressed),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        response = await wfp._request_no_redirect(client, "POST", wfp.DEEPSEEK_FETCH_URL)
+    assert response.json() == payload
+    assert "Content-Encoding" not in response.headers
+    assert response.headers["Content-Length"] == str(len(body))
+    assert response.headers["Retry-After"] == "5"

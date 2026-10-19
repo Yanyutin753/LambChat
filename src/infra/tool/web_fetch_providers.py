@@ -191,10 +191,13 @@ async def _request_no_redirect(
             if received >= DIRECT_MAX_BODY_BYTES:
                 break
         body = b"".join(chunks[: (DIRECT_MAX_BODY_BYTES // 4096) + 1])[:DIRECT_MAX_BODY_BYTES]
-        # 重新构造为普通 Response（调用方只读 status/headers/body）
+        # aiter_bytes already decodes compression; the buffered body needs fresh headers.
+        headers = dict(response.headers)
+        headers.pop("content-encoding", None)
+        headers.pop("content-length", None)
         return httpx.Response(
             response.status_code,
-            headers=dict(response.headers),
+            headers=headers,
             content=body,
             request=httpx.Request(method, url),
         )
