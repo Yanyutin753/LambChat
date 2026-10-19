@@ -248,8 +248,18 @@ async def dispatch_local_call(
                     # 纠错（Windows cmd.exe 上命令失败是常态；劫持成 AppError 会让
                     # 模型只见 "execution failed" 而无从换命令）。其余 op（fs_* 的
                     # 内部异常）与 exec 的 daemon 级错误（expired/unsupported，无
-                    # 结果字段）仍按中继失败上抛。
-                    if op == "exec" and ("exit_code" in resp or "stdout" in resp):
+                    # 结果字段）仍按中继失败上抛。无退出码、输出或超时标记的
+                    # 错误是执行前失败（如目录绑定无效），不能返回成成功工具消息。
+                    if (
+                        op == "exec"
+                        and ("exit_code" in resp or "stdout" in resp)
+                        and (
+                            resp.get("exit_code") is not None
+                            or resp.get("stdout")
+                            or resp.get("stderr")
+                            or resp.get("error") == "timeout"
+                        )
+                    ):
                         outcome = "done"
                         return resp
                     outcome = "failed"
