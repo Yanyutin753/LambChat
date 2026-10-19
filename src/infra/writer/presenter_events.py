@@ -274,6 +274,7 @@ class EventPresenterMixin:
         depth: int = 1,
         agent_avatar: Optional[str] = None,
         status: Optional[str] = None,
+        agent_call_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出子 Agent 调用
 
@@ -289,6 +290,7 @@ class EventPresenterMixin:
             {
                 "step": self._step_count,
                 "agent_name": agent_name,
+                **({"agent_call_id": agent_call_id} if agent_call_id else {}),
                 "agent_avatar": agent_avatar,
                 **({"status": status} if status else {}),
                 "input": input_message,
@@ -306,6 +308,7 @@ class EventPresenterMixin:
         depth: int = 1,
         error: Optional[str] = None,
         status: Optional[str] = None,
+        agent_call_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出子 Agent 返回结果
 
@@ -321,6 +324,8 @@ class EventPresenterMixin:
             "success": success,
             "timestamp": utc_now_iso(),
         }
+        if agent_call_id:
+            data["agent_call_id"] = agent_call_id
         if error:
             data["error"] = error
         if status:

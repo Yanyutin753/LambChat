@@ -33,6 +33,7 @@ async def _execute_agent_stream(
     recommendation_input: str | None = None,
     auto_mode: bool = False,
     hitl_resume: dict | None = None,
+    interrupted_resume: bool = False,
     base_url: str = "",
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
@@ -83,6 +84,7 @@ async def _execute_agent_stream(
                 goal_started_at=started_at,
                 recommendation_input=recommendation_input,
                 hitl_resume=hitl_resume,
+                interrupted_resume=interrupted_resume,
                 base_url=base_url,
                 allow_search_handoff=allow_search_handoff,
             )

@@ -364,7 +364,7 @@ async def test_agent_node_reads_existing_state_messages_for_recommendations(
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 2
+    assert fake_graph.aget_state_calls == 1
     assert result == {"output": ""}
 
 
@@ -703,7 +703,7 @@ async def test_search_agent_node_reads_existing_state_messages_for_recommendatio
     )
     await asyncio.sleep(0)
 
-    assert fake_graph.aget_state_calls == 2
+    assert fake_graph.aget_state_calls == 1
     assert result == {"output": ""}
 
 
@@ -1008,7 +1008,8 @@ async def test_agent_node_language_section_bytes_stable_across_turns(
 
 
 @pytest.mark.parametrize("agent", ["search", "team"])
-async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypatch, agent):
+@pytest.mark.parametrize("resume_mode", ["fresh", "interrupted", "hitl"])
+async def test_each_agent_checks_recovery_but_allows_new_input(monkeypatch, agent, resume_mode):
     import importlib
     from unittest.mock import AsyncMock
 
@@ -1061,7 +1062,8 @@ async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypa
         module,
         {"search": "agent_node", "team": "team_router_node"}[agent],
     )
-    with pytest.raises(AppError) as caught:
+
+    async def invoke():
         await node(
             {"input": "continue", "session_id": "session", "attachments": []},
             {
@@ -1070,8 +1072,26 @@ async def test_each_agent_checks_real_inner_checkpoint_before_streaming(monkeypa
                     "presenter": object(),
                     "base_url": "",
                     "agent_options": {},
+                    "interrupted_resume": resume_mode == "interrupted",
+                    "hitl_resume": {"resume_value": {"approved": True}}
+                    if resume_mode == "hitl"
+                    else None,
                 }
             },
         )
-    assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
-    assert fake_graph.captured_inner_config is None
+
+    if resume_mode == "fresh":
+        # A new human input replaces pending scheduling; old calls must not be replayed.
+        pending_snapshot = fake_graph.aget_state.return_value
+        fake_graph.aget_state.side_effect = lambda _config: (
+            SimpleNamespace(values={"messages": []}, next=(), tasks=())
+            if fake_graph.captured_inner_config is not None
+            else pending_snapshot
+        )
+        await invoke()
+        assert fake_graph.captured_inner_config is not None
+    else:
+        with pytest.raises(AppError) as caught:
+            await invoke()
+        assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+        assert fake_graph.captured_inner_config is None

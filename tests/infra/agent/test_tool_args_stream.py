@@ -22,6 +22,7 @@ class FakePresenter:
         input_message: str,
         depth: int = 1,
         agent_avatar: str | None = None,
+        agent_call_id: str | None = None,
     ) -> dict[str, Any]:
         return {"event": "agent:call", "data": {"agent_id": agent_id}}
 

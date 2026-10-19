@@ -298,6 +298,9 @@ function processHistoryEvent(
   if (eventType === "agent:call") {
     opts.replayStack?.add({
       agent_id: agentId || "unknown",
+      ...(eventData.agent_call_id
+        ? { agent_call_id: eventData.agent_call_id }
+        : {}),
       depth,
       message_id: msg.id,
     });
@@ -311,7 +314,11 @@ function processHistoryEvent(
     )
   ) {
     if (eventType === "agent:result")
-      opts.replayStack?.remove(agentId || "unknown", msg.id);
+      opts.replayStack?.remove(
+        agentId || "unknown",
+        msg.id,
+        eventData.agent_call_id,
+      );
     return msg;
   }
   opts.partReplay?.flush(msg);
@@ -349,7 +356,11 @@ function processHistoryEvent(
   }
 
   if (eventType === "agent:result")
-    opts.replayStack?.remove(agentId || "unknown", msg.id);
+    opts.replayStack?.remove(
+      agentId || "unknown",
+      msg.id,
+      eventData.agent_call_id,
+    );
 
   return msg;
 }

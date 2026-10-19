@@ -101,7 +101,7 @@ class _FakeHeartbeat:
 
 
 @pytest.mark.asyncio
-async def test_cancel_session_persists_cancelled_status_without_local_run_info() -> None:
+async def test_cancel_session_keeps_remote_owner_cancelling_without_local_run_info() -> None:
     session = SimpleNamespace(
         id="session-1",
         user_id="user-1",
@@ -143,8 +143,8 @@ async def test_cancel_session_persists_cancelled_status_without_local_run_info()
     ]
     assert storage.updates
     metadata = storage.updates[-1][1].metadata
-    assert metadata["task_status"] == "cancelled"
-    assert metadata["task_error_code"] == "cancelled"
+    assert metadata["task_status"] == "cancelling"
+    assert metadata["task_error_code"] is None
     assert metadata["task_recoverable"] is False
     assert metadata["current_run_id"] == "run-old"
 

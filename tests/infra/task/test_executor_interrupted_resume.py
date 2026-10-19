@@ -181,7 +181,8 @@ async def test_interrupted_resume_emits_run_resumed_first(monkeypatch: pytest.Mo
     """interrupted_resume=True 的恢复 run 在 agent 输出前先落 run:resumed 标记事件。"""
     executor, writer, holder, _ = _executor_fixture(monkeypatch, interrupt_flag=False)
 
-    async def _agent_stream(*_args, **_kwargs):
+    async def _agent_stream(*_args, **kwargs):
+        assert kwargs.get("interrupted_resume") is True
         yield {"event": "message:chunk", "data": {"content": "重新生成"}}
 
     await executor.run_task(

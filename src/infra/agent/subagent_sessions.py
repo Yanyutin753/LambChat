@@ -255,6 +255,7 @@ class SubagentSessions:
                     }
                 self.records[subagent_id] = {
                     "subagent_type": role,
+                    "agent_call_id": call_id,
                     "status": "queued",
                     "pending": [],
                     "description": description,
@@ -316,6 +317,7 @@ class SubagentSessions:
                 key: record[key]
                 for key in (
                     "subagent_type",
+                    "agent_call_id",
                     "status",
                     "result",
                     "error",
@@ -377,6 +379,8 @@ class SubagentSessions:
             record.pop("result", None)
             if running:
                 return self.result(subagent_id)
+            if record["status"] != "waiting_human":
+                record["agent_call_id"] = uuid.uuid4().hex
             record["status"] = "queued"
             record["execution_seconds"] = 0
             record.pop("error", None)

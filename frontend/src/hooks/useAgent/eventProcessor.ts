@@ -156,6 +156,7 @@ export function processMessageEvent(
         data.timestamp,
         data.agent_avatar,
         data.status,
+        data.agent_call_id,
       );
       result.parts = addPartToDepth(
         parts,
@@ -178,6 +179,7 @@ export function processMessageEvent(
         data.error,
         data.timestamp,
         data.status,
+        data.agent_call_id,
       );
       if (result.parts === parts) {
         const recovered = createSubagentPart(
@@ -187,6 +189,8 @@ export function processMessageEvent(
           depth,
           data.timestamp,
           data.agent_avatar,
+          data.status,
+          data.agent_call_id,
         );
         result.parts = [
           ...parts,
@@ -199,6 +203,7 @@ export function processMessageEvent(
             data.error,
             data.timestamp,
             data.status,
+            data.agent_call_id,
           ),
         ];
       }

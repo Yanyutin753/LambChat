@@ -259,6 +259,7 @@ export interface ArtifactPart {
 
 export interface SubagentPart {
   type: "subagent";
+  agent_call_id?: string;
   agent_id: string;
   agent_name: string;
   agent_avatar?: string;
