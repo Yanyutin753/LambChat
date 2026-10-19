@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentInfo } from "../../../types";
+import type { SandboxMachine } from "../../../services/api/sandbox";
+import { isMachineOnline } from "../../chat/sandboxOption";
 export const SANDBOX_ONLINE_CHANGED_EVENT = "sandbox-online-changed";
 
 import {
@@ -155,6 +157,8 @@ function applyStoredAgentOptionDefaults(
 export interface SandboxDefaultHints {
   /** daemon 是否在线（多机任一在线即在线）；缺省按离线处理（云端默认，向后兼容） */
   sandboxOnline?: boolean;
+  /** 当前客户端的在线机器；网页、未配对或本机离线时为空。 */
+  sandboxMachineId?: string | null;
 }
 
 function applySandboxDefault(
@@ -202,6 +206,9 @@ export function buildAgentOptionValues(
   defaultValues = applySandboxDefault(defaultValues, storage, hints);
 
   if (!restoredOptions) {
+    if (defaultValues.sandbox === "local" && hints?.sandboxMachineId) {
+      defaultValues.sandbox_machine_id = hints.sandboxMachineId;
+    }
     return defaultValues;
   }
 
@@ -244,8 +251,19 @@ export function getAgentOptionSyncMode({
 export function useAgentOptions(
   agents: AgentInfo[],
   currentAgent: string,
-  sandboxOnline = false,
+  sandboxStatus?: {
+    online: boolean;
+    machines: SandboxMachine[];
+    currentMachineId: string | null;
+  },
 ) {
+  const sandboxOnline = sandboxStatus?.online ?? false;
+  const sandboxMachineId =
+    sandboxStatus?.machines.find(
+      (machine) =>
+        machine.machine_id === sandboxStatus.currentMachineId &&
+        isMachineOnline(machine),
+    )?.machine_id ?? null;
   const [agentOptionValues, setAgentOptionValues] = useState<
     Record<string, boolean | string | number>
   >({});
@@ -256,6 +274,7 @@ export function useAgentOptions(
   // Track serialized agent options to avoid rebuilding on every agents ref change
   const prevAgentOptionsJsonRef = useRef<string>("");
   const prevAgentIdRef = useRef<string | undefined>(undefined);
+  const machineTouchedRef = useRef(false);
 
   const currentAgentInfo = agents.find((a) => a.id === currentAgent);
   const currentAgentOptions =
@@ -296,6 +315,7 @@ export function useAgentOptions(
       setAgentOptionValues(
         buildAgentOptionValues(options, undefined, undefined, {
           sandboxOnline,
+          sandboxMachineId,
         }),
       );
       return;
@@ -315,7 +335,26 @@ export function useAgentOptions(
       }
       return rebuilt;
     });
-  }, [currentAgent, agents, sandboxOnline]);
+  }, [currentAgent, agents, sandboxOnline, sandboxMachineId]);
+
+  // 本机身份与在线状态异步到达，只补齐新草稿未指定的设备。
+  useEffect(() => {
+    if (!sandboxMachineId) return;
+    setAgentOptionValues((prev) => {
+      if (
+        machineTouchedRef.current ||
+        prev.sandbox !== "local" ||
+        prev.sandbox_machine_id !== undefined
+      ) {
+        return prev;
+      }
+      return { ...prev, sandbox_machine_id: sandboxMachineId };
+    });
+  }, [
+    sandboxMachineId,
+    agentOptionValues.sandbox,
+    agentOptionValues.sandbox_machine_id,
+  ]);
 
   useEffect(() => {
     const handleThinkingPreferenceUpdated = () => {
@@ -379,6 +418,9 @@ export function useAgentOptions(
       if (key === "sandbox") {
         sandboxTouchedRef.current = true;
       }
+      if (key === "sandbox_machine_id") {
+        machineTouchedRef.current = true;
+      }
       setAgentOptionValues((prev) => ({ ...prev, [key]: value }));
     },
     [],
@@ -387,20 +429,25 @@ export function useAgentOptions(
   // Reset to agent defaults (for new session)
   const resetAgentOptionDefaults = useCallback(() => {
     sandboxTouchedRef.current = false;
+    machineTouchedRef.current = false;
     pendingRestoredOptionsRef.current = null;
     const options = normalizeAgentOptions(
       agents.find((a) => a.id === currentAgent)?.options,
     );
     setAgentOptionValues(
-      buildAgentOptionValues(options, undefined, undefined, { sandboxOnline }),
+      buildAgentOptionValues(options, undefined, undefined, {
+        sandboxOnline,
+        sandboxMachineId,
+      }),
     );
-  }, [agents, currentAgent, sandboxOnline]);
+  }, [agents, currentAgent, sandboxOnline, sandboxMachineId]);
 
   // 从外部恢复配置
   const restoreAgentOptions = useCallback(
     (options: Record<string, boolean | string | number>) => {
       // 恢复的会话不是新草稿；daemon 重连不能悄悄改写它的执行位置。
       sandboxTouchedRef.current = true;
+      machineTouchedRef.current = true;
       const normalizedOptions = normalizeAgentOptionValues(options) || {};
       pendingRestoredOptionsRef.current = normalizedOptions;
       setAgentOptionValues(normalizedOptions);
