@@ -20,6 +20,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -111,6 +112,31 @@ def win32(monkeypatch: pytest.MonkeyPatch) -> FakeWinApi:
 # ---------------------------------------------------------------------------
 # 正常路径：Job Object 生命周期调用序与参数
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("detach", [False, True])
+@pytest.mark.parametrize(
+    ("native", "expected"),
+    [
+        (r"\\?\C:\中文目录", r"C:\中文目录"),
+        (r"C:\中文目录", r"C:\中文目录"),
+        (r"\\?\UNC\server\share", r"\\?\UNC\server\share"),
+    ],
+)
+def test_win_shell_uses_drive_path_for_cwd_and_workspace_env(
+    tmp_path, monkeypatch, win32, native, expected, detach
+):
+    captured = {}
+
+    def popen(command, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(pid=12345, returncode=0, communicate=lambda **kw: (b"ok", b""))
+
+    monkeypatch.setattr(executor_mod.subprocess, "Popen", popen)
+    result = Executor(tmp_path)._execute_windows("echo ok", Path(native), 5, detach=detach)
+    assert result["exit_code"] == 0
+    assert str(captured["cwd"]) == expected
+    assert captured["env"]["LAMBCHAT_WORKSPACE"] == expected
 
 
 def test_win_execute_job_object_lifecycle_order(tmp_path: Path, win32: FakeWinApi) -> None:

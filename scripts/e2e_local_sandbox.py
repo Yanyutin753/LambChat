@@ -471,14 +471,18 @@ async def edge_cases(user_id: str, machine_id: str) -> None:
     check("路径逃逸拒绝", bool(err1), str(err1)[:60])
 
     # E2. 非 workspace cwd 的 exec 必拒（工作区锁）
-    r = await dispatch_local_call(
-        user_id, "exec", {"command": "cat /etc/hostname", "cwd": "/etc"}, machine_id=machine_id
-    )
-    check(
-        "非工作区 cwd 拒绝",
-        r.get("status") == "error" and "workspace" in str(r.get("error", "")),
-        str(r.get("error", ""))[:60],
-    )
+    try:
+        await dispatch_local_call(
+            user_id, "exec", {"command": "cat /etc/hostname", "cwd": "/etc"}, machine_id=machine_id
+        )
+    except AppError as exc:
+        check(
+            "非工作区 cwd 拒绝",
+            exc.error_code.code == "sandbox_exec_failed"
+            and "workspace" in str(exc.args_data.get("detail", "")),
+        )
+    else:
+        check("非工作区 cwd 拒绝", False, "invalid cwd returned as success")
 
     # E3. 超时语义：sleep 超过 exec timeout → SANDBOX_TIMEOUT（不挂死）
 
@@ -1084,12 +1088,17 @@ async def selected_workspace_battery(user_id: str, machine_id: str) -> None:
     from src.infra.backend.workspace_selection import selected_workspace_id
 
     root = WORKSPACE_ROOT / machine_id
-    selected = root / "selected-project"
+    selected = root / "selected-中文工作目录"
     selected.mkdir(exist_ok=True)
     bindings = root / "workspaces" / ".selected"
     bindings.mkdir(exist_ok=True)
     key = "local-" + secrets.token_hex(16)
-    (bindings / f"{key}.json").write_text(json.dumps(str(selected.resolve())))
+    binding = bindings / f"{key}.json"
+    native_path = str(selected.resolve())
+    if os.name == "nt" and not native_path.startswith("\\\\"):
+        native_path = "\\\\?\\" + native_path
+    # Native picker writes UTF-8 JSON with literal Unicode, not ASCII escapes.
+    binding.write_text(json.dumps(native_path, ensure_ascii=False), encoding="utf-8")
     options = {
         "sandbox_machine_id": machine_id,
         "sandbox_workspace": json.dumps({"id": key, "machineId": machine_id}),
@@ -1100,19 +1109,53 @@ async def selected_workspace_battery(user_id: str, machine_id: str) -> None:
             session_id=f".selected/{selected_workspace_id(options)}",
             machine_id=machine_id,
         )
-        await backend.awrite(f"{backend.work_dir}/turn-{turn}.txt", f"turn {turn}")
-        result = await backend.aexecute("pwd")
+        await backend.awrite(f"{backend.work_dir}/文件-{turn}.txt", f"第 {turn} 轮")
+        result = await backend.aexecute(
+            "python3 -c \"import json,os; print(json.dumps({'cwd':os.getcwd(),"
+            "'workspace':os.environ['LAMBCHAT_WORKSPACE']}))\""
+        )
+        try:
+            actual = json.loads(result.output.splitlines()[0])
+        except (ValueError, IndexError):
+            actual = {}
         check(
             f"所选目录跨轮次执行 turn={turn}",
-            (selected / f"turn-{turn}.txt").read_text() == f"turn {turn}"
-            and str(selected.resolve()) in result.output,
+            (selected / f"文件-{turn}.txt").read_text(encoding="utf-8") == f"第 {turn} 轮"
+            and result.exit_code == 0
+            and Path(actual.get("cwd", "")).resolve() == selected.resolve()
+            and Path(actual.get("workspace", "")).resolve() == selected.resolve(),
         )
     from src.infra.sandbox.relay.dispatch import dispatch_local_call
 
     result = await dispatch_local_call(
-        user_id, "fs_read", {"cwd": backend.work_dir, "path": "turn-1.txt"}, machine_id=machine_id
+        user_id, "fs_read", {"cwd": backend.work_dir, "path": "文件-1.txt"}, machine_id=machine_id
     )
-    check("所选目录结构化文件操作", (result.get("result") or {}).get("content") == "turn 1")
+    check("所选目录结构化文件操作", (result.get("result") or {}).get("content") == "第 1 轮")
+    result = await dispatch_local_call(
+        user_id, "fs_ls", {"cwd": backend.work_dir, "path": "."}, machine_id=machine_id
+    )
+    names = {Path(entry["path"]).name for entry in result.get("result", {}).get("entries", [])}
+    check("中文所选目录文件列举", {"文件-1.txt", "文件-2.txt"} <= names)
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    binding.unlink()
+    for operation in ("fs_ls", "exec"):
+        try:
+            await dispatch_local_call(
+                user_id,
+                operation,
+                {"cwd": backend.work_dir, "path": ".", "command": "echo unexpected"},
+                machine_id=machine_id,
+            )
+        except AppError as exc:
+            check(
+                f"所选目录失效 {operation} 必须返回失败",
+                exc.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+                and "Selected directory is unavailable" in exc.args_data.get("detail", ""),
+            )
+        else:
+            check(f"所选目录失效 {operation} 必须返回失败", False, "failure returned as success")
 
 
 async def run_daemon_child(pat: str, machine_id: str) -> None:
@@ -1199,6 +1242,7 @@ def main() -> int:
     username = f"sbx-e2e-{secrets.token_hex(4)}"
     password = f"E2e-{secrets.token_hex(8)}!"
     daemon = None
+    holder = {}
     try:
         pat, jwt = mint_pat(username, password)
         _, me = http_json("GET", "/api/auth/me", token=jwt)  # /me 认 JWT，PAT 只用于沙箱端点
@@ -1240,8 +1284,14 @@ def main() -> int:
             time.sleep(0.3)
         check("优雅下线 5s 内翻转离线", offline_fast)
     finally:
+        daemon = holder.get("proc", daemon)
         if daemon and daemon.poll() is None:
             daemon.terminate()
+            try:
+                daemon.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                daemon.kill()
+                daemon.wait(timeout=5)
         if backend:
             backend.terminate()
         shutil.rmtree(WORKSPACE_ROOT / machine_id, ignore_errors=True)

@@ -168,6 +168,69 @@ async def test_exec_done_error_status_returns_command_outcome(fake, monkeypatch)
     assert "not recognized" in result["stderr"]
 
 
+@pytest.mark.parametrize(
+    "detail",
+    ["Selected directory is unavailable; select it again in the desktop app", "Access is denied"],
+)
+async def test_exec_failure_before_command_start_is_not_a_successful_result(
+    fake, monkeypatch, detail
+):
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.rpush(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "done",
+                    "status": "error",
+                    "stdout": "",
+                    "stderr": "",
+                    "exit_code": None,
+                    "error": detail,
+                }
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    with pytest.raises(AppError) as exc:
+        await dispatch_local_call("u1", "exec", {"command": "dir"})
+    await task
+    assert exc.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+    assert exc.value.args_data["detail"] == detail
+
+
+async def test_exec_timeout_without_output_remains_a_command_outcome(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_BLPOP_TIMEOUT", 0.01)
+
+    async def daemon():
+        await asyncio.sleep(0.02)
+        req = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.rpush(
+            f"sandbox:resp:{req['call_id']}",
+            json.dumps(
+                {
+                    "user_id": "u1",
+                    "stage": "done",
+                    "status": "error",
+                    "stdout": "",
+                    "stderr": "",
+                    "exit_code": None,
+                    "error": "timeout",
+                }
+            ),
+        )
+
+    task = asyncio.create_task(daemon())
+    result = await dispatch_local_call("u1", "exec", {"command": "slow-command"})
+    await task
+    assert result["exit_code"] is None
+    assert result["error"] == "timeout"
+
+
 async def test_fs_op_done_error_status_still_raises(fake, monkeypatch):
     """fs_* op 的 status=error 是 daemon 内部异常（ExecutorError 等）：仍按
     SANDBOX_EXEC_FAILED 上抛；detail 取 error 字段（None 不落成字面 "None"）。"""
