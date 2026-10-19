@@ -117,3 +117,13 @@ export function fmtUsageCount(
   const count = reportedAggregateCount(value, field, unknownFields);
   return count === null ? "—" : fmt(count);
 }
+
+/** Aggregate cache share uses the counters available in the selected window. */
+export function aggregateCacheShare(
+  input?: number | null,
+  read?: number | null,
+  write?: number | null,
+): number {
+  const denominator = Math.max(input ?? 0, (read ?? 0) + (write ?? 0));
+  return denominator > 0 ? Math.min((read ?? 0) / denominator, 1) : 0;
+}

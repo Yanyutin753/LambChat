@@ -172,11 +172,6 @@ export function RankingList({
                       item.unknown_usage_fields,
                     )}
                   </span>
-                  {pct(item.cache_read_share) === "—" && (
-                    <span className="basis-full">
-                      {t("usage.cacheRateUnknown")}
-                    </span>
-                  )}
                 </div>
               )}
             </div>

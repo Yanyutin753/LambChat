@@ -23,7 +23,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useFxRates } from "../../hooks/useFxRates";
 import { TODAY_USAGE_REFRESH_EVENT } from "../../hooks/useTodayUsageCost";
-import { cacheHitRateFromTokens } from "../chat/todayUsageSnapshot";
+import { aggregateCacheShare } from "./UsagePanel/formatters";
 import { fmtCostUsd, fmtUsageCount } from "./UsagePanel/formatters";
 import { usageCostOptions, historicalEstimateHint } from "../../utils/currency";
 import {
@@ -235,14 +235,11 @@ export function UsagePanel() {
   );
 
   const cacheHitLabel = useMemo(() => {
-    // 聚合统计须确认所有调用都采用包含缓存的输入口径。
-    if (!stats || (stats.cache_unknown_requests ?? 0) > 0) return "—";
-    const rate = cacheHitRateFromTokens(
+    if (!stats) return "—";
+    const rate = aggregateCacheShare(
       stats.total_input_tokens,
       stats.total_cache_read_tokens,
       stats.total_cache_creation_tokens,
-      stats.unknown_usage_fields,
-      stats.cache_unknown_requests === 0,
     );
     return pct(rate);
   }, [stats]);
@@ -369,18 +366,13 @@ export function UsagePanel() {
               icon={DatabaseZap}
               label={t("usage.cacheHitRate")}
               value={cacheHitLabel}
-              hint={[
-                t("usage.cacheTokens", {
-                  count: fmtUsageCount(
-                    stats.total_cache_read_tokens,
-                    "cache_read_tokens",
-                    stats.unknown_usage_fields,
-                  ),
-                }),
-                cacheHitLabel === "—" ? t("usage.cacheRateUnknown") : undefined,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              hint={t("usage.cacheTokens", {
+                count: fmtUsageCount(
+                  stats.total_cache_read_tokens,
+                  "cache_read_tokens",
+                  stats.unknown_usage_fields,
+                ),
+              })}
             />
             <StatMetric
               icon={ArrowUpFromLine}

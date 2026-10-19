@@ -116,9 +116,9 @@ def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "input_tokens": input_tokens,
         "cache_creation_tokens": cache_creation_tokens,
         "cache_read_tokens": cache_read_tokens,
-        "cache_read_share": None
-        if _aggregate_cache_unknown_requests(doc) > 0
-        else _cache_read_share(input_tokens, cache_read_tokens, cache_creation_tokens),
+        "cache_read_share": _cache_read_share(
+            input_tokens, cache_read_tokens, cache_creation_tokens
+        ),
         "zero_cache_requests": _as_int(doc.get("zero_cache_requests")),
     }
 
@@ -156,9 +156,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "input_tokens": _as_int(item.get("input_tokens")),
             "cache_creation_tokens": _as_int(item.get("cache_creation_tokens")),
             "cache_read_tokens": _as_int(item.get("cache_read_tokens")),
-            "cache_read_share": None
-            if _aggregate_cache_unknown_requests(item) > 0
-            else _cache_read_share(
+            "cache_read_share": _cache_read_share(
                 _as_int(item.get("input_tokens")),
                 _as_int(item.get("cache_read_tokens")),
                 _as_int(item.get("cache_creation_tokens")),
@@ -196,9 +194,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "avg_tokens_per_request": (total_tokens / total_requests) if total_requests else 0.0,
         "avg_duration_per_request": (total_duration / total_requests) if total_requests else 0.0,
         "scheduled_share": (scheduled_runs / total_requests) if total_requests else 0.0,
-        "cache_read_share": None
-        if _aggregate_cache_unknown_requests(summary_doc, "total_cache_read_tokens") > 0
-        else _cache_read_share(
+        "cache_read_share": _cache_read_share(
             total_input_tokens, total_cache_read_tokens, total_cache_creation_tokens
         ),
         "tool_calls_per_request": ((total_tool_calls / total_requests) if total_requests else 0.0),

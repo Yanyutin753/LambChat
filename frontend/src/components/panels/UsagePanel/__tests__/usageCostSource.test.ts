@@ -18,7 +18,6 @@ test("usage panel shows a total cost KPI card", () => {
   expect(source).toMatch(/usage\.costTotal/);
   expect(source).toMatch(/stats\.total_cost_usd/);
   expect(source).toMatch(/stats\.unpriced_requests/);
-  expect(source).toMatch(/stats\.cache_unknown_requests/);
 });
 
 test("usage log table renders a cost column across desktop, tablet and mobile", () => {

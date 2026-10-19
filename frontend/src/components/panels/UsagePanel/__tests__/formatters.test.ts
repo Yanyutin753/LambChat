@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   fmt,
+  aggregateCacheShare,
   fmtCostUsd,
   fmtUsageCount,
   pct,
@@ -206,4 +207,14 @@ describe("reported aggregate counters", () => {
       expect(fmtUsageCount(value, "total_tokens")).toBe("—");
     }
   });
+});
+
+test("aggregate cache share uses available counts and handles empty or exclusive input", () => {
+  expect(aggregateCacheShare(100, 60, 0)).toBe(0.6);
+  expect(aggregateCacheShare(0, 60, 40)).toBe(0.6);
+  expect(aggregateCacheShare(10, 100, 0)).toBe(1);
+  expect(aggregateCacheShare(0, 0, 0)).toBe(0);
+  expect(aggregateCacheShare(100, undefined, null)).toBe(0);
+  expect(aggregateCacheShare(undefined, 60, 40)).toBe(0.6);
+  expect(aggregateCacheShare()).toBe(0);
 });
