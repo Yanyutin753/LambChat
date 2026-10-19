@@ -1,4 +1,4 @@
-import { reportedTokenCount } from "../../../utils/usageTokens";
+import { reportedAggregateCount } from "./formatters";
 import {
   AlertTriangle,
   DatabaseZap,
@@ -34,7 +34,7 @@ export function InsightStrip({
   const { t } = useTranslation();
   const s = dashboard.summary;
   const peakDay = s.peak_day;
-  const avgTokens = reportedTokenCount(
+  const avgTokens = reportedAggregateCount(
     s.avg_tokens_per_request,
     "total_tokens",
     s.unknown_usage_fields,

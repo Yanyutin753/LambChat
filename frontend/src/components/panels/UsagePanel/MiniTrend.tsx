@@ -1,4 +1,4 @@
-import { reportedTokenCount } from "../../../utils/usageTokens";
+import { reportedAggregateCount } from "./formatters";
 import { useMemo } from "react";
 import {
   AreaChart,
@@ -63,15 +63,16 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
 
   const tokensKnown = visible.every(
     (point) =>
-      reportedTokenCount(
+      reportedAggregateCount(
         point.tokens,
         "total_tokens",
         point.unknown_usage_fields,
       ) !== null,
   );
-  const totalTokens = tokensKnown
-    ? visible.reduce((sum, point) => sum + point.tokens, 0)
-    : null;
+  const totalTokens =
+    tokensKnown || visible.some((point) => point.tokens > 0)
+      ? visible.reduce((sum, point) => sum + point.tokens, 0)
+      : null;
   const totalRequests = visible.reduce((s, p) => s + p.requests, 0);
   const totalScheduled = visible.reduce((s, p) => s + p.scheduled_runs, 0);
   const totalFailures = visible.reduce((s, p) => s + p.failed_requests, 0);
@@ -91,7 +92,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
     () =>
       visible.map((p) => ({
         date: shortDate(p.date),
-        Tokens: reportedTokenCount(
+        Tokens: reportedAggregateCount(
           p.tokens,
           "total_tokens",
           p.unknown_usage_fields,
