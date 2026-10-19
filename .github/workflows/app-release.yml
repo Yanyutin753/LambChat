@@ -514,7 +514,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          release_flags=()
+          release_flags=(--prerelease=false)
           if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
@@ -737,7 +737,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          release_flags=()
+          release_flags=(--prerelease=false)
           if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
@@ -884,7 +884,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          release_flags=()
+          release_flags=(--prerelease=false)
           if [[ "$RELEASE_TAG" == *-dev.* ]]; then release_flags=(--prerelease --latest=false); fi
           for delay in 0 5 15; do
             if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
