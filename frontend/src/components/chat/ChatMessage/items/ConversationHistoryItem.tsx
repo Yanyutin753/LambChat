@@ -168,7 +168,7 @@ function ConversationHistoryDetail({
   const hasRawFallback = !!result && !parsed;
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
+    <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       <HistoryQueryChip toolName={toolName} args={args} size="detail" />
 
       {parsed?.kind === "search" && parsed.items && parsed.items.length > 0 && (

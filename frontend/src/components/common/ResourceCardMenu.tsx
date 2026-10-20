@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { topmostVisibleDialog } from "../../utils/modalDialog";
@@ -30,6 +31,12 @@ interface ResourceCardMenuProps {
   position: { x: number; y: number };
   onClose: (restoreFocus?: boolean) => void;
   initialFocusIndex?: number;
+  /**
+   * Anchor the position was computed from. While it stays connected and its
+   * viewport rect is unchanged, scrolls from unrelated scrollers (e.g. the
+   * conversation auto-following streamed output) no longer dismiss the menu.
+   */
+  anchorRef?: RefObject<HTMLElement | null>;
 }
 
 export function ResourceCardMenu({
@@ -39,6 +46,7 @@ export function ResourceCardMenu({
   position,
   onClose,
   initialFocusIndex = 0,
+  anchorRef,
 }: ResourceCardMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [fitted, setFitted] = useState(position);
@@ -99,9 +107,34 @@ export function ResourceCardMenu({
         onClose(true);
       }
     };
+    const readAnchorRect = () => {
+      const el = anchorRef?.current;
+      if (!el?.isConnected) return null;
+      const rect = el.getBoundingClientRect();
+      return {
+        top: rect.top,
+        left: rect.left,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    };
+    const initialAnchorRect = readAnchorRect();
+    const anchorSettled = () => {
+      const next = readAnchorRect();
+      return (
+        !!initialAnchorRect &&
+        !!next &&
+        Math.abs(initialAnchorRect.top - next.top) < 1 &&
+        Math.abs(initialAnchorRect.left - next.left) < 1 &&
+        Math.abs(initialAnchorRect.right - next.right) < 1 &&
+        Math.abs(initialAnchorRect.bottom - next.bottom) < 1
+      );
+    };
     const reposition = (event: Event) => {
-      if (!(event.target instanceof Node) || !menu.contains(event.target))
+      if (!(event.target instanceof Node) || !menu.contains(event.target)) {
+        if (anchorRef && anchorSettled()) return;
         onClose(menu.contains(document.activeElement));
+      }
     };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", dismiss, true);
@@ -117,7 +150,7 @@ export function ResourceCardMenu({
       viewport?.removeEventListener("resize", reposition);
       viewport?.removeEventListener("scroll", reposition);
     };
-  }, [position, onClose, id, initialFocusIndex]);
+  }, [position, onClose, id, initialFocusIndex, anchorRef]);
 
   return createPortal(
     <div

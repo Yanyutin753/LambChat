@@ -5,7 +5,10 @@ import { CollapsiblePill } from "../../../common";
 import { openSubagentPanelByAgentId } from "../SubagentBlock";
 import { subagentPanelStore } from "../subagentPanelStore";
 import { formatSubagentName } from "../subagentRoleMeta";
-import { parseSubagentControlResult, resolveSubagentControlState } from "../subagentPanelState";
+import {
+  parseSubagentControlResult,
+  resolveSubagentControlState,
+} from "../subagentPanelState";
 import { ToolResultContent } from "./McpBlockPreview";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import {
@@ -43,12 +46,14 @@ function SubagentControlDetail({
     !isPending && !cancelled
       ? parsed
         ? [parsed.result, parsed.error]
-            .filter((value): value is string => typeof value === "string" && !!value)
+            .filter(
+              (value): value is string => typeof value === "string" && !!value,
+            )
             .join("\n\n")
         : extractText(result)
       : undefined;
   return (
-    <div className="min-w-0 space-y-4 overflow-y-auto p-3 sm:p-4">
+    <div className="tool-panel-content min-w-0 space-y-4 overflow-y-auto p-3 sm:p-4">
       {typeof args.message === "string" && (
         <div className="space-y-2">
           <div className="text-12 font-medium text-theme-text-tertiary">
@@ -65,23 +70,40 @@ function SubagentControlDetail({
       {typeof reply === "string" && reply.trim() && (
         <ToolResultContent result={reply} />
       )}
-      {Array.isArray(parsed?.subagents) && (
-        parsed.subagents.length ? (
+      {Array.isArray(parsed?.subagents) &&
+        (parsed.subagents.length ? (
           <ul className="space-y-2 text-12 text-theme-text-secondary">
             {parsed.subagents.map((entry, index) => {
               if (!entry || typeof entry !== "object") return null;
               const item = entry as Record<string, unknown>;
-              const agent = subagentPanelStore.get(String(item.subagent_id || ""));
+              const agent = subagentPanelStore.get(
+                String(item.subagent_id || ""),
+              );
               return (
-                <li key={String(item.subagent_id || index)} className="flex min-w-0 justify-between gap-3">
-                  <span className="min-w-0 break-words">{formatSubagentName(agent?.agentName || String(item.subagent_type || ""))}</span>
-                  <span className="shrink-0">{t(stateKeys[String(item.status)] || "chat.message.toolSubagentFailed")}</span>
+                <li
+                  key={String(item.subagent_id || index)}
+                  className="flex min-w-0 justify-between gap-3"
+                >
+                  <span className="min-w-0 break-words">
+                    {formatSubagentName(
+                      agent?.agentName || String(item.subagent_type || ""),
+                    )}
+                  </span>
+                  <span className="shrink-0">
+                    {t(
+                      stateKeys[String(item.status)] ||
+                        "chat.message.toolSubagentFailed",
+                    )}
+                  </span>
                 </li>
               );
             })}
           </ul>
-        ) : <p className="text-12 text-theme-text-secondary">{t("chat.message.toolSubagentEmpty")}</p>
-      )}
+        ) : (
+          <p className="text-12 text-theme-text-secondary">
+            {t("chat.message.toolSubagentEmpty")}
+          </p>
+        ))}
     </div>
   );
 }
@@ -104,17 +126,25 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const isCancel = toolName === "cancel_subagent";
   const isList = toolName === "list_subagents";
   const title = t(
-    isCancel ? "chat.message.toolCancelSubagent"
-      : isList ? "chat.message.toolListSubagents"
-      : isParentMessage
-      ? args.direction === "received"
-        ? "chat.message.toolReceiveSubagentMessage"
-        : "chat.message.toolSendParentMessage"
-      : isWait
-        ? "chat.message.toolWaitSubagent"
-        : "chat.message.toolSendSubagentMessage",
+    isCancel
+      ? "chat.message.toolCancelSubagent"
+      : isList
+        ? "chat.message.toolListSubagents"
+        : isParentMessage
+          ? args.direction === "received"
+            ? "chat.message.toolReceiveSubagentMessage"
+            : "chat.message.toolSendParentMessage"
+          : isWait
+            ? "chat.message.toolWaitSubagent"
+            : "chat.message.toolSendSubagentMessage",
   );
-  const Icon = isCancel ? Ban : isList ? List : isWait ? Hourglass : MessageCircle;
+  const Icon = isCancel
+    ? Ban
+    : isList
+      ? List
+      : isWait
+        ? Hourglass
+        : MessageCircle;
   const subagentId = String(parsed?.subagent_id || args.subagent_id || "");
   const subscribe = useCallback(
     (listener: () => void) =>
@@ -124,9 +154,12 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const agent = useSyncExternalStore(subscribe, () =>
     subagentPanelStore.get(subagentId),
   );
-  const state = !isPending && !isParentMessage && !isCancel && !isList
-    ? resolveSubagentControlState(parsed, agent, completedAt)
-    : typeof parsed?.status === "string" ? parsed.status : "";
+  const state =
+    !isPending && !isParentMessage && !isCancel && !isList
+      ? resolveSubagentControlState(parsed, agent, completedAt)
+      : typeof parsed?.status === "string"
+        ? parsed.status
+        : "";
   const messageQueued = !isWait && !isCancel && !isList && state === "running";
   const mailReceived = isWait && parsed?.messages_pending === true;
   const stateLabel = isPending
@@ -144,11 +177,16 @@ export const SubagentControlItem = memo(function SubagentControlItem({
     ? "loading"
     : cancelled || state === "cancelled"
       ? "cancelled"
-      : success === false || state === "failed" || state === "error" || state === "timed_out"
+      : success === false ||
+          state === "failed" ||
+          state === "error" ||
+          state === "timed_out"
         ? "error"
         : (messageQueued || mailReceived) && success
           ? "success"
-          : state === "running" || state === "waiting_human" || state === "queued"
+          : state === "running" ||
+              state === "waiting_human" ||
+              state === "queued"
             ? "idle"
             : success
               ? "success"
@@ -212,12 +250,11 @@ export const SubagentControlItem = memo(function SubagentControlItem({
           });
         }}
       />
-      {typeof reply === "string" &&
-        reply.trim() && (
-          <div className="my-2 min-w-0 max-w-full text-14 text-theme-text-secondary">
-            <ToolResultContent result={reply} hideCopyButton />
-          </div>
-        )}
+      {typeof reply === "string" && reply.trim() && (
+        <div className="my-2 min-w-0 max-w-full text-14 text-theme-text-secondary">
+          <ToolResultContent result={reply} hideCopyButton />
+        </div>
+      )}
     </>
   );
 });

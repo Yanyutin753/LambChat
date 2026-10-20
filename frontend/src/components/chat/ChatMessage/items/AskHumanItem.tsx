@@ -321,7 +321,7 @@ function AskHumanDetail({ args, result, isPending }: ToolDetailProps) {
   const isAnswered = !isPending && parsedResult?.status === "success";
 
   return (
-    <div className="p-4 sm:p-5 space-y-3">
+    <div className="tool-panel-content p-4 sm:p-5 space-y-3">
       {/* Mini approval-style card (read-only snapshot) */}
       <div className="approval-card approval-card--snapshot">
         {/* Header */}

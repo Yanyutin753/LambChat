@@ -95,16 +95,15 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
   const host = hostFromUrl(url);
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
-      {/* URL hero：主题色染色 + 光晕，面板的视觉锚点 */}
+    <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {(url || summary?.provider) && (
         <a
           href={summary?.finalUrl || url}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)] transition-colors hover:border-[color-mix(in_srgb,var(--theme-primary)_30%,var(--theme-border))]"
+          className="tool-query-header"
         >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
+          <span className="tool-query-icon">
             <InteractiveIcon>
               <BookOpen
                 size={14}
@@ -129,7 +128,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
       {summary && <FetchSummaryChips summary={summary} size="detail" />}
 
       {summary && (
-        <div className="group/content relative min-h-0 flex-1 rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3">
+        <div className="tool-result-card group/content relative min-h-0 flex-1 border border-theme-border">
           <ToolHoverCopyButton
             text={summary.content}
             position="resultCompact"

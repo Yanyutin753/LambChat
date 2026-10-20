@@ -72,6 +72,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
                   />
                 )}
                 <span
+                  title={entry}
                   className={clsx(
                     "min-w-0 flex-1 truncate",
                     isDir

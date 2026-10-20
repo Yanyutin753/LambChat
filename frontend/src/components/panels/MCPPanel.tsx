@@ -585,7 +585,7 @@ export function MCPPanel() {
     }
   }
 }`}
-              className="es-textarea font-mono"
+              className="es-textarea font-mono placeholder:opacity-60"
             />
           </div>
 

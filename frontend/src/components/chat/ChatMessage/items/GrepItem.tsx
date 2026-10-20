@@ -94,38 +94,35 @@ function GrepDetail({ args, result }: ToolDetailProps) {
               count: parsedResult.files.length,
             })}
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {parsedResult.files.slice(0, 20).map((f, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-theme-bg-subtle text-12 text-theme-text-secondary font-mono"
-              >
-                <FileText size={11} className="shrink-0 opacity-40" />
-                {f.split("/").pop() || f}
-              </span>
+          <div className="tool-result-list">
+            {parsedResult.files.map((file, i) => (
+              <div key={i} className="tool-file-row" title={file}>
+                <FileText
+                  size={14}
+                  className="text-theme-text-tertiary"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-theme-text-secondary">
+                    {file.split("/").pop() || file}
+                  </span>
+                  <span className="block truncate text-theme-text-tertiary font-mono text-12">
+                    {file}
+                  </span>
+                </span>
+              </div>
             ))}
-            {parsedResult.files.length > 20 && (
-              <span className="text-12 text-theme-text-tertiary px-1 py-1">
-                {t("chat.message.toolMoreFiles", {
-                  count: parsedResult.files.length - 20,
-                })}
-              </span>
-            )}
           </div>
         </div>
       )}
       {outputMode === "content" && parsedResult.lines.length > 0 && (
-        <div className="relative group rounded-lg tool-code-block">
+        <div className="tool-code-block tool-panel-code">
           <DeferredCodeMirrorViewer
             value={parsedResult.lines.join("\n")}
             lineNumbers={false}
-            fontSize="0.8rem"
-          />
-          <ToolHoverCopyButton
-            text={parsedResult.lines.join("\n")}
-            size={14}
-            position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+            fontSize="var(--tool-font-size)"
+            copyable
+            toolbarLabel={t("chat.message.toolOutput")}
           />
         </div>
       )}

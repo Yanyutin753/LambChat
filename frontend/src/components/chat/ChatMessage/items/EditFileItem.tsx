@@ -48,46 +48,40 @@ function EditFileDetail({
         </ToolArgsBlock>
         {oldString && (
           <div className="ai-file-diff__section" data-kind="removed">
-            <div className="ai-file-diff__label">
-              <span aria-hidden="true">−</span>
-              {t("chat.message.toolEditRemoved")}
-            </div>
-            <div className="ai-file-diff__body relative group tool-diff-removed">
+            <div className="ai-file-diff__body tool-panel-code tool-diff-removed">
               <DeferredCodeMirrorViewer
                 value={oldString}
                 filePath={filePath}
                 lineNumbers={false}
-                fontSize="0.8rem"
+                fontSize="var(--tool-font-size)"
+                copyable
+                toolbarLabel={
+                  <span className="ai-file-diff__label">
+                    <span aria-hidden="true">−</span>
+                    {t("chat.message.toolEditRemoved")}
+                  </span>
+                }
                 className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-              />
-              <ToolHoverCopyButton
-                text={oldString}
-                size={14}
-                position="panel"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
               />
             </div>
           </div>
         )}
         {newString && (
           <div className="ai-file-diff__section" data-kind="added">
-            <div className="ai-file-diff__label">
-              <span aria-hidden="true">+</span>
-              {t("chat.message.toolEditAdded")}
-            </div>
-            <div className="ai-file-diff__body relative group tool-diff-added">
+            <div className="ai-file-diff__body tool-panel-code tool-diff-added">
               <DeferredCodeMirrorViewer
                 value={newString}
                 filePath={filePath}
                 lineNumbers={false}
-                fontSize="0.8rem"
+                fontSize="var(--tool-font-size)"
+                copyable
+                toolbarLabel={
+                  <span className="ai-file-diff__label">
+                    <span aria-hidden="true">+</span>
+                    {t("chat.message.toolEditAdded")}
+                  </span>
+                }
                 className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-              />
-              <ToolHoverCopyButton
-                text={newString}
-                size={14}
-                position="panel"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
               />
             </div>
           </div>
