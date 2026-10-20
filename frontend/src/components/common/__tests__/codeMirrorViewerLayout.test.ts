@@ -11,14 +11,14 @@ test("CodeMirrorViewer fills the available parent height by default", () => {
   expect(source).toMatch(
     /"\.cm-content":\s*\{\s*minHeight:\s*"100% !important"/,
   );
-  expect(source).toMatch(
-    /"\.cm-gutters, \.cm-gutter":\s*\{[\s\S]*minHeight:\s*"100% !important"/,
+  expect(source).not.toMatch(
+    /"\.cm-gutters, \.cm-gutter":\s*\{[^}]*minHeight:/,
   );
   expect(source).toMatch(
-    /isDark \? "#282c34" : "var\(--theme-bg-code, #ffffff\)"/,
+    /backgroundColor: "var\(--theme-bg-code\) !important"/,
   );
   expect(source).toMatch(
-    /isDark \? "#282c34" : "var\(--theme-bg-code-gutter, #fafafa\)"/,
+    /backgroundColor: "var\(--theme-bg-code-gutter\) !important"/,
   );
   expect(source).toMatch(/<CodeMirror[\s\S]*className="h-full"/);
   expect(source).toMatch(/<CodeMirror[\s\S]*height="100%"/);

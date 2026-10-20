@@ -75,12 +75,15 @@ test("tool live panel details fill the panel height while inline previews keep t
   for (const item of panelDetailItems) {
     const source = readFileSync(new URL(`${item}.tsx`, itemsDir), "utf8");
     // 面板详情根节点铺满 panel-body，自身兜底滚动
+    const root = source.match(
+      /<div className="([^"]*tool-panel-content[^"]*)"/,
+    )?.[1];
     expect(
-      source,
+      root,
       `${item} panel detail root should fill the panel height`,
-    ).toMatch(
-      /className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 \[&_pre\]:!max-h-none"/,
-    );
+    ).toContain("flex h-full min-h-0 flex-col");
+    expect(root).toContain("overflow-y-auto");
+    expect(root).toContain("[&_pre]:!max-h-none");
     expect(
       source,
       `${item} should not keep the old shrink-to-fit panel detail root`,

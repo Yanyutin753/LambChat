@@ -27,6 +27,7 @@ import { useAppThemeMode } from "../../hooks/useAppThemeMode";
 import { useTranslation } from "react-i18next";
 import { CodeMirrorSearchToolbar } from "./CodeMirrorSearch";
 import { getLangSupport } from "./getLangSupport";
+import { codeMirrorCspNonce } from "./codeMirrorCspNonce";
 
 // GitHub 风格亮色语法色（为白底设计）
 const githubLightStyle = {
@@ -236,6 +237,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
 
   const extensions = useMemo(() => {
     const exts: Extension[] = [
+      codeMirrorCspNonce(),
       ...codeMirrorSearchExtensions(t),
       EditorView.contentAttributes.of({
         "aria-label": filePath || t("codeEditor.preview"),
@@ -258,22 +260,16 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         "&": {
           height: "100%",
           fontSize,
-          backgroundColor: `${
-            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
-          } !important`,
+          backgroundColor: "var(--theme-bg-code) !important",
         },
         ".cm-editor": {
           height: "100%",
-          backgroundColor: `${
-            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
-          } !important`,
+          backgroundColor: "var(--theme-bg-code) !important",
         },
         ".cm-scroller": {
           height: "100%",
           overflow: "auto",
-          backgroundColor: `${
-            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
-          } !important`,
+          backgroundColor: "var(--theme-bg-code) !important",
           ...(maxHeight ? { maxHeight } : {}),
         },
         ".cm-content": {
@@ -297,14 +293,11 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
             : "rgba(37, 99, 235, 0.26)",
         },
         ".cm-gutters, .cm-gutter": {
-          minHeight: "100% !important",
-          backgroundColor: `${
-            isDark ? "#282c34" : "var(--theme-bg-code-gutter, #fafafa)"
-          } !important`,
-          borderRight: isDark ? "1px solid #333" : "1px solid #e7e5e4",
+          backgroundColor: "var(--theme-bg-code-gutter) !important",
+          borderRight: "1px solid var(--theme-border-faint)",
         },
         ".cm-lineNumbers .cm-gutterElement": {
-          color: isDark ? "#6e7681" : "#78716c",
+          color: "var(--theme-text-tertiary)",
           userSelect: "none",
         },
       }),

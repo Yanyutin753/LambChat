@@ -237,11 +237,10 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
-      {/* 查询 hero：主题色染色 + 光晕，面板的视觉锚点 */}
+    <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {(query || summary?.provider) && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] px-3 py-2.5 shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)]">
+        <div className="tool-query-header">
+          <span className="tool-query-icon">
             <Globe size={14} className="shrink-0 text-[var(--theme-primary)]" />
           </span>
           <span className="text-14 font-semibold text-theme-text min-w-0 truncate flex-1">
@@ -254,7 +253,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
       {summary && <WebSearchSummaryChips summary={summary} size="detail" />}
 
       {summary?.answer && (
-        <div className="rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_12%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-primary)_4%,var(--theme-bg-card))] px-3.5 py-3">
+        <div className="tool-result-card border border-theme-border">
           <div className="flex items-center gap-1.5 text-11 font-semibold text-[var(--theme-primary)]">
             <Sparkles size={12} className="shrink-0 opacity-70" />
             {t("chat.message.toolWebSearchAnswer")}
@@ -281,7 +280,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group/card flex gap-2.5 rounded-xl bg-theme-bg border border-theme-border px-3 py-2.5 transition-all duration-200 hover:border-[color-mix(in_srgb,var(--theme-primary)_32%,var(--theme-border))] hover:shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_42%,transparent)]"
+                className="tool-result-card group/card flex gap-2.5 border border-theme-border"
               >
                 <span className="flex w-5 shrink-0 items-start justify-center pt-1.5 text-10 font-mono font-semibold tabular-nums text-theme-text-tertiary">
                   {String(index + 1).padStart(2, "0")}
