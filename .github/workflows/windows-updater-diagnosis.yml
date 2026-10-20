@@ -1,0 +1,75 @@
+name: Windows Updater Diagnosis
+
+on:
+  push:
+    branches:
+      - 'codex/updater-diagnostics/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      CARGO_BUILD_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Prepare production updater verifier and published baseline
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diagnostic/src,diagnostic/assets | Out-Null
+          $source = (Get-Content frontend/src-tauri/examples/verify_updater.rs -Raw) -split '#\[cfg\(test\)\]'
+          Set-Content diagnostic/src/main.rs $source[0]
+          Copy-Item frontend/src-tauri/tauri.conf.json diagnostic/tauri.conf.json
+          $regression = (Get-Content scripts/test_windows_native_update.ps1 -Raw).Replace("@('v2.15.2', 'v2.15.3-dev.1')", "@('v2.15.2')")
+          Set-Content diagnostic/test_windows_native_update.ps1 $regression
+          @'
+          [package]
+          name = "updater-diagnosis"
+          version = "0.1.0"
+          edition = "2021"
+          [dependencies]
+          tauri = { version = "=2.12.4", default-features = false, features = ["test"] }
+          tauri-plugin-updater = "=2.14.0"
+          serde_json = "=1.0.154"
+          reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-no-provider"] }
+          rustls = { version = "=0.23.46", default-features = false, features = ["ring"] }
+          '@ | Set-Content diagnostic/Cargo.toml
+          gh release download v2.15.3-dev.1 --repo $env:GITHUB_REPOSITORY --pattern '*Windows-x64-setup.exe' --pattern '*_x64-setup.exe.sig' --pattern '*Windows-Portable.zip' --dir diagnostic/assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive diagnostic/assets/*Windows-Portable.zip diagnostic/portable
+          Get-ChildItem diagnostic/portable -Recurse -Filter lambchat.exe | Get-FileHash | Format-List
+      - name: Build minimal native verifier
+        run: python scripts/run_validation.py cargo build --manifest-path diagnostic/Cargo.toml --release --jobs 1
+      - name: Use production executable activation context
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}/Windows Kits/10/bin" -Recurse -Filter mt.exe | Where-Object { $_.Directory.Name -eq 'x64' } | Sort-Object FullName -Descending | Select-Object -First 1
+          $exe = Get-ChildItem diagnostic/portable -Recurse -Filter lambchat.exe | Select-Object -First 1
+          & $mt.FullName -nologo "-inputresource:$($exe.FullName);#1" -out:diagnostic/app.manifest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $mt.FullName -nologo -manifest diagnostic/app.manifest '-outputresource:diagnostic/target/release/updater-diagnosis.exe;#1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reproduce real published Windows upgrade
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem diagnostic/assets -Filter '*Windows-x64-setup.exe' | Select-Object -First 1
+          $signature = Get-ChildItem diagnostic/assets -Filter '*_x64-setup.exe.sig' | Select-Object -First 1
+          Copy-Item $signature.FullName "$($candidate.FullName).sig"
+          $exe = Get-ChildItem diagnostic/portable -Recurse -Filter lambchat.exe | Select-Object -First 1
+          # dev.1 genuinely signed its core version; reproduce its installer without changing that signature.
+          python scripts/run_validation.py pwsh -NoProfile -File diagnostic/test_windows_native_update.ps1 -Verifier diagnostic/target/release/updater-diagnosis.exe -Artifact $candidate.FullName -Version 2.15.3 -ExpectedExe $exe.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-updater-diagnosis-${{ github.run_id }}
+          path: |
+            diagnostic/target/release/updater-diagnosis.exe
+            diagnostic/app.manifest
+          retention-days: 3

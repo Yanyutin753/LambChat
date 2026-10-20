@@ -50,7 +50,17 @@ try {
                 try { $installed = (Get-FileHash $exe -Algorithm SHA256).Hash -eq $expectedHash } catch { $installed = $false }
             }
         } until ($installed -or (Get-Date) -ge $deadline)
-        if (-not $installed) { throw "Native installation did not complete: $baseline -> $Version" }
+        if (-not $installed) {
+            Write-Output "Expected executable SHA256: $expectedHash"
+            if (Test-Path $exe) { Get-FileHash $exe -Algorithm SHA256 | Format-List | Out-String | Write-Output }
+            Get-ChildItem $install -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table | Out-String | Write-Output
+            Get-CimInstance Win32_Process | Where-Object {
+                $_.Name -match 'installer|uninstall|powershell|lambchat' -or $_.ExecutablePath -like "$root*"
+            } | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine | Format-List | Out-String | Write-Output
+            Get-Process | Where-Object { $_.MainWindowTitle } |
+                Select-Object Id,ProcessName,MainWindowTitle | Format-Table | Out-String | Write-Output
+            throw "Native installation did not complete: $baseline -> $Version"
+        }
         foreach ($marker in $markers) {
             if ((Get-Content $marker) -ne 'keep-me') { throw 'User data changed' }
         }
