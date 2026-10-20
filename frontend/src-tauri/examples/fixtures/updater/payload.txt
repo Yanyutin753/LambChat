@@ -1,0 +1,1 @@
+LambChat updater version-binding fixture

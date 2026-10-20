@@ -101,6 +101,8 @@ docs/.vitepress/cache/
 YubbChat/
 .codex
 /scripts/*
+!/scripts/test_windows_native_update.ps1
+!/scripts/test_macos_native_update.sh
 !/scripts/
 !/scripts/e2e_conversation_schedules.py
 !/scripts/create_daytona_snapshot.py

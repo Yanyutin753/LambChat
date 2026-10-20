@@ -24,6 +24,7 @@ updater.endpoints）；版本取自 tag（app-release 的 preflight 已校验与
 
 from __future__ import annotations
 
+import base64
 import datetime
 import glob
 import json
@@ -35,7 +36,11 @@ import sys
 PROXY_ASSET_BASE = "https://lambchat.com/api/version/assets"
 
 MAPPING = [
-    ("windows-x86_64", "*_x64-setup.exe.sig", "Windows-x64-setup.exe"),
+    (
+        "windows-x86_64",
+        ("*-Windows-x64-setup.exe.sig", "*_x64-setup.exe.sig"),
+        "Windows-x64-setup.exe",
+    ),
     # 双 darwin：sig 按 Tauri updater 产物名的 arch 段区分
     ("darwin-aarch64", "*-macOS-Apple-Silicon.app.tar.gz.sig", "macOS-Apple-Silicon.app.tar.gz"),
     ("darwin-x86_64", "*-macOS-Intel.app.tar.gz.sig", "macOS-Intel.app.tar.gz"),
@@ -55,13 +60,30 @@ def main() -> int:
     notes_file = os.environ.get("RELEASE_NOTES_FILE")
     notes = pathlib.Path(notes_file).read_text(encoding="utf-8").strip() if notes_file else ""
 
-    def sig(pattern: str) -> str | None:
-        files = sorted(glob.glob(str(asset_dir / pattern)))
-        return pathlib.Path(files[0]).read_text().strip() if files else None
+    def sig(patterns: str | tuple[str, ...]) -> str | None:
+        for pattern in (patterns,) if isinstance(patterns, str) else patterns:
+            files = sorted(glob.glob(str(asset_dir / pattern)))
+            if not files:
+                continue
+            if len(files) != 1:
+                raise ValueError(f"Ambiguous updater signatures: {pattern}")
+            signature = pathlib.Path(files[0]).read_text().strip()
+            lines = base64.b64decode(signature, validate=True).decode().splitlines()
+            if len(lines) != 4 or not lines[2].startswith("trusted comment: "):
+                raise ValueError("Invalid updater signature envelope")
+            versions = [field[8:] for field in lines[2].split("\t") if field.startswith("version:")]
+            if versions != [version]:
+                raise ValueError(f"Signature version {versions} does not match {version}")
+            return signature
+        return None
 
     platforms: dict[str, dict[str, str]] = {}
     for key, pattern, asset_suffix in MAPPING:
-        signature = sig(pattern)
+        try:
+            signature = sig(pattern)
+        except (ValueError, UnicodeError) as error:
+            print(f"{key}: {error}", file=sys.stderr)
+            return 1
         if signature:
             asset_name = f"LambChat-{tag}-{asset_suffix}"
             platforms[key] = {
@@ -70,6 +92,14 @@ def main() -> int:
             }
         else:
             print(f"WARN: no sig file matches {pattern}, platform {key} omitted")
+
+    if not all(p in platforms for p in REQUIRED_PLATFORMS):
+        print(
+            "发布判据未满足（Windows 与 macOS 双架构须齐全，含 darwin-x86_64）——清单缺:",
+            [p for p in REQUIRED_PLATFORMS if p not in platforms],
+            file=sys.stderr,
+        )
+        return 2
 
     manifest = {
         "version": version,
@@ -82,13 +112,6 @@ def main() -> int:
     out.write_text(json.dumps(manifest, indent=2))
     print(f"{out.name} platforms: {sorted(platforms)}")
 
-    if not all(p in platforms for p in REQUIRED_PLATFORMS):
-        print(
-            "发布判据未满足（Windows 与 macOS 双架构须齐全，含 darwin-x86_64）——清单已生成但缺:",
-            [p for p in REQUIRED_PLATFORMS if p not in platforms],
-            file=sys.stderr,
-        )
-        return 2
     return 0
 
 
