@@ -80,6 +80,7 @@ function GlobDetail({ args, result }: ToolDetailProps) {
                     />
                   )}
                   <span
+                    title={p}
                     className={clsx(
                       "min-w-0 flex-1 truncate",
                       isDir

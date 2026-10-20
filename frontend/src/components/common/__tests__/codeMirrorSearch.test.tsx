@@ -12,6 +12,7 @@ import { CodeMirrorViewer } from "../CodeMirrorViewer";
 import { SkillEditor } from "../../skill/SkillEditor";
 import { I18nextProvider } from "react-i18next";
 import appI18n, { i18nReady } from "../../../i18n";
+import { EditorView } from "@codemirror/view";
 
 beforeAll(async () => {
   await i18nReady;
@@ -49,6 +50,31 @@ async function renderEditor(
   );
   return change;
 }
+
+test.each([true, false, "skill-preview"] as const)(
+  "editor %s authorizes its dynamic styles with the desktop document nonce",
+  async (readOnly) => {
+    const bootStyle = document.createElement("style");
+    bootStyle.id = "lambchat-boot-styles";
+    bootStyle.setAttribute("nonce", "");
+    // Browsers hide nonce attributes; the DOM property retains the issued value.
+    Object.defineProperty(bootStyle, "nonce", { value: "desktop-style-nonce" });
+    document.body.prepend(bootStyle);
+    try {
+      await renderEditor(readOnly);
+      const editor = document.querySelector<HTMLElement>(".cm-editor")!;
+      expect(
+        EditorView.findFromDOM(editor)?.state.facet(EditorView.cspNonce),
+      ).toBe("desktop-style-nonce");
+      const editorStyle = Array.from(
+        document.head.querySelectorAll("style"),
+      ).find((style) => style.textContent?.includes(".cm-scroller"));
+      expect(editorStyle?.nonce).toBe("desktop-style-nonce");
+    } finally {
+      bootStyle.remove();
+    }
+  },
+);
 
 test("plain file code keeps native find compact and floating without a content row", async () => {
   const { container } = render(

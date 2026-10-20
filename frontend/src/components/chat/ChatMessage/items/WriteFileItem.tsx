@@ -17,6 +17,7 @@ import { ToolDurationFooter } from "./ToolDurationFooter";
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function WriteFileDetail({ args, result }: ToolDetailProps) {
+  const { t } = useTranslation();
   const filePath = (args.file_path as string) || "";
   const content = (args.content as string) || "";
 
@@ -26,18 +27,14 @@ function WriteFileDetail({ args, result }: ToolDetailProps) {
         <span className="truncate">{filePath}</span>
       </ToolArgsBlock>
       {content && (
-        <div className="relative group rounded-lg tool-code-block">
+        <div className="tool-code-block tool-panel-code">
           <DeferredCodeMirrorViewer
             value={content}
             filePath={filePath}
             lineNumbers={true}
-            fontSize="0.8rem"
-          />
-          <ToolHoverCopyButton
-            text={content}
-            size={14}
-            position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+            fontSize="var(--tool-font-size)"
+            copyable
+            toolbarLabel={t("chat.message.toolOutput")}
           />
         </div>
       )}

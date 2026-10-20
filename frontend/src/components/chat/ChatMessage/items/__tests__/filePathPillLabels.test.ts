@@ -45,9 +45,10 @@ test("read file pill renders the line range in the suffix so it survives path tr
   expect(readFileItem).toMatch(
     /suffix=\{\n\s*lineRange \? \(\n\s*<span className="shrink-0/,
   );
-  // 面板标题同样带行号，侧栏里同文件的多个标签页可区分
+  // 行号留在标题，完整路径放在副标题，组合后的标签页仍可区分。
+  expect(readFileItem).toContain("subtitle: filePath,");
   expect(readFileItem).toMatch(
-    /title: `\$\{t\("chat\.message\.toolRead"\)\} \$\{\s*fileName \|\| filePath\s*\}\$\{lineRange\}`/,
+    /title: `\$\{t\("chat\.message\.toolRead"\)\}\$\{lineRange\}`/,
   );
 });
 

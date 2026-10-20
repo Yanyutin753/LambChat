@@ -69,7 +69,7 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
   const hasRawFallback = !!result && matches.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
+    <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
       {query && (
         <ToolArgsBlock size="detail" copyText={query}>
           <Search
@@ -87,7 +87,7 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
           {matches.map((match) => (
             <div
               key={match.name}
-              className="rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
+              className="tool-result-card rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <Sparkles

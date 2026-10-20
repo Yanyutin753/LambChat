@@ -15,7 +15,11 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { useImagePreviewFallback } from "./imagePreviewFallback";
-import { computerUsePreviewText, computerUseRecord, parseComputerUseResult } from "./computerUseResult";
+import {
+  computerUsePreviewText,
+  computerUseRecord,
+  parseComputerUseResult,
+} from "./computerUseResult";
 
 const key = "chat.message.computerUse";
 
@@ -66,10 +70,17 @@ function ComputerUseDetail({
     data.accessibility === "denied" ||
     data.screen_recording === "denied";
   const offline = error === "dispatch_failed" && /offline/i.test(text);
-  const state = typeof data.state === "string" ? data.state : typeof data.tree === "string" ? data.tree : "";
+  const state =
+    typeof data.state === "string"
+      ? data.state
+      : typeof data.tree === "string"
+        ? data.tree
+        : "";
   const permission = (value: unknown) =>
     t(
-      `${key}.permissions.${["granted", "denied"].includes(String(value)) ? value : "unknown"}`,
+      `${key}.permissions.${
+        ["granted", "denied"].includes(String(value)) ? value : "unknown"
+      }`,
     );
   const resultFields: Record<string, unknown> = {
     machine_id: data.machine_id,
@@ -123,7 +134,7 @@ function ComputerUseDetail({
   const apps = Array.isArray(data.apps);
 
   return (
-    <div className="min-w-0 space-y-5 p-2 sm:p-4">
+    <div className="tool-panel-content min-w-0 space-y-5 p-2 sm:p-4">
       <ToolArgsBlock size="detail" copyText={JSON.stringify(args, null, 2)}>
         <span className="flex items-center gap-2">
           <MousePointerClick
@@ -158,7 +169,15 @@ function ComputerUseDetail({
       {(needsPermission || offline) && (
         <p className="text-12 text-theme-text-secondary" role="status">
           {t(
-            `${key}.${offline ? "offlineHint" : data.platform === "linux" ? "linuxPermissionHint" : data.platform === "win32" ? "windowsPermissionHint" : "permissionHint"}`,
+            `${key}.${
+              offline
+                ? "offlineHint"
+                : data.platform === "linux"
+                  ? "linuxPermissionHint"
+                  : data.platform === "win32"
+                    ? "windowsPermissionHint"
+                    : "permissionHint"
+            }`,
           )}
         </p>
       )}

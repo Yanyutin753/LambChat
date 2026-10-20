@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
-import { FileText, ImageIcon } from "lucide-react";
+import { FileText, ImageIcon, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, formatFileSize } from "../../../common";
+import { CollapsiblePill, CopyButton, formatFileSize } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import {
@@ -81,13 +81,13 @@ function ReadFileImagePreview({
 }
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
-function ReadFileDetail({ args, result }: ToolDetailProps) {
+function ReadFileDetail({ args, result, success }: ToolDetailProps) {
+  const { t } = useTranslation();
   const { openImage, viewer } = useImagePreviewFallback();
   const filePath = (args.file_path as string) || "";
   const offset = args.offset as number | undefined;
   const limit = args.limit as number | undefined;
   const startLine = readFileStartLine(offset);
-  const endLine = limit ? startLine + limit - 1 : undefined;
   const lineRange = readLineRangeLabel(offset, limit);
 
   const imageResult = useMemo(
@@ -128,8 +128,13 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
 
   return (
     <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
-      <ToolArgsBlock size="detail" copyText={filePath}>
-        <span className="truncate">{filePath}</span>
+      <ToolArgsBlock size="detail" copyText={filePath} wrap>
+        <FileText
+          size={14}
+          className="text-theme-text-tertiary"
+          aria-hidden="true"
+        />
+        <span>{filePath}</span>
         {lineRange && (
           <span className="shrink-0 text-theme-text-tertiary">{lineRange}</span>
         )}
@@ -148,25 +153,32 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
           ))}
         </div>
       )}
-      {displayContent && (
-        <div className="relative group rounded-lg tool-code-block">
+      {displayContent && success === false && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-[var(--radius-md)] border border-theme-border bg-theme-bg-card p-3 text-theme-text-secondary"
+        >
+          <AlertCircle
+            size={16}
+            className="shrink-0 text-theme-error"
+            aria-hidden="true"
+          />
+          <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+            {displayContent}
+          </pre>
+          <CopyButton text={displayContent} size={14} />
+        </div>
+      )}
+      {displayContent && success !== false && (
+        <div className="tool-code-block tool-panel-code">
           <DeferredCodeMirrorViewer
             value={displayContent}
             filePath={filePath}
             lineNumbers={true}
-            fontSize="0.8rem"
+            fontSize="var(--tool-font-size)"
+            copyable
+            toolbarLabel={t("chat.message.toolOutput")}
             startLine={startLine}
-            highlightLineRange={
-              offset !== undefined || limit !== undefined
-                ? { from: startLine, to: endLine ?? startLine }
-                : undefined
-            }
-          />
-          <ToolHoverCopyButton
-            text={displayContent}
-            size={14}
-            position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
           />
         </div>
       )}
@@ -200,11 +212,9 @@ const ReadFileItem = memo(function ReadFileItem({
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
   const filePath = (args.file_path as string) || "";
-  const fileName = filePath.split("/").pop() || filePath;
   const offset = args.offset as number | undefined;
   const limit = args.limit as number | undefined;
   const startLine = readFileStartLine(offset);
-  const endLine = limit ? startLine + limit - 1 : undefined;
   const lineRange = readLineRangeLabel(offset, limit);
 
   const imageResult = useMemo(
@@ -292,9 +302,7 @@ const ReadFileItem = memo(function ReadFileItem({
           if (!canOpenPanel) return;
           openToolLivePanel({
             id,
-            title: `${t("chat.message.toolRead")} ${
-              fileName || filePath
-            }${lineRange}`,
+            title: `${t("chat.message.toolRead")}${lineRange}`,
             icon: <FileText size={16} />,
             status,
             subtitle: filePath,
@@ -340,11 +348,6 @@ const ReadFileItem = memo(function ReadFileItem({
                   lineNumbers={true}
                   fontSize="0.75rem"
                   startLine={startLine}
-                  highlightLineRange={
-                    offset !== undefined || limit !== undefined
-                      ? { from: startLine, to: endLine ?? startLine }
-                      : undefined
-                  }
                 />
                 <ToolHoverCopyButton
                   text={displayContent}

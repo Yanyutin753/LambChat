@@ -10,6 +10,7 @@ import { useAppThemeMode } from "../../hooks/useAppThemeMode";
 import { getLangSupport } from "../common/getLangSupport";
 import { useTranslation } from "react-i18next";
 import { CodeMirrorSearchToolbar } from "../common/CodeMirrorSearch";
+import { codeMirrorCspNonce } from "../common/codeMirrorCspNonce";
 
 export function SkillEditor({
   value,
@@ -37,6 +38,7 @@ export function SkillEditor({
     const langSupport = getLangSupport(undefined, filePath);
 
     return [
+      codeMirrorCspNonce(),
       ...codeMirrorSearchExtensions(t),
       ...(langSupport ? [langSupport] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
@@ -95,9 +97,9 @@ export function SkillEditor({
   return (
     <div
       onKeyDownCapture={guardCodeMirrorSearchComposition}
-      className={`${
-        className || ""
-      } code-editor ${readOnly ? "code-editor--simple-search code-editor--overlay-search" : ""} h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
+      className={`${className || ""} code-editor ${
+        readOnly ? "code-editor--simple-search code-editor--overlay-search" : ""
+      } h-full min-h-0 flex flex-col overflow-hidden [&_.cm-theme]:h-full [&_.cm-editor]:h-full [&_.cm-editor]:min-h-0 [&_.cm-scroller]:flex-1 [&_.cm-scroller]:min-h-0 [&_.cm-scroller]:overflow-auto`}
     >
       {showToolbar && (
         <CodeMirrorSearchToolbar viewRef={viewRef} floating={readOnly} />
