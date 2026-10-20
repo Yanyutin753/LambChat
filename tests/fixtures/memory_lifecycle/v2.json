@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "cases": [
+    {
+      "case_id": "zh-six-month-corrected-facts",
+      "category": "large_corpus_correction_and_isolation",
+      "language": "zh",
+      "capacity": {"a": 50000, "b": 1000},
+      "sources": [
+        {"owner": "a", "session": "archive-a", "project": "alpha", "turns": [
+          "请记住用于以后业务规划的长期资料：我的工作室法定名称是North Pier，团队有24人，所在地是福冈（Fukuoka）。常用包装由Larch供应，每只64元，最小起订量75只。",
+          "正式更正：工作室已经从福冈迁到札幌（Sapporo），团队人数和法定名称不变。另记一项项目决策：Alpha项目的数据保留期限是45天。"
+        ]},
+        {"owner": "b", "session": "archive-b", "project": "alpha", "turns": [
+          "请记住我的长期业务资料：工作室法定名称为Maple Crane，团队9人，所在地台中（Taichung）。常用包装由Birch供应，每只71元，最小起订量110只。我的Alpha项目数据保留期限为90天。"
+        ]}
+      ],
+      "queries": [
+        {"owner": "a", "session": "a-old-recall", "project": "alpha",
+         "message": "请查找我以前提供并更正过的工作室资料。只输出一个JSON对象，不要Markdown、解释或额外文字：legal_name、last_known_city、previous_city、employees、supplier、price、moq、retention_days。城市用英文，数字用整数，未知填null。",
+         "expected": {"legal_name":"North Pier","last_known_city":"Sapporo","previous_city":"Fukuoka","employees":24,"supplier":"Larch","price":64,"moq":75,"retention_days":45}},
+        {"owner": "b", "session": "b-old-recall", "project": "alpha",
+         "message": "请查找我以前提供的工作室资料。只输出一个JSON对象，不要Markdown、解释或额外文字：legal_name、last_known_city、employees、supplier、price、moq、retention_days。城市用英文，数字用整数，未知填null。",
+         "expected": {"legal_name":"Maple Crane","last_known_city":"Taichung","employees":9,"supplier":"Birch","price":71,"moq":110,"retention_days":90}},
+        {"owner": "a", "session": "a-beta-isolation", "project": "beta",
+         "message": "Beta项目以前已确定的数据保留期限是多少天？只输出一个JSON对象，不要Markdown、解释或额外文字：retention_days。未知填null，不要套用其他项目的决策。",
+         "expected": {"retention_days":null}}
+      ]
+    }
+  ]
+}

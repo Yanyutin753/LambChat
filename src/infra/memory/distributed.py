@@ -98,6 +98,24 @@ async def release_consolidation_lock(user_id: str, instance_id: str) -> None:
         logger.debug("[Memory] Failed to release consolidation lock for %s: %s", user_id, e)
 
 
+async def renew_consolidation_lock(user_id: str, instance_id: str) -> bool:
+    """Renew only our own lease; uncertainty stops background mutations."""
+    try:
+        return bool(
+            await get_redis_client().eval(  # type: ignore[misc]
+                "if redis.call('GET', KEYS[1]) == ARGV[1] then "
+                "return redis.call('EXPIRE', KEYS[1], ARGV[2]) else return 0 end",
+                1,
+                CONSOLIDATION_LOCK_KEY.format(user_id=user_id),
+                instance_id,
+                str(CONSOLIDATION_LOCK_TTL),
+            )
+        )
+    except Exception as exc:
+        logger.debug("[Memory] Failed to renew consolidation lock for %s: %s", user_id, exc)
+        return False
+
+
 async def acquire_compaction_scan_lock(instance_id: str, ttl_seconds: int) -> str:
     """Acquire a cluster-wide scan lease for periodic memory compaction.
 

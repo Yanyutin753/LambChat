@@ -324,11 +324,18 @@ async def test_local_mongo_overview_recall_delivers_recent_context(
     if has_search_hits:
         await local_collection.update_many({}, {"$set": {"tags": ["memory overview"]}})
     if remote_rerank:
-        # Only the external HTTP boundary is simulated. Retrieval, fallback,
-        # rerank parsing, hydration and access stats use production code.
+        # External HTTP and billing are simulated; retrieval, parsing, hydration
+        # and access stats use production code against the actual database.
+        from contextlib import asynccontextmanager
         from functools import partial
 
         import httpx
+
+        @asynccontextmanager
+        async def simulated_unpriced_usage():
+            yield
+
+        monkeypatch.setattr(search, "unpriced_usage", simulated_unpriced_usage)
 
         def low_relevance_response(request):
             import json

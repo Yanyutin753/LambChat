@@ -2535,6 +2535,9 @@
     "userServerVisible": "用户服务器（仅对自己可见）"
   },
   "memory": {
+    "importChecking": "正在检查记忆：{{processed}} / {{total}}",
+    "importProgress": "正在导入记忆：{{processed}} / {{total}}",
+    "importPartialError": "已确认导入 {{imported}} 条。本批结果未确认，请先核对当前记忆再重试。",
     "accesses": "次访问",
     "allSources": "全部来源",
     "allTypes": "全部类型",

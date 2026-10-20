@@ -120,13 +120,12 @@ async def memory_retain(
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
-    Store a memory for cross-session persistence. STRICT: only genuinely useful,
-    non-temporary information is accepted — follow the Cross-Session Memory
-    guide's Remember/Skip policy. Content that is too short or resembles
-    code/commands will be rejected. If a semantically similar memory already
-    exists it is merged and updated automatically (result `updated_existing`
-    is true), so write the FULL refreshed content including previously known
-    details, not just the delta. Use explicit context labels such as
+    Store durable cross-session memory following the guide's Remember/Skip policy.
+    Exact duplicate content can reuse an existing memory. To change a fact,
+    recall it and supply `existing_memory_id` with the
+    FULL refreshed content including still-valid details, not just the delta.
+    Related but different facts remain separate for later consolidation.
+    Use explicit context labels such as
     `user_identity`, `project_constraint`, `project_status`, `feedback_rule`,
     or `reference_link`. For durable facts from conversation history, preserve
     their authorized `source_refs`; memory_recall returns them for the
@@ -149,8 +148,11 @@ async def memory_retain(
         # agent 常省略 scope（生产实测 329/330 条 project 类内容落进 user
         # 作用域，跨话题互相污染召回）。context 表明是项目内容且会话有归属
         # 时，默认绑定项目；显式传了 scope 则完全尊重。
-        if scope is None and project_id and context and str(context).startswith("project"):
-            scope = "project"
+        if scope is None and context:
+            if str(context).startswith("user"):
+                scope = "user"
+            elif project_id and str(context).startswith("project"):
+                scope = "project"
         # 无项目会话里 LLM 显式要 scope='project'：backend 会硬拒绝（生产上
         # 表现为前端红色报错 + agent 重试一轮）。工具层先降级为自动推导
         # （无归属 → user），不丢数据；结果里带 note 告知实际归属。
@@ -164,6 +166,8 @@ async def memory_retain(
             tags=tags,
             existing_memory_id=existing_memory_id,
             source_refs=source_refs,
+            source="auto_retained",
+            origin_session_id=get_session_id_from_runtime(runtime),
             scope=None if scope_downgraded else scope,
             project_id=project_id,
         )
@@ -325,9 +329,6 @@ async def run_scheduled_memory_compaction() -> dict:
 
 def start_memory_compaction_agent() -> None:
     """Register periodic memory compaction checks with the unified scheduler."""
-    if not settings.ENABLE_MEMORY:
-        logger.info("[Memory] Auto-compaction scheduler not registered: ENABLE_MEMORY=false")
-        return
     agent = get_memory_compaction_agent()
     get_runtime_scheduler().register_job(
         ScheduledJob.from_interval(

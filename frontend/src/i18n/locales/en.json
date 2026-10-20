@@ -2535,6 +2535,9 @@
     "userServerVisible": "User Server (only visible to you)"
   },
   "memory": {
+    "importChecking": "Checking memories: {{processed}} / {{total}}",
+    "importProgress": "Importing memories: {{processed}} / {{total}}",
+    "importPartialError": "Confirmed {{imported}} imported. The current batch is unconfirmed; review existing memories before retrying.",
     "accesses": "accesses",
     "allSources": "All sources",
     "allTypes": "All types",

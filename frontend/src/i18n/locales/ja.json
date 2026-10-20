@@ -2535,6 +2535,9 @@
     "userServerVisible": "ユーザーサーバー（自分のみに表示）"
   },
   "memory": {
+    "importChecking": "メモリを確認中：{{processed}} / {{total}}",
+    "importProgress": "メモリをインポート中：{{processed}} / {{total}}",
+    "importPartialError": "{{imported}}件のインポートを確認しました。現在のバッチは未確認です。既存のメモリを確認してから再試行してください。",
     "accesses": "回アクセス",
     "allSources": "すべてのソース",
     "allTypes": "すべてのタイプ",

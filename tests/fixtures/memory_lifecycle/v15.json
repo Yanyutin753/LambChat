@@ -1,0 +1,52 @@
+{
+  "version": 15,
+  "cases": [
+    {
+      "case_id": "en-natural-feedback-quality-format-heldout",
+      "category": "natural_periodic_reflection_heldout",
+      "language": "en-zh",
+      "natural_maintenance": "reflection",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "quality-feedback",
+          "project": null,
+          "agent_id": "quick",
+          "skip_extraction": true,
+          "turns": [
+            "For this reply only, put these quality-control readings in a Markdown table: temperature 21, humidity 44."
+          ],
+          "feedback": "For every future quality-control report I need plain semicolon-separated CSV with the exact lowercase header metric;reading, followed by one row per metric. Preserve metric names. Do not add a Markdown table, code fence, introduction, or explanation. This is my recurring quality import format."
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "later-quality-report",
+          "project": null,
+          "message": "请整理质检读数：pressure 4，flow 7。",
+          "expected_text": "metric;reading\npressure;4\nflow;7"
+        },
+        {
+          "owner": "b",
+          "session": "quality-owner-isolation",
+          "project": null,
+          "message": "What separator did I previously require for quality-control reports? Look up my saved preferences and return only JSON with quality_separator; use null if unknown.",
+          "expected": {
+            "quality_separator": null
+          }
+        },
+        {
+          "owner": "a",
+          "session": "current-request-overrides-format",
+          "project": null,
+          "message": "For this reply only, return strictly JSON with keys pressure and flow. The quality-control readings are pressure 6 and flow 3. No other text.",
+          "expected": {
+            "pressure": 6,
+            "flow": 3
+          }
+        }
+      ]
+    }
+  ]
+}

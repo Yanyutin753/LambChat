@@ -93,6 +93,7 @@ async def _collect_signal_user_ids(cutoff: datetime) -> list[str]:
         {
             "$match": {
                 "rating": "down",
+                "evolution_processed": {"$ne": True},
                 "created_at": {"$gte": cutoff},
                 "user_id": {"$exists": True},
             }
@@ -115,19 +116,43 @@ async def _collect_signal_user_ids(cutoff: datetime) -> list[str]:
     if len(users) < MAX_USERS_PER_RUN:
         try:
             seen = set(users)
-            async for d in (
-                _get_traces_collection()
-                .find(
-                    {
-                        # traces 终态写入 "error"；"failed" 仅防御性兼容
+            trace_pipeline = [
+                {
+                    "$match": {
                         "status": {"$in": ["error", "failed"]},
                         "started_at": {"$gte": cutoff},
-                        "user_id": {"$exists": True},
-                    },
-                    {"user_id": 1},
-                )
-                .limit(MAX_USERS_PER_RUN * 2)
-            ):
+                        "user_id": {"$exists": True, "$nin": [None, "", *users]},
+                        "run_id": {"$type": "string", "$ne": ""},
+                    }
+                },
+                {
+                    "$lookup": {
+                        "from": "memory_evolution_marks",
+                        "let": {"owner": "$user_id", "run": "$run_id"},
+                        "pipeline": [
+                            {
+                                "$match": {
+                                    "$expr": {
+                                        "$and": [
+                                            {"$eq": ["$user_id", "$$owner"]},
+                                            {"$eq": ["$run_id", "$$run"]},
+                                        ]
+                                    }
+                                }
+                            },
+                            {"$limit": 1},
+                            {"$project": {"_id": 1}},
+                        ],
+                        "as": "processed_marks",
+                    }
+                },
+                {"$match": {"processed_marks": []}},
+                {"$group": {"_id": "$user_id", "oldest": {"$min": "$started_at"}}},
+                {"$sort": {"oldest": 1, "_id": 1}},
+                {"$limit": MAX_USERS_PER_RUN - len(users)},
+                {"$project": {"_id": 0, "user_id": "$_id"}},
+            ]
+            async for d in await _get_traces_collection().aggregate(trace_pipeline):
                 uid = str(d.get("user_id") or "")
                 if uid and uid not in seen:
                     users.append(uid)

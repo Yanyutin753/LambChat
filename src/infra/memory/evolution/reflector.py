@@ -23,7 +23,8 @@ from typing import Any, Optional
 
 from src.infra.llm.quota import bind_quota_user, is_quota_error
 from src.infra.memory.control_frames import CONTROL_FRAME_BLOCK_RE, escape_control_frame_tags
-from src.infra.utils.datetime import utc_now
+from src.infra.memory.forgetting import source_watermark
+from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,10 @@ class SignalRun:
     session_id: str
     kind: str  # "down" | "failed" | "up"
     comment: Optional[str] = None
+
+
+class _SourceForgottenError(RuntimeError):
+    pass
 
 
 def _strip_injected_blocks(text: str) -> str:
@@ -332,43 +337,41 @@ async def _increment_daily_quota(user_id: str, stored: int) -> None:
 async def _load_exchange(run_id: str, session_id: str = "", user_id: str = "") -> tuple[str, str]:
     """从 trace 取该 run 的用户消息与最终助手回复（累积合并 chunk）。
 
-    查询带 user_id 过滤（防御性隔离：run_id 不作为唯一凭证）；
+    父 trace 先按 user_id 验权，分块经已授权 trace_id 读取；
     用户消息剥离注入块后再裁剪——剥离释放的预算留给真实内容。
     """
+    from src.infra.session.trace_storage import TraceStorage
     from src.infra.storage.mongodb import get_mongo_client
+
+    if not user_id:
+        return "", ""
 
     client = get_mongo_client()
     db = client[settings.MONGODB_DB]
 
-    def _scope(query: dict[str, Any]) -> dict[str, Any]:
-        if user_id:
-            query["user_id"] = user_id
-        return query
-
-    query = _scope({"run_id": run_id})
+    query = {"run_id": run_id, "user_id": user_id}
     if session_id:
         query["session_id"] = session_id
 
     events: list[dict[str, Any]] = []
-    trace = await db[settings.MONGODB_TRACES_COLLECTION].find_one(query, {"events": 1})
-    if trace:
-        events = trace.get("events") or []
-    if not events:
-        chunks_query = _scope({"run_id": run_id})
-        if session_id:
-            chunks_query["session_id"] = session_id
-        chunks = (
-            await db[settings.MONGODB_TRACE_EVENT_CHUNKS_COLLECTION]
-            .find(chunks_query, {"events": 1})
-            .sort("chunk_index", 1)
-            .to_list(length=20)
+    trace = await db[settings.MONGODB_TRACES_COLLECTION].find_one(
+        query, {"events": 1, "trace_id": 1}
+    )
+    if trace is None:
+        return "", ""
+    events = trace.get("events") or []
+    if trace.get("trace_id"):
+        storage = TraceStorage()
+        storage._collection = db[settings.MONGODB_TRACES_COLLECTION]
+        storage._chunks_collection = db[settings.MONGODB_TRACE_EVENT_CHUNKS_COLLECTION]
+        events = await storage.read_trace_events_compat(
+            str(trace["trace_id"]),
+            event_types=["user:message", "message:chunk"],
         )
-        for c in chunks:
-            events.extend(c.get("events") or [])
 
     # 用户消息取最后一个 user:message（消息尾的 formatted 版本含上下文块）
     user_msg = ""
-    # 助手回复累积合并：按 text_id 分组取最后一个事件（merged 事件含完整文本）
+    # 原始流与相邻合并后的事件都是不重叠片段，按 text_id 累积。
     _assistant_chunks: dict[str, str] = {}
     _assistant_order: list[str] = []
     for ev in events:
@@ -376,11 +379,11 @@ async def _load_exchange(run_id: str, session_id: str = "", user_id: str = "") -
         data = ev.get("data") or {}
         if et == "user:message" and data.get("content"):
             user_msg = str(data["content"])
-        elif et == "message:chunk" and data.get("content"):
+        elif et == "message:chunk" and data.get("depth") in (None, 0, "0") and data.get("content"):
             text_id = str(data.get("text_id") or uuid.uuid4().hex[:8])
             if text_id not in _assistant_chunks:
                 _assistant_order.append(text_id)
-            _assistant_chunks[text_id] = str(data["content"])
+            _assistant_chunks[text_id] = _assistant_chunks.get(text_id, "") + str(data["content"])
     # 合并所有 text 段（最后一段优先，前面的截断保留头部）
     parts: list[str] = []
     total_len = 0
@@ -406,13 +409,19 @@ You see the exchange and the outcome. Extract AT MOST ONE reusable lesson.
 
 Call memory_retain with:
 - content: three lines, exactly this shape:
-  rule: <imperative sentence, <=80 chars>
+  rule: <imperative sentence, <=200 chars>
   why: <what went wrong or was validated, <=60 chars>
   how_to_apply: <when/condition to apply, <=60 chars>
 - context: "feedback_rule"
 - title: the rule, <=25 chars
 - summary: the rule, <=80 chars
 - tags: 2-4 short keywords
+
+Preserve user-stated operational constraints in rule: separator name and literal character,
+exact headers/keys, numbers/units, negations, and applicability. Copy required literals
+verbatim; "CSV" alone does not specify a separator. Stay within 400 content characters;
+shorten why/how before dropping operational details. Current instructions take priority
+over remembered preferences.
 
 HARD EXCLUSIONS (never extract even if useful-looking):
 - Anything derivable from code, git history, or docs.
@@ -425,14 +434,44 @@ existing_memory_id set to that lesson's memory id (update instead of duplicate).
 If nothing worth extracting, call no tool."""
 
 
+async def _reflection_source(backend, user_id: str, signal: SignalRun):
+    db = backend._collection.database
+    query = {"run_id": signal.run_id, "user_id": user_id}
+    if signal.session_id:
+        query["session_id"] = signal.session_id
+    trace = await db[settings.MONGODB_TRACES_COLLECTION].find_one(
+        query,
+        {"session_id": 1, "started_at": 1},
+    )
+    if trace is None or not isinstance(trace.get("session_id"), str) or not trace["session_id"]:
+        raise RuntimeError("memory_reflection_source_unavailable")
+    session_id = trace["session_id"]
+    watermark = await source_watermark(db, user_id, session_id)
+    started_at = trace.get("started_at")
+    if watermark is not None and (
+        not isinstance(started_at, datetime) or ensure_utc(started_at) <= watermark
+    ):
+        return None
+    return db, session_id, watermark
+
+
 @bind_quota_user
 async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
     """对单个信号 run 跑反思 LLM，产出教训则 retain（至多 1 条）。"""
     try:
-        user_msg, assistant_msg = await _load_exchange(signal.run_id, signal.session_id, user_id)
+        source = await _reflection_source(backend, user_id, signal)
+        if source is None:
+            return {"stored": 0}
+        db, session_id, watermark = source
+        user_msg, assistant_msg = await _load_exchange(signal.run_id, session_id, user_id)
     except Exception as e:
         logger.info("[MemoryEvolution] exchange load failed for %s: %s", signal.run_id, e)
         return {"stored": 0, "skipped": True}
+
+    async def check_source() -> bool:
+        if await source_watermark(db, user_id, session_id) != watermark:
+            raise _SourceForgottenError()
+        return True
 
     if not user_msg and not signal.comment:
         logger.info("[MemoryEvolution] no exchange content for %s, skipping", signal.run_id)
@@ -481,6 +520,7 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
         from src.infra.memory.client.native.content import maybe_await
         from src.infra.memory.tools import memory_retain
 
+        await check_source()
         model = (await maybe_await(backend._get_memory_model())).bind_tools([memory_retain])
         response = await ainvoke_with_retry(
             model,
@@ -501,6 +541,8 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
             ],
             operation="memory-evolution-reflect",
         )
+    except _SourceForgottenError:
+        return {"stored": 0}
     except Exception as e:
         if is_quota_error(e):
             raise
@@ -518,9 +560,8 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
         content = _validate_and_sanitize_lesson(raw_content)
         if content is None:
             logger.info(
-                "[MemoryEvolution] lesson rejected (invalid/unsafe) for run %s: %.60s",
+                "[MemoryEvolution] lesson rejected (invalid/unsafe) for run %s",
                 signal.run_id,
-                raw_content,
             )
             continue
 
@@ -534,12 +575,17 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
                 summary=args.get("summary"),
                 tags=args.get("tags"),
                 existing_memory_id=args.get("existing_memory_id"),
+                source="self_evolved",
+                origin_session_id=session_id,
+                write_guard=check_source,
             )
+        except _SourceForgottenError:
+            return {"stored": stored}
         except Exception as e:
             if is_quota_error(e):
                 raise
             logger.warning("[MemoryEvolution] retain raised for run %s: %s", signal.run_id, e)
-            continue  # I5: 单个 retain 失败不中断，继续处理
+            return {"stored": stored, "skipped": True}
 
         if not result.get("success"):
             logger.info(
@@ -547,16 +593,9 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
                 signal.run_id,
                 result.get("error") or result.get("message") or "unknown",
             )
+            if result.get("retryable") is not False:
+                return {"stored": stored, "skipped": True}
             continue
-
-        if result.get("memory_id") and backend._collection is not None:
-            try:
-                await backend._collection.update_one(
-                    {"user_id": user_id, "memory_id": result["memory_id"]},
-                    {"$set": {"source": "self_evolved"}},
-                )
-            except Exception as e:
-                logger.debug("[MemoryEvolution] source tagging failed: %s", e)
 
         stored += 1
         break  # I4: 强制 AT MOST ONE——一条 run 只存一条教训

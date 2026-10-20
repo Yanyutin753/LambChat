@@ -1,0 +1,108 @@
+{
+  "version": 9,
+  "cases": [
+    {
+      "case_id": "en-lineage-with-complete-original-backup",
+      "category": "controlled_legacy_duplicates_with_real_source_chats",
+      "language": "en",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "first-source",
+          "project": null,
+          "turns": [
+            "Remember my durable communication preferences: my weekly digest is sent on Monday, and notification previews are disabled."
+          ]
+        },
+        {
+          "owner": "a",
+          "session": "second-source",
+          "project": null,
+          "turns": [
+            "For future conversations, keep these communication preferences: send my weekly digest every Monday and keep notification previews switched off."
+          ]
+        }
+      ],
+      "compact_owner": "a",
+      "max_compaction_passes": 3,
+      "lineage_sources": [
+        "first-source",
+        "second-source"
+      ],
+      "seed_memories": [
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "source_sessions": [
+            "first-source"
+          ],
+          "title": "Weekly communication",
+          "summary": "Monday digest; previews disabled",
+          "content": "The weekly digest is sent on Monday. Notification previews are disabled.",
+          "tags": [
+            "digest",
+            "notifications"
+          ],
+          "context": "user",
+          "scope": "user"
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "source_sessions": [
+            "second-source"
+          ],
+          "title": "Digest preferences",
+          "summary": "Weekly digest Monday, no notification previews",
+          "content": "Keep notification previews off and send the weekly digest every Monday.",
+          "tags": [
+            "digest",
+            "notifications"
+          ],
+          "context": "user",
+          "scope": "user"
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "source_sessions": [
+            "first-source"
+          ],
+          "title": "Digest delivery",
+          "summary": "Monday digest; previews disabled",
+          "content": "On Mondays send the weekly digest; keep notification previews off.",
+          "tags": [
+            "digest",
+            "notifications"
+          ],
+          "context": "user",
+          "scope": "user"
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "after-merge",
+          "project": null,
+          "message": "Consult my saved communication preferences. Return only one JSON object with digest_day (English) and notification_previews (boolean). Use null if unknown.",
+          "expected": {
+            "digest_day": "Monday",
+            "notification_previews": false
+          }
+        },
+        {
+          "owner": "a",
+          "session": "after-forgetting-merged-memory",
+          "project": null,
+          "forget_compacted_before": true,
+          "message": "Consult my saved communication preferences. Return only one JSON object with digest_day and notification_previews. Use null for unknown fields.",
+          "expected": {
+            "digest_day": null,
+            "notification_previews": null
+          }
+        }
+      ],
+      "expect_no_new_memories": true
+    }
+  ]
+}

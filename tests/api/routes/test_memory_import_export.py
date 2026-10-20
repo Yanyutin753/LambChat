@@ -20,6 +20,192 @@ def _user() -> TokenPayload:
     return TokenPayload(sub="user-1", username="tester", roles=["user"])
 
 
+@pytest.mark.parametrize("storage_mode", ["inline", "store"])
+async def test_import_reuses_unchanged_owned_content_embedding(monkeypatch, storage_mode):
+    content = "The workshop dispatches recurring orders on Thursday."
+    store = _FakeStore({(("memories", "user-1", "content"), "old-body"): {"text": content}})
+    backend = _FakeBackend(
+        [
+            {
+                "user_id": "user-1",
+                "memory_id": "same",
+                "content": content if storage_mode == "inline" else "preview",
+                "content_storage_mode": storage_mode,
+                "content_store_key": "old-body" if storage_mode == "store" else None,
+                "embedding": [1.0, 0.0],
+            }
+        ],
+        store,
+    )
+    backend._maybe_embed = AsyncMock(return_value=[0.0, 1.0])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    monkeypatch.setattr(memory_routes, "_write_vector_index", AsyncMock())
+    result = await memory_routes.import_memories(
+        {"memories": [{"memory_id": "same", "content": content, "title": "Updated label"}]},
+        user=_user(),
+    )
+    assert result["overwritten"] == 1
+    assert backend._collection.docs[0]["embedding"] == [1.0, 0.0]
+    assert backend._collection.docs[0]["title"] == "Updated label"
+    backend._maybe_embed.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["content", "missing_vector", "empty_vector", "missing_body"])
+async def test_import_recomputes_embedding_when_content_or_cached_vector_is_unusable(
+    monkeypatch, change
+):
+    content = "The workshop dispatches recurring orders on Thursday."
+    existing = {
+        "user_id": "user-1",
+        "memory_id": "same",
+        "content": content,
+        "content_storage_mode": "inline",
+        "embedding": [1.0, 0.0],
+    }
+    if change == "content":
+        existing["content"] = "A different earlier dispatch policy."
+    elif change == "missing_vector":
+        existing["embedding"] = None
+    elif change == "empty_vector":
+        existing["embedding"] = []
+    else:
+        existing.update(content_storage_mode="store", content_store_key="missing")
+    backend = _FakeBackend([existing])
+    backend._maybe_embed = AsyncMock(return_value=[0.0, 1.0])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    monkeypatch.setattr(memory_routes, "_write_vector_index", AsyncMock())
+    await memory_routes.import_memories(
+        {"memories": [{"memory_id": "same", "content": content}]}, user=_user()
+    )
+    backend._maybe_embed.assert_awaited_once_with(content)
+    assert backend._collection.docs[0]["embedding"] == [0.0, 1.0]
+
+
+async def test_repeated_import_reuses_real_mongo_vectors_without_reading_another_owner(monkeypatch):
+    import os
+    from uuid import uuid4
+
+    from pymongo import AsyncMongoClient
+
+    from src.infra.memory.client.native.backend import NativeMemoryBackend
+    from src.infra.storage.mongodb import build_mongo_connection_string
+
+    if os.environ.get("TEST_MEMORY_MONGODB") != "1":
+        pytest.skip("Opt-in real MongoDB")
+    client = AsyncMongoClient(build_mongo_connection_string(), tz_aware=True, timeoutMS=10000)
+    db = client[f"memory_import_cached_{uuid4().hex}"]
+    backend = NativeMemoryBackend()
+    backend._collection = db.native_memories
+    backend._store = _FakeStore()
+    backend._maybe_embed = AsyncMock(return_value=[1.0, 0.0])
+    backend._invalidate_cache = AsyncMock()
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    monkeypatch.setattr(memory_routes, "_write_vector_index", AsyncMock())
+    payload = {
+        "memories": [
+            {"memory_id": "short", "content": "The workshop ships on Thursday."},
+            {"memory_id": "long", "content": "Durable service reference. " * 70},
+        ]
+    }
+    try:
+        await db.native_memories.create_index("memory_id", unique=True)
+        assert (await memory_routes.import_memories(payload, user=_user()))["created"] == 2
+        assert backend._maybe_embed.await_count == 2
+        backend._maybe_embed.reset_mock()
+        assert (await memory_routes.import_memories(payload, user=_user()))["overwritten"] == 2
+        backend._maybe_embed.assert_not_awaited()
+        rows = await db.native_memories.find({"user_id": "user-1"}).to_list(length=2)
+        assert len(rows) == 2 and all(row["embedding"] == [1.0, 0.0] for row in rows)
+        await db.native_memories.insert_one(
+            {
+                "user_id": "foreign",
+                "memory_id": "foreign",
+                "content": payload["memories"][0]["content"],
+                "content_storage_mode": "inline",
+                "embedding": [9.0, 9.0],
+            }
+        )
+        with pytest.raises(DuplicateKeyError):
+            await memory_routes.import_memories(
+                {
+                    "memories": [
+                        {"memory_id": "foreign", "content": payload["memories"][0]["content"]}
+                    ]
+                },
+                user=_user(),
+            )
+        backend._maybe_embed.assert_awaited_once_with(payload["memories"][0]["content"])
+        assert (await db.native_memories.find_one({"memory_id": "foreign"}))["embedding"] == [
+            9.0,
+            9.0,
+        ]
+    finally:
+        await client.drop_database(db.name)
+        await client.close()
+
+
+async def test_export_import_preserves_project_ownership(monkeypatch):
+    backend = _FakeBackend(
+        [
+            {
+                "user_id": "user-1",
+                "memory_id": "project-memory",
+                "scope": "project",
+                "project_id": "alpha",
+                "memory_type": "project",
+                "title": "Alpha policy",
+                "summary": "Alpha retention is 45 days",
+                "content": "Alpha retention is 45 days.",
+            }
+        ]
+    )
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    lookup = AsyncMock(return_value=SimpleNamespace(id="alpha"))
+    monkeypatch.setattr(
+        "src.infra.folder.storage.get_project_storage", lambda: SimpleNamespace(get_by_id=lookup)
+    )
+
+    response = await memory_routes.export_memories(user=_user())
+    chunks = [
+        chunk.decode() if isinstance(chunk, bytes) else chunk
+        async for chunk in response.body_iterator
+    ]
+    exported = json.loads("".join(chunks))
+    assert exported["memories"][0]["scope"] == "project"
+    assert exported["memories"][0]["project_id"] == "alpha"
+    await memory_routes.import_memories(exported, user=_user())
+
+    assert backend._collection.docs[0]["scope"] == "project"
+    assert backend._collection.docs[0]["project_id"] == "alpha"
+    lookup.assert_awaited_once_with("alpha", "user-1")
+
+
+async def test_import_rejects_another_users_project_without_globalizing_it(monkeypatch):
+    backend = _FakeBackend([])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "src.infra.folder.storage.get_project_storage", lambda: SimpleNamespace(get_by_id=lookup)
+    )
+
+    with pytest.raises(AppError) as error:
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {
+                        "content": "Project retention is 45 days.",
+                        "scope": "project",
+                        "project_id": "foreign",
+                    }
+                ]
+            },
+            user=_user(),
+        )
+
+    assert error.value.error_code.code == "project_not_found"
+    assert backend._collection.docs == []
+
+
 @pytest.mark.parametrize("count", [1, 50, 51])
 async def test_export_hydrates_contents_in_streaming_batches(monkeypatch, count):
     namespace = ("memories", "user-1", "content")
@@ -158,16 +344,27 @@ class _FakeCollection:
                 return dict(doc)
         return None
 
-    async def find_one_and_replace(
-        self, query, replacement, *, upsert, return_document, projection
-    ):
+    async def find_one_and_update(self, query, replacement, *, upsert, return_document, projection):
         assert upsert is True and return_document == ReturnDocument.BEFORE
-        assert projection == {"content_storage_mode": 1, "content_store_key": 1}
+        assert projection == {"user_id": 1, "content_storage_mode": 1, "content_store_key": 1}
         self.atomic_replaces.append(query)
+        literal, preserved = replacement[0]["$replaceWith"]["$mergeObjects"]
+        replacement = literal["$literal"]
+        assert (
+            preserved["origin_session_ids"]["$setUnion"][1]["$literal"]
+            == replacement["origin_session_ids"]
+        )
         for index, doc in enumerate(self.docs):
             if all(doc.get(key) == value for key, value in query.items()):
                 previous = dict(doc)
-                self.docs[index] = dict(replacement)
+                self.docs[index] = dict(
+                    replacement,
+                    origin_session_ids=list(
+                        dict.fromkeys(
+                            [*doc.get("origin_session_ids", []), *replacement["origin_session_ids"]]
+                        )
+                    ),
+                )
                 return previous
         if upsert:
             if any(doc["memory_id"] == replacement["memory_id"] for doc in self.docs):
@@ -510,13 +707,20 @@ async def test_import_duplicate_ids_preserve_long_inline_long_cleanup_order(monk
         ],
         store,
     )
-    replace = backend._collection.find_one_and_replace
+    replace = backend._collection.find_one_and_update
 
     async def tracked_replace(query, replacement, **kwargs):
-        events.append(("replace", replacement["content_storage_mode"]))
+        events.append(
+            (
+                "replace",
+                replacement[0]["$replaceWith"]["$mergeObjects"][0]["$literal"][
+                    "content_storage_mode"
+                ],
+            )
+        )
         return await replace(query, replacement, **kwargs)
 
-    backend._collection.find_one_and_replace = tracked_replace
+    backend._collection.find_one_and_update = tracked_replace
     monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
     result = await memory_routes.import_memories(
         {
@@ -528,20 +732,23 @@ async def test_import_duplicate_ids_preserve_long_inline_long_cleanup_order(monk
     )
 
     assert result == {"success": True, "imported": 3, "created": 0, "overwritten": 3}
+    first_key, final_key = events[0][1], events[5][1]
+    assert first_key.startswith("memory:same:") and final_key.startswith("memory:same:")
+    assert first_key != final_key
     assert events == [
-        ("put", "memory:same"),
+        ("put", first_key),
         ("replace", "store"),
         ("delete", "legacy"),
         ("replace", "inline"),
-        ("delete", "memory:same"),
-        ("put", "memory:same"),
+        ("delete", first_key),
+        ("put", final_key),
         ("replace", "store"),
     ]
-    assert store.values == {(namespace, "memory:same"): {"text": "c" * 20, "memory_id": "same"}}
+    assert store.values == {(namespace, final_key): {"text": "c" * 20, "memory_id": "same"}}
     assert backend.invalidated_users == ["user-1"]
 
 
-async def test_import_partial_validation_failure_keeps_prior_commit_and_stops(monkeypatch):
+async def test_import_partial_validation_failure_stops_before_any_commit(monkeypatch):
     backend = _FakeBackend([])
     monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
 
@@ -556,7 +763,7 @@ async def test_import_partial_validation_failure_keeps_prior_commit_and_stops(mo
             },
             user=_user(),
         )
-    assert [doc["memory_id"] for doc in backend._collection.docs] == ["first"]
+    assert backend._collection.docs == []
     assert backend.invalidated_users == []
 
 
@@ -677,3 +884,143 @@ async def test_list_memories_filters_source_with_search(monkeypatch: pytest.Monk
     assert collection.find_query["source"] == "manual"
     assert "context" not in collection.find_query
     assert len(collection.find_query["$or"]) == 4
+
+
+async def test_export_refuses_to_serialize_an_unavailable_body_as_a_complete_backup(monkeypatch):
+    backend = _FakeBackend(
+        [
+            {
+                "user_id": "user-1",
+                "memory_id": "missing-body",
+                "content": "Only a preview",
+                "content_storage_mode": "store",
+                "content_store_key": "missing",
+            }
+        ],
+        _FakeStore({}),
+    )
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    response = await memory_routes.export_memories(user=_user())
+    with pytest.raises(AppError) as error:
+        _ = [chunk async for chunk in response.body_iterator]
+    assert error.value.error_code.code == "memory_backend_unavailable"
+
+
+async def test_import_rejects_a_truncated_backup_before_any_memory_is_written(monkeypatch):
+    backend = _FakeBackend([])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    with pytest.raises(AppError) as error:
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {"content": "A complete unrelated durable fact."},
+                    {
+                        "memory_id": "existing-complete-memory",
+                        "content": "Only the beginning of a long memory.",
+                        "content_truncated": True,
+                        "content_original_chars": 100_000,
+                    },
+                ]
+            },
+            user=_user(),
+        )
+    assert error.value.error_code.code == "validation_error"
+    assert backend._collection.docs == []
+
+
+async def test_import_preflight_reports_current_limits_without_side_effects(monkeypatch):
+    backend = _FakeBackend([])
+    backend._maybe_embed = AsyncMock(return_value=None)
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    monkeypatch.setattr(memory_routes, "_get_memory_import_content_max_chars", lambda: 12_000)
+    monkeypatch.setattr(memory_routes, "_get_memory_import_total_content_max_chars", lambda: 30_000)
+    result = await memory_routes.import_memories(
+        {
+            "memories": [
+                {
+                    "content": "A durable supplier record. " * 100,
+                }
+            ]
+        },
+        user=_user(),
+        validate_only=True,
+    )
+    assert result == {
+        "success": True,
+        "validated": 1,
+        "limits": {
+            "max_records": 1000,
+            "max_content_chars": 12_000,
+            "max_total_content_chars": 30_000,
+            "max_origin_sessions": 50_000,
+        },
+    }
+    assert backend._collection.docs == []
+    assert backend.invalidated_users == []
+    backend._maybe_embed.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"content": "tiny"},
+        {"content": "A durable record.", "memory_type": "invalid-type"},
+        {"content": "A durable record.", "created_at": "not-a-date"},
+    ],
+)
+async def test_import_validates_the_whole_request_before_writing_first_record(monkeypatch, bad):
+    backend = _FakeBackend([])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    with pytest.raises(AppError):
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {"content": "First complete durable record."},
+                    bad,
+                ]
+            },
+            user=_user(),
+        )
+    assert backend._collection.docs == []
+
+
+async def test_partial_storage_failure_invalidates_committed_memories(monkeypatch):
+    backend = _FakeBackend([])
+    replace = backend._collection.find_one_and_update
+
+    async def replace_then_fail(query, replacement, **kwargs):
+        if query["memory_id"] == "second":
+            raise OSError("owned test: lost storage connection")
+        return await replace(query, replacement, **kwargs)
+
+    backend._collection.find_one_and_update = replace_then_fail
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    with pytest.raises(OSError):
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {"memory_id": "first", "content": "The supplier warranty lasts 53 months."},
+                    {"memory_id": "second", "content": "A second valid durable record."},
+                ]
+            },
+            user=_user(),
+        )
+    assert [doc["memory_id"] for doc in backend._collection.docs] == ["first"]
+    assert backend.invalidated_users == ["user-1"]
+
+
+@pytest.mark.parametrize("origins", ["not-an-array", ["source", 9], ["source"] * 50_001])
+async def test_invalid_origin_metadata_is_rejected_before_any_import_write(monkeypatch, origins):
+    backend = _FakeBackend([])
+    monkeypatch.setattr(memory_routes, "_get_backend", AsyncMock(return_value=backend))
+    with pytest.raises(AppError):
+        await memory_routes.import_memories(
+            {
+                "memories": [
+                    {"content": "First durable reference."},
+                    {"content": "Second durable reference.", "origin_session_ids": origins},
+                ]
+            },
+            user=_user(),
+        )
+    assert backend._collection.docs == []

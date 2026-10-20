@@ -181,6 +181,8 @@ async def test_retain_updates_existing_memory_and_refreshes_embedding():
 
         async def find_one(self, *_args, **_kwargs):
             return {
+                "memory_id": "m1",
+                "memory_type": "user",
                 "content_storage_mode": "inline",
                 "content_store_key": None,
             }
@@ -208,12 +210,13 @@ async def test_retain_updates_existing_memory_and_refreshes_embedding():
         title="DuckDB preference",
         summary="Prefers raw SQL for analytics work.",
         tags=["sql", "analytics", "duckdb"],
+        existing_memory_id="m1",
     )
 
     assert result["success"] is True
     assert result["updated_existing"] is True
     assert seen["query"] == {"user_id": "u1", "memory_id": "m1"}
-    assert seen["payload"]["$set"]["embedding"] == [58.0]
+    assert seen["payload"][0]["$set"]["embedding"]["$literal"] == [58.0]
 
 
 class _RetainFakeCursor:
@@ -263,13 +266,112 @@ def _backend_with_collection(collection, embed_value):
     return backend
 
 
+@pytest.mark.parametrize("source", ["auto_retained", "self_evolved", "manual"])
+async def test_new_memory_origin_is_set_atomically_on_insert(source):
+    collection = _SemanticDedupFakeCollection([], [])
+    backend = _backend_with_collection(collection, embed_value=None)
+
+    result = await backend.retain(
+        "u1",
+        "The user prefers concise answers.",
+        context="user",
+        title="Answer style",
+        summary="Concise answers",
+        tags=["answers"],
+        source=source,
+    )
+
+    assert result["success"] is True
+    assert collection.inserted[0]["source"] == source
+    assert collection.updated == []
+
+
+async def test_explicit_update_of_deleted_id_cannot_create_or_match_another_memory():
+    from unittest.mock import AsyncMock
+
+    class Collection:
+        find_one = AsyncMock(return_value=None)
+
+        def find(self, *_args, **_kwargs):
+            raise AssertionError(
+                "A missing explicit update target cannot fall back to implicit retention"
+            )
+
+    backend = _backend_with_collection(Collection(), embed_value=None)
+    backend._maybe_embed = AsyncMock()
+    result = await backend.retain(
+        "u1",
+        "The user previously had a private locker label.",
+        context="user",
+        title="Locker",
+        summary="Private locker",
+        tags=["locker"],
+        existing_memory_id="deleted-id",
+    )
+
+    assert result["success"] is False
+    assert result["retryable"] is False
+    backend._maybe_embed.assert_not_awaited()
+
+
+async def test_target_deleted_after_read_rejects_update_and_removes_staged_body(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.memory.client.native.content.settings.NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 5
+    )
+
+    class Collection:
+        async def find_one(self, *_args):
+            return {
+                "memory_id": "gone",
+                "user_id": "u1",
+                "content": "Original content.",
+                "content_storage_mode": "inline",
+                "source_refs": [],
+                "source": "manual",
+            }
+
+        async def update_one(self, *_args):
+            return SimpleNamespace(matched_count=0)
+
+    class Store:
+        def __init__(self):
+            self.values = {}
+
+        async def aput(self, namespace, key, value):
+            if value is None:
+                self.values.pop(key, None)
+            else:
+                self.values[key] = value
+
+    backend = _backend_with_collection(Collection(), embed_value=None)
+    backend._store = Store()
+    backend._invalidate_cache = AsyncMock()
+    result = await backend.retain(
+        "u1",
+        "Replacement durable content.",
+        context="user",
+        title="Preference",
+        summary="Replacement",
+        tags=["preference"],
+        existing_memory_id="gone",
+    )
+
+    assert result["success"] is False and result["retryable"] is False
+    assert backend._store.values == {}
+    backend._invalidate_cache.assert_not_awaited()
+
+
 @pytest.mark.asyncio
-async def test_retain_merges_into_semantically_similar_memory_without_explicit_id():
+async def test_retain_reuses_identical_content_found_by_semantic_search():
     now = datetime.now(timezone.utc)
     existing = {
         "memory_id": "m9",
         "memory_type": "user",
         "summary": "User is writing a book about React.",
+        "content": "The user has been writing a book about React patterns since 2025.",
         "embedding": [1.0, 0.0, 0.0],
         "updated_at": now,
     }

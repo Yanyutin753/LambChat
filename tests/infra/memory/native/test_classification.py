@@ -6,6 +6,20 @@ from src.infra.memory.client.native.classification import (
     looks_like_code_or_path,
 )
 
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "The user's long-term hobbies are reading and cycling.",
+        "Our studio handles import paperwork in English for repeat orders.",
+    ],
+)
+def test_durable_prose_is_not_rejected_for_an_ordinary_activity_word(content):
+    from src.infra.memory.client.native.classification import passes_lightweight_memory_filter
+
+    assert passes_lightweight_memory_filter(content)
+
+
 # 生产实际被误拒的记忆内容（run_20260829_2bd6df77，memory_retain 两次均被拒）
 _DURABLE_FACT_WITH_FILENAME = (
     "用户申请加入中国共产党：2026-08-29起多次请AI撰写约3000字入党申请书Word文档"
@@ -48,6 +62,18 @@ def test_multiple_file_references_are_rejected():
 
 def test_path_with_multiple_segments_is_rejected():
     assert looks_like_code_or_path("部署脚本在 deploy/k8s/scripts/ 目录下的 run.sh")
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "用户偏好/沟通风格：简体中文；所有会话/项目都先给结论；工作/学习都解释简短。",
+        r"### Task 1: 沟通偏好\n\ntask_group: 用户偏好/沟通风格\n\nPreference signals:\n- 用户希望先给结论，再给简短解释。\n\nReferences:\n- 跨项目保持简体中文。",
+    ],
+)
+def test_structured_preference_punctuation_is_not_a_code_dump(content):
+    assert not looks_like_code_or_path(content)
+    assert is_manual_memory_worthy(content, context="user_preference")
 
 
 @pytest.mark.asyncio

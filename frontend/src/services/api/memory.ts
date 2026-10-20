@@ -4,6 +4,7 @@
 
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { uuid } from "../../utils/uuid";
 
 export interface MemoryItem {
   memory_id: string;
@@ -27,6 +28,12 @@ export interface MemoryListResponse {
 export interface MemoryExportItem extends Omit<MemoryItem, "has_full_content"> {
   context: string;
   accessed_at: string | null;
+  scope?: "user" | "project" | "reference";
+  project_id?: string | null;
+  source_refs?: Array<{ session_id: string; run_id: string }>;
+  origin_session_ids?: string[];
+  content_truncated?: boolean;
+  content_original_chars?: number;
 }
 
 export interface MemoryExportResponse {
@@ -152,4 +159,166 @@ export const memoryApi = {
       body: JSON.stringify(data),
     });
   },
+
+  async importAll(
+    data: unknown,
+    onProgress?: (progress: MemoryImportProgress) => void,
+  ): Promise<MemoryImportResponse> {
+    const preflight = (batch: MemoryImportRequest) =>
+      authFetch<MemoryImportPreflight>(
+        `${API_BASE}/api/memory/import?validate_only=true`,
+        { method: "POST", body: JSON.stringify(batch) },
+      );
+    const { limits } = await preflight({ memories: [] });
+    const batches = prepareImportBatches(data, limits);
+    const total = batches.reduce(
+      (sum, batch) => sum + batch.memories.length,
+      0,
+    );
+    let checked = 0;
+    onProgress?.({ phase: "checking", processed: 0, total });
+    for (const batch of batches) {
+      const result = await preflight(batch);
+      if (!result.success || result.validated !== batch.memories.length)
+        throw new Error("Memory preflight failed");
+      checked += result.validated;
+      onProgress?.({ phase: "checking", processed: checked, total });
+    }
+    const confirmed: MemoryImportResponse = {
+      success: true,
+      imported: 0,
+      created: 0,
+      overwritten: 0,
+    };
+    onProgress?.({ phase: "importing", processed: 0, total });
+    for (const batch of batches) {
+      try {
+        const result = await memoryApi.import(batch);
+        if (
+          !result.success ||
+          ![result.imported, result.created, result.overwritten].every(
+            (count) => Number.isSafeInteger(count) && count >= 0,
+          ) ||
+          result.imported !== batch.memories.length ||
+          result.created + result.overwritten !== result.imported
+        )
+          throw new Error("Incomplete memory import response");
+        confirmed.imported += result.imported;
+        confirmed.created += result.created;
+        confirmed.overwritten += result.overwritten;
+      } catch (cause) {
+        throw new MemoryImportError({ ...confirmed }, cause);
+      }
+      onProgress?.({
+        phase: "importing",
+        processed: confirmed.imported,
+        total,
+      });
+    }
+    return confirmed;
+  },
 };
+
+export interface MemoryImportProgress {
+  phase: "checking" | "importing";
+  processed: number;
+  total: number;
+}
+
+export class MemoryImportError extends Error {
+  constructor(
+    readonly confirmed: MemoryImportResponse,
+    cause: unknown,
+  ) {
+    super("Memory import stopped with an unconfirmed batch", { cause });
+  }
+}
+
+interface MemoryImportLimits {
+  max_records: number;
+  max_origin_sessions?: number;
+  max_content_chars: number;
+  max_total_content_chars: number;
+}
+
+interface MemoryImportPreflight {
+  success: boolean;
+  validated: number;
+  limits: MemoryImportLimits;
+}
+
+function prepareImportBatches(
+  data: unknown,
+  limits: MemoryImportLimits,
+): MemoryImportRequest[] {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !("memories" in data) ||
+    !Array.isArray(data.memories)
+  ) {
+    throw new Error("Invalid memory backup");
+  }
+  if (
+    !Object.values(limits).every(
+      (value) => Number.isSafeInteger(value) && value > 0,
+    )
+  ) {
+    throw new Error("Invalid memory import limits");
+  }
+  const batches: MemoryImportRequest[] = [];
+  let batch: MemoryImportRequest = { memories: [] };
+  let characters = 0;
+  let origins = 0;
+  const maxOrigins = limits.max_origin_sessions ?? 50_000;
+  for (const raw of data.memories) {
+    if (
+      !raw ||
+      typeof raw !== "object" ||
+      typeof raw.content !== "string" ||
+      raw.content_truncated === true
+    ) {
+      throw new Error("Invalid or incomplete memory content");
+    }
+    const length = [...raw.content.trim()].length;
+    const sourceIds =
+      raw.origin_session_ids === undefined ? [] : raw.origin_session_ids;
+    if (
+      !Array.isArray(sourceIds) ||
+      sourceIds.some(
+        (id: unknown) =>
+          typeof id !== "string" || !id.trim() || [...id].length > 1024,
+      ) ||
+      sourceIds.length > maxOrigins
+    )
+      throw new Error("Invalid memory source sessions");
+    if (
+      length < 5 ||
+      length > limits.max_content_chars ||
+      length > limits.max_total_content_chars
+    ) {
+      throw new Error("Memory content exceeds import limits");
+    }
+    if (
+      batch.memories.length >= limits.max_records ||
+      characters + length > limits.max_total_content_chars ||
+      origins + sourceIds.length > maxOrigins
+    ) {
+      batches.push(batch);
+      batch = { memories: [] };
+      characters = 0;
+      origins = 0;
+    }
+    batch.memories.push({
+      ...raw,
+      memory_id:
+        typeof raw.memory_id === "string" && raw.memory_id.trim()
+          ? raw.memory_id.trim()
+          : uuid().replaceAll("-", ""),
+    });
+    characters += length;
+    origins += sourceIds.length;
+  }
+  if (batch.memories.length) batches.push(batch);
+  return batches;
+}

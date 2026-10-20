@@ -1,9 +1,10 @@
 """Native Memory Backend — MongoDB-backed, zero external dependencies."""
 
+import asyncio
 import inspect
 import uuid
 from datetime import timedelta
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Awaitable, Callable, Optional, Sequence
 
 from src.infra.async_utils import (
     run_blocking_io,  # noqa: F401  # 测试 seam 可拦截
@@ -11,6 +12,7 @@ from src.infra.async_utils import (
 )
 from src.infra.llm.quota import bind_quota_user, is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
+from src.infra.memory.cleanup import VECTOR_PENDING_INDEXES, vector_pending_fields
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
@@ -19,6 +21,7 @@ from src.infra.memory.client.native.classification import (
 from src.infra.memory.client.native.content import (
     build_content_fields,
     delete_memory_content,
+    hydrate_memory_text_status,
 )
 from src.infra.memory.client.native.indexing import build_memory_index
 from src.infra.memory.client.native.models import COLLECTION_NAME
@@ -28,8 +31,13 @@ from src.infra.memory.client.native.summaries import (
     llm_enrich_memory,
 )
 from src.infra.memory.client.types import MemoryType
+from src.infra.memory.staging import CONTENT_INDEXES, content_commit_query, insert_content_memory
 from src.infra.session.conversation_history import ConversationHistoryService
-from src.infra.session.conversation_history_index import merge_source_refs
+from src.infra.session.conversation_history_index import (
+    MEMORY_SOURCE_REFS_MAX,
+    memory_lineage_update_fields,
+    merge_source_refs,
+)
 from src.infra.storage.mongodb import get_mongo_client, get_mongo_sync_client
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
@@ -125,19 +133,57 @@ class NativeMemoryBackend(MemoryBackend):
         self._index_cache.clear()
 
     async def _prune_legacy_session_summaries(self) -> None:
-        """One-time cleanup for old transcript-style session summary memories."""
+        """Remove a bounded batch of old summaries through durable resource cleanup."""
         if self._collection is None:
             return
         try:
-            result = await self._collection.delete_many({"source": "session_summary"})
-            deleted_count = int(getattr(result, "deleted_count", 0) or 0)
+            await self._collection.create_index(
+                [("_id", 1), ("user_id", 1)],
+                name="legacy_summary_cleanup",
+                partialFilterExpression={"source": "session_summary"},
+            )
+            rows = (
+                await self._collection.find(
+                    {
+                        "source": "session_summary",
+                        "user_id": {"$type": "string", "$ne": ""},
+                        "memory_id": {"$type": "string", "$ne": ""},
+                    },
+                    {"user_id": 1, "memory_id": 1, "revision_id": 1},
+                )
+                .sort("_id", 1)
+                .limit(100)
+                .to_list(length=100)
+            )
+            deleted_count = 0
+            for row in rows:
+                try:
+                    result = await self._delete_matching_memory(
+                        row["user_id"],
+                        row["memory_id"],
+                        {
+                            "_id": row["_id"],
+                            "user_id": row["user_id"],
+                            "memory_id": row["memory_id"],
+                            "source": "session_summary",
+                            "revision_id": row.get("revision_id"),
+                        },
+                        forget_sources=False,
+                    )
+                    deleted_count += int(result.get("success") is True)
+                except Exception as exc:
+                    logger.debug(
+                        "[NativeMemory] Legacy resource cleanup deferred: %s", type(exc).__name__
+                    )
             if deleted_count:
                 logger.info(
                     "[NativeMemory] Pruned %d legacy session summary memories",
                     deleted_count,
                 )
-        except Exception as e:
-            logger.debug("[NativeMemory] Failed to prune legacy session summaries: %s", e)
+        except Exception as exc:
+            logger.debug(
+                "[NativeMemory] Failed to prune legacy session summaries: %s", type(exc).__name__
+            )
 
     # ------------------------------------------------------------------
     # Core API
@@ -185,7 +231,13 @@ class NativeMemoryBackend(MemoryBackend):
         source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
         scope: Optional[str] = None,
         project_id: Optional[str] = None,
+        expected_revision: Optional[dict[str, Any]] = None,
+        source: Optional[str] = None,
+        write_guard: Optional[Callable[[], Awaitable[bool]]] = None,
+        origin_session_id: Optional[str] = None,
     ) -> dict[str, Any]:
+        if source is not None and source not in {"manual", "auto_retained", "self_evolved"}:
+            return {"success": False, "error": "Invalid memory source", "retryable": False}
         # --- Validation (relaxed for manual retention — trust user intent) ---
         if len(content.strip()) < 5:
             return {
@@ -210,6 +262,18 @@ class NativeMemoryBackend(MemoryBackend):
             }
 
         memory_type = _infer_memory_type(context)
+        revision_filter: dict[str, Any] = {
+            key: expected_revision[key]
+            for key in (
+                "updated_at",
+                "source",
+                "scope",
+                "project_id",
+                "content_store_key",
+                "revision_id",
+            )
+            if expected_revision is not None and key in expected_revision
+        }
 
         # If caller provides all three, skip LLM enrichment entirely
         if title and summary and tags:
@@ -252,14 +316,24 @@ class NativeMemoryBackend(MemoryBackend):
                 {"memory_id": 1, "memory_type": 1, "summary": 1, "embedding": 1},
             ).to_list(length=200)
 
-        # embedding 既用于落库，也用于写时语义去重（写前先读，避免重复记忆）
-        embedding = await self._maybe_embed(content)
+        embedding = None
+        embedding_computed = False
 
         existing_match = None
+        previous_content: tuple[str, bool] | None = None
         _match_projection = {
+            "revision_id": 1,
+            "origin_session_ids": 1,
             "memory_id": 1,
             "memory_type": 1,
+            "user_id": 1,
+            "content": 1,
+            "title": 1,
             "summary": 1,
+            "tags": 1,
+            "context": 1,
+            "source": 1,
+            "embedding": 1,
             "scope": 1,
             "project_id": 1,
             "updated_at": 1,
@@ -273,6 +347,7 @@ class NativeMemoryBackend(MemoryBackend):
                     "user_id": user_id,
                     "memory_id": existing_memory_id,
                     **build_scope_clause(project_id),
+                    **revision_filter,
                 },
                 _match_projection,
             )
@@ -287,6 +362,10 @@ class NativeMemoryBackend(MemoryBackend):
                     project_id = (
                         existing_match.get("project_id") if existing_scope == "project" else None
                     )
+        if expected_revision is not None and existing_match is None:
+            return {"success": False, "error": "memory_changed_since_inventory", "retryable": False}
+        if existing_memory_id and existing_match is None:
+            return {"success": False, "error": "Memory not found", "retryable": False}
         if existing_match is None:
             existing_match = await find_existing_memory_match(
                 fetch_recent=fetch_recent_memories,
@@ -297,6 +376,8 @@ class NativeMemoryBackend(MemoryBackend):
             if existing_match is None:
                 from src.infra.memory.dedup_arbiter import resolve_semantic_match
 
+                embedding = await self._maybe_embed(content)
+                embedding_computed = True
                 existing_match = await resolve_semantic_match(
                     fetch_candidates=fetch_semantic_candidates,
                     user_id=user_id,
@@ -304,79 +385,194 @@ class NativeMemoryBackend(MemoryBackend):
                     query_summary=summary,
                     memory_type=memory_type,
                 )
-            # fetch content fields for store cleanup if matched via similarity
-            if existing_match and "content_storage_mode" not in existing_match:
+            if existing_match:
                 full_doc = await self._collection.find_one(
                     {"user_id": user_id, "memory_id": existing_match["memory_id"]},
-                    {
-                        "content_storage_mode": 1,
-                        "content_store_key": 1,
-                        "source_refs": 1,
-                    },
+                    _match_projection,
                 )
                 if full_doc:
                     existing_match.update(full_doc)
+                previous_content = await hydrate_memory_text_status(self, existing_match)
+                previous_text, complete = previous_content
+                # Similarity locates candidates; only full equality authorizes an implicit update.
+                if not complete or previous_text != content:
+                    existing_match = None
+                    previous_content = None
 
         now = utc_now()
         is_update = existing_match is not None
         _existing: dict[str, Any] = existing_match if is_update else {}  # type: ignore[assignment]
         memory_id = _existing["memory_id"] if is_update else uuid.uuid4().hex
+        existing_source_refs = _existing.get("source_refs") or []
+        incoming_source_refs = merge_source_refs([], source_refs)
+        # Display limits must not erase an owned source needed by future forgetting.
         merged_source_refs = merge_source_refs(
-            _existing.get("source_refs") or [],
-            source_refs if source_refs is not None else [],
+            existing_source_refs,
+            incoming_source_refs,
+            limit=len(existing_source_refs) + len(incoming_source_refs),
         )
         if source_refs is not None:
             try:
                 merged_source_refs = await ConversationHistoryService().validate_source_refs(
-                    user_id, merged_source_refs
+                    user_id, merged_source_refs, limit=len(merged_source_refs)
                 )
             except Exception as exc:
                 self._logger.warning(
                     "[NativeMemory] Source reference validation failed: %s",
                     type(exc).__name__,
                 )
-                merged_source_refs = []
-        source_ref_docs = [ref.model_dump() for ref in merged_source_refs]
-        content_fields = await build_content_fields(self, user_id, memory_id, content)
+                raise
+        source_ref_docs = [ref.model_dump() for ref in merged_source_refs[-MEMORY_SOURCE_REFS_MAX:]]
+        origin_sessions = list(
+            dict.fromkeys(
+                [
+                    *(_existing.get("origin_session_ids") or []),
+                    *([origin_session_id] if origin_session_id else []),
+                    *(ref.session_id for ref in merged_source_refs),
+                ]
+            )
+        )
+        if is_update:
+            previous_text, complete = previous_content or await hydrate_memory_text_status(
+                self, _existing
+            )
+            same_content = complete and previous_text == content
+            unchanged_fields = {
+                "title": title[:25],
+                "summary": summary[:100],
+                "tags": tags,
+                "context": context,
+                "scope": scope,
+                "project_id": project_id,
+                "source_refs": source_ref_docs,
+                "origin_session_ids": origin_sessions,
+            }
+            if (
+                expected_revision is None
+                and write_guard is None
+                and same_content
+                and all(
+                    _existing.get(
+                        key,
+                        "user" if key == "scope" else [] if key == "origin_session_ids" else None,
+                    )
+                    == value
+                    for key, value in unchanged_fields.items()
+                )
+            ):
+                return {
+                    "success": True,
+                    "memory_id": memory_id,
+                    "memory_type": memory_type,
+                    "scope": scope,
+                    "project_id": project_id,
+                    "updated_existing": True,
+                    "unchanged": True,
+                    "source": _existing.get("source", "manual"),
+                    "message": "Memory already up to date",
+                }
+            if same_content and "embedding" in _existing:
+                embedding = _existing["embedding"]
+                embedding_computed = True
+        if not embedding_computed:
+            embedding = await self._maybe_embed(content)
+        if not is_update and expected_revision is None:
+            content_fields = await build_content_fields(self, user_id, memory_id, content)
+        else:
+            # Never reuse a body key that another writer may still be cleaning up.
+            content_fields = await build_content_fields(
+                self,
+                user_id,
+                memory_id,
+                content,
+                store_key=f"memory:{memory_id}:{uuid.uuid4().hex}",
+            )
+
+        if write_guard is not None:
+            try:
+                allowed = await write_guard()
+            except (Exception, asyncio.CancelledError):
+                await delete_memory_content(self, user_id, content_fields.get("content_store_key"))
+                raise
+            if not allowed:
+                await delete_memory_content(self, user_id, content_fields.get("content_store_key"))
+                return {"success": False, "error": "write_guard_rejected", "retryable": False}
 
         if is_update:
-            await self._collection.update_one(
-                {"user_id": user_id, "memory_id": _existing["memory_id"]},
+            from src.infra.memory.cleanup import content_update
+
+            next_revision = uuid.uuid4().hex
+            update = content_update(
+                user_id,
                 {
-                    "$set": {
-                        "title": title[:25],
-                        "summary": summary[:100],
-                        "index_label": build_index_label(title, summary, content),
-                        "context": context,
-                        "tags": tags,
-                        "scope": scope,
-                        "project_id": project_id,
-                        "embedding": embedding,
-                        "updated_at": now,
-                        "source_refs": source_ref_docs,
-                        **content_fields,
-                    }
+                    "title": title[:25],
+                    "summary": summary[:100],
+                    "index_label": build_index_label(title, summary, content),
+                    "context": context,
+                    "tags": tags,
+                    "scope": scope,
+                    "project_id": project_id,
+                    "embedding": embedding,
+                    "updated_at": now,
+                    "revision_id": next_revision,
+                    **vector_pending_fields(next_revision),
+                    **content_fields,
                 },
             )
-            if (
-                _existing.get("content_storage_mode") == "store"
-                and _existing.get("content_store_key")
-                and _existing.get("content_store_key") != content_fields.get("content_store_key")
-            ):
-                await delete_memory_content(self, user_id, _existing.get("content_store_key"))
-            await self._invalidate_cache(user_id)
-            from src.infra.memory.client.native.vector_store import index_write_through
-
-            await index_write_through(
-                user_id=user_id,
-                memory_id=_existing["memory_id"],
-                embedding=embedding,
-                memory_type=memory_type,
-                context=context,
-                updated_at_ts=int(now.timestamp()),
-                scope=scope,
-                project_id=project_id,
+            update[0]["$set"].update(
+                memory_lineage_update_fields(
+                    existing_source_refs, incoming_source_refs, merged_source_refs, origin_sessions
+                )
             )
+            try:
+                write_result = await self._collection.update_one(
+                    {
+                        **content_commit_query(user_id, _existing["memory_id"], content_fields),
+                        "user_id": user_id,
+                        **revision_filter,
+                    },
+                    update,
+                )
+            except (Exception, asyncio.CancelledError):
+                await self._invalidate_cache(user_id)
+                raise
+            if not int(
+                getattr(write_result, "matched_count", 0 if expected_revision is not None else 1)
+                or 0
+            ):
+                await delete_memory_content(self, user_id, content_fields.get("content_store_key"))
+                return {
+                    "success": False,
+                    "error": "memory_changed_since_inventory"
+                    if expected_revision is not None
+                    else "Memory not found",
+                    "retryable": False,
+                }
+            try:
+                if (
+                    _existing.get("content_storage_mode") == "store"
+                    and _existing.get("content_store_key")
+                    and _existing.get("content_store_key")
+                    != content_fields.get("content_store_key")
+                ):
+                    await delete_memory_content(self, user_id, _existing.get("content_store_key"))
+            finally:
+                try:
+                    await self._invalidate_cache(user_id)
+                finally:
+                    from src.infra.memory.cleanup import write_memory_vector
+
+                    await write_memory_vector(
+                        self,
+                        user_id=user_id,
+                        memory_id=_existing["memory_id"],
+                        embedding=embedding,
+                        memory_type=memory_type,
+                        context=context,
+                        updated_at_ts=int(now.timestamp()),
+                        scope=scope,
+                        project_id=project_id,
+                    )
             return {
                 "success": True,
                 "memory_id": _existing["memory_id"],
@@ -385,9 +581,10 @@ class NativeMemoryBackend(MemoryBackend):
                 "project_id": project_id,
                 "updated_existing": True,
                 "message": "Memory updated successfully",
+                **({"revision_id": next_revision} if expected_revision is not None else {}),
             }
 
-        doc = {
+        doc: dict[str, Any] = {
             "memory_id": memory_id,
             "user_id": user_id,
             "title": title[:25],
@@ -398,22 +595,42 @@ class NativeMemoryBackend(MemoryBackend):
             "tags": tags,
             "scope": scope,
             "project_id": project_id,
-            "source": "manual",
+            "source": source or "manual",
             "embedding": embedding,
             "created_at": now,
             "updated_at": now,
+            "revision_id": uuid.uuid4().hex,
             "accessed_at": now,
             "access_count": 0,
             "source_refs": source_ref_docs,
+            "origin_session_ids": origin_sessions,
         }
         doc.update(content_fields)
+        doc.update(vector_pending_fields(doc["revision_id"]))
 
-        await self._collection.insert_one(doc)
+        try:
+            await insert_content_memory(self, doc)
+        except (Exception, asyncio.CancelledError):
+            await self._invalidate_cache(user_id)
+            raise
+        if write_guard is not None:
+            try:
+                if not await write_guard():
+                    raise RuntimeError("write_guard_rejected")
+            except (Exception, asyncio.CancelledError):
+                await self._delete_matching_memory(
+                    user_id,
+                    memory_id,
+                    {"user_id": user_id, "memory_id": memory_id, "revision_id": doc["revision_id"]},
+                    forget_sources=False,
+                )
+                raise
         # Invalidate index cache (local + distributed)
         await self._invalidate_cache(user_id)
-        from src.infra.memory.client.native.vector_store import index_write_through
+        from src.infra.memory.cleanup import write_memory_vector
 
-        await index_write_through(
+        await write_memory_vector(
+            self,
             user_id=user_id,
             memory_id=memory_id,
             embedding=embedding,
@@ -462,11 +679,31 @@ class NativeMemoryBackend(MemoryBackend):
         self,
         user_id: str,
         memory_id: str,
+        *,
+        expected_revision: Optional[dict[str, Any]] = None,
+        write_guard: Optional[Callable[[], Awaitable[bool]]] = None,
     ) -> dict[str, Any]:
         return await self._delete_matching_memory(
             user_id,
             memory_id,
-            {"user_id": user_id, "memory_id": memory_id},
+            {
+                "user_id": user_id,
+                "memory_id": memory_id,
+                **{
+                    key: expected_revision[key]
+                    for key in (
+                        "updated_at",
+                        "source",
+                        "scope",
+                        "project_id",
+                        "content_store_key",
+                        "revision_id",
+                    )
+                    if expected_revision is not None and key in expected_revision
+                },
+            },
+            write_guard=write_guard,
+            forget_sources=expected_revision is None,
         )
 
     async def delete_scoped(
@@ -492,18 +729,58 @@ class NativeMemoryBackend(MemoryBackend):
         user_id: str,
         memory_id: str,
         query: dict[str, Any],
+        *,
+        write_guard: Optional[Callable[[], Awaitable[bool]]] = None,
+        forget_sources: bool = True,
     ) -> dict[str, Any]:
-        existing_doc = await self._collection.find_one_and_delete(
-            query,
-            projection={"content_storage_mode": 1, "content_store_key": 1},
-        )
-        if existing_doc is not None:
-            if existing_doc and existing_doc.get("content_storage_mode") == "store":
-                await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
-            await self._invalidate_cache(user_id)
-            from src.infra.memory.client.native.vector_store import index_delete
+        if write_guard is not None and not await write_guard():
+            return {"success": False, "error": "write_guard_rejected", "retryable": False}
+        from src.infra.memory.cleanup import delete_memory_vector, prepare_deleted_resources
 
-            await index_delete(user_id, memory_id)
+        before = await self._collection.find_one(
+            query,
+            {
+                "memory_id": 1,
+                "source_refs": 1,
+                "origin_session_ids": 1,
+                "revision_id": 1,
+                "content_storage_mode": 1,
+                "content_store_key": 1,
+                "_content_cleanup": 1,
+                "_content_stages": 1,
+            },
+        )
+        if before is None:
+            return {"success": False, "error": "Memory not found"}
+        if forget_sources:
+            from src.infra.memory.forgetting import suppress_deleted_sources
+
+            await suppress_deleted_sources(self, user_id, before)
+        await prepare_deleted_resources(self, user_id, memory_id, before)
+        if write_guard is not None and not await write_guard():
+            return {"success": False, "error": "write_guard_rejected", "retryable": False}
+        query = {**query, "revision_id": before.get("revision_id")}
+        if getattr(self._collection, "database", None) is not None:
+            query["_content_stages"] = before.get("_content_stages", {"$exists": False})
+        try:
+            existing_doc = await self._collection.find_one_and_delete(
+                query,
+                projection={"content_storage_mode": 1, "content_store_key": 1},
+            )
+        except (Exception, asyncio.CancelledError):
+            await self._invalidate_cache(user_id)
+            raise
+        if existing_doc is not None:
+            try:
+                if existing_doc.get("content_storage_mode") == "store":
+                    await delete_memory_content(
+                        self, user_id, existing_doc.get("content_store_key")
+                    )
+            finally:
+                try:
+                    await self._invalidate_cache(user_id)
+                finally:
+                    await delete_memory_vector(self, user_id, memory_id)
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
 
@@ -555,6 +832,14 @@ class NativeMemoryBackend(MemoryBackend):
 
     @staticmethod
     def _create_indexes_sync(col: Any) -> None:
+        for name, (keys, partial) in CONTENT_INDEXES.items():
+            col.create_index(keys, name=name, partialFilterExpression=partial)
+        for name, keys in VECTOR_PENDING_INDEXES.items():
+            col.create_index(
+                keys,
+                name=name,
+                partialFilterExpression={"_vector_pending": {"$exists": True}},
+            )
         col.create_index(
             [("user_id", 1), ("memory_type", 1), ("created_at", -1)],
             name="native_mem_user_type_idx",

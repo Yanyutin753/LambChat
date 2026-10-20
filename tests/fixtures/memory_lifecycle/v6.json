@@ -1,0 +1,50 @@
+{
+  "version": 6,
+  "cases": [
+    {
+      "case_id": "zh-feedback-format-and-forget-heldout",
+      "category": "feedback_reflection_behavior_and_forget",
+      "language": "zh",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "库存反馈",
+          "project": null,
+          "skip_extraction": true,
+          "turns": [
+            "只针对这一次回复，用 Markdown 表格整理库存：sesame 14 箱，oat 7 箱。"
+          ],
+          "feedback": "以后所有库存报告都请用纯 CSV，分隔符用分号，第一行严格写 item;boxes（小写英文）。每个商品一行，保留商品名，不要 Markdown 表格、代码围栏、引言或解释。这是我导入库存系统时长期需要的格式。"
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "新的库存报告",
+          "project": null,
+          "message": "帮我整理库存：apples 8 箱，pears 5 箱。",
+          "expected_text": "item;boxes\napples;8\npears;5"
+        },
+        {
+          "owner": "b",
+          "session": "foreign-preference-check",
+          "project": null,
+          "message": "我以前要求库存报告使用什么分隔符？请查保存的偏好，只输出 JSON 对象，字段名 inventory_delimiter，不知道就填 null。",
+          "expected": {
+            "inventory_delimiter": null
+          }
+        },
+        {
+          "owner": "a",
+          "session": "after-forgetting-feedback",
+          "project": null,
+          "forget_reflection_before": true,
+          "message": "我以前要求库存报告使用什么分隔符？请查保存的偏好，只输出 JSON 对象，字段名 inventory_delimiter，不知道就填 null。",
+          "expected": {
+            "inventory_delimiter": null
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -83,11 +83,14 @@ async def test_local_two_turn_todo_memory_workflow(monkeypatch):
                 "scope": "project",
                 "project_id": "project-1",
                 "source": "manual",
-                "score": 0.4,
+                "score": 0.95,
             },
         ]
     )
     assert ranked[0]["memory_id"] == "project"
+    # Project metadata breaks relevance ties; it must not promote a weaker match.
+    weaker_project = dict(ranked[0], score=0.4)
+    assert prioritize_sources([weaker_project, ranked[1]])[0]["memory_id"] == "user"
 
 
 class _TodoScriptModel(BaseChatModel):
