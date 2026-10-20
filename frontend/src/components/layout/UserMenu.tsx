@@ -75,11 +75,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 640);
-      setShowMenu(false);
+      // 归还焦点由本组件负责：ResourceCardMenu 带 anchorRef 后不再因 resize 关闭
+      if (showMenu) closeMenu(true);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [showMenu, closeMenu]);
 
   useEffect(() => {
     if (showMenu) {
@@ -280,6 +281,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
             actions={actions}
             position={menuPosition}
             onClose={closeMenu}
+            anchorRef={buttonRef}
           />
         ))}
     </div>

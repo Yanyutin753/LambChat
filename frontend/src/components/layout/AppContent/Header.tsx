@@ -299,6 +299,7 @@ export function Header({
             position={menu.position}
             onClose={closeMenu}
             actions={menu.mode === "language" ? languageActions : mainActions}
+            anchorRef={mobileMenuBtnRef}
             initialFocusIndex={
               menu.returningFromLanguage ? mainActions.length - 1 : 0
             }

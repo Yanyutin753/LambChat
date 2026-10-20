@@ -56,6 +56,7 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
           title={t("common.help")}
           position={position}
           onClose={closeMenu}
+          anchorRef={triggerRef}
           actions={[
             {
               label: t("chat.helpDocs"),
