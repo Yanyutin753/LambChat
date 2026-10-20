@@ -272,7 +272,7 @@ export function MCPServerForm({
           disabled={isEditing}
           placeholder={t("mcp.form.serverNamePlaceholder")}
           error={Boolean(errors.name)}
-          className={`es-input transition-colors ${
+          className={`es-input placeholder:opacity-60 transition-colors ${
             errors.name ? "!border-red-300 dark:!border-red-700" : ""
           }`}
         />
@@ -368,7 +368,7 @@ export function MCPServerForm({
                             updateRoleQuota(role, "daily_limit", e.target.value)
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="es-input px-3 tabular-nums"
+                          className="es-input placeholder:opacity-60 px-3 tabular-nums"
                         />
                       </div>
                       <div className="es-field">
@@ -388,7 +388,7 @@ export function MCPServerForm({
                             )
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="es-input px-3 tabular-nums"
+                          className="es-input placeholder:opacity-60 px-3 tabular-nums"
                         />
                       </div>
                     </div>
@@ -421,7 +421,7 @@ export function MCPServerForm({
             onChange={(e) => setUrl(e.target.value)}
             placeholder={t("mcp.form.urlPlaceholder")}
             error={Boolean(errors.url)}
-            className={`es-input font-mono transition-colors ${
+            className={`es-input placeholder:opacity-60 font-mono transition-colors ${
               errors.url ? "!border-red-300 dark:!border-red-700" : ""
             }`}
           />
@@ -458,7 +458,7 @@ export function MCPServerForm({
                     updateHeader(header.id, "key", e.target.value)
                   }
                   placeholder={t("mcp.form.headerNamePlaceholder")}
-                  className="es-input font-mono"
+                  className="es-input placeholder:opacity-60 font-mono"
                 />
                 <Input
                   aria-label={t("mcp.form.valuePlaceholder")}
@@ -468,7 +468,7 @@ export function MCPServerForm({
                     updateHeader(header.id, "value", e.target.value)
                   }
                   placeholder={t("mcp.form.valuePlaceholder")}
-                  className="es-input font-mono"
+                  className="es-input placeholder:opacity-60 font-mono"
                 />
                 <IconButton
                   aria-label={t("common.delete")}
