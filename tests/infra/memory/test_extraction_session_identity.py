@@ -29,7 +29,10 @@ async def test_candidates_normalize_mongo_ids_and_preserve_custom_ids_without_mu
         async def to_list(self, **kwargs):
             return documents
 
-    database = {settings.MONGODB_SESSIONS_COLLECTION: SimpleNamespace(find=lambda *args: Cursor())}
+    async def aggregate(_pipeline):
+        return Cursor()
+
+    database = {settings.MONGODB_SESSIONS_COLLECTION: SimpleNamespace(aggregate=aggregate)}
     found = await extraction.find_candidate_sessions(database, "owner", limit=3)
 
     assert [item["session_id"] for item in found] == [str(normal_id), "custom"]

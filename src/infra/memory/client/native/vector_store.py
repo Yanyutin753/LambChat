@@ -145,12 +145,27 @@ class QdrantVectorIndex:
             return False
 
     async def delete(self, *, memory_id: str, user_id: str) -> bool:
-        """point id 即 memory_id（UUID hex），按 id 删除；user_id 仅作日志校验位。"""
+        """Delete only the owner's point, including when a memory ID is reused."""
+        from qdrant_client.models import (
+            FieldCondition,
+            Filter,
+            FilterSelector,
+            HasIdCondition,
+            MatchValue,
+        )
+
         try:
             await self._ensure_ready()
             await self._client.delete(
                 collection_name=COLLECTION,
-                points_selector=[uuid.UUID(hex=memory_id)],
+                points_selector=FilterSelector(
+                    filter=Filter(
+                        must=[
+                            HasIdCondition(has_id=[str(uuid.UUID(hex=memory_id))]),
+                            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+                        ]
+                    )
+                ),
                 wait=True,
             )
             return True
@@ -166,23 +181,39 @@ class QdrantVectorIndex:
         limit: int,
         memory_types: Optional[list[str]] = None,
         context_values: Optional[list[str]] = None,
+        memory_ids: Optional[list[str]] = None,
     ) -> Optional[list[VectorHit]]:
-        from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+        from qdrant_client.models import (
+            Condition,
+            FieldCondition,
+            Filter,
+            HasIdCondition,
+            MatchAny,
+            MatchValue,
+            SearchParams,
+        )
 
-        must = [FieldCondition(key="user_id", match=MatchValue(value=user_id))]
-        if memory_types:
+        must: list[Condition] = [FieldCondition(key="user_id", match=MatchValue(value=user_id))]
+        if memory_ids == []:
+            return []
+        if memory_ids is None and memory_types:
             must.append(FieldCondition(key="memory_type", match=MatchAny(any=memory_types)))
-        if context_values:
+        if memory_ids is None and context_values:
             # context 家族已在 Mongo 解析为具体值列表（'project' → project/
             # project_status/...），MatchAny 下推
             must.append(FieldCondition(key="context", match=MatchAny(any=context_values)))
         try:
+            if memory_ids is not None:
+                # Mongo already checked scope/type/context; old payload values may be stale.
+                must.append(HasIdCondition(has_id=[str(uuid.UUID(hex=mid)) for mid in memory_ids]))
             if not await self._client.collection_exists(COLLECTION):
                 return []
             result = await self._client.query_points(
                 collection_name=COLLECTION,
                 query=vector,
                 query_filter=Filter(must=must),
+                # Filtered HNSW can miss isolated matches; score the authorized set exactly.
+                search_params=SearchParams(exact=True) if memory_ids is not None else None,
                 limit=limit,
                 with_payload=False,
             )
@@ -219,6 +250,10 @@ _RELEASE_LOCK_LUA = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
+_COMPLETE_BACKFILL_LUA = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "return redis.call('set', KEYS[2], '1') else return 0 end"
+)
 _backfill_task: Optional[asyncio.Task] = None
 
 
@@ -251,7 +286,13 @@ async def _run_backfill_once(*, force: bool = False) -> None:
             if collection is None:
                 return
             result = await backfill_from_mongo(collection)
-            await rc.set(_BACKFILL_DONE_KEY, "1")  # type: ignore[misc]
+            if result.get("skipped"):
+                return
+            # An expired worker must not certify a replacement worker's index.
+            if not await rc.eval(  # type: ignore[misc]
+                _COMPLETE_BACKFILL_LUA, 2, _BACKFILL_LOCK_KEY, _BACKFILL_DONE_KEY, token
+            ):
+                return
             logger.info("[MemoryVector] auto backfill completed: %s", result)
         finally:
             await rc.eval(_RELEASE_LOCK_LUA, 1, _BACKFILL_LOCK_KEY, token)  # type: ignore[misc]
@@ -321,8 +362,11 @@ async def index_write_through(
     project_id: Optional[str] = None,
 ) -> bool:
     idx = await get_vector_index()
-    if idx is None or not embedding:
+    if idx is None:
         return False
+    if not embedding:
+        # The Mongo body changed; an old vector must not represent its replacement.
+        return await idx.delete(memory_id=memory_id, user_id=user_id)
     return await idx.upsert(
         memory_id=memory_id,
         user_id=user_id,
@@ -349,6 +393,7 @@ async def index_search(
     limit: int,
     memory_types: Optional[list[str]] = None,
     context_values: Optional[list[str]] = None,
+    memory_ids: Optional[list[str]] = None,
 ) -> Optional[list[VectorHit]]:
     """None = 未启用/故障 → 调用方走既有 $vectorSearch/余弦链路；list = 权威结果。"""
     idx = await get_vector_index()
@@ -360,6 +405,7 @@ async def index_search(
         limit=limit,
         memory_types=memory_types,
         context_values=context_values,
+        memory_ids=memory_ids,
     )
 
 

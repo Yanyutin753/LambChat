@@ -15,7 +15,11 @@ from src.infra.memory.compaction_agent import (
 
 @pytest.fixture(autouse=True)
 def _redis_cooldown_clear(monkeypatch):
+    from unittest.mock import AsyncMock
+
     from src.infra.memory import compaction_agent as compaction_module
+
+    monkeypatch.setattr(compaction_module, "renew_consolidation_lock", AsyncMock(return_value=True))
 
     async def fake_get_cooldown_state(_user_id: str) -> str:
         return "clear"
@@ -75,6 +79,9 @@ class _Collection:
                 return doc
         return None
 
+    async def bulk_write(self, operations):
+        pass
+
     async def aggregate(self, pipeline):
         self.aggregate_pipelines.append(pipeline)
         return _CountCursor(
@@ -125,6 +132,62 @@ async def _wait_for_after_write_tasks(agent: MemoryCompactionAgent) -> None:
             return
         await asyncio.gather(*tasks, return_exceptions=True)
         await asyncio.sleep(0.01)
+
+
+async def test_compactor_cannot_rewrite_or_delete_memory_with_unseen_tail(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory import compaction_agent as compaction_module
+
+    monkeypatch.setattr(
+        compaction_module.settings, "NATIVE_MEMORY_COMPACTION_CONTENT_MAX_CHARS", 100
+    )
+    monkeypatch.setattr(
+        compaction_module, "acquire_consolidation_lock", AsyncMock(return_value="acquired")
+    )
+    monkeypatch.setattr(compaction_module, "release_consolidation_lock", AsyncMock())
+    docs = [
+        {
+            "memory_id": f"m{index}",
+            "user_id": "u1",
+            "source": "auto_retained",
+            "content": ("Shipping terms, handling constraints, and supplier commitments. " * 8)
+            + "The warranty lasts 37 months.",
+            "content_storage_mode": "inline",
+            "scope": "user",
+        }
+        for index in range(3)
+    ]
+    backend = _Backend({"u1": 3}, docs=docs)
+    backend.retain = AsyncMock(return_value={"success": True})
+    backend.delete = AsyncMock(return_value={"success": True})
+    results = []
+
+    def graph(**kwargs):
+        tools = {tool.name: tool for tool in kwargs["tools"]}
+
+        class Graph:
+            async def ainvoke(self, payload, config):
+                results.append(
+                    await tools["memory_compaction_update"].ainvoke(
+                        {"memory_id": "m0", "content": "Shipping terms are confirmed."}
+                    )
+                )
+                results.append(await tools["memory_compaction_delete"].ainvoke({"memory_id": "m1"}))
+                return {"messages": []}
+
+        return Graph()
+
+    monkeypatch.setattr(compaction_module, "create_deep_agent", graph)
+    agent = MemoryCompactionAgent()
+    agent._get_compaction_model = AsyncMock(return_value="fake-model")
+
+    await agent.compact_user_memories(backend, "u1")
+
+    assert len(results) == 2
+    assert all(result.get("success") is False for result in results)
+    backend.retain.assert_not_awaited()
+    backend.delete.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -546,6 +609,44 @@ async def test_build_inventory_hydrates_stored_memory_content():
     assert inventory[0]["content"] == "Full stored memory text for compaction."
 
 
+async def test_inventory_reads_stored_bodies_in_one_bounded_batch():
+    class Store:
+        def __init__(self):
+            self.batches = []
+
+        async def abatch(self, ops):
+            self.batches.append(ops)
+            return [{"text": f"Complete durable fact for {op.key}."} for op in ops]
+
+        async def aget(self, *_args):
+            raise AssertionError("Use the existing batch content helper")
+
+    backend = _Backend(
+        {"u1": 3},
+        docs=[
+            {
+                "memory_id": f"m{index}",
+                "user_id": "u1",
+                "source": "auto_retained",
+                "content": "preview",
+                "content_storage_mode": "store",
+                "content_store_key": f"memory:m{index}",
+            }
+            for index in range(3)
+        ],
+    )
+    backend._store = Store()
+
+    inventory = await MemoryCompactionAgent._build_inventory(backend, "u1")
+
+    assert len(backend._store.batches) == 1
+    assert len(backend._store.batches[0]) == 3
+    assert all(item["text_complete"] is True for item in inventory)
+    assert [item["content"] for item in inventory] == [
+        f"Complete durable fact for memory:m{index}." for index in range(3)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_build_inventory_bounds_stored_memory_content_for_prompt(monkeypatch):
     from src.infra.memory import compaction_agent as compaction_module
@@ -957,7 +1058,7 @@ async def test_deepagent_compactor_returns_error_on_recursion_limit(monkeypatch)
     assert result["agent"] == "deepagent"
     assert result["skipped"] is True
     assert result["reason"] == "recursion_limit"
-    assert result["checked"] == 80
+    assert result["checked"] == 3
     assert events == [("acquire", "u1"), ("release", "u1")]
 
 
@@ -1191,7 +1292,9 @@ async def test_deepagent_compactor_reports_successful_tool_counts(monkeypatch):
                     "context": "compacted",
                 }
             )
-            await self.tools["memory_compaction_delete"].ainvoke({"memory_id": "m2"})
+            await self.tools["memory_compaction_delete"].ainvoke(
+                {"memory_id": "m2", "reason": "non_durable"}
+            )
             return {"messages": []}
 
     async def fake_acquire(user_id: str, instance_id: str) -> str:
@@ -1596,10 +1699,8 @@ async def test_build_inventory_excludes_self_evolved_memories():
 
     await MemoryCompactionAgent._build_inventory(backend, "u1")
 
-    assert backend._collection.find_query == {
-        "user_id": "u1",
-        "source": {"$nin": ["manual", "self_evolved"]},
-    }
+    assert backend._collection.find_query["user_id"] == "u1"
+    assert backend._collection.find_query["source"] == {"$nin": ["manual", "self_evolved"]}
 
 
 @pytest.mark.asyncio
@@ -1625,3 +1726,22 @@ async def test_run_periodic_once_scan_excludes_self_evolved(monkeypatch):
     assert pipelines, "应发出聚合扫描"
     match_stage = pipelines[0][0]["$match"]
     assert match_stage["source"] == {"$nin": ["manual", "self_evolved"]}
+
+
+async def test_minimum_skip_reports_why_without_starting_a_model(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory import compaction_agent as module
+
+    monkeypatch.setattr(module, "acquire_consolidation_lock", AsyncMock(return_value="acquired"))
+    monkeypatch.setattr(module, "release_consolidation_lock", AsyncMock())
+    agent = MemoryCompactionAgent()
+    agent._get_compaction_model = AsyncMock(side_effect=AssertionError("No model below minimum"))
+    result = await agent.compact_user_memories(_Backend({"u1": 2}), "u1")
+    assert result == {
+        "agent": "deepagent",
+        "checked": 2,
+        "skipped": True,
+        "reason": "below_minimum",
+    }
+    agent._get_compaction_model.assert_not_awaited()

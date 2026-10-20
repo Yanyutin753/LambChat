@@ -165,14 +165,17 @@ def start_memory_extraction_agent() -> None:
     start_memory_extraction_agent()
 
 
+def start_memory_cleanup_agent() -> None:
+    from src.infra.memory.cleanup import start_memory_cleanup_agent
+
+    start_memory_cleanup_agent()
+
+
 def start_memory_evolution_scheduler() -> None:
     from src.infra.memory.evolution.scheduler import run_scheduled_evolution
     from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 
-    # 只按记忆总开关决定注册；NATIVE_MEMORY_SELF_EVOLVE_ENABLED 走任务的
-    # enabled lambda 动态读取——settings 热刷新后无需重启即可开/关自进化。
-    if not getattr(settings, "ENABLE_MEMORY", False):
-        return
+    # Register dormant jobs too; feature switches are checked at execution time.
     get_runtime_scheduler().register_job(
         ScheduledJob.from_interval(
             id="memory.evolution",
@@ -268,10 +271,10 @@ async def start_runtime_services() -> None:
         *listeners,
     )
 
-    if settings.ENABLE_MEMORY:
-        start_memory_compaction_agent()
-        start_memory_extraction_agent()
-        start_memory_evolution_scheduler()
+    start_memory_compaction_agent()
+    start_memory_extraction_agent()
+    start_memory_evolution_scheduler()
+    start_memory_cleanup_agent()
 
     register_orphan_recovery_job()
     register_stale_trace_recovery_job()

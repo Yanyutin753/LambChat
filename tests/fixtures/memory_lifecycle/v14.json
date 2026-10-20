@@ -1,0 +1,557 @@
+{
+  "version": 14,
+  "cases": [
+    {
+      "case_id": "en-natural-feedback-equipment-format",
+      "category": "natural_periodic_reflection",
+      "language": "en-zh",
+      "natural_maintenance": "reflection",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "equipment-feedback",
+          "project": null,
+          "agent_id": "quick",
+          "skip_extraction": true,
+          "turns": [
+            "For this reply only, put these equipment totals in a Markdown table: lathe 11 hours, saw 4 hours."
+          ],
+          "feedback": "For every future equipment report I need plain comma-separated CSV with the exact lowercase header asset,hours, followed by one row per asset. Preserve asset names. Do not add a Markdown table, code fence, introduction, or explanation. This is my recurring equipment import format."
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "later-equipment-report",
+          "project": null,
+          "message": "帮我整理设备工时：lathe 6 小时，saw 3 小时。",
+          "expected_text": "asset,hours\nlathe,6\nsaw,3"
+        },
+        {
+          "owner": "b",
+          "session": "equipment-owner-isolation",
+          "project": null,
+          "message": "What separator did I previously require for equipment reports? Look up my saved preferences and return only JSON with equipment_separator; use null if unknown.",
+          "expected": {
+            "equipment_separator": null
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "en-natural-periodic-archive-consolidation",
+      "category": "natural_periodic_compaction",
+      "language": "en-zh",
+      "natural_maintenance": "compaction",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "archive-opening",
+          "project": null,
+          "agent_id": "quick",
+          "skip_extraction": true,
+          "turns": [
+            "I am preparing my recurring operations archive. Please acknowledge in one short sentence; no action is needed now."
+          ]
+        }
+      ],
+      "seed_memories": [
+        {
+          "owner": "a",
+          "source": "manual",
+          "title": "Rowan service agreement",
+          "summary": "Curated supplier Rowan service agreement and warranty.",
+          "content": "Supplier Rowan service reference. This manually curated contract must remain unchanged.\nInspection: photograph the crate condition before unpacking and retain the receiving signature.\nReceiving: match each serial number to the dispatch note before accepting the equipment.\nInstallation: keep the mounting area level and record the initial gauge calibration certificate.\nElectrical checks: use the rated supply shown on the equipment label and record the connection inspection.\nRoutine service: log lubrication, seal inspection, and calibration findings in the maintenance register.\nRepair requests: include the serial number, fault description, observation date, and safe shutdown status.\nReplacement parts: record the original part number and keep the removed part for supplier review.\nReturns: obtain a return reference before shipment and include the service record with the equipment.\nPackaging: use fitted protective supports and keep loose accessories in an identified separate package.\nTransport: retain shipment tracking and the signed receiving record for any return movement.\nDowntime records: distinguish planned inspection from failure-related stoppages in the maintenance log.\nHandover: provide the operator with the inspection record, service instructions, and contact route.\nDocument control: preserve this signed reference and record any future supplier amendment separately.\nCoverage tail: the supplier Rowan warranty duration is 73 months.",
+          "protected": true,
+          "tags": [
+            "Rowan",
+            "warranty"
+          ]
+        },
+        {
+          "owner": "b",
+          "source": "auto_retained",
+          "title": "Separate Rowan warranty",
+          "summary": "This user has an independent Rowan warranty of 11 months.",
+          "content": "For this separate customer, supplier Rowan warranty lasts 11 months.",
+          "protected": true,
+          "tags": [
+            "Rowan",
+            "warranty"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Our standing dispatch schedule sends parcels every Friday.",
+          "content": "Our standing dispatch schedule sends parcels every Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Parcel dispatch is scheduled on Fridays each week.",
+          "content": "Parcel dispatch is scheduled on Fridays each week.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "The recurring parcel shipment day is Friday.",
+          "content": "The recurring parcel shipment day is Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "We dispatch customer parcels each Friday.",
+          "content": "We dispatch customer parcels each Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Weekly outgoing parcels leave on Friday.",
+          "content": "Weekly outgoing parcels leave on Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Friday is our regular dispatch weekday.",
+          "content": "Friday is our regular dispatch weekday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Our parcel dispatch runs every Friday.",
+          "content": "Our parcel dispatch runs every Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Every week, dispatch of parcels happens Friday.",
+          "content": "Every week, dispatch of parcels happens Friday.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "Customer parcels follow the regular Friday dispatch.",
+          "content": "Customer parcels follow the regular Friday dispatch.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Dispatch schedule",
+          "summary": "We keep Friday as our standing parcel shipment day.",
+          "content": "We keep Friday as our standing parcel shipment day.",
+          "tags": [
+            "archive",
+            "dispatch"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "Our gauge calibration cycle is 19 days.",
+          "content": "Our gauge calibration cycle is 19 days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "Gauges must be recalibrated every 19 days.",
+          "content": "Gauges must be recalibrated every 19 days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "The recurring gauge calibration interval is nineteen days.",
+          "content": "The recurring gauge calibration interval is nineteen days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "We use a 19-day schedule to calibrate gauges.",
+          "content": "We use a 19-day schedule to calibrate gauges.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "Recalibrate gauges at intervals of 19 days.",
+          "content": "Recalibrate gauges at intervals of 19 days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "Our gauges follow a nineteen-day calibration cycle.",
+          "content": "Our gauges follow a nineteen-day calibration cycle.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "A gauge needs calibration once every 19 days.",
+          "content": "A gauge needs calibration once every 19 days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "We keep gauge calibration on a 19-day cadence.",
+          "content": "We keep gauge calibration on a 19-day cadence.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "Nineteen days separate regular gauge calibrations.",
+          "content": "Nineteen days separate regular gauge calibrations.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Gauge calibration",
+          "summary": "The established gauge calibration period is 19 days.",
+          "content": "The established gauge calibration period is 19 days.",
+          "tags": [
+            "archive",
+            "calibration"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Our standard sample box contains 12 units.",
+          "content": "Our standard sample box contains 12 units.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "A standard sample box holds twelve units.",
+          "content": "A standard sample box holds twelve units.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "We package 12 units in each standard sample box.",
+          "content": "We package 12 units in each standard sample box.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Standard sample boxes are packed with 12 units each.",
+          "content": "Standard sample boxes are packed with 12 units each.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Our regular sample box size is twelve units.",
+          "content": "Our regular sample box size is twelve units.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Each standard sample box is a 12-unit pack.",
+          "content": "Each standard sample box is a 12-unit pack.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Twelve units make up our standard sample box.",
+          "content": "Twelve units make up our standard sample box.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "Use 12 units as the standard sample box quantity.",
+          "content": "Use 12 units as the standard sample box quantity.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "We keep the standard sample box at 12 units.",
+          "content": "We keep the standard sample box at 12 units.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Sample packaging",
+          "summary": "The usual sample box packing count is twelve.",
+          "content": "The usual sample box packing count is twelve.",
+          "tags": [
+            "archive",
+            "sample"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "Our ledger exports use TSV, UTF-8 encoding, and tab separators.",
+          "content": "Our ledger exports use TSV, UTF-8 encoding, and tab separators.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "Export our ledgers as UTF-8 TSV with tabs between fields.",
+          "content": "Export our ledgers as UTF-8 TSV with tabs between fields.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "The standard ledger export is TSV encoded in UTF-8 using tabs.",
+          "content": "The standard ledger export is TSV encoded in UTF-8 using tabs.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "We use tab-separated UTF-8 TSV files for ledger exports.",
+          "content": "We use tab-separated UTF-8 TSV files for ledger exports.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "Ledger exports should be TSV, with UTF-8 and tab delimiters.",
+          "content": "Ledger exports should be TSV, with UTF-8 and tab delimiters.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "Our usual ledger format is UTF-8 TSV with tab-separated columns.",
+          "content": "Our usual ledger format is UTF-8 TSV with tab-separated columns.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "Keep ledger export files in TSV format with UTF-8 and tabs.",
+          "content": "Keep ledger export files in TSV format with UTF-8 and tabs.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "The recurring ledger export requirement is tab-delimited UTF-8 TSV.",
+          "content": "The recurring ledger export requirement is tab-delimited UTF-8 TSV.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "When exporting ledgers, use UTF-8 encoded TSV and tab separators.",
+          "content": "When exporting ledgers, use UTF-8 encoded TSV and tab separators.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Ledger export",
+          "summary": "We require TSV ledger files, encoded UTF-8, with tab delimiters.",
+          "content": "We require TSV ledger files, encoded UTF-8, with tab delimiters.",
+          "tags": [
+            "archive",
+            "ledger"
+          ]
+        }
+      ],
+      "compact_owner": "a",
+      "max_remaining_auto_memories": 8,
+      "queries": [
+        {
+          "owner": "a",
+          "session": "after-natural-archive-review",
+          "project": null,
+          "message": "请查阅长期记忆，返回严格 JSON：dispatch_day（英文星期）、gauge_days（整数）、sample_units（整数）、ledger_format、ledger_encoding、ledger_separator（一个字符）、rowan_warranty_months（整数）。不知道填 null，不要解释。",
+          "expected": {
+            "dispatch_day": "Friday",
+            "gauge_days": 19,
+            "sample_units": 12,
+            "ledger_format": "TSV",
+            "ledger_encoding": "UTF-8",
+            "ledger_separator": "\t",
+            "rowan_warranty_months": 73
+          }
+        },
+        {
+          "owner": "b",
+          "session": "foreign-archive-check",
+          "project": null,
+          "message": "Look up my saved records. Return only JSON with rowan_warranty_months, dispatch_day, gauge_days, sample_units. Use null for anything unknown.",
+          "expected": {
+            "rowan_warranty_months": 11,
+            "dispatch_day": null,
+            "gauge_days": null,
+            "sample_units": null
+          }
+        }
+      ]
+    }
+  ]
+}

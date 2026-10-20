@@ -542,16 +542,15 @@ async def acreate_store() -> BaseStore | None:
         return _store_instance
 
     async with _get_store_init_lock():
-        if _store_initialized:
+        if _store_initialized and _store_instance is not None:
             return _store_instance
-
-        _store_initialized = True
 
         if settings.ENABLE_POSTGRES_STORAGE:
             try:
                 from src.infra.storage.postgres import create_postgres_store
 
                 _store_instance = await run_long_blocking_io(create_postgres_store)
+                _store_initialized = True
                 logger.info("Store created asynchronously: PostgresStore")
                 return _store_instance
             except Exception as e:
@@ -561,10 +560,12 @@ async def acreate_store() -> BaseStore | None:
 
         try:
             _store_instance = await acreate_mongodb_store()
+            _store_initialized = True
             logger.info("Store created asynchronously: MongoDBStore")
             return _store_instance
         except Exception as e:
             logger.warning(f"MongoDBStore unavailable in async init, no store will be used: {e}")
+            _store_initialized = False
             return None
 
 

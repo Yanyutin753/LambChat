@@ -1,0 +1,46 @@
+{
+  "version": 5,
+  "cases": [
+    {
+      "case_id": "en-feedback-changes-inventory-format",
+      "category": "feedback_reflection_behavior_and_forget",
+      "language": "en",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "inventory-feedback",
+          "project": null,
+          "skip_extraction": true,
+          "turns": [
+            "For this reply only, use a Markdown table to summarize these stock counts: sesame 14 cartons, oat 7 cartons."
+          ],
+          "feedback": "For all future inventory reports, use plain CSV with semicolons and exactly the lowercase header item;cartons. Put one item on each line. No Markdown table, code fence, introduction, or explanation. I need this consistent format for my import workflow."
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "fresh-inventory-report",
+          "project": null,
+          "message": "Prepare my inventory report for rice 18 cartons and lentils 11 cartons.",
+          "expected_text": "item;cartons\nrice;18\nlentils;11"
+        },
+        {
+          "owner": "b",
+          "session": "foreign-preference-check",
+          "project": null,
+          "message": "What delimiter have I asked you to use for my recurring inventory reports? Consult saved preferences. Return only one JSON object with the key inventory_delimiter. Use null if unknown.",
+          "expected": {"inventory_delimiter": null}
+        },
+        {
+          "owner": "a",
+          "session": "after-forgetting-feedback",
+          "project": null,
+          "forget_reflection_before": true,
+          "message": "What delimiter have I asked you to use for my recurring inventory reports? Consult saved preferences. Return only one JSON object with the key inventory_delimiter. Use null if unknown.",
+          "expected": {"inventory_delimiter": null}
+        }
+      ]
+    }
+  ]
+}

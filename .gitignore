@@ -135,6 +135,7 @@ YubbChat/
 !/scripts/verify_sandbox_binary_integrity.py
 !/scripts/generate_updater_manifest.py
 !/scripts/benchmark_memory_scope.py
+!/scripts/benchmark_memory_six_months.py
 !/scripts/site-screenshots/
 !/scripts/site-screenshots/capture_all.py
 !/scripts/site-screenshots/make_auth.py

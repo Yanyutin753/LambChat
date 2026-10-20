@@ -64,6 +64,41 @@ async def test_acreate_store_initializes_singleton_once_under_concurrency(
     assert first is second
 
 
+async def test_acreate_store_retries_a_failed_initialization_after_recovery(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(store_module.settings, "ENABLE_POSTGRES_STORAGE", False)
+    recovered = object()
+    create = AsyncMock(side_effect=[OSError("store temporarily unavailable"), recovered])
+    monkeypatch.setattr(store_module, "acreate_mongodb_store", create)
+    assert await store_module.acreate_store() is None
+    assert await store_module.acreate_store() is recovered
+    assert create.await_count == 2
+
+
+async def test_cancelled_store_initialization_does_not_cache_unavailable_forever(monkeypatch):
+    monkeypatch.setattr(store_module.settings, "ENABLE_POSTGRES_STORAGE", False)
+    entered = asyncio.Event()
+    ready = object()
+    calls = 0
+
+    async def create():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            entered.set()
+            await asyncio.Future()
+        return ready
+
+    monkeypatch.setattr(store_module, "acreate_mongodb_store", create)
+    pending = asyncio.create_task(store_module.acreate_store())
+    await entered.wait()
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    assert await store_module.acreate_store() is ready
+
+
 @pytest.mark.asyncio
 async def test_close_store_releases_singleton_and_calls_backend_close() -> None:
     class _ClosableStore:

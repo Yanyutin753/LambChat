@@ -8,7 +8,7 @@ Currently only the native MongoDB-backed backend is supported.
 import asyncio
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Awaitable, Callable, Optional, Sequence
 
 from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
@@ -136,6 +136,10 @@ class MemoryBackend(ABC):
         source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
         scope: Optional[str] = None,
         project_id: Optional[str] = None,
+        expected_revision: Optional[dict[str, Any]] = None,
+        source: Optional[str] = None,
+        write_guard: Optional[Callable[[], Awaitable[bool]]] = None,
+        origin_session_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...
@@ -161,6 +165,9 @@ class MemoryBackend(ABC):
         self,
         user_id: str,
         memory_id: str,
+        *,
+        expected_revision: Optional[dict[str, Any]] = None,
+        write_guard: Optional[Callable[[], Awaitable[bool]]] = None,
     ) -> dict[str, Any]:
         """Delete a memory by ID."""
         ...

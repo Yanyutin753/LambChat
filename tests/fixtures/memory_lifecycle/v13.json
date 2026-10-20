@@ -1,0 +1,55 @@
+{
+  "version": 13,
+  "description": "Fresh heldout queries using meaningful project names matching stored facts. Prior ambiguous035 remains an original failure; no retrospective regrading or replay.",
+  "cases": [
+    {
+      "case_id": "named-project-real-vector-agent-heldout",
+      "category": "large_real_vector_named_project_context",
+      "vector_seed": true,
+      "sources": [],
+      "project_names": {
+        "alpha": "青岚",
+        "beta": "Zephyr",
+        "gamma": "Sable"
+      },
+      "queries": [
+        {
+          "owner": "a",
+          "project": "beta",
+          "session": "current-beta",
+          "message": "What backup-log retention period was approved for the project this conversation belongs to? Look up my saved decision. Return only JSON with retention_days as an integer, or null when it was never decided.",
+          "expected": {
+            "retention_days": 90
+          }
+        },
+        {
+          "owner": "a",
+          "project": "alpha",
+          "session": "current-alpha",
+          "message": "지금 대화가 속한 프로젝트에서 백업 로그를 삭제하기 전 며칠 동안 보관하기로 했나요? 저장된 결정을 확인하고 retention_days 키 하나를 가진 JSON만 답하세요. 기록이 없으면 null.",
+          "expected": {
+            "retention_days": 45
+          }
+        },
+        {
+          "owner": "a",
+          "project": "gamma",
+          "session": "unknown-current-project",
+          "message": "この会話が属するプロジェクトで承認済みのバックアップログ保存日数を調べてください。他のプロジェクトの数字は使わず、JSONのみ、キーretention_days、未決定ならnull。",
+          "expected": {
+            "retention_days": null
+          }
+        },
+        {
+          "owner": "b",
+          "project": null,
+          "session": "empty-owner",
+          "message": "Какую температуру обжига моей керамической печи я ранее сохранил? Проверь мою память и ответь только JSON: kiln_celsius — целое число или null, если я этого не сообщал.",
+          "expected": {
+            "kiln_celsius": null
+          }
+        }
+      ]
+    }
+  ]
+}

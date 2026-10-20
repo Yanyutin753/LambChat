@@ -79,6 +79,7 @@ async def test_extraction_model_denial_is_not_converted_to_retryable_failure(mon
     monkeypatch.setattr(
         extraction, "load_session_transcript", AsyncMock(return_value=[{"run_id": "run"}])
     )
+    monkeypatch.setattr(extraction, "source_watermark", AsyncMock(return_value=None))
     monkeypatch.setattr(extraction_gate, "evaluate_extraction_gate", AsyncMock(return_value=None))
     monkeypatch.setattr(extraction, "render_stage_one_input", lambda *args: "history")
     monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(side_effect=denied))
@@ -135,6 +136,10 @@ async def test_reflection_model_quota_is_not_reported_as_skipped_success(monkeyp
     from src.infra.memory.evolution import reflector
 
     monkeypatch.setattr(reflector, "_load_exchange", AsyncMock(return_value=("question", "answer")))
+    monkeypatch.setattr(
+        reflector, "_reflection_source", AsyncMock(return_value=(None, "session", None))
+    )
+    monkeypatch.setattr(reflector, "source_watermark", AsyncMock(return_value=None))
     backend = SimpleNamespace(_get_memory_model=AsyncMock(side_effect=denied))
     signal = reflector.SignalRun(run_id="run", session_id="session", kind="failed")
     with pytest.raises(AppError) as error:

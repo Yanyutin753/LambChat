@@ -2,6 +2,7 @@
 Memory API router - list and manage stored memories
 """
 
+import asyncio
 import json
 import re
 import uuid
@@ -15,6 +16,7 @@ from pymongo import ReturnDocument
 from src.api.deps import get_current_user_required
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
+from src.infra.memory.cleanup import vector_pending_fields
 from src.infra.memory.client.types import MemoryType
 from src.infra.session.conversation_history import ConversationHistoryService
 from src.infra.session.conversation_history_index import merge_source_refs
@@ -34,6 +36,7 @@ _DEFAULT_MEMORY_IMPORT_CONTENT_MAX_CHARS = 64_000
 _DEFAULT_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS = 2_000_000
 _DEFAULT_MEMORY_EXPORT_CONTENT_MAX_CHARS = 64_000
 _SOURCE_REF_BATCH_SIZE = 50
+_MAX_IMPORT_ORIGIN_SESSIONS = 50_000
 
 
 async def _get_backend():
@@ -41,6 +44,24 @@ async def _get_backend():
     from src.infra.memory.tools import _get_backend
 
     return await _get_backend()
+
+
+async def _write_vector_index(
+    backend: Any, user_id: str, memory_id: str, doc: dict[str, Any]
+) -> None:
+    from src.infra.memory.cleanup import write_memory_vector
+
+    await write_memory_vector(
+        backend,
+        user_id=user_id,
+        memory_id=memory_id,
+        embedding=doc.get("embedding"),
+        memory_type=doc.get("memory_type") or MemoryType.USER.value,
+        context=doc.get("context"),
+        updated_at_ts=int(doc["updated_at"].timestamp()),
+        scope=doc.get("scope") or "user",
+        project_id=doc.get("project_id"),
+    )
 
 
 def _clean_tags(value: Any) -> list[str]:
@@ -111,6 +132,11 @@ def _validate_memory_import_total_content_size(raw_memories: list[Any]) -> None:
     for raw in raw_memories:
         if not isinstance(raw, dict):
             continue
+        if raw.get("content_truncated") is True:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                message="Truncated memory content cannot be imported as a complete memory.",
+            )
         total_chars += len(str(raw.get("content") or "").strip())
         if total_chars > max_chars:
             raise AppError(ErrorCode.MEMORY_IMPORT_TOO_LARGE, args={"max": max_chars})
@@ -134,6 +160,9 @@ def _memory_projection() -> dict[str, int]:
         "accessed_at": 1,
         "access_count": 1,
         "source_refs": 1,
+        "origin_session_ids": 1,
+        "scope": 1,
+        "project_id": 1,
     }
 
 
@@ -311,6 +340,7 @@ async def create_memory(
     """Create a new memory."""
     from src.infra.memory.client.native.content import build_content_fields
     from src.infra.memory.client.native.summaries import build_index_label
+    from src.infra.memory.staging import insert_content_memory
 
     backend = await _get_backend()
     if not backend:
@@ -342,6 +372,7 @@ async def create_memory(
     doc = {
         "memory_id": memory_id,
         "user_id": user.sub,
+        "revision_id": uuid.uuid4().hex,
         "title": title,
         "summary": summary,
         "index_label": build_index_label(title, summary, content),
@@ -358,9 +389,13 @@ async def create_memory(
         **content_fields,
     }
 
-    await backend._collection.insert_one(doc)
-    if hasattr(backend, "_invalidate_cache"):
-        await backend._invalidate_cache(user.sub)
+    doc.update(vector_pending_fields(doc["revision_id"]))
+    try:
+        await insert_content_memory(backend, doc)
+        await _write_vector_index(backend, user.sub, memory_id, doc)
+    finally:
+        if hasattr(backend, "_invalidate_cache"):
+            await backend._invalidate_cache(user.sub)
 
     return {
         "success": True,
@@ -394,6 +429,15 @@ async def update_memory(
     existing = await backend._collection.find_one(
         {"user_id": user.sub, "memory_id": memory_id},
         {
+            "title": 1,
+            "summary": 1,
+            "content": 1,
+            "index_label": 1,
+            "embedding": 1,
+            "memory_type": 1,
+            "context": 1,
+            "scope": 1,
+            "project_id": 1,
             "content_storage_mode": 1,
             "content_store_key": 1,
             "source_refs": 1,
@@ -402,7 +446,7 @@ async def update_memory(
     if not existing:
         raise AppError(ErrorCode.MEMORY_NOT_FOUND)
 
-    update: dict[str, Any] = {"updated_at": utc_now()}
+    update: dict[str, Any] = {"updated_at": utc_now(), "revision_id": uuid.uuid4().hex}
 
     if "title" in payload:
         update["title"] = _clean_text(payload["title"], 80)
@@ -435,16 +479,18 @@ async def update_memory(
             raise AppError(ErrorCode.MEMORY_CONTENT_TOO_SHORT)
         _validate_memory_content_size(content)
 
-        content_fields = await build_content_fields(backend, user.sub, memory_id, content)
-        update["content"] = content_fields.get("content", content)
-        update["content_storage_mode"] = content_fields["content_storage_mode"]
-        if "content_store_key" in content_fields:
-            update["content_store_key"] = content_fields["content_store_key"]
+        content_fields = await build_content_fields(
+            backend,
+            user.sub,
+            memory_id,
+            content,
+            store_key=f"memory:{memory_id}:{uuid.uuid4().hex}",
+        )
+        update.update(content_fields)
 
-        if hasattr(backend, "_maybe_embed"):
-            embedding = await backend._maybe_embed(content)
-            if embedding is not None:
-                update["embedding"] = embedding
+        update["embedding"] = (
+            await backend._maybe_embed(content) if hasattr(backend, "_maybe_embed") else None
+        )
 
     if "summary" in payload:
         update["summary"] = _clean_text(payload["summary"], 300)
@@ -454,24 +500,39 @@ async def update_memory(
     title = update.get("title") or existing.get("title", "")
     summary = update.get("summary") or existing.get("summary", "")
     full_content = content if content is not None else existing.get("content", "")
-    update["index_label"] = build_index_label(title, summary, full_content)
+    if any(field in payload for field in ("title", "summary", "content")):
+        update["index_label"] = build_index_label(title, summary, full_content)
 
-    await backend._collection.update_one(
-        {"user_id": user.sub, "memory_id": memory_id},
-        {"$set": update},
-    )
+    from src.infra.memory.cleanup import content_update
+    from src.infra.memory.staging import content_commit_query
 
-    old_key = (
-        existing.get("content_store_key")
-        if existing.get("content_storage_mode") == "store"
-        else None
-    )
-    new_key = update.get("content_store_key")
-    if old_key and new_key and old_key != new_key:
-        await delete_memory_content(backend, user.sub, old_key)
-
-    if hasattr(backend, "_invalidate_cache"):
-        await backend._invalidate_cache(user.sub)
+    update.update(vector_pending_fields(update["revision_id"]))
+    try:
+        write_result = await backend._collection.update_one(
+            {**content_commit_query(user.sub, memory_id, update), "user_id": user.sub},
+            content_update(user.sub, update) if content is not None else {"$set": update},
+        )
+    except (Exception, asyncio.CancelledError):
+        if hasattr(backend, "_invalidate_cache"):
+            await backend._invalidate_cache(user.sub)
+        raise
+    if not int(getattr(write_result, "matched_count", 1) or 0):
+        if content is not None:
+            await delete_memory_content(backend, user.sub, update.get("content_store_key"))
+        raise AppError(ErrorCode.MEMORY_NOT_FOUND)
+    try:
+        await _write_vector_index(backend, user.sub, memory_id, {**existing, **update})
+        old_key = (
+            existing.get("content_store_key")
+            if existing.get("content_storage_mode") == "store"
+            else None
+        )
+        new_key = update.get("content_store_key")
+        if content is not None and old_key and old_key != new_key:
+            await delete_memory_content(backend, user.sub, old_key)
+    finally:
+        if hasattr(backend, "_invalidate_cache"):
+            await backend._invalidate_cache(user.sub)
 
     return {"success": True, "memory_id": memory_id}
 
@@ -523,6 +584,9 @@ async def export_memories(
                     "accessed_at": to_iso(doc.get("accessed_at")),
                     "access_count": doc.get("access_count", 0),
                     "source_refs": source_refs,
+                    "origin_session_ids": doc.get("origin_session_ids") or [],
+                    "scope": doc.get("scope") or "user",
+                    "project_id": doc.get("project_id") if doc.get("scope") == "project" else None,
                 }
                 if content_truncated:
                     item["content_truncated"] = True
@@ -547,10 +611,21 @@ async def export_memories(
 async def import_memories(
     payload: dict[str, Any] = Body(...),
     user: TokenPayload = Depends(get_current_user_required),
+    validate_only: bool = False,
 ):
     """Import memories for the current user, overwriting matching memory IDs."""
-    from src.infra.memory.client.native.content import build_content_fields, delete_memory_content
+    from src.infra.memory.cleanup import replacement_cleanup_expression
+    from src.infra.memory.client.native.content import (
+        build_content_fields,
+        delete_memory_content,
+        hydrate_memory_text_status,
+    )
     from src.infra.memory.client.native.summaries import build_index_label
+    from src.infra.memory.staging import (
+        content_commit_query,
+        owned_content_query,
+        remaining_content_stages,
+    )
 
     backend = await _get_backend()
     if not backend:
@@ -563,18 +638,37 @@ async def import_memories(
         raise AppError(ErrorCode.MEMORY_IMPORT_LIMIT)
     _validate_memory_import_total_content_size(raw_memories)
 
-    created = 0
-    overwritten = 0
-    now = utc_now()
-    validated_sources = await _validated_source_ref_docs_batch(
-        user.sub,
-        [raw.get("source_refs") if isinstance(raw, dict) else None for raw in raw_memories],
-    )
+    from src.infra.folder.storage import get_project_storage
+    from src.infra.memory.scope import ScopeResolutionError, resolve_retain_scope
 
-    for raw, source_refs in zip(raw_memories, validated_sources, strict=True):
+    prepared: list[dict[str, Any]] = []
+    now = utc_now()
+    authorized_projects: set[str] = set()
+    origin_count = 0
+    for raw in raw_memories:
         if not isinstance(raw, dict):
             raise AppError(ErrorCode.MEMORY_MUST_BE_OBJECT)
-
+        origins = raw.get("origin_session_ids", [])
+        if not isinstance(origins, list) or any(
+            not isinstance(sid, str) or not sid.strip() or len(sid) > 1024 for sid in origins
+        ):
+            raise AppError(ErrorCode.VALIDATION_ERROR, message="Invalid memory source sessions.")
+        origin_count += len(origins)
+        if origin_count > _MAX_IMPORT_ORIGIN_SESSIONS:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR, message="Too many memory source sessions in one batch."
+            )
+        try:
+            scope, project_id = resolve_retain_scope(
+                scope=raw.get("scope"),
+                project_id=_clean_text(raw.get("project_id")) or None,
+            )
+        except ScopeResolutionError as exc:
+            raise AppError(ErrorCode.VALIDATION_ERROR, message=str(exc)) from exc
+        if scope == "project" and project_id and project_id not in authorized_projects:
+            if not await get_project_storage().get_by_id(project_id, user.sub):
+                raise AppError(ErrorCode.PROJECT_NOT_FOUND)
+            authorized_projects.add(project_id)
         memory_type = _clean_text(raw.get("memory_type") or MemoryType.USER.value)
         if memory_type not in _VALID_MEMORY_TYPES:
             raise AppError(
@@ -592,35 +686,34 @@ async def import_memories(
         summary = _clean_text(raw.get("summary") or content, 300)
         tags = _clean_tags(raw.get("tags"))
 
-        content_fields = await build_content_fields(backend, user.sub, memory_id, content)
-        embedding = None
-        if hasattr(backend, "_maybe_embed"):
-            embedding = await backend._maybe_embed(content)
-
-        created_at = (
-            parse_iso(raw["created_at"])
-            if isinstance(raw.get("created_at"), str) and raw["created_at"].strip()
-            else now
-        )
-        updated_at = (
-            parse_iso(raw["updated_at"])
-            if isinstance(raw.get("updated_at"), str) and raw["updated_at"].strip()
-            else now
-        )
-        accessed_at = (
-            parse_iso(raw["accessed_at"])
-            if isinstance(raw.get("accessed_at"), str) and raw["accessed_at"].strip()
-            else updated_at
-        )
+        try:
+            created_at = (
+                parse_iso(raw["created_at"])
+                if isinstance(raw.get("created_at"), str) and raw["created_at"].strip()
+                else now
+            )
+            updated_at = (
+                parse_iso(raw["updated_at"])
+                if isinstance(raw.get("updated_at"), str) and raw["updated_at"].strip()
+                else now
+            )
+            accessed_at = (
+                parse_iso(raw["accessed_at"])
+                if isinstance(raw.get("accessed_at"), str) and raw["accessed_at"].strip()
+                else updated_at
+            )
+        except (ValueError, TypeError) as exc:
+            raise AppError(ErrorCode.VALIDATION_ERROR, message="Invalid memory timestamp.") from exc
 
         try:
             access_count = max(0, int(raw.get("access_count") or 0))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             access_count = 0
 
-        doc = {
+        doc: dict[str, Any] = {
             "memory_id": memory_id,
             "user_id": user.sub,
+            "revision_id": uuid.uuid4().hex,
             "title": title,
             "summary": summary,
             "index_label": build_index_label(title, summary, content),
@@ -628,41 +721,144 @@ async def import_memories(
             "context": _clean_text(raw.get("context")),
             "tags": tags,
             "source": _clean_text(raw.get("source") or "imported"),
-            "embedding": embedding,
             "created_at": created_at,
             "updated_at": updated_at,
             "accessed_at": accessed_at,
             "access_count": access_count,
-            "source_refs": source_refs,
-            **content_fields,
+            "scope": scope,
+            "project_id": project_id,
+            "content": content,
+            "origin_session_ids": list(dict.fromkeys(origins)),
         }
 
-        existing_doc = await backend._collection.find_one_and_replace(
-            {"user_id": user.sub, "memory_id": memory_id},
-            doc,
-            upsert=True,
-            return_document=ReturnDocument.BEFORE,
-            projection={"content_storage_mode": 1, "content_store_key": 1},
-        )
-        if existing_doc is not None:
-            overwritten += 1
-        else:
-            created += 1
+        prepared.append(doc)
 
-        old_key = existing_doc.get("content_store_key") if existing_doc else None
-        new_key = content_fields.get("content_store_key")
-        if (
-            existing_doc
-            and existing_doc.get("content_storage_mode") == "store"
-            and old_key
-            and old_key != new_key
+    if validate_only:
+        return {
+            "success": True,
+            "validated": len(prepared),
+            "limits": {
+                "max_records": 1000,
+                "max_origin_sessions": _MAX_IMPORT_ORIGIN_SESSIONS,
+                "max_content_chars": _get_memory_import_content_max_chars(),
+                "max_total_content_chars": _get_memory_import_total_content_max_chars(),
+            },
+        }
+
+    created = 0
+    overwritten = 0
+    validated_sources = await _validated_source_ref_docs_batch(
+        user.sub,
+        [raw.get("source_refs") for raw in raw_memories],
+    )
+    supplied_ids = list(dict.fromkeys(_clean_text(raw.get("memory_id")) for raw in raw_memories))
+    supplied_ids = [memory_id for memory_id in supplied_ids if memory_id]
+    previous_by_id = {}
+    if supplied_ids:
+        async for previous in backend._collection.find(
+            {"user_id": user.sub, "memory_id": {"$in": supplied_ids}},
+            {
+                "memory_id": 1,
+                "user_id": 1,
+                "content": 1,
+                "content_storage_mode": 1,
+                "content_store_key": 1,
+                "embedding": 1,
+            },
         ):
-            await delete_memory_content(backend, user.sub, old_key)
+            previous_by_id[previous["memory_id"]] = previous
+    write_attempted = False
+    try:
+        for doc, source_refs in zip(prepared, validated_sources, strict=True):
+            memory_id = doc["memory_id"]
+            content = doc["content"]
+            content_fields = await build_content_fields(
+                backend,
+                user.sub,
+                memory_id,
+                content,
+                store_key=f"memory:{memory_id}:{uuid.uuid4().hex}",
+            )
+            doc.update(content_fields)
+            doc["source_refs"] = source_refs
+            previous = previous_by_id.get(memory_id)
+            embedding = previous.get("embedding") if previous else None
+            previous_text, complete = (
+                await hydrate_memory_text_status(backend, previous)
+                if previous and isinstance(embedding, list) and embedding
+                else ("", False)
+            )
+            doc["embedding"] = (
+                embedding
+                if complete and previous_text == content
+                else (
+                    await backend._maybe_embed(content)
+                    if hasattr(backend, "_maybe_embed")
+                    else None
+                )
+            )
+            doc.update(vector_pending_fields(doc["revision_id"]))
+            write_attempted = True
+            staged = "_content_stage" in content_fields
+            query = content_commit_query(user.sub, memory_id, content_fields)
+            if not staged and getattr(backend._collection, "database", None) is not None:
+                query = owned_content_query(user.sub, memory_id)
+            existing_doc = await backend._collection.find_one_and_update(
+                query,
+                [
+                    {
+                        "$replaceWith": {
+                            "$mergeObjects": [
+                                {
+                                    "$literal": {
+                                        key: value
+                                        for key, value in doc.items()
+                                        if key != "_content_stage"
+                                    }
+                                },
+                                {
+                                    "_id": "$_id",
+                                    "_content_stages": remaining_content_stages(content_fields),
+                                    "_content_cleanup": replacement_cleanup_expression(
+                                        user.sub, content_fields.get("content_store_key")
+                                    ),
+                                    "origin_session_ids": {
+                                        "$setUnion": [
+                                            {"$ifNull": ["$origin_session_ids", []]},
+                                            {"$literal": doc["origin_session_ids"]},
+                                        ]
+                                    },
+                                },
+                            ]
+                        }
+                    }
+                ],
+                upsert=not staged,
+                return_document=ReturnDocument.BEFORE,
+                projection={"user_id": 1, "content_storage_mode": 1, "content_store_key": 1},
+            )
+            if staged and existing_doc is None:
+                raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
+            await _write_vector_index(backend, user.sub, memory_id, doc)
+            if existing_doc is not None and existing_doc.get("user_id") == user.sub:
+                overwritten += 1
+            else:
+                created += 1
+
+            old_key = existing_doc.get("content_store_key") if existing_doc else None
+            new_key = content_fields.get("content_store_key")
+            if (
+                existing_doc
+                and existing_doc.get("content_storage_mode") == "store"
+                and old_key
+                and old_key != new_key
+            ):
+                await delete_memory_content(backend, user.sub, old_key)
+    finally:
+        if write_attempted and hasattr(backend, "_invalidate_cache"):
+            await backend._invalidate_cache(user.sub)
 
     imported = created + overwritten
-    if imported and hasattr(backend, "_invalidate_cache"):
-        await backend._invalidate_cache(user.sub)
-
     return {
         "success": True,
         "imported": imported,
@@ -685,22 +881,7 @@ async def get_memory(
 
     doc = await backend._collection.find_one(
         {"user_id": user.sub, "memory_id": memory_id},
-        {
-            "memory_id": 1,
-            "title": 1,
-            "summary": 1,
-            "memory_type": 1,
-            "tags": 1,
-            "content": 1,
-            "content_storage_mode": 1,
-            "content_store_key": 1,
-            "context": 1,
-            "source": 1,
-            "created_at": 1,
-            "updated_at": 1,
-            "access_count": 1,
-            "source_refs": 1,
-        },
+        _memory_projection(),
     )
     if not doc:
         raise AppError(ErrorCode.MEMORY_NOT_FOUND)

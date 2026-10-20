@@ -22,6 +22,91 @@ def _mk_index() -> QdrantVectorIndex:
     return QdrantVectorIndex(location=":memory:", dims=DIMS)
 
 
+async def test_authoritative_ids_filter_legacy_payloads_without_crossing_owners():
+    index = _mk_index()
+    try:
+        for mid, owner in [("a" * 32, "owner"), ("b" * 32, "foreign"), ("c" * 32, "owner")]:
+            assert await index.upsert(
+                memory_id=mid,
+                user_id=owner,
+                vector=_vec(0.1),
+                memory_type="old-type",
+                context="old-context",
+                updated_at=1,
+                scope="project",
+                project_id="old-project",
+            )
+        hits = await index.search(
+            vector=_vec(0.1),
+            user_id="owner",
+            limit=3,
+            memory_ids=["a" * 32, "b" * 32],
+            memory_types=["user"],
+            context_values=["feedback"],
+        )
+        assert [hit.memory_id for hit in hits] == ["a" * 32]
+    finally:
+        await index.close()
+
+
+async def test_empty_authoritative_ids_skip_vector_io():
+    from unittest.mock import AsyncMock
+
+    index = _mk_index()
+    index._client.query_points = AsyncMock(side_effect=AssertionError("No authorized vectors"))
+    try:
+        assert await index.search(vector=_vec(0.1), user_id="owner", limit=3, memory_ids=[]) == []
+        index._client.query_points.assert_not_awaited()
+        assert (
+            await index.search(vector=_vec(0.1), user_id="owner", limit=3, memory_ids=["invalid"])
+            is None
+        )
+    finally:
+        await index.close()
+
+
+async def test_authoritative_ids_use_exact_scoring_without_changing_unfiltered_search():
+    from unittest.mock import AsyncMock
+
+    index = _mk_index()
+    try:
+        await index.upsert(
+            memory_id="a" * 32,
+            user_id="owner",
+            vector=_vec(0.1),
+            memory_type="user",
+            context=None,
+            updated_at=1,
+        )
+        original = index._client.query_points
+        index._client.query_points = AsyncMock(wraps=original)
+        assert await index.search(vector=_vec(0.1), user_id="owner", limit=1, memory_ids=["a" * 32])
+        assert index._client.query_points.call_args.kwargs["search_params"].exact is True
+        assert await index.search(vector=_vec(0.1), user_id="owner", limit=1)
+        assert index._client.query_points.call_args.kwargs.get("search_params") is None
+    finally:
+        await index.close()
+
+
+async def test_vector_delete_cannot_remove_another_owners_point():
+    index = _mk_index()
+    memory_id = "cccccccccccccccccccccccccccccccc"
+    try:
+        assert await index.upsert(
+            memory_id=memory_id,
+            user_id="foreign",
+            vector=_vec(0.1),
+            memory_type="user",
+            context="user",
+            updated_at=1,
+        )
+        assert await index.delete(memory_id=memory_id, user_id="owner")
+        hits = await index.search(vector=_vec(0.1), user_id="foreign", limit=1)
+        assert len(hits) == 1 and hits[0].memory_id == memory_id
+    finally:
+        await index.close()
+
+
 @pytest.mark.asyncio
 async def test_collection_created_with_cosine_and_dims():
     idx = _mk_index()
@@ -222,9 +307,13 @@ class _FakeRedis:
         for k in keys:
             self.store.pop(k, None)
 
-    async def eval(self, _script, _numkeys, key, token):
+    async def eval(self, _script, _numkeys, key, *args):
+        token = args[-1]
         self.eval_calls.append((key, token))
         if self.store.get(key) == token:
+            if _numkeys == 2:
+                self.store[args[0]] = "1"
+                return "OK"
             self.store.pop(key)
 
 
@@ -334,6 +423,56 @@ async def test_run_backfill_once_redis_failure_is_silent(monkeypatch):
     )
     await vs._run_backfill_once(force=True)  # 不抛
     assert called == []
+
+
+async def test_skipped_backfill_can_retry_instead_of_certifying_an_incomplete_index(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    redis = _FakeRedis()
+    backfill = AsyncMock(side_effect=[{"skipped": True}, {"upserted": 7}])
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: redis)
+    monkeypatch.setattr(
+        "src.infra.memory.tools._get_backend",
+        AsyncMock(return_value=SimpleNamespace(_collection=object())),
+    )
+    monkeypatch.setattr(vs, "backfill_from_mongo", backfill)
+    await vs._run_backfill_once()
+    assert vs._BACKFILL_DONE_KEY not in redis.store
+    assert vs._BACKFILL_LOCK_KEY not in redis.store
+    await vs._run_backfill_once()
+    assert backfill.await_count == 2
+    assert redis.store[vs._BACKFILL_DONE_KEY] == "1"
+
+
+@pytest.mark.parametrize("new_owner", [None, "replacement-owner"])
+async def test_expired_backfill_cannot_publish_completion_or_release_a_new_owner(
+    monkeypatch, new_owner
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    redis = _FakeRedis()
+
+    async def backfill(collection):
+        redis.store.pop(vs._BACKFILL_LOCK_KEY)
+        if new_owner:
+            redis.store[vs._BACKFILL_LOCK_KEY] = new_owner
+        return {"upserted": 7}
+
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: redis)
+    monkeypatch.setattr(
+        "src.infra.memory.tools._get_backend",
+        AsyncMock(return_value=SimpleNamespace(_collection=object())),
+    )
+    monkeypatch.setattr(vs, "backfill_from_mongo", backfill)
+    await vs._run_backfill_once()
+    assert vs._BACKFILL_DONE_KEY not in redis.store
+    assert redis.store.get(vs._BACKFILL_LOCK_KEY) == new_owner
 
 
 @pytest.mark.asyncio

@@ -109,3 +109,24 @@ def test_machine_binding_absent_for_unknown_platform():
     """未知/空平台（云端沙箱、未上报）拿不到 OS 事实，不得编造绑定段。"""
     assert sandbox_shell_platform_section("winxp", machine_name="m1") == ""
     assert sandbox_shell_platform_section("", machine_name="m1") == ""
+
+
+def test_shared_policy_preserves_strict_requested_schema_output():
+    for marker in (
+        "JSON/CSV/fixed schema",
+        "no extra prose, fields",
+        "Markdown fences",
+        "unless requested",
+    ):
+        assert marker in SAFETY_POLICY
+        assert marker in WORKFLOW_POLICY
+
+
+def test_remembered_output_formats_do_not_create_unrequested_artifacts():
+    from src.agents.core.prompt_policy import ARTIFACT_POLICY
+
+    assert "current instructions first" in SAFETY_POLICY
+    assert "remembered formats" in SAFETY_POLICY
+    assert "only when requested or needed" in ARTIFACT_POLICY
+    assert "format preferences alone" in ARTIFACT_POLICY
+    assert "in-chat answer" in ARTIFACT_POLICY

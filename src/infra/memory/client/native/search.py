@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import heapq
 import re
 from datetime import datetime
 from typing import Any, Optional
 
 import httpx
 
+from src.infra.async_utils import run_blocking_io
 from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
 from src.infra.memory.client.native.content import (
@@ -19,7 +21,6 @@ from src.infra.memory.client.native.content import (
 from src.infra.memory.client.native.models import (
     STOPWORDS,
     char_ngrams,
-    cosine_similarity,
     has_cjk,
 )
 from src.infra.session.conversation_history import ConversationHistoryService
@@ -185,11 +186,9 @@ def prioritize_sources(memories: list[dict]) -> list[dict]:
         "reference": 1,
     }
 
-    def ranking_key(memory: dict) -> tuple[int, int, int, float, float]:
+    def ranking_key(memory: dict) -> tuple[float, int, int, int, float]:
         context = str(memory.get("context") or "")
-        # Project context is the strongest boundary. Within a boundary,
-        # explicit feedback rules outrank generic preferences because they
-        # encode corrections learned from earlier interactions.
+        # Ownership is filtered before ranking; metadata only breaks relevance ties.
         lesson_rank = 0 if context.startswith("feedback") else 1
         updated_at = memory.get("updated_at")
         try:
@@ -200,10 +199,10 @@ def prioritize_sources(memories: list[dict]) -> list[dict]:
         except (TypeError, ValueError, OverflowError):
             updated_timestamp = 0.0
         return (
+            -float(memory.get("score", 0.0) or 0.0),
             scope_order.get(str(memory.get("scope") or "user"), 1),
             lesson_rank,
             source_order.get(str(memory.get("source", "")), 50),
-            -float(memory.get("score", 0.0) or 0.0),
             -updated_timestamp,
         )
 
@@ -324,7 +323,13 @@ async def text_search(
                 collection, user_id, query, limit, memory_types, context_filter, project_id
             )
 
-    return [format_memory(doc, doc.get("score", 0)) for doc in docs]
+    return [
+        format_memory(
+            doc,
+            max(min(_memory_score(doc), 1.0), _keyword_match_score(query, doc)),
+        )
+        for doc in docs
+    ]
 
 
 async def keyword_fallback(
@@ -397,13 +402,37 @@ async def vector_search(
     if not query_vec:
         return []
 
+    base: dict[str, Any] = {
+        "user_id": user_id,
+        "source": {"$ne": "session_summary"},
+        "embedding": {"$exists": True, "$ne": None},
+    }
+    if memory_types:
+        base["memory_type"] = {"$in": memory_types}
+    if context_filter:
+        base["context"] = build_context_clause(context_filter)
+    base.update(build_scope_clause(project_id))
+
     # Qdrant 专用索引层（启用时优先；None=未启用/故障 → 走下方既有链路）
-    from src.infra.memory.client.native.vector_store import index_search
+    from src.infra.memory.client.native.vector_store import index_search, vector_backend_enabled
+
+    memory_ids: Optional[list[str]] = None
+    if vector_backend_enabled():
+        try:
+            # Read IDs, not vectors; scope payloads in an older index are not authoritative.
+            visible = await backend._collection.find(base, {"memory_id": 1, "_id": 0}).to_list(
+                length=None
+            )
+            memory_ids = [doc["memory_id"] for doc in visible]
+        except Exception:
+            pass  # Keep the existing hydration/fallback path when the prefilter is unavailable.
+        if memory_ids == []:
+            return []
 
     # 家族前缀 → 具体值列表：Qdrant payload 只存具体 context，MatchAny 下推
     context_values: Optional[list[str]] = None
     context_prefetch_failed = False
-    if context_filter:
+    if context_filter and memory_ids is None:
         try:
             distinct_contexts = await backend._collection.distinct(
                 "context",
@@ -420,12 +449,11 @@ async def vector_search(
 
     qdrant_hits = None
     if not context_prefetch_failed:
-        # scope 过滤不在 Qdrant 下推（旧 point 缺 scope 字段的语义不可靠），
-        # 由下方 Mongo hydration 查询做权威过滤；项目检索多取几倍 ANN 候选，
-        # 避免其他项目的近邻占满 limit 后把当前项目的可见结果挤掉。
+        # Authoritative IDs avoid filling the ANN window with other projects.
         ann_limit = min(
             max(
-                limit * (_VECTOR_SCOPE_OVERFETCH_FACTOR if project_id else 1),
+                limit
+                * (_VECTOR_SCOPE_OVERFETCH_FACTOR if project_id and memory_ids is None else 1),
                 limit,
             ),
             _VECTOR_MAX_CANDIDATES,
@@ -436,15 +464,15 @@ async def vector_search(
             limit=ann_limit,
             memory_types=memory_types,
             context_values=context_values,
+            memory_ids=memory_ids,
         )
-    if qdrant_hits is not None:
-        if not qdrant_hits:
-            return []
+    if qdrant_hits:
         order = {h.memory_id: h.score for h in qdrant_hits}
         hydration_query: dict[str, Any] = {
             "user_id": user_id,
             "memory_id": {"$in": list(order)},
             "source": {"$ne": "session_summary"},
+            "_vector_pending": {"$exists": False},
         }
         if memory_types:
             hydration_query["memory_type"] = {"$in": memory_types}
@@ -453,28 +481,36 @@ async def vector_search(
         hydration_query.update(build_scope_clause(project_id))
         cursor = backend._collection.find(hydration_query, {"embedding": 0})
         docs = await cursor.to_list(length=ann_limit)
-        if docs:
+        if len(docs) >= limit:
             docs.sort(key=lambda d: -order.get(d.get("memory_id"), 0.0))
-            return [
+            regular = [
                 format_memory(doc, order.get(doc.get("memory_id"), 1.0)) for doc in docs[:limit]
             ]
-        # Qdrant does not yet enforce the full scope clause (legacy points may
-        # lack scope payloads). If every ANN hit is rejected by authoritative
-        # Mongo hydration, continue through the Mongo vector/cosine fallback so
-        # visible memories are not hidden by another project's nearest vectors.
-
-    base: dict[str, Any] = {
-        "user_id": user_id,
-        "source": {"$ne": "session_summary"},
-        "embedding": {"$exists": True, "$ne": None},
-    }
-    if memory_types:
-        base["memory_type"] = {"$in": memory_types}
-    if context_filter:
-        base["context"] = build_context_clause(context_filter)
-    base.update(build_scope_clause(project_id))
+            pending = await _mongo_cosine_search(
+                backend, {**base, "_vector_pending": {"$exists": True}}, query_vec, limit
+            )
+            changed = await backend._collection.find(
+                {
+                    "user_id": user_id,
+                    "memory_id": {"$in": [row["memory_id"] for row in regular]},
+                    "_vector_pending": {"$exists": True},
+                },
+                {"memory_id": 1},
+            ).to_list(length=len(regular))
+            changed_ids = {row["memory_id"] for row in changed}
+            merged = {
+                row["memory_id"]: row for row in regular if row["memory_id"] not in changed_ids
+            }
+            merged.update({row["memory_id"]: row for row in pending})
+            return sorted(merged.values(), key=lambda row: -row["score"])[:limit]
+        # Mongo is authoritative: empty/partial index views, orphan points and
+        # rejected scopes must not hide visible candidates beyond the ANN window.
 
     try:
+        if await backend._collection.find_one(
+            {**base, "_vector_pending": {"$exists": True}}, {"_id": 1}
+        ):
+            return await _mongo_cosine_search(backend, base, query_vec, limit)
         ann_limit = min(
             max(
                 limit * (_VECTOR_SCOPE_OVERFETCH_FACTOR if project_id else 1),
@@ -508,36 +544,85 @@ async def vector_search(
     backend._logger.debug(
         "[NativeMemory] Atlas $vectorSearch unavailable, using Python cosine fallback"
     )
-    projection = {
-        "user_id": 1,
-        "memory_id": 1,
-        "content": 1,
-        "title": 1,
-        "content_storage_mode": 1,
-        "content_store_key": 1,
-        "summary": 1,
-        "memory_type": 1,
-        "source": 1,
-        "tags": 1,
-        "scope": 1,
-        "project_id": 1,
-        "context": 1,
-        "created_at": 1,
-        "updated_at": 1,
-        "embedding": 1,
-        "source_refs": 1,
-    }
-    scan_limit = min(limit * 3, 100)
-    cursor = backend._collection.find(base, projection).sort("updated_at", -1).limit(scan_limit)
-    docs = await cursor.to_list(length=scan_limit)
-    scored = []
-    for d in docs:
-        emb = d.get("embedding")
-        if emb:
-            sim = cosine_similarity(query_vec, emb)
-            scored.append((sim, d))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [format_memory(d, sim) for sim, d in scored[:limit]]
+    return await _mongo_cosine_search(backend, base, query_vec, limit)
+
+
+async def _mongo_cosine_search(
+    backend, base: dict[str, Any], query_vec: list[float], limit: int
+) -> list[dict]:
+    # Scan vectors in bounded batches; recency must not hide an older relevant fact.
+    cursor = backend._collection.find(base, {"memory_id": 1, "embedding": 1}).sort("updated_at", -1)
+    if callable(getattr(cursor, "batch_size", None)):
+        cursor = cursor.batch_size(256)
+
+    async def vector_docs():
+        if hasattr(cursor, "__aiter__"):
+            async for doc in cursor:
+                yield doc
+        else:
+            for doc in await cursor.to_list(length=None):
+                yield doc
+
+    best: list[tuple[float, str]] = []
+    batch = []
+    async for doc in vector_docs():
+        batch.append(doc)
+        if len(batch) == 256:
+            scores = await run_blocking_io(_score_vector_batch, batch, query_vec)
+            best = heapq.nlargest(limit, [*best, *scores], key=lambda item: item[0])
+            batch = []
+    if batch:
+        scores = await run_blocking_io(_score_vector_batch, batch, query_vec)
+        best = heapq.nlargest(limit, [*best, *scores], key=lambda item: item[0])
+    if not best:
+        return []
+    scores_by_id = {mid: score for score, mid in best}
+    docs = await backend._collection.find(
+        {**base, "memory_id": {"$in": list(scores_by_id)}},
+        {"embedding": 0},
+    ).to_list(length=limit)
+    docs_by_id = {doc["memory_id"]: doc for doc in docs}
+    return [format_memory(docs_by_id[mid], score) for score, mid in best if mid in docs_by_id]
+
+
+def _score_vector_batch(docs: list[dict], query: list[float]) -> list[tuple[float, str]]:
+    # NumPy is provided by the existing qdrant-client dependency, including Mongo-only installs.
+    import numpy as np
+
+    valid = [
+        doc
+        for doc in docs
+        if isinstance(doc.get("embedding"), list) and len(doc["embedding"]) == len(query)
+    ]
+    if not valid:
+        return []
+    try:
+        vector = np.asarray(query, dtype=np.float32)
+        query_norm = np.linalg.norm(vector)
+    except (TypeError, ValueError):
+        return []
+    if not np.isfinite(query_norm) or query_norm <= 0:
+        return []
+    try:
+        matrix = np.asarray([doc["embedding"] for doc in valid], dtype=np.float32)
+    except (TypeError, ValueError):
+        if len(valid) == 1:
+            return []
+        # A malformed row must not discard its valid neighbours.
+        return [item for doc in valid for item in _score_vector_batch([doc], query)]
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        denominators = np.linalg.norm(matrix, axis=1) * query_norm
+        scores = np.divide(
+            matrix @ vector,
+            denominators,
+            out=np.full(len(valid), np.nan, dtype=np.float32),
+            where=denominators > 0,
+        )
+    return [
+        (float(np.clip(score, -1.0, 1.0)), doc["memory_id"])
+        for doc, score in zip(valid, scores, strict=True)
+        if np.isfinite(score)
+    ]
 
 
 def _query_terms(query: str) -> set[str]:
@@ -833,8 +918,9 @@ async def recall_memories(
         memories = await recent_context_fallback(
             backend._collection, user_id, overview_limit, memory_types, context_filter, project_id
         )
-
-    memories = prioritize_sources(memories)
+        memories = prioritize_sources(memories)
+    # Hybrid fusion and reranking already order normal hits. Their backend
+    # scores use different scales and cannot be sorted together again.
 
     if memories:
         memories = memories[:max_results]

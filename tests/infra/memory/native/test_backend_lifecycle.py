@@ -13,6 +13,9 @@ async def test_delete_removes_store_payload_for_long_memory():
     seen: dict[str, object] = {}
 
     class FakeCollection:
+        async def find_one(self, query, projection):
+            return {}
+
         async def find_one_and_delete(self, query, *, projection):
             seen["delete_query"] = query
             assert projection == {"content_storage_mode": 1, "content_store_key": 1}
@@ -39,7 +42,7 @@ async def test_delete_removes_store_payload_for_long_memory():
     result = await backend.delete("u1", "m1")
 
     assert result["success"] is True
-    assert seen["delete_query"] == {"user_id": "u1", "memory_id": "m1"}
+    assert seen["delete_query"] == {"user_id": "u1", "memory_id": "m1", "revision_id": None}
     assert seen["store_delete"] == {
         "namespace": ("memories", "u1", "content"),
         "key": "memory:m1",
@@ -53,6 +56,9 @@ async def test_delete_scoped_adds_current_project_visibility_clause():
     seen: dict[str, object] = {}
 
     class FakeCollection:
+        async def find_one(self, query, projection):
+            return {}
+
         async def find_one_and_delete(self, query, *, projection):
             seen["delete_query"] = query
             return {"content_storage_mode": "inline"}
@@ -78,6 +84,7 @@ async def test_delete_scoped_adds_current_project_visibility_clause():
         "user_id": "u1",
         "memory_id": "m1",
         **expected_scope,
+        "revision_id": None,
     }
     assert seen["invalidated"] is True
 
@@ -111,8 +118,12 @@ async def test_batch_delete_atomic_results_keep_duplicates_owner_and_side_effect
                     return docs.pop(index)
             return None
 
-        async def find_one(self, *args):
-            raise AssertionError("deletion must not read old keys separately")
+        async def find_one(self, query, projection):
+            assert projection["content_store_key"] == 1
+            for doc in docs:
+                if all(doc.get(key) == value for key, value in query.items()):
+                    return {key: doc[key] for key in projection if key in doc}
+            return None
 
     async def delete_content(namespace, key, value):
         events.append(("content", key))
@@ -139,7 +150,12 @@ async def test_batch_delete_atomic_results_keep_duplicates_owner_and_side_effect
     if cleanup_fails:
         with pytest.raises(RuntimeError, match="cleanup failed"):
             await memory_routes.batch_delete_memories(request, user=user)
-        assert events == [("delete", "long"), ("content", "memory:long")]
+        assert events == [
+            ("delete", "long"),
+            ("content", "memory:long"),
+            ("cache", "u1"),
+            ("vector", "long"),
+        ]
         assert [doc["memory_id"] for doc in docs] == ["inline", "foreign"]
     else:
         assert await memory_routes.batch_delete_memories(request, user=user) == {
@@ -151,8 +167,6 @@ async def test_batch_delete_atomic_results_keep_duplicates_owner_and_side_effect
             ("content", "memory:long"),
             ("cache", "u1"),
             ("vector", "long"),
-            ("delete", "long"),
-            ("delete", "foreign"),
             ("delete", "inline"),
             ("cache", "u1"),
             ("vector", "inline"),

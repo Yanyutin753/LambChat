@@ -1,0 +1,31 @@
+{
+  "version": 11,
+  "cases": [
+    {
+      "case_id": "en-natural-idle-studio-preferences",
+      "category": "natural_periodic_extraction",
+      "language": "en-zh",
+      "natural_idle": true,
+      "sources": [
+        {
+          "owner": "a",
+          "session": "studio-context",
+          "project": null,
+          "agent_id": "quick",
+          "turns": [
+            "Here is background for our later planning: I run Cedar Loom, a weaving studio. Our recurring dispatch day is Tuesday, and our standard fabric roll is 27 metres long. For this message, just acknowledge these facts in one sentence; no action is needed now."
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "future-planning",
+          "project": null,
+          "message": "请查阅我的长期记忆：我的编织工作室叫什么、固定周几发货、标准布卷长多少米？只返回JSON：studio、dispatch_day、roll_metres。名称和星期用英文，长度用整数，不知道填null。",
+          "expected": {"studio": "Cedar Loom", "dispatch_day": "Tuesday", "roll_metres": 27}
+        }
+      ]
+    }
+  ]
+}

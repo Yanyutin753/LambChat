@@ -1,6 +1,6 @@
 """自进化调度任务的热开关语义——注册与启用解耦。
 
-启动时只要 ENABLE_MEMORY 就注册 memory.evolution 任务；NATIVE_MEMORY_SELF_EVOLVE_ENABLED
+启动时注册休眠的 memory.evolution 任务；ENABLE_MEMORY 和 NATIVE_MEMORY_SELF_EVOLVE_ENABLED
 由任务 enabled lambda 动态读取（settings 热刷新后无需重启即可生效）。
 """
 
@@ -43,11 +43,14 @@ def test_evolution_job_registered_when_memory_on_but_evolve_off(monkeypatch):
     assert _job_enabled(job) is True  # 立即生效，无需重启
 
 
-def test_evolution_job_not_registered_when_memory_off(monkeypatch):
-    """记忆总开关关：整个记忆体系不启动，任务不注册。"""
+def test_evolution_job_stays_dormant_when_memory_off(monkeypatch):
+    """关掉总开关不执行任务，热开时直接复用已注册任务。"""
     monkeypatch.setattr(runtime_services.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(runtime_services.settings, "NATIVE_MEMORY_SELF_EVOLVE_ENABLED", True)
 
     runtime_services.start_memory_evolution_scheduler()
 
-    assert not get_runtime_scheduler().has_job("memory.evolution")
+    job = get_runtime_scheduler()._jobs["memory.evolution"]
+    assert _job_enabled(job) is False
+    monkeypatch.setattr(runtime_services.settings, "ENABLE_MEMORY", True)
+    assert _job_enabled(job) is True

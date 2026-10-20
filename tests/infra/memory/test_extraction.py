@@ -24,8 +24,194 @@ from src.infra.memory.extraction import (
 )
 
 
+@pytest.fixture(autouse=True)
+def no_forget_watermark(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory import extraction as module
+
+    monkeypatch.setattr(module, "source_watermark", AsyncMock(return_value=None))
+
+
 def _now() -> datetime:
     return datetime(2026, 9, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+
+async def test_one_extraction_separates_personal_and_project_memories(monkeypatch):
+    import json
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", "off")
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW", False)
+    monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(return_value=object()))
+    invoke = AsyncMock(
+        return_value=SimpleNamespace(
+            content=json.dumps(
+                {
+                    "rollout_summary": "Personal preference and Alpha decision",
+                    "rollout_slug": "alpha-and-preference",
+                    "memories": [
+                        {
+                            "raw_memory": "Across all projects the user prefers Chinese.",
+                            "context": "user",
+                        },
+                        {
+                            "raw_memory": "Alpha uses PostgreSQL, due 2027-04-16.",
+                            "context": "project",
+                        },
+                    ],
+                }
+            )
+        )
+    )
+    monkeypatch.setattr("src.infra.llm.retry.ainvoke_with_retry", invoke)
+    backend = FakeBackend()
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db([_trace_doc("r1", "Preferences and project decision", "Recorded")]),
+        "u1",
+        {"session_id": "s1", "metadata": {"project_id": "alpha"}},
+    )
+
+    assert outcome.status == "succeeded"
+    assert len(backend.retain_calls) == 2
+    personal, project = backend.retain_calls
+    assert (personal["scope"], personal["project_id"]) == ("user", None)
+    assert (project["scope"], project["project_id"]) == (None, "alpha")
+    assert "PostgreSQL" not in personal["content"]
+    assert (
+        personal["source_refs"] == project["source_refs"] == [{"session_id": "s1", "run_id": "r1"}]
+    )
+    invoke.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "memories",
+    [
+        [{"raw_memory": "Valid durable fact", "context": "user"}, {"raw_memory": ""}],
+        [{"raw_memory": "Fact", "context": "unexpected"}],
+        [{"raw_memory": "Fact", "context": ["user"]}],
+        [{"raw_memory": "Fact", "context": "user", "tags": None}],
+        [{"raw_memory": "Fact", "context": "user", "title": 42}],
+        ["not an object"],
+        "not a list",
+    ],
+)
+def test_invalid_memory_batch_is_rejected_before_any_writes(memories):
+    import json
+
+    assert parse_stage_one_output(json.dumps({"memories": memories})) is None
+
+
+def test_empty_memory_batch_is_an_explicit_noop():
+    assert parse_stage_one_output('{"memories":[],"rollout_summary":""}') == {"noop": True}
+
+
+async def test_extraction_does_not_relabel_an_existing_manual_memory(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", "off")
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW", False)
+    monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        "src.infra.llm.retry.ainvoke_with_retry",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                content='{"raw_memory":"The user prefers concise answers.",'
+                '"rollout_summary":"Confirmed answer preference","title":"Answer preference",'
+                '"summary":"Concise answers","tags":["answers"],"context":"user"}'
+            )
+        ),
+    )
+    backend = FakeBackend(
+        {
+            "success": True,
+            "memory_id": "manual-memory",
+            "updated_existing": True,
+            "source": "manual",
+        }
+    )
+
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db([_trace_doc("r1", "I prefer concise answers.", "Understood.")]),
+        "u1",
+        {"session_id": "s1", "metadata": {}},
+    )
+
+    assert outcome.status == "succeeded"
+    for _query, update in backend._collection.updates:
+        assert update.get("$set", {}).get("source", "manual") == "manual"
+
+
+async def test_personal_preference_extracted_in_project_remains_cross_project(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", "off")
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW", False)
+    monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        "src.infra.llm.retry.ainvoke_with_retry",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                content='{"raw_memory":"Across all projects the user prefers concise answers.",'
+                '"rollout_summary":"Global preference","title":"Answer preference",'
+                '"summary":"Concise answers everywhere","tags":["answers"],"context":"user"}'
+            )
+        ),
+    )
+    backend = FakeBackend()
+
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db([_trace_doc("r1", "I prefer concise answers in all projects.", "Understood.")]),
+        "u1",
+        {"session_id": "s1", "metadata": {"project_id": "alpha"}},
+    )
+
+    assert outcome.status == "succeeded"
+    assert backend.retain_calls[0].get("scope") == "user"
+    assert backend.retain_calls[0].get("project_id") is None
+
+
+async def test_extraction_source_limit_retains_latest_evidence(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", "off")
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW", False)
+    monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        "src.infra.llm.retry.ainvoke_with_retry",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                content='{"raw_memory":"The final supplier quote is 125 EUR.",'
+                '"rollout_summary":"Supplier decision","title":"Supplier price",'
+                '"summary":"Final price is 125 EUR","tags":["supplier"],"context":"project"}'
+            )
+        ),
+    )
+    traces = [
+        _started_trace(
+            f"r{index}",
+            _now() + timedelta(minutes=index),
+            f"Supplier review round {index}.",
+            "Review recorded.",
+        )
+        for index in range(25)
+    ]
+    backend = FakeBackend()
+
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db(traces),
+        "u1",
+        {"session_id": "s1", "metadata": {}},
+    )
+
+    assert outcome.status == "succeeded"
+    assert [ref["run_id"] for ref in backend.retain_calls[0]["source_refs"]] == [
+        f"r{index}" for index in range(5, 25)
+    ]
 
 
 @pytest.mark.parametrize(
@@ -248,7 +434,7 @@ def test_stage_one_template_carries_codex_contract():
 
 class FakeJobsCollection:
     def __init__(self, existing=None):
-        self.existing = existing
+        self.existing = {"user_id": "u1", **existing} if existing is not None else None
         self.inserted: list[dict] = []
         self.updated: list[tuple[dict, dict]] = []
         self.find_one_and_update_result = {"_id": "job-1", "attempts": 2}
@@ -465,9 +651,10 @@ async def test_extract_session_memory_stores_raw_memory(monkeypatch):
     assert call["title"] == "皮蛋供应商待确认"
     # source_refs 绑定转录里的全部 run
     assert [r["run_id"] for r in call["source_refs"]] == ["run-1", "run-2"]
-    # 落库后标记 source=auto_retained 并保存 rollout_summary
+    # 来源随正文原子插入，后续仅补充 rollout_summary。
     query, update = backend._collection.updates[0]
-    assert update["$set"]["source"] == "auto_retained"
+    assert call["source"] == "auto_retained"
+    assert "source" not in update["$set"]
     assert "rollout_summary" in update["$set"]
 
 
@@ -590,7 +777,7 @@ async def test_ensure_extraction_job_indexes_creates_unique_session_index():
 async def test_claim_candidate_jobs_overfetches_past_terminal_sessions(monkeypatch):
     candidates = [{"session_id": f"s{i}"} for i in range(1, 7)]
 
-    async def fake_find(db, user_id, *, limit):
+    async def fake_find(db, user_id, *, limit, jobs_collection_name):
         assert limit > 2
         return candidates[:limit]
 
@@ -804,7 +991,7 @@ async def test_claim_candidate_jobs_skips_sessions_with_running_traces(monkeypat
 
     claimed_sessions: list[str] = []
 
-    async def fake_find(db, user_id, *, limit):
+    async def fake_find(db, user_id, *, limit, jobs_collection_name):
         return [{"session_id": "s1"}, {"session_id": "s2"}]
 
     async def fake_claim(jobs, session_doc, user_id, *, now=None):
@@ -1147,7 +1334,7 @@ async def test_run_extraction_pass_records_quota_only_after_successful_retain(mo
         ],
     )
 
-    async def fake_extract(backend, db, uid, session_doc):
+    async def fake_extract(backend, db, uid, session_doc, **kwargs):
         return outcomes[session_doc["session_id"]]
 
     class FakeCompactionAgent:
@@ -1199,7 +1386,7 @@ async def test_run_extraction_pass_write_is_fenced_by_claim_attempts(monkeypatch
         monkeypatch, claimed=[(session, stale_job)], job_docs=[dict(stored)]
     )
 
-    async def fake_extract(backend, db, uid, session_doc):
+    async def fake_extract(backend, db, uid, session_doc, **kwargs):
         return extraction.ExtractionOutcome("failed", error="boom")
 
     monkeypatch.setattr(extraction, "extract_session_memory", fake_extract)
@@ -1215,6 +1402,45 @@ async def test_run_extraction_pass_write_is_fenced_by_claim_attempts(monkeypatch
     assert query.get("status") == "claimed"
     assert query.get("attempts") == 1
     assert query.get("lease_expires_at") == stale_job["lease_expires_at"]
+
+
+@pytest.mark.parametrize("lost_claim", [False, True])
+async def test_partial_writes_are_accounted_only_for_the_owned_claim(monkeypatch, lost_claim):
+    from unittest.mock import AsyncMock
+
+    session = {"session_id": "s1", "updated_at": _now() - timedelta(hours=1)}
+    job = {
+        "_id": "j1",
+        "status": "claimed",
+        "attempts": 1,
+        "lease_expires_at": _now() + timedelta(minutes=15),
+    }
+    stored = {**job, "attempts": 2 if lost_claim else 1}
+    jobs, recorded = _patch_pass_env(monkeypatch, claimed=[(session, job)], job_docs=[stored])
+    monkeypatch.setattr(
+        extraction,
+        "extract_session_memory",
+        AsyncMock(
+            return_value=extraction.ExtractionOutcome(
+                "failed",
+                error="storage unavailable",
+                memory_ids=("m1",),
+                retained_count=1,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.memory.compaction_agent.get_memory_compaction_agent",
+        lambda: SimpleNamespace(
+            maybe_compact_after_write=AsyncMock(),
+        ),
+    )
+
+    result = await extraction.run_extraction_pass("u1", backend=object())
+
+    assert result["failed"] == 1 and result["succeeded"] == 0
+    assert recorded["records"] == (0 if lost_claim else 1)
+    assert jobs.docs["j1"]["status"] == ("claimed" if lost_claim else "failed")
 
 
 # ---------------------------------------------------------------------------
@@ -1251,8 +1477,8 @@ class ScanDb:
         scan = self
 
         class Sessions:
-            def find(self, query, projection=None):
-                scan.queries.append(query)
+            async def aggregate(self, pipeline):
+                scan.queries.append(pipeline[0]["$match"])
                 return AsyncIterCursor(scan._docs)
 
         return Sessions()
@@ -1283,21 +1509,21 @@ async def test_scheduled_scan_dispatches_via_kick_with_filters(monkeypatch):
 
     assert sorted(dispatched) == ["u1", "u2"]
     assert summary["users"] == 2
-    # 隐藏/定时会话在扫描层就被排除，不占 200 个名额
+    # Hidden/scheduled sessions are filtered before grouping users.
     query = db.queries[0]
     assert query["metadata.hidden_from_conversation_list"] == {"$ne": True}
     assert query["session_id"] == {"$not": {"$regex": "^sch_"}}
 
 
 @pytest.mark.asyncio
-async def test_scheduled_scan_rotates_user_selection_across_days(monkeypatch):
+async def test_scheduled_scan_rotates_user_selection_across_intervals(monkeypatch):
     from src.infra.storage import mongodb
 
     docs = [{"user_id": f"u{i}"} for i in range(60)]  # 超过单轮 50 个用户
     selections = {}
     for day, day_dt in {
         "d1": datetime(2026, 9, 3, tzinfo=timezone.utc),
-        "d2": datetime(2026, 9, 4, tzinfo=timezone.utc),
+        "d2": datetime(2026, 9, 3, 0, 15, tzinfo=timezone.utc),
     }.items():
         db = ScanDb(docs)
         dispatched: list[str] = []
@@ -1317,7 +1543,7 @@ async def test_scheduled_scan_rotates_user_selection_across_days(monkeypatch):
         selections[day] = dispatched
         assert len(dispatched) == 50
 
-    # 不同日期起点不同：活跃头部用户不再天天霸占名额
+    # Consecutive rounds rotate a batch instead of waiting another day.
     assert selections["d1"] != selections["d2"]
 
 
@@ -1529,7 +1755,7 @@ async def test_unparseable_output_is_not_retried(monkeypatch):
 
     jobs, recorded = _patch_pass_env(monkeypatch, claimed=[(session, job)], job_docs=[dict(job)])
 
-    async def fake_extract(backend, db, uid, session_doc):
+    async def fake_extract(backend, db, uid, session_doc, **kwargs):
         return extraction.ExtractionOutcome("failed", error="unparseable_output")
 
     monkeypatch.setattr(extraction, "extract_session_memory", fake_extract)

@@ -2535,6 +2535,9 @@
     "userServerVisible": "Пользовательский сервер (виден только вам)"
   },
   "memory": {
+    "importChecking": "Проверка воспоминаний: {{processed}} / {{total}}",
+    "importProgress": "Импорт воспоминаний: {{processed}} / {{total}}",
+    "importPartialError": "Подтверждён импорт: {{imported}}. Результат текущей партии не подтверждён; проверьте имеющиеся воспоминания перед повтором.",
     "accesses": "доступов",
     "allSources": "Все источники",
     "allTypes": "Все типы",

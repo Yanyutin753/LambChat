@@ -712,7 +712,7 @@ async def test_memory_retain_project_context_defaults_to_project_scope(monkeypat
     assert seen["kwargs"]["scope"] == "project"
     assert seen["kwargs"]["project_id"] == "proj-1"
 
-    # 对照：非 project 类内容不自动升级（保持 agent 显式语义）
+    # 个人偏好明确使用用户作用域，避免 backend 根据会话项目重新推导归属。
     json.loads(
         await memory_tools.memory_retain.coroutine(
             "用户偏好简洁中文回复。",
@@ -720,4 +720,4 @@ async def test_memory_retain_project_context_defaults_to_project_scope(monkeypat
             runtime=_Runtime("u1", session_id="sess-1"),
         )
     )
-    assert seen["kwargs"]["scope"] is None
+    assert seen["kwargs"]["scope"] == "user"

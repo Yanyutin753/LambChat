@@ -312,7 +312,14 @@ class _FakeCollection:
 
     def find(self, query, projection=None):
         self.find_queries.append(query)
-        return _FakeCursor(list(self.docs))
+        docs = list(self.docs)
+        if "_vector_pending" in query:
+            exists = query["_vector_pending"]["$exists"]
+            docs = [doc for doc in docs if ("_vector_pending" in doc) == exists]
+        return _FakeCursor(docs)
+
+    async def find_one(self, query, projection=None):
+        return next((doc for doc in self.docs if doc.get("_vector_pending")), None)
 
     async def aggregate(self, pipeline):
         raise RuntimeError("aggregate unavailable in fake")
@@ -335,7 +342,7 @@ async def test_vector_search_qdrant_hits_hydrate_in_score_order(monkeypatch):
 
     backend = SimpleNamespace(_maybe_embed=embed, _collection=col)
 
-    out = await search.vector_search(backend, "u1", "查询", 5, None)
+    out = await search.vector_search(backend, "u1", "查询", 2, None)
 
     assert [d["memory_id"] for d in out] == ["b" * 32, "a" * 32]  # 高分在前
     assert out[0]["score"] == 0.9
@@ -347,23 +354,56 @@ async def test_vector_search_qdrant_hits_hydrate_in_score_order(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_vector_search_qdrant_empty_is_authoritative(monkeypatch):
+async def test_vector_search_qdrant_empty_falls_back_to_authoritative_mongo(monkeypatch):
     from src.infra.memory.client.native import search, vector_store
 
     async def fake_index_search(**kw):
         return []
 
     monkeypatch.setattr(vector_store, "index_search", fake_index_search)
-    col = _FakeCollection([_mem_doc("a" * 32)])
+    col = _FakeCollection([_mem_doc("a" * 32, embedding=[1.0, 0.0])])
 
     async def embed(_q):
         return [1.0, 0.0]
 
-    backend = SimpleNamespace(_maybe_embed=embed, _collection=col)
+    backend = SimpleNamespace(
+        _maybe_embed=embed, _collection=col, _logger=SimpleNamespace(debug=lambda *a, **k: None)
+    )
 
     out = await search.vector_search(backend, "u1", "查询", 5, None)
-    assert out == []
-    assert col.find_queries == []  # 权威空：不再回退打 Mongo
+    assert [doc["memory_id"] for doc in out] == ["a" * 32]
+    assert col.find_queries  # An empty secondary index cannot hide an embedded Mongo row.
+
+
+async def test_vector_search_prefilter_outage_keeps_mongo_fallback(monkeypatch):
+    from src.infra.memory.client.native import search, vector_store
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "NATIVE_MEMORY_VECTOR_BACKEND", "qdrant")
+    seen = {}
+
+    async def unavailable_index(**kwargs):
+        seen.update(kwargs)
+        return None
+
+    class PrefilterOutage(_FakeCollection):
+        def find(self, query, projection=None):
+            if projection == {"memory_id": 1, "_id": 0}:
+                raise OSError("IDs projection unavailable")
+            return super().find(query, projection)
+
+    monkeypatch.setattr(vector_store, "index_search", unavailable_index)
+    col = PrefilterOutage([_mem_doc("a" * 32, embedding=[1.0, 0.0])])
+
+    async def embed(query):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(
+        _maybe_embed=embed, _collection=col, _logger=SimpleNamespace(debug=lambda *a, **k: None)
+    )
+    results = await search.vector_search(backend, "u1", "durable preference", 3, None)
+    assert [row["memory_id"] for row in results] == ["a" * 32]
+    assert seen["memory_ids"] is None
 
 
 @pytest.mark.asyncio
@@ -549,7 +589,7 @@ async def test_vector_search_resolves_context_family_for_qdrant(monkeypatch):
 
     backend = SimpleNamespace(_maybe_embed=embed, _collection=col)
 
-    out = await search.vector_search(backend, "u1", "查询", 5, None, context_filter="project")
+    out = await search.vector_search(backend, "u1", "查询", 1, None, context_filter="project")
 
     assert [d["memory_id"] for d in out] == ["a" * 32]
     # 家族解析下推给 Qdrant 的是具体值列表

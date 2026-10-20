@@ -249,32 +249,6 @@ class _FakeFeedbackCollection:
         return _FakeAsyncAggCursor(self._docs)
 
 
-class _FakeTracesFindCursor:
-    def __init__(self, docs):
-        self._docs = list(docs)
-
-    def limit(self, _n):
-        return self
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if not self._docs:
-            raise StopAsyncIteration
-        return self._docs.pop(0)
-
-
-class _FakeTracesCollection:
-    """find() 直接返回 AsyncCursor（可链 .limit()），无需 await——与 aggregate 语义不同。"""
-
-    def __init__(self, docs):
-        self._docs = list(docs)
-
-    def find(self, _query, _projection=None):
-        return _FakeTracesFindCursor(self._docs)
-
-
 @pytest.mark.asyncio
 async def test_collect_signal_users_awaits_pymongo_style_aggregate(monkeypatch):
     """feedback 扫描必须 await aggregate() 再迭代，否则 TypeError 被吞、扫描恒为空。"""
@@ -287,7 +261,7 @@ async def test_collect_signal_users_awaits_pymongo_style_aggregate(monkeypatch):
     )
     monkeypatch.setattr(
         "src.infra.memory.evolution.reflector._get_traces_collection",
-        lambda: _FakeTracesCollection([]),
+        lambda: _FakeFeedbackCollection([]),
     )
 
     users = await scheduler._collect_signal_user_ids(
@@ -309,7 +283,7 @@ async def test_collect_signal_users_supplements_from_traces_deduped(monkeypatch)
     )
     monkeypatch.setattr(
         "src.infra.memory.evolution.reflector._get_traces_collection",
-        lambda: _FakeTracesCollection(
+        lambda: _FakeFeedbackCollection(
             [{"user_id": "u2"}, {"user_id": "u2"}, {"user_id": "u1"}, {"user_id": "u3"}]
         ),
     )

@@ -2535,6 +2535,9 @@
     "userServerVisible": "사용자 서버 (나에게만 표시)"
   },
   "memory": {
+    "importChecking": "메모리 확인 중: {{processed}} / {{total}}",
+    "importProgress": "메모리 가져오는 중: {{processed}} / {{total}}",
+    "importPartialError": "{{imported}}개 가져오기를 확인했습니다. 현재 묶음의 결과는 확인되지 않았습니다. 기존 메모리를 확인한 후 다시 시도하세요.",
     "accesses": "회 접근",
     "allSources": "모든 출처",
     "allTypes": "모든 유형",
