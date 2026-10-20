@@ -17,9 +17,17 @@ import pytest
 
 
 class _Runtime:
-    def __init__(self, user_id: str | None, base_url: str = "https://app.example.com") -> None:
+    def __init__(
+        self,
+        user_id: str | None,
+        base_url: str = "https://app.example.com",
+        backend: object | None = None,
+    ) -> None:
         context = SimpleNamespace(user_id=user_id) if user_id is not None else None
-        self.config = {"configurable": {"context": context, "base_url": base_url}}
+        configurable: dict[str, object] = {"context": context, "base_url": base_url}
+        if backend is not None:
+            configurable["backend"] = backend
+        self.config = {"configurable": configurable}
 
 
 def _fake_ocr_payload() -> dict:
@@ -1319,3 +1327,188 @@ def test_get_document_parse_tool_returns_expected_tool() -> None:
     tool = get_document_parse_tool()
 
     assert tool.name == "document_parse"
+
+
+# ── 沙箱文件路径（本地/云端沙箱文档不走 HTTP 下载） ────────────────────────
+
+
+class _FakeSandboxBackend:
+    def __init__(
+        self,
+        *,
+        content: bytes = b"",
+        error: str | None = None,
+        exc: Exception | None = None,
+    ) -> None:
+        self._content = content
+        self._error = error
+        self._exc = exc
+        self.download_paths: list[list[str]] = []
+
+    async def adownload_files(self, paths: list[str]) -> list[SimpleNamespace]:
+        self.download_paths.append(list(paths))
+        if self._exc is not None:
+            raise self._exc
+        return [SimpleNamespace(path=paths[0], content=self._content, error=self._error)]
+
+
+class _ErrorStreamResponse:
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.headers: dict[str, str] = {}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    def raise_for_status(self) -> None:
+        raise self._exc
+
+    async def aiter_bytes(self):
+        return
+        yield  # pragma: no cover
+
+
+@pytest.mark.asyncio
+async def test_document_parse_reads_workspace_file_via_sandbox_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import document_parse_tool
+
+    _patch_common(monkeypatch)
+    backend = _FakeSandboxBackend(content=b"PDFBYTES")
+    client = _FakeToolHttpClient([], _fake_ocr_payload())
+    _patch_http(monkeypatch, client)
+    _patch_image_upload(monkeypatch)
+
+    sandbox_url = "/workspace/.selected/local-abc123/于宛婷-简历 v2.pdf"
+    result = json.loads(
+        await document_parse_tool.document_parse.coroutine(
+            url=sandbox_url,
+            include_images=True,
+            runtime=_Runtime("user-1", backend=backend),
+        )
+    )
+
+    # 文件字节来自沙箱 backend，完全不发起 HTTP 下载
+    assert backend.download_paths == [[sandbox_url]]
+    assert client.download_urls == []
+    assert result["success"] is True
+    assert result["filename"] == "于宛婷-简历 v2.pdf"
+    assert result["url"] == sandbox_url
+    assert result["provider"] == "mistral:mistral-ocr-latest"
+    assert client.post_calls[0]["json"]["document"]["base64"] == (
+        base64.b64encode(b"PDFBYTES").decode()
+    )
+    assert client.post_calls[0]["json"]["document"]["document_name"] == "于宛婷-简历 v2.pdf"
+
+
+@pytest.mark.asyncio
+async def test_document_parse_workspace_path_without_backend_returns_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import document_parse_tool
+
+    _patch_common(monkeypatch)
+    client = _FakeToolHttpClient([], _fake_ocr_payload())
+    _patch_http(monkeypatch, client)
+
+    result = json.loads(
+        await document_parse_tool.document_parse.coroutine(
+            url="/workspace/docs/report.pdf",
+            include_images=True,
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    # 没有沙箱 backend 时给出可操作指引，而不是拼站点 URL 撞 401
+    assert "error" in result
+    assert "/workspace" in result["error"]
+    assert "/api" in result["error"]
+    assert client.download_urls == []
+    assert client.post_calls == []
+
+
+@pytest.mark.asyncio
+async def test_document_parse_workspace_read_failure_returns_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import document_parse_tool
+
+    _patch_common(monkeypatch)
+    backend = _FakeSandboxBackend(error="file_not_found")
+    client = _FakeToolHttpClient([], _fake_ocr_payload())
+    _patch_http(monkeypatch, client)
+
+    result = json.loads(
+        await document_parse_tool.document_parse.coroutine(
+            url="/workspace/docs/missing.pdf",
+            include_images=True,
+            runtime=_Runtime("user-1", backend=backend),
+        )
+    )
+
+    assert "error" in result
+    assert "missing.pdf" in result["error"]
+    assert client.post_calls == []
+
+
+@pytest.mark.asyncio
+async def test_document_parse_workspace_file_exceeds_size_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import document_parse_tool
+
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(document_parse_tool.settings, "DOCUMENT_PARSE_MAX_DOWNLOAD_BYTES", 8)
+    backend = _FakeSandboxBackend(content=b"0123456789abcdef")
+    client = _FakeToolHttpClient([], _fake_ocr_payload())
+    _patch_http(monkeypatch, client)
+
+    result = json.loads(
+        await document_parse_tool.document_parse.coroutine(
+            url="/workspace/docs/big.pdf",
+            include_images=True,
+            runtime=_Runtime("user-1", backend=backend),
+        )
+    )
+
+    assert "exceeds" in result["error"]
+    assert client.post_calls == []
+
+
+@pytest.mark.asyncio
+async def test_document_parse_download_auth_failure_mentions_supported_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import document_parse_tool
+
+    _patch_common(monkeypatch)
+    client = _FakeToolHttpClient([], _fake_ocr_payload())
+
+    def _failing_stream(method: str, request_url: str):
+        assert method == "GET"
+        client.download_urls.append(request_url)
+        return _ErrorStreamResponse(
+            RuntimeError(
+                "Client error '401 Unauthorized' for url 'https://app.example.com/w/1.pdf'"
+            )
+        )
+
+    client.stream = _failing_stream
+    _patch_http(monkeypatch, client)
+
+    result = json.loads(
+        await document_parse_tool.document_parse.coroutine(
+            url="/uploads/elsewhere/x.pdf",
+            include_images=True,
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    # 站内相对路径下载被鉴权拒绝时，错误必须指明支持的输入形式
+    assert "401" in result["error"]
+    assert "/workspace" in result["error"]
+    assert "/api" in result["error"]

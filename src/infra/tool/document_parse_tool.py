@@ -29,6 +29,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
     get_base_url_from_runtime,
     get_user_id_from_runtime,
 )
@@ -75,6 +76,57 @@ _IMAGE_MIME_TYPES = {
 }
 
 _TRUNCATION_NOTICE = "\n\n...[truncated]"
+
+# 沙箱虚拟路径前缀：本地/云端沙箱里的文档（如 /workspace/.selected/...）在
+# 用户机器或沙箱实例上，服务器没有对应的 HTTP 路由，必须走 backend 读字节。
+_WORKSPACE_PREFIX = "/workspace/"
+
+# 下载失败时附加的可操作指引：历史上模型把 /workspace 路径当站内 URL 拼
+# base_url 下载，撞 401 后无从下手。
+_DOWNLOAD_HINT = (
+    " (supported inputs: public http(s) URLs, /api upload attachment paths, "
+    "or /workspace sandbox file paths read via the conversation sandbox)"
+)
+
+
+def _sandbox_path_of(url: str) -> str | None:
+    """Return the normalized sandbox path when the url targets sandbox storage."""
+    if url.startswith(_WORKSPACE_PREFIX):
+        return url
+    if url.startswith("workspace/"):
+        return f"/{url}"
+    return None
+
+
+async def _read_sandbox_file(path: str, runtime: ToolRuntime | None) -> bytes:
+    """Read file bytes through the conversation sandbox backend.
+
+    Raises DocumentParseError with an actionable message when no backend is
+    attached or the read fails — never falls back to HTTP against base_url.
+    """
+    backend = get_backend_from_runtime(runtime)
+    download = getattr(backend, "adownload_files", None)
+    if backend is None or not callable(download):
+        raise DocumentParseError(
+            "sandbox_unavailable: no sandbox is attached to this conversation, "
+            "so '/workspace' paths cannot be read here; pass a public http(s) URL, "
+            "an /api upload attachment path, or ask the user to attach the file"
+        )
+    try:
+        responses = await download([path])
+    except Exception as exc:
+        logger.warning("[document_parse] sandbox read failed for %s: %s", path, exc)
+        raise DocumentParseError(f"sandbox read failed for '{path}': {exc}") from exc
+    if not responses:
+        raise DocumentParseError(f"sandbox read returned nothing for '{path}'")
+    response = responses[0]
+    error = getattr(response, "error", None)
+    if error:
+        raise DocumentParseError(f"sandbox read failed for '{path}': {error}")
+    content = getattr(response, "content", None)
+    if not content:
+        raise DocumentParseError(f"sandbox file is empty: '{path}'")
+    return content
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -182,7 +234,7 @@ async def _upload_image_to_storage(
 async def document_parse(
     url: Annotated[
         str,
-        "URL of the document to parse. Supports absolute URLs and /api upload paths from the attachment list.",
+        "Document URL: absolute http(s), /api attachment path, or /workspace sandbox path.",
     ],
     include_images: Annotated[
         bool,
@@ -197,9 +249,14 @@ async def document_parse(
     embedded images uploaded and inlined as image URLs. Use this to read user
     document attachments instead of writing ad-hoc sandbox parsing code."""
 
-    resolved_url = _resolve_url(url, runtime)
+    sandbox_path = _sandbox_path_of(url)
+    resolved_url = sandbox_path if sandbox_path is not None else _resolve_url(url, runtime)
 
-    filename = _guess_filename(resolved_url)
+    if sandbox_path is not None:
+        # 沙箱路径是文件系统路径而非 URL：文件名按原样取，不做 URL 解码。
+        filename = sandbox_path.rstrip("/").split("/")[-1] or "document"
+    else:
+        filename = _guess_filename(resolved_url)
     extension = detect_document_extension(filename)
     if extension is None:
         return await _json_dumps_result(
@@ -218,6 +275,16 @@ async def document_parse(
     max_output_chars = int(getattr(settings, "DOCUMENT_PARSE_MAX_OUTPUT_CHARS", 0) or 0)
     image_limit = int(getattr(settings, "DOCUMENT_PARSE_MAX_IMAGES", 0) or 0)
 
+    if sandbox_path is not None:
+        try:
+            data = await _read_sandbox_file(sandbox_path, runtime)
+        except DocumentParseError as exc:
+            return await _json_dumps_result({"error": str(exc)})
+        if len(data) > max_download_bytes:
+            return await _json_dumps_result(
+                {"error": f"Document exceeds {max_download_bytes} bytes"}
+            )
+
     spooled = SpooledTemporaryFile(max_size=_SPOOL_MAX_MEMORY_BYTES, mode="w+b")
     try:
         try:
@@ -225,25 +292,30 @@ async def document_parse(
             async with httpx.AsyncClient(
                 follow_redirects=True, timeout=httpx.Timeout(60.0, read=300.0)
             ) as http_client:
-                async with http_client.stream("GET", resolved_url) as response:
-                    response.raise_for_status()
-                    known_size = _known_download_size(getattr(response, "headers", {}))
-                    if known_size is not None and known_size > max_download_bytes:
-                        return await _json_dumps_result(
-                            {"error": f"Document download exceeds {max_download_bytes} bytes"}
-                        )
-                    async for chunk in response.aiter_bytes():
-                        if not chunk:
-                            continue
-                        total_size += len(chunk)
-                        if total_size > max_download_bytes:
+                if sandbox_path is None:
+                    async with http_client.stream("GET", resolved_url) as response:
+                        response.raise_for_status()
+                        known_size = _known_download_size(getattr(response, "headers", {}))
+                        if known_size is not None and known_size > max_download_bytes:
                             return await _json_dumps_result(
-                                {"error": (f"Document download exceeds {max_download_bytes} bytes")}
+                                {"error": f"Document download exceeds {max_download_bytes} bytes"}
                             )
-                        await run_long_blocking_io(spooled.write, chunk)
+                        async for chunk in response.aiter_bytes():
+                            if not chunk:
+                                continue
+                            total_size += len(chunk)
+                            if total_size > max_download_bytes:
+                                return await _json_dumps_result(
+                                    {
+                                        "error": (
+                                            f"Document download exceeds {max_download_bytes} bytes"
+                                        )
+                                    }
+                                )
+                            await run_long_blocking_io(spooled.write, chunk)
 
-                await run_long_blocking_io(spooled.seek, 0)
-                data = await run_long_blocking_io(spooled.read)
+                    await run_long_blocking_io(spooled.seek, 0)
+                    data = await run_long_blocking_io(spooled.read)
 
                 started_at = time.monotonic()
                 try:
@@ -266,7 +338,9 @@ async def document_parse(
             if is_quota_error(exc):
                 raise
             logger.warning("[document_parse] download failed for %s: %s", resolved_url, exc)
-            return await _json_dumps_result({"error": f"Document download failed: {exc}"})
+            return await _json_dumps_result(
+                {"error": f"Document download failed: {exc}{_DOWNLOAD_HINT}"}
+            )
 
         markdown = str(parsed.get("markdown") or "")
 
