@@ -313,7 +313,7 @@ test("windows updater artifacts are NSIS currentUser installers", () => {
 
   const wf = readRepoFile(".github/workflows/app-release.yml");
   expect(wf).toMatch(/bundles: msi,nsis/);
-  expect(wf).toMatch(/"\*_x64-setup\.exe\.sig"/);
+  expect(wf).toMatch(/"\*-Windows-x64-setup\.exe\.sig"/);
   expect(wf).toMatch(/Windows-x64-setup\.exe/);
   // Linux 不再产 AppImage、不进 updater 清单
   expect(wf).toMatch(/bundles: deb,rpm/);
@@ -321,7 +321,7 @@ test("windows updater artifacts are NSIS currentUser installers", () => {
 
   const manifest = readRepoFile("scripts/generate_updater_manifest.py");
   expect(manifest).toMatch(
-    /"\*_x64-setup\.exe\.sig", "Windows-x64-setup\.exe"/,
+    /"\*-Windows-x64-setup\.exe\.sig", "\*_x64-setup\.exe\.sig"/,
   );
   // 清单不得再引用 AppImage 产物或 Linux 平台条目（正文说明性文字除外）
   expect(manifest).not.toMatch(/AppImage\.sig/);

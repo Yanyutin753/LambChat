@@ -76,7 +76,7 @@ jobs:
             artifact_slug: windows
             pbs_platform: windows-x86_64
             updater_key: windows-x86_64
-            updater_sig: "*_x64-setup.exe.sig"
+            updater_sig: "*-Windows-x64-setup.exe.sig"
             updater_asset_suffix: Windows-x64-setup.exe
           # macOS uses native architecture runners so crypto verification is bundled.
           # asset_suffix 带架构：双 mac 构建产物不得同名互踩。
@@ -456,10 +456,54 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find frontend/src-tauri/target -name "latest*.json" -exec cp {} release-assets/ \; 2>/dev/null || true
-          find frontend/src-tauri/target -name "*.sig" -exec cp {} release-assets/ \; 2>/dev/null || true
+          # Canonical signatures are created below; never copy stale target signatures/manifests.
           if [[ "$RELEASE_TAG" == *-dev.* ]]; then rm -f release-assets/latest*.json; fi
-          ls -la release-assets/ 2>/dev/null || true
+
+      - name: Bind native updater signature to full release version
+        if: matrix.updater_key != ''
+        working-directory: frontend
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          artifact="../release-assets/LambChat-${RELEASE_TAG}-${{ matrix.updater_asset_suffix }}"
+          pnpm dlx @tauri-apps/cli@2.12.3 signer sign --app-version "${RELEASE_TAG#v}" "$artifact"
+
+      - name: Verify real native updater signature and version checks
+        if: matrix.updater_key != ''
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 1
+        run: |
+          set -euo pipefail
+          args=(--manifest-path frontend/src-tauri/Cargo.toml --release --locked --features updater-verification --example verify_updater --jobs 1)
+          target="${{ matrix.target || '' }}"
+          if [ -n "$target" ]; then args+=(--target "$target"); fi
+          cargo test "${args[@]}" -- --test-threads=1
+          artifact="release-assets/LambChat-${RELEASE_TAG}-${{ matrix.updater_asset_suffix }}"
+          cargo run "${args[@]}" -- "$artifact" "$artifact.sig" "${RELEASE_TAG#v}"
+
+      - name: Native Windows update installation regression
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/test_windows_native_update.ps1 -Verifier frontend/src-tauri/target/release/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v')) -ExpectedExe frontend/src-tauri/target/release/lambchat.exe
+
+      - name: Native macOS update installation regression
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/test_macos_native_update.sh \
+            "frontend/src-tauri/target/${{ matrix.target }}/release/examples/verify_updater" \
+            "release-assets/LambChat-${RELEASE_TAG}-${{ matrix.updater_asset_suffix }}" \
+            "${RELEASE_TAG#v}" "${{ matrix.asset_suffix }}" \
+            "frontend/src-tauri/target/${{ matrix.target }}/release/bundle/macos/LambChat.app"
 
       # 打包产物冒烟门禁：v2.9.0~v2.9.2 的三次生产事故（sidecar 路径、Windows
       # 弹终端/卡死、macOS 内嵌库签名击杀）全部只在用户装包后才暴露——CI 从
