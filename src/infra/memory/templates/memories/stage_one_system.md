@@ -180,22 +180,29 @@ Return exactly one JSON object with required keys:
 
 - `rollout_summary` (string)
 - `rollout_slug` (string)
-- `raw_memory` (string)
-- `title` (string, <= 25 chars, for the memory index)
-- `summary` (string, <= 80 chars, dense index line for the memory index)
-- `tags` (array of 3-5 short keywords)
-- `context` (string, one of: user, feedback, project, reference)
+- `memories` (array of at most 20 objects). Each object contains:
+  - `raw_memory` (string)
+  - `title` (string, <= 25 chars, for the memory index)
+  - `summary` (string, <= 80 chars, dense index line for the memory index)
+  - `tags` (array of 3-5 short keywords)
+  - `context` (string, one of: user, feedback, project, reference)
 
 `rollout_summary` and `raw_memory` formats are below. `rollout_slug` is a
 filesystem-safe stable slug to best describe the rollout (lowercase, hyphen/underscore,
 <= 80 chars).
 
-The four index fields (`title`, `summary`, `tags`, `context`) describe the `raw_memory`
-as a whole. If `raw_memory` is empty (no-op), all other fields must be empty too.
+Each memory must cover one coherent topic and one scope. Personal preferences that
+apply across projects use context=user and MUST be separate from project decisions,
+constraints, dates, and status (context=project). Do not copy project facts into a
+personal preference. Do not invent a project ID: the server supplies the source
+session's project. The four index fields describe only that object's raw_memory.
+Preserve entities, numbers, units, negations and effective dates. For corrected facts,
+retain useful history as explicitly historical and identify the current value.
+Exclude facts the user requested to forget, including from earlier turns.
 
 Rules:
 
-- Empty-field no-op must use empty strings and an empty tags array for all fields.
+- No-op must return {"rollout_summary":"","rollout_slug":"","memories":[]}.
 - No additional keys.
 - No prose outside JSON.
 
@@ -272,7 +279,8 @@ assistant that are not validated.>
 `raw_memory` FORMAT (STRICT)
 ============================================================
 
-Then write task-grouped body content (required):
+For each memory object, write task-grouped body content for only that object's topic
+and scope (required). The examples below describe blocks within one object.
 
 ### Task 1: <short task name>
 
@@ -299,7 +307,9 @@ References:
 
 Task grouping rules (strict):
 
-- Every distinct user task in the thread must appear as its own `### Task <n>` block.
+- Every retained distinct user task must have its own block across the memories array.
+- If one task includes both personal preferences and project decisions, split those
+  facts into separate memory objects even when they share the same task name.
 - Do not merge unrelated tasks into one block just because they happen in the same thread.
 - If a thread contains only one task, keep exactly one task block.
 - For each task block, keep the outcome tied to evidence relevant to that task.

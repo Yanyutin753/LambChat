@@ -1,0 +1,97 @@
+{
+  "version": 3,
+  "cases": [
+    {
+      "case_id": "en-compaction-preserves-long-tail",
+      "category": "real_compaction_and_long_content",
+      "language": "en",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "studio",
+          "project": null,
+          "turns": [
+            "Remember these long-term facts for future planning: my studio is named Pine Ledger, notification previews are disabled, and the weekly digest is sent on Tuesday."
+          ]
+        }
+      ],
+      "seed_memories": [
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Export format 0",
+          "summary": "CSV UTF-8 exports use a semicolon delimiter.",
+          "content": "Orders use CSV exports encoded UTF-8 with a semicolon delimiter.",
+          "tags": [
+            "exports",
+            "encoding"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Export format 1",
+          "summary": "CSV UTF-8 exports use a semicolon delimiter.",
+          "content": "Orders use CSV exports encoded UTF-8 with a semicolon delimiter.",
+          "tags": [
+            "exports",
+            "encoding"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Export format 2",
+          "summary": "CSV UTF-8 exports use a semicolon delimiter.",
+          "content": "Orders use CSV exports encoded UTF-8 with a semicolon delimiter.",
+          "tags": [
+            "exports",
+            "encoding"
+          ]
+        },
+        {
+          "owner": "a",
+          "source": "auto_retained",
+          "title": "Linden handbook",
+          "summary": "Supplier Linden warranty is recorded at the end of the handbook.",
+          "content": "Archived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nArchived shipping reference: packaged items require dry storage and a signed delivery receipt.\nThe warranty for supplier Linden is 53 months.",
+          "tags": [
+            "Linden",
+            "warranty"
+          ],
+          "protected": true
+        },
+        {
+          "owner": "a",
+          "source": "manual",
+          "title": "Publishing confirmation",
+          "summary": "Confirm before publishing weekly schedules.",
+          "content": "The user requires confirmation before publishing weekly schedules.",
+          "tags": [
+            "confirmation"
+          ],
+          "protected": true
+        }
+      ],
+      "compact_owner": "a",
+      "max_compaction_passes": 3,
+      "queries": [
+        {
+          "owner": "a",
+          "session": "after-compaction",
+          "project": null,
+          "message": "Look up my saved studio preferences and reference documents. Return only one JSON object with no Markdown or explanation: studio_name, notification_previews (boolean), digest_day (English), export_format, encoding, delimiter (one character), linden_warranty_months (integer). Use null for unknown fields.",
+          "expected": {
+            "studio_name": "Pine Ledger",
+            "notification_previews": false,
+            "digest_day": "Tuesday",
+            "export_format": "CSV",
+            "encoding": "UTF-8",
+            "delimiter": ";",
+            "linden_warranty_months": 53
+          }
+        }
+      ]
+    }
+  ]
+}

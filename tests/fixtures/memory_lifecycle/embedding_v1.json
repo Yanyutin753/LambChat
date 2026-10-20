@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "description": "Synthetic durable memories aged 180 days; real multilingual embeddings, frozen expected top-3 membership. No LLM answer accuracy claim.",
+  "memories": [
+    {
+      "id": "quiet",
+      "scope": "user",
+      "project_id": null,
+      "content": "用户希望每天晚上22:30至次日07:00保持安静，关闭所有通知提示音。"
+    },
+    {
+      "id": "kiln",
+      "scope": "user",
+      "project_id": null,
+      "content": "The user's ceramic kiln firing temperature is 1160 degrees Celsius."
+    },
+    {
+      "id": "lesson",
+      "scope": "user",
+      "project_id": null,
+      "content": "毎週の韓国語レッスンは60分で、そのうち発音練習は10分にする。"
+    },
+    {
+      "id": "allergy",
+      "scope": "user",
+      "project_id": null,
+      "content": "사용자는 호두 알레르기가 있지만 땅콩은 먹을 수 있습니다."
+    },
+    {
+      "id": "studio",
+      "scope": "user",
+      "project_id": null,
+      "content": "Ежемесячная аренда мастерской составляет 18000 рублей, коммунальные услуги — 3500 рублей."
+    },
+    {
+      "id": "retention-alpha",
+      "scope": "project",
+      "project_id": "alpha",
+      "content": "青岚项目的备份日志保留45天，之后按规定删除。"
+    },
+    {
+      "id": "retention-beta",
+      "scope": "project",
+      "project_id": "beta",
+      "content": "For the separate Zephyr project, backup logs are retained for 90 days."
+    },
+    {
+      "id": "supplier-east",
+      "scope": "user",
+      "project_id": null,
+      "content": "长期采购约定：Lumen East 每箱24件，价格45欧元；Lumen West 每箱20件，价格48欧元。"
+    }
+  ],
+  "queries": [
+    {
+      "expected_id": "quiet",
+      "query": "When should notification sounds stay off for my quiet hours?",
+      "project_id": null
+    },
+    {
+      "expected_id": "kiln",
+      "query": "私の陶芸用の窯は何度で焼成しますか。",
+      "project_id": null
+    },
+    {
+      "expected_id": "lesson",
+      "query": "Сколько минут длится мой урок корейского языка и практика произношения?",
+      "project_id": null
+    },
+    {
+      "expected_id": "allergy",
+      "query": "我对哪种坚果过敏，哪种坚果可以吃？",
+      "project_id": null
+    },
+    {
+      "expected_id": "studio",
+      "query": "작업실의 월세와 매달 공과금은 얼마인가요?",
+      "project_id": null
+    },
+    {
+      "expected_id": "retention-alpha",
+      "query": "How long do we retain backup logs before deletion?",
+      "project_id": "alpha"
+    },
+    {
+      "expected_id": "retention-beta",
+      "query": "备份日志要保存多久？",
+      "project_id": "beta"
+    },
+    {
+      "expected_id": "supplier-east",
+      "query": "What are the box quantities and prices for Lumen East and Lumen West?",
+      "project_id": null
+    }
+  ],
+  "distractor_count": 40
+}

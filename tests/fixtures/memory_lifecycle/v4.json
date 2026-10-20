@@ -1,0 +1,64 @@
+{
+  "version": 4,
+  "cases": [
+    {
+      "case_id": "en-forget-source-not-relearned",
+      "category": "durable_forget_barrier",
+      "language": "en",
+      "expect_no_new_memories": true,
+      "sources": [
+        {
+          "owner": "a",
+          "session": "cabinet",
+          "project": null,
+          "expected_extraction_status": "succeeded_no_output",
+          "expected_extraction_model_calls": 0,
+          "turns": [
+            "Please remember my cabinet label for future conversations: Raven 284.",
+            "Please forget my cabinet label. Delete every saved memory of that label and do not keep it in another form."
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "fresh",
+          "project": null,
+          "message": "What is my cabinet label according to saved memory? Return only a JSON object with cabinet_label and no extra text. Use null if it is unknown.",
+          "expected": {
+            "cabinet_label": null
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "ja-forget-then-confirm-new",
+      "category": "forget_reconfirmation",
+      "language": "ja",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "cabinet",
+          "project": null,
+          "expected_extraction_status": "succeeded",
+          "turns": [
+            "今後の会話用に覚えてください。私の書類棚のラベルは Mori 618 です。",
+            "書類棚のラベルを忘れてください。そのラベルに関する保存済みの記憶を削除し、別の形でも保存しないでください。",
+            "改めて覚えてください。新しい書類棚のラベルは Mizu 927 です。以前のラベルは使わないでください。"
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "owner": "a",
+          "session": "fresh",
+          "project": null,
+          "message": "保存済みの記憶によると、私の書類棚の現在のラベルは何ですか？cabinet_label を含む JSON オブジェクトだけを出力してください。説明や Markdown は不要です。",
+          "expected": {
+            "cabinet_label": "Mizu 927"
+          }
+        }
+      ]
+    }
+  ]
+}

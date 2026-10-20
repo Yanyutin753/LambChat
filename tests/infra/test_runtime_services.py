@@ -922,3 +922,39 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
 
 async def _increment_scheduler_stop(scheduler: SimpleNamespace) -> None:
     scheduler.stop_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_boot_with_memory_disabled_registers_dormant_memory_jobs(monkeypatch):
+    scheduler = _FakeRuntimeScheduler()
+    _patch_runtime_service_dependencies(
+        monkeypatch,
+        enable_memory=False,
+        enable_scheduled_task=False,
+        task_manager=_FakeTaskManager(),
+        settings_pubsub=_FakeAsyncService(),
+        model_config_pubsub=_FakeAsyncService(),
+        memory_pubsub=_FakeAsyncService(),
+        websocket_manager=_FakeWebSocketManager(),
+        channel_pubsub=_FakeAsyncService(),
+        tool_cache_pubsub=_FakeAsyncService(),
+        mcp_cache_pubsub=_FakeAsyncService(),
+        scheduler=scheduler,
+        scheduled_task_storage=_FakeScheduledTaskStorage(),
+        scheduled_task_service=_FakeScheduledTaskService(),
+    )
+    registered = []
+    for name in (
+        "start_memory_compaction_agent",
+        "start_memory_extraction_agent",
+        "start_memory_evolution_scheduler",
+        "start_memory_cleanup_agent",
+    ):
+        monkeypatch.setattr(runtime_services, name, lambda name=name: registered.append(name))
+    await runtime_services.start_runtime_services()
+    assert registered == [
+        "start_memory_compaction_agent",
+        "start_memory_extraction_agent",
+        "start_memory_evolution_scheduler",
+        "start_memory_cleanup_agent",
+    ]

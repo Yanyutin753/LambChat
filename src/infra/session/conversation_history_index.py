@@ -124,3 +124,75 @@ def merge_source_refs(
         ordered.pop(key, None)
         ordered[key] = ref
     return list(ordered.values())[-bounded_limit:]
+
+
+def memory_lineage_update_fields(
+    existing: Sequence[ConversationSourceRef | dict[str, str]],
+    incoming: Sequence[ConversationSourceRef | dict[str, str]] | None,
+    validated: Sequence[ConversationSourceRef],
+    origin_session_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Merge provenance at commit time without restoring rejected snapshot references."""
+    allowed = {(ref.session_id, ref.run_id) for ref in validated}
+    rejected = [
+        ref.model_dump()
+        for ref in map(_coerce_source_ref, existing)
+        if (ref.session_id, ref.run_id) not in allowed
+    ]
+    incoming_keys = {
+        (ref.session_id, ref.run_id) for ref in map(_coerce_source_ref, incoming or [])
+    }
+    additions = [
+        ref.model_dump() for ref in validated if (ref.session_id, ref.run_id) in incoming_keys
+    ]
+    current_refs = {
+        "$filter": {
+            "input": {"$ifNull": ["$source_refs", []]},
+            "as": "ref",
+            "cond": {
+                "$not": {
+                    "$in": [
+                        {"session_id": "$$ref.session_id", "run_id": "$$ref.run_id"},
+                        {"$literal": rejected},
+                    ]
+                }
+            },
+        }
+    }
+    return {
+        "source_refs": {
+            "$slice": [
+                {
+                    "$reduce": {
+                        "input": {"$concatArrays": [current_refs, {"$literal": additions}]},
+                        "initialValue": [],
+                        "in": {
+                            "$concatArrays": [
+                                {
+                                    "$filter": {
+                                        "input": "$$value",
+                                        "as": "ref",
+                                        "cond": {
+                                            "$or": [
+                                                {"$ne": ["$$ref.session_id", "$$this.session_id"]},
+                                                {"$ne": ["$$ref.run_id", "$$this.run_id"]},
+                                            ]
+                                        },
+                                    }
+                                },
+                                ["$$this"],
+                            ]
+                        },
+                    }
+                },
+                -MEMORY_SOURCE_REFS_MAX,
+            ]
+        },
+        "origin_session_ids": {
+            "$setUnion": [
+                {"$ifNull": ["$origin_session_ids", []]},
+                {"$map": {"input": current_refs, "as": "ref", "in": "$$ref.session_id"}},
+                {"$literal": list(origin_session_ids)},
+            ]
+        },
+    }

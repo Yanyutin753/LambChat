@@ -275,6 +275,7 @@ async def test_retain_user_write_dedups_against_user_scope_and_legacy_docs():
         "memory_id": "m-legacy",
         "memory_type": "user",
         "summary": "Prefers raw SQL for analytics work.",
+        "content": "The user now prefers DuckDB but still raw SQL for analytics queries.",
         "updated_at": now,
     }
     collection = _ScopeFakeCollection([legacy], [])
@@ -302,6 +303,7 @@ async def test_retain_update_sets_scope_fields_on_existing_memory():
         "memory_id": "m1",
         "memory_type": "project",
         "summary": "Project deploys via k8s with rollback.",
+        "content": "The project deploys via k8s with rolling updates and auto rollback.",
         "updated_at": now,
         "scope": "project",
         "project_id": "proj-1",
@@ -322,8 +324,8 @@ async def test_retain_update_sets_scope_fields_on_existing_memory():
     assert result["success"] is True
     assert result["updated_existing"] is True
     _query, payload = collection.updated[0]
-    assert payload["$set"]["scope"] == "project"
-    assert payload["$set"]["project_id"] == "proj-1"
+    assert payload[0]["$set"]["scope"]["$literal"] == "project"
+    assert payload[0]["$set"]["project_id"]["$literal"] == "proj-1"
 
 
 @pytest.mark.asyncio
@@ -356,12 +358,12 @@ async def test_retain_existing_user_memory_keeps_user_scope_in_project_session()
     assert result["success"] is True
     assert result["updated_existing"] is True
     _query, payload = collection.updated[0]
-    assert payload["$set"]["scope"] == "user"
-    assert payload["$set"]["project_id"] is None
+    assert payload[0]["$set"]["scope"]["$literal"] == "user"
+    assert payload[0]["$set"]["project_id"]["$literal"] is None
 
 
 @pytest.mark.asyncio
-async def test_retain_existing_memory_from_other_project_is_not_updated():
+async def test_retain_existing_memory_from_other_project_is_rejected_without_insert():
     existing = {
         "memory_id": "m-other",
         "memory_type": "project",
@@ -387,9 +389,9 @@ async def test_retain_existing_memory_from_other_project_is_not_updated():
         tags=["project"],
     )
 
-    assert result["success"] is True
-    assert result.get("updated_existing") is not True
-    assert collection.inserted
+    assert result["success"] is False
+    assert result["retryable"] is False
+    assert not collection.inserted
     assert not collection.updated
 
 
@@ -415,13 +417,13 @@ def test_build_scope_clause_with_project_includes_only_that_project():
     }
 
 
-def test_prioritize_sources_prefers_current_project_scope():
+def test_prioritize_sources_prefers_current_project_scope_at_equal_relevance():
     memories = [
         {"memory_id": "m-user", "source": "manual", "score": 0.9, "scope": "user"},
         {
             "memory_id": "m-proj",
             "source": "manual",
-            "score": 0.5,
+            "score": 0.9,
             "scope": "project",
             "project_id": "proj-1",
         },
@@ -432,7 +434,7 @@ def test_prioritize_sources_prefers_current_project_scope():
     assert ranked[0]["memory_id"] == "m-proj"
 
 
-def test_prioritize_sources_prefers_feedback_lessons_over_generic_user_memory():
+def test_prioritize_sources_prefers_feedback_lessons_at_equal_relevance():
     memories = [
         {
             "memory_id": "m-user",
@@ -445,7 +447,7 @@ def test_prioritize_sources_prefers_feedback_lessons_over_generic_user_memory():
             "memory_id": "m-feedback",
             "source": "auto_retained",
             "context": "feedback_rule",
-            "score": 0.4,
+            "score": 0.95,
             "scope": "user",
         },
     ]

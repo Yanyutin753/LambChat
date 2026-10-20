@@ -29,7 +29,12 @@ import { MemoryPanelSkeleton } from "../../skeletons";
 import { Checkbox } from "../../common/Checkbox";
 import { Button } from "../../common";
 import { BatchActionBar } from "../SkillsPanel/BatchActionBar";
-import { memoryApi, type MemoryItem } from "../../../services/api/memory";
+import {
+  memoryApi,
+  MemoryImportError,
+  type MemoryItem,
+  type MemoryImportProgress,
+} from "../../../services/api/memory";
 import {
   TYPE_STYLES,
   SOURCE_STYLES,
@@ -39,6 +44,7 @@ import {
 import { useRelativeTime } from "./useRelativeTime";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import { MemoryFilter } from "./MemoryFilter";
+import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
 import { MemoryEditor } from "./MemoryEditor";
 import { DetailModal } from "./DetailModal";
 import { DeleteModal } from "./DeleteModal";
@@ -63,6 +69,11 @@ export function MemoryPanel() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] =
+    useState<MemoryImportProgress | null>(null);
+  const [importFailure, setImportFailure] = useState<{
+    confirmed?: number;
+  } | null>(null);
   const [editingMemory, setEditingMemory] = useRightPanelState<
     MemoryItem | null | undefined
   >("memory:editor", undefined);
@@ -182,13 +193,14 @@ export function MemoryPanel() {
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || importLoading) return;
 
     setImportLoading(true);
+    setImportFailure(null);
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      const result = await memoryApi.import(data);
+      const result = await memoryApi.importAll(data, setImportProgress);
       toast.success(
         t("memory.importSuccess", {
           imported: result.imported,
@@ -197,10 +209,22 @@ export function MemoryPanel() {
         }),
       );
       await fetchMemories();
-    } catch {
-      toast.error(t("memory.importError"));
+    } catch (error) {
+      if (error instanceof MemoryImportError) {
+        setImportFailure({ confirmed: error.confirmed.imported });
+        toast.error(
+          t("memory.importPartialError", {
+            imported: error.confirmed.imported,
+          }),
+        );
+        await fetchMemories();
+      } else {
+        setImportFailure({});
+        toast.error(t("memory.importError"));
+      }
     } finally {
       setImportLoading(false);
+      setImportProgress(null);
     }
   };
 
@@ -326,6 +350,35 @@ export function MemoryPanel() {
 
       {/* List */}
       <div className="panel-body flex-1 overflow-y-auto">
+        {importFailure && (
+          <ConfigPanelErrorCallout
+            className="mb-3"
+            message={
+              importFailure.confirmed !== undefined
+                ? t("memory.importPartialError", {
+                    imported: importFailure.confirmed,
+                  })
+                : t("memory.importError")
+            }
+          />
+        )}
+        {importProgress && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="mb-3 text-14 text-theme-text-secondary"
+          >
+            {t(
+              importProgress.phase === "checking"
+                ? "memory.importChecking"
+                : "memory.importProgress",
+              {
+                processed: importProgress.processed,
+                total: importProgress.total,
+              },
+            )}
+          </p>
+        )}
         {loadError && (
           <div
             role="alert"

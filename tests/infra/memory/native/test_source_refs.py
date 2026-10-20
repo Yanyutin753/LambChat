@@ -93,7 +93,7 @@ async def test_retain_validates_and_persists_only_authorized_source_refs(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_retain_update_merges_existing_and_new_source_refs(monkeypatch):
+async def test_retain_update_validates_existing_and_new_source_refs(monkeypatch):
     old = ConversationSourceRef(session_id="session-old", run_id="run-old")
     new = ConversationSourceRef(session_id="session-new", run_id="run-new")
     service = _HistoryService([old, new])
@@ -122,10 +122,8 @@ async def test_retain_update_merges_existing_and_new_source_refs(monkeypatch):
     )
 
     assert result["updated_existing"] is True
-    assert collection.updated[1]["$set"]["source_refs"] == [
-        old.model_dump(),
-        new.model_dump(),
-    ]
+    assert service.calls == [("user-1", [old, new])]
+    assert collection.updated[0]["memory_id"] == "memory-1"
 
 
 @pytest.mark.asyncio

@@ -52,13 +52,24 @@ class _Collection:
                 return dict(doc)
         return None
 
-    async def find_one_and_replace(
-        self, query, replacement, *, upsert, return_document, projection
-    ):
+    async def find_one_and_update(self, query, replacement, *, upsert, return_document, projection):
+        literal, preserved = replacement[0]["$replaceWith"]["$mergeObjects"]
+        replacement = literal["$literal"]
+        assert (
+            preserved["origin_session_ids"]["$setUnion"][1]["$literal"]
+            == replacement["origin_session_ids"]
+        )
         for index, doc in enumerate(self.docs):
             if all(doc.get(key) == value for key, value in query.items()):
                 previous = dict(doc)
-                self.docs[index] = dict(replacement)
+                self.docs[index] = dict(
+                    replacement,
+                    origin_session_ids=list(
+                        dict.fromkeys(
+                            [*doc.get("origin_session_ids", []), *replacement["origin_session_ids"]]
+                        )
+                    ),
+                )
                 return previous
         if upsert:
             self.docs.append(dict(replacement))

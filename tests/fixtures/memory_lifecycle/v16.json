@@ -1,0 +1,52 @@
+{
+  "version": 16,
+  "cases": [
+    {
+      "case_id": "en-natural-feedback-calibration-literals-heldout",
+      "category": "natural_periodic_reflection_literal_constraints",
+      "language": "en-zh",
+      "natural_maintenance": "reflection",
+      "sources": [
+        {
+          "owner": "a",
+          "session": "calibration-feedback",
+          "project": null,
+          "agent_id": "quick",
+          "skip_extraction": true,
+          "turns": [
+            "For this reply only, put these calibration readings in a Markdown table: altitude 17, speed 23."
+          ],
+          "feedback": "For every future calibration report I need plain semicolon-separated CSV: the separator is the literal semicolon character ';', and the exact lowercase header is channel;value. Follow it with one row per channel and preserve channel names. No Markdown table, code fence, introduction, or explanation. This is my recurring calibration import format."
+        }
+      ],
+      "queries": [
+        {
+          "owner": "b",
+          "session": "calibration-owner-isolation",
+          "project": null,
+          "message": "What separator did I previously require for calibration reports? Look up my saved preferences and return only JSON with calibration_separator; use null if unknown.",
+          "expected": {
+            "calibration_separator": null
+          }
+        },
+        {
+          "owner": "a",
+          "session": "current-calibration-request",
+          "project": null,
+          "message": "For this reply only, return strictly JSON with keys angle and force. The calibration readings are angle 9 and force 2. No other text.",
+          "expected": {
+            "angle": 9,
+            "force": 2
+          }
+        },
+        {
+          "owner": "a",
+          "session": "later-calibration-report",
+          "project": null,
+          "message": "请整理校准读数：vibration 8，current 5。",
+          "expected_text": "channel;value\nvibration;8\ncurrent;5"
+        }
+      ]
+    }
+  ]
+}

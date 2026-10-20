@@ -13,6 +13,41 @@ from src.infra.memory.evolution import reflector
 _REAL_LOAD_EXCHANGE = reflector._load_exchange
 
 
+def test_reflection_preserves_operational_constraints_instead_of_generic_style():
+    policy = reflector.REFLECT_SYSTEM_PROMPT
+    assert "rule: <imperative sentence, <=200 chars>" in policy
+    assert "separator name and literal character" in policy
+    assert "exact headers/keys" in policy
+    assert "shorten why/how before dropping operational details" in policy
+    assert "Current instructions take priority" in policy
+
+
+@pytest.mark.parametrize("overlong", [False, True])
+async def test_rejected_lesson_logs_do_not_include_private_content(monkeypatch, caplog, overlong):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    canary = "SYNTHETIC_PRIVATE_LESSON_CANARY"
+    content = canary + ("x" * reflector.LESSON_MAX_CHARS if overlong else " no rule")
+    response = SimpleNamespace(tool_calls=[{"name": "memory_retain", "args": {"content": content}}])
+    bound = SimpleNamespace(ainvoke=AsyncMock(return_value=response))
+    model = SimpleNamespace(bind_tools=lambda _tools: bound)
+    backend = SimpleNamespace(
+        recall=AsyncMock(return_value={"memories": []}),
+        retain=AsyncMock(),
+        _get_memory_model=lambda: model,
+    )
+    with caplog.at_level("INFO", logger=reflector.logger.name):
+        result = await reflector.reflect_on_run(
+            backend, "u1", reflector.SignalRun("r-down", "s1", "down")
+        )
+    assert result == {"stored": 0}
+    backend.retain.assert_not_awaited()
+    assert "lesson rejected" in caplog.text
+    assert "r-down" in caplog.text
+    assert canary not in caplog.text
+
+
 def _dt(**kw):
     return datetime.now(timezone.utc) - timedelta(**kw)
 
@@ -58,6 +93,14 @@ class _FakeTracesCol:
 
 @pytest.fixture(autouse=True)
 def _exchange_stub(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    async def source(_backend, _user_id, signal):
+        return None, signal.session_id, None
+
+    monkeypatch.setattr(reflector, "_reflection_source", source)
+    monkeypatch.setattr(reflector, "source_watermark", AsyncMock(return_value=None))
+
     async def fake_load(run_id, session_id="", user_id=""):
         if run_id == "r-down":
             return "帮我写个部署脚本", "好的，这是一个 3000 字的详细教程……（非常啰嗦）"
@@ -130,6 +173,7 @@ async def test_reflect_happy_path_stores_lesson(monkeypatch):
             return {"memories": []}
 
         async def retain(self, uid, content, **kw):
+            assert kw["source"] == "self_evolved"
             return {"success": True, "memory_id": "m-lesson-1"}
 
     class FakeBound:
@@ -158,8 +202,8 @@ async def test_reflect_happy_path_stores_lesson(monkeypatch):
     sig = reflector.SignalRun(run_id="r-down", session_id="s1", kind="down", comment="太啰嗦")
     result = await reflector.reflect_on_run(FakeBackend(), "u1", sig)
     assert result == {"stored": 1}
-    # source 打上 self_evolved 标签（面板透明可辨）
-    assert any(u.get("$set", {}).get("source") == "self_evolved" for _, u in seen_updates)
+    # 来源随正文原子插入，不能事后改写已存在手工记忆的来源。
+    assert not seen_updates
 
 
 @pytest.mark.asyncio
@@ -246,7 +290,7 @@ async def test_strip_injected_blocks_removes_system_context():
 
 @pytest.mark.asyncio
 async def test_load_exchange_scopes_queries_by_user_id(monkeypatch):
-    """trace/chunks 查询必须带 user_id——防御性隔离，run_id 不可信任为唯一凭证。"""
+    """父 trace 未通过所有者校验时，不得读取任何分块。"""
     seen_queries: list[dict] = []
 
     class _FakeTraceCol:
@@ -290,6 +334,7 @@ async def test_load_exchange_scopes_queries_by_user_id(monkeypatch):
     )
     await r._load_exchange("run-1", "sess-1", "u1")
     assert seen_queries, "应发出 trace 查询"
+    assert len(seen_queries) == 1 and seen_queries[0][0] == "trace"
     for _, q in seen_queries:
         assert q.get("user_id") == "u1"
         assert q.get("run_id") == "run-1"

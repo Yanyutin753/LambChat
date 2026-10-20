@@ -22,16 +22,13 @@ _USEFUL_POS = frozenset({"n", "nr", "ns", "nt", "nz", "v", "vn", "a", "eng", "x"
 
 # 代码/命令/报错特征：单个出现即判定为非记忆内容
 _CODE_STRONG_MARKERS = (
-    "import ",
-    "def ",
-    "class ",
     "traceback",
     "exception:",
     "error:",
-    "git ",
-    "pip install",
-    "npm install",
-    "npm run",
+)
+_CODE_STATEMENT_RE = re.compile(
+    r"^\s*(?:import\s+\w|from\s+\S+\s+import\s|def\s+\w+\s*\(|class\s+\w[\w.() ,]*:|git\s+|pip\s+install|npm\s+(?:install|run))",
+    re.MULTILINE,
 )
 
 # 文件引用是弱信号：耐久事实里提到单个文件名（如“gen_docx.py 保留在工作区”）
@@ -64,9 +61,6 @@ _TRANSIENT_CONTAINS = (
     "看一下",
     "改一下",
     "查一下",
-    "reading",
-    "checking",
-    "searching",
 )
 
 
@@ -86,9 +80,14 @@ def word_similarity(a: str, b: str) -> float:
 def looks_like_code_or_path(content: str) -> bool:
     # Protocol URLs are references, not filesystem path dumps.
     path_text = _URL_RE.sub("", content)
-    if path_text.count("/") + path_text.count("\\") >= 3:
-        return True
+    # Separate paths from prose separators and escaped paragraph breaks; never alter stored text.
+    path_text = re.sub(r"(?:\\[nr]){2,}", " ", path_text)
+    for path in re.findall(r"(?:[A-Za-z]:)?[\\/]?[\w.-]+(?:[\\/][\w.-]*)+", path_text):
+        if path.count("/") + path.count("\\") >= 3:
+            return True
     lowered = content.lower()
+    if _CODE_STATEMENT_RE.search(path_text):
+        return True
     if any(marker in lowered for marker in _CODE_STRONG_MARKERS):
         return True
     return len(_FILE_REFERENCE_RE.findall(content)) >= 2
@@ -96,8 +95,16 @@ def looks_like_code_or_path(content: str) -> bool:
 
 def is_transient_status_content(content: str) -> bool:
     stripped = content.strip()
-    return stripped.startswith(_TRANSIENT_STARTS) or any(
-        marker in stripped.lower() for marker in _TRANSIENT_CONTAINS
+    return (
+        stripped.startswith(_TRANSIENT_STARTS)
+        or any(marker in stripped.lower() for marker in _TRANSIENT_CONTAINS)
+        or bool(
+            re.match(
+                r"(?:i am|i'm|we are|we're)\s+(?:reading|checking|searching)\b",
+                stripped,
+                re.IGNORECASE,
+            )
+        )
     )
 
 

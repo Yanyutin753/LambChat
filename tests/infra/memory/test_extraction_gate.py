@@ -11,6 +11,15 @@ from src.infra.memory.extraction import extract_session_memory
 from src.kernel.config import settings
 
 
+@pytest.fixture(autouse=True)
+def no_forget_watermark(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory import extraction as module
+
+    monkeypatch.setattr(module, "source_watermark", AsyncMock(return_value=None))
+
+
 def _enable(monkeypatch, *, mode: str, threshold: float = 0.35):
     monkeypatch.setattr(settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", mode)
     monkeypatch.setattr(settings, "MEMORY_EXTRACTION_SYSTEMONE_GATE_THRESHOLD", threshold)

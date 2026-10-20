@@ -1,0 +1,73 @@
+{
+  "version": 12,
+  "description": "New real-Agent heldout questions over retained 50000 real vectors. No old paid case replay. Synthetic ages do not imply six months of observed use.",
+  "cases": [
+    {
+      "case_id": "multilingual-real-vector-agent-heldout",
+      "category": "large_real_vector_agent_recall_and_isolation",
+      "vector_seed": true,
+      "sources": [],
+      "queries": [
+        {
+          "owner": "a",
+          "project": null,
+          "session": "cross-language-combined",
+          "message": "请从以前的长期记忆中找出我的陶窑烧成温度、韩语课总时长、发音练习时长。仅输出JSON，字段kiln_celsius、lesson_minutes、pronunciation_minutes，数字用整数，没有记录填null，不要解释。",
+          "expected": {
+            "kiln_celsius": 1160,
+            "lesson_minutes": 60,
+            "pronunciation_minutes": 10
+          }
+        },
+        {
+          "owner": "a",
+          "project": null,
+          "session": "supplier-arithmetic",
+          "message": "Using my remembered purchasing agreements, what would one box from each of Lumen East and Lumen West contain and cost? Return only JSON with east_units, west_units, combined_units, combined_eur; use integers and null for unknowns.",
+          "expected": {
+            "east_units": 24,
+            "west_units": 20,
+            "combined_units": 44,
+            "combined_eur": 93
+          }
+        },
+        {
+          "owner": "a",
+          "project": "alpha",
+          "session": "alpha-scope",
+          "message": "このプロジェクトのバックアップログは何日で削除しますか。以前決まった内容を調べ、JSONだけを返してください。キーはretention_days。記録がなければnull。",
+          "expected": {
+            "retention_days": 45
+          }
+        },
+        {
+          "owner": "a",
+          "project": "beta",
+          "session": "beta-scope",
+          "message": "이 프로젝트에서 정해 둔 백업 로그 보관 기간을 기억에서 찾아 주세요. JSON만 출력하고 retention_days에 일수를 정수로 넣으세요. 모르면 null.",
+          "expected": {
+            "retention_days": 90
+          }
+        },
+        {
+          "owner": "a",
+          "project": "gamma",
+          "session": "unknown-project",
+          "message": "Для этого отдельного проекта какой срок хранения резервных журналов был утвержден? Верни только JSON с retention_days, если решения нет — null. Не переноси решения других проектов.",
+          "expected": {
+            "retention_days": null
+          }
+        },
+        {
+          "owner": "b",
+          "project": null,
+          "session": "other-owner",
+          "message": "Find my previously recorded ceramic kiln firing temperature. Return only JSON with kiln_celsius as an integer, or null if I have not provided it. Do not use another user's records.",
+          "expected": {
+            "kiln_celsius": null
+          }
+        }
+      ]
+    }
+  ]
+}

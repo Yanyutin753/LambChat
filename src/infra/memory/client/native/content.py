@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from typing import Any, cast
+from uuid import uuid4
 
 from langgraph.store.base import GetOp
+from pymongo import ReturnDocument
 
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 _NOT_LOADED = object()
 
@@ -41,12 +44,14 @@ async def get_store(backend) -> Any:
 async def store_put(backend, namespace: tuple[str, ...], key: str, value: dict[str, Any]) -> None:
     store = await get_store(backend)
     if store is None:
-        return
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
     if hasattr(store, "aput"):
         await store.aput(namespace, key, value)
         return
     if hasattr(store, "put"):
         await maybe_await(store.put(namespace, key, value))
+        return
+    raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
 
 async def store_get(backend, namespace: tuple[str, ...], key: str) -> Any:
@@ -99,9 +104,11 @@ async def hydrate_memory_texts(backend, docs: list[dict[str, Any]]) -> list[str]
     items = await batch_get_memory_contents(backend, docs)
     texts = []
     for index, doc in enumerate(docs):
-        text, _complete = await hydrate_memory_text_status(
+        text, complete = await hydrate_memory_text_status(
             backend, doc, item=items[index] if items is not None else _NOT_LOADED
         )
+        if not complete:
+            raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
         texts.append(text)
     return texts
 
@@ -109,7 +116,7 @@ async def hydrate_memory_texts(backend, docs: list[dict[str, Any]]) -> list[str]
 async def store_delete(backend, namespace: tuple[str, ...], key: str) -> None:
     store = await get_store(backend)
     if store is None:
-        return
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
     if hasattr(store, "adelete"):
         await store.adelete(namespace, key)
         return
@@ -122,17 +129,44 @@ async def store_delete(backend, namespace: tuple[str, ...], key: str) -> None:
     if hasattr(store, "put"):
         await maybe_await(store.put(namespace, key, None))
         return
-    import logging
-
-    logging.getLogger(__name__).warning(
-        "[NativeMemory] store_delete: no compatible delete method found on store"
-    )
+    raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
 
 async def delete_memory_content(backend, user_id: str, content_store_key: str | None) -> None:
     if not content_store_key:
         return
-    await store_delete(backend, memory_store_namespace(user_id), content_store_key)
+    from src.infra.memory.cleanup import (
+        enqueue_content_cleanup,
+        process_cleanup,
+    )
+
+    task = await enqueue_content_cleanup(backend, user_id, content_store_key)
+    if task is None:
+        await store_delete(backend, memory_store_namespace(user_id), content_store_key)
+    else:
+        # Explicit discard follows a completed put; persist the job before cancelling its fence.
+        owner = {
+            "$or": [
+                {"user_id": user_id},
+                {"_content_stage_owner": user_id, "user_id": {"$exists": False}},
+            ]
+        }
+        cancelled = await backend._collection.find_one_and_update(
+            {**owner, "_content_stages.key": content_store_key},
+            {"$pull": {"_content_stages": {"key": content_store_key}}},
+            return_document=ReturnDocument.AFTER,
+            projection={"_id": 1},
+        )
+        if cancelled is not None:
+            await backend._collection.delete_one(
+                {
+                    "_id": cancelled["_id"],
+                    "_content_stage_owner": user_id,
+                    "user_id": {"$exists": False},
+                    "_content_stages": [],
+                }
+            )
+        await process_cleanup(backend, task)
 
 
 def inline_preview(content: str) -> str:
@@ -145,7 +179,7 @@ def inline_preview(content: str) -> str:
 
 
 async def build_content_fields(
-    backend, user_id: str, memory_id: str, content: str
+    backend, user_id: str, memory_id: str, content: str, *, store_key: str | None = None
 ) -> dict[str, Any]:
     preview = inline_preview(content)
     max_chars = int(getattr(settings, "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 1200))
@@ -156,7 +190,10 @@ async def build_content_fields(
             "content_store_key": None,
         }
 
-    store_key = f"memory:{memory_id}"
+    from src.infra.memory.staging import stage_content
+
+    store_key = store_key or f"memory:{memory_id}:{uuid4().hex}"
+    stage = await stage_content(backend, user_id, memory_id, store_key)
     await store_put(
         backend,
         memory_store_namespace(user_id),
@@ -167,11 +204,14 @@ async def build_content_fields(
         "content": preview,
         "content_storage_mode": "store",
         "content_store_key": store_key,
+        **({"_content_stage": stage} if stage is not None else {}),
     }
 
 
 async def hydrate_memory_text(backend, doc: dict[str, Any]) -> str:
-    text, _complete = await hydrate_memory_text_status(backend, doc)
+    text, complete = await hydrate_memory_text_status(backend, doc)
+    if not complete:
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
     return text
 
 
