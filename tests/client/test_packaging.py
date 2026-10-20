@@ -303,7 +303,7 @@ def test_release_workflow_publishes_assets_immediately_per_platform() -> None:
     by_label = {entry["label"]: entry for entry in matrix}
     assert by_label["Windows"]["updater_key"] == "windows-x86_64"
     # Windows updater 载体是 NSIS setup.exe（currentUser + passive 零 UAC）
-    assert by_label["Windows"]["updater_sig"] == "*_x64-setup.exe.sig"
+    assert by_label["Windows"]["updater_sig"] == "*-Windows-x64-setup.exe.sig"
     assert by_label["Windows"]["updater_asset_suffix"] == "Windows-x64-setup.exe"
     # macOS updater 走 .app.tar.gz（dmg 不能原地更新）；双架构各有平台键，
     # sig 按 Tauri updater 产物名的 arch 段区分（_aarch64 / _x64）
@@ -390,7 +390,14 @@ def test_release_workflow_guards_version_drift_and_manifest_version_from_tag() -
     ]
     assert '("darwin-aarch64", "*-macOS-Apple-Silicon.app.tar.gz.sig"' in generator
     assert '("darwin-x86_64", "*-macOS-Intel.app.tar.gz.sig"' in generator
-    assert '("windows-x86_64", "*_x64-setup.exe.sig", "Windows-x64-setup.exe")' in generator
+    import runpy
+
+    mapping = runpy.run_path("scripts/generate_updater_manifest.py")["MAPPING"]
+    assert mapping[0] == (
+        "windows-x86_64",
+        ("*-Windows-x64-setup.exe.sig", "*_x64-setup.exe.sig"),
+        "Windows-x64-setup.exe",
+    )
     # Linux 已停发 AppImage：清单不得再含 linux 条目
     assert "linux-x86_64" not in {
         entry.split(",")[0].strip().strip('"() ')
@@ -624,6 +631,7 @@ def test_release_workflow_collect_steps_publish_daemon_sidecar_assets() -> None:
 
 
 def test_updater_manifest_includes_release_notes(tmp_path, monkeypatch):
+    import base64
     import json
     import runpy
 
@@ -634,7 +642,11 @@ def test_updater_manifest_includes_release_notes(tmp_path, monkeypatch):
         "LambChat-v2.14.2-macOS-Apple-Silicon.app.tar.gz.sig",
         "LambChat-v2.14.2-macOS-Intel.app.tar.gz.sig",
     ]:
-        (tmp_path / name).write_text("signature")
+        (tmp_path / name).write_text(
+            base64.b64encode(
+                b"untrusted comment: test\nAA==\ntrusted comment: timestamp:1\tfile:app\tversion:2.14.2\nAA==\n"
+            ).decode()
+        )
     monkeypatch.setenv("RELEASE_TAG", "v2.14.2")
     monkeypatch.setenv("ASSET_DIR", str(tmp_path))
     monkeypatch.setenv("RELEASE_NOTES_FILE", str(notes))

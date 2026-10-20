@@ -1,0 +1,2 @@
+# Signed test fixtures must retain their exact bytes on Windows too.
+frontend/src-tauri/examples/fixtures/updater/* -text

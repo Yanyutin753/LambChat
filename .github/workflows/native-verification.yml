@@ -67,6 +67,17 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Restore native compilation cache
+        id: rust-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            frontend/src-tauri/target/release/deps
+            frontend/src-tauri/target/release/build
+            frontend/src-tauri/target/release/.fingerprint
+          key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
 
@@ -134,21 +145,45 @@ jobs:
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
 
+      - name: Native updater version-binding regression
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cargo test --manifest-path frontend/src-tauri/Cargo.toml --release --locked --features updater-verification --example verify_updater --jobs 1 -- --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/test_windows_native_update.ps1), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+
       - name: Collect installer and content hashes
+        if: always() && hashFiles('frontend/src-tauri/target/release/bundle/nsis/*-setup.exe') != ''
         shell: pwsh
         run: |
           $installers = @(Get-ChildItem frontend/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw 'Expected exactly one test NSIS installer' }
           Copy-Item $installers[0].FullName verification-artifacts/
           Copy-Item frontend/src-tauri/verification.conf.json verification-artifacts/
+          Get-ChildItem frontend/src-tauri/target/release/examples -Filter 'verify_updater*.exe' -ErrorAction SilentlyContinue |
+            Copy-Item -Destination verification-artifacts/
           Get-ChildItem verification-artifacts -File | Get-FileHash -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } |
             Set-Content verification-artifacts/SHA256SUMS -Encoding utf8
 
       - name: Upload verification artifact
+        if: always() && hashFiles('verification-artifacts/provenance.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: windows-native-verification-${{ github.run_id }}-${{ github.run_attempt }}
           path: verification-artifacts/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Save native compilation cache
+        if: always() && steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            frontend/src-tauri/target/release/deps
+            frontend/src-tauri/target/release/build
+            frontend/src-tauri/target/release/.fingerprint
+          key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
