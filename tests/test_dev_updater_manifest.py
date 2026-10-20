@@ -107,3 +107,109 @@ def test_native_verification_and_installation_gate_all_desktop_uploads():
         "Native macOS update installation regression",
     ):
         assert verify < names.index(name) < upload
+
+
+def test_windows_installation_compares_the_verified_installer_payload():
+    from pathlib import Path
+
+    script = Path("scripts/test_windows_native_update.ps1").read_text()
+    # Tauri patches the NSIS bundle marker, then restores the portable EXE.
+    assert "$ExpectedExe" not in script
+    assert script.index("& $Verifier $Artifact $Signature $Version") < script.index("& 7z x")
+    assert "Get-ChildItem $unpacked -Recurse -Filter lambchat.exe" in script
+
+
+def test_manual_release_retry_keeps_builds_and_manifest_on_the_original_tag():
+    from pathlib import Path
+
+    import yaml
+
+    workflow = yaml.safe_load(Path(".github/workflows/app-release.yml").read_text())
+    jobs = workflow["jobs"]
+    assert jobs["release_guard"]["outputs"]["source_sha"] == "${{ steps.source.outputs.sha }}"
+    guard = next(step for step in jobs["release_guard"]["steps"] if step.get("id") == "source")
+    assert 'git merge-base --is-ancestor "$source" origin/main' in guard["run"]
+    assert '--commit "$source" --status success' in guard["run"]
+    assert "refs/heads/main" in guard["run"]
+    for job in ("desktop", "android", "ios", "release"):
+        checkout = next(
+            step for step in jobs[job]["steps"] if step.get("uses") == "actions/checkout@v4"
+        )
+        assert checkout["with"]["ref"] == "${{ needs.release_guard.outputs.source_sha }}"
+    signing = next(
+        step
+        for step in jobs["release"]["steps"]
+        if step.get("name") == "Sign immutable release assets"
+    )
+    assert '--commit "$(git rev-parse HEAD)"' in signing["run"]
+    windows = next(
+        step
+        for step in jobs["desktop"]["steps"]
+        if step.get("name") == "Native Windows update installation regression"
+    )
+    assert "?ref=$env:GITHUB_SHA" in windows["run"]
+    assert "-ExpectedExe" not in windows["run"]
+
+
+@pytest.mark.parametrize(
+    ("nested_merge", "event", "ref", "allowed"),
+    [
+        (False, "push", "refs/tags/v9.9.9-dev.1", True),
+        (True, "push", "refs/tags/v9.9.9-dev.1", False),
+        (False, "workflow_dispatch", "refs/heads/feature", False),
+    ],
+)
+def test_release_guard_rejects_nested_merges_and_unprotected_manual_retries(
+    tmp_path, nested_merge, event, ref, allowed
+):
+    from pathlib import Path
+
+    import yaml
+
+    def git(*args):
+        return subprocess.check_output(
+            [
+                "git",
+                "-c",
+                "user.name=Release Test",
+                "-c",
+                "user.email=release@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                f"core.hooksPath={tmp_path / 'no-hooks'}",
+                *args,
+            ],
+            cwd=tmp_path,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+
+    git("init", "--initial-branch=main")
+    git("commit", "--allow-empty", "-m", "base")
+    git("checkout", "-b", "develop")
+    git("checkout", "-b", "feature")
+    git("commit", "--allow-empty", "-m", "feature")
+    git("checkout", "develop")
+    git("commit", "--allow-empty", "-m", "develop")
+    git("merge", "--no-ff", "feature", "-m", "nested merge")
+    nested = git("rev-parse", "HEAD")
+    git("checkout", "main")
+    git("merge", "--no-ff", "develop", "-m", "main merge")
+    git("update-ref", "refs/remotes/origin/main", "HEAD")
+    git("tag", "v9.9.9-dev.1", nested if nested_merge else "HEAD")
+    workflow = yaml.safe_load(Path(".github/workflows/app-release.yml").read_text())
+    guard = next(s for s in workflow["jobs"]["release_guard"]["steps"] if s.get("id") == "source")
+    result = subprocess.run(
+        ["bash", "-c", guard["run"].split("gh run list", 1)[0]],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "GITHUB_EVENT_NAME": event,
+            "GITHUB_REF": ref,
+            "RELEASE_TAG": "v9.9.9-dev.1",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode == 0) is allowed

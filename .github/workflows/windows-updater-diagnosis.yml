@@ -51,7 +51,7 @@ jobs:
           Register-CimIndicationEvent -ClassName Win32_ProcessStopTrace -SourceIdentifier InstallerStop | Out-Null
           try {
             # dev.1 genuinely signed its core version; keep its real signature intact.
-            python scripts/run_validation.py pwsh -NoProfile -File diagnostic/test_windows_native_update.ps1 -Verifier diagnostic/helper/target/release/updater-diagnosis.exe -Artifact $candidate.FullName -Version 2.15.3 -ExpectedExe ($exe[0].FullName)
+            python scripts/run_validation.py pwsh -NoProfile -File diagnostic/test_windows_native_update.ps1 -Verifier diagnostic/helper/target/release/updater-diagnosis.exe -Artifact $candidate.FullName -Version 2.15.3
             $result = $LASTEXITCODE
           } finally {
             Get-Event -SourceIdentifier InstallerStop -ErrorAction SilentlyContinue | ForEach-Object {

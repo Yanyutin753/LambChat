@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to create or update, for example v2.5.0-app. Ignored for tag pushes."
+        description: "Existing main merge tag to build or retry while unpublished. Run manual retries from main."
         required: true
         type: string
       app_url:
@@ -32,12 +32,31 @@ env:
 jobs:
   release_guard:
     runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require unpublished dev tag
+        with:
+          fetch-depth: 0
+      - name: Require verified main merge and unpublished dev tag
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/check_release_mutability.py
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REF" != refs/heads/main ]]; then
+            echo 'Manual release retries must use the protected main workflow'
+            exit 1
+          fi
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          source="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          git merge-base --is-ancestor "$source" origin/main
+          git rev-list --first-parent origin/main | grep -Fx "$source" > /dev/null
+          test "$(git show -s --format=%P "$source" | wc -w)" -ge 2
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow lint.yml --commit "$source" --status success --json databaseId --jq 'length > 0' | grep -qx true
+          # Child guards validate the build source; GITHUB_SHA otherwise identifies the retry workflow.
+          GITHUB_SHA="$source" python3 scripts/check_release_mutability.py
+          echo "sha=$source" >> "$GITHUB_OUTPUT"
 
   desktop:
     needs: release_guard
@@ -104,6 +123,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release_guard.outputs.source_sha }}
 
       # 版本漂移曾导致 v2.8.2 release 的 latest.json 写入 2.8.1、桌面端永远
       # 检测不到更新：tag 与各端版本文件不一致时立即失败，而不是静默产出
@@ -491,7 +512,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/test_windows_native_update.ps1 -Verifier frontend/src-tauri/target/release/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v')) -ExpectedExe frontend/src-tauri/target/release/lambchat.exe
+          # Validation may be repaired on main while an unpublished tag keeps its original product source.
+          $validation = Join-Path $env:RUNNER_TEMP 'test_windows_native_update.ps1'
+          gh api "repos/$env:GITHUB_REPOSITORY/contents/scripts/test_windows_native_update.ps1?ref=$env:GITHUB_SHA" --header 'Accept: application/vnd.github.raw+json' > $validation
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot load the pinned release validation script' }
+          & $validation -Verifier frontend/src-tauri/target/release/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
 
       - name: Native macOS update installation regression
         if: runner.os == 'macOS'
@@ -566,13 +591,13 @@ jobs:
               break
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --target "$(git rev-parse HEAD)" --title "LambChat $RELEASE_TAG" \
               --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-          uv run --no-project --python 3.12 python scripts/check_release_mutability.py
+          GITHUB_SHA="$(git rev-parse HEAD)" uv run --no-project --python 3.12 python scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
       # latest.json 增量合并：本平台 sig 就绪即把平台条目并入已发布的
@@ -642,6 +667,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release_guard.outputs.source_sha }}
 
       # 同 desktop job：版本漂移在打包前拦截（v2.8.2 的 APK versionName 仍
       # 写 2.8.1 就是这类漂移）
@@ -789,13 +816,13 @@ jobs:
               break
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --target "$(git rev-parse HEAD)" --title "LambChat $RELEASE_TAG" \
               --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-          python3 scripts/check_release_mutability.py
+          GITHUB_SHA="$(git rev-parse HEAD)" python3 scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
   ios:
@@ -808,6 +835,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release_guard.outputs.source_sha }}
 
       # 同 desktop/android job：版本漂移在打包前拦截
       - name: Preflight version consistency
@@ -936,13 +965,13 @@ jobs:
               break
             fi
             if gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "LambChat $RELEASE_TAG" \
+              --target "$(git rev-parse HEAD)" --title "LambChat $RELEASE_TAG" \
               --generate-notes "${release_flags[@]}" >/dev/null 2>&1; then
               break
             fi
           done
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-          python3 scripts/check_release_mutability.py
+          GITHUB_SHA="$(git rev-parse HEAD)" python3 scripts/check_release_mutability.py
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
   release:
@@ -965,6 +994,8 @@ jobs:
       # ENOENT + 全平台 sig glob 落空）。
       - name: Checkout repository (app version for updater manifest)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release_guard.outputs.source_sha }}
 
       - name: Download release artifacts
         uses: actions/download-artifact@v4
@@ -989,14 +1020,14 @@ jobs:
       - name: Recheck dev tag before final publication
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/check_release_mutability.py
+        run: GITHUB_SHA="$(git rev-parse HEAD)" python3 scripts/check_release_mutability.py
 
       - name: Sign immutable release assets
         env:
           DEVICE_RELEASE_SIGNING_KEY: ${{ secrets.DEVICE_RELEASE_SIGNING_KEY }}
         run: |
           uv run --no-project --python 3.12 --with cryptography==50.0.2 python scripts/sign_release_assets.py \
-            --directory release-assets --version "${RELEASE_TAG%%-dev.*}" --commit "$GITHUB_SHA"
+            --directory release-assets --version "${RELEASE_TAG%%-dev.*}" --commit "$(git rev-parse HEAD)"
 
       - name: Generate latest.json updater manifest
         # 公共生成器（scripts/generate_updater_manifest.py，与手动 publish
@@ -1092,6 +1123,6 @@ jobs:
           export RELEASE_PUBLISHED_AT
           python3 scripts/generate_updater_manifest.py
           test ! -f release-assets/latest.json
-          gh run list --repo "$GITHUB_REPOSITORY" --workflow lint.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length > 0' | grep -qx true
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow lint.yml --commit "$(git rev-parse HEAD)" --status success --json databaseId --jq 'length > 0' | grep -qx true
           # Upload last: this is the readiness marker consumed by the opt-in channel.
           gh release upload "$RELEASE_TAG" release-assets/dev-latest.json --clobber --repo "$GITHUB_REPOSITORY"
