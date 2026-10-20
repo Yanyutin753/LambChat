@@ -1,15 +1,13 @@
 param(
     [Parameter(Mandatory = $true)][string]$Verifier,
     [Parameter(Mandatory = $true)][string]$Artifact,
-    [Parameter(Mandatory = $true)][string]$Version,
-    [Parameter(Mandatory = $true)][string]$ExpectedExe
+    [Parameter(Mandatory = $true)][string]$Version
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Run this installation regression only on an isolated GitHub Actions runner' }
 $Verifier = (Resolve-Path $Verifier).Path
 $Artifact = (Resolve-Path $Artifact).Path
 $Signature = "$Artifact.sig"
-$expectedHash = (Get-FileHash $ExpectedExe -Algorithm SHA256).Hash
 $root = Join-Path $env:TEMP ('lambchat-native-update-' + [guid]::NewGuid())
 New-Item -ItemType Directory $root | Out-Null
 $markers = @(
@@ -17,6 +15,15 @@ $markers = @(
     (Join-Path $env:LOCALAPPDATA ('com.lambchat.app\updater-smoke-' + [guid]::NewGuid() + '.txt'))
 )
 try {
+    & $Verifier $Artifact $Signature $Version
+    if ($LASTEXITCODE -ne 0) { throw 'Candidate native signature verification failed' }
+    # Tauri patches the NSIS bundle marker, then restores the portable executable.
+    $unpacked = Join-Path $root 'expected'
+    & 7z x $Artifact "-o$unpacked" lambchat.exe -r -y
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot extract the verified installer executable' }
+    $expected = @(Get-ChildItem $unpacked -Recurse -Filter lambchat.exe)
+    if ($expected.Count -ne 1) { throw 'Expected exactly one packaged application executable' }
+    $expectedHash = (Get-FileHash $expected[0].FullName -Algorithm SHA256).Hash
     foreach ($marker in $markers) {
         New-Item -ItemType Directory -Force (Split-Path $marker) | Out-Null
         Set-Content $marker 'keep-me'
@@ -50,7 +57,17 @@ try {
                 try { $installed = (Get-FileHash $exe -Algorithm SHA256).Hash -eq $expectedHash } catch { $installed = $false }
             }
         } until ($installed -or (Get-Date) -ge $deadline)
-        if (-not $installed) { throw "Native installation did not complete: $baseline -> $Version" }
+        if (-not $installed) {
+            Write-Output "Expected executable SHA256: $expectedHash"
+            if (Test-Path $exe) { Get-FileHash $exe -Algorithm SHA256 | Format-List | Out-String | Write-Output }
+            Get-ChildItem $install -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table | Out-String | Write-Output
+            Get-CimInstance Win32_Process | Where-Object {
+                $_.Name -match 'installer|uninstall|powershell|lambchat' -or $_.ExecutablePath -like "$root*"
+            } | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine | Format-List | Out-String | Write-Output
+            Get-Process | Where-Object { $_.MainWindowTitle } |
+                Select-Object Id,ProcessName,MainWindowTitle | Format-Table | Out-String | Write-Output
+            throw "Native installation did not complete: $baseline -> $Version"
+        }
         foreach ($marker in $markers) {
             if ((Get-Content $marker) -ne 'keep-me') { throw 'User data changed' }
         }

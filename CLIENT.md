@@ -86,6 +86,8 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - **Windows 安装升级**：NSIS 安装包检测到旧安装后直接显示升级进度并沿用原目录，首次安装保留完整向导；普通、静默、应用内更新与同版本重装统一在复制文件前按安装目录停止旧主程序/daemon，再以 `/S /UPDATE` 运行旧卸载器；不删除聊天、登录和工作区数据。64 位系统使用原生 PowerShell，停止或卸载失败必须中止。`scripts/test_windows_installer_hooks.ps1` 用真实 NSIS 安装/卸载夹具验证该流程，PR CI 与 Windows 出包均执行；Tauri CLI 或 NSIS 升级时同步验证 Modern UI 初始化钩子与卸载分流。
 - **更新签名版本绑定**：平台核心版本保留数字版本；最终 Windows NSIS 与双架构 macOS 更新归档必须由 Tauri CLI `signer sign --app-version` 绑定完整 Release 版本（含 `-dev.N`）。发布前使用真实 `tauri-plugin-updater` 校验文件、公钥与声明版本，并在隔离 runner 验证从稳定版及前一测试版的原生安装/替换；清单生成器拒绝签名版本不一致、缺失或平台不齐。不得关闭版本校验或将 dev 清单降为核心版本规避问题。
 
+- **Windows 安装回归**：先由原生更新器校验候选安装包，再提取 NSIS 内主程序作为安装后哈希基准。Tauri 会把包内程序的安装类型标记改为 NSIS，不能与便携版或恢复后的构建目录 EXE 直接比较。尚未发布就绪清单的 tag 可从受保护的 main 工作流重试；产品构建和签名清单仍绑定原 tag 源提交，验证脚本绑定本次工作流提交，不覆盖 tag。
+
 - **macOS 标题栏对齐**：`src/titlebar.rs` 按 AppKit 按钮实际高度对齐 36px WebView 顶栏（含 1px 底边框，内容中心为距顶端 17.5px）；使用原生通知在缩放、退出全屏、切换显示器、恢复窗口和重新聚焦后校正，不替换 Tauri 的窗口 delegate。不要再配置 `trafficLightPosition`，否则 Tao/Wry 会在布局时覆盖原生校正。修改后运行 `cd frontend/src-tauri && cargo run --example verify_titlebar_alignment`（真实原生控件与通知处理器冒烟；需要 macOS 及客户端构建资源），并打包检查实际缩放与全屏往返。
 - **安全**：`capabilities/default.json` 最小权限，新 command 显式声明所需权限；CSP 由 `tauri.conf.json` 配置并由 Tauri 在打包时注入 hash / nonce。CodeMirror 预览与编辑入口通过 `codeMirrorCspNonce` 复用启动样式的 DOM `nonce` 属性，授权动态样式；不可用放宽 CSP 替代 nonce 传递。签名/更新密钥只进 CI secrets，代码与文档不落明文。
 - **macOS 特例**：ad-hoc 签名（`signingIdentity: "-"`）+ `hardenedRuntime: false` 是 PBS sidecar 内嵌 dylib 的既定兼容决策，改动此项必须附真机验证结论，否则 CI 签名校验门禁与 Gatekeeper 都可能翻车。
