@@ -134,6 +134,16 @@ jobs:
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
 
+      - name: Native updater version-binding regression
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cargo test --manifest-path frontend/src-tauri/Cargo.toml --release --locked --features updater-verification --example verify_updater --jobs 1 -- --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/test_windows_native_update.ps1), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+
       - name: Collect installer and content hashes
         shell: pwsh
         run: |
