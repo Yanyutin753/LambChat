@@ -23,7 +23,10 @@ export function buildProxyFallbackUrl(url: string): string | null {
   if (parsed.searchParams.get("proxy") === "true") {
     return null;
   }
-  return `${url}${url.includes("?") ? "&" : "?"}proxy=true`;
+  parsed.searchParams.set("proxy", "true");
+  if (/^https?:\/\//i.test(url)) return parsed.toString();
+  const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  return url.startsWith("//") ? `//${parsed.host}${path}` : path;
 }
 
 function isAbortError(error: unknown): boolean {

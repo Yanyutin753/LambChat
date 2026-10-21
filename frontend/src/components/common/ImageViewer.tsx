@@ -367,6 +367,7 @@ export function ImageViewer({
               setHasImageError(false);
             }}
             onError={() => {
+              if (privateImage.retryWithProxy()) return;
               setIsImageLoading(false);
               setHasImageError(true);
             }}

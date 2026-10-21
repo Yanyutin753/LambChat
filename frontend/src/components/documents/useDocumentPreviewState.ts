@@ -318,7 +318,9 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
         try {
           const resolvedSignedUrl = getFullUrl(signedUrl) || signedUrl;
           const url =
-            resolvedSignedUrl ||
+            (resolvedImageFile && s3Key
+              ? buildUploadProxyUrlFromKey(s3Key)
+              : resolvedSignedUrl) ||
             (s3Key
               ? buildUploadProxyUrlFromKey(s3Key) ||
                 (await uploadApi.getSignedUrl(s3Key))
@@ -331,23 +333,14 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           }
 
           setResolvedUrl(url);
-          const readUrl = buildUploadProxyUrl(url) || url;
 
           if (resolvedImageFile) {
-            // 走应用代理兜底取 blob（与下载按钮一致），失败则退回原始 URL 交给 <img>
-            try {
-              const response = await fetchUploadFile(readUrl);
-              const blob = await response.blob();
-              if (cancelled) return;
-              setImageUrl(URL.createObjectURL(blob));
-            } catch {
-              if (cancelled) return;
-              setImageUrl(url);
-            }
+            setImageUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
           }
+          const readUrl = buildUploadProxyUrl(url) || url;
 
           if (resolvedPdfFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);

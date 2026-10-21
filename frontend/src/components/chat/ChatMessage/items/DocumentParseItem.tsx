@@ -3,6 +3,7 @@ import { FileScan, FileText, Images, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { MarkdownContent } from "../MarkdownContent";
+import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import {
   openToolLivePanel,
@@ -79,7 +80,8 @@ function DocumentParseImages({ images }: { images: ParsedImage[] }) {
           rel="noreferrer"
           className="block rounded-md border border-theme-border overflow-hidden bg-theme-bg-subtle"
         >
-          <img
+          <ImageWithSkeleton
+            inline
             src={image.url}
             alt={image.id || `image-${position + 1}`}
             loading="lazy"
