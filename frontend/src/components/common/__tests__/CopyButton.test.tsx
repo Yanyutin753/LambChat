@@ -45,7 +45,9 @@ test("failed copying stays retryable and never reports success", async () => {
     }),
   );
   expect(mocks.success).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: "Copy result" })).toBeEnabled();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Copy result" })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Copy result" }));
   await screen.findByRole("button", { name: "chat.message.copied" });
   expect(mocks.copy).toHaveBeenNthCalledWith(2, "Keep this result");
@@ -153,6 +155,7 @@ test("retry replaces its earlier failure feedback instead of stacking conflictin
   render(<CopyButton text="Keep this result" />);
   fireEvent.click(screen.getByRole("button"));
   await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByRole("button")).toBeEnabled());
   fireEvent.click(screen.getByRole("button"));
   await waitFor(() => expect(mocks.success).toHaveBeenCalledOnce());
   const errorId = mocks.error.mock.calls[0][1]?.id;

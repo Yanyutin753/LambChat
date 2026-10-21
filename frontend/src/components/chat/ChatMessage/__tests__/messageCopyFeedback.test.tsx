@@ -36,21 +36,40 @@ afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());
 
 test.each([
-  ["前文 [引用技能：writer] 中间 [引用技能：reviewer] 结尾", "前文 writer 中间 reviewer 结尾"],
+  [
+    "前文 [引用技能：writer] 中间 [引用技能：reviewer] 结尾",
+    "前文 writer 中间 reviewer 结尾",
+  ],
   ["旧消息正文", "writerreviewer旧消息正文"],
-])("user references keep display and copy order: %s", async (content, visibleText) => {
-  mocks.copy.mockResolvedValueOnce(undefined);
-  const view = render(<ChatMessage message={{
-    id: "ordered-skills", role: "user", content, timestamp: new Date(),
-    enabledSkills: ["writer", "reviewer"],
-  }} />);
-  expect(view.container.querySelector(".user-message-inline-markdown")).toHaveTextContent(visibleText);
-  expect(view.container.querySelectorAll(".skill-chip-node")).toHaveLength(2);
-  fireEvent.click(screen.getByRole("button", { name: "chat.message.copy" }));
-  await waitFor(() => expect(mocks.copy).toHaveBeenCalledWith(
-    content.startsWith("前文") ? content : "[引用技能：writer] [引用技能：reviewer]\n旧消息正文",
-  ));
-});
+])(
+  "user references keep display and copy order: %s",
+  async (content, visibleText) => {
+    mocks.copy.mockResolvedValueOnce(undefined);
+    const view = render(
+      <ChatMessage
+        message={{
+          id: "ordered-skills",
+          role: "user",
+          content,
+          timestamp: new Date(),
+          enabledSkills: ["writer", "reviewer"],
+        }}
+      />,
+    );
+    expect(
+      view.container.querySelector(".user-message-inline-markdown"),
+    ).toHaveTextContent(visibleText);
+    expect(view.container.querySelectorAll(".skill-chip-node")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "chat.message.copy" }));
+    await waitFor(() =>
+      expect(mocks.copy).toHaveBeenCalledWith(
+        content.startsWith("前文")
+          ? content
+          : "[引用技能：writer] [引用技能：reviewer]\n旧消息正文",
+      ),
+    );
+  },
+);
 
 test.each(["user", "assistant"] as const)(
   "%s message copying waits for the clipboard and preserves retry after failure",
@@ -91,9 +110,11 @@ test.each(["user", "assistant"] as const)(
         id: expect.any(String),
       }),
     );
-    expect(
-      screen.getByRole("button", { name: "chat.message.copy" }),
-    ).toBeEnabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "chat.message.copy" }),
+      ).toBeEnabled(),
+    );
     expect(mocks.success).toHaveBeenCalledOnce();
   },
 );
@@ -138,7 +159,9 @@ test.each([
         id: expect.any(String),
       }),
     );
-    expect(screen.getByRole("button", { name: label })).toBeEnabled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+    );
     expect(mocks.success).toHaveBeenCalledOnce();
   },
 );
@@ -164,9 +187,11 @@ test("inline code is a keyboard accessible copy action that waits for confirmati
   mocks.copy.mockRejectedValueOnce(new Error("Unavailable"));
   fireEvent.click(screen.getByRole("button", { name: "chat.message.copied" }));
   await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
-  expect(
-    screen.getByRole("button", { name: "chat.message.copyCode" }),
-  ).toHaveAccessibleDescription("delivery_count chat.message.copyFailed");
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "chat.message.copyCode" }),
+    ).toHaveAccessibleDescription("delivery_count chat.message.copyFailed"),
+  );
   mocks.copy.mockResolvedValueOnce(undefined);
   fireEvent.click(
     screen.getByRole("button", { name: "chat.message.copyCode" }),
@@ -182,15 +207,40 @@ test("historical assistant avatar and name stay fixed when the current selection
     role: "assistant" as const,
     content: "A saved reply",
     timestamp: new Date(),
-    assistantIdentity: { seed: "fast", name: "Original assistant", avatar: null },
+    assistantIdentity: {
+      seed: "fast",
+      name: "Original assistant",
+      avatar: null,
+    },
   };
-  const { container, rerender } = render(<ChatMessage message={message} personaName="Current fast" personaSeed="fast" />);
-  const artwork = () => Array.from(container.querySelectorAll(".chat-assistant-heading svg path, .chat-assistant-heading svg rect"))
-    .map(shape => [shape.getAttribute("d"), shape.getAttribute("fill"), shape.getAttribute("transform")]);
+  const { container, rerender } = render(
+    <ChatMessage
+      message={message}
+      personaName="Current fast"
+      personaSeed="fast"
+    />,
+  );
+  const artwork = () =>
+    Array.from(
+      container.querySelectorAll(
+        ".chat-assistant-heading svg path, .chat-assistant-heading svg rect",
+      ),
+    ).map((shape) => [
+      shape.getAttribute("d"),
+      shape.getAttribute("fill"),
+      shape.getAttribute("transform"),
+    ]);
   const original = artwork();
   expect(original.length).toBeGreaterThan(0);
   expect(screen.getByText("Original assistant")).toBeInTheDocument();
-  rerender(<ChatMessage message={message} personaName="Current search" personaSeed="search" personaAvatar="🤖" />);
+  rerender(
+    <ChatMessage
+      message={message}
+      personaName="Current search"
+      personaSeed="search"
+      personaAvatar="🤖"
+    />,
+  );
   expect(artwork()).toEqual(original);
   expect(screen.getByText("Original assistant")).toBeInTheDocument();
   expect(screen.queryByText("Current search")).not.toBeInTheDocument();
