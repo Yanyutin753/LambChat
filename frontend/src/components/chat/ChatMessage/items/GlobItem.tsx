@@ -26,7 +26,7 @@ function GlobDetail({ args, result }: ToolDetailProps) {
   }, [result]);
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       <ToolArgsBlock
         size="detail"
         copyText={[pattern, searchPath].filter(Boolean).join("\n")}
@@ -41,6 +41,11 @@ function GlobDetail({ args, result }: ToolDetailProps) {
           </span>
         )}
       </ToolArgsBlock>
+      {result !== undefined && paths.length === 0 && (
+        <p className="text-14 text-theme-text-tertiary">
+          {t("documents.noFilesFound")}
+        </p>
+      )}
       {paths.length > 0 && (
         <div className="tool-panel-output flex min-h-0 flex-col">
           <div className="text-12 text-theme-text-tertiary mb-2">
@@ -51,7 +56,6 @@ function GlobDetail({ args, result }: ToolDetailProps) {
               text={paths.join("\n")}
               size={14}
               position="panelRaised"
-              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
             />
             {paths.map((p, i) => {
               const isDir = p.endsWith("/") || p.endsWith("\\");
@@ -211,7 +215,6 @@ const GlobItem = memo(function GlobItem({
                   <ToolHoverCopyButton
                     text={paths.join("\n")}
                     position="panelCompactRaised"
-                    copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                   />
                   {paths.slice(0, 10).map((p, i) => {
                     const isDir = p.endsWith("/") || p.endsWith("\\");

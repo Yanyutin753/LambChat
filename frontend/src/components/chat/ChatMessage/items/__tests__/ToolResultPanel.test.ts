@@ -222,21 +222,15 @@ test("tool result panel resets first-paint state for a new registry panel but no
   expect(componentSource).not.toMatch(/\}, \[open, children\]\);/);
 });
 
-test("tool detail sections keep visible separation in light mode", () => {
-  const componentsSource = readFileSync(
+test("tool detail sections share a flat surface in both themes", () => {
+  const css = readFileSync(
     new URL("../../../../../styles/components.css", import.meta.url),
     "utf8",
   );
-
-  expect(componentsSource).toMatch(
-    /\.tool-detail-section\s*\{[\s\S]*?background:\s*var\(--theme-bg-card\);[\s\S]*?box-shadow:/,
+  expect(css).toMatch(
+    /\.tool-detail-section\s*\{[^}]*border: 0;[^}]*border-radius: 0;[^}]*background: transparent;[^}]*box-shadow: none;/,
   );
-  expect(componentsSource).toMatch(
-    /\.tool-detail-section\.is-expanded\s*\{[\s\S]*?background:\s*var\(--theme-bg-card\);[\s\S]*?0 8px 24px -18px/,
-  );
-  expect(componentsSource).toMatch(
-    /\.dark \.tool-detail-section\s*\{[\s\S]*?background:\s*color-mix\(in srgb, var\(--theme-bg\) 35%, transparent\);/,
-  );
+  expect(css).not.toMatch(/\.dark \.tool-detail-section(?:\s|\.)/);
 });
 
 test("tool detail text stays within its parent and uses slightly smaller body typography", () => {
@@ -255,7 +249,7 @@ test("tool detail text stays within its parent and uses slightly smaller body ty
     /\.tool-readable :is\(\.text-12, \.text-13\)\s*\{[^}]*font-size: var\(--tool-font-size\);/,
   );
   expect(css).toMatch(
-    /\.tool-readable \.tool-detail-section__title\s*\{[^}]*font-family: inherit;/,
+    /\.tool-readable \.tool-detail-section__title\s*\{[^}]*@apply font-serif;/,
   );
   expect(css).toMatch(
     /\.tool-readable :is\(\.markdown-preview, \.sidebar-reasoning-preview__scroll\)\s*\{[^}]*font-size: var\(--tool-font-size\);/,

@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { FileScan, FileText, Images, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -100,7 +101,7 @@ function DocumentParseDetail({ args, result }: ToolDetailProps) {
   const parsed = useMemo(() => parseDocumentParseResult(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       {url && (
         <ToolArgsBlock size="detail" copyText={url} wrap>
           <FileScan
@@ -111,33 +112,39 @@ function DocumentParseDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
-        {parsed.provider && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono">
-            <FileText size={10} className="opacity-60" />
-            {parsed.provider}
-          </span>
-        )}
-        {pages && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono">
-            <Layers size={10} className="opacity-60" />
-            {pages}
-          </span>
-        )}
-        {typeof parsed.pagesProcessed === "number" &&
-          parsed.pagesProcessed > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12">
-              <Layers size={10} className="opacity-60" />
-              {parsed.pagesProcessed}
-            </span>
+      {(parsed.provider ||
+        pages ||
+        parsed.pagesProcessed ||
+        parsed.images.length > 0) && (
+        <div className="flex flex-wrap gap-1.5">
+          {parsed.provider && (
+            <TagBadge icon={<FileText />} className="font-mono">
+              {parsed.provider}
+            </TagBadge>
           )}
-        {parsed.images.length > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12">
-            <Images size={10} className="opacity-60" />
-            {parsed.images.length}
-          </span>
-        )}
-      </div>
+          {pages && (
+            <TagBadge icon={<Layers />} className="font-mono">
+              {pages}
+            </TagBadge>
+          )}
+          {typeof parsed.pagesProcessed === "number" &&
+            parsed.pagesProcessed > 0 && (
+              <TagBadge icon={<Layers />}>{parsed.pagesProcessed}</TagBadge>
+            )}
+          {parsed.images.length > 0 && (
+            <TagBadge icon={<Images />}>{parsed.images.length}</TagBadge>
+          )}
+        </div>
+      )}
+
+      {parsed.error && (
+        <p
+          role="alert"
+          className="text-12 text-theme-error whitespace-pre-wrap break-words"
+        >
+          {parsed.error}
+        </p>
+      )}
 
       {parsed.markdown && (
         <div className="relative group rounded-lg tool-code-block">
@@ -151,7 +158,6 @@ function DocumentParseDetail({ args, result }: ToolDetailProps) {
             text={parsed.markdown}
             size={14}
             position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
           />
         </div>
       )}
@@ -258,25 +264,27 @@ const DocumentParseItem = memo(function DocumentParseItem({
 
             <div className="flex flex-wrap gap-1">
               {pages && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10 font-mono">
-                  <Layers size={8} className="opacity-60" />
+                <TagBadge icon={<Layers />} className="font-mono">
                   {pages}
-                </span>
+                </TagBadge>
               )}
               {typeof parsed.pagesProcessed === "number" &&
                 parsed.pagesProcessed > 0 && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10">
-                    <Layers size={8} className="opacity-60" />
-                    {parsed.pagesProcessed}
-                  </span>
+                  <TagBadge icon={<Layers />}>{parsed.pagesProcessed}</TagBadge>
                 )}
               {parsed.images.length > 0 && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10">
-                  <Images size={8} className="opacity-60" />
-                  {parsed.images.length}
-                </span>
+                <TagBadge icon={<Images />}>{parsed.images.length}</TagBadge>
               )}
             </div>
+
+            {parsed.error && (
+              <p
+                role="alert"
+                className="text-12 text-theme-error whitespace-pre-wrap break-words"
+              >
+                {parsed.error}
+              </p>
+            )}
 
             {parsed.markdown && (
               <div className="relative group rounded-md tool-code-block">
@@ -295,7 +303,6 @@ const DocumentParseItem = memo(function DocumentParseItem({
                 <ToolHoverCopyButton
                   text={parsed.markdown}
                   position="panelCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                 />
               </div>
             )}

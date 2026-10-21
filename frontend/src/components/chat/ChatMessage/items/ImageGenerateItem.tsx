@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo, useState, useCallback } from "react";
 import { clsx } from "clsx";
 import { Sparkles, ImageIcon, Tag, Layers, ImagePlus } from "lucide-react";
@@ -113,7 +114,7 @@ function ImageGenerateDetail({
             <ImageIcon size={20} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-14 text-theme-text font-semibold truncate">
+            <div className="text-14 font-serif text-theme-text font-semibold truncate">
               {t("chat.message.toolImageGenerate")}
             </div>
             <div className="text-12 text-theme-text-tertiary truncate mt-0.5">
@@ -156,64 +157,35 @@ function ImageGenerateDetail({
           </div>
         )}
 
-        {/* ── Tags ── */}
         <div className="flex flex-wrap gap-1.5">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12">
-            <Tag size={9} className="opacity-50" />
-            {t("chat.message.toolImageTag")}
-          </span>
-          {model && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12">
-              <Layers size={9} className="opacity-50" />
-              {model}
-            </span>
-          )}
-          {size && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12">
-              <ImageIcon size={10} className="opacity-50" />
-              {size}
-            </span>
-          )}
-          {quality && (
-            <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 capitalize">
-              {quality}
-            </span>
-          )}
-          {style && (
-            <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 capitalize">
-              {style}
-            </span>
-          )}
+          <TagBadge icon={<Tag />}>{t("chat.message.toolImageTag")}</TagBadge>
+          {model && <TagBadge icon={<Layers />}>{model}</TagBadge>}
+          {size && <TagBadge icon={<ImageIcon />}>{size}</TagBadge>}
+          {quality && <TagBadge className="capitalize">{quality}</TagBadge>}
+          {style && <TagBadge className="capitalize">{style}</TagBadge>}
           {outputFormat && (
-            <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 font-mono uppercase">
-              {outputFormat}
-            </span>
+            <TagBadge className="font-mono uppercase">{outputFormat}</TagBadge>
           )}
           {inputImages.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12">
-              <ImagePlus size={10} className="opacity-50" />
+            <TagBadge icon={<ImagePlus />}>
               {t("chat.message.toolImageRefCount", {
                 count: inputImages.length,
               })}
-            </span>
+            </TagBadge>
           )}
         </div>
 
         {/* ── Prompt ── */}
         {prompt && (
-          <div className="relative rounded-lg tool-code-block">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-theme-bg-subtle text-theme-text-tertiary text-12 transition-colors duration-200">
+          <div className="tool-surface">
+            <div className="tool-surface__header">
               <Sparkles size={12} className="text-theme-text-secondary" />
-              <span className="min-w-0 flex-1 truncate">
+              <span className="tool-surface__title min-w-0 flex-1 truncate">
                 {t("chat.message.toolImagePrompt")}
               </span>
-              <CopyButton
-                text={prompt}
-                size={12}
-                className="!h-6 !w-6 !rounded-md !bg-theme-bg-card/80 !border !border-theme-border"
-              />
+              <CopyButton text={prompt} size={12} />
             </div>
-            <div className="px-3 py-2 text-14 text-theme-text-secondary whitespace-pre-wrap break-words leading-relaxed">
+            <div className="tool-surface__body text-14 text-theme-text-secondary whitespace-pre-wrap break-words leading-relaxed">
               {prompt}
             </div>
           </div>
@@ -221,10 +193,10 @@ function ImageGenerateDetail({
 
         {/* ── Reference Images ── */}
         {inputImages.length > 0 && (
-          <div className="rounded-lg border border-theme-border overflow-hidden">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-theme-bg-subtle text-theme-text-tertiary text-12">
+          <div className="tool-surface">
+            <div className="tool-surface__header text-12">
               <ImagePlus size={12} className="text-theme-text-secondary" />
-              <span className="min-w-0 flex-1 truncate">
+              <span className="tool-surface__title min-w-0 flex-1 truncate">
                 {t("chat.message.toolImageRefImages", "Reference Images")}
               </span>
               <span className="shrink-0 text-10 text-theme-text-secondary">
@@ -235,11 +207,15 @@ function ImageGenerateDetail({
               {inputImages.slice(0, 4).map((imgUrl, i) => {
                 const resolvedUrl = getFullUrl(imgUrl) || imgUrl;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={i}
+                    aria-label={t("chat.message.toolImageRefAlt", {
+                      index: i + 1,
+                    })}
                     className={clsx(
                       "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
-                      "border border-dashed border-theme-border",
+                      "border border-theme-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary",
                       "hover:border-theme-text-tertiary",
                       "transition-colors cursor-pointer",
                     )}
@@ -256,7 +232,7 @@ function ImageGenerateDetail({
                     <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
                       {i + 1}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
               {inputImages.length > 4 && (
@@ -282,8 +258,8 @@ function ImageGenerateDetail({
                 className={clsx(
                   "ai-image-generation-result group/img relative rounded-xl overflow-hidden",
                   "border border-theme-border",
-                  "hover:shadow-lg hover:border-theme-text-tertiary",
-                  "transition-all duration-200",
+                  "hover:border-theme-text-tertiary",
+                  "transition-colors duration-200",
                 )}
               >
                 <ImageWithSkeleton
@@ -292,7 +268,7 @@ function ImageGenerateDetail({
                   alt={img.name}
                   skipUrlResolve
                   inline
-                  className="w-full aspect-square object-cover"
+                  className="w-full aspect-square object-contain bg-theme-bg-subtle"
                   onClick={() => openImagePreview(img.url)}
                 />
                 <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
@@ -314,11 +290,7 @@ function ImageGenerateDetail({
         {fallbackText && (
           <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
             {fallbackText}
-            <ToolHoverCopyButton
-              text={fallbackText}
-              position="result"
-              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-            />
+            <ToolHoverCopyButton text={fallbackText} position="result" />
           </pre>
         )}
       </div>
@@ -501,36 +473,20 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
         </ToolArgsBlock>
       )}
 
-      {/* Compact tags */}
-      <div className="flex flex-wrap gap-1">
-        {model && (
-          <span
-            className="max-w-full truncate px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10"
-            title={model}
-          >
-            {model}
-          </span>
-        )}
+      <div className="flex flex-wrap gap-1.5">
+        {model && <TagBadge title={model}>{model}</TagBadge>}
         {images.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10">
+          <TagBadge>
             {t("chat.message.toolImageCount", { count: images.length })}
-          </span>
+          </TagBadge>
         )}
         {inputImages.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10">
+          <TagBadge>
             {t("chat.message.toolImageRefCount", { count: inputImages.length })}
-          </span>
+          </TagBadge>
         )}
-        {size && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10 font-mono">
-            {size}
-          </span>
-        )}
-        {quality && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10 capitalize">
-            {quality}
-          </span>
-        )}
+        {size && <TagBadge className="font-mono">{size}</TagBadge>}
+        {quality && <TagBadge className="capitalize">{quality}</TagBadge>}
       </div>
 
       {/* Compact reference image thumbnails */}

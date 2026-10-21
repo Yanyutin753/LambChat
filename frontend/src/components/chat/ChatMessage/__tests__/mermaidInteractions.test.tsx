@@ -158,12 +158,14 @@ test.each([false, true])(
     fireEvent.click(
       scope.getByRole("button", { name: "chat.message.copyCode" }),
     );
-    await waitFor(() => expect(clipboard.error).toHaveBeenCalledOnce());
     const retry = scope.getByRole("button", { name: "chat.message.copyCode" });
-    expect(retry).toHaveAttribute(
-      "aria-description",
-      "chat.message.copyFailed",
+    await waitFor(() =>
+      expect(retry).toHaveAttribute(
+        "aria-description",
+        "chat.message.copyFailed",
+      ),
     );
+    expect(clipboard.error).toHaveBeenCalledOnce();
     expect(clipboard.success).not.toHaveBeenCalled();
     fireEvent.click(retry);
     await scope.findByRole("button", { name: "chat.message.copied" });

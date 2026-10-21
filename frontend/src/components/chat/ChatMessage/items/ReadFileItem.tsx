@@ -352,7 +352,6 @@ const ReadFileItem = memo(function ReadFileItem({
                 <ToolHoverCopyButton
                   text={displayContent}
                   position="panelCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                 />
               </div>
             )}

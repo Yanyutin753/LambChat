@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { History, Search, User, MessageSquareText, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -183,17 +184,13 @@ function ConversationHistoryDetail({
             return (
               <div
                 key={item.session_id + (item.run_id || "") + i}
-                className="rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
+                className="tool-result-card border border-theme-border space-y-2"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-14 font-semibold text-theme-text truncate flex-1">
+                  <span className="text-14 font-serif font-semibold text-theme-text truncate flex-1">
                     {item.session_name || item.session_id}
                   </span>
-                  {badge && (
-                    <span className="shrink-0 text-10 px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 ring-1 ring-sky-200/60 dark:ring-sky-800/40 text-sky-600 dark:text-sky-400 font-medium">
-                      {badge}
-                    </span>
-                  )}
+                  {badge && <TagBadge>{badge}</TagBadge>}
                   {item.completed_at && (
                     <span className="shrink-0 inline-flex items-center gap-1 text-10 tabular-nums text-theme-text-tertiary">
                       <Clock size={10} className="opacity-50" />
@@ -234,7 +231,7 @@ function ConversationHistoryDetail({
           {parsed.turns.map((turn, i) => (
             <div
               key={turn.run_id || i}
-              className="rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
+              className="tool-result-card border border-theme-border space-y-2"
             >
               <PreviewLine
                 icon={<User size={10} />}

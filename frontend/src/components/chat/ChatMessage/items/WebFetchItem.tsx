@@ -1,8 +1,8 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useMemo } from "react";
 import { BookOpen, FileText, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { clsx } from "clsx";
 import { CollapsiblePill } from "../../../common";
 import {
   hostFromUrl,
@@ -26,61 +26,23 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** 供应商识别色点（对齐 WebSearchItem 的 PROVIDER_DOTS 语义） */
-const PROVIDER_DOTS: Record<string, string> = {
-  direct: "bg-theme-success",
-  deepseek: "bg-theme-info",
-  tavily: "bg-sky-400",
-  firecrawl: "bg-orange-400",
-  exa: "bg-teal-400",
-  jina: "bg-violet-400",
-};
-
-function ProviderBadge({ provider }: { provider: string }) {
-  if (!provider) return null;
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-theme-bg-card px-2 py-0.5 text-10 font-medium text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))]">
-      <span
-        className={clsx(
-          "size-1.5 rounded-full",
-          PROVIDER_DOTS[provider] ?? "bg-theme-text-tertiary",
-        )}
-      />
-      {provider}
-    </span>
-  );
-}
-
-/** 摘要 chips：字符数（主题色）+ 供应商 + 截断标记 */
-function FetchSummaryChips({
-  summary,
-  size,
-}: {
-  summary: WebFetchSummary;
-  size: "compact" | "detail";
-}) {
+function FetchSummaryChips({ summary }: { summary: WebFetchSummary }) {
   const { t } = useTranslation();
-  const compact = size === "compact";
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span
-        className={clsx(
-          "inline-flex items-center gap-1 rounded-md font-medium",
-          "bg-[color-mix(in_srgb,var(--theme-primary)_9%,transparent)] text-[var(--theme-primary)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_16%,transparent)]",
-          compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11",
-        )}
-      >
-        <FileText size={compact ? 9 : 10} className="shrink-0 opacity-70" />
+      <TagBadge icon={<FileText />}>
         {t("chat.message.toolWebFetchChars", {
           count: summary.contentChars ?? summary.content.length,
         })}
-      </span>
-      <ProviderBadge provider={summary.provider} />
+      </TagBadge>
+      {summary.provider && <TagBadge>{summary.provider}</TagBadge>}
       {summary.truncated && (
-        <span className="inline-flex items-center gap-1 rounded-md bg-theme-bg-card px-1.5 py-0.5 text-10 font-medium text-amber-600 dark:text-amber-400 ring-1 ring-theme-border">
-          <Scissors size={compact ? 9 : 10} className="shrink-0 opacity-70" />
+        <TagBadge
+          icon={<Scissors />}
+          className="text-amber-600 dark:text-amber-400"
+        >
           {t("chat.message.toolWebFetchTruncated")}
-        </span>
+        </TagBadge>
       )}
     </div>
   );
@@ -121,11 +83,10 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
               {host || url}
             </span>
           </span>
-          {summary && <ProviderBadge provider={summary.provider} />}
         </a>
       )}
 
-      {summary && <FetchSummaryChips summary={summary} size="detail" />}
+      {summary && <FetchSummaryChips summary={summary} />}
 
       {summary && (
         <div className="tool-result-card group/content relative min-h-0 flex-1 border border-theme-border">
@@ -143,13 +104,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
 
       {summary === null && hasRawFallback && (
         <div className="group/result relative min-h-0 flex-1 text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-          <ToolHoverCopyButton
-            text={typeof result === "string" ? result : JSON.stringify(result)}
-            position="resultCompact"
-            className="z-20 pointer-events-auto"
-            copyButtonClassName="tool-result-copy"
-          />
-          <ToolResultContent result={result} hideCopyButton />
+          <ToolResultContent result={result} />
         </div>
       )}
 
@@ -261,7 +216,7 @@ const WebFetchItem = memo(function WebFetchItem({
             </ToolArgsBlock>
           )}
 
-          {summary && <FetchSummaryChips summary={summary} size="compact" />}
+          {summary && <FetchSummaryChips summary={summary} />}
 
           {summary && (
             <div className="rounded-lg bg-theme-bg px-2.5 py-1.5 text-12 leading-relaxed text-theme-text-secondary ring-1 ring-theme-border">
@@ -278,17 +233,7 @@ const WebFetchItem = memo(function WebFetchItem({
 
           {hasResult && !summary && (
             <div className="group/result relative min-w-0 overflow-y-auto text-12 text-theme-text-secondary">
-              <ToolHoverCopyButton
-                text={
-                  typeof result === "string"
-                    ? result
-                    : JSON.stringify(result, null, 2)
-                }
-                position="resultCompact"
-                className="z-20 pointer-events-auto"
-                copyButtonClassName="tool-result-copy"
-              />
-              <ToolResultContent result={result} hideCopyButton />
+              <ToolResultContent result={result} />
             </div>
           )}
         </ToolInlineDetails>

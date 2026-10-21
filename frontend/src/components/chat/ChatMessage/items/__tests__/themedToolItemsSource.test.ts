@@ -26,7 +26,7 @@ test("internal tool items keep accents while using theme surfaces", () => {
     const source = readSource(file);
 
     expect(source).toMatch(new RegExp(`text-${accent}-[0-9]`));
-    expect(source).toMatch(/bg-theme-bg/);
-    expect(source).toMatch(/border-theme-border/);
+    expect(source).toMatch(/bg-theme-bg|tool-code-block/);
+    expect(source).toMatch(/border-theme-border|tool-code-block/);
   }
 });

@@ -606,7 +606,7 @@ jobs:
       # python3 的可执行名差异。
       # 烘焙门控：本步骤直传 Release，必须与汇总 job 同受
       # DESKTOP_UPDATER_AUTO_PUBLISH 门控——v2.10.3 实测平台 job 无条件
-      # 直传击穿烘焙态（汇总 job 的 rm 只挡自己那份），真机抽检防线失守。
+      # 直传击穿烘焙态（汇总 job 的 rm 只挡自己那份），延后发布边界失效。
       - name: Merge updater platform entry into latest.json
         if: matrix.updater_key != '' && vars.DESKTOP_UPDATER_AUTO_PUBLISH == 'true' && !contains(env.RELEASE_TAG, '-dev.')
         shell: bash
@@ -1033,7 +1033,7 @@ jobs:
         # 公共生成器（scripts/generate_updater_manifest.py，与手动 publish
         # 工作流共用）。烘焙门控：仓库变量 DESKTOP_UPDATER_AUTO_PUBLISH != true
         # 时 latest.json 不随出包上传——资产在 Release 上可供手工验证，但
-        # 桌面端自更新不感知，待人工/真机抽检后跑 Publish Updater 工作流才
+        # 桌面端自更新不感知，待自动化回归通过后跑 Publish Updater 工作流才
         # 真正推送（v2.9.0~v2.9.2 三连热修的流程性根治）。
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1054,7 +1054,7 @@ jobs:
             echo "!! latest.json 平台不齐——见上方 WARN"; exit 1; }
           if [ "${{ vars.DESKTOP_UPDATER_AUTO_PUBLISH }}" != "true" ]; then
             rm -f release-assets/latest.json
-            echo "::notice::出包完成（烘焙态）：latest.json 未上传。真机抽检后到 Actions 跑 Desktop Updater Publish（tag: ${RELEASE_TAG}）推给桌面端。"
+            echo "::notice::出包完成（烘焙态）：latest.json 未上传。自动化回归后到 Actions 跑 Desktop Updater Publish（tag: ${RELEASE_TAG}）推给桌面端；真机检查可选，不阻塞发布。"
           else
             echo "::notice::DESKTOP_UPDATER_AUTO_PUBLISH=true——latest.json 随包发布"
           fi

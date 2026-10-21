@@ -10,14 +10,8 @@ import {
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
-import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolResultContent } from "./McpBlockPreview";
-
-function stringifyResult(result: string | Record<string, unknown> | undefined) {
-  if (result === undefined) return "";
-  return typeof result === "string" ? result : JSON.stringify(result, null, 2);
-}
 
 function truncate(value: string, maxLength: number) {
   if (value.length <= maxLength) return value;
@@ -29,7 +23,6 @@ function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
   const url = (args.url as string) || "";
   const filePath = (args.file_path as string) || "";
   const hasResult = result !== undefined;
-  const resultText = stringifyResult(result);
 
   return (
     <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
@@ -53,13 +46,7 @@ function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
       )}
       {hasResult && (
         <div className="group/result relative flex-1 min-h-0 text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-          <ToolHoverCopyButton
-            text={resultText}
-            position="resultCompact"
-            className="z-20 pointer-events-auto"
-            copyButtonClassName="tool-result-copy"
-          />
-          <ToolResultContent result={result} hideCopyButton />
+          <ToolResultContent result={result} />
         </div>
       )}
     </div>
@@ -101,17 +88,10 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
       : success
         ? "success"
         : "error";
-  const resultText = stringifyResult(result);
 
   const resultPreview = hasResult ? (
     <div className="group/result relative text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-      <ToolHoverCopyButton
-        text={resultText}
-        position="resultCompact"
-        className="z-20 pointer-events-auto"
-        copyButtonClassName="tool-result-copy"
-      />
-      <ToolResultContent result={result} hideCopyButton />
+      <ToolResultContent result={result} />
     </div>
   ) : null;
 

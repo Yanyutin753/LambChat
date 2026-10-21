@@ -1,3 +1,5 @@
+import { TagBadge } from "../../../common/TagBadge";
+import { AgentAvatar } from "../../../common/AgentAvatar";
 import { memo, useMemo } from "react";
 import { Sparkles, Search, BookOpen, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -90,33 +92,29 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
               className="tool-result-card rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Sparkles
-                  size={13}
-                  className="shrink-0 text-violet-500 dark:text-violet-400"
-                />
-                <span className="text-14 font-semibold text-theme-text truncate">
+                <AgentAvatar seed={match.name} size={36} />
+                <span className="min-w-0 text-14 font-serif font-semibold text-theme-text break-words">
                   {match.name}
                 </span>
               </div>
               {match.description && (
-                <p className="text-12 text-theme-text-secondary leading-relaxed line-clamp-3">
+                <p className="text-12 text-theme-text-secondary leading-relaxed break-words">
                   {match.description}
                 </p>
               )}
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span
-                  className="inline-flex min-w-0 max-w-full items-center gap-1 text-10 font-mono text-theme-text-tertiary bg-theme-bg border border-theme-border rounded-md px-1.5 py-0.5"
+                <TagBadge
+                  icon={<BookOpen />}
                   title={match.path}
+                  className="font-mono"
                 >
-                  <BookOpen size={10} className="shrink-0 opacity-60" />
-                  <span className="min-w-0 truncate">{match.path}</span>
-                </span>
-                {match.tags.length > 0 && (
-                  <span className="inline-flex items-center gap-1 text-10 text-theme-text-tertiary truncate">
-                    <Tag size={10} className="shrink-0 opacity-60" />
-                    {match.tags.join(" · ")}
-                  </span>
-                )}
+                  {match.path}
+                </TagBadge>
+                {match.tags.map((tag, i) => (
+                  <TagBadge key={i} icon={<Tag />}>
+                    {tag}
+                  </TagBadge>
+                ))}
               </div>
             </div>
           ))}
@@ -245,10 +243,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
                   key={match.name}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border"
                 >
-                  <Sparkles
-                    size={11}
-                    className="shrink-0 text-violet-500 dark:text-violet-400 opacity-70"
-                  />
+                  <AgentAvatar seed={match.name} size={20} />
                   <span className="text-12 text-theme-text font-medium min-w-0 truncate flex-1">
                     {match.name}
                   </span>
