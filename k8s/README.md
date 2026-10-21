@@ -55,7 +55,8 @@ KUBECTL='k3s kubectl' python3 k8s/scripts/update.py main-YYYYMMDD-HHMMSS
 4. API 旧 Pod 在 `preStop` 等待 10 秒，使 terminating Endpoint 的摘流传播到入口；
    Kubernetes 宽限 150 秒覆盖 uvicorn 默认 120 秒退出窗口。liveness 也使用命名端口。
    worker 使用 PID 与文件更新时间探针、300 秒宽限及相同的先增后减策略。
-5. 每个目标都等待 rollout、就绪和旧 Pod 真正退出后才继续，避免下次发布复用仍被旧进程占用的端口。
+5. 每个目标都等待 rollout、就绪；Pod 模板改变时再等待旧 Pod 真正退出，避免下次发布复用仍被旧进程占用的端口。
+   重复发布相同镜像时，未改变模板的 worker 保持运行，不等待不会退出的现有 Pod。
 6. 任一步失败，恢复所有已尝试修改的 Deployment 的相关原始字段，并逐个确认回滚就绪。
    回滚期间先保留 `maxSurge=1` / `maxUnavailable=0` 恢复原 Pod 模板，原版本就绪后才恢复原滚动策略。
    正向 patch 检查快照 generation；回滚检查字段仍为本脚本写入值并以当前 generation 再次保护。

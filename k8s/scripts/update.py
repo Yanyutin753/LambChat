@@ -356,14 +356,15 @@ def deploy(namespace, apis, worker, service, image):
         for name in names:
             print(f"Rolling {name}", flush=True)
             changed.append(name)
-            apply(name, patches[name], documents[name]["metadata"]["generation"])
-            kubectl(
-                namespace,
-                "wait",
-                "--for=delete",
-                *[f"pod/{p['metadata']['name']}" for p in old_pods[name]],
-                "--timeout=360s",
-            )
+            observed = apply(name, patches[name], documents[name]["metadata"]["generation"])
+            if observed["spec"]["template"] != documents[name]["spec"]["template"]:
+                kubectl(
+                    namespace,
+                    "wait",
+                    "--for=delete",
+                    *[f"pod/{p['metadata']['name']}" for p in old_pods[name]],
+                    "--timeout=360s",
+                )
             service_probe(route)
     except (Exception, KeyboardInterrupt) as error:
         failures = []
