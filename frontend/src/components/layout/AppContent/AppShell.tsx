@@ -1,6 +1,5 @@
-import { useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import "../../../styles/desktop.css";
-import { ProfileModal } from "../../profile/ProfileModal";
 import { Header } from "./Header";
 import { isStandaloneDisplayMode } from "../../../hooks/useAppViewport";
 import {
@@ -9,6 +8,12 @@ import {
 } from "./appBrowserChrome";
 import { isMobileDevice } from "../../../utils/mobile";
 import type { TabType } from "./types";
+
+const ProfileModal = lazy(() =>
+  import("../../profile/ProfileModal").then((module) => ({
+    default: module.ProfileModal,
+  })),
+);
 
 export interface AppShellProps {
   activeTab: TabType;
@@ -106,10 +111,14 @@ export function AppShell({
 
   return (
     <>
-      <ProfileModal
-        showProfileModal={showProfileModal}
-        onCloseProfileModal={onCloseProfileModal}
-      />
+      {showProfileModal && (
+        <Suspense fallback={null}>
+          <ProfileModal
+            showProfileModal={showProfileModal}
+            onCloseProfileModal={onCloseProfileModal}
+          />
+        </Suspense>
+      )}
 
       <div
         data-workspace-ui={activeTab === "chat" ? "" : undefined}

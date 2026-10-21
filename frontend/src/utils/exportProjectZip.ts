@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import { buildUploadProxyUrl } from "../services/api/config";
 import { fetchUploadFile } from "../components/documents/documentFetchCache";
 
@@ -75,6 +74,7 @@ export async function exportProjectZip(
   binaryFiles?: Record<string, string>,
   options: ExportProjectZipOptions = {},
 ): Promise<void> {
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
 
   // 添加文本文件

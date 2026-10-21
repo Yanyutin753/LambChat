@@ -76,6 +76,63 @@ describe("frontend performance budgets", () => {
     ).toThrow("missing Vite manifest entry");
   });
 
+  test("keeps deferred workspace, settings, and ZIP code available offline without precaching heavy previews", () => {
+    const manifest = {
+      "index.html": {
+        file: "assets/index.js",
+        dynamicImports: ["src/components/layout/AppContent/index.tsx"],
+      },
+      "src/components/layout/AppContent/index.tsx": {
+        file: "assets/workspace.js",
+        dynamicImports: [
+          "src/components/layout/AppContent/ChatAppContent.tsx",
+          "src/components/layout/AppContent/NonChatAppContent.tsx",
+        ],
+      },
+      "src/components/layout/AppContent/ChatAppContent.tsx": {
+        file: "assets/chat.js",
+        imports: ["shared"],
+        dynamicImports: ["mermaid"],
+      },
+      "src/components/layout/AppContent/NonChatAppContent.tsx": {
+        file: "assets/management.js",
+      },
+      "src/components/profile/ProfileModal.tsx": {
+        file: "assets/profile.js",
+        imports: ["shared"],
+      },
+      "node_modules/.pnpm/jszip@3.10.2/node_modules/jszip/dist/jszip.min.js": {
+        file: "assets/zip.js",
+      },
+      shared: { file: "assets/shared.js" },
+      mermaid: { file: "assets/mermaid.js" },
+    };
+    expect(collectRouteShellUrls(manifest, "index.html")).toEqual(
+      new Set([
+        "assets/index.js",
+        "assets/workspace.js",
+        "assets/chat.js",
+        "assets/management.js",
+        "assets/profile.js",
+        "assets/zip.js",
+        "assets/shared.js",
+      ]),
+    );
+  });
+
+  test("precaches ZIP when Vite emits it as a shared chunk instead of a source entry", () => {
+    expect(
+      collectRouteShellUrls(
+        {
+          "index.html": { file: "assets/index.js" },
+          "_jszip.min-abc123.js": { file: "assets/jszip.min-abc123.js" },
+          "_mermaid-abc123.js": { file: "assets/mermaid-abc123.js" },
+        },
+        "index.html",
+      ),
+    ).toEqual(new Set(["assets/index.js", "assets/jszip.min-abc123.js"]));
+  });
+
   test("filters Workbox entries and budgets configured additions once", () => {
     const filtered = filterPrecacheEntries(
       [
@@ -301,48 +358,79 @@ test("selection actions load outside the eager application entry", () => {
   expect(source).not.toMatch(/import \{ SelectionActionPopover \}/);
 });
 
-
 test("workspace styles load with workspace and shared routes, outside the public entry", () => {
-  const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+  const read = (file: string) =>
+    readFileSync(resolve(process.cwd(), file), "utf8");
   const main = read("src/main.tsx");
-  for (const name of ["chat", "skill", "persona", "team", "approval", "syntax-highlight", "markdown", "panels", "legacy-panels"]) {
+  for (const name of [
+    "chat",
+    "skill",
+    "persona",
+    "team",
+    "approval",
+    "syntax-highlight",
+    "markdown",
+    "panels",
+    "legacy-panels",
+  ]) {
     expect(main).not.toContain(`import "./styles/${name}.css"`);
-    expect(read("src/styles/app-content.css")).toContain(`@import "./${name}.css"`);
+    expect(read("src/styles/app-content.css")).toContain(
+      `@import "./${name}.css"`,
+    );
   }
-  expect(read("src/components/layout/AppContent/index.tsx")).toContain('import "../../../styles/app-content.css"');
-  expect(read("src/components/share/SharedPage.tsx")).toContain('import "../../styles/app-content.css"');
+  expect(read("src/components/layout/AppContent/index.tsx")).toContain(
+    'import "../../../styles/app-content.css"',
+  );
+  expect(read("src/components/share/SharedPage.tsx")).toContain(
+    'import "../../styles/app-content.css"',
+  );
 });
-
 
 test("authentication styles follow every authentication entry instead of the public shell", () => {
-  const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+  const read = (file: string) =>
+    readFileSync(resolve(process.cwd(), file), "utf8");
   expect(read("src/main.tsx")).not.toContain('import "./styles/auth.css"');
   for (const name of ["AuthLayout", "PasswordInput", "ForgotPassword"]) {
-    expect(read(`src/components/auth/${name}.tsx`)).toContain('import "../../styles/auth.css"');
+    expect(read(`src/components/auth/${name}.tsx`)).toContain(
+      'import "../../styles/auth.css"',
+    );
   }
 });
-
 
 test("eager route fallbacks do not pull the skeleton barrel into the entry graph", () => {
   const app = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
-  const guard = readFileSync(resolve(process.cwd(), "src/components/auth/ProtectedRoute.tsx"), "utf8");
+  const guard = readFileSync(
+    resolve(process.cwd(), "src/components/auth/ProtectedRoute.tsx"),
+    "utf8",
+  );
   expect(app).not.toMatch(/from "\.\/components\/skeletons"/);
   expect(guard).not.toMatch(/from "\.\.\/skeletons"/);
   expect(app).toContain('from "./components/skeletons/ChatSkeletons"');
   expect(app).toContain('from "./components/skeletons/FilesSkeletons"');
 });
 
-
 test("startup providers import API leaves without loading the entire service barrel", () => {
-  for (const file of ["hooks/useAuth.tsx", "hooks/useLanguagePreference.ts", "hooks/useSettings.ts", "contexts/SettingsContext.tsx", "contexts/ThemeContext.tsx"]) {
+  for (const file of [
+    "hooks/useAuth.tsx",
+    "hooks/useLanguagePreference.ts",
+    "hooks/useSettings.ts",
+    "contexts/SettingsContext.tsx",
+    "contexts/ThemeContext.tsx",
+  ]) {
     const source = readFileSync(resolve(process.cwd(), "src", file), "utf8");
     expect(source).not.toContain('from "../services/api"');
   }
 });
 
-
 test("file skeleton search keeps its geometry before workspace styles load", () => {
-  const source = readFileSync(resolve(process.cwd(), "src/components/skeletons/FilesSkeletons.tsx"), "utf8");
-  expect(source).toContain("file-library-toolbar__search-group flex flex-1 justify-end min-w-0");
-  expect(source).toContain("file-library-toolbar__search skeleton-line w-full max-w-[17.5rem] min-w-24");
+  const source = readFileSync(
+    resolve(process.cwd(), "src/components/skeletons/FilesSkeletons.tsx"),
+    "utf8",
+  );
+  expect(source).toContain(
+    "file-library-toolbar__search-group flex flex-1 justify-end min-w-0",
+  );
+  expect(source).toContain(
+    "file-library-toolbar__search skeleton-line w-full max-w-[17.5rem] min-w-24",
+  );
 });

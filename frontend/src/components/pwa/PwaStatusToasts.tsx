@@ -1,4 +1,4 @@
-import { InteractiveIcon } from "../common/InteractiveIcon";
+import { DeferredInteractiveIcon as InteractiveIcon } from "../common/DeferredInteractiveIcon";
 import { useEffect, useRef } from "react";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { toast } from "react-hot-toast";
