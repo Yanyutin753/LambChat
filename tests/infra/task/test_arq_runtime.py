@@ -395,3 +395,143 @@ def test_actual_worker_factory_registers_goal_continuations_and_recovery_scans(m
         "scan_persistent_goals",
         "scan_background_tasks",
     }
+
+
+class _DrainingWorker(_FakeWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allow_pick_jobs = True
+        self.tasks = {}
+        self.heartbeat_count = 0
+        self.abort_checks = 0
+        self.start_poll = asyncio.Event()
+        self.start_poll.set()
+
+    async def _poll_iteration(self):
+        await self.start_poll.wait()
+        self.heartbeat_count += 1
+        self.abort_checks += 1
+
+    async def async_run(self):
+        while not self.closed.is_set():
+            await self._poll_iteration()
+            await asyncio.sleep(0.001)
+
+    async def close(self):
+        self.closed.set()
+        for task in self.tasks.values():
+            task.cancel()
+        await asyncio.gather(*self.tasks.values(), return_exceptions=True)
+
+
+async def test_stop_drains_active_jobs_without_losing_heartbeats_or_abort_checks(monkeypatch):
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_DrainingWorker)
+    await runtime.start()
+    worker = runtime._worker
+    release = asyncio.Event()
+    active = asyncio.create_task(release.wait())
+    worker.tasks["active"] = active
+    await asyncio.sleep(0.005)
+    stop = asyncio.create_task(runtime.stop())
+    try:
+        await asyncio.sleep(0.005)
+        assert not worker.allow_pick_jobs
+        assert not worker.closed.is_set()
+        assert not active.done()
+        ticks, aborts = worker.heartbeat_count, worker.abort_checks
+        await asyncio.sleep(0.005)
+        assert worker.heartbeat_count > ticks
+        assert worker.abort_checks > aborts
+        release.set()
+        await asyncio.wait_for(stop, 1)
+        assert active.result() is True
+        assert worker.closed.is_set()
+    finally:
+        release.set()
+        await stop
+
+
+async def test_stop_only_cancels_unfinished_jobs_after_bounded_drain(monkeypatch):
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    monkeypatch.setattr(arq_runtime, "_DRAIN_TIMEOUT_SECONDS", 0.03, raising=False)
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_DrainingWorker)
+    await runtime.start()
+    worker = runtime._worker
+    active = asyncio.create_task(asyncio.Event().wait())
+    worker.tasks["active"] = active
+    before = asyncio.get_running_loop().time()
+
+    await asyncio.wait_for(runtime.stop(), 1)
+
+    elapsed = asyncio.get_running_loop().time() - before
+    assert elapsed >= 0.02
+    assert elapsed < 1
+    assert active.cancelled()
+    assert worker.closed.is_set()
+
+
+async def test_drain_waits_for_inflight_claim_then_finishes_its_late_job(monkeypatch):
+    class _LateClaimWorker(_DrainingWorker):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.claim_entered = asyncio.Event()
+            self.finish_claim = asyncio.Event()
+            self.finish_job = asyncio.Event()
+
+        async def _poll_iteration(self):
+            if self.allow_pick_jobs:
+                self.claim_entered.set()
+                await self.finish_claim.wait()
+                self.tasks["late"] = asyncio.create_task(self.finish_job.wait())
+            await super()._poll_iteration()
+
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_LateClaimWorker)
+    await runtime.start()
+    worker = runtime._worker
+    await asyncio.wait_for(worker.claim_entered.wait(), 1)
+    assert not worker.tasks
+    stop = asyncio.create_task(runtime.stop())
+    try:
+        await asyncio.sleep(0.005)
+        assert not worker.closed.is_set(), "an in-flight Redis claim must finish before closing"
+        assert not worker.allow_pick_jobs
+        worker.finish_claim.set()
+        await _wait_until(lambda: "late" in worker.tasks)
+        assert "late" in worker.tasks
+        assert not worker.tasks["late"].done()
+        assert not worker.closed.is_set()
+        worker.finish_job.set()
+        await asyncio.wait_for(stop, 1)
+        assert worker.tasks["late"].result() is True
+    finally:
+        worker.finish_claim.set()
+        worker.finish_job.set()
+        await stop
+
+
+async def test_readiness_requires_completed_consumer_poll_and_fails_during_drain(monkeypatch):
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_DrainingWorker)
+    await runtime.start()
+    worker = runtime._worker
+    worker.start_poll.clear()
+    try:
+        assert not getattr(runtime, "is_ready", False)
+        worker.start_poll.set()
+        await asyncio.sleep(0.005)
+        assert getattr(runtime, "is_ready", False)
+        release = asyncio.Event()
+        worker.tasks["active"] = asyncio.create_task(release.wait())
+        stop = asyncio.create_task(runtime.stop())
+        await asyncio.sleep(0.005)
+        assert not runtime.is_ready
+        release.set()
+        await asyncio.wait_for(stop, 1)
+    finally:
+        worker.start_poll.set()
+        for task in worker.tasks.values():
+            if not task.done():
+                task.cancel()
+        await runtime.stop()

@@ -209,6 +209,30 @@ test("reconnect keeps a settled answer and does not reload history", async () =>
   expect(onStaleRunStateDetected).not.toHaveBeenCalled();
 });
 
+test.each(["cancelled", "failed", "expired"])(
+  "reconnect settles a %s run without reopening its expired stream",
+  async (status) => {
+    mocks.getStatus.mockReset().mockResolvedValueOnce({ status });
+    mocks.fetchEventSource.mockClear();
+    const { ctx, readMessages } = createReconnectContext([
+      {
+        id: "assistant-a",
+        role: "assistant",
+        content: "partial answer",
+        timestamp: new Date(),
+        isStreaming: true,
+      },
+    ]);
+
+    await reconnectSSE(ctx as Parameters<typeof reconnectSSE>[0]);
+
+    expect(ctx.reconnectTimeoutRef.current).toBeNull();
+    expect(ctx.streamingMessageIdRef.current).toBeNull();
+    expect(readMessages()[0].isStreaming).toBe(false);
+    expect(mocks.fetchEventSource).not.toHaveBeenCalled();
+  },
+);
+
 test("connecting a resumed stream restores the settled bubble's running state", async () => {
   mocks.getValidAccessToken.mockResolvedValueOnce("token-a");
   mocks.fetchEventSource.mockResolvedValueOnce(undefined);

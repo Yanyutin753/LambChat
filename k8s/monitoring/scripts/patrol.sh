@@ -137,7 +137,14 @@ if [[ "$WITH_PYSPY" == "1" ]]; then
   for tgt in w0 a; do
     case $tgt in
       w0) PID=$(pgrep -f "src.infra.task.worker_main" | head -1) ;;
-      a)  PID=$(ss -tlnp "sport = :8011" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1) ;;
+      a|b)
+        API_PORT=$(kubectl -n lambchat get deployment "lambchat-$tgt" -o 'jsonpath={.spec.template.spec.containers[*].ports[?(@.name=="http")].containerPort}') || { flag "$tgt: 无法读取 API 命名端口，跳过采样"; continue; }
+        if [[ ! "$API_PORT" =~ ^[0-9]+$ ]] || (( API_PORT < 1 || API_PORT > 65535 )); then
+          flag "$tgt: 缺少唯一有效的 http 命名端口，跳过采样"
+          continue
+        fi
+        PID=$(ss -tlnp "sport = :$API_PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
+        ;;
     esac
     [[ -z "${PID:-}" ]] && { echo "  $tgt: 未找到进程，跳过"; continue; }
     echo "  -- $tgt (pid=$PID) 最热栈 Top3:"

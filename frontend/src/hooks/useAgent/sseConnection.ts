@@ -62,6 +62,12 @@ export function clearReconnectTimeout(
 
 export type SSECloseAction = "terminal" | "retry";
 
+export function isTerminalRunStatus(status: string): boolean {
+  return ["completed", "error", "failed", "cancelled", "expired"].includes(
+    status,
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -282,6 +288,8 @@ export async function connectToSSE(
           }
           setConnectionStatus("disconnected");
           isConnectingRef.current = false;
+          streamingMessageIdRef.current = null;
+          clearReconnectTimeout(ctx.reconnectTimeoutRef);
           ctx.setIsInitializingSandbox(false);
           // 落定并移除从未收到正文的空壳气泡
           ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
@@ -368,7 +376,7 @@ export async function reconnectSSE(
   try {
     const statusData = await sessionApi.getStatus(currentSessId, currentRId);
     if (!isCurrentRun()) return;
-    if (statusData.status === "completed" || statusData.status === "error") {
+    if (isTerminalRunStatus(statusData.status)) {
       console.log("[SSE] Task already completed");
       settleRemotelyTerminatedRun(ctx, currentRId, currentMsgId);
       return;

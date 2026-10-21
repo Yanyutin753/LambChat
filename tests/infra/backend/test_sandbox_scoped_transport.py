@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -10,6 +11,7 @@ from deepagents.backends import CompositeBackend
 
 from src.infra.backend.cubesandbox import CubeSandboxBackend
 from src.infra.backend.e2b import E2BBackend
+from src.infra.backend.protocol_compat import ExecuteResponse
 from src.infra.sandbox import session_manager as module
 
 
@@ -131,3 +133,129 @@ async def test_work_directory_batch_is_quoted_cached_and_failed_batch_retries(mo
     await manager._ensure_work_dir(backend, work_dir)
     assert execute.await_count == 2
     assert execute.call_args.args == ("mkdir -p '/home/user/sessions/a b' /home/user/shared",)
+
+
+async def test_transient_connect_failures_recover_after_shared_cooldown(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr("src.infra.backend.e2b_async.time.monotonic", lambda: clock[0])
+    client = object()
+    connect = AsyncMock(side_effect=[json.JSONDecodeError("Expecting value", "", 0)] * 2 + [client])
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, second = scoped_pair(monkeypatch)
+    assert await first._async_client_or_none() is None
+    assert await second._async_client_or_none() is None
+    assert await first._async_client_or_none() is None
+    assert connect.await_count == 2
+    clock[0] += 61
+    assert await second._async_client_or_none() is client
+    assert await first._async_client_or_none() is client
+    assert first._async_init_failures == 0
+    assert first._async_disabled is False
+    assert connect.await_count == 3
+
+
+async def test_successful_connect_resets_consecutive_failures(monkeypatch):
+    connect = AsyncMock(
+        side_effect=[RuntimeError("unavailable"), object(), RuntimeError("unavailable")]
+    )
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, second = scoped_pair(monkeypatch)
+    assert await first._async_client_or_none() is None
+    assert await second._async_client_or_none() is not None
+    second._async_client = None
+    assert await first._async_client_or_none() is None
+    assert first._async_init_failures == 1
+    assert first._async_disabled is False
+
+
+async def test_concurrent_failed_recovery_probes_extend_shared_cooldown_once(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr("src.infra.backend.e2b_async.time.monotonic", lambda: clock[0])
+    connect = AsyncMock(side_effect=RuntimeError("unavailable"))
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, second = scoped_pair(monkeypatch)
+    assert await first._async_client_or_none() is None
+    assert await first._async_client_or_none() is None
+    clock[0] += 61
+    assert await asyncio.gather(
+        first._async_client_or_none(),
+        second._async_client_or_none(),
+        first._async_client_or_none(),
+    ) == [None, None, None]
+    assert connect.await_count == 3
+    clock[0] += 1
+    assert await second._async_client_or_none() is None
+    assert connect.await_count == 3
+
+
+async def test_cube_execute_uses_known_handshake_failure_hook(monkeypatch):
+    connect = AsyncMock(side_effect=json.JSONDecodeError("Expecting value", "", 0))
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, second = scoped_pair(monkeypatch, "cubesandbox")
+    fallback = AsyncMock(return_value=ExecuteResponse(output="thread result", exit_code=0))
+    monkeypatch.setattr(first, "_aexecute_via_thread", fallback)
+    monkeypatch.setattr(second, "_aexecute_via_thread", fallback)
+    assert (await first.aexecute("echo first")).output == "thread result"
+    assert (await second.aexecute("echo second")).output == "thread result"
+    assert connect.await_count == 1
+
+
+async def test_cube_handshake_incompatibility_stays_disabled_after_transient_cooldown(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr("src.infra.backend.e2b_async.time.monotonic", lambda: clock[0])
+    connect = AsyncMock(
+        side_effect=[
+            RuntimeError("unavailable"),
+            RuntimeError("unavailable"),
+            json.JSONDecodeError("Expecting value", "", 0),
+        ]
+    )
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, second = scoped_pair(monkeypatch, "cubesandbox")
+    assert await first._async_client_or_none() is None
+    assert await first._async_client_or_none() is None
+    clock[0] += 61
+    assert await second._async_client_or_none() is None
+    clock[0] += 61
+    assert await first._async_client_or_none() is None
+    assert connect.await_count == 3
+
+
+@pytest.mark.parametrize("operation", ["file", "execute"])
+async def test_connect_diagnostics_include_type_status_without_private_response(
+    monkeypatch, caplog, operation
+):
+    private = "https://private.example/?token=secret-token <html>private-response</html>"
+    error = json.JSONDecodeError(private, private, 0)
+    error.__cause__ = RuntimeError(private)
+    error.__cause__.response = SimpleNamespace(status_code=502)
+    connect = AsyncMock(side_effect=error)
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _manager, _provider, first, _second = scoped_pair(monkeypatch)
+    monkeypatch.setattr(
+        first,
+        "_aexecute_via_thread",
+        AsyncMock(return_value=ExecuteResponse(output="ok", exit_code=0)),
+    )
+    with caplog.at_level(logging.WARNING, logger="src.infra.backend.e2b_async"):
+        if operation == "file":
+            assert await first._async_client_or_none() is None
+        else:
+            assert (await first.aexecute("echo safe")).output == "ok"
+    assert "JSONDecodeError" in caplog.text
+    assert "502" in caplog.text
+    for value in ("private.example", "secret-token", "private-response", "<html>"):
+        assert value not in caplog.text
+
+
+async def test_command_decode_error_is_not_replayed_through_thread_lane(monkeypatch):
+    command = AsyncMock(side_effect=json.JSONDecodeError("Expecting value", "", 0))
+    client = SimpleNamespace(commands=SimpleNamespace(run=command), set_timeout=AsyncMock())
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", AsyncMock(return_value=client))
+    _manager, _provider, first, _second = scoped_pair(monkeypatch)
+    fallback = AsyncMock(side_effect=AssertionError("command must not be replayed"))
+    monkeypatch.setattr(first, "_aexecute_via_thread", fallback)
+    result = await first.aexecute("append-record")
+    assert result.exit_code == -1
+    assert command.await_count == 1
+    fallback.assert_not_awaited()

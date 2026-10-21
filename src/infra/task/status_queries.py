@@ -10,6 +10,16 @@ from .status import TaskStatus
 logger = get_logger(__name__)
 
 
+def is_recoverable_restart(metadata: dict[str, Any], run_id: str | None) -> bool:
+    return (
+        bool(run_id)
+        and metadata.get("current_run_id") == run_id
+        and metadata.get("task_status") == TaskStatus.FAILED.value
+        and metadata.get("task_recoverable") is True
+        and metadata.get("task_error_code") == "server_restart"
+    )
+
+
 class TaskStatusQueries:
     """Read task status and error details from storage backends."""
 
@@ -30,6 +40,9 @@ class TaskStatusQueries:
         try:
             session = await self._storage.get_by_session_id(session_id)
             if session and session.metadata:
+                run_id = session.metadata.get("current_run_id")
+                if isinstance(run_id, str) and is_recoverable_restart(session.metadata, run_id):
+                    return await self.get_run_status(session_id, run_id)
                 task_status = session.metadata.get("task_status")
                 if task_status:
                     return TaskStatus(task_status)
@@ -39,12 +52,16 @@ class TaskStatusQueries:
 
     async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
         """Get status for a specific run."""
+        fallback_status = TaskStatus.PENDING
         try:
             session = await self._storage.get_by_session_id(session_id)
             if session and session.metadata and session.metadata.get("current_run_id") == run_id:
                 task_status = session.metadata.get("task_status")
                 if task_status:
-                    return TaskStatus(task_status)
+                    if not is_recoverable_restart(session.metadata, run_id):
+                        return TaskStatus(task_status)
+                    # A finished trace takes precedence over stale restart metadata.
+                    fallback_status = TaskStatus.RECOVERING
         except Exception as e:
             logger.warning("Failed to get run status from session storage: %s", e)
 
@@ -68,11 +85,18 @@ class TaskStatusQueries:
                         "expired": TaskStatus.EXPIRED,
                         "waiting_human": TaskStatus.WAITING_HUMAN,
                     }
-                    return status_map.get(trace_status, TaskStatus.PENDING)
+                    if fallback_status != TaskStatus.RECOVERING or trace_status in {
+                        "completed",
+                        "error",
+                        "failed",
+                        "cancelled",
+                        "expired",
+                    }:
+                        return status_map.get(trace_status, TaskStatus.PENDING)
         except Exception as e:
             logger.warning("Failed to get run status from trace storage: %s", e)
 
-        return TaskStatus.PENDING
+        return fallback_status
 
     async def get_error(self, session_id: str) -> str | None:
         """Get the latest task error for a session."""

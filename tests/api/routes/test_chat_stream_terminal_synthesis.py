@@ -9,6 +9,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+
 from src.api.routes.chat import session_stream
 
 
@@ -215,3 +217,75 @@ async def test_partial_stream_closes_after_early_cancel_using_fresh_run_state(mo
     assert '"type":"task_cancelled"' in body.replace(" ", "")
     assert "event: ping" not in body
     assert get_session.await_count == 2
+
+
+@pytest.mark.parametrize("trace_status", [None, "running"])
+async def test_recoverable_restart_keeps_sse_open_during_handoff(monkeypatch, trace_status):
+    _install(
+        monkeypatch,
+        stream_len=0,
+        metadata={
+            "current_run_id": "r1",
+            "task_status": "failed",
+            "task_recoverable": True,
+            "task_error_code": "server_restart",
+        },
+        trace_docs=[{"status": trace_status}] if trace_status else [],
+        replay=[{"event_type": "heartbeat"}],
+    )
+
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+
+    assert "event: ping" in body
+    assert "event: error" not in body
+    assert "event: done" not in body
+
+
+@pytest.mark.parametrize(
+    ("trace_status", "terminal_event"),
+    [
+        ("completed", "done"),
+        ("error", "error"),
+        ("failed", "error"),
+        ("cancelled", "error"),
+        ("expired", "error"),
+    ],
+)
+async def test_terminal_trace_is_not_hidden_by_stale_restart_metadata(
+    monkeypatch, trace_status, terminal_event
+):
+    _install(
+        monkeypatch,
+        stream_len=0,
+        metadata={
+            "current_run_id": "r1",
+            "task_status": "failed",
+            "task_recoverable": True,
+            "task_error_code": "server_restart",
+        },
+        trace_docs=[{"status": trace_status}],
+        replay=[{"event_type": "heartbeat"}],
+    )
+
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+
+    assert f"event: {terminal_event}" in body
+    assert "event: ping" not in body
+
+
+@pytest.mark.parametrize("recoverable", [None, False, 1, "True"])
+async def test_unconfirmed_restart_still_synthesizes_terminal_error(monkeypatch, recoverable):
+    _install(
+        monkeypatch,
+        stream_len=0,
+        metadata={
+            "current_run_id": "r1",
+            "task_status": "failed",
+            "task_recoverable": recoverable,
+            "task_error_code": "server_restart",
+        },
+    )
+
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+
+    assert "event: error" in body

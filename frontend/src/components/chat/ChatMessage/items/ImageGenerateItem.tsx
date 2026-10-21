@@ -2,11 +2,19 @@ import { memo, useMemo, useState, useCallback } from "react";
 import { clsx } from "clsx";
 import { Sparkles, ImageIcon, Tag, Layers, ImagePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, CopyButton, ImageViewer } from "../../../common";
+import {
+  CollapsiblePill,
+  CopyButton,
+  ImageViewer,
+  formatFileSize,
+} from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { extractText } from "./toolUtils";
-import { extractGeneratedImageResults } from "./toolImageResults";
+import {
+  extractGeneratedImageResults,
+  getGeneratedImageModel,
+} from "./toolImageResults";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -46,24 +54,7 @@ function ImageGenerateDetail({
   const size = (args.size as string) || "";
   const quality = (args.quality as string) || "";
   const outputFormat = (args.output_format as string) || "";
-  // 优先取结果里的 resolved model（多模型清单下才是实际出图模型），
-  // 无结果/流式中回落请求参数
-  const resultModel = useMemo(() => {
-    let parsed: unknown = result;
-    if (typeof result === "string") {
-      try {
-        parsed = JSON.parse(result);
-      } catch {
-        return "";
-      }
-    }
-    if (parsed && typeof parsed === "object") {
-      const m = (parsed as { model?: unknown }).model;
-      if (typeof m === "string" && m) return m;
-    }
-    return "";
-  }, [result]);
-  const model = resultModel || (args.model as string) || "";
+  const model = getGeneratedImageModel(result, args.model);
   const style = (args.style as string) || "";
 
   const inputImages: string[] = useMemo(() => {
@@ -286,16 +277,14 @@ function ImageGenerateDetail({
             )}
           >
             {images.map((img, i) => (
-              <div
+              <figure
                 key={i}
                 className={clsx(
                   "ai-image-generation-result group/img relative rounded-xl overflow-hidden",
                   "border border-theme-border",
                   "hover:shadow-lg hover:border-theme-text-tertiary",
                   "transition-all duration-200",
-                  "cursor-pointer",
                 )}
-                onClick={() => openImagePreview(img.url)}
               >
                 <ImageWithSkeleton
                   src={img.url}
@@ -304,15 +293,19 @@ function ImageGenerateDetail({
                   skipUrlResolve
                   inline
                   className="w-full aspect-square object-cover"
+                  onClick={() => openImagePreview(img.url)}
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity">
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <span className="text-white/90 text-11 font-medium truncate block drop-shadow-sm">
-                      {img.name}
+                <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
+                  <span className="min-w-0 flex-1 truncate" title={img.name}>
+                    {img.name}
+                  </span>
+                  {img.size != null && (
+                    <span className="shrink-0 tabular-nums">
+                      {formatFileSize(img.size)}
                     </span>
-                  </div>
-                </div>
-              </div>
+                  )}
+                </figcaption>
+              </figure>
             ))}
           </div>
         )}
@@ -381,6 +374,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   const prompt = (args.prompt as string) || "";
   const size = (args.size as string) || "";
   const quality = (args.quality as string) || "";
+  const model = getGeneratedImageModel(result, args.model);
 
   const inputImages: string[] = useMemo(() => {
     const raw = args.input_images;
@@ -509,6 +503,14 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
       {/* Compact tags */}
       <div className="flex flex-wrap gap-1">
+        {model && (
+          <span
+            className="max-w-full truncate px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10"
+            title={model}
+          >
+            {model}
+          </span>
+        )}
         {images.length > 0 && (
           <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10">
             {t("chat.message.toolImageCount", { count: images.length })}
@@ -568,10 +570,9 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {images.length > 0 && (
         <div className="grid w-full max-w-md grid-cols-2 gap-1.5">
           {images.slice(0, 4).map((img, i) => (
-            <div
+            <figure
               key={i}
               className="ai-image-generation-result relative rounded-lg overflow-hidden border border-theme-border hover:border-theme-text-tertiary transition-colors cursor-pointer"
-              onClick={() => openImagePreview(img.url)}
             >
               <ImageWithSkeleton
                 src={img.url}
@@ -580,8 +581,19 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                 skipUrlResolve
                 inline
                 className="w-full aspect-square object-cover"
+                onClick={() => openImagePreview(img.url)}
               />
-            </div>
+              <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
+                <span className="min-w-0 flex-1 truncate" title={img.name}>
+                  {img.name}
+                </span>
+                {img.size != null && (
+                  <span className="shrink-0 tabular-nums">
+                    {formatFileSize(img.size)}
+                  </span>
+                )}
+              </figcaption>
+            </figure>
           ))}
           {images.length > 4 && (
             <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9">
@@ -609,6 +621,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
         status={status}
         icon={<Sparkles size={12} className="shrink-0 opacity-50" />}
         label={label}
+        suffix={model || undefined}
         animatedDots={isStreamingLabel}
         variant="tool"
         expandable={canExpand}

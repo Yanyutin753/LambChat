@@ -18,8 +18,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { MarkdownContent } from "../MarkdownContent";
-import { CopyButton, ImageViewer } from "../../../common";
+import { CopyButton, ImageViewer, formatFileSize } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
 import { dispatchPersonaPresetsChanged } from "../../../../hooks/personaPresetEvents";
 import { getPersonaPresetMutationDetail } from "./personaPresetToolResult";
 import type { McpContentBlock, McpMultiModalResult } from "./toolUtils";
@@ -244,6 +245,7 @@ function GeneratedImageResults({ images }: { images: GeneratedImageResult[] }) {
             >
               <ImageWithSkeleton
                 src={image.url}
+                thumbSrc={buildChatThumbUrl(image.url)}
                 alt={image.name}
                 skipUrlResolve
                 className="mx-auto max-h-[70dvh] w-full object-contain"
@@ -257,6 +259,11 @@ function GeneratedImageResults({ images }: { images: GeneratedImageResult[] }) {
                 className="shrink-0 text-theme-text-tertiary"
               />
               <span className="min-w-0 flex-1 truncate">{image.name}</span>
+              {image.size != null && (
+                <span className="shrink-0 tabular-nums">
+                  {formatFileSize(image.size)}
+                </span>
+              )}
               <a
                 href={image.url}
                 target="_blank"

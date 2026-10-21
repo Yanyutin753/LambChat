@@ -14,6 +14,7 @@ import type { ConnectionStatus, Message } from "../../types";
 import {
   clearReconnectTimeout,
   connectToSSE,
+  isTerminalRunStatus,
   reconnectSSE,
   settleRemotelyTerminatedRun,
   type SSEConnectionContext,
@@ -90,7 +91,7 @@ export async function reconcileActiveStream(
   let remoteTerminal = false;
   try {
     const statusData = await sessionApi.getStatus(currentSessId, currentRId);
-    if (statusData.status === "completed" || statusData.status === "error") {
+    if (isTerminalRunStatus(statusData.status)) {
       remoteTerminal = true;
     }
   } catch (err) {

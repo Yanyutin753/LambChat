@@ -3,7 +3,11 @@
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { clientsClaim } from "workbox-core";
 import { ExpirationPlugin } from "workbox-expiration";
-import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import {
+  cleanupOutdatedCaches,
+  matchPrecache,
+  precacheAndRoute,
+} from "workbox-precaching";
 import { registerRoute } from "workbox-routing";
 import {
   CacheFirst,
@@ -37,6 +41,13 @@ const navigationStrategy = new NetworkFirst({
   cacheName: APP_SHELL_CACHE,
   networkTimeoutSeconds: 4,
   plugins: [
+    {
+      async fetchDidSucceed({ response }: { response: Response }) {
+        if (response.status >= 500)
+          throw new Error("Navigation server unavailable");
+        return response;
+      },
+    },
     new CacheableResponsePlugin({
       statuses: [200],
     }),
@@ -45,7 +56,10 @@ const navigationStrategy = new NetworkFirst({
 
 async function getOfflineFallback(): Promise<Response> {
   const cachedFallback =
-    (await caches.match(OFFLINE_URL)) || (await caches.match("/index.html"));
+    (await matchPrecache("/index.html")) ||
+    (await caches.match("/index.html")) ||
+    (await matchPrecache(OFFLINE_URL)) ||
+    (await caches.match(OFFLINE_URL));
 
   return (
     cachedFallback ||

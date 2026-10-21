@@ -43,9 +43,15 @@ PY
   fi
 }
 
-# 通过监听端口反查 hostNetwork 容器进程的宿主机 PID
+# 跟随 Deployment 的命名端口，兼容发布时的备用端口切换。
 port_pid() {
-  ss -tlnp "sport = :$1" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1
+  local port
+  port=$(kubectl -n "$NS" get deployment "$1" -o 'jsonpath={.spec.template.spec.containers[*].ports[?(@.name=="http")].containerPort}') || return 1
+  if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+    echo ">> $1 缺少唯一有效的 http 命名端口" >&2
+    return 1
+  fi
+  ss -tlnp "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1
 }
 
 # worker 无监听端口：用 Pod 内 PID1 cmdline 在宿主机反查
@@ -58,8 +64,7 @@ worker_pid() {
 
 resolve_pid() {
   case "$TARGET" in
-    a) port_pid 8011 ;;
-    b) port_pid 8012 ;;
+    a|b) port_pid "lambchat-$TARGET" ;;
     w0|w1) worker_pid ;;
     *) echo "未知目标: $TARGET（支持 a/b/w0/w1）" >&2; return 1 ;;
   esac

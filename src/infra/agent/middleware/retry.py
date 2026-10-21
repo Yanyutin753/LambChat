@@ -24,7 +24,11 @@ from src.infra.agent.middleware.dead_attachment import (
     HistoricalImageCapMiddleware,
 )
 from src.infra.llm.quota import is_quota_error
-from src.infra.llm.retry import _is_output_limit_response, is_retryable_model_error
+from src.infra.llm.retry import (
+    _is_output_limit_response,
+    is_auth_model_error,
+    is_retryable_model_error,
+)
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -205,11 +209,14 @@ class ModelFallbackMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
         reason: str,
+        *,
+        failure_kind: str = "invalid_output",
     ) -> ModelResponse[ResponseT]:
         logger.warning(
-            "[ModelFallback] Primary model failed: %s — falling back to %s",
+            "[ModelFallback] Primary model failed: %s — falling back to %s (reason=%s)",
             reason,
             self._fallback_model,
+            failure_kind,
         )
 
         fallback_llm = await self._get_fallback_llm()
@@ -239,7 +246,16 @@ class ModelFallbackMiddleware(AgentMiddleware):
         except Exception as exc:
             if is_quota_error(exc):
                 raise
-            return await self._invoke_fallback(request, handler, str(exc))
+            failure_kind = (
+                "auth"
+                if is_auth_model_error(exc)
+                else "transient"
+                if is_retryable_model_error(exc)
+                else "error"
+            )
+            return await self._invoke_fallback(
+                request, handler, str(exc), failure_kind=failure_kind
+            )
 
         if _response_is_invalid(response):
             messages = _extract_messages(response)

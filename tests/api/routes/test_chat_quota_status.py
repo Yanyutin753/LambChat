@@ -15,6 +15,7 @@ from src.infra.task.status import TaskStatus
         (TaskStatus.FAILED, "run-1", "usage_quota_exceeded"),
         (TaskStatus.COMPLETED, "run-1", None),
         (TaskStatus.RUNNING, "run-1", None),
+        (TaskStatus.RECOVERING, "run-1", None),
         (TaskStatus.FAILED, "older-run", "internal_error"),
     ],
 )

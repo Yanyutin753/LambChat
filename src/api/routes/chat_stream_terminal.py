@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.infra.logging import get_logger
+from src.infra.task.status_queries import is_recoverable_restart
 
 logger = get_logger(__name__)
 
@@ -37,6 +38,8 @@ async def resolve_terminal_stream_status(session: Any, run_id: str) -> str | Non
             status = traces[0].get("status")
             if status in ("completed", "error", "cancelled"):
                 return status
+            if status in ("failed", "expired"):
+                return "error"
             return None  # running 等非终态：孤儿接管/续跑窗口期，继续等
     except Exception as e:  # noqa: BLE001 - 状态查询尽力而为，失败维持现状
         logger.warning("[SSE] Terminal status lookup via trace failed: %s", e)
@@ -44,6 +47,8 @@ async def resolve_terminal_stream_status(session: Any, run_id: str) -> str | Non
     try:
         metadata = getattr(session, "metadata", None) or {}
         if metadata.get("current_run_id") == run_id:
+            if is_recoverable_restart(metadata, run_id):
+                return None
             task_status = metadata.get("task_status")
             if task_status == "completed":
                 return "completed"

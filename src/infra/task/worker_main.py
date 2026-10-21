@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import signal
+from pathlib import Path
 from typing import Any, Callable
 
 # 协作者在模块级具名：测试按 monkeypatch worker_main.<name> 注入替身。
@@ -53,6 +55,9 @@ from .manager import get_task_manager
 
 logger = get_logger(__name__)
 
+_READINESS_PATH = Path("/tmp/lambchat-worker.ready")
+_READINESS_POLL_SECONDS = 1.0
+
 
 def get_memory_pubsub() -> Any:
     """记忆 pubsub 惰性解析（ENABLE_MEMORY 才需要，模块级导入会拖重依赖）。"""
@@ -66,13 +71,23 @@ _started_listeners: list[tuple[str, Any]] = []
 
 
 def _make_signal_handler(stop: asyncio.Event) -> Callable[[], None]:
-    """SIGTERM/SIGINT → 置停止事件；退出收尾统一在 _amain 的 finally 完成。"""
+    """SIGTERM/SIGINT 撤下 readiness 并置停止事件；其余收尾由 _amain 完成。"""
 
     def _handle() -> None:
         logger.info("worker_main received stop signal")
         stop.set()
+        _READINESS_PATH.unlink(missing_ok=True)
 
     return _handle
+
+
+async def _publish_readiness(runtime: Any, stop: asyncio.Event) -> None:
+    while not stop.is_set():
+        if runtime.is_ready:
+            _READINESS_PATH.write_text(str(os.getpid()), encoding="ascii")
+        else:
+            _READINESS_PATH.unlink(missing_ok=True)
+        await asyncio.sleep(_READINESS_POLL_SECONDS)
 
 
 async def _start_cache_listeners() -> None:
@@ -106,9 +121,11 @@ async def _stop_started_listeners() -> None:
 
 async def _amain(stop: asyncio.Event) -> None:
     """worker 进程主协程：startup → 等 stop → shutdown（失败也要走完退出面）。"""
+    _READINESS_PATH.unlink(missing_ok=True)
     task_manager = get_task_manager()
     runtime = get_arq_runtime()
     loop = asyncio.get_running_loop()
+    readiness_task: asyncio.Task[None] | None = None
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         # 无信号实现的循环（如 Windows Proactor）抛 NotImplementedError，降级忽略
@@ -128,6 +145,7 @@ async def _amain(stop: asyncio.Event) -> None:
         await _start_cache_listeners()
         await worker_startup({})  # 分布式配置校验 + loop_bridge 登记
         await runtime.start(force=True)
+        readiness_task = asyncio.create_task(_publish_readiness(runtime, stop))
         logger.info("standalone arq worker started")
         await stop.wait()
     finally:
@@ -135,6 +153,10 @@ async def _amain(stop: asyncio.Event) -> None:
 
         # Mark the process exit before cancelling jobs so timeouts retain their crash budget.
         mark_shutting_down()
+        _READINESS_PATH.unlink(missing_ok=True)
+        if readiness_task is not None:
+            readiness_task.cancel()
+            await asyncio.gather(readiness_task, return_exceptions=True)
         try:
             await runtime.stop()
         except Exception:  # noqa: BLE101 - 退出路径尽力而为
