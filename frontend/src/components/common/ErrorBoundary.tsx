@@ -1,4 +1,4 @@
-import { InteractiveIcon } from "./InteractiveIcon";
+import { DeferredInteractiveIcon as InteractiveIcon } from "./DeferredInteractiveIcon";
 import { SceneIllustration } from "./SceneIllustration";
 import { Component, ReactNode } from "react";
 import { RotateCcw } from "lucide-react";

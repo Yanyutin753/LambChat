@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AppContent } from "../index";
 
@@ -45,7 +51,10 @@ vi.mock("../../../../hooks/rightPanelWidthEvents", () => ({
 }));
 
 function resize(width: number) {
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
   act(() => {
     window.dispatchEvent(new Event("resize"));
   });
@@ -61,8 +70,9 @@ afterEach(() => {
   resize(1000);
 });
 
-test("temporarily collapses below the minimum chat width and restores without saving the automatic change", () => {
+test("temporarily collapses below the minimum chat width and restores without saving the automatic change", async () => {
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   resize(792);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
@@ -81,9 +91,10 @@ test("temporarily collapses below the minimum chat width and restores without sa
   );
 });
 
-test("excludes mobile widths while keeping the mobile drawer usable", () => {
+test("excludes mobile widths while keeping the mobile drawer usable", async () => {
   resize(500);
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
     "true",
@@ -95,9 +106,10 @@ test("excludes mobile widths while keeping the mobile drawer usable", () => {
   );
 });
 
-test("honors manual expansion until space recovers, then collapses on the next narrow resize", () => {
+test("honors manual expansion until space recovers, then collapses on the next narrow resize", async () => {
   resize(670);
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   fireEvent.click(screen.getByRole("button", { name: "Navigation" }));
   resize(660);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
@@ -112,10 +124,11 @@ test("honors manual expansion until space recovers, then collapses on the next n
   );
 });
 
-test("preserves the saved collapsed preference when the window grows", () => {
+test("preserves the saved collapsed preference when the window grows", async () => {
   localStorage.setItem("sidebar_collapsed", "true");
   resize(670);
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   resize(1000);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
@@ -124,36 +137,58 @@ test("preserves the saved collapsed preference when the window grows", () => {
   expect(localStorage.getItem("sidebar_collapsed")).toBe("true");
 });
 
-
-test("accounts for a saved wide navigation before chat becomes cramped", () => {
+test("accounts for a saved wide navigation before chat becomes cramped", async () => {
   localStorage.setItem("lambchat_desktop_sidebar_width", "480");
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   resize(1000);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
-    "aria-expanded", "false",
+    "aria-expanded",
+    "false",
   );
   resize(1100);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
-    "aria-expanded", "true",
+    "aria-expanded",
+    "true",
   );
 });
 
-
-test("rechecks chat space as navigation and docked panel widths change", () => {
+test("rechecks chat space as navigation and docked panel widths change", async () => {
   resize(1200);
   render(<AppContent activeTab="chat" />);
+  await screen.findByRole("button", { name: "Navigation" });
   act(() => {
-    window.dispatchEvent(new CustomEvent("right-panel-width-changed", {
-      detail: { open: true, kind: "content", presentation: "docked", widthPx: 350 },
-    }));
+    window.dispatchEvent(
+      new CustomEvent("right-panel-width-changed", {
+        detail: {
+          open: true,
+          kind: "content",
+          presentation: "docked",
+          widthPx: 350,
+        },
+      }),
+    );
   });
-  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   act(() => {
-    window.dispatchEvent(new CustomEvent("navigation-width-changed", { detail: 400 }));
+    window.dispatchEvent(
+      new CustomEvent("navigation-width-changed", { detail: 400 }),
+    );
   });
-  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   act(() => {
-    window.dispatchEvent(new CustomEvent("right-panel-width-changed", { detail: null }));
+    window.dispatchEvent(
+      new CustomEvent("right-panel-width-changed", { detail: null }),
+    );
   });
-  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 });
