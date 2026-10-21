@@ -119,7 +119,7 @@ feat/fix 分支 ──PR──▶ develop ──PR──▶ main ──▶ yang 
                  CI 全量检查
                  出 develop-<时间戳> 镜像
                        │
-                 update-staging.sh ──▶ staging 验证（https://test.lambchat.com，8021 SSH 隧道备用）
+                 update-staging.sh ──▶ staging 验证（https://test.lambchat.com，SSH 隧道到 NodePort 30082 备用）
 ```
 
 | 分支 | 用途 | 保护 |
@@ -200,9 +200,9 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 ### 晋升 checklist（develop → main）
 
 1. develop 上 CI 全绿
-2. staging 验证：yang 上 `/data/lambchat-k8s/update-staging.sh` 滚到目标 tag，访问 `https://test.lambchat.com` 真实跑一轮对话（备用：本地 `ssh -L 8021:127.0.0.1:8021 yang` 后打开 `http://127.0.0.1:8021`）
+2. staging 验证：yang 上 `/data/lambchat-k8s/update-staging.sh develop-YYYYMMDD-HHMMSS` 滚到已核验源码与 CI 的明确 tag，访问 `https://test.lambchat.com` 真实跑一轮对话（备用：本地 `ssh -L 8021:127.0.0.1:30082 yang` 后打开 `http://127.0.0.1:8021`；始终经过稳定 Service，不绑定交替使用的 API 端口）
 3. 开 PR `develop` → `main`，合并（Merge Gate 会校验来源）
-4. 生产部署：yang 上 `/data/lambchat-k8s/update.sh`（自动取最新 `main-*` tag，滚动失败自动回滚）
+4. 生产部署：yang 上 `/data/lambchat-k8s/update.sh main-YYYYMMDD-HHMMSS`（显式指定已核验源码、CI 与 staging 的不可变 `main-*` tag；滚动失败自动回滚；脚本安装与发布约束见 `k8s/README.md`）
 5. 部署后回归：`bash /root/disttest/run-all.sh`
 
 ### hotfix 流程

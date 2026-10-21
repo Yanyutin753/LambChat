@@ -259,6 +259,30 @@ def test_success_waits_for_old_pods_to_exit_before_finishing(updater, monkeypatc
     assert all(image == "new-image" for _, image in cluster.patched)
 
 
+@pytest.mark.parametrize("controls_changed", [False, True])
+def test_repeated_image_keeps_unchanged_worker_pods(updater, monkeypatch, controls_changed):
+    cluster = Cluster()
+    worker = cluster.documents["lambchat-worker"]
+    apply_patch(worker, updater.worker_patch(worker, "new-image"))
+    if controls_changed:
+        worker["spec"]["minReadySeconds"] = 0
+    cluster.pods[-1]["spec"].update(copy.deepcopy(worker["spec"]["template"]["spec"]))
+    original_template = copy.deepcopy(worker["spec"]["template"])
+    monkeypatch.setattr(updater, "kubectl", cluster)
+    monkeypatch.setattr(updater, "publish_assets", lambda *args: "/assets")
+    updater.deploy(
+        "testing",
+        [("lambchat-a", (8011, 8013)), ("lambchat-b", (8012, 8014))],
+        "lambchat-worker",
+        "lambchat",
+        "new-image",
+    )
+    assert worker["spec"]["template"] == original_template
+    assert len(cluster.waited) == 2
+    assert all("pod/lambchat-worker-old" not in args for args in cluster.waited)
+    assert any(name == "lambchat-worker" for name, _ in cluster.observed_rollouts)
+
+
 def test_rejected_patch_rolls_back_previous_members_without_removing_absent_fields(
     updater, monkeypatch
 ):
