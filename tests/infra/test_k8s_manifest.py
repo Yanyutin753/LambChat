@@ -79,3 +79,27 @@ def test_k8s_service_selector_excludes_worker_pods() -> None:
 
     assert selector == {"app": "lambchat"}
     assert worker_labels == {"app": "lambchat-worker"}
+
+
+def test_k8s_api_keeps_capacity_until_replacement_is_ready() -> None:
+    deployment = _deployment("lambchat")
+    assert deployment["spec"]["strategy"]["rollingUpdate"] == {
+        "maxSurge": 1,
+        "maxUnavailable": 0,
+    }
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert container["readinessProbe"]["httpGet"]["path"] == "/ready"
+    assert container["startupProbe"]["httpGet"]["path"] == "/ready"
+    assert container["startupProbe"]["timeoutSeconds"] == 2
+    assert container["startupProbe"]["failureThreshold"] == 90
+
+
+def test_k8s_worker_waits_for_live_consumer_before_replacing_old_workers() -> None:
+    spec = _deployment("lambchat-worker")["spec"]["template"]["spec"]
+    container = spec["containers"][0]
+    command = container["readinessProbe"]["exec"]["command"]
+    assert "/tmp/lambchat-worker.ready" in command[-1]
+    assert "os.kill" in command[-1]
+    assert "st_mtime" in command[-1]
+    assert container["startupProbe"]["exec"] == container["readinessProbe"]["exec"]
+    assert spec["terminationGracePeriodSeconds"] >= 300

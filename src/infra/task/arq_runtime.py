@@ -16,6 +16,9 @@ from .arq_worker import WorkerSettings, run_scheduled_agent_task
 
 logger = get_logger(__name__)
 
+_DRAIN_TIMEOUT_SECONDS = 240
+_READINESS_MAX_AGE_SECONDS = 30
+
 
 class EmbeddedArqRuntime:
     """Own the lifecycle of an arq worker embedded in the FastAPI process.
@@ -36,11 +39,22 @@ class EmbeddedArqRuntime:
         self._worker: Any | None = None
         self._supervisor: asyncio.Future | None = None
         self._stopping = False
+        self._last_poll_at: float | None = None
+        self._poll_in_progress = False
         self._recovery_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def is_running(self) -> bool:
         return self._supervisor is not None and not self._supervisor.done()
+
+    @property
+    def is_ready(self) -> bool:
+        return (
+            self.is_running
+            and not self._stopping
+            and self._last_poll_at is not None
+            and asyncio.get_running_loop().time() - self._last_poll_at < _READINESS_MAX_AGE_SECONDS
+        )
 
     async def start(self, *, force: bool = False) -> None:
         if self.is_running:
@@ -53,6 +67,8 @@ class EmbeddedArqRuntime:
             return
 
         self._stopping = False
+        self._last_poll_at = None
+        self._poll_in_progress = False
         self._worker = self._create_worker()
         self._supervisor = asyncio.ensure_future(self._supervise())
         logger.info("Embedded arq worker started")
@@ -85,6 +101,19 @@ class EmbeddedArqRuntime:
         # ARQ None normally falls back to the worker deadline; ordinary functions
         # carry explicit limits, while scheduled jobs renew their finite Redis leases.
         worker.job_timeout_s = None
+        poll_iteration = getattr(worker, "_poll_iteration", None)
+        if poll_iteration is not None:
+
+            async def observed_poll() -> None:
+                self._poll_in_progress = not self._stopping
+                try:
+                    await poll_iteration()
+                    if self._worker is worker and not self._stopping:
+                        self._last_poll_at = asyncio.get_running_loop().time()
+                finally:
+                    self._poll_in_progress = False
+
+            worker._poll_iteration = observed_poll
         return worker
 
     async def _close_worker_quietly(self, worker: Any) -> None:
@@ -122,6 +151,7 @@ class EmbeddedArqRuntime:
                     "Embedded arq worker crashed; restarting in %.1fs",
                     self._restart_delay,
                 )
+            self._last_poll_at = None
             await self._close_worker_quietly(worker)
             if self._stopping:
                 return
@@ -140,8 +170,21 @@ class EmbeddedArqRuntime:
 
     async def stop(self) -> None:
         self._stopping = True
+        self._last_poll_at = None
         if self._worker is not None:
-            await self._close_worker_quietly(self._worker)
+            worker = self._worker
+            worker.allow_pick_jobs = False
+            deadline = asyncio.get_running_loop().time() + _DRAIN_TIMEOUT_SECONDS
+            # Finish in-flight claims while preserving heartbeat and abort polling.
+            while self._poll_in_progress or any(
+                not task.done() for task in getattr(worker, "tasks", {}).values()
+            ):
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    logger.warning("Arq worker drain timed out; cancelling unfinished jobs")
+                    break
+                await asyncio.sleep(min(0.1, remaining))
+            await self._close_worker_quietly(worker)
 
         if self._supervisor is not None and not self._supervisor.done():
             self._supervisor.cancel()

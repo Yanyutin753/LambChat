@@ -44,6 +44,7 @@ class _FakeArqRuntime:
     def __init__(self) -> None:
         self.started_with: dict | None = None
         self.stopped = 0
+        self.is_ready = False
 
     async def start(self, **kwargs) -> None:
         self.started_with = kwargs
@@ -53,13 +54,14 @@ class _FakeArqRuntime:
 
 
 @pytest.fixture
-def wired(monkeypatch: pytest.MonkeyPatch):
+def wired(monkeypatch: pytest.MonkeyPatch, tmp_path):
     """worker_main 全部协作者替换为可观测 fake；返回各 fake 供断言。"""
     import threading
 
     from src.infra.task import lifecycle
 
     monkeypatch.setattr(lifecycle, "_shutting_down", threading.Event())
+    monkeypatch.setattr(worker_main, "_READINESS_PATH", tmp_path / "worker.ready", raising=False)
     task_manager = _FakeTaskManager()
     runtime = _FakeArqRuntime()
     pubsubs = {
@@ -258,10 +260,72 @@ async def test_amain_stops_even_when_services_fail_to_start(wired, monkeypatch):
     assert wired.task_manager.pubsub.stopped == 1
 
 
-def test_signal_handler_sets_stop_event():
-    """SIGTERM/SIGINT 的处理器只做一件事：置停止事件（退出面统一收尾）。"""
+def test_signal_handler_sets_stop_event(monkeypatch, tmp_path):
+    """SIGTERM/SIGINT 置停止事件并立即撤下 readiness。"""
+    monkeypatch.setattr(worker_main, "_READINESS_PATH", tmp_path / "worker.ready")
     stop = asyncio.Event()
     handler = worker_main._make_signal_handler(stop)
     assert not stop.is_set()
     handler()
     assert stop.is_set()
+
+
+async def test_readiness_file_only_tracks_live_consumer_and_disappears_before_drain(
+    wired, monkeypatch
+):
+    import os
+
+    monkeypatch.setattr(worker_main, "_READINESS_POLL_SECONDS", 0.005, raising=False)
+    wired.runtime.is_ready = False
+    marker = worker_main._READINESS_PATH
+    marker.write_text("stale worker")
+    stop = asyncio.Event()
+    draining = asyncio.Event()
+    finish_drain = asyncio.Event()
+
+    async def wait_for_marker(exists):
+        async with asyncio.timeout(1):
+            while marker.exists() != exists:
+                await asyncio.sleep(0.005)
+
+    async def drain():
+        assert not marker.exists()
+        assert wired.task_manager.pubsub.stopped == 0
+        assert all(pubsub.stopped == 0 for pubsub in wired.pubsubs.values())
+        draining.set()
+        await finish_drain.wait()
+
+    wired.runtime.stop = drain
+    main = asyncio.create_task(worker_main._amain(stop))
+    try:
+        await asyncio.sleep(0.01)
+        assert not marker.exists()
+        wired.runtime.is_ready = True
+        await wait_for_marker(True)
+        assert marker.read_text().strip() == str(os.getpid())
+        wired.runtime.is_ready = False
+        await wait_for_marker(False)
+        wired.runtime.is_ready = True
+        await wait_for_marker(True)
+        worker_main._make_signal_handler(stop)()
+        assert not marker.exists()
+        await asyncio.wait_for(draining.wait(), 1)
+        assert not main.done()
+    finally:
+        stop.set()
+        finish_drain.set()
+        await main
+
+
+async def test_readiness_file_is_removed_on_startup_failure(wired, monkeypatch):
+    marker = worker_main._READINESS_PATH
+    marker.write_text("stale worker")
+
+    async def fail_settings():
+        raise RuntimeError("settings unavailable")
+
+    monkeypatch.setattr(worker_main, "initialize_settings", fail_settings)
+    with pytest.raises(RuntimeError, match="settings unavailable"):
+        await worker_main._amain(asyncio.Event())
+
+    assert not marker.exists()
