@@ -36,14 +36,14 @@ test("docked panels reserve native titlebar space and reach the right and bottom
   );
 });
 
-test("assistant heading keeps its centered line box without a serif-only offset", () => {
+test("assistant heading preserves serif typography and a stable centered line box", () => {
   const root = resolve(import.meta.dirname, "../..");
   const css = readFileSync(resolve(root, "styles/desktop.css"), "utf8");
   const headingRule =
     css.match(/\.chat-assistant-heading\s+\.font-serif\s*\{([^}]+)\}/)?.[1] ??
     "";
   expect(headingRule).not.toContain("font-family:");
-  expect(headingRule).not.toMatch(/\btop:/);
+  expect(headingRule).toContain("top: 0.125em;");
   const message = readFileSync(
     resolve(root, "components/chat/ChatMessage/index.tsx"),
     "utf8",
@@ -53,13 +53,13 @@ test("assistant heading keeps its centered line box without a serif-only offset"
   );
 });
 
-test("toolbar does not offset the system font for serif glyphs", () => {
+test("toolbar keeps its independent optical alignment correction", () => {
   const css = readFileSync(
     resolve(import.meta.dirname, "../desktop.css"),
     "utf8",
   );
-  expect(css).not.toMatch(
-    /\.chat-input-toolbar\s+\.font-serif\s*\{[^}]*\btop:/,
+  expect(css).toMatch(
+    /\.chat-input-toolbar\s+\.font-serif\s*\{[^}]*position: relative;[^}]*top: 1px;/,
   );
 });
 

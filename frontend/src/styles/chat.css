@@ -56,17 +56,30 @@
   padding-inline: calc(var(--chat-content-inset) - 1px);
 }
 
+.chat-input-container:not([data-composer-expanded]) .chat-composer-editor-wrap {
+  padding-top: 0;
+}
+
+.chat-input-container:not([data-composer-expanded])
+  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+  min-height: calc(1.55em + var(--composer-vertical-inset));
+  padding-block: var(--composer-vertical-inset) 0;
+}
+
+.chat-input-container:not([data-composer-expanded])
+  .rich-chat-composer__placeholder {
+  top: var(--composer-vertical-inset);
+}
+
 .chat-conversation-composer
   .chat-input-container:not([data-composer-expanded])
-  .rich-chat-composer__editor {
-  min-height: 2.5rem;
-  padding: 0.5rem 0;
+  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+  padding-inline: 0;
 }
 
 .chat-conversation-composer
   .chat-input-container:not([data-composer-expanded])
   .rich-chat-composer__placeholder {
-  top: 0.5rem;
   left: 0;
   right: 0;
 }
@@ -75,8 +88,11 @@
   .chat-input-container:not([data-composer-expanded])
   .chat-input-toolbar {
   margin-inline: 0;
-  padding-block: 0.375rem;
-  padding-inline: max(0rem, calc(var(--chat-content-inset) - 1.25rem));
+  padding-inline: 0.75rem;
+}
+
+.chat-input-toolbar {
+  padding-block: var(--composer-vertical-inset);
 }
 
 .chat-message-scroller {
@@ -156,6 +172,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
 
 /* Keep the composer on the same quiet surface as shared controls. */
 .chat-input-container {
+  --composer-vertical-inset: 1.25rem;
   border-radius: var(--radius-xl);
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
   border-color: var(--theme-border-subtle);
@@ -1439,21 +1456,13 @@ html[data-mobile-keyboard="true"]
 
 /* Keep phone controls distinct while preserving a single toolbar row. */
 @media (max-width: 639px) {
-  .chat-conversation-composer
-    .chat-input-container:not([data-composer-expanded])
-    .chat-composer-editor-wrap {
-    padding-top: 0.5rem;
-  }
-  .chat-conversation-composer
-    .chat-input-container:not([data-composer-expanded])
-    .rich-chat-composer__editor {
-    min-height: 3rem;
+  .chat-input-container {
+    --composer-vertical-inset: 1rem;
   }
   .chat-conversation-composer
     .chat-input-container:not([data-composer-expanded])
     .chat-input-toolbar {
-    padding-block: 0.625rem;
-    padding-inline: 0.25rem;
+    padding-inline: 0.5rem;
   }
   .chat-input-container .chat-input-toolbar {
     flex-wrap: nowrap;
