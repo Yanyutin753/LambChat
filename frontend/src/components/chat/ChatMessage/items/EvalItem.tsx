@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo } from "react";
 import { Code2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -102,9 +103,6 @@ const evalCodePreviewClassName =
 const evalInlineCodePreviewClassName =
   "eval-code-preview rounded-md border border-theme-border bg-[color-mix(in_srgb,var(--theme-bg)_78%,var(--theme-bg-card)_22%)] px-2.5 py-2 text-12 text-theme-text-secondary shadow-inner overflow-x-auto max-h-48 overflow-y-auto min-w-0 font-mono";
 
-const evalKindBadgeClassName =
-  "rounded-md bg-[color-mix(in_srgb,var(--theme-bg)_60%,var(--theme-bg-card)_40%)] px-1.5 py-0.5 text-9 font-medium uppercase tracking-wide text-theme-text-tertiary";
-
 const evalStdoutPreviewClassName =
   "eval-code-preview rounded-lg border border-dashed border-theme-border bg-theme-bg px-3 py-2.5 text-12 text-theme-text-secondary overflow-x-auto max-h-40 overflow-y-auto min-w-0 font-mono whitespace-pre";
 
@@ -153,11 +151,7 @@ function EvalResultContent({
           }
         >
           {error.type && (
-            <span
-              className={`${evalKindBadgeClassName} mb-1.5 inline-block bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300`}
-            >
-              {error.type}
-            </span>
+            <TagBadge className="font-mono mb-1.5">{error.type}</TagBadge>
           )}
           <pre className="overflow-x-auto text-12 font-mono leading-relaxed text-red-700 dark:text-red-300">
             <code>{error.message}</code>
@@ -312,9 +306,7 @@ const EvalItem = memo(function EvalItem({
       animatedDots={isStreamingLabel}
       suffix={
         codePreview?.language ? (
-          <span className="text-9 px-1.5 py-0.5 rounded-md bg-white/35 dark:bg-black/25 opacity-75 font-medium truncate max-w-[120px] uppercase tracking-normal">
-            {codePreview.language}
-          </span>
+          <TagBadge className="uppercase">{codePreview.language}</TagBadge>
         ) : undefined
       }
       variant="tool"
@@ -348,7 +340,6 @@ const EvalItem = memo(function EvalItem({
               <ToolHoverCopyButton
                 text={codePreview.code}
                 position="panelCompact"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
               />
             </div>
           )}

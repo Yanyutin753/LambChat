@@ -4,6 +4,12 @@ ifneq ($(filter check-all build-all test,$(MAKECMDGOALS)),)
 .NOTPARALLEL:
 endif
 VALIDATE = python3 scripts/run_validation.py
+.DEFAULT_GOAL := help
+
+.PHONY: release-regression
+release-regression:
+	@test -n "$(RELEASE_TAG)" || { echo "用法: make -j1 release-regression RELEASE_TAG=vX.Y.Z[-dev.N]"; exit 2; }
+	$(VALIDATE) uv run python scripts/run_release_regression.py "$(RELEASE_TAG)"
 
 # 默认目标
 help:
@@ -43,6 +49,7 @@ help:
 	@echo "  make test             - 运行所有测试（后端 pytest + 前端 vitest）"
 	@echo "  make frontend-test    - 运行前端测试（vitest）"
 	@echo "  make check-all        - 运行所有检查（pre-commit + typecheck + test + build）"
+	@echo "  make release-regression RELEASE_TAG=<tag> - 发版自动化回归（不连接真机）"
 	@echo ""
 	@echo "清理:"
 	@echo "  make clean            - 清理缓存和临时文件"

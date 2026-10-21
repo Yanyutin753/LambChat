@@ -90,7 +90,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 - **macOS 标题栏对齐**：`src/titlebar.rs` 按 AppKit 按钮实际高度对齐 36px WebView 顶栏（含 1px 底边框，内容中心为距顶端 17.5px）；使用原生通知在缩放、退出全屏、切换显示器、恢复窗口和重新聚焦后校正，不替换 Tauri 的窗口 delegate。不要再配置 `trafficLightPosition`，否则 Tao/Wry 会在布局时覆盖原生校正。修改后运行 `cd frontend/src-tauri && cargo run --example verify_titlebar_alignment`（真实原生控件与通知处理器冒烟；需要 macOS 及客户端构建资源），并打包检查实际缩放与全屏往返。
 - **安全**：`capabilities/default.json` 最小权限，新 command 显式声明所需权限；CSP 由 `tauri.conf.json` 配置并由 Tauri 在打包时注入 hash / nonce。CodeMirror 预览与编辑入口通过 `codeMirrorCspNonce` 复用启动样式的 DOM `nonce` 属性，授权动态样式；不可用放宽 CSP 替代 nonce 传递。签名/更新密钥只进 CI secrets，代码与文档不落明文。
-- **macOS 特例**：ad-hoc 签名（`signingIdentity: "-"`）+ `hardenedRuntime: false` 是 PBS sidecar 内嵌 dylib 的既定兼容决策，改动此项必须附真机验证结论，否则 CI 签名校验门禁与 Gatekeeper 都可能翻车。
+- **macOS 特例**：ad-hoc 签名（`signingIdentity: "-"`）+ `hardenedRuntime: false` 是 PBS sidecar 内嵌 dylib 的既定兼容决策，改动此项必须附 macOS 自动化签名与启动验证结论，真机抽测可选；不得放宽 CI 签名校验与 Gatekeeper 兼容要求。
 - **sidecar 生命周期契约**：退避重启（上限 3 次、稳定 300s 重置计数）、`kill(pid,0)` 存活探测、SIGTERM 优雅退出、`RunEvent::Exit` 兜底回收——**凡动 `daemon.rs` 或 daemon 进程管理（`procsup.py`），合并前必须跑 `uv run python scripts/e2e_local_sandbox.py` 全绿**（AGENTS.md 硬性门禁）。
 - **升级保留数据**：升级或同版本重装不得递归删除 app data / WebView 数据目录；登录、偏好和窗口状态随版本保留。前端资源通过构建产物文件名更新，禁止为刷新资源而清空持久化数据。
 - **日志**：统一写 `~/.lambchat/logs/desktop.log`，禁止另起路径；日志里不得出现 token / pairing 凭据明文。
@@ -114,7 +114,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - 六文件 bump 规则以 `AGENTS.md` 为准；`versionCode`（第七处）随 `versionName` 联动。
 - **cargo `Cargo.toml` crate 版本当前已漂移（2.8.6 vs `tauri.conf.json` 2.10.1）且 preflight 不校验**——二选一，团队拍板：纳入 preflight 一并 bump（推荐），或在 `Cargo.toml` 注释明确「crate 版本不参与发版」并写明理由。悬空不管是最差选项。
 - 建议 bump 脚本化（`scripts/bump_version.py`：一次改齐全部版本文件 + 校验 versionCode 规则），替代手工六处编辑；出 tag 的 preflight 继续兜底。
-- 正式版发版完成判据不变：latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel）（含 `darwin-x86_64`）+ mac/windows 真机抽检通过。
+- 正式版发版完成要求 CI、打包冒烟、签名校验和自动化回归通过，latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel，含 `darwin-x86_64`）。Mac、Windows 及手机真机检查可选，未测不阻塞发布。
 
 ### 模型调用与跨端一致性
 
@@ -124,6 +124,8 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - 桌面烘焙期间自动更新主端点回退到最近已发布稳定版清单；手动检查直接依据返回的版本结果反馈，检查、下载和待安装状态不互相覆盖。
 
 ## 10. 测试（§5 + §10）
+
+每次正式版或测试版出包后执行 `make -j1 release-regression RELEASE_TAG=<明确 tag>`，默认只运行生产自动化回归和跨端浏览器模拟，不连接真机。Windows 真机脚本及 Mac 走查均可选，不影响发布；操作说明见 `scripts/release_tests/README.md`，各类验证结果分别记录。
 
 | 层 | 现状 | 要求 |
 |----|------|------|

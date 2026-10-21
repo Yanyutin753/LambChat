@@ -44,11 +44,7 @@ function WriteFileDetail({ args, result }: ToolDetailProps) {
           return text ? (
             <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
               {text}
-              <ToolHoverCopyButton
-                text={text}
-                position="result"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md"
-              />
+              <ToolHoverCopyButton text={text} position="result" />
             </pre>
           ) : null;
         })()}
@@ -151,11 +147,7 @@ const WriteFileItem = memo(function WriteFileItem({
                   lineNumbers={true}
                   fontSize="0.75rem"
                 />
-                <ToolHoverCopyButton
-                  text={content}
-                  position="panelCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-                />
+                <ToolHoverCopyButton text={content} position="panelCompact" />
               </div>
             )}
             {result &&

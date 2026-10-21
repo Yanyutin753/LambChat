@@ -291,7 +291,7 @@ html:has([data-titlebar], [data-workspace-ui])
 }
 
 html:has([data-titlebar], [data-workspace-ui])
-  :is(.collapsible-section-card--default, .tool-detail-section) {
+  .collapsible-section-card--default {
   box-shadow: none;
   border-color: var(--theme-border);
   border-radius: var(--radius-lg);

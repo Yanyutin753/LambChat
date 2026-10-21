@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { Search, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -17,53 +18,32 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolResultContent } from "./McpBlockPreview";
-import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 /** 摘要行：找到 N 个工具 · 新加载 X · 已可用 Y */
-function ToolSearchSummaryChips({
-  summary,
-  size,
-}: {
-  summary: ToolSearchSummary;
-  size: "compact" | "detail";
-}) {
+function ToolSearchSummaryChips({ summary }: { summary: ToolSearchSummary }) {
   const { t } = useTranslation();
-  const compact = size === "compact";
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span
-        className={`inline-flex items-center gap-1 rounded-md font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 ring-1 ring-sky-200/60 dark:ring-sky-800/40 ${
-          compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-        }`}
-      >
-        <Wrench size={compact ? 9 : 10} className="shrink-0 opacity-70" />
+      <TagBadge icon={<Wrench />}>
         {t("chat.message.toolSearchToolCount", { count: summary.total })}
-      </span>
+      </TagBadge>
       {summary.newlyLoaded > 0 && (
-        <span
-          className={`inline-flex items-center rounded-md font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 ring-1 ring-emerald-200/60 dark:ring-emerald-800/40 ${
-            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-          }`}
-        >
+        <TagBadge>
           {t("chat.message.toolSearchNewlyLoaded", {
             count: summary.newlyLoaded,
           })}
-        </span>
+        </TagBadge>
       )}
       {summary.alreadyAvailable > 0 && (
-        <span
-          className={`inline-flex items-center rounded-md font-medium text-theme-text-secondary bg-theme-bg-card ring-1 ring-theme-border ${
-            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11"
-          }`}
-        >
+        <TagBadge>
           {t("chat.message.toolSearchAlreadyAvailable", {
             count: summary.alreadyAvailable,
           })}
-        </span>
+        </TagBadge>
       )}
     </div>
   );
@@ -89,7 +69,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
 
-      {summary && <ToolSearchSummaryChips summary={summary} size="detail" />}
+      {summary && <ToolSearchSummaryChips summary={summary} />}
       {summary?.availability && (
         <ToolResultContent result={summary.availability} hideCopyButton />
       )}
@@ -122,13 +102,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
 
       {hasRawFallback && (
         <div className="group/result relative flex-1 min-h-0 text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-          <ToolHoverCopyButton
-            text={typeof result === "string" ? result : JSON.stringify(result)}
-            position="resultCompact"
-            className="z-20 pointer-events-auto"
-            copyButtonClassName="tool-result-copy"
-          />
-          <ToolResultContent result={result} hideCopyButton />
+          <ToolResultContent result={result} />
         </div>
       )}
     </div>
@@ -235,9 +209,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
               </ToolArgsBlock>
             )}
 
-            {summary && (
-              <ToolSearchSummaryChips summary={summary} size="compact" />
-            )}
+            {summary && <ToolSearchSummaryChips summary={summary} />}
 
             {summary && summary.matches.length > 0 && (
               <div className="space-y-1">
@@ -275,17 +247,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
 
             {hasResult && !summary && (
               <div className="group/result relative text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-                <ToolHoverCopyButton
-                  text={
-                    typeof result === "string"
-                      ? result
-                      : JSON.stringify(result, null, 2)
-                  }
-                  position="resultCompact"
-                  className="z-20 pointer-events-auto"
-                  copyButtonClassName="tool-result-copy"
-                />
-                <ToolResultContent result={result} hideCopyButton />
+                <ToolResultContent result={result} />
               </div>
             )}
           </ToolInlineDetails>

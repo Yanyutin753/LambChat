@@ -1,4 +1,3 @@
-import { deriveExecuteStatus } from "./items/executeResult";
 import type { Message, MessagePart } from "../../../types";
 import type { RevealFileImageInfo } from "./revealFileImageUtils";
 
@@ -178,13 +177,11 @@ export interface ConsecutiveToolGroup {
   tools: RunPartGroup[];
 }
 
-function toolCategory(name: string): ToolGroupCategory {
-  if (name === "read_file") return "read";
-  if (name === "execute") return "execute";
+function toolGroupKey(name: string): string | null {
+  if (name === "read_file") return name;
+  if (name === "grep" || name === "glob") return "local-search";
   if (
     [
-      "grep",
-      "glob",
       "web_search",
       "search_tools",
       "search_skills",
@@ -193,11 +190,11 @@ function toolCategory(name: string): ToolGroupCategory {
       "memory_recall",
     ].includes(name)
   )
-    return "search";
-  return "other";
+    return name;
+  return null;
 }
 
-/** Preserve chronology and ownership; only successful adjacent tools can fold. */
+/** Only repeated, successful lookups with the same purpose and owner can fold. */
 export function groupConsecutiveTools(
   groups: RunPartGroup[],
 ): Array<RunPartGroup | ConsecutiveToolGroup> {
@@ -210,8 +207,8 @@ export function groupConsecutiveTools(
   const flush = () => {
     const first = tools[0];
     if (!first) return;
-    const category = toolCategory(first.part.name);
-    if (tools.length > 1 || category !== "other") {
+    const category = first.part.name === "read_file" ? "read" : "search";
+    if (tools.length > 1) {
       const count =
         category === "read"
           ? new Set(
@@ -238,19 +235,17 @@ export function groupConsecutiveTools(
       const part = group.part;
       if (
         part.success === true &&
-        (part.name !== "execute" || deriveExecuteStatus(part) === "success") &&
+        !part.error &&
         !part.isPending &&
         !part.cancelled &&
         !part.awaitingConfirmation &&
         !part.argsPartial &&
-        !["ask_human", "reveal_file", "write_todos", "todo_write"].includes(
-          part.name,
-        )
+        toolGroupKey(part.name) !== null
       ) {
         const previous = tools[0]?.part;
         if (
           previous &&
-          (toolCategory(previous.name) !== toolCategory(part.name) ||
+          (toolGroupKey(previous.name) !== toolGroupKey(part.name) ||
             previous.agent_id !== part.agent_id ||
             (previous.depth ?? 0) !== (part.depth ?? 0))
         )

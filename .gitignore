@@ -102,6 +102,9 @@ YubbChat/
 .codex
 /scripts/*
 !/scripts/test_windows_native_update.ps1
+!/scripts/test_windows_device.py
+!/scripts/run_release_regression.py
+!/scripts/release_tests/
 !/scripts/test_macos_native_update.sh
 !/scripts/
 !/scripts/e2e_conversation_schedules.py

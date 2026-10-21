@@ -170,7 +170,7 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 
 ### 发版节奏（防热修风暴）
 
-**规矩：同一自然日最多发一个正式版。**当天发现的问题攒到 develop（P0 例外：生产不可用/数据丢失可即时热修）；出包后处于「烘焙态」，真机抽检通过再推给桌面端。桌面端打包问题（安装包内路径/签名/启动类）历史上只有装包才能发现，v2.9.0~v2.9.2 一天四版即此教训——现在 CI 已有打包产物冒烟门禁 + latest.json 延后发布双保险，但真机抽检（至少 mac + windows 各一台）仍是发布前最后一道人工关。
+**规矩：同一自然日最多发一个正式版。**当天发现的问题攒到 develop（P0 例外：生产不可用/数据丢失可即时热修）；出包后处于「烘焙态」，CI、产物冒烟、签名校验和自动化回归通过后再推给桌面端。Mac、Windows 及手机真机检查均为可选，不作为发布门槛；未执行时如实记录，不影响发布。
 
 ### Dev Release：下一版本预发布
 
@@ -179,9 +179,9 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 - 平台安装版本与服务端运行时继续使用数字核心 `X.Y.Z`；CI 将完整 tag 注入客户端前端及桌面更新比较（`RELEASE_TAG`）。更新排序为 dev.N 数值递增、同核心正式版高于所有 dev，不自动降级。签名清单保持核心版本并绑定完整资产名与源码 SHA。旧 dev.2 及更早包缺少完整构建身份，需手动重装一次支持更新通道的新版。
 - 更新通道为设备级主动选择：默认 stable，dev 通道可获取已完成发布门禁的测试版及正式版。下载/安装期间禁止切换，切换后丢弃旧检查结果和待安装目标；所有下载绑定具体 tag。
 - Android `versionCode` = `(major × 10000 + minor × 100 + patch) × 1000 + 构建序号`（minor、patch 均须小于 100，结果不超过 Android 的 2100000000 上限）：dev 使用 N，正式版使用 999。例如 `2.15.2-dev.1` 为 21502001，正式版为 21502999；iOS `MARKETING_VERSION` 使用核心版本，`CURRENT_PROJECT_VERSION` 使用对应构建序号。每次替换同核心包都须增加平台构建号。
-- dev 包仍须通过完整 CI、各端打包、产物冒烟及签名校验，失败的预发布不得宣传为可用版本。测试版不阻塞于人工桌面聊天抽检，但 Release 必须说明尚未验证项和已知问题；正式版继续保留实机门禁。标签遵守下文 main 合并提交规则；Web/服务端经 staging 验证后可独立部署生产，客户端 dev 发布不自动晋升稳定通道。
+- dev 包仍须通过完整 CI、各端打包、产物冒烟及签名校验，失败的预发布不得宣传为可用版本。正式版和测试版均不阻塞于真机检查，Release 如实说明尚未验证项和已知问题。标签遵守下文 main 合并提交规则；Web/服务端经 staging 验证后可独立部署生产，客户端 dev 发布不自动晋升稳定通道。
 - dev 版无论 `DESKTOP_UPDATER_AUTO_PUBLISH` 配置如何，都禁止上传稳定 `latest.json`；手动 Desktop Updater Publish 继续拒绝 dev tag。App Release 仅在源提交 CI 与全部原生构建成功、资产签名上传完成后，最后发布独立 `dev-latest.json` 作为测试通道就绪标记。测试版查询不得选择缺少该标记的 dev；稳定缓存与测试缓存隔离。
-- 验证完成后以新 `vX.Y.Z` tag 重新构建正式版，并重新签名、核验版本与升级路径；不得直接编辑 dev Release 将其改成正式版。正式发布仍遵守每天一个正式版与真机抽检要求，dev 预发布不占当天正式版名额。
+- 验证完成后以新 `vX.Y.Z` tag 重新构建正式版，并重新签名、核验版本与升级路径；不得直接编辑 dev Release 将其改成正式版。正式发布仍遵守每天一个正式版与自动化验证要求，dev 预发布不占当天正式版名额。
 - 版本优先级遵守 [SemVer](https://semver.org/)，GitHub 通道标记遵守 [Managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)。
 
 ### 发版流程（App Release / `v*` tag）
@@ -190,7 +190,7 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 
 1. 打 tag 前先 bump 七处版本文件并保持一致：`frontend/package.json`、`frontend/src-tauri/tauri.conf.json`、`frontend/src-tauri/Cargo.toml`（编译期进 `CARGO_PKG_VERSION`，桌面运行时版本依赖它，漏 bump 会导致版本信息不一致）、android `versionName`/`versionCode`（按上文核心版本与构建序号映射）、iOS `MARKETING_VERSION`、`pyproject.toml`（服务端 `/api/version` 运行时读它，漏 bump 网页端版本号就不同步）、`client/lambchat_sandbox/__init__.py` 的 `__version__`（daemon 自更新比版本，漏 bump daemon 永不更新）——app-release.yml 的 preflight 会校验 tag 与版本一致，漂移直接红。
 2. 在 `main` 合并提交上打 tag 并推送，触发 `app-release.yml`：六端矩阵构建（Linux x86_64/arm64、Windows、macOS Apple Silicon/Intel）+ Android/iOS，即发即传上传 GitHub Release。
-3. 出包默认**烘焙态**：资产全部上 Release、CI 打包产物冒烟（mac 直接跑 .app 内 daemon、Linux 解包 deb 跑、Windows 跑 sidecar）须绿，但 `latest.json` **不上传**——桌面端自更新不感知。真机抽检（mac/windows）通过后，到 Actions 手动跑 **Desktop Updater Publish**（输入 tag）才把 latest.json 推给桌面端；此时发版完成的判据是 latest.json 平台条目齐全（Windows NSIS + 双架构 macOS，含 `darwin-x86_64`；Linux 不进清单——已停发 AppImage，deb/rpm 走应用内自研更新链路）。仓库变量 `DESKTOP_UPDATER_AUTO_PUBLISH=true` 可恢复随包直发（不建议）。
+3. 出包默认**烘焙态**：资产全部上 Release、CI 打包产物冒烟（mac 直接跑 .app 内 daemon、Linux 解包 deb 跑、Windows 跑 sidecar）须绿，但 `latest.json` **不上传**——桌面端自更新不感知。自动化回归通过后，到 Actions 手动跑 **Desktop Updater Publish**（输入 tag）才把 latest.json 推给桌面端；真机检查可选，不阻塞该步骤。发版完成仍要求 latest.json 平台条目齐全（Windows NSIS + 双架构 macOS，含 `darwin-x86_64`；Linux 不进清单——已停发 AppImage，deb/rpm 走应用内自研更新链路）。仓库变量 `DESKTOP_UPDATER_AUTO_PUBLISH=true` 可恢复随包直发（不建议）。
 > 烘焙期间，`/api/version/assets/latest.json/download` 继续提供最近已发布的稳定版清单；带 `?tag=` 的下载仍严格锁定指定版本。仅桌面自动更新清单回退，普通安装包和移动端版本查询沿用最新 Release。
 
 更新清单的 `notes` 与 `pub_date` 必须来自该 tag 的 GitHub Release 正文与发布时间，不能只填写产品名和版本号；桌面、Linux 与移动端均展示实际改动、日期及完整更新日志链接。
@@ -204,6 +204,12 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 3. 开 PR `develop` → `main`，合并（Merge Gate 会校验来源）
 4. 生产部署：yang 上 `/data/lambchat-k8s/update.sh main-YYYYMMDD-HHMMSS`（显式指定已核验源码、CI 与 staging 的不可变 `main-*` tag；滚动失败自动回滚；脚本安装与发布约束见 `k8s/README.md`）
 5. 部署后回归：`bash /root/disttest/run-all.sh`
+
+### 每次客户端发版的自动化回归
+
+- 正式版和测试版均在出包后运行 `make -j1 release-regression RELEASE_TAG=vX.Y.Z[-dev.N]`（填写实际 tag）。默认只运行既有生产自动化回归，包含桌面、Android、iOS 浏览器模拟下的图片直连、回退和私有鉴权；不连接或安装任何真机。
+- Windows 真机脚本保留为显式调用的可选工具，Mac、Windows、手机真机未测均不影响发布。自动化、模拟、打包冒烟和真机结论分别记录，不把未测写成通过。
+- 私有机器配置、依赖及操作步骤见 `scripts/release_tests/README.md`。报告保存在仓库外，每次使用独立运行编号；GitHub 托管 runner 不要求访问局域网真机，也不安装新的后台任务或自托管 runner。
 
 ### hotfix 流程
 

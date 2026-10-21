@@ -42,7 +42,7 @@ export function ToolHoverCopyButton({
     <div
       className={clsx(
         positionClasses[position],
-        "focus-within:opacity-100",
+        "tool-hover-copy focus-within:opacity-100",
         className,
       )}
       onClick={(event) => event.stopPropagation()}

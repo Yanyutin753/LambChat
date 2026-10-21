@@ -1,6 +1,12 @@
 @import "./icon-scale.css";
 @reference "./tailwind.css";
 
+/* Hidden text must not enlarge an ancestor outside its scroll container. */
+.sr-only:where(span, label) {
+  top: 0;
+  left: 0;
+}
+
 .chat-input-help-menu .ui-icon-button.ui-button--sm {
   width: 1.5rem;
   height: 1.5rem;

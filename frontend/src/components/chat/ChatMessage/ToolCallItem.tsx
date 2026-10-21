@@ -172,7 +172,7 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
 
   return (
     <div className="tool-call-panel-content tool-panel-content relative flex h-full min-h-0 flex-col overflow-y-auto p-4 sm:p-5 [&_pre]:!text-14 [&_pre]:!max-h-none">
-      <div className="flex min-h-0 flex-1 flex-col space-y-3">
+      <div className="tool-panel-sections min-h-0 flex-1">
         {hasArgs && (
           <CollapsibleSection
             title={t("chat.message.args")}

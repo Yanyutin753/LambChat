@@ -27,7 +27,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
   const hasEntries = entries.length > 0;
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       <ToolArgsBlock size="detail" copyText={dirPath}>
         <FolderOpen size={14} className="shrink-0 opacity-60" />
         <span className="truncate">{dirPath}</span>
@@ -43,7 +43,6 @@ function LsDetail({ args, result }: ToolDetailProps) {
             text={entries.join("\n")}
             size={14}
             position="panelRaised"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
           />
           {entries.map((entry, i) => {
             const isDir = entry.endsWith("/") || entry.endsWith("\\");
@@ -88,12 +87,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
         </div>
       ) : rawText.trim().length > 0 ? (
         <pre className="group/result relative tool-panel-output overflow-auto whitespace-pre-wrap break-words rounded-lg border border-theme-border bg-theme-bg p-3 text-12 text-theme-text-secondary">
-          <ToolHoverCopyButton
-            text={rawText}
-            size={14}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={rawText} size={14} position="result" />
           {rawText}
         </pre>
       ) : null}
@@ -209,7 +203,6 @@ const LsItem = memo(function LsItem({
                 <ToolHoverCopyButton
                   text={entries.join("\n")}
                   position="panelCompactRaised"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                 />
                 {entries.map((entry, i) => {
                   const isDir = entry.endsWith("/") || entry.endsWith("\\");
@@ -253,11 +246,7 @@ const LsItem = memo(function LsItem({
               </div>
             ) : (
               <pre className="group/result relative max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-theme-border bg-theme-bg p-2 text-12 text-theme-text-secondary">
-                <ToolHoverCopyButton
-                  text={rawText}
-                  position="resultCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-                />
+                <ToolHoverCopyButton text={rawText} position="resultCompact" />
                 {rawText}
               </pre>
             )}

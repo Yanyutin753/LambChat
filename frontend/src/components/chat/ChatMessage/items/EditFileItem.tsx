@@ -93,11 +93,7 @@ function EditFileDetail({
           return text ? (
             <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
               {text}
-              <ToolHoverCopyButton
-                text={text}
-                position="result"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md"
-              />
+              <ToolHoverCopyButton text={text} position="result" />
             </pre>
           ) : null;
         })()}
@@ -223,7 +219,6 @@ const EditFileItem = memo(function EditFileItem({
                     <ToolHoverCopyButton
                       text={oldString}
                       position="panelCompact"
-                      copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
                     />
                   </div>
                 </div>
@@ -245,7 +240,6 @@ const EditFileItem = memo(function EditFileItem({
                     <ToolHoverCopyButton
                       text={newString}
                       position="panelCompact"
-                      copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
                     />
                   </div>
                 </div>

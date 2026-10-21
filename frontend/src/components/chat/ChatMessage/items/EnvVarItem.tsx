@@ -121,11 +121,7 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
             const text = extractText(result);
             return text;
           })()}
-          <ToolHoverCopyButton
-            text={extractText(result)}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={extractText(result)} position="result" />
         </pre>
       )}
     </div>

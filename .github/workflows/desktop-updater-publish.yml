@@ -1,7 +1,7 @@
 name: Desktop Updater Publish
 
 # 手动发布桌面端自更新清单：出包默认「烘焙态」（资产在 Release 上、
-# latest.json 不上传，桌面端自更新不感知），真机抽检后跑本工作流把
+# latest.json 不上传，桌面端自更新不感知），自动化回归通过后跑本工作流把
 # latest.json 推上 Release——此刻起桌面端开始收到该版本。
 # 详见 AGENTS.md 发版流程。
 
