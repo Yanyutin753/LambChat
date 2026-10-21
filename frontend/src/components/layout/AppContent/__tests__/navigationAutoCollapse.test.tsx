@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AppContent } from "../index";
@@ -60,6 +61,20 @@ function resize(width: number) {
   });
 }
 
+async function renderAppContent() {
+  const subscribe = vi.spyOn(window, "addEventListener");
+  try {
+    render(<AppContent activeTab="chat" />);
+    await screen.findByRole("button", { name: "Navigation" });
+    // A lazy child's DOM can appear before AppContent's passive subscription.
+    await waitFor(() =>
+      expect(subscribe).toHaveBeenCalledWith("resize", expect.any(Function)),
+    );
+  } finally {
+    subscribe.mockRestore();
+  }
+}
+
 beforeEach(() => {
   localStorage.clear();
   resize(1000);
@@ -71,8 +86,7 @@ afterEach(() => {
 });
 
 test("temporarily collapses below the minimum chat width and restores without saving the automatic change", async () => {
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   resize(792);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
@@ -93,8 +107,7 @@ test("temporarily collapses below the minimum chat width and restores without sa
 
 test("excludes mobile widths while keeping the mobile drawer usable", async () => {
   resize(500);
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
     "true",
@@ -108,8 +121,7 @@ test("excludes mobile widths while keeping the mobile drawer usable", async () =
 
 test("honors manual expansion until space recovers, then collapses on the next narrow resize", async () => {
   resize(670);
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   fireEvent.click(screen.getByRole("button", { name: "Navigation" }));
   resize(660);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
@@ -127,8 +139,7 @@ test("honors manual expansion until space recovers, then collapses on the next n
 test("preserves the saved collapsed preference when the window grows", async () => {
   localStorage.setItem("sidebar_collapsed", "true");
   resize(670);
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   resize(1000);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
@@ -139,8 +150,7 @@ test("preserves the saved collapsed preference when the window grows", async () 
 
 test("accounts for a saved wide navigation before chat becomes cramped", async () => {
   localStorage.setItem("lambchat_desktop_sidebar_width", "480");
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   resize(1000);
   expect(screen.getByRole("button", { name: "Navigation" })).toHaveAttribute(
     "aria-expanded",
@@ -155,8 +165,7 @@ test("accounts for a saved wide navigation before chat becomes cramped", async (
 
 test("rechecks chat space as navigation and docked panel widths change", async () => {
   resize(1200);
-  render(<AppContent activeTab="chat" />);
-  await screen.findByRole("button", { name: "Navigation" });
+  await renderAppContent();
   act(() => {
     window.dispatchEvent(
       new CustomEvent("right-panel-width-changed", {
