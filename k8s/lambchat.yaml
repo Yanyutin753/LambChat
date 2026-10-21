@@ -170,7 +170,7 @@ metadata:
   name: lambchat-worker
   namespace: lambchat
 spec:
-  replicas: 2
+  replicas: 3
   minReadySeconds: 5
   # 先增后减 + 长宽限：新 worker 先上线接新任务，旧 worker SIGTERM 后
   # 排空在途任务再退（宽限 300s，超时被杀的走 interrupted_resume 无缝续跑）
