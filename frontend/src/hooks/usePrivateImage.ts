@@ -60,7 +60,10 @@ export function usePrivateImage(src?: string, retry = 0) {
     ? image.url === url
       ? image
       : { src: undefined, failed: false }
-    : { src, failed: false };
+    : {
+        src: uploadPrefix && url?.startsWith(uploadPrefix) ? url : src,
+        failed: false,
+      };
   const activeProxy =
     proxySource?.url === url && proxySource?.retry === retry
       ? proxySource
