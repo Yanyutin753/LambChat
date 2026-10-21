@@ -8,33 +8,24 @@ function readRepoFile(...segments: string[]): string {
   );
 }
 
-test("legacy font-serif shares the Windows/Linux titlebar system font", () => {
+test("tailwind config defines the serif stack led by Source Serif 4", () => {
   const config = readRepoFile("tailwind.config.js");
-  const tokens = readRepoFile("src/styles/tokens.css");
-  const desktop = readRepoFile("src/styles/desktop.css");
 
-  expect(config).toMatch(/serif:\s*\["var\(--desktop-ui-font\)"\]/);
-  expect(tokens).toMatch(
-    /:root\s*\{[^}]*--desktop-ui-font:\s*-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;/s,
-  );
-  expect(desktop).toMatch(
-    /\[data-titlebar\][^{}]*\{\s*font-family: var\(--desktop-ui-font\);/,
-  );
-  expect(desktop).not.toMatch(/--desktop-ui-font\s*:/);
+  expect(config).toMatch(/serif:\s*\[\s*"['"]Source Serif 4['"]"/);
 });
 
-test("legacy font-serif avoids Georgia and its old-style digits", () => {
+test("serif stack avoids Georgia whose old-style digits drop below the baseline", () => {
   const config = readRepoFile("tailwind.config.js");
   const serifStack = config.match(/serif:\s*\[([\s\S]*?)\]/)?.[1] ?? "";
 
   expect(serifStack).not.toMatch(/Georgia/);
 });
 
-test("legacy font-serif does not force a CJK serif fallback", () => {
+test("serif stack falls back to CJK serif fonts before the generic family", () => {
   const config = readRepoFile("tailwind.config.js");
-  const serifStack = config.match(/serif:\s*\[([\s\S]*?)\]/)?.[1] ?? "";
 
-  expect(serifStack).not.toMatch(/Noto Serif|Cambria|Times|SimSun/);
+  expect(config).toMatch(/Noto Serif SC/);
+  expect(config).toMatch(/,\s*"serif",?\s*\]/);
 });
 
 test("fonts are self-hosted: no Google Fonts origin, local @font-face with swap", () => {
