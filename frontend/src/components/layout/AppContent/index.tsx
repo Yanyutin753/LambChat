@@ -1,11 +1,9 @@
 import "../../../styles/app-content.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { RightPanelLayoutSnapshot } from "../../../hooks/rightPanelLayout";
 import { getRightPanelLayoutSnapshot } from "../../../hooks/rightPanelWidthEvents";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../../hooks/useAuth";
 import { authApi } from "../../../services/api";
-import { ChatAppContent } from "./ChatAppContent";
-import { NonChatAppContent } from "./NonChatAppContent";
 import {
   APP_TOAST_SIDEBAR_OFFSET_VAR,
   getAppToastSidebarOffset,
@@ -20,6 +18,17 @@ import {
   NAVIGATION_WIDTH_CHANGED_EVENT,
   readStoredWidth,
 } from "../DesktopSidebarShell/sidebarWidth";
+
+const ChatAppContent = lazy(() =>
+  import("./ChatAppContent").then((module) => ({
+    default: module.ChatAppContent,
+  })),
+);
+const NonChatAppContent = lazy(() =>
+  import("./NonChatAppContent").then((module) => ({
+    default: module.NonChatAppContent,
+  })),
+);
 
 // Reserve 480px for chat plus the persistent 52px activity rail.
 const MINIMUM_CHAT_WITH_RAIL_PX = 532;
@@ -123,7 +132,10 @@ export function AppContent({ activeTab }: AppContentProps) {
       navigationWidthRef.current = (event as CustomEvent<number>).detail;
       syncTempAutoCollapse(activeRightPanelLayoutRef.current);
     };
-    window.addEventListener(NAVIGATION_WIDTH_CHANGED_EVENT, handleNavigationWidth);
+    window.addEventListener(
+      NAVIGATION_WIDTH_CHANGED_EVENT,
+      handleNavigationWidth,
+    );
     window.addEventListener("resize", handleResize);
     window.addEventListener(
       RIGHT_PANEL_WIDTH_CHANGED_EVENT,
@@ -133,7 +145,10 @@ export function AppContent({ activeTab }: AppContentProps) {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      window.removeEventListener(NAVIGATION_WIDTH_CHANGED_EVENT, handleNavigationWidth);
+      window.removeEventListener(
+        NAVIGATION_WIDTH_CHANGED_EVENT,
+        handleNavigationWidth,
+      );
       window.removeEventListener(
         RIGHT_PANEL_WIDTH_CHANGED_EVENT,
         handleWidthChanged,

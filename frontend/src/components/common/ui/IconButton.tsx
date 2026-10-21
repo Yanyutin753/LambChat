@@ -1,4 +1,4 @@
-import { InteractiveIcon } from "../InteractiveIcon";
+import { DeferredInteractiveIcon as InteractiveIcon } from "../DeferredInteractiveIcon";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { ButtonSize, ButtonVariant } from "./Button";
 

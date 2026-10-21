@@ -106,6 +106,19 @@ export function collectRouteShellUrls(
     addStaticClosure(routeKey, visited);
   }
 
+  // Splitting first-use code must not remove previously cached offline functions.
+  for (const [key, chunk] of Object.entries(manifest)) {
+    if (
+      key === "src/components/layout/AppContent/ChatAppContent.tsx" ||
+      key === "src/components/layout/AppContent/NonChatAppContent.tsx" ||
+      key === "src/components/profile/ProfileModal.tsx" ||
+      key.endsWith("/jszip/dist/jszip.min.js") ||
+      /(?:^|\/)jszip\.min-[^/]+\.js$/.test(chunk.file)
+    ) {
+      addStaticClosure(key, visited);
+    }
+  }
+
   return urls;
 }
 
