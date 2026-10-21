@@ -47,6 +47,7 @@ import { RunModeReferencePlugin } from "./RunModeReferencePlugin";
 import { $reconcileRunModeChips } from "./nodes/RunModeReferenceNode";
 import { ArrowKeyPlugin, type ComposerArrowDirection } from "./ArrowKeyPlugin";
 import { FilePastePlugin } from "./FilePastePlugin";
+import { CompositionReplacementPlugin } from "./CompositionReplacementPlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -252,6 +253,7 @@ export const RichComposerPlugins = forwardRef<
   return (
     <>
       <HistoryPlugin />
+      <CompositionReplacementPlugin />
       <OnChangePlugin
         onChange={emitChange}
         ignoreSelectionChange

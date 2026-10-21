@@ -12,6 +12,7 @@
   text-rendering: optimizeLegibility;
   line-height: 1.6;
   font-weight: 400;
+  --desktop-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --chat-font-family: Inter, system-ui, -apple-system, sans-serif;
   --chat-font-size: 0.9375rem;
   --tool-font-size: 0.8125rem;

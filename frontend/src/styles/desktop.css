@@ -1,7 +1,6 @@
 /* Shared by native chrome and the web chat workspace, including portalled panels. */
 html:has([data-titlebar], [data-workspace-ui]) {
   --workspace-header-height: 3rem;
-  --desktop-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --desktop-hover: var(--theme-bg-hover);
   --desktop-selected: color-mix(in srgb, var(--theme-text) 10%, transparent);
 }
@@ -236,20 +235,8 @@ html:has([data-titlebar], [data-workspace-ui])
   min-width: 0;
 }
 
-/* Center the serif glyphs optically without shrinking their clipping box. */
-.chat-assistant-heading .font-serif {
-  position: relative;
-  top: 0.125em;
-}
-
 html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar .font-serif {
   font-weight: 500;
-}
-
-/* Compact toolbar labels retain their optical alignment correction. */
-.chat-input-toolbar .font-serif {
-  position: relative;
-  top: 1px;
 }
 
 html:has([data-titlebar], [data-workspace-ui]) .chat-tool-btn {

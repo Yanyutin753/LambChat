@@ -48,12 +48,8 @@ test("sans stack keeps system CJK fallbacks (no Noto Sans SC takeover)", () => {
     sansStack.indexOf("system-ui"),
   );
   expect(sansStack).not.toContain("Noto Sans SC");
-  expect(serifStack.indexOf("Source Serif 4")).toBeLessThan(
-    serifStack.indexOf("Noto Serif SC"),
-  );
-  expect(serifStack.indexOf("Noto Serif SC")).toBeLessThan(
-    serifStack.indexOf("Cambria"),
-  );
+  expect(serifStack).toContain("var(--desktop-ui-font)");
+  expect(serifStack).not.toContain("Noto Serif SC");
 });
 
 test("root font-family routes CJK UI text to system fonts", () => {
