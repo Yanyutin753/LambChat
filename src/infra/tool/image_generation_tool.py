@@ -607,6 +607,7 @@ async def _convert_result_item(
         "url": proxy_url,
         "key": uploaded["key"],
         "content_type": uploaded["content_type"],
+        "size": uploaded["size"],
     }
     if payload.get("revised_prompt"):
         result["revised_prompt"] = payload.get("revised_prompt")

@@ -28,7 +28,7 @@ describe("buildChatThumbUrl", () => {
       ),
     ).toBe(
       "https://bucket.oss-cn-hangzhou.aliyuncs.com/path/hero.jpg" +
-        "?x-oss-process=image%2Fresize%2Cm_lfit%2Cw_560%2Ch_560",
+        "?x-oss-process=image%2Fresize%2Cm_lfit%2Cw_560%2Ch_560%2Fformat%2Cwebp%2Fquality%2CQ_82",
     );
   });
 

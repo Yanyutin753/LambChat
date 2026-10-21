@@ -138,7 +138,8 @@ async def test_reveal_file_reverse_maps_self_upload_url_to_original_row(
         reveal_file_tool, "get_backend_from_runtime", lambda runtime: _FakeBackend(b"x")
     )
 
-    await reveal_file_tool.reveal_file.coroutine(echo_url, runtime=_Runtime())
+    result = json.loads(await reveal_file_tool.reveal_file.coroutine(echo_url, runtime=_Runtime()))
+    assert result["size"] == 2048
 
     assert len(index.upserts) == 1
     upsert = index.upserts[0]

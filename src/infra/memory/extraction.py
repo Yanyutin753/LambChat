@@ -460,9 +460,9 @@ async def extract_session_memory(
     save_resume_state: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> ExtractionOutcome:
     """单个会话的 Phase 1 提取：转录 → LLM 结构化输出 → retain 落库。"""
-    from langchain_core.messages import HumanMessage, SystemMessage
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-    from src.infra.llm.retry import ainvoke_with_retry
+    from src.infra.llm.retry import _is_output_limit_response, ainvoke_with_retry
 
     cfg = extraction_settings()
     session_id = str(session_doc.get("session_id"))
@@ -537,6 +537,29 @@ async def extract_session_memory(
                 [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)],
                 operation="memory-extraction-phase1",
             )
+            if isinstance(response, AIMessage) and _is_output_limit_response(response):
+                logger.warning(
+                    "[MemoryExtraction] output limited for session %s; retrying compact output once",
+                    session_id,
+                )
+                response = await ainvoke_with_retry(
+                    model,
+                    [
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(
+                            content=user_prompt
+                            + "\n\nOutput recovery: the previous response hit the output limit. "
+                            "Return one complete compact JSON object. Shorten formatting, "
+                            "rollout summaries and duplicate wording only. Preserve all "
+                            "qualifying memories, distinct scopes/topics, exact facts, evidence "
+                            "qualifications and the original quality and safety requirements. "
+                            "Do not return a no-op merely to fit the output budget."
+                        ),
+                    ],
+                    operation="memory-extraction-phase1-compact",
+                )
+                if isinstance(response, AIMessage) and _is_output_limit_response(response):
+                    return ExtractionOutcome("failed", error="output_truncated", retryable=False)
         except Exception as exc:
             if is_quota_error(exc):
                 raise

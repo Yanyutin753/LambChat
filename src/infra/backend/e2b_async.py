@@ -43,6 +43,7 @@ _KEEPALIVE_MIN_INTERVAL = 30.0
 
 # 单条命令的默认超时下限：沙箱 timeout（空闲回收节奏）调小不应钳住命令时长
 _DEFAULT_COMMAND_TIMEOUT = 15 * 60
+_ASYNC_CLIENT_COOLDOWN = 60.0
 
 SANDBOX_READ_MAX_BYTES = 2 * 1024 * 1024
 SANDBOX_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024
@@ -67,6 +68,7 @@ class E2BAsyncMixin:
         env_vars: dict[str, str]
         supports_async_sdk: bool
         _async_client: Any
+        _async_connection: Any
         _async_init_failures: int
         _async_disabled: bool
         _last_timeout_extend: float
@@ -108,12 +110,30 @@ class E2BAsyncMixin:
         if self._async_client is None:
             async with self._async_init_lock:
                 if self._async_client is None:
+                    if not self._async_sdk_available():
+                        raise _AsyncClientInitError("async client disabled or cooling down")
                     from e2b import AsyncSandbox as AsyncE2BSandbox
 
-                    self._async_client = await AsyncE2BSandbox.connect(
-                        self.id, **self._async_connect_opts()
-                    )
+                    try:
+                        self._async_client = await AsyncE2BSandbox.connect(
+                            self.id, **self._async_connect_opts()
+                        )
+                    except Exception as error:
+                        self._async_connection.retry_after = 0.0
+                        self._register_async_init_failure(error)
+                        raise _AsyncClientInitError(type(error).__name__) from error
+                    self._async_init_failures = 0
+                    self._async_disabled = False
+                    self._async_connection.retry_after = 0.0
         return self._async_client
+
+    def _async_sdk_available(self) -> bool:
+        if not self.supports_async_sdk:
+            return False
+        return not self._async_disabled or (
+            self._async_connection.retry_after > 0
+            and time.monotonic() >= self._async_connection.retry_after
+        )
 
     def _async_connect_opts(self) -> dict:
         """e2b async 客户端连接参数；子类可覆写指向 e2b 兼容平台（如 Cube）。"""
@@ -184,23 +204,11 @@ class E2BAsyncMixin:
                 pass
 
     async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        if self.supports_async_sdk and not self._async_disabled:
+        if self._async_sdk_available():
             try:
                 return await self._aexecute_native(command, timeout=timeout)
-            except _AsyncClientInitError as e:
-                # async 客户端建不起来（平台不完全兼容/网络不可达）：
-                # 回落线程慢道；连续失败后本实例禁用 async 路径。
-                self._async_init_failures += 1
-                if self._async_init_failures >= 2:
-                    self._async_disabled = True
-                logger.warning(
-                    "async sandbox client unavailable for %s (%s); "
-                    "falling back to thread lane (failures=%d)",
-                    self.id,
-                    e,
-                    self._async_init_failures,
-                )
-                return await self._aexecute_via_thread(command, timeout=timeout)
+            except _AsyncClientInitError:
+                pass
         return await self._aexecute_via_thread(command, timeout=timeout)
 
     async def _aexecute_native(
@@ -216,8 +224,11 @@ class E2BAsyncMixin:
         effective_timeout = self._command_timeout(timeout)
         try:
             sbx = await self._async_sandbox()
+        except _AsyncClientInitError:
+            raise
         except Exception as e:
-            raise _AsyncClientInitError(str(e)) from e
+            self._register_async_init_failure(e)
+            raise _AsyncClientInitError(type(e).__name__) from e
         await self._amaybe_extend_timeout()
         kwargs: dict = {"cmd": self._with_work_dir(command), "timeout": effective_timeout}
         if self.env_vars:
@@ -352,10 +363,12 @@ class E2BAsyncMixin:
 
     async def _async_client_or_none(self) -> Any:
         """取 async 客户端；不可用时登记失败并返回 None（调用方走慢道）。"""
-        if not self.supports_async_sdk or self._async_disabled:
+        if not self._async_sdk_available():
             return None
         try:
             return await self._async_sandbox()
+        except _AsyncClientInitError:
+            return None
         except Exception as e:
             self._register_async_init_failure(e)
             return None
@@ -364,10 +377,24 @@ class E2BAsyncMixin:
         self._async_init_failures += 1
         if self._async_init_failures >= 2:
             self._async_disabled = True
+            self._async_connection.retry_after = time.monotonic() + _ASYNC_CLIENT_COOLDOWN
+        status: int | str = "unknown"
+        current: BaseException | None = error
+        seen: set[int] = set()
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            response = getattr(current, "response", None)
+            code = getattr(response, "status_code", getattr(current, "status_code", None))
+            if isinstance(code, int) and not isinstance(code, bool) and 100 <= code <= 599:
+                status = code
+                break
+            current = current.__cause__ or current.__context__
         logger.warning(
-            "async sandbox client unavailable for %s (%s); using thread lane (failures=%d)",
+            "async sandbox client unavailable for %s (error_type=%s http_status=%s); "
+            "using thread lane (failures=%d)",
             self.id,
-            error,
+            type(error).__name__,
+            status,
             self._async_init_failures,
         )
 

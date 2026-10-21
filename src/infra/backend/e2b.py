@@ -73,6 +73,7 @@ class _AsyncSandboxConnection:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     failures: int = 0
     disabled: bool = False
+    retry_after: float = 0.0
     last_timeout_extend: float = float("-inf")
 
 

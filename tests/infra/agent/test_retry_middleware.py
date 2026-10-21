@@ -83,6 +83,33 @@ async def test_fallback_runs_when_primary_raises_authentication_error() -> None:
     assert result.content == "fallback answer"
 
 
+@pytest.mark.parametrize("status", [401, 403])
+async def test_fallback_auth_failures_have_a_stable_countable_reason(status, caplog):
+    primary_model = object()
+    fallback_model = object()
+    middleware = ModelFallbackMiddleware(fallback_model="glm-fallback")
+    middleware._fallback_llm = fallback_model
+
+    async def handler(request):
+        if request.model is primary_model:
+            response = httpx.Response(status, request=httpx.Request("POST", "https://model.test"))
+            raise httpx.HTTPStatusError(
+                "Invalid token", request=response.request, response=response
+            )
+        return AIMessage(content="fallback answer")
+
+    result = await middleware.awrap_model_call(_Request(primary_model), handler)
+
+    assert result.content == "fallback answer"
+    records = [
+        record.getMessage()
+        for record in caplog.records
+        if "Primary model failed" in record.getMessage()
+    ]
+    assert len(records) == 1
+    assert "reason=auth" in records[0]
+
+
 async def test_fallback_runs_when_primary_returns_empty_content() -> None:
     primary_model = object()
     fallback_model = object()

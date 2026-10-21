@@ -4,10 +4,29 @@ export interface GeneratedImageResult {
   url: string;
   name: string;
   contentType?: string;
+  size?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function getGeneratedImageModel(
+  result: unknown,
+  requestedModel: unknown,
+): string {
+  let parsed = result;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = null;
+    }
+  }
+  if (isRecord(parsed) && typeof parsed.model === "string" && parsed.model) {
+    return parsed.model;
+  }
+  return typeof requestedModel === "string" ? requestedModel : "";
 }
 
 export function fileNameFromUrl(url: string): string {
@@ -62,6 +81,11 @@ export function extractGeneratedImageResults(
         url: resolvedUrl,
         name: fileNameFromUrl(url),
         contentType,
+        ...(typeof entry.size === "number" &&
+        Number.isFinite(entry.size) &&
+        entry.size >= 0
+          ? { size: entry.size }
+          : {}),
       };
     });
 }

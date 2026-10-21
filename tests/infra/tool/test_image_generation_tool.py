@@ -207,6 +207,7 @@ async def test_image_generate_calls_images_api_and_uploads_base64_result(
         "url": "https://app.example.com/api/upload/file/generated-images/user-1/generated-20260523_123456-1.png",
         "key": "generated-images/user-1/generated-20260523_123456-1.png",
         "content_type": "image/png",
+        "size": len(image_bytes),
         "revised_prompt": "a cat",
     }
     assert result["images"][0]["revised_prompt"] == "a cat"

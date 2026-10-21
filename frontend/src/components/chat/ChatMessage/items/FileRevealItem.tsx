@@ -3,7 +3,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import { ExternalLink, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LoadingSpinner, ImageViewer, VideoViewer } from "../../../common";
+import {
+  LoadingSpinner,
+  ImageViewer,
+  VideoViewer,
+  formatFileSize,
+} from "../../../common";
 import { ViewerTopBarButton } from "../../../common/ViewerTopBarButton";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import {
@@ -469,6 +474,11 @@ export function FileRevealItem({
             {parsed.description && (
               <span className="text-12 text-theme-text-tertiary truncate max-w-[200px]">
                 {parsed.description}
+              </span>
+            )}
+            {parsed.fileSize != null && parsed.fileSize > 0 && (
+              <span className="shrink-0 text-12 text-theme-text-tertiary tabular-nums">
+                {formatFileSize(parsed.fileSize)}
               </span>
             )}
           </Footer>

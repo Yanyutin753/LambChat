@@ -63,11 +63,13 @@ test("standalone revealed image has a native preview button", () => {
         url: "/report.webp",
         name: "report.webp",
         type: "image",
+        size: 2097152,
       }}
       success
       allowAutoPreview={false}
     />,
   );
+  expect(screen.getByText("2.0 MB")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "report.webp" }));
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });

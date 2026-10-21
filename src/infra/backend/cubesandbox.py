@@ -150,7 +150,7 @@ class CubeSandboxBackend(E2BBackend):
             logger.debug(
                 "[CubeSandbox] e2b async connect unavailable on this deployment "
                 "(control plane lacks connect handshake); using thread lane: %s",
-                error,
+                type(error).__name__,
             )
             return
         super()._register_async_init_failure(error)

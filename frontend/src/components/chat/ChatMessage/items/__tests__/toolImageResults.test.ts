@@ -61,6 +61,23 @@ test("ignores non-image upload entries", () => {
   ).toEqual([]);
 });
 
+test("preserves generated image byte sizes and leaves missing or invalid sizes unknown", () => {
+  const images = extractGeneratedImageResults({
+    images: [2048, undefined, -1, true, "1024", Infinity].map((size, i) => ({
+      url: `https://example.com/image-${i}.png`,
+      size,
+    })),
+  });
+  expect(images.map((image) => image.size)).toEqual([
+    2048,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
+});
+
 test("generated image result previews open the shared ImageViewer", () => {
   const source = readFileSync(
     new URL("../McpBlockPreview.tsx", import.meta.url),
@@ -105,7 +122,9 @@ test("image generation panel uses the same bounded reference thumbnails as chat"
 
   expect(detail).toContain('className="p-2 flex gap-1.5 overflow-x-auto"');
   expect(detail).toContain("inputImages.slice(0, 4).map");
-  expect(detail).toContain("relative shrink-0 w-12 h-12 rounded-md overflow-hidden");
+  expect(detail).toContain(
+    "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
+  );
   expect(detail).toContain("+{inputImages.length - 4}");
   expect(detail).toContain("onClick={() => openImagePreview(resolvedUrl)}");
 });
@@ -163,7 +182,9 @@ test("extractSingleImageResult recognizes single image upload payloads", () => {
     }),
   ).toBeNull();
   expect(extractSingleImageResult("plain text")).toBeNull();
-  expect(extractSingleImageResult({ url: "https://x.example.com/page" })).toBeNull();
+  expect(
+    extractSingleImageResult({ url: "https://x.example.com/page" }),
+  ).toBeNull();
 });
 
 test("generic tool results with a single image payload render the shared preview", () => {

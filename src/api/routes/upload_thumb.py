@@ -39,7 +39,7 @@ _thumb_inflight: dict[str, asyncio.Task] = {}
 def thumb_process_for_key(key: str) -> str | None:
     """OSS processing directive for a chat thumbnail, or None when unsupported."""
     if _key_ext(key) in _THUMB_IMAGE_EXTS:
-        return f"image/resize,m_lfit,w_{THUMB_SIZE},h_{THUMB_SIZE}"
+        return f"image/resize,m_lfit,w_{THUMB_SIZE},h_{THUMB_SIZE}/format,webp/quality,Q_82"
     return None
 
 
@@ -103,15 +103,7 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
 
     provider = getattr(getattr(storage, "_config", None), "provider", None)
     if provider == S3Provider.ALIYUN:
-        try:
-            exists = await storage.file_exists(key)
-            if not exists:
-                raise AppError(ErrorCode.FILE_NOT_FOUND)
-        except AppError:
-            raise
-        except Exception as e:
-            logger.warning(f"Failed to check file existence for thumb {key}: {e}")
-
+        # OSS handles missing objects on GET; signing must not wait for a remote HEAD.
         try:
             url = await storage.get_cover_presigned_url(
                 key, cover_signature_expiry(), process=thumb_process_for_key(key)
