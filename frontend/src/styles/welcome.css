@@ -44,15 +44,6 @@
   border-color: var(--theme-border-hover);
 }
 
-.welcome-input .chat-composer-editor-wrap {
-  padding-top: 0.5rem;
-}
-
-.welcome-input
-  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
-  min-height: 3.5rem;
-}
-
 /* A single, theme-aware border provides focus feedback on web and clients. */
 .welcome-root .welcome-input .chat-input-container:focus-within {
   border-color: color-mix(in srgb, var(--theme-ring) 60%, var(--theme-border));
@@ -62,24 +53,6 @@
 @media (min-width: 640px) {
   .welcome-input .chat-input-shell {
     padding-inline: 0.5rem;
-  }
-
-  .welcome-input .chat-composer-editor-wrap {
-    padding-top: 0.75rem;
-  }
-
-  .welcome-input
-    :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
-    min-height: 4rem;
-  }
-}
-
-/* Keep the typing area compact when the keyboard takes over the viewport. */
-@media (max-width: 639px) {
-  html[data-mobile-keyboard="true"]
-    .welcome-input
-    :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
-    min-height: 2.75rem;
   }
 }
 

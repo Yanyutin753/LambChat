@@ -79,15 +79,20 @@ function renderTitleBar(
   );
 }
 
-test("windows titlebar shows brand, nav and window controls", () => {
-  renderTitleBar("windows");
-  expect(screen.getByText("LambChat")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "后退" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "前进" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "最小化" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "最大化" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "关闭" })).toBeTruthy();
-});
+test.each(["windows", "linux"] as const)(
+  "%s titlebar shows the shared serif brand centered beside its icon",
+  (os) => {
+    renderTitleBar(os);
+    const brand = screen.getByText("LambChat");
+    expect(brand).toHaveClass("font-serif", "leading-none");
+    expect(brand.parentElement).toHaveClass("flex", "items-center");
+    expect(screen.getByRole("button", { name: "后退" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "前进" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "最小化" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "最大化" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "关闭" })).toBeTruthy();
+  },
+);
 
 test("mac titlebar keeps nav but drops brand and custom window controls", () => {
   renderTitleBar("mac");

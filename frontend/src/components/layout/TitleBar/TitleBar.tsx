@@ -196,7 +196,7 @@ export function TitleBar({
             className="pointer-events-none"
             draggable={false}
           />
-          <span className="text-13 font-semibold tracking-wide text-[var(--color-text-secondary)]">
+          <span className="font-serif text-13 leading-none font-semibold tracking-wide text-[var(--color-text-secondary)]">
             LambChat
           </span>
         </div>
