@@ -26,7 +26,6 @@ from src.api.routes.file_type import (
     get_file_category,
     get_permission_for_category,
 )
-from src.api.routes.upload_cover import get_file_cover_response
 from src.api.routes.upload_direct import router as direct_upload_router
 from src.api.routes.upload_model_safe import get_model_safe_file_response
 from src.api.routes.upload_signed_urls import (
@@ -39,7 +38,10 @@ from src.api.routes.upload_signed_urls import (
 from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
-from src.api.routes.upload_thumb import get_file_thumb_response, get_private_file_thumb_response
+from src.api.routes.upload_thumb import (
+    get_file_image_variant_response,
+    get_private_file_thumb_response,
+)
 from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
@@ -916,11 +918,8 @@ async def get_file_proxy(
 
     storage = await get_or_init_storage()
 
-    if cover:
-        return await get_file_cover_response(storage, key, t)
-
-    if thumb:
-        return await get_file_thumb_response(storage, key)
+    if cover or thumb:
+        return await get_file_image_variant_response(storage, key, cover, proxy, t)
 
     # Legacy uploads in vision-unsafe formats (e.g. TIFF) are healed on read:
     # serve a transcoded JPEG so old session URLs keep working for models.

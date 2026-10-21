@@ -75,6 +75,7 @@ export function ImageWithSkeleton({
   const [stage, setStage] = useState(() => (thumbSrc ? -1 : 0));
   const srcUsed = stage < 0 ? thumbSrc : retryChain[stage];
   const privateImage = usePrivateImage(srcUsed);
+  const { retryWithProxy } = privateImage;
   const [isLoaded, setIsLoaded] = useState(() =>
     loadedImages.has(thumbSrc ?? resolvedSrc ?? ""),
   );
@@ -88,18 +89,19 @@ export function ImageWithSkeleton({
 
   const handleLoad = useCallback(() => {
     setIsLoaded(true);
-    if (srcUsed) loadedImages.add(srcUsed);
+    if (srcUsed && privateImage.src === srcUsed) loadedImages.add(srcUsed);
     onExternalLoad?.();
-  }, [onExternalLoad, srcUsed]);
+  }, [onExternalLoad, srcUsed, privateImage.src]);
   const handleError = useCallback(() => {
     if (stage + 1 < retryChain.length) {
       setStage(stage + 1);
       return;
     }
+    if (retryWithProxy(thumbSrc) || retryWithProxy()) return;
     setIsLoaded(true);
     setHasError(true);
     onExternalError?.();
-  }, [stage, retryChain, onExternalError]);
+  }, [stage, retryChain, thumbSrc, onExternalError, retryWithProxy]);
 
   useEffect(() => {
     if (privateImage.failed) handleError();
@@ -116,11 +118,21 @@ export function ImageWithSkeleton({
         onClick={onClick}
         aria-busy={!isLoaded && !hasError}
         style={hasError ? { aspectRatio } : undefined}
-        className={`relative overflow-hidden image-with-skeleton ${className ?? ""} ${onClick ? "block text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
+        className={`relative overflow-hidden image-with-skeleton ${
+          className ?? ""
+        } ${
+          onClick
+            ? "block text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
+            : ""
+        }`}
       >
         {!isLoaded && !hasError && (
           <>
-            <div aria-hidden="true" className="w-full" style={{ aspectRatio }} />
+            <div
+              aria-hidden="true"
+              className="w-full"
+              style={{ aspectRatio }}
+            />
             <div
               aria-hidden="true"
               className="absolute inset-0 skeleton-line rounded-[inherit] pointer-events-none"
@@ -128,13 +140,13 @@ export function ImageWithSkeleton({
           </>
         )}
         {hasError ? (
-          (errorFallback ?? (
+          errorFallback ?? (
             <div className="absolute inset-0 flex items-center justify-center bg-stone-100 dark:bg-stone-800 rounded-[inherit]">
               <span className="text-12 text-stone-400 truncate px-1">
                 {alt || "…"}
               </span>
             </div>
-          ))
+          )
         ) : (
           <img
             src={privateImage.src}
@@ -168,7 +180,11 @@ export function ImageWithSkeleton({
       aria-busy={!isLoaded && !hasError}
       className={`relative my-2 overflow-hidden rounded-lg shadow ${
         wrapperClassName ?? ""
-      } image-with-skeleton ${onClick ? "block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]" : ""}`}
+      } image-with-skeleton ${
+        onClick
+          ? "block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
+          : ""
+      }`}
     >
       {/* Skeleton placeholder */}
       {!isLoaded && !hasError && (

@@ -1,5 +1,6 @@
 import { FileIcon } from "../../common/FileIcon";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePrivateImage } from "../../../hooks/usePrivateImage";
 import { clsx } from "clsx";
 import { Play } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -41,6 +42,10 @@ function SmartThumb({
   fallback?: React.ReactNode;
 }) {
   const [idx, setIdx] = useState(0);
+  const image = usePrivateImage(sources[idx]);
+  useEffect(() => {
+    if (image.failed) setIdx((i) => i + 1);
+  }, [image.failed]);
 
   if (idx >= sources.length) {
     return <>{fallback}</>;
@@ -48,12 +53,19 @@ function SmartThumb({
 
   return (
     <img
-      src={sources[idx]}
+      src={image.src}
       alt={alt}
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"
-      onError={() => setIdx((i) => i + 1)}
+      onError={() => {
+        if (
+          idx + 1 < sources.length ||
+          (!image.retryWithProxy(sources[0]) && !image.retryWithProxy())
+        ) {
+          setIdx((i) => i + 1);
+        }
+      }}
       className={className}
     />
   );
