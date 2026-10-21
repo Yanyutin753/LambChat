@@ -82,8 +82,8 @@ KUBECTL='k3s kubectl' python3 k8s/scripts/update.py develop-YYYYMMDD-HHMMSS \
 包括独立 worker；脚本不创建环境、不复制生产凭据。
 
 已有 staging 如果只有 hostNetwork `8021`、OpenResty 直连该端口，先创建版本化的 staging Service：
-选择器 `app=lambchat-staging`，命名 targetPort `http`，NodePort `30081`。
-确认当前 Pod 已声明命名端口后，让测试站点 OpenResty 从 `8021` 改指本机 `30081`，
+选择器 `app=lambchat-staging`，命名 targetPort `http`，NodePort `30082`。
+确认当前 Pod 已声明命名端口后，让测试站点 OpenResty 从 `8021` 改指本机 `30082`，
 先用原 Pod 验证 `/ready` 与实际 HTML，再执行 `8021 ↔ 8023` 发布。
 避免在发布中同时迁移入口和应用版本。
 
