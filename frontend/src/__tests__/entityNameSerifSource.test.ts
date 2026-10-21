@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 /**
  * 名称类文案（agent/角色/persona/团队/模型/技能/会话/项目/用户名）
- * 与实体卡片标题一样统一使用 font-serif（Source Serif 4）。
+ * 与实体卡片标题一样统一使用 font-serif（客户端标题栏的系统字体）。
  */
 function readComponent(...segments: string[]): string {
   return readFileSync(

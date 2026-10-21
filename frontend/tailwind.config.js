@@ -49,19 +49,8 @@ export default {
         // CJK 界面黑体走系统字体（苹方/雅黑等）：网页字体 Noto Sans SC
         // 的 600/700 比系统黑体重一截，接管后粗体观感发黑，已回退。
         sans: ["'Source Sans 3'", "system-ui", "sans-serif"],
-        // 排除 Georgia/ui-serif：默认老式数字（old-style figures）会低于基线，
-        // 导致数字与文本不在同一水平线；Source Serif 4 默认 lining figures。
-        serif: [
-          "'Source Serif 4'",
-          "'Noto Serif SC'",
-          "Cambria",
-          "'Times New Roman'",
-          "Times",
-          "'Source Han Serif SC'",
-          "'Songti SC'",
-          "SimSun",
-          "serif",
-        ],
+        // 保留既有类名，与 Windows/Linux 客户端标题栏共用系统字体。
+        serif: ["var(--desktop-ui-font)"],
       },
       colors: {
         // Legacy stone utilities follow the active neutral scale, including /opacity.
