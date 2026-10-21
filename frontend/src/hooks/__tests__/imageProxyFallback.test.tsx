@@ -273,3 +273,41 @@ test("loading through the proxy does not mark the failed direct source as cached
     screen.getByAltText("cache-check").closest(".image-with-skeleton"),
   ).toHaveAttribute("aria-busy", "true");
 });
+
+test.each(["desktop", "android", "ios"])(
+  "%s viewer resolves backend-relative uploads before the first image request",
+  (platform) => {
+    if (platform === "desktop") vi.stubGlobal("__TAURI_INTERNALS__", {});
+    else vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
+    setStoredServerUrl("https://chat.example");
+    render(
+      <ImageViewer
+        src="/api/upload/file/image/u/relative.png"
+        alt="relative"
+        isOpen
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByAltText("relative")).toHaveAttribute(
+      "src",
+      "https://chat.example/api/upload/file/image/u/relative.png",
+    );
+  },
+);
+
+test("viewer relocates an upload URL from the webview origin before loading it", () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", {});
+  setStoredServerUrl("https://chat.example");
+  render(
+    <ImageViewer
+      src="tauri://localhost/api/upload/file/image/u/relative.png"
+      alt="webview-origin"
+      isOpen
+      onClose={() => {}}
+    />,
+  );
+  expect(screen.getByAltText("webview-origin")).toHaveAttribute(
+    "src",
+    "https://chat.example/api/upload/file/image/u/relative.png",
+  );
+});
