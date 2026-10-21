@@ -14,7 +14,7 @@ test("tool reading typography compiles with monospace utilities without a cycle"
     from: fileURLToPath(new URL("../typography-test.css", import.meta.url)),
   });
   expect(result.css).not.toContain("@apply");
-  expect(result.css).toContain("Source Serif 4");
+  expect(result.css).toContain("font-family: var(--desktop-ui-font)");
 });
 
 test.each([
