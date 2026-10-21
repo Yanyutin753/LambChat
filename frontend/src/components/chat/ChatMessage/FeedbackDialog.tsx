@@ -1,4 +1,5 @@
 import { InteractiveIcon } from "../../common/InteractiveIcon";
+import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X, Send, ImagePlus } from "lucide-react";
 import { Dialog } from "../../common/Dialog";
@@ -180,7 +181,8 @@ export function FeedbackDialog({
                 key={attachment.id}
                 className="group/att relative size-20 shrink-0 overflow-hidden rounded-lg border border-theme-border"
               >
-                <img
+                <ImageWithSkeleton
+                  inline
                   src={attachment.url}
                   alt={attachment.name}
                   className="size-full object-cover"

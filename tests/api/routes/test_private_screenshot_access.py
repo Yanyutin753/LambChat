@@ -60,7 +60,16 @@ def screenshot(monkeypatch):
 
 @pytest.mark.parametrize("user", [None, SimpleNamespace(sub="other")])
 @pytest.mark.parametrize(
-    "flags", [{}, {"cover": True}, {"thumb": True}, {"direct": True}, {"proxy": True}]
+    "flags",
+    [
+        {},
+        {"cover": True},
+        {"thumb": True},
+        {"direct": True},
+        {"proxy": True},
+        {"thumb": True, "proxy": True},
+        {"cover": True, "proxy": True},
+    ],
 )
 async def test_leaked_screenshot_url_never_exposes_bytes_to_anonymous_or_other_user(
     screenshot, user, flags

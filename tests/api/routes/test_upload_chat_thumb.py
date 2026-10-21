@@ -323,3 +323,67 @@ async def test_thumb_concurrent_first_requests_render_only_once(
     assert all(r.status_code == 200 for r in responses)
     assert storage.downloads == ["revealed_files/hero.jpg"]
     assert storage.uploads == ["thumbs/560/revealed_files/hero.jpg.jpg"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("variant", ["thumb", "cover"])
+async def test_image_variant_proxy_fetches_processed_bytes_without_forwarding_user_headers(
+    monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    import httpx
+
+    storage = _FakeS3Storage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200, content=_jpeg_bytes((560, 315)), headers={"Content-Type": "image/jpeg"}
+        )
+
+    client_class = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client_class(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    request = _fake_request()
+    request.headers["authorization"] = "Bearer must-not-leak"
+    response = await upload.get_file_proxy(
+        "revealed_files/hero.jpg", request, proxy=True, **{variant: True}
+    )
+
+    assert response.status_code == 200
+    assert response.media_type == "image/jpeg"
+    assert Image.open(io.BytesIO(response.body)).size == (560, 315)
+    assert response.headers["cache-control"] == "public, max-age=86400"
+    assert len(requests) == 1
+    assert requests[0].url.host == "signed.example"
+    assert "authorization" not in requests[0].headers
+    assert "cookie" not in requests[0].headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [302, 403, 500])
+async def test_image_variant_proxy_rejects_upstream_errors_and_redirects(
+    monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    import httpx
+
+    storage = _FakeS3Storage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    client_class = httpx.AsyncClient
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            status, headers={"Location": "https://elsewhere.example/image.jpg"}
+        )
+    )
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: client_class(transport=transport, **kwargs)
+    )
+    with pytest.raises(AppError) as exc:
+        await upload.get_file_proxy(
+            "revealed_files/hero.jpg", _fake_request(), thumb=True, proxy=True
+        )
+    assert exc.value.error_code.code == "file_read_failed"

@@ -43,6 +43,20 @@ KUBECTL='k3s kubectl' python3 k8s/scripts/update.py main-YYYYMMDD-HHMMSS
 - 当前 assets 实现面向单节点 k3s；多节点必须先改为各节点都能读取的 RWX 存储或统一静态资源源站。
   脚本不自动把单节点 hostPath 当成集群共享存储。
 
+## yang 单机容量（2026-10-21）
+
+生产保持 2 个 API 分片，worker 从 2 个扩到 3 个；同一模板只新增 worker，不重启现有任务进程。
+生产副本数保存在服务器私有清单，通用示例的 worker 副本数也同步为 3；发布脚本保留现有副本数。
+
+当时 yang 为 8 vCPU / 15.6 GiB 内存：CPU 约 6%，可用内存约 8.8 GiB，
+过去 24 小时 5 分钟平均 CPU 峰值约 24%、最低可用内存约 6.1 GiB。
+API 每个约 502 MiB、worker 每个空闲约 292 MiB；这些是观测值，不是任务高峰内存预算。
+worker 单个上限 3 GiB，仍需为数据库、其他现有服务及发布临时副本留余量，不据此继续盲目扩容。
+
+hostNetwork 下每个 API 分片只能有 1 个副本；不能直接把 `lambchat-a/b` 的 replicas 改成 2，
+否则同机端口冲突。更多 API 需要独立分片和备用端口对，并同步发布入口、Service、监控与回归调用方。
+同一台 yang 上增加 Pod 可分散进程负载，不能抵御宿主机故障，也不增加物理 CPU 或内存。
+
 ## 更新与回滚
 
 1. 非阻塞获取部署锁；读取所有目标原始配置，确认所有 Deployment 和 Pod 已就绪，

@@ -193,3 +193,15 @@ describe("mediaProxyFallbackSrc", () => {
     expect(el.dataset.proxyFallback).toBeUndefined();
   });
 });
+
+test("proxy retry replaces an explicit false value instead of creating an endless retry chain", () => {
+  const retry = buildProxyFallbackUrl("/api/upload/file/a.png?proxy=false&v=2");
+  expect(retry).toBe("/api/upload/file/a.png?proxy=true&v=2");
+  expect(buildProxyFallbackUrl(retry!)).toBeNull();
+});
+
+test("proxy retry puts the query before an image fragment", () => {
+  expect(
+    buildProxyFallbackUrl("https://app.example/api/upload/file/a.png#preview"),
+  ).toBe("https://app.example/api/upload/file/a.png?proxy=true#preview");
+});

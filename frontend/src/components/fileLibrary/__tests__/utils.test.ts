@@ -201,7 +201,7 @@ test("ImageViewer shows a loading affordance while switched images load", () => 
     /onLoad=\{\(\) => \{\s*setIsImageLoading\(false\);\s*setHasImageError\(false\);/,
   );
   expect(source).toMatch(
-    /onError=\{\(\) => \{\s*setIsImageLoading\(false\);\s*setHasImageError\(true\);/,
+    /onError=\{\(\) => \{\s*if \(privateImage\.retryWithProxy\(\)\) return;\s*setIsImageLoading\(false\);\s*setHasImageError\(true\);/,
   );
   expect(source).toMatch(/skeleton-line/);
   expect(source).toMatch(/opacity: isImageLoading \? 0\.45 : 1/);

@@ -32,6 +32,7 @@ import {
 } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { Button, ImageViewer } from "../common";
+import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { feedbackApi } from "../../services/api/feedback";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -211,7 +212,8 @@ function ReviewImageGrid({
             hover:scale-105 hover:shadow-md hover:shadow-stone-400/30 dark:hover:shadow-stone-900/50 hover:z-10
             active:scale-[0.97]"
         >
-          <img
+          <ImageWithSkeleton
+            inline
             src={att.url}
             alt={att.name}
             className="h-full w-full object-cover"
@@ -413,7 +415,8 @@ function FeedbackDetailModal({
                     className="aspect-square overflow-hidden rounded-xl bg-stone-100 dark:bg-stone-800
                       hover:opacity-90 transition-opacity active:scale-[0.97]"
                   >
-                    <img
+                    <ImageWithSkeleton
+                      inline
                       src={att.url}
                       alt={att.name}
                       className="h-full w-full object-cover"
