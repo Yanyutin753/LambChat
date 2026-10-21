@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useCallback, useMemo, useState } from "react";
 import { Globe, ImageIcon, Sparkles } from "lucide-react";
@@ -23,46 +24,10 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolResultContent } from "./McpBlockPreview";
-import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { useSessionImageGallery } from "../sessionImageGallery";
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
-/** 供应商识别色点：不同搜索源一眼可辨 */
-const PROVIDER_DOTS: Record<string, string> = {
-  anysearch: "bg-theme-info",
-  deepseek: "bg-theme-info",
-  tavily: "bg-sky-400",
-  brave: "bg-orange-400",
-  searxng: "bg-violet-400",
-};
-
-function ProviderBadge({
-  provider,
-  className,
-}: {
-  provider: string;
-  className?: string;
-}) {
-  if (!provider) return null;
-  return (
-    <span
-      className={clsx(
-        "inline-flex items-center gap-1.5 rounded-md bg-theme-bg-card px-2 py-0.5 text-10 font-medium text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))]",
-        className,
-      )}
-    >
-      <span
-        className={clsx(
-          "size-1.5 rounded-full",
-          PROVIDER_DOTS[provider] ?? "bg-theme-text-tertiary",
-        )}
-      />
-      {provider}
-    </span>
-  );
 }
 
 /** favicon：后端直出优先，否则 Google S2，失败回退图标；外面套主题色容器更精致 */
@@ -108,22 +73,9 @@ function ResultFavicon({
   );
 }
 
-/** 相关性分数：主题色深浅分档的迷你徽章 */
 function ScoreBadge({ score }: { score: number }) {
   const pct = Math.min(Math.round(score * 100), 100);
-  const strong = pct >= 80;
-  return (
-    <span
-      className={clsx(
-        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-10 font-semibold tabular-nums",
-        strong
-          ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,transparent)] text-[var(--theme-primary)]"
-          : "text-theme-text-tertiary bg-[color-mix(in_srgb,var(--theme-text-tertiary)_10%,transparent)]",
-      )}
-    >
-      {pct}
-    </span>
-  );
+  return <TagBadge className="tabular-nums">{pct}</TagBadge>;
 }
 
 /** 收起态来源卡：favicon + 短站点名（ChatGPT 引用卡风格），点击直达原文 */
@@ -176,42 +128,22 @@ function SourceThumb({
 }
 
 /** 摘要 chips：结果数（主题色）+ 供应商 + 图片数 */
-function WebSearchSummaryChips({
-  summary,
-  size,
-}: {
-  summary: WebSearchSummary;
-  size: "compact" | "detail";
-}) {
+function WebSearchSummaryChips({ summary }: { summary: WebSearchSummary }) {
   const { t } = useTranslation();
-  const compact = size === "compact";
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <span
-        className={clsx(
-          "inline-flex items-center gap-1 rounded-md font-medium",
-          "bg-[color-mix(in_srgb,var(--theme-primary)_9%,transparent)] text-[var(--theme-primary)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_16%,transparent)]",
-          compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11",
-        )}
-      >
-        <Globe size={compact ? 9 : 10} className="shrink-0 opacity-70" />
+    <div className="flex flex-wrap items-center gap-1.5">
+      <TagBadge icon={<Globe />}>
         {t("chat.message.toolWebSearchResults", {
           count: summary.results.length,
         })}
-      </span>
-      {summary.provider && <ProviderBadge provider={summary.provider} />}
+      </TagBadge>
+      {summary.provider && <TagBadge>{summary.provider}</TagBadge>}
       {summary.images.length > 0 && (
-        <span
-          className={clsx(
-            "inline-flex items-center gap-1 rounded-md font-medium text-theme-text-secondary bg-theme-bg-card ring-1 ring-theme-border",
-            compact ? "px-1.5 py-0.5 text-10" : "px-2 py-0.5 text-11",
-          )}
-        >
-          <ImageIcon size={compact ? 9 : 10} className="shrink-0 opacity-70" />
+        <TagBadge icon={<ImageIcon />}>
           {t("chat.message.toolWebSearchImages", {
             count: summary.images.length,
           })}
-        </span>
+        </TagBadge>
       )}
     </div>
   );
@@ -246,11 +178,10 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
           <span className="text-14 font-semibold text-theme-text min-w-0 truncate flex-1">
             {query || t("chat.message.toolWebSearch")}
           </span>
-          {summary?.provider && <ProviderBadge provider={summary.provider} />}
         </div>
       )}
 
-      {summary && <WebSearchSummaryChips summary={summary} size="detail" />}
+      {summary && <WebSearchSummaryChips summary={summary} />}
 
       {summary?.answer && (
         <div className="tool-result-card border border-theme-border">
@@ -353,13 +284,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
 
       {hasRawFallback && (
         <div className="group/result relative flex-1 min-h-0 text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-          <ToolHoverCopyButton
-            text={typeof result === "string" ? result : JSON.stringify(result)}
-            position="resultCompact"
-            className="z-20 pointer-events-auto"
-            copyButtonClassName="tool-result-copy"
-          />
-          <ToolResultContent result={result} hideCopyButton />
+          <ToolResultContent result={result} />
         </div>
       )}
 
@@ -499,9 +424,7 @@ const WebSearchItem = memo(function WebSearchItem({
               </ToolArgsBlock>
             )}
 
-            {summary && (
-              <WebSearchSummaryChips summary={summary} size="compact" />
-            )}
+            {summary && <WebSearchSummaryChips summary={summary} />}
 
             {summary && summary.results.length > 0 && (
               <div className="space-y-1">
@@ -540,17 +463,7 @@ const WebSearchItem = memo(function WebSearchItem({
 
             {hasResult && !summary && (
               <div className="group/result relative text-12 text-theme-text-secondary overflow-y-auto min-w-0">
-                <ToolHoverCopyButton
-                  text={
-                    typeof result === "string"
-                      ? result
-                      : JSON.stringify(result, null, 2)
-                  }
-                  position="resultCompact"
-                  className="z-20 pointer-events-auto"
-                  copyButtonClassName="tool-result-copy"
-                />
-                <ToolResultContent result={result} hideCopyButton />
+                <ToolResultContent result={result} />
               </div>
             )}
           </ToolInlineDetails>

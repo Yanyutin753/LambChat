@@ -94,3 +94,5 @@ export {
   nameToGradient,
   GRADIENT_PALETTES,
 } from "./cardUtils";
+
+export { TagBadge } from "./TagBadge";

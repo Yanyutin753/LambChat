@@ -63,7 +63,7 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
   const analysis = useMemo(() => getAnalysisText(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       {prompt && (
         <ToolArgsBlock size="detail" copyText={prompt} wrap>
           <MessageSquareText
@@ -123,12 +123,7 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
           >
             <MarkdownContent content={analysis} />
           </div>
-          <ToolHoverCopyButton
-            text={analysis}
-            size={14}
-            position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={analysis} size={14} position="panel" />
         </div>
       )}
       {viewer}
@@ -182,12 +177,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
       >
         <MarkdownContent content={analysis} />
       </div>
-      <ToolHoverCopyButton
-        text={analysis}
-        size={14}
-        position="panel"
-        copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-      />
+      <ToolHoverCopyButton text={analysis} size={14} position="panel" />
     </div>
   ) : null;
 

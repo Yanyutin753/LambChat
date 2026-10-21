@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import {
@@ -24,12 +25,7 @@ import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { DetailSection } from "./DetailSection";
-import {
-  TYPE_STYLES,
-  TYPE_DOTS,
-  SOURCE_STYLES,
-  SOURCE_DOTS,
-} from "../../../panels/MemoryPanel/constants";
+import { SOURCE_STYLES } from "../../../panels/MemoryPanel/constants";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -165,16 +161,12 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Query summary header */}
       {resultQuery && (
-        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] border border-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))] shadow-[0_10px_24px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
+        <div className="tool-query-header flex-wrap">
           <Search size={14} className="text-[var(--theme-primary)] shrink-0" />
           <span className="text-14 sm:text-16 text-theme-text min-w-0 truncate flex-1">
             {resultQuery}
           </span>
-          {searchMode && (
-            <span className="shrink-0 text-10 px-2 py-0.5 rounded-md bg-theme-bg-card ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-theme-text-secondary font-medium">
-              {searchModeLabel}
-            </span>
-          )}
+          {searchMode && <TagBadge>{searchModeLabel}</TagBadge>}
         </div>
       )}
 
@@ -194,25 +186,20 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
         >
           <div className="grid auto-grid-cols gap-3">
             {memories.map((mem, i) => {
-              const typeStyle = TYPE_STYLES[mem.type] || TYPE_STYLES.user;
-              const typeDot = TYPE_DOTS[mem.type] || TYPE_DOTS.user;
               const sourceStyle = SOURCE_STYLES[mem.source] || "";
-              const sourceDot = SOURCE_DOTS[mem.source] || "";
               return (
                 <div
                   key={mem.memory_id || i}
                   className={clsx(
-                    "group/mem rounded-xl overflow-hidden border bg-theme-bg-card",
-                    "shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_42%,transparent)] transition-all duration-200",
-                    "border-theme-border",
+                    "group/mem tool-result-card border border-theme-border",
                   )}
                 >
-                  <div className="px-4 py-3.5 space-y-3">
+                  <div className="space-y-3">
                     {/* Header: title + badges */}
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         {mem.title && (
-                          <div className="text-14 sm:text-16 font-semibold text-theme-text truncate leading-snug tracking-tight">
+                          <div className="text-14 sm:text-16 font-serif font-semibold text-theme-text truncate leading-snug tracking-tight">
                             {mem.title}
                           </div>
                         )}
@@ -231,36 +218,13 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
 
                     {/* Footer: type badge + source + date */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Type badge */}
-                      <span
-                        className={clsx(
-                          "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-12 font-medium",
-                          typeStyle,
-                        )}
-                      >
-                        <span
-                          className={clsx("w-1.5 h-1.5 rounded-full", typeDot)}
-                        />
-                        {getTypeIcon(mem.type)}
+                      <TagBadge icon={getTypeIcon(mem.type)}>
                         {t(`memory.type.${mem.type}`, mem.type)}
-                      </span>
-
-                      {/* Source badge */}
+                      </TagBadge>
                       {sourceStyle && (
-                        <span
-                          className={clsx(
-                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-12 font-medium",
-                            sourceStyle,
-                          )}
-                        >
-                          <span
-                            className={clsx(
-                              "w-1.5 h-1.5 rounded-full",
-                              sourceDot,
-                            )}
-                          />
+                        <TagBadge>
                           {t(`memory.source.${mem.source}`, mem.source)}
-                        </span>
+                        </TagBadge>
                       )}
 
                       {/* Date */}
@@ -297,11 +261,7 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
             const text = extractText(result);
             return text.length > 600 ? text.slice(0, 597) + "…" : text;
           })()}
-          <ToolHoverCopyButton
-            text={extractText(result)}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={extractText(result)} position="result" />
         </pre>
       )}
     </div>
@@ -383,11 +343,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
   const pillLabel =
     memories.length > 0
       ? `${t("chat.message.toolMemoryRecall")} ${
-          resultQuery
-            ? `"${
-                resultQuery
-              }"`
-            : ""
+          resultQuery ? `"${resultQuery}"` : ""
         } (${memories.length})`
       : t("chat.message.toolMemoryRecall");
 
@@ -447,20 +403,14 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
             {memories.length > 0 && (
               <div className="space-y-1">
                 {memories.slice(0, 5).map((mem, i) => {
-                  const typeStyle = TYPE_STYLES[mem.type] || TYPE_STYLES.user;
                   return (
                     <div
                       key={mem.memory_id || i}
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                     >
-                      <span
-                        className={clsx(
-                          "inline-flex items-center px-1.5 py-[2px] rounded text-10 font-medium",
-                          typeStyle,
-                        )}
-                      >
+                      <TagBadge>
                         {t(`memory.type.${mem.type}`, mem.type)}
-                      </span>
+                      </TagBadge>
                       <span className="text-12 text-theme-text-secondary min-w-0 truncate flex-1">
                         {mem.title ||
                           (mem.summary

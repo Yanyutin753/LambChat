@@ -1,5 +1,5 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
-import { clsx } from "clsx";
 import {
   Brain,
   Save,
@@ -27,7 +27,6 @@ import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { DetailSection } from "./DetailSection";
-import { TYPE_STYLES, TYPE_DOTS } from "../../../panels/MemoryPanel/constants";
 import { buildPanelSummary } from "../panelSummary";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -103,6 +102,7 @@ function MemoryStoreDetail({
   const resultMemoryId = parsed?.memory_id || "";
   const memoryType = parsed?.memory_type || "";
   const resultMessage = parsed?.message || "";
+  const TypeIcon = getTypeIcon(memoryType);
   const errorMessage = parsed?.error || "";
 
   return (
@@ -160,39 +160,23 @@ function MemoryStoreDetail({
             </span>
           }
         >
-          <div className="rounded-xl overflow-hidden border border-theme-border bg-theme-bg shadow-[0_1px_2px_rgb(0_0_0/0.04)]">
+          <div className="space-y-3">
             {/* Title */}
             {title && (
-              <div className="px-3.5 pt-3 pb-1.5">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-14 font-semibold text-theme-text truncate leading-snug">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-14 font-serif font-semibold text-theme-text break-words min-w-0 leading-snug">
                     {title}
                   </h4>
                   {memoryType && (
-                    <span
-                      className={clsx(
-                        "inline-flex items-center gap-1 px-2 py-[3px] rounded-md text-10 font-medium shrink-0",
-                        TYPE_STYLES[memoryType] || TYPE_STYLES.user,
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          "w-1.5 h-1.5 rounded-full",
-                          TYPE_DOTS[memoryType] || TYPE_DOTS.user,
-                        )}
-                      />
-                      {(() => {
-                        const Icon = getTypeIcon(memoryType);
-                        return <Icon size={10} className="opacity-60" />;
-                      })()}
+                    <TagBadge icon={<TypeIcon />}>
                       {t(`memory.type.${memoryType}`, memoryType)}
-                    </span>
+                    </TagBadge>
                   )}
                   {isUpdate && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-[2px] rounded-md text-9 font-medium bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                      <RefreshCw size={8} className="opacity-60" />
+                    <TagBadge icon={<RefreshCw />}>
                       {t("chat.message.toolMemoryStoreUpdated")}
-                    </span>
+                    </TagBadge>
                   )}
                 </div>
               </div>
@@ -200,7 +184,7 @@ function MemoryStoreDetail({
 
             {/* Summary */}
             {summary && (
-              <div className="px-3.5 pb-2">
+              <div className="min-w-0">
                 <p className="text-11 sm:text-12 text-theme-text-secondary/80 leading-relaxed">
                   {summary}
                 </p>
@@ -208,46 +192,19 @@ function MemoryStoreDetail({
             )}
 
             {/* Content body */}
-            <pre className="px-3.5 pb-3 text-11 sm:text-12 text-theme-text-secondary leading-relaxed whitespace-pre-wrap break-words overflow-y-auto max-h-60">
-              {content.length > 500 ? content.slice(0, 497) + "…" : content}
-            </pre>
+            <div className="text-12 text-theme-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+              {content}
+            </div>
 
             {/* Tags + Context footer */}
             {(tags.length > 0 || context) && (
-              <div className="px-3.5 pb-3 flex items-center gap-2 flex-wrap">
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {tags.slice(0, 6).map((tag, i) => (
-                      <span
-                        key={i}
-                        className={clsx(
-                          "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium",
-                          i === 0
-                            ? "bg-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-bg-card))] text-theme-text ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_20%,var(--theme-border))]"
-                            : "bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border",
-                        )}
-                      >
-                        <Tag
-                          size={7}
-                          className={clsx(
-                            i === 0 ? "opacity-60" : "opacity-40",
-                          )}
-                        />
-                        {tag}
-                      </span>
-                    ))}
-                    {tags.length > 6 && (
-                      <span className="text-10 text-theme-text-tertiary px-1">
-                        +{tags.length - 6}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {context && (
-                  <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border">
-                    {context}
-                  </span>
-                )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {tags.map((tag, i) => (
+                  <TagBadge key={i} icon={<Tag />}>
+                    {tag}
+                  </TagBadge>
+                ))}
+                {context && <TagBadge>{context}</TagBadge>}
               </div>
             )}
           </div>
@@ -271,7 +228,7 @@ function MemoryStoreDetail({
 
       {/* Memory ID (result) */}
       {(resultMemoryId || existingMemoryId) && (
-        <div className="flex items-center gap-2 px-3.5">
+        <div className="flex items-center gap-2">
           <span className="text-10 text-theme-text-tertiary">ID</span>
           <span className="text-10 font-mono text-theme-text-secondary min-w-0 truncate flex-1">
             {resultMemoryId || existingMemoryId}
@@ -291,11 +248,7 @@ function MemoryStoreDetail({
             const text = extractText(result);
             return text;
           })()}
-          <ToolHoverCopyButton
-            text={extractText(result)}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={extractText(result)} position="result" />
         </pre>
       )}
     </div>
@@ -373,8 +326,15 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
   // ── Pill labels ──
 
   const pillLabel = useMemo(() => {
-    const subject = action === "delete" ? memoryIdArg : title || summary || content.split("\n")[0];
-    const actionLabel = t(action === "delete" ? "chat.message.toolMemoryDelete" : "chat.message.toolMemoryStore");
+    const subject =
+      action === "delete"
+        ? memoryIdArg
+        : title || summary || content.split("\n")[0];
+    const actionLabel = t(
+      action === "delete"
+        ? "chat.message.toolMemoryDelete"
+        : "chat.message.toolMemoryStore",
+    );
     return subject ? `${actionLabel} ${subject}` : actionLabel;
   }, [action, memoryIdArg, title, summary, content, t]);
 
@@ -457,14 +417,9 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
                 {(tags.length > 0 || memoryType) && (
                   <div className="flex items-center gap-1 mt-1.5">
                     {memoryType && (
-                      <span
-                        className={clsx(
-                          "inline-flex items-center px-1.5 py-[1px] rounded text-9 font-medium",
-                          TYPE_STYLES[memoryType] || TYPE_STYLES.user,
-                        )}
-                      >
+                      <TagBadge>
                         {t(`memory.type.${memoryType}`, memoryType)}
-                      </span>
+                      </TagBadge>
                     )}
                     {tags.length > 0 && (
                       <span className="text-9 text-theme-text-tertiary">

@@ -475,7 +475,7 @@ export function ToolResultPanel({
                 <div className="tool-console-title-row flex items-baseline gap-2 min-w-0 flex-1">
                   <h3
                     id={titleId}
-                    className="tool-console-title min-w-0 max-w-full truncate leading-6 font-medium text-14 text-theme-text"
+                    className="tool-console-title min-w-0 max-w-full truncate leading-6 font-medium font-serif text-14 text-theme-text"
                     title={title}
                   >
                     {title}

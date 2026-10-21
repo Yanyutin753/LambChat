@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { Search, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -63,7 +64,7 @@ function GrepDetail({ args, result }: ToolDetailProps) {
   const parsedResult = useMemo(() => parseGrepResult(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       <ToolArgsBlock
         size="detail"
         copyText={[pattern, searchPath, glob].filter(Boolean).join("\n")}
@@ -81,11 +82,7 @@ function GrepDetail({ args, result }: ToolDetailProps) {
             {t("chat.message.toolInPath", { path: searchPath })}
           </span>
         )}
-        {glob && (
-          <span className="shrink-0 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-12 ring-1 ring-theme-border/50">
-            {glob}
-          </span>
-        )}
+        {glob && <TagBadge className="font-mono">{glob}</TagBadge>}
       </ToolArgsBlock>
       {parsedResult.files.length > 0 && (
         <div>
@@ -134,11 +131,7 @@ function GrepDetail({ args, result }: ToolDetailProps) {
             parsedResult.files.length === 0 ? (
             <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
               {text}
-              <ToolHoverCopyButton
-                text={text}
-                position="result"
-                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md"
-              />
+              <ToolHoverCopyButton text={text} position="result" />
             </pre>
           ) : null;
         })()}
@@ -251,11 +244,7 @@ const GrepItem = memo(function GrepItem({
                   {t("chat.message.toolInPath", { path: searchPath })}
                 </span>
               )}
-              {glob && (
-                <span className="shrink-0 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary">
-                  {glob}
-                </span>
-              )}
+              {glob && <TagBadge className="font-mono">{glob}</TagBadge>}
             </ToolArgsBlock>
             {parsedResult.files.length > 0 && (
               <div className="mb-2">
@@ -266,13 +255,14 @@ const GrepItem = memo(function GrepItem({
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {parsedResult.files.slice(0, 10).map((f, i) => (
-                    <span
+                    <TagBadge
                       key={i}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-12 text-theme-text-secondary font-mono"
+                      icon={<FileText />}
+                      className="font-mono"
+                      title={f}
                     >
-                      <FileText size={10} className="shrink-0 opacity-40" />
                       {f.split("/").pop() || f}
-                    </span>
+                    </TagBadge>
                   ))}
                   {parsedResult.files.length > 10 && (
                     <span className="text-12 text-theme-text-tertiary px-1">
@@ -294,7 +284,6 @@ const GrepItem = memo(function GrepItem({
                 <ToolHoverCopyButton
                   text={parsedResult.lines.slice(0, 50).join("\n")}
                   position="panelCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                 />
                 {parsedResult.lines.length > 50 && (
                   <div className="text-theme-text-tertiary mt-1 text-12 px-2 pb-2">

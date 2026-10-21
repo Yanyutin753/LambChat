@@ -1,9 +1,10 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { Users, Tag, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
-import { ImageWithSkeleton } from "../ImageWithSkeleton";
+import { AgentAvatar } from "../../../common/AgentAvatar";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { extractText } from "./toolUtils";
 import {
@@ -14,55 +15,7 @@ import {
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
-import { nameToGradient } from "../../../common/cardUtils";
 import { DetailSection } from "./DetailSection";
-import {
-  isPersonaImageAvatar,
-  isEmojiAvatar,
-  getEmojiAvatarUrl,
-} from "../../../persona/personaAvatar";
-import { getFullUrl } from "../../../../services/api";
-
-// ── Tiny avatar renderer for tool-result cards ──
-function ToolAvatarImg({
-  src,
-  className,
-}: {
-  src: string;
-  className?: string;
-}) {
-  return <ImageWithSkeleton src={src} alt="" inline className={className} />;
-}
-
-/** Render an avatar value as <img> if it's a URL/emoji, otherwise render fallback. */
-function RenderAvatar({
-  avatar,
-  sizeClass,
-  fallback,
-}: {
-  avatar: string;
-  sizeClass?: string;
-  fallback: React.ReactNode;
-}) {
-  if (isEmojiAvatar(avatar)) {
-    return (
-      <ToolAvatarImg
-        src={getEmojiAvatarUrl(avatar)}
-        className={clsx("object-cover", sizeClass)}
-      />
-    );
-  }
-  if (isPersonaImageAvatar(avatar)) {
-    return (
-      <ToolAvatarImg
-        src={getFullUrl(avatar) ?? avatar}
-        className={clsx("object-cover", sizeClass)}
-      />
-    );
-  }
-  return <>{fallback}</>;
-}
-
 // ── TeamDetail ──────────────────────────────────────────────────────────
 
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（团队/搜索结果到达即刷新） */
@@ -110,11 +63,6 @@ function TeamDetail({
   const resultTags: string[] = parsed?.tags || [];
   const resultDescription = parsed?.description || "";
 
-  const teamGradient = useMemo(
-    () => (resultTeamName ? nameToGradient(resultTeamName) : null),
-    [resultTeamName],
-  );
-
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Search: persona list */}
@@ -141,76 +89,23 @@ function TeamDetail({
               const pScope = String(p.scope || "");
               const pStatus = String(p.status || "");
               const pUsage = Number(p.usage_count || 0);
-              const pGradient = nameToGradient(name);
 
               return (
                 <div
                   key={i}
-                  className="rounded-xl overflow-hidden border border-theme-border bg-theme-bg-card hover:shadow-md transition-all duration-200"
-                  style={{ boxShadow: `0 1px 8px -2px ${pGradient[0]}15` }}
+                  className="tool-result-card border border-theme-border"
                 >
-                  {/* Gradient banner */}
-                  <div
-                    className="h-11 relative overflow-hidden"
-                    style={{
-                      background: `linear-gradient(135deg, ${pGradient[0]}, ${pGradient[1]}, ${pGradient[2]})`,
-                    }}
-                  >
-                    <div
-                      className="absolute inset-0 opacity-40"
-                      style={{
-                        backgroundImage: `radial-gradient(circle at 80% 20%, ${pGradient[2]}50 0%, transparent 60%)`,
-                      }}
-                    />
-                    <div className="absolute bottom-0 inset-x-0 h-4 bg-linear-to-t from-theme-bg-card to-transparent" />
-                  </div>
-                  {/* Card body */}
-                  <div className="px-4 pt-4 pb-3.5 bg-theme-bg-card -mt-5 relative">
+                  <div className="space-y-3">
                     {/* Avatar + Name + Status */}
                     <div className="flex items-start gap-3">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-18 leading-none shrink-0 overflow-hidden relative"
-                        style={{
-                          boxShadow: `0 3px 10px -2px ${pGradient[0]}35`,
-                        }}
-                      >
-                        <div
-                          className="absolute inset-0 rounded-xl p-[1px]"
-                          style={{
-                            background: `linear-gradient(135deg, ${pGradient[0]}60, ${pGradient[1]}35)`,
-                          }}
-                        >
-                          <div className="w-full h-full rounded-[calc(0.75rem-1px)] bg-theme-bg-card" />
-                        </div>
-                        <div className="relative z-10 w-full h-full rounded-xl flex items-center justify-center overflow-hidden bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]">
-                          <RenderAvatar
-                            avatar={av}
-                            sizeClass="w-full h-full"
-                            fallback={
-                              <Users
-                                size={16}
-                                className="text-[var(--theme-primary)]"
-                              />
-                            }
-                          />
-                        </div>
-                      </div>
+                      <AgentAvatar avatar={av} seed={name} size={40} />
                       <div className="min-w-0 flex-1 pt-0.5">
                         <div className="flex items-center gap-1.5">
                           <div className="text-14 text-theme-text font-semibold font-serif truncate">
                             {name}
                           </div>
                           {pStatus && pStatus !== "published" && (
-                            <span
-                              className={clsx(
-                                "shrink-0 inline-flex items-center px-1.5 py-[2px] rounded-full text-9 font-semibold tracking-wide uppercase",
-                                pStatus === "draft"
-                                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200/50 dark:ring-amber-800/30"
-                                  : "bg-theme-bg-subtle text-theme-text-tertiary ring-1 ring-theme-border",
-                              )}
-                            >
-                              {pStatus}
-                            </span>
+                            <TagBadge>{pStatus}</TagBadge>
                           )}
                         </div>
                         {desc && (
@@ -223,25 +118,13 @@ function TeamDetail({
                     {/* Tags + Skills */}
                     {(pTags.length > 0 || pSkills.length > 0) && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
-                        {pTags.slice(0, 3).map((tag, j) => (
-                          <span
-                            key={j}
-                            className={clsx(
-                              "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium",
-                              j === 0
-                                ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,var(--theme-border))]"
-                                : "bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border",
-                            )}
-                          >
-                            <Tag size={8} className="opacity-50" />
+                        {pTags.map((tag, j) => (
+                          <TagBadge key={j} icon={<Tag />}>
                             {tag}
-                          </span>
+                          </TagBadge>
                         ))}
                         {pSkills.length > 0 && (
-                          <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30">
-                            <Zap size={8} className="opacity-60" />
-                            {pSkills.length}
-                          </span>
+                          <TagBadge icon={<Zap />}>{pSkills.length}</TagBadge>
                         )}
                       </div>
                     )}
@@ -274,163 +157,49 @@ function TeamDetail({
         </DetailSection>
       )}
 
-      {/* Team: hero card */}
+      {/* Team details */}
       {!isSearch && (resultTeamName || resultMembers.length > 0) && (
         <>
           {resultTeamName && (
-            <div
-              className={clsx(
-                "rounded-2xl overflow-hidden relative",
-                teamGradient && "shadow-md",
-              )}
-              style={
-                teamGradient
-                  ? {
-                      boxShadow: `0 2px 16px -4px ${teamGradient[0]}30, 0 1px 3px rgb(0 0 0 / 0.06)`,
-                    }
-                  : undefined
-              }
-            >
-              {/* Gradient border ring */}
-              {teamGradient && (
-                <div
-                  className="absolute inset-0 rounded-2xl p-px"
-                  style={{
-                    background: `linear-gradient(135deg, ${teamGradient[0]}40, ${teamGradient[1]}20, ${teamGradient[2]}40)`,
-                  }}
-                >
-                  <div className="w-full h-full rounded-[calc(1rem-1px)] bg-theme-bg-card" />
-                </div>
-              )}
-
-              <div className="relative z-10 rounded-2xl overflow-hidden">
-                {teamGradient && (
-                  <div className="h-16 sm:h-20 relative overflow-hidden">
-                    {/* Base gradient */}
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background: `linear-gradient(135deg, ${teamGradient[0]}, ${teamGradient[1]}, ${teamGradient[2]})`,
-                      }}
-                    />
-                    {/* Decorative mesh pattern */}
-                    <div
-                      className="absolute inset-0 opacity-30"
-                      style={{
-                        backgroundImage: `radial-gradient(circle at 20% 80%, ${teamGradient[0]}60 0%, transparent 50%), radial-gradient(circle at 80% 20%, ${teamGradient[2]}60 0%, transparent 50%)`,
-                      }}
-                    />
-                    {/* Shimmer sweep */}
-                    <div
-                      className="absolute inset-0 animate-[shimmer_3s_ease-in-out_infinite]"
-                      style={{
-                        background: `linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)`,
-                        backgroundSize: "200% 100%",
-                      }}
-                    />
-                    {/* Bottom fade into card */}
-                    <div className="absolute bottom-0 inset-x-0 h-8 bg-linear-to-t from-theme-bg-card to-transparent" />
-                  </div>
-                )}
-                <div
-                  className={clsx(
-                    "relative px-4 sm:px-5 py-3.5",
-                    "bg-theme-bg-card",
-                    !teamGradient && "pt-4",
-                  )}
-                >
-                  <div
-                    className={clsx(
-                      "flex items-end gap-3.5",
-                      teamGradient ? "-mt-7 sm:-mt-9" : "",
-                    )}
-                  >
-                    <div
-                      className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-20 sm:text-24 leading-none shrink-0 overflow-hidden relative"
-                      style={
-                        teamGradient
-                          ? {
-                              boxShadow: `0 4px 14px -3px ${teamGradient[0]}40, 0 2px 6px -1px rgb(0 0 0 / 0.1)`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {/* Gradient ring effect */}
-                      {teamGradient && (
-                        <div
-                          className="absolute inset-0 rounded-2xl p-[2px]"
-                          style={{
-                            background: `linear-gradient(135deg, ${teamGradient[0]}, ${teamGradient[1]}, ${teamGradient[2]})`,
-                          }}
-                        >
-                          <div className="w-full h-full rounded-[calc(1rem-2px)] bg-theme-bg-card" />
-                        </div>
-                      )}
-                      <div
-                        className={clsx(
-                          "relative z-10 w-full h-full rounded-2xl flex items-center justify-center overflow-hidden",
-                          "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]",
-                        )}
+            <section className="space-y-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <AgentAvatar
+                  avatar={resultAvatar}
+                  seed={resultTeamName}
+                  size={40}
+                />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h3 className="text-16 font-serif font-semibold text-theme-text break-words">
+                    {resultTeamName}
+                  </h3>
+                  {resultId && (
+                    <div className="flex items-center gap-2 text-12 text-theme-text-tertiary">
+                      <span
+                        className="font-mono min-w-0 flex-1 truncate"
+                        title={resultId}
                       >
-                        <RenderAvatar
-                          avatar={resultAvatar}
-                          sizeClass="w-full h-full"
-                          fallback={
-                            <Users
-                              size={teamGradient ? 24 : 18}
-                              className="text-[var(--theme-primary)]"
-                            />
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1 pb-0.5">
-                      <h3 className="text-14 sm:text-16 font-bold font-serif text-theme-text truncate tracking-tight">
-                        {resultTeamName}
-                      </h3>
-                      {resultId && (
-                        <div className="text-10 sm:text-12 text-theme-text-tertiary/70 font-mono truncate mt-0.5 flex items-center gap-1">
-                          <span className="min-w-0 truncate block">
-                            {resultId.slice(0, 12)}…
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {resultDescription && (
-                    <p className="text-12 sm:text-13 text-theme-text-secondary/80 mt-3 line-clamp-2 leading-relaxed">
-                      {resultDescription}
-                    </p>
-                  )}
-
-                  {resultTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {resultTags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className={clsx(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium",
-                            "transition-all duration-200",
-                            i === 0
-                              ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,var(--theme-border))]"
-                              : "bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border hover:ring-theme-border-hover",
-                          )}
-                        >
-                          <Tag
-                            size={9}
-                            className={clsx(
-                              i === 0 ? "opacity-60" : "opacity-40",
-                            )}
-                          />
-                          {tag}
-                        </span>
-                      ))}
+                        {resultId}
+                      </span>
+                      <CopyButton text={resultId} />
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+              {resultDescription && (
+                <p className="text-12 text-theme-text-secondary whitespace-pre-wrap break-words">
+                  {resultDescription}
+                </p>
+              )}
+              {resultTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {resultTags.map((tag, i) => (
+                    <TagBadge key={i} icon={<Tag />}>
+                      {tag}
+                    </TagBadge>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
           {/* Members */}
@@ -454,72 +223,37 @@ function TeamDetail({
                   const mTags: string[] = Array.isArray(m.tags)
                     ? (m.tags as string[])
                     : [];
-                  const accentColor = teamGradient
-                    ? teamGradient[i % teamGradient.length]
-                    : "#38bdf8";
 
                   return (
                     <div
                       key={i}
                       className={clsx(
-                        "group/member rounded-xl border border-theme-border bg-theme-bg-card overflow-hidden",
-                        "hover:shadow-sm transition-all duration-200",
+                        "group/member tool-result-card border border-theme-border",
                       )}
                     >
-                      {/* Top accent line */}
-                      <div
-                        className="h-[2px]"
-                        style={{
-                          background: `linear-gradient(90deg, ${accentColor}, transparent)`,
-                        }}
-                      />
-                      <div className="flex items-center gap-3 px-3.5 py-2.5">
-                        <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-14 leading-none shrink-0 overflow-hidden relative"
-                          style={{
-                            boxShadow: `0 1px 4px -1px ${accentColor}30`,
-                          }}
-                        >
-                          <div
-                            className="absolute inset-0 rounded-lg p-[1px]"
-                            style={{
-                              background: `linear-gradient(135deg, ${accentColor}40, transparent)`,
-                            }}
-                          >
-                            <div className="w-full h-full rounded-[calc(0.5rem-1px)] bg-theme-bg-card" />
-                          </div>
-                          <div className="relative z-10 w-full h-full rounded-lg flex items-center justify-center overflow-hidden bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]">
-                            <RenderAvatar
-                              avatar={roleAvatar}
-                              sizeClass="w-full h-full"
-                              fallback={
-                                <span className="text-12 text-theme-text-tertiary">
-                                  ?
-                                </span>
-                              }
-                            />
-                          </div>
-                        </div>
+                      <div className="flex items-start gap-3">
+                        <AgentAvatar
+                          avatar={roleAvatar}
+                          seed={roleName}
+                          size={32}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="text-12 text-theme-text font-semibold font-serif truncate">
                             {roleName}
                           </div>
                           {mTags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {mTags.slice(0, 3).map((tag, j) => (
-                                <span
-                                  key={j}
-                                  className="inline-flex items-center px-1.5 py-[1px] rounded-md text-10 font-medium bg-theme-bg ring-1 ring-theme-border text-theme-text-secondary"
-                                >
+                              {mTags.map((tag, j) => (
+                                <TagBadge key={j} icon={<Tag />}>
                                   {tag}
-                                </span>
+                                </TagBadge>
                               ))}
                             </div>
                           )}
                         </div>
                       </div>
                       {instructions && (
-                        <div className="px-3.5 pb-3 pt-0">
+                        <div className="pt-3">
                           <p className="text-11 text-theme-text-tertiary/80 line-clamp-3 leading-relaxed">
                             {instructions}
                           </p>
@@ -551,11 +285,7 @@ function TeamDetail({
               const text = extractText(result);
               return text;
             })()}
-            <ToolHoverCopyButton
-              text={extractText(result)}
-              position="result"
-              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-            />
+            <ToolHoverCopyButton text={extractText(result)} position="result" />
           </pre>
         )}
     </div>
@@ -672,7 +402,12 @@ const TeamItem = memo(function TeamItem({
     <>
       <CollapsiblePill
         status={pillStatus}
-        icon={<Users size={12} className="shrink-0 opacity-50" />}
+        icon={
+          <Users
+            size={12}
+            className="shrink-0 opacity-50 text-emerald-500 dark:text-emerald-400"
+          />
+        }
         label={label}
         animatedDots={isStreamingLabel}
         variant="tool"
@@ -718,18 +453,7 @@ const TeamItem = memo(function TeamItem({
                         key={i}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 font-serif text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                       >
-                        <span className="inline-flex w-3.5 h-3.5 items-center justify-center overflow-hidden rounded shrink-0">
-                          <RenderAvatar
-                            avatar={av}
-                            sizeClass="w-full h-full"
-                            fallback={
-                              <Users
-                                size={8}
-                                className="text-[var(--theme-primary)] opacity-60"
-                              />
-                            }
-                          />
-                        </span>
+                        <AgentAvatar avatar={av} seed={name} size={14} />
                         {name}
                       </span>
                     );
@@ -745,18 +469,11 @@ const TeamItem = memo(function TeamItem({
 
             {!isSearch && resultTeamName && (
               <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors">
-                <div className="w-5 h-5 rounded flex items-center justify-center text-12 leading-none shrink-0 bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] overflow-hidden">
-                  <RenderAvatar
-                    avatar={resultAvatar}
-                    sizeClass="w-full h-full"
-                    fallback={
-                      <Users
-                        size={10}
-                        className="text-[var(--theme-primary)]"
-                      />
-                    }
-                  />
-                </div>
+                <AgentAvatar
+                  avatar={resultAvatar}
+                  seed={resultTeamName}
+                  size={20}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-12 text-theme-text font-medium font-serif truncate">
                     {resultTeamName}

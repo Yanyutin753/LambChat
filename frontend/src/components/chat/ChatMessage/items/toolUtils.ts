@@ -91,7 +91,7 @@ export function extractPaths(
   result: string | Record<string, unknown> | undefined,
 ): string[] {
   const text = extractText(result);
-  if (!text) return [];
+  if (!text || /^No files found\.?$/i.test(text.trim())) return [];
 
   try {
     const parsed = JSON.parse(text);
@@ -144,11 +144,15 @@ export function parseToolPanelResult(
     }
   }
   if (
-    parsed && typeof parsed === "object" &&
+    parsed &&
+    typeof parsed === "object" &&
     Object.keys(parsed).length === 1 &&
-    "content" in parsed && Array.isArray(parsed.content) &&
+    "content" in parsed &&
+    Array.isArray(parsed.content) &&
     parsed.content.length > 0 &&
-    parsed.content.every((block) => block?.type === "text" && typeof block.text === "string")
+    parsed.content.every(
+      (block) => block?.type === "text" && typeof block.text === "string",
+    )
   ) {
     return parsed.content.map((block) => block.text).join("\n\n");
   }

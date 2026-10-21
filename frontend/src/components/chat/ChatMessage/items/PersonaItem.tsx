@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { UserRound, Tag, Sparkles, Zap, MessageSquare } from "lucide-react";
@@ -51,13 +52,18 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
   return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {displayName && (
-        <section className="space-y-3 border-b border-theme-border pb-4">
+        <section className="space-y-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="size-10 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-theme-bg-subtle flex items-center justify-center">
-              <AgentAvatar avatar={avatar} seed={displayName} size={40} iconSize={20} />
+              <AgentAvatar
+                avatar={avatar}
+                seed={displayName}
+                size={40}
+                iconSize={20}
+              />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <h3 className="text-16 font-semibold text-theme-text break-words">
+              <h3 className="text-16 font-serif font-semibold text-theme-text break-words">
                 {displayName}
               </h3>
               {description && (
@@ -73,24 +79,16 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
             </div>
           </div>
           {(tags.length > 0 || skillNames.length > 0) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-12 text-theme-text-secondary">
+            <div className="flex flex-wrap items-center gap-1.5 text-12 text-theme-text-secondary">
               {tags.map((tag, i) => (
-                <span
-                  key={`tag-${i}`}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  <Tag size={12} className="text-theme-text-tertiary" />
+                <TagBadge key={`tag-${i}`} icon={<Tag />}>
                   {tag}
-                </span>
+                </TagBadge>
               ))}
               {skillNames.map((skill, i) => (
-                <span
-                  key={`skill-${i}`}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  <Zap size={12} className="text-theme-text-tertiary" />
+                <TagBadge key={`skill-${i}`} icon={<Zap />}>
                   {skill}
-                </span>
+                </TagBadge>
               ))}
             </div>
           )}
@@ -181,11 +179,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
             const text = extractText(result);
             return text;
           })()}
-          <ToolHoverCopyButton
-            text={extractText(result)}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={extractText(result)} position="result" />
         </pre>
       )}
     </div>
@@ -318,7 +312,12 @@ const PersonaItem = memo(function PersonaItem({
                     "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))]",
                   )}
                 >
-                  <AgentAvatar avatar={avatar} seed={displayName} size={24} iconSize={14} />
+                  <AgentAvatar
+                    avatar={avatar}
+                    seed={displayName}
+                    size={24}
+                    iconSize={14}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-12 text-theme-text font-medium truncate">
@@ -342,13 +341,9 @@ const PersonaItem = memo(function PersonaItem({
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {tags.slice(0, 8).map((tag, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-10"
-                  >
-                    <Tag size={7} className="opacity-50" />
+                  <TagBadge key={i} icon={<Tag />}>
                     {tag}
-                  </span>
+                  </TagBadge>
                 ))}
               </div>
             )}

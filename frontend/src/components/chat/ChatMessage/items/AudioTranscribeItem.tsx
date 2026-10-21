@@ -1,3 +1,4 @@
+import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { Mic, Volume2, Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -15,15 +16,40 @@ import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
+function transcriptionText(
+  result: string | Record<string, unknown> | undefined,
+) {
+  if (result && typeof result === "object" && typeof result.text === "string") {
+    return result.text;
+  }
+  const text = extractText(result);
+  try {
+    const data: unknown = JSON.parse(text);
+    if (
+      data &&
+      typeof data === "object" &&
+      "success" in data &&
+      data.success === true &&
+      "text" in data &&
+      typeof data.text === "string"
+    ) {
+      return data.text;
+    }
+  } catch {
+    // Plain transcripts remain valid tool results.
+  }
+  return text;
+}
+
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function AudioTranscribeDetail({ args, result }: ToolDetailProps) {
   const url = (args.url as string) || "";
   const language = (args.language as string) || "";
   const model = (args.model as string) || "";
-  const transcription = useMemo(() => extractText(result), [result]);
+  const transcription = useMemo(() => transcriptionText(result), [result]);
 
   return (
-    <div className="p-4 sm:p-5 tool-panel-content tool-panel-content--fill">
+    <div className="p-4 sm:p-5 tool-panel-content">
       {url && (
         <ToolArgsBlock size="detail" copyText={url} wrap>
           <Mic
@@ -34,20 +60,18 @@ function AudioTranscribeDetail({ args, result }: ToolDetailProps) {
         </ToolArgsBlock>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
-        {language && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12">
-            <Languages size={10} className="opacity-60" />
-            {language.toUpperCase()}
-          </span>
-        )}
-        {model && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono">
-            <Volume2 size={10} className="opacity-60" />
-            {model}
-          </span>
-        )}
-      </div>
+      {(language || model) && (
+        <div className="flex flex-wrap gap-1.5">
+          {language && (
+            <TagBadge icon={<Languages />}>{language.toUpperCase()}</TagBadge>
+          )}
+          {model && (
+            <TagBadge icon={<Volume2 />} className="font-mono">
+              {model}
+            </TagBadge>
+          )}
+        </div>
+      )}
 
       {transcription && (
         <div className="relative group rounded-lg tool-code-block">
@@ -61,7 +85,6 @@ function AudioTranscribeDetail({ args, result }: ToolDetailProps) {
             text={transcription}
             size={14}
             position="panel"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
           />
         </div>
       )}
@@ -97,7 +120,7 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
   const language = (args.language as string) || "";
   const model = (args.model as string) || "";
 
-  const transcription = useMemo(() => extractText(result), [result]);
+  const transcription = useMemo(() => transcriptionText(result), [result]);
 
   // 参数生成中（无转写文本）也允许打开面板：实时等待转写结果
   const canExpand = !!url || !!transcription || !!isPending;
@@ -167,16 +190,11 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
 
             <div className="flex flex-wrap gap-1">
               {language && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10">
-                  <Languages size={8} className="opacity-60" />
+                <TagBadge icon={<Languages />}>
                   {language.toUpperCase()}
-                </span>
+                </TagBadge>
               )}
-              {model && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10 font-mono">
-                  {model}
-                </span>
-              )}
+              {model && <TagBadge className="font-mono">{model}</TagBadge>}
             </div>
 
             {transcription && (
@@ -196,7 +214,6 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
                 <ToolHoverCopyButton
                   text={transcription}
                   position="panelCompact"
-                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
                 />
               </div>
             )}

@@ -1,3 +1,5 @@
+import { StatusBadge as SharedStatusBadge } from "../../../common/StatusBadge";
+import { TagBadge } from "../../../common/TagBadge";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { memo, useMemo, useState } from "react";
 import { clsx } from "clsx";
@@ -7,7 +9,6 @@ import {
   CheckCircle2,
   MessageSquare,
   Zap,
-  AlertCircle,
   Ban,
   ChevronDown,
   ChevronUp,
@@ -49,23 +50,7 @@ function TriggerBadge({
   type: string;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
-  const styles: Record<string, string> = {
-    date: "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))]",
-    interval:
-      "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))]",
-    cron: "bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))]",
-  };
-  return (
-    <span
-      className={clsx(
-        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-12 font-medium",
-        styles[type] || styles.date,
-      )}
-    >
-      <Clock size={10} className="opacity-70" />
-      {t(`scheduledTask.${type}`)}
-    </span>
-  );
+  return <TagBadge icon={<Clock />}>{t(`scheduledTask.${type}`)}</TagBadge>;
 }
 
 function StatusBadge({
@@ -77,32 +62,14 @@ function StatusBadge({
   enabled?: boolean;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
-  if (!enabled) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12">
-        <AlertCircle size={10} />
-        {t("scheduledTask.paused")}
-      </span>
-    );
-  }
   const isActive = status === "active" || status === "running";
   return (
-    <span
-      className={clsx(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-12 font-medium",
-        isActive
-          ? "bg-[color-mix(in_srgb,var(--theme-success)_10%,var(--theme-bg-card))] text-theme-success dark:text-emerald-300 ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-success)_20%,transparent)]"
-          : "bg-theme-bg-subtle text-theme-text-tertiary ring-1 ring-inset ring-theme-border",
+    <SharedStatusBadge
+      color={enabled && isActive ? "green" : "stone"}
+      label={t(
+        `scheduledTask.${enabled ? status || "statusUnknown" : "paused"}`,
       )}
-    >
-      <span
-        className={clsx(
-          "w-1.5 h-1.5 rounded-full",
-          isActive ? "bg-theme-success" : "bg-theme-text-tertiary",
-        )}
-      />
-      {t(`scheduledTask.${status || "statusUnknown"}`)}
-    </span>
+    />
   );
 }
 
@@ -186,9 +153,6 @@ function RejectionCard({
 
   return (
     <div className="relative rounded-xl border border-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] overflow-hidden bg-theme-bg-card shadow-[0_12px_28px_-24px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)]">
-      {/* Top accent bar */}
-      <div className="h-0.5 bg-linear-to-r from-[var(--theme-primary)] via-[color-mix(in_srgb,var(--theme-primary)_38%,transparent)] to-transparent" />
-
       <div className="p-3 space-y-2">
         {/* Header row */}
         <div className="flex items-start gap-2.5">
@@ -209,11 +173,7 @@ function RejectionCard({
         {(schedule || triggerType) && (
           <div className="flex flex-wrap gap-1.5 pl-[2.75rem]">
             {triggerType && <TriggerBadge type={triggerType} t={t} />}
-            {schedule && (
-              <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono leading-relaxed">
-                {schedule}
-              </span>
-            )}
+            {schedule && <TagBadge className="font-mono">{schedule}</TagBadge>}
           </div>
         )}
 
@@ -329,16 +289,14 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
       {displayName && !isList && (
         <div
           className={clsx(
-            "relative flex items-center gap-3 rounded-xl p-3",
-            "bg-[color-mix(in_srgb,var(--theme-bg-card)_74%,var(--theme-bg)_26%)] border border-[color-mix(in_srgb,var(--theme-primary)_12%,var(--theme-border))]",
-            "hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors shadow-[0_1px_2px_rgb(0_0_0/0.04)]",
+            "tool-result-card relative flex items-start gap-3 border border-theme-border",
           )}
         >
           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[color-mix(in_srgb,var(--theme-primary)_9%,var(--theme-bg-card))] ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))]">
             <CalendarClock size={18} className="text-[var(--theme-primary)]" />
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="text-14 text-theme-text font-semibold truncate">
+            <div className="text-14 font-serif text-theme-text font-semibold break-words">
               {displayName}
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -353,17 +311,15 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
                 )}
               </span>
               {schedule && (
-                <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 font-mono leading-relaxed">
-                  {schedule}
-                </span>
+                <TagBadge className="font-mono">{schedule}</TagBadge>
               )}
               {typeof enabled === "boolean" && (
                 <StatusBadge status={status} enabled={enabled} t={t} />
               )}
               {typeof totalRuns === "number" && totalRuns > 0 && (
-                <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-tertiary text-12 tabular-nums">
+                <TagBadge className="tabular-nums">
                   {t("scheduledTask.runsCount", { count: totalRuns })}
-                </span>
+                </TagBadge>
               )}
             </div>
           </div>
@@ -473,11 +429,7 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
       {resultMessage && !displayName && !isList && (
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {resultMessage}
-          <ToolHoverCopyButton
-            text={resultMessage}
-            position="result"
-            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
-          />
+          <ToolHoverCopyButton text={resultMessage} position="result" />
         </pre>
       )}
     </div>
