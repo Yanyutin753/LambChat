@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pywebpush import WebPushException
+from requests import Response
 
 from src.infra.push.manager import PushManager
 from src.kernel.schemas.push_subscription import PushSubscription, PushSubscriptionKeys
@@ -118,18 +119,20 @@ async def test_send_push_removes_404_subscriptions(mock_webpush: MagicMock) -> N
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", [404, 410])
 @patch("pywebpush.webpush")
 async def test_send_push_removes_real_webpush_gone_subscriptions(
     mock_webpush: MagicMock,
+    status_code: int,
 ) -> None:
-    """pywebpush stores status_code on exception.response, not on the exception."""
+    """HTTP error responses are falsey but must still trigger expired-subscription cleanup."""
     manager = PushManager()
     manager.storage.get_by_user = AsyncMock(return_value=[_make_subscription()])
     manager.storage.delete_by_endpoint = AsyncMock()
 
-    response = MagicMock()
-    response.status_code = 410
-    response.text = "gone"
+    response = Response()
+    response.status_code = status_code
+    assert not response
     mock_webpush.side_effect = WebPushException("Gone", response=response)
 
     with patch("src.infra.push.manager.settings", _fake_settings()):
@@ -137,6 +140,53 @@ async def test_send_push_removes_real_webpush_gone_subscriptions(
 
     assert count == 0
     manager.storage.delete_by_endpoint.assert_called_once_with("https://push.example.com/sub/1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status_code", "reason"),
+    [
+        (401, "Unauthorized"),
+        (403, "Forbidden"),
+        (429, "Too Many Requests"),
+        (503, "Service Unavailable"),
+        (599, "Unknown"),
+        (None, "Unknown"),
+    ],
+)
+@patch("pywebpush.webpush")
+async def test_send_push_logs_safe_http_details_without_evicting_live_subscriptions(
+    mock_webpush: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+    status_code: int | None,
+    reason: str,
+) -> None:
+    endpoint = "https://push.example.com/sub/private-token"
+    secret = "private-auth-and-payload"
+    manager = PushManager()
+    manager.storage.get_by_user = AsyncMock(return_value=[_make_subscription(endpoint)])
+    manager.storage.delete_by_endpoint = AsyncMock()
+    manager.storage.touch_last_used = AsyncMock()
+    response = None
+    if status_code is not None:
+        response = Response()
+        response.status_code = status_code
+        response.reason = f"{endpoint} {secret}"
+        response._content = secret.encode()
+        response.headers["Authorization"] = secret
+    mock_webpush.side_effect = WebPushException(f"{endpoint} {secret}", response=response)
+
+    with patch("src.infra.push.manager.settings", _fake_settings()):
+        for _ in range(4):
+            assert await manager.send_push_to_user("user-1", {"body": secret}) == 0
+
+    manager.storage.delete_by_endpoint.assert_not_called()
+    manager.storage.touch_last_used.assert_not_called()
+    assert f"status_code={status_code}" in caplog.text
+    assert f"reason={reason}" in caplog.text
+    assert "error_type=WebPushException" in caplog.text
+    assert endpoint not in caplog.text
+    assert secret not in caplog.text
 
 
 @pytest.mark.asyncio

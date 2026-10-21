@@ -693,7 +693,7 @@ async def session_stream(
                 terminal = await resolve_terminal_stream_status(session, run_id)
                 if terminal is not None:
                     event = synthesize_terminal_stream_event(run_id, session, terminal)
-                    logger.info(
+                    logger.debug(
                         "[SSE] Stream expired and run is terminal (%s); synthesized %s",
                         terminal,
                         event["event_type"],

@@ -27,10 +27,15 @@ class _FakeStorage:
     def __init__(self, exists: bool) -> None:
         self.exists = exists
         self.checked_keys: list[str] = []
+        self.size_checks: list[str] = []
 
     async def file_exists(self, key: str) -> bool:
         self.checked_keys.append(key)
         return self.exists
+
+    async def get_size(self, key: str) -> int:
+        self.size_checks.append(key)
+        return 2097152
 
 
 class _RecordingIndex:
@@ -39,6 +44,31 @@ class _RecordingIndex:
 
     async def upsert_by_name(self, **kwargs):
         self.calls.append(kwargs)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["cua_screenshots", "tool_binaries"])
+@pytest.mark.parametrize("separator", ["/", "%2F"])
+async def test_reveal_does_not_probe_private_capture_sizes(
+    monkeypatch: pytest.MonkeyPatch, prefix: str, separator: str
+) -> None:
+    storage = _FakeStorage(exists=True)
+
+    async def _fake_get_storage():
+        return storage
+
+    monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(_reveal_file_support, "_get_storage", _fake_get_storage)
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(
+            f"https://app.example.com/api/upload/file/{prefix}{separator}other-session/screenshot.png",
+            runtime=object(),
+        )
+    )
+
+    assert result["size"] == 0
+    assert storage.size_checks == []
 
 
 @pytest.mark.asyncio
@@ -94,6 +124,7 @@ async def test_reveal_file_passes_through_self_upload_url_with_existing_object(
     assert result["key"] == _SELF_UPLOAD_URL
     assert result["url"] == _SELF_UPLOAD_URL
     assert result["type"] == "image"
+    assert result["size"] == 2097152
     assert result["_meta"]["source"] == "remote_url"
     assert storage.checked_keys == [_SELF_UPLOAD_KEY]
 

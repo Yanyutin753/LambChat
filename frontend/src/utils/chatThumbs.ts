@@ -7,7 +7,8 @@
  * - 其余 URL（外链/数据 URI/不能缩的格式）返回 undefined，调用方直接用原图
  */
 
-const THUMB_LFIT_PROCESS = "image/resize,m_lfit,w_560,h_560";
+const THUMB_LFIT_PROCESS =
+  "image/resize,m_lfit,w_560,h_560/format,webp/quality,Q_82";
 
 /** 这些格式保持原样：动图丢动画、矢量图本身很小 */
 const SKIP_THUMB_EXT = new Set(["gif", "svg", "svgz", "apng"]);

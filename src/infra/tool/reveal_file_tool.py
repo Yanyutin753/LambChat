@@ -342,6 +342,19 @@ async def reveal_file(
             row_mime = origin_row.get("mime_type")
             if isinstance(row_mime, str) and row_mime:
                 index_mime_type = row_mime
+        if (
+            not index_file_size
+            and self_upload_key is not None
+            and not self_upload_key.startswith(("cua_screenshots/", "tool_binaries/"))
+        ):
+            try:
+                storage = await _get_storage()
+                file_size = await storage.get_size(self_upload_key)
+                if isinstance(file_size, int) and not isinstance(file_size, bool) and file_size > 0:
+                    index_file_size = file_size
+            except Exception as e:
+                logger.debug("[reveal_file] Could not read upload size: %s", e)
+        remote_result["size"] = index_file_size
         await _index_revealed_file(
             runtime=runtime,
             file_name=index_file_name,

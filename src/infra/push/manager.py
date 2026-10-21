@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from http import HTTPStatus
 
 from src.infra.logging import get_logger
 from src.infra.push.storage import PushSubscriptionStorage
@@ -73,9 +74,18 @@ class PushManager:
                     )
                     await self.storage.delete_by_endpoint(sub.endpoint)
                 else:
+                    # Use canonical reasons; provider text can contain subscription credentials.
+                    try:
+                        reason = (
+                            HTTPStatus(status_code).phrase if status_code is not None else "Unknown"
+                        )
+                    except ValueError:
+                        reason = "Unknown"
                     logger.warning(
-                        "Failed to send push notification: error_type=%s",
+                        "Failed to send push notification: error_type=%s status_code=%s reason=%s",
                         type(e).__name__,
+                        status_code,
+                        reason,
                     )
         return delivered
 

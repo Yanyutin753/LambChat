@@ -56,10 +56,10 @@ spec:
           securityContext:
             privileged: true
           env:
-            # 改成 LambChat 实际监听端口：仓库清单默认 8000；
-            # hostNetwork 分片部署（如 a/b 双 Pod 8011/8012）填 "8011,8012"
+            # 覆盖通用清单 8000，以及 hostNetwork a/b 发布切换的全部端口；
+            # 生产双分片至少保留 "8011,8012,8013,8014"，避免切换后丢指标。
             - name: BEYLA_OPEN_PORT
-              value: "8000"
+              value: "8000,8011,8012,8013,8014"
             - name: BEYLA_PROMETHEUS_PORT
               value: "9099"
             - name: BEYLA_LOG_LEVEL

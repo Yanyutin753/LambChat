@@ -185,6 +185,21 @@ test("reconcile settles a remotely finished run and reloads missing content", as
   expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
 });
 
+test.each(["cancelled", "failed", "expired"])(
+  "watchdog settles a %s run without reconnecting to a dead stream",
+  async (status) => {
+    mocks.getStatus.mockResolvedValue({ status });
+    const { ctx, readMessages } = createReconcileContext(streamingBubble());
+
+    expect(
+      await reconcileActiveStream(ctx, { connectionStatus: "disconnected" }),
+    ).toBe(false);
+    expect(ctx.streamingMessageIdRef.current).toBeNull();
+    expect(readMessages().map((message) => message.id)).toEqual(["run-a:user"]);
+    expect(mocks.fetchEventSource).not.toHaveBeenCalled();
+  },
+);
+
 test("reconcile forces a reconnect when the live run went silent mid-stream", async () => {
   mocks.getStatus.mockResolvedValue({ status: "running" });
   const { ctx } = createReconcileContext(streamingBubble(), {

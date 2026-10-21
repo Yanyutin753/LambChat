@@ -42,9 +42,11 @@ class _FakeS3Storage:
 
     def __init__(self, provider: str = "aliyun") -> None:
         self.presigned_calls: list[dict] = []
+        self.existence_checks: list[str] = []
         self._config = SimpleNamespace(provider=provider, public_bucket=False)
 
     async def file_exists(self, key: str) -> bool:
+        self.existence_checks.append(key)
         return True
 
     async def get_presigned_url(
@@ -80,11 +82,26 @@ async def test_thumb_redirects_to_lfit_presigned_url_on_aliyun(
     resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
 
     assert resp.status_code in (302, 307)
-    assert storage.presigned_calls[0]["process"] == "image/resize,m_lfit,w_560,h_560"
+    assert storage.presigned_calls[0]["process"] == (
+        "image/resize,m_lfit,w_560,h_560/format,webp/quality,Q_82"
+    )
     assert storage.presigned_calls[0]["expires"] >= 86400
     assert storage.presigned_calls[0]["expires"] % 86400 == 0
     assert "signed.example" in resp.headers["location"]
     assert resp.headers["cache-control"] == "public, max-age=86400"
+
+
+@pytest.mark.asyncio
+async def test_aliyun_thumb_signing_does_not_wait_for_a_remote_existence_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeS3Storage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    resp = await upload.get_file_proxy("revealed_files/hero.png", _fake_request(), thumb=True)
+
+    assert resp.status_code == 302
+    assert storage.existence_checks == []
 
 
 @pytest.mark.asyncio

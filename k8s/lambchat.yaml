@@ -16,6 +16,12 @@ metadata:
   namespace: lambchat
 spec:
   replicas: 2
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: lambchat
@@ -134,12 +140,17 @@ spec:
           failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8000
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 10
-          failureThreshold: 5
+          periodSeconds: 2
+          timeoutSeconds: 2
+        startupProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          periodSeconds: 2
+          timeoutSeconds: 2
+          failureThreshold: 90
         volumeMounts:
         - name: workspace
           mountPath: /app/workspace
@@ -160,6 +171,7 @@ metadata:
   namespace: lambchat
 spec:
   replicas: 2
+  minReadySeconds: 5
   # 先增后减 + 长宽限：新 worker 先上线接新任务，旧 worker SIGTERM 后
   # 排空在途任务再退（宽限 300s，超时被杀的走 interrupted_resume 无缝续跑）
   strategy:
@@ -181,6 +193,24 @@ spec:
         image: ghcr.io/yanyutin753/lambchat:latest
         imagePullPolicy: Always
         command: ["/app/.venv/bin/python", "-m", "src.infra.task.worker_main"]
+        readinessProbe:
+          exec:
+            command:
+            - /app/.venv/bin/python
+            - -c
+            - "import os,time;from pathlib import Path;p=Path('/tmp/lambchat-worker.ready');assert 0<=time.time()-p.stat().st_mtime<30;os.kill(int(p.read_text()),0)"
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        startupProbe:
+          exec:
+            command:
+            - /app/.venv/bin/python
+            - -c
+            - "import os,time;from pathlib import Path;p=Path('/tmp/lambchat-worker.ready');assert 0<=time.time()-p.stat().st_mtime<30;os.kill(int(p.read_text()),0)"
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 60
         env:
         - name: JWT_SECRET_KEY
           valueFrom:

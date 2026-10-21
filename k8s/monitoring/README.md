@@ -78,7 +78,12 @@ cd k8s/monitoring/scripts
 首次运行自动下载 py-spy。宿主机直跑（root），不进 Pod、不改生产文件系统，采样
 50Hz 开销极低。SVG 浏览器直接打开。
 
-> 多分片部署时目标写 `a` / `b`（按 hostNetwork 端口 8011/8012 反查进程），
+> 多分片部署时目标写 `a` / `b`：从对应 Deployment 的 `http` 命名 containerPort
+> 解析当前端口，再反查宿主进程，自动跟随 `8011 ↔ 8013` / `8012 ↔ 8014`。
+> `patrol.sh --pyspy` 同样读取实际端口；发布切换期间新端口尚未监听时可能跳过采样。
+> Beyla 的 `BEYLA_OPEN_PORT` 需要同时包含 `8011,8012,8013,8014`，仅监听原端口会在发布后丢指标；
+> 仓库示例另保留通用部署的 `8000`。服务器应用该配置后确认各端口实际请求都有指标。
+>
 > arq worker 副本写 `w0` / `w1`。单副本部署可自行按 `ps` 找 PID 后
 > `bin/py-spy record --pid <PID> -d 60`。
 
