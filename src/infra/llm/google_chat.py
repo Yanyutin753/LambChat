@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from copy import deepcopy
 from typing import Any
 
+from google.genai.types import HttpOptions
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
@@ -27,6 +28,30 @@ class LambChatGoogleChatModel(QuotaChatMixin, ChatGoogleGenerativeAI):
     def _format_tools(self, tools: Any = None, functions: Any = None) -> list | None:
         # Gemini removes empty parameter schemas in place; keep shared tools intact.
         return super()._format_tools(deepcopy(tools), deepcopy(functions))
+
+    def _prepare_request(self, messages: list[BaseMessage], **kwargs: Any) -> dict[str, Any]:
+        request = super()._prepare_request(messages, **kwargs)
+        contents = request.get("contents", [])
+        if not any(
+            part.inline_data is not None for content in contents for part in content.parts or []
+        ):
+            return request
+        serialized = [
+            content.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for content in contents
+        ]
+        for content in serialized:
+            for part in content.get("parts", []):
+                blob = part.get("inlineData") or part.get("inline_data")
+                if blob and isinstance(blob.get("data"), str):
+                    blob["data"] = blob["data"].translate(str.maketrans("-_", "+/"))
+        config = request["config"]
+        options = config.http_options or HttpOptions()
+        # extra_body 在 SDK 编码后合并，避免其 URL-safe 字母表被兼容网关拒绝。
+        config.http_options = options.model_copy(
+            update={"extra_body": {**(options.extra_body or {}), "contents": serialized}}
+        )
+        return request
 
     @property
     def async_client(self):
