@@ -1661,3 +1661,65 @@ async def test_long_lived_channel_rechecks_account_before_control_frame(
     assert "event: hello" in response.text
     assert ("event: tool_call" in response.text) is account_active
     assert len(registry.unregistered) == 1
+
+
+async def test_results_stream_cancelled_during_rollout_pushes_sentinel(monkeypatch):
+    from src.infra.sandbox.relay._frames import FRAME_ERROR, try_parse_frame
+
+    redis = _FakeRedis()
+    _stream_app(monkeypatch, redis)
+
+    class CancelledRequest:
+        async def stream(self):
+            raise asyncio.CancelledError
+            yield b""
+
+    with pytest.raises(asyncio.CancelledError):
+        await sandbox_route.sandbox_result_stream(
+            call_id="call-s1", request=CancelledRequest(), machine_id="", user=_fake_user()
+        )
+    stored = redis.lists["sandbox:stream:u1:call-s1"]
+    frame, body, _ = try_parse_frame(stored[-1])
+    assert frame == FRAME_ERROR
+    assert json.loads(body)["error"] == "stream_interrupted"
+
+
+async def test_results_stream_waits_for_complete_http_body_before_publishing_eof(monkeypatch):
+    from src.infra.sandbox.relay._frames import FRAME_EOF, encode_frame
+
+    redis = _FakeRedis()
+    _stream_app(monkeypatch, redis)
+    finished = []
+
+    class CompleteRequest:
+        async def stream(self):
+            yield encode_frame(FRAME_EOF)
+            assert not redis.lists.get("sandbox:stream:u1:call-s1")
+            finished.append(True)
+            yield b""
+
+    await sandbox_route.sandbox_result_stream(
+        call_id="call-s1", request=CompleteRequest(), machine_id="", user=_fake_user()
+    )
+    assert finished == [True]
+    assert redis.lists["sandbox:stream:u1:call-s1"] == [encode_frame(FRAME_EOF)]
+
+
+async def test_results_stream_rejects_frames_after_eof_without_publishing_success(monkeypatch):
+    from src.infra.sandbox.relay._frames import (
+        FRAME_DATA,
+        FRAME_EOF,
+        FRAME_ERROR,
+        encode_frame,
+        try_parse_frame,
+    )
+
+    redis = _FakeRedis()
+    app = _stream_app(monkeypatch, redis)
+    response = await _post_stream_frames(
+        app, [encode_frame(FRAME_EOF), encode_frame(FRAME_DATA, b"late")]
+    )
+    assert response.status_code == 400
+    stored = redis.lists["sandbox:stream:u1:call-s1"]
+    assert all(try_parse_frame(frame)[0] != FRAME_EOF for frame in stored)
+    assert try_parse_frame(stored[-1])[0] == FRAME_ERROR

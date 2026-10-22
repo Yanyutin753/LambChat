@@ -37,7 +37,13 @@ def _log_roundtrip(
     elapsed_ms = (time.monotonic() - start) * 1000
     ack_ms = (ack_at - start) * 1000 if ack_at is not None else None
     logger.info(
-        "sandbox_dispatch_roundtrip",
+        "sandbox_dispatch_roundtrip op=%s call_id=%s outcome=%s elapsed_ms=%.1f ack_ms=%s repushes=%s",
+        op,
+        call_id[:8],
+        outcome,
+        elapsed_ms,
+        round(ack_ms, 1) if ack_ms is not None else None,
+        repushes,
         extra={
             "op": op,
             "call_id": call_id[:8],
@@ -51,6 +57,8 @@ def _log_roundtrip(
 
 # 流式结果逐行消费的轮询：行粒度小、吞吐优先，比控制面轮询更密
 _STREAM_POLL_INTERVAL = 0.01
+# 文件流必须持续推进；独立于 exec 的总执行时限，不限制长工具。
+_STREAM_IDLE_TIMEOUT = 60.0
 
 #: 结果等待的阻塞读切片（秒）：BLPOP 主通道——滚动发布窗口内旧实例仍以
 #: SET（string）写 resp key，此时 BLPOP/LPOP 抛 WRONGTYPE（真 Redis 语义，
@@ -75,6 +83,39 @@ async def _bind_call(redis, call_id: str, user_id: str, target: str, timeout: fl
     ttl = max(1, math.ceil(timeout) + 10)
     await redis.set(_assign_key(call_id), target, ex=ttl)
     await redis.set(_owner_key(call_id), user_id, ex=ttl)
+
+
+async def validate_call_assignment(redis, call_id: str, user_id: str, machine_id: str) -> None:
+    assigned = await redis.get(f"sandbox:callassign:{call_id}")
+    owner = await redis.get(f"sandbox:callowner:{call_id}")
+    if isinstance(assigned, bytes):
+        assigned = assigned.decode("utf-8")
+    if isinstance(owner, bytes):
+        owner = owner.decode("utf-8")
+    # Missing identity is permitted only for a call explicitly sent to legacy.
+    if owner != user_id or not assigned or assigned != (machine_id or "legacy"):
+        logger.info(
+            "sandbox_result_mismatch call_id=%s reason=%s",
+            call_id[:8],
+            "expired"
+            if not assigned or not owner
+            else "owner"
+            if owner != user_id
+            else "machine_identity",
+        )
+        raise AppError(ErrorCode.SANDBOX_RESULT_MISMATCH, args={"machine": machine_id})
+
+
+async def _require_stream_identity(registry, user_id: str, target: str) -> None:
+    if target == "legacy":
+        return
+    version = parse_daemon_version(await registry.machine_value(user_id, target))
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or version_tuple(version) < (2, 14, 4):
+        # 旧流式接口缺机器身份；由 backend 降级分块，不能放宽回传隔离。
+        raise AppError(
+            ErrorCode.SANDBOX_EXEC_FAILED,
+            args={"detail": "unsupported op: stream requires daemon 2.14.4 or newer"},
+        )
 
 
 def _redis():
@@ -321,6 +362,7 @@ async def dispatch_local_stream(
         target = await registry.resolve_target(user_id)
         if target is None:
             raise AppError(ErrorCode.DAEMON_OFFLINE)
+    await _require_stream_identity(registry, user_id, target)
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT)
     call_id = uuid.uuid4().hex
     req = {
@@ -342,6 +384,7 @@ async def dispatch_local_stream(
 
     start = time.monotonic()
     acked = False
+    last_progress = start
     ack_at: float | None = None
     outcome = "error"
     ack_deadline = start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
@@ -364,6 +407,8 @@ async def dispatch_local_stream(
                     resp = None
             if resp is not None:
                 if resp.get("stage") == "ack":
+                    if not acked:
+                        last_progress = time.monotonic()
                     acked = True
                     ack_at = time.monotonic()
                     # 不 delete：队列语义下 ack 出队即消费，残留的 delete 会把
@@ -388,6 +433,7 @@ async def dispatch_local_stream(
                 if parsed is None:
                     continue  # 残缺 item（不该发生）：跳过不炸消费器
                 ftype, frame_body, _rest = parsed
+                last_progress = time.monotonic()
                 acked = True  # 首帧即存活证明
                 if ack_at is None:
                     ack_at = time.monotonic()
@@ -424,6 +470,11 @@ async def dispatch_local_stream(
                 outcome = "ack_timeout"
                 raise AppError(
                     ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
+                )
+            if acked and time.monotonic() - last_progress >= _STREAM_IDLE_TIMEOUT:
+                outcome = "stream_idle_timeout"
+                raise AppError(
+                    ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(_STREAM_IDLE_TIMEOUT)}
                 )
             await asyncio.sleep(_STREAM_POLL_INTERVAL)
         outcome = "timeout"
@@ -471,6 +522,7 @@ async def dispatch_local_stream_upload(
         target = await registry.resolve_target(user_id)
         if target is None:
             raise AppError(ErrorCode.DAEMON_OFFLINE)
+    await _require_stream_identity(registry, user_id, target)
     exec_timeout = float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT)
     call_id = uuid.uuid4().hex
     req = {
@@ -486,6 +538,7 @@ async def dispatch_local_stream_upload(
     blob_key = _upblob_key(user_id, call_id)
     resp_key = f"sandbox:resp:{call_id}"
     start = time.monotonic()
+    last_progress = start
     acked = False
     ack_at: float | None = None
     outcome = "error"
@@ -494,7 +547,7 @@ async def dispatch_local_stream_upload(
     async def _push_frame(frame: bytes) -> None:
         """窗口控制下发一帧。帧必须逐帧惰性编码卸载——一次性内联构建整文件
         帧列表（≈2× 文件体积 memcpy）曾把 1GB 上限的传输数秒级冻结在事件循环上。"""
-        nonlocal outcome
+        nonlocal outcome, last_progress
         while time.monotonic() < deadline:
             if await redis.llen(blob_key) < _UPBLOB_WINDOW:
                 break
@@ -510,11 +563,17 @@ async def dispatch_local_stream_upload(
                         ErrorCode.SANDBOX_EXEC_FAILED,
                         args={"detail": str(resp.get("error") or "upload stream failed")},
                     )
+            if time.monotonic() - last_progress >= _STREAM_IDLE_TIMEOUT:
+                outcome = "stream_idle_timeout"
+                raise AppError(
+                    ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(_STREAM_IDLE_TIMEOUT)}
+                )
             await asyncio.sleep(_UPBLOB_POLL_INTERVAL)
         else:
             outcome = "timeout"
             raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(exec_timeout)})
         await redis.rpush(blob_key, frame)
+        last_progress = time.monotonic()
         await redis.expire(blob_key, 120)
 
     try:
@@ -539,7 +598,12 @@ async def dispatch_local_stream_upload(
         await _push_frame(
             await run_long_blocking_io(_frames_codec.encode_frame, _frames_codec.FRAME_EOF)
         )
+        pending_frames = await redis.llen(blob_key)
         while time.monotonic() < deadline and done is None:
+            remaining_frames = await redis.llen(blob_key)
+            if remaining_frames < pending_frames:
+                last_progress = time.monotonic()
+            pending_frames = remaining_frames
             # results 端点为 RPUSH 队列（ack/done 按序）；旧实例 SET（string）
             # 由 _pop_resp 捕获 WRONGTYPE 后回落 GET
             raw = await _pop_resp(redis, resp_key)
@@ -562,6 +626,11 @@ async def dispatch_local_stream_upload(
                     ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
                 )
             if done is None:
+                if time.monotonic() - last_progress >= _STREAM_IDLE_TIMEOUT:
+                    outcome = "stream_idle_timeout"
+                    raise AppError(
+                        ErrorCode.SANDBOX_TIMEOUT, args={"seconds": int(_STREAM_IDLE_TIMEOUT)}
+                    )
                 await asyncio.sleep(_STREAM_POLL_INTERVAL)
         if done is None:
             outcome = "timeout"

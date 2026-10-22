@@ -93,3 +93,20 @@ async def test_relay_accepts_exact_assignment_or_explicit_legacy(
         assert [frame async for frame in response.body_iterator] == [
             _frames.encode_frame(_frames.FRAME_EOF)
         ]
+
+
+@pytest.mark.parametrize(
+    "owner,assigned,reason",
+    [(None, None, "expired"), ("other", "mac1", "owner"), ("u1", "mac1", "machine_identity")],
+)
+async def test_assignment_rejection_logs_reason_without_owner_data(owner, assigned, reason, caplog):
+    import logging
+
+    redis = Redis(owner, assigned)
+    redis.kv = {key.rsplit(":", 1)[0] + ":call-123456789": value for key, value in redis.kv.items()}
+    with caplog.at_level(logging.INFO, logger="src.infra.sandbox.relay.dispatch"):
+        with pytest.raises(AppError):
+            await route._validate_call_assignment(redis, "call-123456789", "u1", "mac2")
+    assert f"reason={reason}" in caplog.text
+    assert "call-123456789" not in caplog.text
+    assert "other" not in caplog.text

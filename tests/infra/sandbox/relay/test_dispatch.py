@@ -297,6 +297,9 @@ class _MachinesFakeRegistry:
     def __init__(self, resolved: str | None):
         self.resolved = resolved
 
+    async def machine_value(self, user_id, machine_id):
+        return "node|2.15.2|linux|none|PC"
+
     async def is_online(self, user_id: str) -> bool:
         return self.resolved is not None
 
@@ -792,7 +795,8 @@ async def test_dispatch_call_logs_roundtrip_metrics(fake, monkeypatch, caplog):
     records = [
         r
         for r in caplog.records
-        if r.name == "src.infra.sandbox.relay.dispatch" and r.msg == "sandbox_dispatch_roundtrip"
+        if r.name == "src.infra.sandbox.relay.dispatch"
+        and r.getMessage().startswith("sandbox_dispatch_roundtrip ")
     ]
     assert len(records) == 1
     rec = records[0]
@@ -983,3 +987,91 @@ async def test_cua_dispatches_only_to_selected_supported_daemon(fake, monkeypatc
     )
     await task
     assert result["status"] == "ok"
+
+
+@pytest.mark.parametrize("upload", [False, True])
+@pytest.mark.parametrize("version", ["2.14.2", "2.14.3", ""])
+async def test_old_machine_stream_fails_fast_for_safe_chunked_fallback(
+    fake, monkeypatch, upload, version
+):
+    class Registry(_FakeRegistry):
+        async def resolve_target(self, user_id, machine_id=None):
+            return "mac1"
+
+        async def machine_value(self, user_id, machine_id):
+            return f"node|{version}|win32|none|PC"
+
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: Registry(True))
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 0.03)
+    with pytest.raises(AppError) as caught:
+        if upload:
+            await dispatch_module.dispatch_local_stream_upload("u1", {}, b"abc", machine_id="mac1")
+        else:
+            async for _ in dispatch_module.dispatch_local_stream(
+                "u1", "fs_download_stream", {}, machine_id="mac1", timeout=0.03
+            ):
+                pytest.fail("old stream must not start")
+    assert caught.value.error_code == ErrorCode.SANDBOX_EXEC_FAILED
+    assert "unsupported op" in caught.value.args_data["detail"]
+    assert not fake.lists and not fake.kv
+
+
+async def test_ack_without_stream_progress_fails_before_total_deadline(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_STREAM_IDLE_TIMEOUT", 0.04, raising=False)
+
+    async def daemon():
+        while not fake.lists.get("sandbox:req:u1"):
+            await asyncio.sleep(0.001)
+        request = json.loads(await fake.lpop("sandbox:req:u1"))
+        await fake.rpush(
+            f"sandbox:resp:{request['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
+        )
+
+    task = asyncio.create_task(daemon())
+    started = time.monotonic()
+    with pytest.raises(AppError) as caught:
+        await _collect_stream(
+            dispatch_module.dispatch_local_stream("u1", "fs_download_stream", {}, timeout=0.3)
+        )
+    await task
+    assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    assert time.monotonic() - started < 0.2
+    assert not fake.kv
+
+
+@pytest.mark.parametrize("window", [1, 8])
+async def test_upload_without_consumer_progress_does_not_wait_full_deadline(
+    fake, monkeypatch, window
+):
+    monkeypatch.setattr(dispatch_module, "_STREAM_IDLE_TIMEOUT", 0.04)
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_WINDOW", window)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 0.3)
+    started = time.monotonic()
+    with pytest.raises(AppError):
+        await dispatch_module.dispatch_local_stream_upload("u1", {}, b"a")
+    assert time.monotonic() - started < 0.2
+    assert not fake.kv
+
+
+async def test_upload_continues_while_daemon_consumes_frames(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_STREAM_IDLE_TIMEOUT", 0.08)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 1)
+
+    async def daemon():
+        while not fake.lists.get("sandbox:req:u1"):
+            await asyncio.sleep(0.001)
+        request = json.loads(await fake.lpop("sandbox:req:u1"))
+        blob = f"sandbox:upblob:u1:{request['call_id']}"
+        for _ in range(3):
+            await asyncio.sleep(0.05)
+            assert await fake.lpop(blob) is not None
+        await fake.rpush(
+            f"sandbox:resp:{request['call_id']}",
+            json.dumps({"user_id": "u1", "stage": "done", "status": "ok"}),
+        )
+
+    task = asyncio.create_task(daemon())
+    try:
+        await dispatch_module.dispatch_local_stream_upload("u1", {}, b"a")
+    finally:
+        await task

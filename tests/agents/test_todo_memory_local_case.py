@@ -112,7 +112,8 @@ class _TodoScriptModel(BaseChatModel):
 
 
 @pytest.mark.asyncio
-async def test_real_deep_agent_persists_todos_across_turns():
+@pytest.mark.parametrize("text_field", ["content", "description"])
+async def test_real_deep_agent_persists_todos_across_turns(text_field):
     from src.agents.core.todo_middleware import create_todo_middleware
 
     model = _TodoScriptModel(
@@ -124,8 +125,8 @@ async def test_real_deep_agent_persists_todos_across_turns():
                         "name": "write_todos",
                         "args": {
                             "todos": [
-                                {"content": "Inspect project", "status": "in_progress"},
-                                {"content": "Run tests", "status": "pending"},
+                                {text_field: "Inspect project", "status": "in_progress"},
+                                {text_field: "Run tests", "status": "pending"},
                             ]
                         },
                         "id": "todo-call-1",

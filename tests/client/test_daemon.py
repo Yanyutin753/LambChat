@@ -1649,3 +1649,30 @@ async def test_unconfirmed_stream_result_remains_unresolved_for_duplicate_reack(
     )
     assert reconnected.posted == [("stream", {"stage": "ack"})]
     assert reconnected.streamed == []
+
+
+@pytest.mark.parametrize(
+    "failure", [TransportError("post_stream_result: HTTP 502"), httpx.ReadError("reset")]
+)
+async def test_download_stream_failure_reports_done_before_reconnect(tmp_path, failure):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "f.txt").write_text("original")
+
+    class FailedStreamClient(FakeClient):
+        async def post_stream_result(self, call_id, lines, *, deadline_s):
+            raise failure
+
+    client = FailedStreamClient()
+    with pytest.raises(type(failure)) as caught:
+        await daemon_module._process_call(
+            client,
+            _fs_call("stream", op="fs_download_stream"),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+        )
+    assert caught.value is failure
+    assert client.posted == [
+        ("stream", {"stage": "ack"}),
+        ("stream", {"stage": "done", "status": "error", "error": "stream_transport_failed"}),
+    ]
