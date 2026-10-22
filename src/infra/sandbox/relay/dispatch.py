@@ -544,7 +544,7 @@ async def dispatch_local_stream_upload(
     async def _push_frame(frame: bytes) -> None:
         """窗口控制下发一帧。帧必须逐帧惰性编码卸载——一次性内联构建整文件
         帧列表（≈2× 文件体积 memcpy）曾把 1GB 上限的传输数秒级冻结在事件循环上。"""
-        nonlocal outcome, last_progress
+        nonlocal outcome, last_progress, acked, ack_at
         while time.monotonic() < deadline:
             if await redis.llen(blob_key) < _UPBLOB_WINDOW:
                 break
@@ -554,7 +554,10 @@ async def dispatch_local_stream_upload(
             raw = await _pop_resp(redis, resp_key)
             if raw is not None:
                 resp = json.loads(raw)
-                if resp.get("user_id") == user_id and resp.get("stage") == "done":
+                if resp.get("user_id") == user_id and resp.get("stage") == "ack":
+                    acked = True
+                    ack_at = time.monotonic()
+                elif resp.get("user_id") == user_id and resp.get("stage") == "done":
                     outcome = "failed"
                     raise AppError(
                         ErrorCode.SANDBOX_EXEC_FAILED,

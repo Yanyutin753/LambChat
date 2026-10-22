@@ -1165,3 +1165,48 @@ async def test_upload_continues_while_daemon_consumes_frames(fake, monkeypatch):
         await dispatch_module.dispatch_local_stream_upload("u1", {}, b"a")
     finally:
         await task
+
+
+@pytest.mark.parametrize("ack_user", ["u1", "foreign-user"])
+async def test_upload_preserves_authenticated_ack_consumed_during_window_wait(
+    fake, monkeypatch, ack_user
+):
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_WINDOW", 1)
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_CHUNK_BYTES", 1)
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_POLL_INTERVAL", 0.001)
+    monkeypatch.setattr(dispatch_module, "_STREAM_POLL_INTERVAL", 0.001)
+    monkeypatch.setattr(dispatch_module, "_STREAM_IDLE_TIMEOUT", 0.3)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.04)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 1)
+
+    async def daemon():
+        while not fake.lists.get("sandbox:req:u1"):
+            await asyncio.sleep(0.001)
+        request = json.loads(await fake.lpop("sandbox:req:u1"))
+        response_key = f"sandbox:resp:{request['call_id']}"
+        blob = f"sandbox:upblob:u1:{request['call_id']}"
+        await fake.rpush(response_key, json.dumps({"user_id": ack_user, "stage": "ack"}))
+        # Hold the full window until the producer consumes this ACK.
+        while await fake.llen(response_key):
+            await asyncio.sleep(0.001)
+        for _ in range(6):  # META + four data frames + EOF
+            await asyncio.sleep(0.025)
+            assert await fake.lpop(blob) is not None
+        await asyncio.sleep(0.03)
+        await fake.rpush(
+            response_key, json.dumps({"user_id": "u1", "stage": "done", "status": "ok"})
+        )
+
+    task = asyncio.create_task(daemon())
+    try:
+        if ack_user == "u1":
+            await dispatch_module.dispatch_local_stream_upload("u1", {}, b"abcd")
+            await task
+        else:
+            with pytest.raises(AppError) as caught:
+                await dispatch_module.dispatch_local_stream_upload("u1", {}, b"abcd")
+            assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert not fake.kv
