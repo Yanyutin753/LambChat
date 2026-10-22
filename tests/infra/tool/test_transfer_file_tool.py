@@ -798,3 +798,22 @@ async def test_transfer_path_failed_upload_is_not_counted_as_delivered_bytes():
     )
     assert result["success"] is False
     assert result["total_size"] == 0
+
+
+@pytest.mark.parametrize(
+    "error", [TimeoutError(), "SDK request timed out", "ReadTimeout", "deadline exceeded"]
+)
+async def test_classified_upload_timeout_does_not_replay_the_transfer(error):
+    from src.infra.backend.protocol_compat import classify_upload_error
+
+    class Backend:
+        calls = 0
+
+        async def aupload_files(self, files):
+            self.calls += 1
+            return [SimpleNamespace(error=classify_upload_error(error))]
+
+    backend = Backend()
+    result = await transfer_file_tool._upload_to_backend_with_retry(backend, "/skills/a.txt", b"a")
+    assert result == "timeout"
+    assert backend.calls == 1

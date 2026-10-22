@@ -489,7 +489,7 @@ class DaytonaBackend(BaseSandbox):
             except Exception as e:
                 logger.error(f"Daytona fs.upload_files failed: {e}")
                 for orig_path in request_original_paths:
-                    upload_errors[orig_path] = str(e)
+                    upload_errors[orig_path] = str(e) or type(e).__name__
 
         # 对中文路径执行 mv 还原
         rename_errors: dict[str, str] = {}

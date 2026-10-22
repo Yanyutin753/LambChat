@@ -53,10 +53,11 @@ ExtendedFileError = Literal[
     "upload_failed",
     # 文件操作失败但无标准码可映射（I/O 异常等未知错误文本）
     "io_error",
+    "timeout",
 ]
 
 
-def classify_upload_error(error_text: str) -> ExtendedFileError:
+def classify_upload_error(error_text: str | BaseException) -> ExtendedFileError:
     """把沙箱上传失败的异常文本映射为真实错误码。
 
     兜底是 ``upload_failed`` 而非 file_not_found——2026-09-06 生产事故里
@@ -65,13 +66,15 @@ def classify_upload_error(error_text: str) -> ExtendedFileError:
     file_not_found（先于 directory 判定，"No such file or directory" 含
     "directory" 子串）。
     """
-    lowered = error_text.lower()
+    lowered = f"{type(error_text).__name__}: {error_text}".lower()
     if "no such file" in lowered or "not found" in lowered:
         return "file_not_found"
     if "permission" in lowered:
         return "permission_denied"
     if "is a directory" in lowered or "is a dir" in lowered or "eisdir" in lowered:
         return "is_directory"
+    if any(marker in lowered for marker in ("timeout", "timed out", "deadline exceeded")):
+        return "timeout"
     return "upload_failed"
 
 

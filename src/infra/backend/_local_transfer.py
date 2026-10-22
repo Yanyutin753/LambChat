@@ -127,7 +127,7 @@ class LocalFsTransferMixin:
         return result if isinstance(result, dict) else {}
 
     async def _afs_transfer_call_with_retry(self, op: str, payload: dict[str, Any]) -> dict:
-        """中继瞬断（超时/离线抖动）立即重试一次——传输 op 按 offset 幂等，重发安全。"""
+        """瞬断重试一次；总时限已耗尽时不得再开启一轮完整等待。"""
         last_exc: AppError | None = None
         for _attempt in range(2):
             try:
@@ -135,6 +135,8 @@ class LocalFsTransferMixin:
             except FsTransferUnsupportedError:
                 raise
             except AppError as exc:
+                if exc.error_code == ErrorCode.SANDBOX_TIMEOUT:
+                    raise
                 last_exc = exc
         raise last_exc  # type: ignore[misc]  # 循环必已赋值
 

@@ -85,3 +85,16 @@ def test_e2b_upload_unknown_failure_reports_upload_failed(monkeypatch):
     responses = backend.upload_files([("/home/user/a.txt", b"x")])
     assert len(responses) == 1
     assert responses[0].error == "upload_failed"
+
+
+def test_daytona_empty_timeout_is_failure_instead_of_success(monkeypatch):
+    class TimeoutFs:
+        def upload_files(self, requests):
+            raise TimeoutError()
+
+    stub = _DaytonaStub()
+    stub.fs = TimeoutFs()
+    backend = DaytonaBackend(stub)
+    monkeypatch.setattr(backend, "_ensure_parent_dir", lambda path: None)
+    responses = backend.upload_files([("/home/user/a.txt", b"x")])
+    assert responses[0].error == "timeout"
