@@ -127,6 +127,8 @@ python3 scripts/run_validation.py uv run pytest tests/infra/deploy/ -q
 稳定 Service upstream。关闭请求/响应缓冲与 `proxy_next_upstream`，不能让代理
 重放已经开始的文件 POST。修改前备份站点配置，先 `nginx -t`，再平滑 reload；
 staging 的 SSE、双向传输和中断验收通过后再同步生产。
+仅二进制回传子路径关闭代理 body 上限，避免默认 50MB/100MB 限制截断大文件；
+后端继续按 `S3_INTERNAL_UPLOAD_MAX_SIZE` 和帧预算流式校验，普通 JSON 回传不放开。
 
 代理 upstream 的 `keepalive_timeout` 应短于源站的空闲连接时限：当前 uvicorn
 默认 5 秒，模板使用 4 秒。空闲连接时限与 `proxy_read_timeout`、工具总执行时限
@@ -138,5 +140,7 @@ daemon 2.14.3 及更早版本的流式接口不携带机器身份。非 legacy �
 不用于 `exec` 或运行中的长工具。新 daemon 在流式回传失败后补发错误终态。
 
 滚动更新保证新请求仍有 Ready 副本可接入；已有 SSE/POST 仍可能因连接关闭而
-中断。文件流中断必须补错误哨兵，HTTP 请求体完整接收后才发布 EOF 成功；
+中断。调用入队前最多等待 2 秒吸收 daemon 重连的短暂离线窗口；超出窗口仍返回
+原离线错误，不重放已经下发的调用，不更换指定机器。文件流中断必须补错误哨兵，
+HTTP 请求体完整接收后才发布 EOF 成功；
 目录传输有失败或跳过时 `success=false`，不将缺失文件作为完整交付。
