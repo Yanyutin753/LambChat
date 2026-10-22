@@ -478,15 +478,17 @@ class SkillsStoreBackend(BackendProtocol):
             files = files_map.get((skill_name, self._user_id), {})
 
             for original_path, file_name in items:
-                if not files or file_name not in files:
+                content = files.get(file_name)
+                if content is None and file_name != "__meta__":
+                    # Bulk skill views are capped; explicit paths still need exact lookup.
+                    content = await storage.get_skill_file(skill_name, file_name, self._user_id)
+                if content is None:
                     results.append(
                         FileDownloadResponse(
                             path=original_path, content=None, error="file_not_found"
                         )
                     )
                     continue
-
-                content = files[file_name]
 
                 binary_ref = parse_binary_ref(content)
                 if binary_ref:
