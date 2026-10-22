@@ -632,19 +632,13 @@ class DualEventWriter:
         trace_id: str,
         status: str = "completed",
         metadata: Optional[Dict[str, Any]] = None,
+        *,
+        expected_run_id: str | None = None,
     ) -> bool:
-        """
-        标记 trace 完成
-
-        Args:
-            trace_id: Trace ID
-            status: 最终状态 (completed/error)
-            metadata: 额外元数据
-
-        Returns:
-            是否更新成功
-        """
-        return await self.trace.complete_trace(trace_id, status, metadata)
+        """Complete a trace, optionally fenced by its execution owner."""
+        return await self.trace.complete_trace(
+            trace_id, status, metadata, expected_run_id=expected_run_id
+        )
 
     async def set_run_recommend_questions(
         self,

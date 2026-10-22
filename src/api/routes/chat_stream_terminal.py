@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.infra.logging import get_logger
-from src.infra.task.status_queries import is_recoverable_restart
+from src.infra.task.status_queries import is_active_stale_trace, is_recoverable_restart
 
 logger = get_logger(__name__)
 
@@ -29,12 +29,16 @@ async def resolve_terminal_stream_status(session: Any, run_id: str) -> str | Non
     try:
         cursor = (
             get_trace_storage()
-            .collection.find({"run_id": run_id}, {"status": 1, "_id": 0})
+            .collection.find({"run_id": run_id}, {"status": 1, "metadata.error_code": 1, "_id": 0})
             .sort("started_at", -1)
             .limit(1)
         )
         traces = await cursor.to_list(length=1)
         if traces:
+            if await is_active_stale_trace(
+                traces[0], run_id, getattr(session, "metadata", None) or {}
+            ):
+                return None
             status = traces[0].get("status")
             if status in ("completed", "error", "cancelled"):
                 return status

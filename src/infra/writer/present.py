@@ -96,6 +96,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         # TaskExecutor 据此将会话标记为 WAITING_HUMAN 而非 COMPLETED。
         self.hitl_suspended: bool = False
         self._tool_calls: List[Dict] = []
+        self._active_tool_calls: dict[str, int] = {}
         self._step_count: int = 0
         self._dual_writer = None
         self._trace_created: bool = False

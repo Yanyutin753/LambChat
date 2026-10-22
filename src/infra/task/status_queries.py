@@ -10,6 +10,24 @@ from .status import TaskStatus
 logger = get_logger(__name__)
 
 
+async def is_active_stale_trace(trace: dict[str, Any], run_id: str, metadata: dict) -> bool:
+    """Only a stale-cleanup error can be contradicted by live execution evidence."""
+    if (
+        trace.get("status") != "error"
+        or (trace.get("metadata") or {}).get("error_code") != "stale_run_recovery"
+    ):
+        return False
+    if metadata.get("current_run_id") == run_id:
+        status = metadata.get("task_status")
+        if status == TaskStatus.WAITING_HUMAN.value:
+            return True
+        if status in {"completed", "failed", "error", "cancelled", "expired"}:
+            return False
+    from .heartbeat import TaskHeartbeat
+
+    return not await TaskHeartbeat().is_stale(run_id)
+
+
 def is_recoverable_restart(metadata: dict[str, Any], run_id: str | None) -> bool:
     return (
         bool(run_id)
@@ -53,8 +71,10 @@ class TaskStatusQueries:
     async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
         """Get status for a specific run."""
         fallback_status = TaskStatus.PENDING
+        metadata: dict[str, Any] = {}
         try:
             session = await self._storage.get_by_session_id(session_id)
+            metadata = getattr(session, "metadata", None) or {}
             if session and session.metadata and session.metadata.get("current_run_id") == run_id:
                 task_status = session.metadata.get("task_status")
                 if task_status:
@@ -68,12 +88,16 @@ class TaskStatusQueries:
         try:
             trace_storage = get_trace_storage()
             cursor = (
-                trace_storage.collection.find({"run_id": run_id}, {"status": 1, "_id": 0})
+                trace_storage.collection.find(
+                    {"run_id": run_id}, {"status": 1, "metadata.error_code": 1, "_id": 0}
+                )
                 .sort("started_at", -1)
                 .limit(1)
             )
             traces = await cursor.to_list(length=1)
             if traces:
+                if await is_active_stale_trace(traces[0], run_id, metadata):
+                    return TaskStatus.RUNNING
                 trace_status = traces[0].get("status")
                 if trace_status:
                     status_map = {

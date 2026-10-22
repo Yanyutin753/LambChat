@@ -7,6 +7,7 @@ Agent 路由
 
 import json
 import uuid
+from contextlib import aclosing
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -409,21 +410,33 @@ async def chat_stream(
     await validate_agent_model_access(agent_options, user)
 
     async def event_generator():
+        from src.infra.task.heartbeat import TaskHeartbeat
+
+        heartbeat = TaskHeartbeat()
+        run_id = None
         try:
-            async for event in agent.stream(
-                request_body.message,
-                session_id,
-                user_id=user_id,
-                disabled_tools=request_body.disabled_tools,
-                agent_options=agent_options,
-                base_url=base_url,
-                disabled_skills=request_body.disabled_skills,
-                disabled_mcp_tools=request_body.disabled_mcp_tools,
-            ):
-                # event 格式: {"event": "xxx", "data": {...}}
-                # 确保 data 被正确序列化为 JSON
-                yield await run_blocking_io(_format_agent_sse_event, event)
+            async with aclosing(
+                agent.stream(
+                    request_body.message,
+                    session_id,
+                    user_id=user_id,
+                    disabled_tools=request_body.disabled_tools,
+                    agent_options=agent_options,
+                    base_url=base_url,
+                    disabled_skills=request_body.disabled_skills,
+                    disabled_mcp_tools=request_body.disabled_mcp_tools,
+                )
+            ) as stream:
+                async for event in stream:
+                    if run_id is None and event.get("event") == "metadata":
+                        data = event.get("data") or {}
+                        run_id = data.get("run_id")
+                        if run_id:
+                            await heartbeat.start(run_id, trace_id=data.get("trace_id"))
+                    yield await run_blocking_io(_format_agent_sse_event, event)
         finally:
+            if run_id:
+                await heartbeat.stop(run_id)
             # 清理请求上下文，防止 contextvars 泄漏
             from src.infra.logging.context import TraceContext
 

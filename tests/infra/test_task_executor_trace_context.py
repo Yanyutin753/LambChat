@@ -7,7 +7,9 @@ from src.infra.task.executor import TaskExecutor
 
 
 class _FakeHeartbeat:
-    async def start(self, run_id: str, user_id: str | None = None) -> None:
+    async def start(
+        self, run_id: str, user_id: str | None = None, *, trace_id: str | None = None
+    ) -> None:
         return None
 
     async def stop(self, run_id: str) -> None:
