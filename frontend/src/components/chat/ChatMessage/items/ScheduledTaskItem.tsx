@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Clock,
   CheckCircle2,
+  AlertCircle,
   MessageSquare,
   Zap,
   Ban,
@@ -27,6 +28,8 @@ import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { DetailSection } from "./DetailSection";
+import { CopyButton } from "../../../common/CopyButton";
+import { extractText } from "./toolUtils";
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -103,6 +106,7 @@ function formatSchedule(
   }
   if (trigger === "date") {
     if (preview.run_at) return String(preview.run_at);
+    if (config?.run_date) return String(config.run_date);
     if (config?.seconds)
       return t("scheduledTask.inSeconds", { seconds: Number(config.seconds) });
     return t("scheduledTask.once");
@@ -240,7 +244,7 @@ function RejectionCard({
 // ── ScheduledTaskDetail ──────────────────────────────────────────────────
 
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（任务结果到达即刷新） */
-function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
+function ScheduledTaskDetail({ args, result, success }: ToolDetailProps) {
   const { t } = useTranslation();
 
   const taskName = (args.name as string) || "";
@@ -329,12 +333,15 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
       {/* Message prompt */}
       {taskMessage && !isList && (
         <DetailSection
-          title={t("chat.message.toolTaskName")}
+          title={t("chat.message.toolTaskPrompt")}
           icon={<MessageSquare size={12} />}
           defaultExpanded={true}
         >
-          <div className="text-14 text-theme-text-secondary whitespace-pre-wrap break-words leading-relaxed">
-            {taskMessage}
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 text-14 text-theme-text-secondary whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed py-1.5">
+              {taskMessage}
+            </div>
+            <CopyButton text={taskMessage} size={12} />
           </div>
         </DetailSection>
       )}
@@ -354,9 +361,25 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
 
       {/* Result message (confirmation) */}
       {resultMessage && !isList && (
-        <div className="flex items-center gap-2 text-12">
-          <CheckCircle2 size={13} className="shrink-0 text-theme-success" />
-          <span className="text-theme-text-tertiary">{resultMessage}</span>
+        <div
+          role={success === false ? "alert" : "status"}
+          className="flex items-start gap-2 text-14"
+        >
+          {success === false ? (
+            <AlertCircle
+              size={14}
+              className="mt-2.5 shrink-0 text-theme-error"
+            />
+          ) : (
+            <CheckCircle2
+              size={14}
+              className="mt-2.5 shrink-0 text-theme-success"
+            />
+          )}
+          <span className="min-w-0 flex-1 py-1.5 text-theme-text-secondary [overflow-wrap:anywhere] leading-relaxed">
+            {resultMessage}
+          </span>
+          <CopyButton text={extractText(result)} size={12} />
         </div>
       )}
 
@@ -423,14 +446,6 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
             })}
           </div>
         </DetailSection>
-      )}
-
-      {/* Pure text fallback (no structured data parsed) */}
-      {resultMessage && !displayName && !isList && (
-        <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
-          {resultMessage}
-          <ToolHoverCopyButton text={resultMessage} position="result" />
-        </pre>
       )}
     </div>
   );
