@@ -26,7 +26,6 @@ Trace Storage - 按 trace 聚合事件存储
 """
 
 import asyncio
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
 
@@ -51,6 +50,10 @@ from src.infra.session._trace_storage_support import (
     _normalize_recommend_questions,
     apply_trace_window_to_traces,
     build_trace_window_find_query,
+    is_stale_running_trace,
+)
+from src.infra.session._trace_storage_support import (
+    SessionEventsSnapshot as SessionEventsSnapshot,
 )
 from src.infra.session._trace_storage_support import (
     _event_chunk_index as _event_chunk_index,
@@ -69,28 +72,13 @@ from src.infra.session.trace_event_chunks import TraceEventChunkMixin
 from src.infra.session.trace_event_read import TraceEventReadCompatMixin
 from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
-from src.infra.utils.datetime import ensure_utc, parse_iso, utc_now
+from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
 _SESSION_EVENTS_BATCH_SIZE = 200
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
-
-
-@dataclass(frozen=True)
-class SessionEventsSnapshot:
-    """A consistent history read plus any live-stream replay requirement."""
-
-    events: List[Dict[str, Any]]
-    history_mode: Literal["complete", "active_user_only"] = "complete"
-    stream_run_id: Optional[str] = None
-    # 按 trace(run) 窗口分页：窗口内最旧一条 trace 的游标与是否还有更早的轮次
-    has_more_traces: bool = False
-    oldest_trace_started_at: Optional[datetime] = None
-    oldest_trace_id: Optional[str] = None
-    # 事件预算按 trace 整轮消费：True 表示窗口内还有更旧的整轮因预算被丢弃
-    events_truncated: bool = False
 
 
 class TraceStorage(
@@ -626,28 +614,7 @@ class TraceStorage(
             live_trace_ids: set[str] = set()
 
             def _is_stale_running(trace: Dict[str, Any]) -> bool:
-                """A running trace untouched for too long is treated as terminal.
-
-                Its writer is gone (crash, lost marker lease); hiding every
-                non-user event behind an SSE replay that will never come would
-                make stored events unreachable after a refresh.
-                """
-                if (
-                    trace.get("trace_id") in live_trace_ids
-                    or (trace.get("metadata") or {}).get("waiting_human") is True
-                ):
-                    return False
-                updated_at = trace.get("updated_at")
-                if not updated_at:
-                    return True
-                try:
-                    if isinstance(updated_at, datetime):
-                        parsed = ensure_utc(updated_at)
-                    else:
-                        parsed = parse_iso(str(updated_at))
-                except (TypeError, ValueError, AttributeError):
-                    return True
-                return parsed < stale_running_cutoff
+                return is_stale_running_trace(trace, stale_running_cutoff, live_trace_ids)
 
             # 构建查询条件
             match_query: Dict[str, Any] = {"session_id": session_id}
