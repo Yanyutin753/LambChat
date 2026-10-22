@@ -76,7 +76,7 @@ class _FakeDualWriter:
         del kwargs
         return None
 
-    async def complete_trace(self, trace_id: str, status: str, metadata=None):
+    async def complete_trace(self, trace_id: str, status: str, metadata=None, **kwargs):
         self.completed.append((trace_id, status, metadata))
         return True
 

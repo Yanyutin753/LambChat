@@ -44,10 +44,8 @@ class TraceAttachmentCleanupMixin:
     ) -> int:
         """把心跳过期的 running trace 全局兜底终结为 error（不限 session）。
 
-        直连 SSE run 与挂死的 run 不写 task_status / heartbeat，
-        startup_cleanup 扫不到它们的 trace；``updated_at`` 在两条事件追加
-        路径上都会刷新，是可靠的存活水位。多副本并发扫描时
-        update_many 复验 status 条件，天然幂等。
+        updated_at 只是事件/执行心跳水位；过期后仍须复核执行心跳，
+        不能把长时间静默的工具当成死亡。写回时重新匹配过期条件。
         """
         current = now if now is not None else utc_now()
         stale_before = current - ttl
@@ -60,13 +58,26 @@ class TraceAttachmentCleanupMixin:
             "metadata.waiting_human": {"$ne": True},
         }
         try:
-            cursor = self.collection.find(base_query, {"_id": 1}).sort("updated_at", 1).limit(limit)
+            from src.infra.task.heartbeat import TaskHeartbeat
+
+            cursor = (
+                self.collection.find(base_query, {"_id": 1, "run_id": 1})
+                .sort("updated_at", 1)
+                .limit(limit)
+            )
             docs = await cursor.to_list(length=limit)
-            if not docs:
+            expired_ids = []
+            heartbeat = TaskHeartbeat()
+            for doc in docs:
+                run_id = doc.get("run_id")
+                if run_id and not await heartbeat.is_stale(run_id):
+                    continue
+                expired_ids.append(doc["_id"])
+            if not expired_ids:
                 return 0
             result = await self.collection.update_many(
                 {
-                    "_id": {"$in": [doc["_id"] for doc in docs]},
+                    "_id": {"$in": expired_ids},
                     **base_query,
                 },
                 {

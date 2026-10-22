@@ -103,7 +103,7 @@ class _FakeDualWriter:
     async def flush_mongo_buffer(self, **kwargs):
         return None
 
-    async def complete_trace(self, trace_id: str, status: str, metadata=None):
+    async def complete_trace(self, trace_id: str, status: str, metadata=None, **kwargs):
         self.completed.append((trace_id, status, metadata))
         return True
 

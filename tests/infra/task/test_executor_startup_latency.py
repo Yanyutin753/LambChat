@@ -14,7 +14,9 @@ class _FakeHeartbeat:
         self.start_calls: list[tuple[str, str | None]] = []
         self.stop_calls: list[str] = []
 
-    async def start(self, run_id: str, *, user_id: str | None = None) -> None:
+    async def start(
+        self, run_id: str, *, user_id: str | None = None, trace_id: str | None = None
+    ) -> None:
         self.start_calls.append((run_id, user_id))
 
     async def stop(self, run_id: str) -> None:
@@ -134,7 +136,9 @@ async def test_heartbeat_and_running_status_overlap_before_agent_execution(
     agent_started = asyncio.Event()
 
     class _GatedHeartbeat(_FakeHeartbeat):
-        async def start(self, run_id: str, *, user_id: str | None = None) -> None:
+        async def start(
+            self, run_id: str, *, user_id: str | None = None, trace_id: str | None = None
+        ) -> None:
             await super().start(run_id, user_id=user_id)
             heartbeat_started.set()
             await release.wait()

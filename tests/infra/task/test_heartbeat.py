@@ -1,10 +1,45 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.infra.task.heartbeat import TaskHeartbeat
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_renews_running_trace_even_when_redis_write_fails(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from src.infra.utils.datetime import utc_now
+
+    redis = SimpleNamespace(
+        set=AsyncMock(side_effect=RuntimeError("redis down")), delete=AsyncMock()
+    )
+    collection = SimpleNamespace(update_one=AsyncMock())
+    monkeypatch.setattr("src.infra.task.heartbeat.get_redis_client", lambda: redis)
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage.get_trace_storage",
+        lambda: SimpleNamespace(collection=collection),
+    )
+    renewed = asyncio.Event()
+
+    async def sleep(_seconds):
+        renewed.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("src.infra.task.heartbeat.asyncio.sleep", sleep)
+    heartbeat = TaskHeartbeat()
+    before = utc_now()
+    await heartbeat.start("run-1", trace_id="trace-1")
+    try:
+        await asyncio.wait_for(renewed.wait(), timeout=1)
+        query, update = collection.update_one.await_args.args
+        assert query == {"trace_id": "trace-1", "run_id": "run-1", "status": "running"}
+        assert update["$max"]["updated_at"] >= before
+    finally:
+        await heartbeat.stop("run-1")
 
 
 class _FakeRedisClient:

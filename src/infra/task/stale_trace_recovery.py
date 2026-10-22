@@ -5,8 +5,8 @@
 running 时结构性无人回收（2026-09-05 生产实例：run_20260905032659 挂
 running 8 小时，滚动重启也清不掉）。本模块把
 ``expire_stale_running_traces_globally`` 挂到统一调度器周期执行；判定
-沿用 updated_at 心跳 + 10 分钟 TTL 的既有约定，多副本并发下按 status
-条件更新天然幂等，无需租约。
+先筛 updated_at 超过 10 分钟的候选，再核对执行心跳；多副本写回仍须
+匹配原过期条件，避免误终结静默工具或已恢复的执行。
 """
 
 from __future__ import annotations

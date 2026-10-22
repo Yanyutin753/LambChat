@@ -623,6 +623,7 @@ class TraceStorage(
             stale_running_cutoff = now - timedelta(
                 minutes=max(int(getattr(settings, "SESSION_ACTIVE_RUN_STALE_MINUTES", 10)), 1)
             )
+            live_trace_ids: set[str] = set()
 
             def _is_stale_running(trace: Dict[str, Any]) -> bool:
                 """A running trace untouched for too long is treated as terminal.
@@ -631,6 +632,11 @@ class TraceStorage(
                 non-user event behind an SSE replay that will never come would
                 make stored events unreachable after a refresh.
                 """
+                if (
+                    trace.get("trace_id") in live_trace_ids
+                    or (trace.get("metadata") or {}).get("waiting_human") is True
+                ):
+                    return False
                 updated_at = trace.get("updated_at")
                 if not updated_at:
                     return True
@@ -704,6 +710,11 @@ class TraceStorage(
                     "status": 1,
                     "started_at": 1,
                     "updated_at": 1,
+                    **(
+                        {"metadata.error_code": 1, "metadata.waiting_human": 1}
+                        if active_run_id
+                        else {}
+                    ),
                     "events": events_projection,
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
@@ -718,6 +729,26 @@ class TraceStorage(
 
             traces: List[Dict[str, Any]] = []
             async for trace in cursor:
+                if active_run_id and trace.get("run_id") == active_run_id:
+                    from src.infra.task.heartbeat import TaskHeartbeat
+                    from src.infra.task.status_queries import is_active_stale_trace
+
+                    metadata = {
+                        "current_run_id": active_run_id,
+                        "task_status": "waiting_human"
+                        if (trace.get("metadata") or {}).get("waiting_human") is True
+                        else "running",
+                    }
+                    if await is_active_stale_trace(trace, active_run_id, metadata):
+                        # Read projection only: the execution owner settles the stored trace.
+                        trace = {**trace, "status": "running"}
+                        live_trace_ids.add(trace["trace_id"])
+                    elif (
+                        trace.get("status") == "running"
+                        and _is_stale_running(trace)
+                        and not await TaskHeartbeat().is_stale(active_run_id)
+                    ):
+                        live_trace_ids.add(trace["trace_id"])
                 if completed_only and trace.get("status") == "running":
                     if _is_stale_running(trace):
                         pass  # writer is gone; surface whatever was stored

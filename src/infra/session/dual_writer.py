@@ -632,6 +632,8 @@ class DualEventWriter:
         trace_id: str,
         status: str = "completed",
         metadata: Optional[Dict[str, Any]] = None,
+        *,
+        expected_run_id: str | None = None,
     ) -> bool:
         """
         标记 trace 完成
@@ -644,7 +646,9 @@ class DualEventWriter:
         Returns:
             是否更新成功
         """
-        return await self.trace.complete_trace(trace_id, status, metadata)
+        return await self.trace.complete_trace(
+            trace_id, status, metadata, expected_run_id=expected_run_id
+        )
 
     async def set_run_recommend_questions(
         self,

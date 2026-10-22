@@ -155,6 +155,43 @@ async def test_expired_stream_with_running_run_keeps_waiting(monkeypatch):
     assert len(read_calls) == 1
 
 
+@pytest.mark.parametrize("stream_len", [0, 2])
+@pytest.mark.parametrize("task_status", ["running", "waiting_human"])
+async def test_stale_cleanup_error_does_not_close_live_run(monkeypatch, stream_len, task_status):
+    _install(
+        monkeypatch,
+        stream_len=stream_len,
+        metadata={"current_run_id": "r1", "task_status": task_status},
+        trace_docs=[{"status": "error", "metadata": {"error_code": "stale_run_recovery"}}],
+        replay=[{"event_type": "heartbeat"}],
+    )
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale",
+        AsyncMock(return_value=task_status == "waiting_human"),
+    )
+
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+
+    assert "event: ping" in body
+    assert "event: error" not in body
+
+
+async def test_real_failure_is_not_hidden_by_live_execution_heartbeat(monkeypatch):
+    _install(
+        monkeypatch,
+        stream_len=0,
+        metadata={"current_run_id": "r1", "task_status": "running"},
+        trace_docs=[{"status": "error", "metadata": {"error_code": "model_failure"}}],
+    )
+    heartbeat = AsyncMock(return_value=False)
+    monkeypatch.setattr("src.infra.task.heartbeat.TaskHeartbeat.is_stale", heartbeat)
+
+    body = await _collect(await session_stream("s1", run_id="r1", user=_user()))
+
+    assert "event: error" in body
+    heartbeat.assert_not_awaited()
+
+
 async def test_alive_stream_replays_without_status_lookup(monkeypatch):
     """stream 还有事件（终态事件在缓冲里可重放）：走原重放路径，不查状态。"""
     dual, collection, read_calls = _install(

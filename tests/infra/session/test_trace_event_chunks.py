@@ -1217,8 +1217,13 @@ async def test_active_snapshot_projects_large_running_trace_to_user_events() -> 
 
 
 @pytest.mark.asyncio
-async def test_active_snapshot_returns_full_events_for_stale_running_trace() -> None:
+async def test_active_snapshot_returns_full_events_for_stale_running_trace(monkeypatch) -> None:
     """A running trace whose writer is gone must not hide stored events."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale", AsyncMock(return_value=True)
+    )
     storage = TraceStorage()
     trace_collection = _FakeSessionTraceCollection(
         [
@@ -1252,6 +1257,40 @@ async def test_active_snapshot_returns_full_events_for_stale_running_trace() -> 
         "message:chunk",
         "done",
     ]
+
+
+@pytest.mark.parametrize("status", ["running", "error"])
+async def test_silent_live_trace_still_requires_stream_replay(monkeypatch, status):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale", AsyncMock(return_value=False)
+    )
+    storage = TraceStorage()
+    storage._collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": status,
+                "started_at": "2020-04-25T00:02:00Z",
+                "updated_at": "2020-04-25T00:03:00Z",
+                "metadata": {"error_code": "stale_run_recovery"},
+                "events": [
+                    _event("user:message", "question", 1),
+                    _event("tool:start", "long tool", 2),
+                ],
+            }
+        ]
+    )
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot("session-1", active_run_id="run-active")
+
+    assert snapshot.history_mode == "active_user_only"
+    assert snapshot.stream_run_id == "run-active"
+    assert [event["event_type"] for event in snapshot.events] == ["user:message"]
 
 
 @pytest.mark.asyncio

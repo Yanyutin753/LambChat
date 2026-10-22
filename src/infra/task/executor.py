@@ -242,7 +242,7 @@ class TaskExecutor(TaskSessionStatusMixin):
 
             # 心跳与 RUNNING 状态彼此独立；并发完成后才进入 agent stream。
             await asyncio.gather(
-                self._heartbeat.start(run_id, user_id=user_id),
+                self._heartbeat.start(run_id, user_id=user_id, trace_id=presenter.trace_id),
                 self._update_session_status(
                     session_id, TaskStatus.RUNNING, run_id=run_id, expected_run_id=run_id
                 ),
@@ -341,6 +341,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                 # 直连路径（emit→save_event）的进展也证明流未挂死：
                 # 深跑时生成器可静默超过 deadline，全靠探针续命
                 progress_probe=getattr(presenter, "last_progress_monotonic", None),
+                tool_execution_probe=getattr(presenter, "has_active_tools", None),
             ):
                 await presenter.save_event(event)
                 if not produced_main_text and _is_main_agent_text_event(event):

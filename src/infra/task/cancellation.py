@@ -157,6 +157,7 @@ class TaskCancellation:
                         status="cancelled",
                         metadata={"cancel_reason": "Task cancelled by user"},
                         ensure_token_usage=False,
+                        expected_run_id=run_id,
                     )
                     logger.info(
                         f"MongoDB trace status updated: trace_id={trace_id}, success={success}"
