@@ -7,6 +7,7 @@ import asyncio
 import pytest
 
 from src.infra.task.stall_watchdog import TaskStalledError, aiter_with_stall_timeout
+from src.infra.writer.present import Presenter, PresenterConfig
 
 
 async def _gen(items: list, delay_before: float = 0.0, delay_each: float = 0.0):
@@ -96,3 +97,60 @@ async def test_early_consumer_exit_closes_underlying_generator() -> None:
     # 消费者提前退出后，generator 最终被 aclose 释放
     _, pending = await asyncio.wait([asyncio.create_task(closed.wait())], timeout=1)
     assert not pending
+
+
+@pytest.mark.asyncio
+async def test_silent_tool_uses_its_own_deadline_and_stall_guard_resumes_after_result():
+    presenter = Presenter(PresenterConfig(enable_storage=False))
+
+    async def source():
+        yield {"event": "tool:start", "data": {"tool_call_id": "call-1"}}
+        await asyncio.sleep(0.12)
+        yield {"event": "tool:result", "data": {"tool_call_id": "call-1"}}
+        await asyncio.sleep(5)
+
+    seen = []
+    with pytest.raises(TaskStalledError):
+        async for event in aiter_with_stall_timeout(
+            source(), timeout=0.02, tool_execution_probe=presenter.has_active_tools
+        ):
+            await presenter.save_event(event)
+            seen.append(event["event"])
+
+    assert seen == ["tool:start", "tool:result"]
+    assert not presenter.has_active_tools()
+
+
+@pytest.mark.asyncio
+async def test_parallel_tools_remain_active_until_each_result_and_are_run_isolated():
+    presenter = Presenter(PresenterConfig(enable_storage=False))
+    other = Presenter(PresenterConfig(enable_storage=False))
+    for call_id in ["call-1", "call-2", "call-1"]:
+        await presenter.save_event({"event": "tool:start", "data": {"tool_call_id": call_id}})
+    assert presenter.has_active_tools()
+    assert not other.has_active_tools()
+    await presenter.save_event({"event": "tool:result", "data": {"tool_call_id": "call-1"}})
+    assert presenter.has_active_tools()
+    await presenter.save_event({"event": "tool:result", "data": {"tool_call_id": "call-2"}})
+    assert presenter.has_active_tools()
+    await presenter.save_event({"event": "tool:result", "data": {"tool_call_id": "call-1"}})
+    assert not presenter.has_active_tools()
+
+
+async def test_active_tool_does_not_block_explicit_cancellation():
+    closed = asyncio.Event()
+
+    async def source():
+        try:
+            await asyncio.Event().wait()
+            yield None
+        finally:
+            closed.set()
+
+    iterator = aiter_with_stall_timeout(source(), timeout=0.01, tool_execution_probe=lambda: True)
+    pending = asyncio.create_task(anext(iterator))
+    await asyncio.sleep(0.04)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    assert closed.is_set()

@@ -168,6 +168,86 @@ async def test_complete_trace_does_not_overwrite_error_with_completed(monkeypatc
     assert collection.doc["status"] == "error"
 
 
+@pytest.mark.parametrize("status", ["completed", "cancelled", "error"])
+async def test_execution_owner_can_settle_stale_cleanup_error(monkeypatch, status):
+    storage, collection = _make_storage(
+        monkeypatch,
+        {
+            "trace_id": "trace-1",
+            "run_id": "run-1",
+            "status": "error",
+            "metadata": {"error_code": "stale_run_recovery"},
+        },
+    )
+
+    assert (
+        await storage.complete_trace(
+            "trace-1", status=status, ensure_token_usage=False, expected_run_id="run-1"
+        )
+        is True
+    )
+    assert collection.doc["status"] == status
+    assert collection.doc["metadata"]["error_code"] is None
+
+
+@pytest.mark.parametrize(
+    "run_id,error_code",
+    [
+        ("another-run", "stale_run_recovery"),
+        ("run-1", "model_failure"),
+    ],
+)
+async def test_owner_finalization_does_not_replace_another_run_or_real_error(
+    monkeypatch, run_id, error_code
+):
+    storage, collection = _make_storage(
+        monkeypatch,
+        {
+            "trace_id": "trace-1",
+            "run_id": run_id,
+            "status": "error",
+            "metadata": {"error_code": error_code},
+        },
+    )
+
+    assert (
+        await storage.complete_trace(
+            "trace-1", status="completed", ensure_token_usage=False, expected_run_id="run-1"
+        )
+        is False
+    )
+    assert collection.doc["status"] == "error"
+
+
+async def test_recovered_completion_remains_completed_after_execution_heartbeat_stops(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.api.routes.chat_stream_terminal import resolve_terminal_stream_status
+
+    storage, collection = _make_storage(
+        monkeypatch,
+        {
+            "trace_id": "trace-1",
+            "run_id": "run-1",
+            "status": "error",
+            "metadata": {"error_code": "stale_run_recovery"},
+        },
+    )
+    await storage.complete_trace("trace-1", ensure_token_usage=False, expected_run_id="run-1")
+    monkeypatch.setattr(trace_storage_module, "get_trace_storage", lambda: storage)
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale", AsyncMock(return_value=True)
+    )
+
+    assert (
+        await resolve_terminal_stream_status(
+            SimpleNamespace(metadata={"current_run_id": "run-1", "task_status": "completed"}),
+            "run-1",
+        )
+        == "completed"
+    )
+
+
 @pytest.mark.asyncio
 async def test_complete_trace_still_finalizes_running_trace(monkeypatch):
     trace_doc = {"trace_id": "trace-1", "status": "running"}

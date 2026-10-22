@@ -1,7 +1,8 @@
 """Shared limits and normalization helpers for trace storage."""
 
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from src.infra.utils.datetime import ensure_utc, parse_iso
 from src.kernel.config import settings
@@ -171,3 +172,41 @@ def coerce_trace_started_at(value: Any) -> Optional["datetime"]:
         except (TypeError, ValueError):
             return None
     return None
+
+
+@dataclass(frozen=True)
+class SessionEventsSnapshot:
+    """A consistent history read plus any live-stream replay requirement."""
+
+    events: List[Dict[str, Any]]
+    history_mode: Literal["complete", "active_user_only"] = "complete"
+    stream_run_id: Optional[str] = None
+    # 按 trace(run) 窗口分页：窗口内最旧一条 trace 的游标与是否还有更早的轮次
+    has_more_traces: bool = False
+    oldest_trace_started_at: Optional[datetime] = None
+    oldest_trace_id: Optional[str] = None
+    # 事件预算按 trace 整轮消费：True 表示窗口内还有更旧的整轮因预算被丢弃
+    events_truncated: bool = False
+
+
+def is_stale_running_trace(
+    trace: Dict[str, Any], cutoff: datetime, live_trace_ids: set[str]
+) -> bool:
+    """Surface stored events after a lost writer; keep live runs on SSE replay."""
+    if (
+        trace.get("trace_id") in live_trace_ids
+        or (trace.get("metadata") or {}).get("waiting_human") is True
+    ):
+        return False
+    updated_at = trace.get("updated_at")
+    if not updated_at:
+        return True
+    try:
+        parsed = (
+            ensure_utc(updated_at)
+            if isinstance(updated_at, datetime)
+            else parse_iso(str(updated_at))
+        )
+    except (TypeError, ValueError, AttributeError):
+        return True
+    return parsed < cutoff

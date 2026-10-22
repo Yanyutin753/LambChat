@@ -51,6 +51,7 @@ async def test_cancel_run_marks_trace_cancelled_without_zero_usage_placeholder(
                 "status": "cancelled",
                 "metadata": {"cancel_reason": "Task cancelled by user"},
                 "ensure_token_usage": False,
+                "expected_run_id": "run-1",
             },
         )
     ]

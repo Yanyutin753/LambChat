@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
-from src.infra.utils.datetime import utc_now_iso
+from src.infra.utils.datetime import utc_now, utc_now_iso
 
 from .constants import (
     HEARTBEAT_INTERVAL,
@@ -34,7 +34,9 @@ class TaskHeartbeat:
     def __init__(self) -> None:
         self._heartbeat_tasks: dict[str, asyncio.Task] = {}  # run_id -> heartbeat Task
 
-    async def start(self, run_id: str, user_id: str | None = None) -> None:
+    async def start(
+        self, run_id: str, user_id: str | None = None, *, trace_id: str | None = None
+    ) -> None:
         """启动任务心跳"""
         if run_id in self._heartbeat_tasks:
             logger.warning(f"Heartbeat already exists for run_id={run_id}")
@@ -42,9 +44,9 @@ class TaskHeartbeat:
 
         async def heartbeat_loop():
             try:
-                redis_client = get_redis_client()
                 while True:
                     try:
+                        redis_client = get_redis_client()
                         # 设置心跳，带 TTL（超时时间的 2 倍）
                         await redis_client.set(
                             f"{HEARTBEAT_PREFIX}{run_id}",
@@ -62,6 +64,18 @@ class TaskHeartbeat:
                                 pass
                     except Exception as e:
                         logger.warning(f"Heartbeat write failed for run_id={run_id}: {e}")
+                    if trace_id:
+                        try:
+                            from src.infra.session.trace_storage import get_trace_storage
+
+                            # Event silence during a tool call does not mean its writer is gone.
+                            async with asyncio.timeout(HEARTBEAT_INTERVAL / 2):
+                                await get_trace_storage().collection.update_one(
+                                    {"trace_id": trace_id, "run_id": run_id, "status": "running"},
+                                    {"$max": {"updated_at": utc_now()}},
+                                )
+                        except Exception as e:
+                            logger.warning("Trace heartbeat failed for run_id=%s: %s", run_id, e)
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
             except asyncio.CancelledError:
                 pass

@@ -377,6 +377,8 @@ class TraceStorageWriteMixin:
         status: str = "completed",
         metadata: Optional[Dict[str, Any]] = None,
         ensure_token_usage: bool = True,
+        *,
+        expected_run_id: str | None = None,
     ) -> bool:
         """
         标记 trace 完成
@@ -405,15 +407,34 @@ class TraceStorageWriteMixin:
             await self.ensure_indexes_if_needed()
             if ensure_token_usage:
                 await self._ensure_token_usage_event(trace_id)
-            result = await self.collection.update_one(
-                _finalizable_trace_filter(trace_id),
-                update,
-            )
+            query = _finalizable_trace_filter(trace_id)
+            if expected_run_id:
+                query["run_id"] = expected_run_id
+            result = await self.collection.update_one(query, update)
+            if result.modified_count == 0 and expected_run_id:
+                # Only the execution owner may replace a stale-cleanup verdict with its outcome.
+                result = await self.collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        "run_id": expected_run_id,
+                        "status": "error",
+                        "metadata.error_code": "stale_run_recovery",
+                        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                    },
+                    {
+                        **update,
+                        "$set": {
+                            **update["$set"],
+                            "metadata.error_code": (metadata or {}).get("error_code"),
+                        },
+                    },
+                )
             if result.modified_count == 0:
                 if status in {"completed", "error", "cancelled"}:
                     finalized = await self.collection.find_one(
                         {
                             "trace_id": trace_id,
+                            **({"run_id": expected_run_id} if expected_run_id else {}),
                             "status": {"$in": ["completed", "error", "cancelled"]},
                             _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
                         },
@@ -426,7 +447,9 @@ class TraceStorageWriteMixin:
 
                             await _write_usage_log(trace_id)
                         return finalized.get("status") == status
-                result = await self._complete_trace_after_marker_release(trace_id, update)
+                result = await self._complete_trace_after_marker_release(
+                    trace_id, update, expected_run_id=expected_run_id
+                )
             # Finish the terminal projection before returning; per-call snapshots already exist.
             if _USAGE_LOGS_ENABLED and result.modified_count > 0:
                 from src.infra.session.trace_usage_log import _write_usage_log
@@ -489,6 +512,8 @@ class TraceStorageWriteMixin:
         self,
         trace_id: str,
         update: Dict[str, Dict[str, Any]],
+        *,
+        expected_run_id: str | None = None,
     ) -> Any:
         """Retry a blocked complete_trace, releasing only an *expired* marker.
 
@@ -505,15 +530,19 @@ class TraceStorageWriteMixin:
 
         from src.infra.session.trace_event_chunks import _marker_recovery_expired
 
+        identity = {"trace_id": trace_id}
+        if expected_run_id:
+            identity["run_id"] = expected_run_id
+        finalizable_query = {**_finalizable_trace_filter(trace_id), **identity}
         for attempt in range(6):
             marker_doc = await self.collection.find_one(
-                {"trace_id": trace_id},
+                identity,
                 {_ATTACHMENT_CHUNK_WRITE_FIELD: 1},
             )
             marker = (marker_doc or {}).get(_ATTACHMENT_CHUNK_WRITE_FIELD)
             if not isinstance(marker, dict):
                 result = await self.collection.update_one(
-                    _finalizable_trace_filter(trace_id),
+                    finalizable_query,
                     update,
                 )
                 if result.modified_count > 0:
@@ -523,7 +552,7 @@ class TraceStorageWriteMixin:
                 if isinstance(marker_id, str):
                     await self.collection.update_one(
                         {
-                            "trace_id": trace_id,
+                            **identity,
                             f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.id": marker_id,
                         },
                         {
@@ -532,7 +561,7 @@ class TraceStorageWriteMixin:
                         },
                     )
                     result = await self.collection.update_one(
-                        _finalizable_trace_filter(trace_id),
+                        finalizable_query,
                         update,
                     )
                     if result.modified_count > 0:

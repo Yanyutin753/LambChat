@@ -123,6 +123,27 @@ def status_queries(monkeypatch):
     return create
 
 
+@pytest.mark.parametrize("alive", [True, False])
+async def test_trace_fallback_checks_liveness_before_reporting_stale_cleanup_failure(
+    monkeypatch, alive
+):
+    collection = _FakeTraceCollection(
+        [{"status": "error", "metadata": {"error_code": "stale_run_recovery"}}]
+    )
+    monkeypatch.setattr(
+        "src.infra.task.status_queries.get_trace_storage",
+        lambda: SimpleNamespace(collection=collection),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale", AsyncMock(return_value=not alive)
+    )
+    queries = TaskStatusQueries(storage=_FakeStorage(), run_info={})
+
+    assert await queries.get_run_status("s1", "r1") == (
+        TaskStatus.RUNNING if alive else TaskStatus.FAILED
+    )
+
+
 @pytest.mark.parametrize("trace_status", [None, "running"])
 async def test_current_recoverable_restart_is_projected_as_recovering(status_queries, trace_status):
     queries = status_queries(

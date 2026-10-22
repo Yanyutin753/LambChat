@@ -18,6 +18,15 @@ from src.infra.session.trace_storage import TraceStorage
 CUTOFF = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def _dead_execution_heartbeat(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale", AsyncMock(return_value=True)
+    )
+
+
 class _GlobalExpiryCollection:
     """支持 find(status/updated_at/waiting_human 过滤) + sort + limit 与 update_many($in) 的假集合。"""
 
@@ -173,6 +182,36 @@ async def test_expiry_skips_waiting_human_traces() -> None:
     assert count == 1
     assert by_id["waiting-old"]["status"] == "running"
     assert by_id["stale-old"]["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_expiry_keeps_silent_run_with_live_execution_heartbeat(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    heartbeat = AsyncMock(side_effect=lambda run_id: run_id != "run-live")
+    monkeypatch.setattr("src.infra.task.heartbeat.TaskHeartbeat.is_stale", heartbeat)
+    storage, collection = _storage_with(
+        [_trace("live", "running", 120), _trace("dead", "running", 120)]
+    )
+
+    assert await storage.expire_stale_running_traces_globally(now=CUTOFF) == 1
+    assert collection.docs[0]["status"] == "running"
+    assert collection.docs[1]["status"] == "error"
+    assert {call.args[0] for call in heartbeat.await_args_list} == {"run-live", "run-dead"}
+
+
+@pytest.mark.asyncio
+async def test_expiry_defers_when_execution_heartbeat_cannot_be_read(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale",
+        AsyncMock(side_effect=RuntimeError("redis unavailable")),
+    )
+    storage, collection = _storage_with([_trace("live", "running", 120)])
+
+    assert await storage.expire_stale_running_traces_globally(now=CUTOFF) == 0
+    assert collection.docs[0]["status"] == "running"
 
 
 @pytest.mark.asyncio

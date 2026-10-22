@@ -1,6 +1,6 @@
 """Run-level stall watchdog for agent event streams (issue #293).
 
-worker 存活但 agent stream 挂死（LLM 首包永不到达、工具 await 挂起等）时，
+worker 存活但 agent stream 挂死（如 LLM 首包永不到达）时，
 心跳持续刷新、孤儿接管判定永不触发，run/trace 停留在 running。本模块对
 executor 事件流施加"每两个事件之间"的停滞 deadline：超时即抛
 TaskStalledError，由 TaskExecutor 的通用错误路径迁移 error 终态。
@@ -14,6 +14,8 @@ progress_probe（2026-09-12/13 生产事故）：事件有两条入口——exec
 的健康 run 误杀。探针返回 presenter 最近一次 save_event 的单调时间戳，
 deadline 到期时若探针窗口内仍有进展则重新武装，且绝不取消挂起的 anext
 （取消会连带毁掉底层生成器）。
+
+正在执行的工具由各工具自己的 deadline 和显式取消控制，不以事件静默判死。
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ async def aiter_with_stall_timeout(
     *,
     timeout: float | None,
     progress_probe: Callable[[], float] | None = None,
+    tool_execution_probe: Callable[[], bool] | None = None,
 ) -> AsyncIterator[T]:
     """Require stream progress by a recurring deadline between events.
 
@@ -72,6 +75,9 @@ async def aiter_with_stall_timeout(
                 anext_task = asyncio.ensure_future(anext(iterator))
             done, _pending = await asyncio.wait({anext_task}, timeout=timeout)
             if anext_task not in done:
+                # Tools own their execution deadlines; silence alone cannot cancel them.
+                if tool_execution_probe is not None and tool_execution_probe():
+                    continue
                 if progress_probe is not None and _probe_recent(progress_probe, timeout):
                     continue  # 外部仍在推进：重新武装 deadline，不取消挂起的 anext
                 raise TaskStalledError(f"agent stream stalled: no event within {timeout}s")

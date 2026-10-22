@@ -234,6 +234,7 @@ class StoragePresenterMixin:
     run_id: str
     _step_count: int
     _tool_calls: list[dict[str, Any]]
+    _active_tool_calls: dict[str, int]
     _dual_writer: DualEventWriter | None
     _trace_created: bool
     _done_recorded: bool
@@ -364,6 +365,9 @@ class StoragePresenterMixin:
         """最近一次 save_event 汇聚的单调时间戳（stall watchdog 进展探针）。"""
         return self._last_progress_monotonic
 
+    def has_active_tools(self) -> bool:
+        return bool(self._active_tool_calls)
+
     async def save_event(
         self,
         event: Dict[str, Any],
@@ -385,6 +389,19 @@ class StoragePresenterMixin:
         # 的 emit），executor 零正文守卫依赖本标记判定 run 是否交付过答案。
         _event_type = event.get("event", "unknown")
         _data = event.get("data")
+        if isinstance(_data, dict):
+            tool_call_id = _data.get("tool_call_id")
+            if isinstance(tool_call_id, str) and tool_call_id:
+                if _event_type == "tool:start":
+                    self._active_tool_calls[tool_call_id] = (
+                        self._active_tool_calls.get(tool_call_id, 0) + 1
+                    )
+                elif _event_type == "tool:result":
+                    count = self._active_tool_calls.get(tool_call_id, 0)
+                    if count > 1:
+                        self._active_tool_calls[tool_call_id] = count - 1
+                    else:
+                        self._active_tool_calls.pop(tool_call_id, None)
         goal_metrics = getattr(self, "persistent_goal_metrics", None)
         if goal_metrics is not None:
             goal_metrics.observe(event)
@@ -509,6 +526,7 @@ class StoragePresenterMixin:
                     completed = await dual_writer.complete_trace(
                         trace_id=self.trace_id,
                         status=status,
+                        expected_run_id=self.run_id,
                         metadata={
                             "step_count": self._step_count,
                             "tool_calls": len(self._tool_calls),
