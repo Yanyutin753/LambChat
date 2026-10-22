@@ -1457,6 +1457,7 @@
       "toolSkillSearch": "Skill Search",
       "toolSuccess": "Command succeeded",
       "toolTaskName": "Name",
+      "toolTaskPrompt": "Task prompt",
       "toolSendSubagentMessage": "Message subagent",
       "toolWaitSubagent": "Wait for subagent",
       "toolSendParentMessage": "Message parent agent",

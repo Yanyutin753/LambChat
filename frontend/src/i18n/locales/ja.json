@@ -1453,6 +1453,7 @@
       "toolSkillSearch": "スキル検索",
       "toolSuccess": "コマンド成功",
       "toolTaskName": "名前",
+      "toolTaskPrompt": "タスクのプロンプト",
       "toolSendSubagentMessage": "サブエージェントにメッセージ",
       "toolWaitSubagent": "サブエージェントを待つ",
       "toolSendParentMessage": "親エージェントにメッセージ",
