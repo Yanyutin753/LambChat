@@ -451,13 +451,6 @@ class SkillsStoreBackend(BackendProtocol):
         if not groups:
             return results
 
-        skill_keys: list[tuple[str, str]] = []
-        for skill_name in groups:
-            if skill_name == "__invalid__":
-                continue
-            skill_keys.append((skill_name, self._user_id))
-        files_map = await storage.batch_get_skill_files(skill_keys)
-
         for skill_name, items in groups.items():
             if skill_name == "__invalid__":
                 for path, _ in items:
@@ -475,13 +468,12 @@ class SkillsStoreBackend(BackendProtocol):
                     )
                 continue
 
-            files = files_map.get((skill_name, self._user_id), {})
-
             for original_path, file_name in items:
-                content = files.get(file_name)
-                if content is None and file_name != "__meta__":
-                    # Bulk skill views are capped; explicit paths still need exact lookup.
-                    content = await storage.get_skill_file(skill_name, file_name, self._user_id)
+                content = (
+                    None
+                    if file_name == "__meta__"
+                    else await storage.get_skill_file(skill_name, file_name, self._user_id)
+                )
                 if content is None:
                     results.append(
                         FileDownloadResponse(

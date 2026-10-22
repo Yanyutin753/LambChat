@@ -463,7 +463,7 @@ async def test_skills_store_backend_download_files_rejects_too_many_paths(monkey
 async def test_skills_store_backend_downloads_explicit_file_beyond_bulk_view_limit() -> None:
     class _BoundedStorage(_FakeSkillStorage):
         async def batch_get_skill_files(self, skill_keys: list[tuple[str, str]]) -> dict:
-            return {key: dict(list(self.files.get(key[0], {}).items())[:100]) for key in skill_keys}
+            raise AssertionError("explicit downloads must not load the entire skill")
 
     storage = _BoundedStorage()
     storage.files["visible"] = {f"file-{i:03}.txt": f"content {i}" for i in range(128)}
