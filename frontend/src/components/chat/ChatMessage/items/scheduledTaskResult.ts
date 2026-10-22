@@ -100,6 +100,9 @@ export function parseResult(
           rejection: null,
         };
       }
+      if (typeof obj.message === "string") {
+        return { ...empty, message: obj.message };
+      }
     }
   } catch {
     // not JSON
@@ -107,4 +110,3 @@ export function parseResult(
 
   return { ...empty, message: text };
 }
-

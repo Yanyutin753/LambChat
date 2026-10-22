@@ -1465,6 +1465,7 @@
       "toolSkillSearch": "Поиск навыков",
       "toolSuccess": "Команда выполнена",
       "toolTaskName": "Имя",
+      "toolTaskPrompt": "Промпт задачи",
       "toolSendSubagentMessage": "Сообщение субагенту",
       "toolWaitSubagent": "Ожидание субагента",
       "toolSendParentMessage": "Сообщение родительскому агенту",

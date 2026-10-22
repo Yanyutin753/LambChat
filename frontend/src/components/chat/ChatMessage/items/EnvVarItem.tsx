@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, KeyRound, ShieldCheck } from "lucide-react";
+import { CopyButton } from "../../../common/CopyButton";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
@@ -12,6 +13,31 @@ import {
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
+import { ToolArgsBlock } from "./ToolArgsBlock";
+
+function parseEnvVarResult(result: ToolDetailProps["result"]) {
+  const empty = { keys: [] as string[], message: "", error: false };
+  try {
+    const parsed = JSON.parse(extractText(result));
+    const values = Array.isArray(parsed)
+      ? parsed
+      : parsed?.variables || parsed?.keys || (parsed?.key ? [parsed.key] : []);
+    const keys = Array.isArray(values)
+      ? values
+          .map((value) => (typeof value === "string" ? value : value?.key))
+          .filter((key): key is string => typeof key === "string" && !!key)
+      : [];
+    const error = typeof parsed?.error === "string" ? parsed.error : "";
+    return {
+      keys,
+      message:
+        error || (typeof parsed?.message === "string" ? parsed.message : ""),
+      error: !!error || parsed?.success === false,
+    };
+  } catch {
+    return empty;
+  }
+}
 
 function getActionLabel(
   toolName: string,
@@ -27,44 +53,21 @@ function getActionLabel(
 }
 
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（变量列表到达即刷新） */
-function EnvVarDetail({ args, result }: ToolDetailProps) {
+function EnvVarDetail({
+  toolName,
+  args,
+  result,
+  success,
+  compact = false,
+}: ToolDetailProps & { toolName: string; compact?: boolean }) {
   const { t } = useTranslation();
   const key = (args.key as string) || "";
 
-  const keys = useMemo(() => {
-    const text = extractText(result);
-    if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      // env_var_list returns {variables: [{key, masked_value}, ...], count}
-      if (parsed?.variables && Array.isArray(parsed.variables)) {
-        return parsed.variables
-          .map((v: Record<string, unknown>) => v.key)
-          .filter(Boolean) as string[];
-      }
-      // Direct array of keys
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((item: unknown) =>
-            typeof item === "string"
-              ? item
-              : (item as Record<string, unknown>)?.key ?? String(item),
-          )
-          .filter(Boolean) as string[];
-      }
-      if (parsed && typeof parsed === "object" && parsed.keys) {
-        return Array.isArray(parsed.keys)
-          ? (parsed.keys as string[]).filter(Boolean)
-          : [];
-      }
-      if (parsed && typeof parsed === "object" && parsed.key) {
-        return [parsed.key as string];
-      }
-    } catch {
-      // not JSON
-    }
-    return [];
-  }, [result]);
+  const parsed = useMemo(() => parseEnvVarResult(result), [result]);
+  const keys = parsed.keys;
+  const deleting =
+    toolName === "env_var_delete" || toolName === "env_var_delete_all";
+  const failed = parsed.error || success === false;
 
   const allKeys = useMemo(() => {
     const set = new Set<string>();
@@ -74,19 +77,31 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
   }, [key, keys]);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      {allKeys.length > 0 && (
+    <div
+      className={
+        compact ? "space-y-2" : "p-4 sm:p-5 space-y-4 tool-panel-content"
+      }
+    >
+      {deleting && key && (
+        <ToolArgsBlock size={compact ? "compact" : "detail"} copyText={key}>
+          <KeyRound size={13} className="shrink-0 text-theme-text-tertiary" />
+          <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">
+            {key}
+          </span>
+        </ToolArgsBlock>
+      )}
+      {allKeys.length > 0 && !deleting && !failed && (
         <div className="rounded-xl border border-theme-border overflow-hidden">
           {/* Header */}
-          <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50/60 dark:bg-emerald-950/20 border-b border-theme-border">
+          <div className="flex items-center gap-2 px-3 py-2.5 bg-theme-bg-card border-b border-theme-border">
             <ShieldCheck
               size={13}
-              className="text-emerald-500 dark:text-emerald-400 shrink-0"
+              className="text-theme-text-tertiary shrink-0"
             />
-            <span className="text-12 font-medium text-emerald-700 dark:text-emerald-300">
+            <span className="text-12 font-medium text-theme-text-secondary">
               {t("chat.message.toolVarCount", { count: allKeys.length })}
             </span>
-            <span className="text-10 text-emerald-600/60 dark:text-emerald-400/50 ml-auto">
+            <span className="text-10 text-theme-text-tertiary ml-auto">
               {t("chat.message.envMasked", "Values masked")}
             </span>
           </div>
@@ -95,15 +110,12 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
             {allKeys.map((k, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 transition-colors tool-file-row"
+                className="flex items-center gap-2.5 px-3 py-2.5 tool-file-row"
               >
-                <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-emerald-100/70 dark:bg-emerald-900/20">
-                  <KeyRound
-                    size={11}
-                    className="text-emerald-500 dark:text-emerald-400"
-                  />
+                <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-theme-bg-card">
+                  <KeyRound size={11} className="text-theme-text-tertiary" />
                 </div>
-                <span className="text-14 font-mono text-theme-text min-w-0 truncate flex-1">
+                <span className="text-14 font-mono text-theme-text min-w-0 [overflow-wrap:anywhere] flex-1">
                   {k}
                 </span>
                 <span className="text-11 text-theme-text-tertiary font-mono shrink-0 tracking-widest">
@@ -115,7 +127,29 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
         </div>
       )}
 
-      {result && allKeys.length === 0 && (
+      {parsed.message && (
+        <div
+          role={failed ? "alert" : "status"}
+          className="flex items-start gap-2 text-14"
+        >
+          {failed ? (
+            <AlertCircle
+              size={14}
+              className="mt-2.5 shrink-0 text-theme-error"
+            />
+          ) : (
+            <CheckCircle2
+              size={14}
+              className="mt-2.5 shrink-0 text-theme-success"
+            />
+          )}
+          <span className="min-w-0 flex-1 py-1.5 text-theme-text-secondary leading-relaxed [overflow-wrap:anywhere]">
+            {parsed.message}
+          </span>
+          <CopyButton text={extractText(result)} size={12} />
+        </div>
+      )}
+      {result && allKeys.length === 0 && !parsed.message && (
         <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
           {(() => {
             const text = extractText(result);
@@ -157,40 +191,7 @@ const EnvVarItem = memo(function EnvVarItem({
   const actionLabel = getActionLabel(toolName, t);
   const key = (args.key as string) || "";
 
-  const keys = useMemo(() => {
-    const text = extractText(result);
-    if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      // env_var_list returns {variables: [{key, masked_value}, ...], count}
-      if (parsed?.variables && Array.isArray(parsed.variables)) {
-        return parsed.variables
-          .map((v: Record<string, unknown>) => v.key)
-          .filter(Boolean) as string[];
-      }
-      // Direct array of keys
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((item: unknown) =>
-            typeof item === "string"
-              ? item
-              : (item as Record<string, unknown>)?.key ?? String(item),
-          )
-          .filter(Boolean) as string[];
-      }
-      if (parsed && typeof parsed === "object" && parsed.keys) {
-        return Array.isArray(parsed.keys)
-          ? (parsed.keys as string[]).filter(Boolean)
-          : [];
-      }
-      if (parsed && typeof parsed === "object" && parsed.key) {
-        return [parsed.key as string];
-      }
-    } catch {
-      // not JSON
-    }
-    return [];
-  }, [result]);
+  const keys = useMemo(() => parseEnvVarResult(result).keys, [result]);
 
   const allKeys = useMemo(() => {
     const set = new Set<string>();
@@ -214,6 +215,7 @@ const EnvVarItem = memo(function EnvVarItem({
 
   const detailContent = canExpand && (
     <EnvVarDetail
+      toolName={toolName}
       args={args}
       result={result}
       success={success}
@@ -252,7 +254,10 @@ const EnvVarItem = memo(function EnvVarItem({
             subtitle: allKeys.join(", ") || undefined,
             fallback: detailContent || undefined,
             buildDetail: (data) => (
-              <EnvVarDetail {...toolDetailPropsFromPanelData(data)} />
+              <EnvVarDetail
+                toolName={toolName}
+                {...toolDetailPropsFromPanelData(data)}
+              />
             ),
             footer: durationFooter,
           });
@@ -260,45 +265,13 @@ const EnvVarItem = memo(function EnvVarItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            {allKeys.length > 0 && (
-              <div>
-                <div className="text-12 text-theme-text-tertiary mb-1">
-                  {t("chat.message.toolVarCount", { count: allKeys.length })}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {allKeys.slice(0, 12).map((k, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 text-theme-text-secondary font-mono hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-colors"
-                    >
-                      <KeyRound
-                        size={9}
-                        className="shrink-0 text-emerald-500 dark:text-emerald-400 opacity-70"
-                      />
-                      {k}
-                    </span>
-                  ))}
-                  {allKeys.length > 12 && (
-                    <span className="text-10 text-theme-text-tertiary px-1">
-                      +{allKeys.length - 12}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {result && allKeys.length === 0 && (
-              <pre className="group/result relative text-12 text-theme-text-tertiary whitespace-pre-wrap break-words overflow-y-auto min-w-0">
-                {(() => {
-                  const text = extractText(result);
-                  return text.length > 300 ? text.slice(0, 297) + "…" : text;
-                })()}
-                <ToolHoverCopyButton
-                  text={extractText(result)}
-                  position="resultCompact"
-                />
-              </pre>
-            )}
+            <EnvVarDetail
+              toolName={toolName}
+              args={args}
+              result={result}
+              success={success}
+              compact
+            />
           </ToolInlineDetails>
         )}
       </CollapsiblePill>

@@ -11,7 +11,6 @@ const themedItems = [
   { file: "../ImageGenerateItem.tsx", accent: "violet" },
   { file: "../AudioTranscribeItem.tsx", accent: "violet" },
   { file: "../ScheduledTaskItem.tsx", accent: "emerald" },
-  { file: "../EnvVarItem.tsx", accent: "emerald" },
   { file: "../PersonaItem.tsx", accent: "amber" },
   { file: "../TeamItem.tsx", accent: "emerald" },
   { file: "../ConversationHistoryItem.tsx", accent: "sky" },
@@ -29,4 +28,13 @@ test("internal tool items keep accents while using theme surfaces", () => {
     expect(source).toMatch(/bg-theme-bg|tool-code-block/);
     expect(source).toMatch(/border-theme-border|tool-code-block/);
   }
+});
+
+test("environment mutations use semantic status colors and theme surfaces", () => {
+  const source = readSource("../EnvVarItem.tsx");
+
+  expect(source).toMatch(/text-theme-success/);
+  expect(source).toMatch(/text-theme-error/);
+  expect(source).toMatch(/bg-theme-bg/);
+  expect(source).toMatch(/border-theme-border/);
 });
