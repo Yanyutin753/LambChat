@@ -127,6 +127,8 @@ python3 scripts/run_validation.py uv run pytest tests/infra/deploy/ -q
 稳定 Service upstream。关闭请求/响应缓冲与 `proxy_next_upstream`，不能让代理
 重放已经开始的文件 POST。修改前备份站点配置，先 `nginx -t`，再平滑 reload；
 staging 的 SSE、双向传输和中断验收通过后再同步生产。
+仅二进制回传子路径关闭代理 body 上限，避免默认 50MB/100MB 限制截断大文件；
+后端继续按 `S3_INTERNAL_UPLOAD_MAX_SIZE` 和帧预算流式校验，普通 JSON 回传不放开。
 
 代理 upstream 的 `keepalive_timeout` 应短于源站的空闲连接时限：当前 uvicorn
 默认 5 秒，模板使用 4 秒。空闲连接时限与 `proxy_read_timeout`、工具总执行时限
