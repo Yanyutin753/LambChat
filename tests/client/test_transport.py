@@ -829,3 +829,24 @@ async def test_assignment_rejection_is_scoped_to_the_call(stream):
                 await client.post_result("expired", {"stage": "ack"})
     finally:
         await client.close()
+
+
+async def test_expired_stream_upload_assignment_does_not_disconnect_channel():
+    client = ChannelClient(
+        SERVER,
+        PAT,
+        machine_id="mac1",
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    409, json={"detail": {"code": "sandbox_result_mismatch"}}
+                )
+            )
+        ),
+    )
+    try:
+        with pytest.raises(ResultRejectedError):
+            async with client.get_stream("expired", deadline_s=10):
+                pytest.fail("expired upload must not start")
+    finally:
+        await client.close()

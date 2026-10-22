@@ -119,3 +119,24 @@ python3 scripts/run_validation.py uv run pytest tests/infra/deploy/ -q
 至少一个 API 一直可用；第二个发布进程必须立即因锁忙退出。发布后核对每个 Deployment 的 image、
 实际 Pod imageID、端口、就绪状态与遗留 terminating Pod，再运行现有分布式回归。
 单测覆盖脚本决策；不能替代这些真实入口、应用和故障注入证据。
+
+
+## 本地沙箱文件流与滚动发布
+
+`nginx/nginx.conf` 的 `/api/sandbox/` 配置须同步到源站与边缘站点，保留各站点的
+稳定 Service upstream。关闭请求/响应缓冲与 `proxy_next_upstream`，不能让代理
+重放已经开始的文件 POST。修改前备份站点配置，先 `nginx -t`，再平滑 reload；
+staging 的 SSE、双向传输和中断验收通过后再同步生产。
+
+代理 upstream 的 `keepalive_timeout` 应短于源站的空闲连接时限：当前 uvicorn
+默认 5 秒，模板使用 4 秒。空闲连接时限与 `proxy_read_timeout`、工具总执行时限
+独立；不通过缩短工具时限修复代理连接复用问题。
+
+daemon 2.14.3 及更早版本的流式接口不携带机器身份。非 legacy 机器在下发流式
+操作前检查版本，自动降级现有分块通道；回传的所有者与机器校验继续保留。
+文件流连续 60 秒无进展会显式失败，不再占满 600 秒总时限。此限制只用于文件流，
+不用于 `exec` 或运行中的长工具。新 daemon 在流式回传失败后补发错误终态。
+
+滚动更新保证新请求仍有 Ready 副本可接入；已有 SSE/POST 仍可能因连接关闭而
+中断。文件流中断必须补错误哨兵，HTTP 请求体完整接收后才发布 EOF 成功；
+目录传输有失败或跳过时 `success=false`，不将缺失文件作为完整交付。

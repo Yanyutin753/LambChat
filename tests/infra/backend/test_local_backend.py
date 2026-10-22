@@ -1958,3 +1958,18 @@ async def test_aupload_one_builds_chunk_commands_off_event_loop(monkeypatch):
 
     assert result.error is None
     assert backend._upload_chunk_commands in offloaded
+
+
+async def test_chunk_transfer_timeout_is_not_replayed_by_backend(monkeypatch):
+    calls = []
+    backend = transfer_module.LocalFsTransferMixin()
+
+    async def timeout(op, payload):
+        calls.append(op)
+        raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": 120})
+
+    monkeypatch.setattr(backend, "_afs_transfer_call", timeout)
+    with pytest.raises(AppError) as caught:
+        await backend._afs_transfer_call_with_retry("fs_download", {"path": "a.txt"})
+    assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    assert calls == ["fs_download"]

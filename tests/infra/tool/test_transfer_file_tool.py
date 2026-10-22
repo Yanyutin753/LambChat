@@ -266,7 +266,7 @@ async def test_transfer_path_skips_known_oversize_file_before_download() -> None
         )
     )
 
-    assert result["success"] is True
+    assert result["success"] is False
     assert result["transferred"] == 0
     assert result["skipped"] == 1
     assert "file too large" in result["files"][0]["error"]
@@ -313,7 +313,7 @@ async def test_transfer_path_skips_known_batch_oversize_before_download(
         )
     )
 
-    assert result["success"] is True
+    assert result["success"] is False
     assert result["transferred"] == 1
     assert result["skipped"] == 1
     assert "batch size limit exceeded" in result["files"][1]["error"]
@@ -662,3 +662,158 @@ async def test_transfer_path_enforces_batch_budget_under_concurrency(
     assert result["transferred"] == 2
     assert result["skipped"] == 1
     assert result["total_size"] == 8
+
+
+@pytest.mark.parametrize("mode", ["exception", "error", "empty"])
+@pytest.mark.parametrize("directory", [False, True])
+async def test_failed_download_is_reported_without_replaying_sync(mode, directory):
+    class Backend:
+        sync_calls = 0
+
+        async def als(self, path):
+            return LsResult(entries=[{"path": path + "/lost.txt", "is_dir": False}])
+
+        async def adownload_files(self, paths):
+            if mode == "exception":
+                raise TimeoutError("relay timed out")
+            if mode == "empty":
+                return []
+            return [SimpleNamespace(content=None, error="permission_denied")]
+
+        def download_files(self, paths):
+            self.sync_calls += 1
+            return [SimpleNamespace(content=b"unexpected retry", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    backend = Backend()
+    if directory:
+        value = await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/workspace/demo", runtime=_Runtime(backend)
+        )
+    else:
+        value = await transfer_file_tool.transfer_file.coroutine(
+            source_path="/workspace/lost.txt",
+            target_path="/skills/demo/lost.txt",
+            runtime=_Runtime(backend),
+        )
+    result = json.loads(value)
+    assert result["success"] is False
+    assert backend.sync_calls == 0
+    if directory:
+        assert result["failed"] == 1 and result["skipped"] == 0
+        error = result["files"][0]["error"]
+    else:
+        error = result["error"]
+    assert error
+    assert "file not found or empty" not in error
+
+
+async def test_empty_async_upload_response_does_not_replay_sync():
+    class Backend:
+        async def aupload_files(self, files):
+            return []
+
+        def upload_files(self, files):
+            pytest.fail("empty async response must not replay the write")
+
+    assert await transfer_file_tool._upload_to_backend(Backend(), "/skills/a.txt", b"a")
+
+
+async def test_transfer_path_reports_depth_truncation():
+    class Backend:
+        async def als(self, path):
+            return LsResult(entries=[{"path": path + "/nested", "is_dir": True}])
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/workspace/deep", runtime=_Runtime(Backend())
+        )
+    )
+    assert result["success"] is False
+    assert "depth" in result["error"]
+
+
+async def test_transfer_path_keeps_failures_beyond_success_preview_limit():
+    root = "/workspace/demo"
+    limit = transfer_file_tool.TRANSFER_PATH_RESULT_FILE_LIMIT
+
+    class Backend:
+        async def als(self, path):
+            return LsResult(
+                entries=[{"path": f"{root}/{i}.txt", "is_dir": False} for i in range(limit + 1)]
+            )
+
+        async def adownload_files(self, paths):
+            if paths[0] == f"{root}/{limit}.txt":
+                raise TimeoutError("relay timed out")
+            return [SimpleNamespace(content=b"abc", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir=root, runtime=_Runtime(Backend())
+        )
+    )
+    assert result["success"] is False
+    assert result["files"][0]["status"] == "failed"
+    assert result["files"][0]["file"] == f"{root}/{limit}.txt"
+    assert result["files_omitted"] == 1
+
+
+async def test_upload_timeout_does_not_start_second_full_timeout():
+    class Backend:
+        calls = 0
+
+        async def aupload_files(self, files):
+            self.calls += 1
+            raise TimeoutError("relay timed out")
+
+    backend = Backend()
+    assert (
+        await transfer_file_tool._upload_to_backend_with_retry(backend, "/skills/a.txt", b"a")
+        == "relay timed out"
+    )
+    assert backend.calls == 1
+
+
+async def test_transfer_path_failed_upload_is_not_counted_as_delivered_bytes():
+    class Backend:
+        async def als(self, path):
+            return LsResult(entries=[{"path": path + "/a.txt", "is_dir": False}])
+
+        async def adownload_files(self, paths):
+            return [SimpleNamespace(content=b"abc", error=None)]
+
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error="permission_denied")]
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/workspace/demo", runtime=_Runtime(Backend())
+        )
+    )
+    assert result["success"] is False
+    assert result["total_size"] == 0
+
+
+@pytest.mark.parametrize(
+    "error", [TimeoutError(), "SDK request timed out", "ReadTimeout", "deadline exceeded"]
+)
+async def test_classified_upload_timeout_does_not_replay_the_transfer(error):
+    from src.infra.backend.protocol_compat import classify_upload_error
+
+    class Backend:
+        calls = 0
+
+        async def aupload_files(self, files):
+            self.calls += 1
+            return [SimpleNamespace(error=classify_upload_error(error))]
+
+    backend = Backend()
+    result = await transfer_file_tool._upload_to_backend_with_retry(backend, "/skills/a.txt", b"a")
+    assert result == "timeout"
+    assert backend.calls == 1

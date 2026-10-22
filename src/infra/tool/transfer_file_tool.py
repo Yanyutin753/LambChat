@@ -252,6 +252,7 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
             return int(size) if size is not None else None
         except Exception as e:
             logger.debug(f"[transfer_file] aget_file_size failed for {file_path}: {e}")
+            return None
 
     sync_method = getattr(backend, "get_file_size", None)
     if callable(sync_method):
@@ -272,76 +273,43 @@ async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
     return None
 
 
-async def _download_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
-    """从 backend 下载文件内容"""
+async def _download_from_backend(backend: Any, file_path: str) -> bytes:
+    """选定一种下载入口；真实失败不得重放同一异步实现的同步桥接。"""
     if hasattr(backend, "adownload_files"):
-        try:
-            responses = await backend.adownload_files([file_path])
-            if responses:
-                resp = responses[0]
-                # 空文件（b""）是合法内容，不得误判为缺失落入同步 fallback
-                if resp.content is not None:
-                    return resp.content
-                if resp.error:
-                    logger.warning(f"[transfer_file] Download error for {file_path}: {resp.error}")
-        except Exception as e:
-            logger.warning(f"[transfer_file] adownload_files failed for {file_path}: {e}")
-
-    if hasattr(backend, "download_files"):
-        try:
-            responses = await run_long_blocking_io(backend.download_files, [file_path])
-            if responses:
-                resp = responses[0]
-                if resp.content is not None:
-                    return resp.content
-                if resp.error:
-                    logger.warning(f"[transfer_file] Download error for {file_path}: {resp.error}")
-        except Exception as e:
-            logger.warning(f"[transfer_file] download_files failed for {file_path}: {e}")
-
-    return None
+        responses = await backend.adownload_files([file_path])
+    elif hasattr(backend, "download_files"):
+        responses = await run_long_blocking_io(backend.download_files, [file_path])
+    else:
+        raise RuntimeError("backend does not support download_files")
+    if not responses:
+        raise RuntimeError("download returned no result")
+    response = responses[0]
+    if response.error:
+        raise RuntimeError(str(response.error))
+    if response.content is None:
+        raise RuntimeError("download returned no content")
+    return response.content
 
 
 async def _upload_to_backend(backend: Any, target_path: str, content: bytes) -> Optional[str]:
-    """上传文件到 backend，返回错误信息或 None"""
-    if hasattr(backend, "aupload_files"):
-        try:
+    """上传只选择一个入口；空结果不是成功，也不能触发同步重放。"""
+    try:
+        if hasattr(backend, "aupload_files"):
             responses = await backend.aupload_files([(target_path, content)])
-            if responses:
-                resp = responses[0]
-                if resp.error:
-                    return str(resp.error)
-                return None
-        except Exception as e:
-            return str(e)
-
-    if hasattr(backend, "upload_files"):
-        try:
+        elif hasattr(backend, "upload_files"):
             responses = await run_long_blocking_io(backend.upload_files, [(target_path, content)])
-            if responses:
-                resp = responses[0]
-                if resp.error:
-                    return str(resp.error)
-                return None
-        except Exception as e:
-            return str(e)
-
-    return "backend does not support upload_files"
+        else:
+            return "backend does not support upload_files"
+        if not responses:
+            return "upload returned no result"
+        return str(responses[0].error) if responses[0].error else None
+    except Exception as exc:
+        return str(exc) or type(exc).__name__
 
 
-# 确定性上传失败：重试只会原样再失败一轮，直接返回。其余（upload_failed/
-# io_error 或异常文本——中继/SDK 瞬时抖动）立即重试一次。
-_NON_RETRYABLE_UPLOAD_ERRORS = frozenset(
-    {
-        "permission_denied",
-        "is_directory",
-        "invalid_path",
-        "too_many_files",
-        "file_too_large",
-        "declined_by_user",
-        "file_not_found",
-        "backend does not support upload_files",
-    }
+# 仅重试已明确的瞬时 I/O 失败；超时和未知错误不能再等一整轮。
+_RETRYABLE_UPLOAD_ERRORS = frozenset(
+    {"upload_failed", "io_error", "stream_transport_failed", "stream_interrupted"}
 )
 
 
@@ -350,7 +318,7 @@ async def _upload_to_backend_with_retry(
 ) -> Optional[str]:
     """带单次重试的上传：瞬时失败立即重试（内容不变，幂等安全）。"""
     error = await _upload_to_backend(backend, target_path, content)
-    if error is None or error in _NON_RETRYABLE_UPLOAD_ERRORS:
+    if error not in _RETRYABLE_UPLOAD_ERRORS:
         return error
     logger.warning(f"[transfer] transient upload failure ({error}), retrying: {target_path}")
     return await _upload_to_backend(backend, target_path, content)
@@ -395,12 +363,13 @@ async def transfer_file(
             }
         )
 
-    content = await _download_from_backend(backend, source_path)
-    if content is None:
+    try:
+        content = await _download_from_backend(backend, source_path)
+    except Exception as exc:
         return await _json_dumps_result(
             {
                 "success": False,
-                "error": f"file not found or empty: {source_path}",
+                "error": str(exc) or type(exc).__name__,
                 "source": source_path,
             }
         )
@@ -470,7 +439,9 @@ async def _list_dir_files(
         if limit is not None and len(all_files) > limit:
             return
         if depth > MAX_RECURSION_DEPTH:
-            return
+            raise RuntimeError(
+                f"directory depth limit exceeded ({MAX_RECURSION_DEPTH}): {current_dir}"
+            )
         if current_dir in visited_dirs:
             return
         visited_dirs.add(current_dir)
@@ -638,9 +609,6 @@ async def transfer_path(
                 logger.warning(f"[transfer_path] Download failed for {file_path}: {e}")
                 return {"file": file_path, "status": "failed", "error": str(e)}
 
-            if content is None:
-                return {"file": file_path, "status": "skipped", "error": "file not found or empty"}
-
             # 文件校验
             validation_err = _validate_text_file(filename, content)
             if validation_err:
@@ -661,6 +629,8 @@ async def transfer_path(
             # 上传
             upload_err = await _upload_to_backend_with_retry(backend, target_path, content)
             if upload_err:
+                async with budget_lock:
+                    total_size -= len(content)
                 return {"file": file_path, "status": "failed", "error": upload_err}
             return {
                 "file": file_path,
@@ -678,6 +648,9 @@ async def transfer_path(
     skipped = 0
     failed = 0
     files_omitted = 0
+    # 预览截断时优先保留失败与跳过原因，避免一百条成功淹没后续缺失文件。
+    if len(file_records) > TRANSFER_PATH_RESULT_FILE_LIMIT:
+        file_records.sort(key=lambda record: record["status"] == "transferred")
     for record in file_records:
         status = record["status"]
         if status == "transferred":
@@ -696,7 +669,7 @@ async def transfer_path(
 
     return await _json_dumps_result(
         {
-            "success": failed == 0,
+            "success": failed == 0 and skipped == 0,
             "source_dir": source_dir,
             "target": target_base + "/",
             "transferred": transferred,

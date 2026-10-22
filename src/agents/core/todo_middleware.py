@@ -1,6 +1,10 @@
 """Shared Todo middleware configuration for user-facing Agents."""
 
+from typing import Any
+
 from langchain.agents.middleware import TodoListMiddleware
+from langchain.agents.middleware.todo import WriteTodosInput
+from pydantic import model_validator
 
 # Todo 触发指引的唯一系统级注入点：主 agent 与全部子代理的中间件栈都挂
 # 本中间件（见 test_todo_middleware_registration）；PROGRESS_POLICY 不再
@@ -26,11 +30,32 @@ TODO_TOOL_DESCRIPTION = (
     "items. Call it at most once per model turn; update the plan again when the\n"
     "phase changes. If the user explicitly asks for a plan or for this tool,\n"
     "always call it before doing the work.\n"
+    "Each item requires `content` (task text) and `status` "
+    "(`pending`, `in_progress`, or `completed`).\n"
 )
+
+
+class _CompatibleWriteTodosInput(WriteTodosInput):
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_description(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or not isinstance(value.get("todos"), list):
+            return value
+        return {
+            **value,
+            "todos": [
+                {**item, "content": item["description"]}
+                if isinstance(item, dict) and "content" not in item and "description" in item
+                else item
+                for item in value["todos"]
+            ],
+        }
 
 
 def create_todo_middleware() -> TodoListMiddleware:
     """Expose Todo state/tools with planning guidance that reaches every main agent."""
-    return TodoListMiddleware(
+    middleware = TodoListMiddleware(
         system_prompt=TODO_SYSTEM_PROMPT, tool_description=TODO_TOOL_DESCRIPTION
     )
+    middleware.tools[0].args_schema = _CompatibleWriteTodosInput
+    return middleware

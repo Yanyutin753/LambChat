@@ -381,7 +381,11 @@ async def _version_gate_message(response: httpx.Response) -> str | None:
 async def _raise_for_status(response: httpx.Response, context: str) -> None:
     if response.is_success:
         return
-    if response.status_code == 409 and context in {"post_result", "post_stream_result"}:
+    if response.status_code == 409 and context in {
+        "post_result",
+        "post_stream_result",
+        "get_stream",
+    }:
         with contextlib.suppress(ValueError):
             payload = response.json()
             detail = payload.get("detail") if isinstance(payload, dict) else None

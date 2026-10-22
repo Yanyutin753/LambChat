@@ -740,7 +740,7 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
                 self._files_write(path, content)
                 responses.append(FileUploadResponse(path=path, error=None))
             except Exception as e:
-                error_type = classify_upload_error(str(e))
+                error_type = classify_upload_error(e)
                 logger.error(f"Failed to upload {path}: {e}")
                 responses.append(FileUploadResponse(path=path, error=error_type))
         return responses
