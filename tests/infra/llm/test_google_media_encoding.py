@@ -2,13 +2,14 @@
 
 import base64
 import json
+from copy import deepcopy
 from io import BytesIO
 
 import httpx
 import pytest
 from google import genai
 from google.genai.types import HttpOptions
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from PIL import Image
 
 from src.infra.llm.google_chat import LambChatGoogleChatModel
@@ -56,9 +57,14 @@ async def test_google_media_uses_standard_base64_on_the_wire(entry):
             {"type": "image_url", "image_url": {"url": "data:image/png;base64," + encoded}},
         ]
     )
+    history = [
+        HumanMessage(content=f"history {i}") if i % 2 == 0 else AIMessage(content=f"reply {i}")
+        for i in range(39)
+    ]
+    message.content.append(deepcopy(message.content[1]))
     try:
         payload = model._prepare_request(
-            [message],
+            [*history, message],
             http_options={
                 "headers": {"X-Validation": "preserved"},
                 "extra_body": {"validationMarker": True},
@@ -75,7 +81,7 @@ async def test_google_media_uses_standard_base64_on_the_wire(entry):
             _ = [chunk async for chunk in stream]
         assert len(captured) == 1
         assert captured[0]["validationMarker"] is True
-        media = captured[0]["contents"][0]["parts"][1]["inlineData"]
+        media = captured[0]["contents"][39]["parts"][2]["inlineData"]
         assert media.get("mimeType", media.get("mime_type")) == "image/png"
         assert base64.b64decode(media["data"], validate=True) == raw
         assert media["data"] == encoded
