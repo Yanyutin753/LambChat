@@ -19,6 +19,11 @@ from pydantic import PrivateAttr
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
+from src.infra.tool import mcp_server_breaker
+from src.infra.tool.mcp_load_status import (  # noqa: F401
+    _format_load_error,
+    _schedule_status_write,
+)
 from src.infra.tool.mcp_schema_sanitizer import (  # noqa: F401
     _attach_sanitized_schema,
     _create_sanitized_model_class,
@@ -41,6 +46,16 @@ def _mcp_tool_timeout() -> float:
     default = 900.0
     try:
         timeout = float(getattr(settings, "MCP_TOOL_TIMEOUT", default))
+    except (TypeError, ValueError):
+        return default
+    return timeout if timeout > 0 else default
+
+
+def _mcp_server_load_timeout() -> float:
+    """单 server 工具加载超时（秒），settings.MCP_SERVER_LOAD_TIMEOUT 可覆盖；非法或 <=0 回落默认。"""
+    default = 30.0
+    try:
+        timeout = float(getattr(settings, "MCP_SERVER_LOAD_TIMEOUT", default))
     except (TypeError, ValueError):
         return default
     return timeout if timeout > 0 else default
@@ -530,7 +545,34 @@ class MCPClientManager:
         server_configs: dict[str, dict[str, Any]] = {}
         self._server_role_quotas.clear()
         self._server_tool_policies.clear()
+        # 熔断仅对数据库路径配置生效（config 带 mcp_system_server_names 标记，
+        # 由 get_effective_config 注入）；探测/文件/单 server 直连不启用，
+        # 保证重测与工具发现不受冷却限制。
+        breaker_scoped = "mcp_system_server_names" in config
+        system_names = set(config.get("mcp_system_server_names") or [])
+        breaker_keys: dict[str, str] = {}
+        breaker_scopes: dict[str, bool] = {}
+        skipped_servers: dict[str, str] = {}
         for server_name, server_config in list(mcp_servers.items())[:max_servers]:
+            if breaker_scoped:
+                is_system_server = server_name in system_names
+                key: Optional[str] = None
+                if is_system_server:
+                    key = f"sys:{server_name}"
+                elif self._user_id:
+                    key = f"user:{self._user_id}:{server_name}"
+                if key:
+                    skip_reason = mcp_server_breaker.acquire_load_slot(key)
+                    if skip_reason:
+                        skipped_servers[server_name] = skip_reason
+                        logger.info(
+                            "[MCP] Skipping load for server '%s': %s",
+                            server_name,
+                            skip_reason,
+                        )
+                        continue
+                    breaker_keys[server_name] = key
+                    breaker_scopes[server_name] = is_system_server
             transport = server_config.get("transport", "streamable_http")
             role_quotas = server_config.get("role_quotas") or {}
             self._server_role_quotas[server_name] = {
@@ -608,6 +650,19 @@ class MCPClientManager:
             len(server_names),
         )
 
+        async def _load_one(server_name: str) -> tuple[str, list[BaseTool] | Exception]:
+            # mcp SDK 请求级 read_timeout_seconds 默认 None，挂死型上游
+            # （TCP 通但不响应）会永久挂起 initialize/list_tools（issue #991 /
+            # python-sdk #2432），这里加外层预算；超时不重试，标记该 server 失败。
+            timeout = _mcp_server_load_timeout()
+            try:
+                return await asyncio.wait_for(_load_server_tools(server_name), timeout=timeout)
+            except asyncio.TimeoutError:
+                return (
+                    server_name,
+                    TimeoutError(f"tool list load timed out after {timeout}s"),
+                )
+
         async def _load_worker() -> None:
             nonlocal next_index
             while True:
@@ -616,7 +671,7 @@ class MCPClientManager:
                         return
                     server_name = server_names[next_index]
                     next_index += 1
-                results.append(await _load_server_tools(server_name))
+                results.append(await _load_one(server_name))
 
         await asyncio.gather(*(_load_worker() for _ in range(concurrency)))
 
@@ -631,17 +686,41 @@ class MCPClientManager:
         for server_name, result in results:
             if isinstance(result, Exception):
                 failed_servers.append(server_name)
-                error_msg = str(result)
+                error_msg = _format_load_error(result)
+                url = (server_configs.get(server_name) or {}).get("url") or "unknown-url"
                 if "ValidationError" in error_msg or "JSONRPCMessage" in error_msg:
                     logger.warning(
-                        f"[MCP] Server '{server_name}' returned invalid JSON-RPC response. "
-                        f"This server may not be MCP-compliant."
+                        f"[MCP] Server '{server_name}' ({url}) returned invalid JSON-RPC response. "
+                        f"This server may not be MCP-compliant. Detail:\n{error_msg}"
                     )
                 else:
                     logger.warning(
-                        f"[MCP] Failed to load tools from server '{server_name}': {result}"
+                        f"[MCP] Failed to load tools from server '{server_name}' ({url}). "
+                        f"Detail:\n{error_msg}"
                     )
+                key = breaker_keys.get(server_name)
+                if key:
+                    event = mcp_server_breaker.record_failure(key, error_msg[:500])
+                    if event is not None:
+                        _schedule_status_write(
+                            breaker_scopes[server_name],
+                            server_name,
+                            self._user_id,
+                            ok=False,
+                            error=event.error,
+                        )
             else:
+                key = breaker_keys.get(server_name)
+                if key:
+                    event = mcp_server_breaker.record_success(key)
+                    if event is not None and event.kind == "recovered":
+                        _schedule_status_write(
+                            breaker_scopes[server_name],
+                            server_name,
+                            self._user_id,
+                            ok=True,
+                            error=None,
+                        )
                 remaining = max_tools - len(all_tools)
                 if remaining <= 0:
                     logger.warning(
@@ -675,6 +754,8 @@ class MCPClientManager:
                 else:
                     logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
 
+        # 熔断跳过的 server 一并标记不可用（模型侧 unavailable 提示联动）
+        failed_servers.extend(skipped_servers)
         self.unavailable_server_names = tuple(sorted(failed_servers))
         if failed_servers:
             logger.warning(
