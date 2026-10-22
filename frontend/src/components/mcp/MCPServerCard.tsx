@@ -6,6 +6,7 @@ import {
   Edit3,
   Trash2,
   Wrench,
+  RotateCw,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MCPServerResponse } from "../../types";
@@ -18,6 +19,8 @@ interface MCPServerCardProps {
   onToggle: (name: string) => void;
   onEdit?: (server: MCPServerResponse) => void;
   onDelete?: (name: string, isSystem: boolean) => void;
+  onRetest?: (server: MCPServerResponse) => void;
+  retesting?: boolean;
   onClick?: () => void;
   toolCount?: number;
 }
@@ -34,6 +37,8 @@ export function MCPServerCard({
   onToggle,
   onEdit,
   onDelete,
+  onRetest,
+  retesting = false,
   onClick,
   toolCount,
 }: MCPServerCardProps) {
@@ -89,6 +94,21 @@ export function MCPServerCard({
               {t("mcp.card.disabled")}
             </span>
           )}
+          {server.enabled &&
+            !server.is_internal &&
+            server.last_load_status === "failed" && (
+              <span
+                className="scb__status-pill scb__status-pill--danger"
+                title={
+                  server.last_load_error ||
+                  t("mcp.card.loadFailedTooltip", {
+                    count: server.consecutive_failures ?? 0,
+                  })
+                }
+              >
+                {t("mcp.card.loadFailed")}
+              </span>
+            )}
         </>
       }
       extraContent={
@@ -124,6 +144,31 @@ export function MCPServerCard({
       ]}
       footer={
         <div className="flex items-center justify-end gap-2">
+          {onRetest && !server.is_internal && (
+            <Tooltip
+              content={
+                retesting ? t("mcp.card.retesting") : t("mcp.card.retest")
+              }
+            >
+              <button
+                type="button"
+                aria-label={t("mcp.card.retest")}
+                disabled={retesting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRetest(server);
+                }}
+                className="scb__action-btn scb__action-btn--ghost disabled:opacity-50"
+              >
+                <InteractiveIcon>
+                  <RotateCw
+                    size={16}
+                    className={retesting ? "animate-spin motion-reduce:animate-none" : undefined}
+                  />
+                </InteractiveIcon>
+              </button>
+            </Tooltip>
+          )}
           <Tooltip
             content={t(server.enabled ? "mcp.card.disable" : "mcp.card.enable")}
           >

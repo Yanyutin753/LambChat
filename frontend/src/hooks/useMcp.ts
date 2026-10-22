@@ -4,6 +4,7 @@ import { authFetch } from "../services/api/fetch";
 import { API_BASE } from "../services/api/config";
 import type {
   MCPServerResponse,
+  MCPServerRetestResponse,
   MCPServersResponse,
   MCPServerCreate,
   MCPServerUpdate,
@@ -199,6 +200,33 @@ export function useMCP(options?: { listParams?: MCPListParams }) {
     [fetchServers],
   );
 
+  // Retest one server connection; refreshes the list so the badge updates (issue #991)
+  const retestServer = useCallback(
+    async (
+      name: string,
+      isSystem = false,
+    ): Promise<MCPServerRetestResponse | null> => {
+      setError(null);
+      try {
+        const baseUrl = isSystem ? ADMIN_MCP_API_BASE : MCP_API_BASE;
+        const data: MCPServerRetestResponse = await authFetch(
+          `${baseUrl}/${encodeURIComponent(name)}/retest`,
+          { method: "POST" },
+        );
+        await fetchServers();
+        return data;
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : i18n.t("mcp.retestFailed", "重测连接失败"),
+        );
+        return null;
+      }
+    },
+    [fetchServers],
+  );
+
   // Import servers from JSON
   const importServers = useCallback(
     async (request: MCPImportRequest): Promise<MCPImportResponse | null> => {
@@ -327,6 +355,7 @@ export function useMCP(options?: { listParams?: MCPListParams }) {
     updateServer,
     deleteServer,
     toggleServer,
+    retestServer,
     importServers,
     exportServers,
     promoteServer,

@@ -23,6 +23,19 @@ export interface MCPServerResponse extends MCPServerBase {
   role_quotas: Record<string, MCPRoleQuota>;
   created_at?: string;
   updated_at?: string;
+  last_load_status?: "ok" | "failed" | null;
+  consecutive_failures?: number;
+  last_load_at?: string | null;
+  last_load_error?: string | null;
+}
+
+// MCP Server Retest Response (from API)
+export interface MCPServerRetestResponse {
+  server_name: string;
+  status: "ok" | "failed";
+  latency_ms: number;
+  tool_count: number;
+  error?: string | null;
 }
 
 export interface MCPRoleQuota {
