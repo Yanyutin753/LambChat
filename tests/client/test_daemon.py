@@ -1676,3 +1676,216 @@ async def test_download_stream_failure_reports_done_before_reconnect(tmp_path, f
         ("stream", {"stage": "ack"}),
         ("stream", {"stage": "done", "status": "error", "error": "stream_transport_failed"}),
     ]
+
+
+@pytest.mark.parametrize(
+    "op", ["fs_download_stream", "fs_upload_stream", "fs_download", "fs_upload"]
+)
+async def test_channel_overlaps_independent_transfers_with_bounded_inflight(
+    monkeypatch, tmp_path, op
+):
+    active = peak = 0
+    first_batch = asyncio.Event()
+    release = asyncio.Event()
+    seen = []
+
+    async def process(client, call, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        seen.append(call.call_id)
+        if active == 8:
+            first_batch.set()
+        try:
+            await release.wait()
+        finally:
+            active -= 1
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    calls = [
+        _call(str(i), op=op, payload={"cwd": "/workspace/s1", "path": f"{i}.bin"})
+        for i in range(20)
+    ]
+    task = asyncio.create_task(
+        daemon_module._handle_channel(
+            FakeClient(),
+            _aiter(calls),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+        )
+    )
+    try:
+        await asyncio.wait_for(first_batch.wait(), 1)
+        assert len(seen) == 8
+        release.set()
+        await asyncio.wait_for(task, 1)
+        assert peak == 8
+        assert len(seen) == 20
+    finally:
+        release.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("middle", ["exec", "cua_click", "fs_delete", "fs_read", "fs_edit"])
+async def test_channel_keeps_nontransfer_operations_as_ordering_barriers(
+    monkeypatch, tmp_path, middle
+):
+    events = []
+
+    async def process(client, call, **kwargs):
+        events.append(f"start:{call.call_id}")
+        await asyncio.sleep(0)
+        events.append(f"end:{call.call_id}")
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    calls = [
+        _call("first", op="fs_upload_stream", payload={"cwd": "/workspace/s1", "path": "a"}),
+        _call("barrier", op=middle),
+        _call("last", op="fs_download_stream", payload={"cwd": "/workspace/s1", "path": "b"}),
+    ]
+    await daemon_module._handle_channel(
+        FakeClient(),
+        _aiter(calls),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+    )
+    assert events == [
+        "start:first",
+        "end:first",
+        "start:barrier",
+        "end:barrier",
+        "start:last",
+        "end:last",
+    ]
+
+
+async def test_channel_serializes_same_resolved_file_and_duplicate_calls(monkeypatch, tmp_path):
+    (tmp_path / "s1").mkdir()
+    (tmp_path / "s1" / "alias").symlink_to(tmp_path / "s1" / "target")
+    events = []
+
+    async def process(client, call, **kwargs):
+        events.append(f"start:{call.call_id}")
+        await asyncio.sleep(0)
+        events.append(f"end:{call.call_id}")
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    calls = [
+        _call(str(i), op=op, payload={"cwd": "/workspace/s1", "path": path})
+        for i, (op, path) in enumerate(
+            [
+                ("fs_upload_stream", "target"),
+                ("fs_download_stream", "alias"),
+                ("fs_upload", "./target"),
+            ]
+        )
+    ]
+    await daemon_module._handle_channel(
+        FakeClient(),
+        _aiter(calls),
+        cfg=_cfg(data_root=tmp_path),
+        executor=FakeExecutor(),
+        auditor=MemoryAuditor(),
+    )
+    assert events == ["start:0", "end:0", "start:1", "end:1", "start:2", "end:2"]
+
+
+@pytest.mark.parametrize("error", [TransportError("lost reply"), TransportAuthError("expired PAT")])
+async def test_channel_transfer_failure_interrupts_idle_reader_and_cancels_peers(
+    monkeypatch, tmp_path, error
+):
+    cancelled = asyncio.Event()
+    peer_started = asyncio.Event()
+
+    async def process(client, call, **kwargs):
+        if call.call_id == "fail":
+            await peer_started.wait()
+            raise error
+        peer_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    async def calls():
+        for cid in ["fail", "peer"]:
+            yield _call(cid, op="fs_download_stream", payload={"cwd": "/workspace/s1", "path": cid})
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    with pytest.raises(type(error), match=str(error)):
+        await asyncio.wait_for(
+            daemon_module._handle_channel(
+                FakeClient(),
+                calls(),
+                cfg=_cfg(data_root=tmp_path),
+                executor=FakeExecutor(),
+                auditor=MemoryAuditor(),
+            ),
+            1,
+        )
+    assert cancelled.is_set()
+
+
+def test_dedupe_retains_active_transfer_during_fast_file_churn():
+    dedupe = daemon_module._CallDedupe(capacity=2)
+    dedupe._active.add("slow")
+    assert dedupe.remember("slow")
+    for i in range(30):
+        assert dedupe.remember(str(i))
+        dedupe.mark_terminal(str(i))
+    assert not dedupe.remember("slow")
+    assert len(dedupe._seen) == 2
+    dedupe._active.discard("slow")
+    for i in range(30, 34):
+        dedupe.remember(str(i))
+    assert "slow" not in dedupe._seen
+
+
+async def test_channel_cancellation_drains_transfers_and_releases_dedupe_pins(
+    monkeypatch, tmp_path
+):
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+    dedupe = daemon_module._CallDedupe()
+
+    async def process(client, call, **kwargs):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    call = _call("cancel", op="fs_upload_stream", payload={"cwd": "/workspace/s1", "path": "a"})
+    task = asyncio.create_task(
+        daemon_module._handle_channel(
+            FakeClient(),
+            _aiter([call]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=dedupe,
+        )
+    )
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert stopped.is_set()
+    assert not dedupe._active
+
+
+def test_hard_link_transfer_uses_ordering_barrier(tmp_path):
+    workspace = tmp_path / "s1"
+    workspace.mkdir()
+    (workspace / "original").write_bytes(b"shared")
+    os.link(workspace / "original", workspace / "alias")
+    call = _call(op="fs_upload", payload={"cwd": "/workspace/s1", "path": "alias"})
+    assert daemon_module._transfer_path(call, _cfg(data_root=tmp_path)) is None
