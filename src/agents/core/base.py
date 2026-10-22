@@ -603,6 +603,8 @@ class BaseGraphAgent(ABC):
                     }
                     await presenter.emit(goal_end_evt)
                 if terminal_error is None and agent_handoff is None:
+                    # Cancellation can arrive while final chunks and usage are being flushed.
+                    await BackgroundTaskManager.check_interrupt(presenter.run_id)
                     await presenter.emit(presenter.done())
 
             if agent_handoff is not None:

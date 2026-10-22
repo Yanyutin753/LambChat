@@ -51,6 +51,53 @@ class _TestAgent(base_module.BaseGraphAgent):
         return None
 
 
+@pytest.mark.parametrize("cancel_during", ["finalize", "usage"])
+async def test_cancel_during_final_flush_does_not_emit_success(monkeypatch, cancel_during) -> None:
+    cancelled = False
+
+    class FinishedGraph:
+        async def astream_events(self, *_args, **_kwargs):
+            yield {"event": "on_chat_model_end", "data": {"output": object()}}
+
+    class Processor:
+        def __init__(self, presenter, **_kwargs):
+            self.presenter = presenter
+
+        async def process_event(self, event):
+            pass
+
+        async def finalize(self):
+            nonlocal cancelled
+            cancelled = cancel_during == "finalize"
+
+        async def emit_token_usage(self, **_kwargs):
+            nonlocal cancelled
+            cancelled = cancelled or cancel_during == "usage"
+            await self.presenter.emit({"event": "token:usage", "data": {}})
+
+    async def check_interrupt(_run_id):
+        if cancelled:
+            raise TaskInterruptedError("cancelled during final flush")
+
+    monkeypatch.setattr(base_module, "AgentEventProcessor", Processor)
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt", check_interrupt
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast", lambda _: cancelled
+    )
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = FinishedGraph()
+    presenter = _FakePresenter()
+
+    with pytest.raises(TaskInterruptedError, match="cancelled during final flush"):
+        _ = [event async for event in agent._stream("hello", "s", "u", presenter=presenter)]
+
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage"]
+    assert not agent._stream_tasks
+
+
 @pytest.mark.asyncio
 async def test_producer_interrupt_survives_a_cleared_interrupt_flag(monkeypatch) -> None:
     from types import SimpleNamespace
