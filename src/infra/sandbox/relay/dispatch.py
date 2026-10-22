@@ -59,6 +59,7 @@ def _log_roundtrip(
 _STREAM_POLL_INTERVAL = 0.01
 # 文件流必须持续推进；独立于 exec 的总执行时限，不限制长工具。
 _STREAM_IDLE_TIMEOUT = 60.0
+_DISPATCH_RECONNECT_GRACE = 2.0
 
 #: 结果等待的阻塞读切片（秒）：BLPOP 主通道——滚动发布窗口内旧实例仍以
 #: SET（string）写 resp key，此时 BLPOP/LPOP 抛 WRONGTYPE（真 Redis 语义，
@@ -199,6 +200,23 @@ async def _pop_resp(redis, key: str, *, timeout: float | None = None):
         return raw
 
 
+async def _resolve_dispatch_target(
+    registry: SandboxClientRegistry, user_id: str, machine_id: str | None
+) -> str:
+    """Absorb brief SSE reconnect gaps before enqueueing; never replay a dispatched call."""
+    deadline = time.monotonic() + _DISPATCH_RECONNECT_GRACE
+    while True:
+        target = await registry.resolve_target(user_id, machine_id)
+        if target is not None:
+            return target
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            if machine_id:
+                raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
+            raise AppError(ErrorCode.DAEMON_OFFLINE)
+        await asyncio.sleep(min(0.1, remaining))
+
+
 async def dispatch_local_call(
     user_id: str,
     op: str,
@@ -219,14 +237,7 @@ async def dispatch_local_call(
             message="Computer control requires an explicitly selected machine",
         )
     registry = _registry()
-    if machine_id:
-        target = await registry.resolve_target(user_id, machine_id)
-        if target is None:
-            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
-    else:
-        target = await registry.resolve_target(user_id)
-        if target is None:
-            raise AppError(ErrorCode.DAEMON_OFFLINE)
+    target = await _resolve_dispatch_target(registry, user_id, machine_id)
     if op.startswith("cua_"):
         version = parse_daemon_version(await registry.machine_value(user_id, target))
         # Older daemons lack session-bound observations and password-field protection.
@@ -354,14 +365,7 @@ async def dispatch_local_stream(
     - ack 超时/总超时 → ``AppError(SANDBOX_TIMEOUT)``。
     """
     registry = _registry()
-    if machine_id:
-        target = await registry.resolve_target(user_id, machine_id)
-        if target is None:
-            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
-    else:
-        target = await registry.resolve_target(user_id)
-        if target is None:
-            raise AppError(ErrorCode.DAEMON_OFFLINE)
+    target = await _resolve_dispatch_target(registry, user_id, machine_id)
     await _require_stream_identity(registry, user_id, target)
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT)
     call_id = uuid.uuid4().hex
@@ -514,14 +518,7 @@ async def dispatch_local_stream_upload(
     降级/透出。
     """
     registry = _registry()
-    if machine_id:
-        target = await registry.resolve_target(user_id, machine_id)
-        if target is None:
-            raise AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": machine_id})
-    else:
-        target = await registry.resolve_target(user_id)
-        if target is None:
-            raise AppError(ErrorCode.DAEMON_OFFLINE)
+    target = await _resolve_dispatch_target(registry, user_id, machine_id)
     await _require_stream_identity(registry, user_id, target)
     exec_timeout = float(settings.SANDBOX_LOCAL_STREAM_TIMEOUT)
     call_id = uuid.uuid4().hex

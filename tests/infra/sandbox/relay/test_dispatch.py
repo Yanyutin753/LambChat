@@ -1,4 +1,4 @@
-"""dispatch 测试：正常往返、离线快速失败、ack 超时。"""
+"""dispatch 测试：正常往返、离线有界失败、ack 超时。"""
 
 import asyncio
 import json
@@ -116,12 +116,12 @@ async def test_roundtrip_ack_then_done(fake, monkeypatch):
     assert result["stdout"] == "hi"
 
 
-async def test_offline_fails_fast(fake, monkeypatch):
+async def test_offline_fails_before_enqueue(fake, monkeypatch):
     monkeypatch.setattr(dispatch_module, "_registry", lambda: _FakeRegistry(False))
     with pytest.raises(AppError) as exc:
         await dispatch_local_call("u1", "exec", {})
     assert exc.value.error_code == ErrorCode.DAEMON_OFFLINE
-    assert not fake.lists  # rpush 之前快速失败，不产生孤儿请求
+    assert not fake.lists  # rpush 之前失败，不产生孤儿请求
 
 
 async def test_exec_done_error_status_returns_command_outcome(fake, monkeypatch):
@@ -339,6 +339,96 @@ async def test_dispatch_selected_machine_offline_raises_machine_error(monkeypatc
     with pytest.raises(AppError) as exc_info:
         await dispatch_local_call("u1", "exec", {"command": "ls"}, machine_id="mac1")
     assert exc_info.value.error_code == ErrorCode.SANDBOX_MACHINE_OFFLINE
+
+
+async def _dispatch_probe(kind, machine_id):
+    if kind == "exec":
+        return await dispatch_local_call("u1", "exec", {}, machine_id=machine_id)
+    if kind == "download":
+        return await _collect_stream(
+            dispatch_module.dispatch_local_stream(
+                "u1", "fs_download_stream", {}, machine_id=machine_id
+            )
+        )
+    return await dispatch_module.dispatch_local_stream_upload(
+        "u1", {}, b"data", machine_id=machine_id
+    )
+
+
+@pytest.mark.parametrize("kind", ["exec", "download", "upload"])
+@pytest.mark.parametrize("machine_id", [None, "mac1"])
+async def test_dispatch_waits_for_reconnect_before_binding_once(
+    fake, monkeypatch, kind, machine_id
+):
+    registry = _MachinesFakeRegistry("mac1")
+    lookups = []
+    bindings = []
+
+    async def resolve(user_id, selected=None):
+        assert not bindings and not fake.lists and not fake.kv
+        lookups.append((user_id, selected))
+        return "mac1" if len(lookups) >= 3 else None
+
+    async def bind(redis, call_id, user_id, target, timeout):
+        bindings.append((user_id, target))
+        raise RuntimeError("ready to dispatch")
+
+    registry.resolve_target = resolve
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: registry)
+    monkeypatch.setattr(dispatch_module, "_bind_call", bind)
+    with pytest.raises(RuntimeError, match="ready to dispatch"):
+        await _dispatch_probe(kind, machine_id)
+
+    assert lookups == [("u1", machine_id)] * 3
+    assert bindings == [("u1", "mac1")]
+    assert not fake.lists
+
+
+@pytest.mark.parametrize("kind", ["exec", "download", "upload"])
+@pytest.mark.parametrize("machine_id", [None, "mac1"])
+async def test_dispatch_reconnect_wait_is_bounded_without_enqueue(
+    fake, monkeypatch, kind, machine_id
+):
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry(None))
+    monkeypatch.setattr(dispatch_module, "_DISPATCH_RECONNECT_GRACE", 0.02)
+
+    with pytest.raises(AppError) as error:
+        await asyncio.wait_for(_dispatch_probe(kind, machine_id), timeout=1)
+
+    assert error.value.error_code == (
+        ErrorCode.SANDBOX_MACHINE_OFFLINE if machine_id else ErrorCode.DAEMON_OFFLINE
+    )
+    assert error.value.args_data == ({"machine": machine_id} if machine_id else {})
+    assert not fake.lists and not fake.kv
+
+
+@pytest.mark.parametrize("kind", ["exec", "download", "upload"])
+async def test_dispatch_reconnect_wait_remains_cancellable_without_enqueue(fake, monkeypatch, kind):
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: _MachinesFakeRegistry(None))
+    task = asyncio.create_task(_dispatch_probe(kind, "mac1"))
+    await asyncio.sleep(0.01)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert not fake.lists and not fake.kv
+
+
+@pytest.mark.parametrize("error_type", [ConnectionError, TimeoutError])
+async def test_dispatch_does_not_mask_registry_connection_error(fake, monkeypatch, error_type):
+    registry = _MachinesFakeRegistry(None)
+
+    async def resolve(*args):
+        raise error_type("registry unavailable")
+
+    registry.resolve_target = resolve
+    monkeypatch.setattr(dispatch_module, "_registry", lambda: registry)
+
+    with pytest.raises(error_type, match="registry unavailable"):
+        await dispatch_local_call("u1", "exec", {}, machine_id="mac1")
+
+    assert not fake.lists and not fake.kv
 
 
 # ---------- dispatch_local_stream：流式 op 的请求下发与逐行消费 ----------
