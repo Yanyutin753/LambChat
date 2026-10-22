@@ -18,7 +18,12 @@ from src.api.deps import require_pat_only, require_pat_scope
 from src.infra.auth.pat import PATStorage
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames
-from src.infra.sandbox.relay.dispatch import dispatch_local_call
+from src.infra.sandbox.relay.dispatch import (
+    dispatch_local_call,
+)
+from src.infra.sandbox.relay.dispatch import (
+    validate_call_assignment as _validate_call_assignment,
+)
 from src.infra.sandbox.relay.presence import publish_presence
 from src.infra.sandbox.relay.registry import (
     SandboxClientRegistry,
@@ -307,18 +312,6 @@ class SandboxResultRequest(BaseModel):
     result: Optional[dict[str, Any]] = None
 
 
-async def _validate_call_assignment(redis, call_id: str, user_id: str, machine_id: str) -> None:
-    assigned = await redis.get(f"sandbox:callassign:{call_id}")
-    owner = await redis.get(f"sandbox:callowner:{call_id}")
-    if isinstance(assigned, bytes):
-        assigned = assigned.decode("utf-8")
-    if isinstance(owner, bytes):
-        owner = owner.decode("utf-8")
-    # Missing identity is permitted only for a call explicitly sent to legacy.
-    if owner != user_id or not assigned or assigned != (machine_id or "legacy"):
-        raise AppError(ErrorCode.SANDBOX_RESULT_MISMATCH, args={"machine": machine_id})
-
-
 @router.post("/results/{call_id}")
 async def sandbox_result(
     call_id: str,
@@ -386,21 +379,29 @@ async def sandbox_result_stream(
                 if total > _stream_total_max_bytes():
                     await _push_stream_error(redis, key, "sandbox_payload_too_large")
                     raise AppError(ErrorCode.SANDBOX_PAYLOAD_TOO_LARGE)
-                await _push_stream_frame(redis, key, _frames.encode_frame(ftype, payload))
+                if saw_eof:
+                    await _push_stream_error(redis, key, "stream_interrupted")
+                    raise AppError(ErrorCode.BAD_REQUEST)
                 if ftype == _frames.FRAME_EOF:
                     saw_eof = True
-                    return {"status": "ok"}
+                else:
+                    await _push_stream_frame(redis, key, _frames.encode_frame(ftype, payload))
     except AppError:
         raise
     except ValueError:
         # 帧超限（try_parse_frame 的载荷上限）：哨兵补齐后按 413 拒绝
         await _push_stream_error(redis, key, "sandbox_payload_too_large")
         raise AppError(ErrorCode.SANDBOX_PAYLOAD_TOO_LARGE) from None
-    except Exception:
-        # 坏流等：哨兵补齐（消费端立即出错，不挂到超时）后按中继失败上抛
-        await _push_stream_error(redis, key, "stream_interrupted")
+    except (Exception, asyncio.CancelledError):
+        # 包含滚动停机的取消：保留中断哨兵，让消费端及时结束等待。
+        await asyncio.shield(_push_stream_error(redis, key, "stream_interrupted"))
         raise
-    if not saw_eof:
+    if buffer:
+        await _push_stream_error(redis, key, "stream_interrupted")
+    elif saw_eof:
+        # HTTP body 读完才发布成功，不能把仍在途的传输提前提交。
+        await _push_stream_frame(redis, key, _frames.encode_frame(_frames.FRAME_EOF))
+    else:
         # body 结束但没有 eof 帧（daemon 断连/中途崩溃）
         await _push_stream_error(redis, key, "stream_interrupted")
     return {"status": "ok"}

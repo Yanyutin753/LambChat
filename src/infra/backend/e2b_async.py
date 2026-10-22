@@ -434,7 +434,7 @@ class E2BAsyncMixin:
                 await self._asdk("files.write", _write_one)
                 responses.append(FileUploadResponse(path=resolved, error=None))
             except Exception as e:
-                error_type = classify_upload_error(str(e))
+                error_type = classify_upload_error(e)
                 logger.error(f"Failed to upload {resolved}: {e}")
                 responses.append(FileUploadResponse(path=resolved, error=error_type))
         return responses

@@ -583,6 +583,14 @@ async def _process_stream_call(
     try:
         lines = handle_fs_stream(call.op, call.payload, cfg.data_root)
         await client.post_stream_result(call.call_id, lines, deadline_s=effective)
+    except (TransportError, httpx.TransportError):
+        # 回传失败也必须结束服务端等待；不重放已经执行的调用。
+        with contextlib.suppress(TransportError, httpx.TransportError):
+            await client.post_result(
+                call.call_id,
+                {"stage": "done", "status": "error", "error": "stream_transport_failed"},
+            )
+        raise
     except ExecutorError as exc:
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}

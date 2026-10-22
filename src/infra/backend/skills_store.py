@@ -451,13 +451,6 @@ class SkillsStoreBackend(BackendProtocol):
         if not groups:
             return results
 
-        skill_keys: list[tuple[str, str]] = []
-        for skill_name in groups:
-            if skill_name == "__invalid__":
-                continue
-            skill_keys.append((skill_name, self._user_id))
-        files_map = await storage.batch_get_skill_files(skill_keys)
-
         for skill_name, items in groups.items():
             if skill_name == "__invalid__":
                 for path, _ in items:
@@ -475,18 +468,19 @@ class SkillsStoreBackend(BackendProtocol):
                     )
                 continue
 
-            files = files_map.get((skill_name, self._user_id), {})
-
             for original_path, file_name in items:
-                if not files or file_name not in files:
+                content = (
+                    None
+                    if file_name == "__meta__"
+                    else await storage.get_skill_file(skill_name, file_name, self._user_id)
+                )
+                if content is None:
                     results.append(
                         FileDownloadResponse(
                             path=original_path, content=None, error="file_not_found"
                         )
                     )
                     continue
-
-                content = files[file_name]
 
                 binary_ref = parse_binary_ref(content)
                 if binary_ref:

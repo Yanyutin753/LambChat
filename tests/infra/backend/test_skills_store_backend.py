@@ -460,6 +460,47 @@ async def test_skills_store_backend_download_files_rejects_too_many_paths(monkey
     ]
 
 
+async def test_skills_store_backend_downloads_explicit_file_beyond_bulk_view_limit() -> None:
+    class _BoundedStorage(_FakeSkillStorage):
+        async def batch_get_skill_files(self, skill_keys: list[tuple[str, str]]) -> dict:
+            raise AssertionError("explicit downloads must not load the entire skill")
+
+    storage = _BoundedStorage()
+    storage.files["visible"] = {f"file-{i:03}.txt": f"content {i}" for i in range(128)}
+    backend = SkillsStoreBackend(user_id="user-1")
+    backend._storage = storage
+
+    responses = await backend.adownload_files(["/skills/visible/file-127.txt"])
+
+    assert _field(responses[0], "error") is None
+    assert _field(responses[0], "content") == b"content 127"
+
+
+async def test_skills_store_backend_download_does_not_expose_internal_metadata() -> None:
+    class _StorageShouldNotLoadMetadata(_FakeSkillStorage):
+        async def get_skill_file(self, *args):
+            raise AssertionError("internal metadata must not be fetched")
+
+    backend = SkillsStoreBackend(user_id="user-1")
+    backend._storage = _StorageShouldNotLoadMetadata()
+    responses = await backend.adownload_files(["/skills/visible/__meta__"])
+
+    assert _field(responses[0], "error") == "file_not_found"
+
+
+async def test_skills_store_backend_exact_download_still_hides_disabled_skill() -> None:
+    class _StorageShouldNotLoadHiddenFile(_FakeSkillStorage):
+        async def get_skill_file(self, *args):
+            raise AssertionError("disabled skill files must not be fetched")
+
+    backend = SkillsStoreBackend(user_id="user-1", disabled_skills=["hidden"])
+    backend._storage = _StorageShouldNotLoadHiddenFile()
+
+    responses = await backend.adownload_files(["/skills/hidden/notes.txt"])
+
+    assert _field(responses[0], "error") == "file_not_found"
+
+
 async def test_skills_store_backend_download_files_spools_binary_ref(monkeypatch) -> None:
     class _FakeBinarySkillStorage(_FakeSkillStorage):
         def __init__(self) -> None:
