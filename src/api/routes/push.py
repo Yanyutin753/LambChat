@@ -59,6 +59,15 @@ async def unsubscribe_push(
     return {"status": "unsubscribed", "deleted": deleted}
 
 
+@router.post("/subscription-status")
+async def subscription_status(
+    data: UnsubscribeRequest,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager=Depends(get_push_manager),
+) -> dict:
+    return {"registered": await manager.has_subscription(user.sub, data.endpoint)}
+
+
 @router.delete("/subscriptions")
 async def delete_all_subscriptions(
     user: TokenPayload = Depends(get_current_user_required),

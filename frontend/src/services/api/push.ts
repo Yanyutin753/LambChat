@@ -17,6 +17,21 @@ export interface PushSubscriptionResponse {
 }
 
 export const pushApi = {
+  async getSubscriptionStatus(
+    endpoint: string,
+  ): Promise<{ registered: boolean }> {
+    try {
+      return await authFetch(`${API_BASE}/api/push/subscription-status`, {
+        method: "POST",
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch (error) {
+      if ((error as { status?: number })?.status === 404)
+        return { registered: true };
+      throw error;
+    }
+  },
+
   /** Get VAPID public key (no auth required) */
   async getVapidPublicKey(): Promise<string> {
     const resp = await authFetch<{ public_key: string }>(

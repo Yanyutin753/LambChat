@@ -329,7 +329,10 @@ async def list_memories(
         }
         memories.append(memory)
 
-    return {"memories": memories, "total": total}
+    result: dict[str, Any] = {"memories": memories, "total": total}
+    if search_status := getattr(backend, "search_status", None):
+        result["search_status"] = search_status
+    return result
 
 
 @router.post("/")

@@ -162,12 +162,18 @@ def record_failure(key: str, error: Optional[str] = None) -> Optional[BreakerEve
     return None
 
 
+def release_load_slot(key: str) -> None:
+    state = _states.get(key)
+    if state is not None and state.status == "half_open":
+        state.probe_taken = False
+
+
 def record_success(key: str) -> Optional[BreakerEvent]:
     """记录一次加载成功；从 open/half-open 恢复到 closed 时返回迁移事件。"""
     state = _states.get(key)
     if state is None:
         return None
-    if state.status != "closed":
+    if state.status != "closed" or state.consecutive_failures:
         state.status = "closed"
         state.streak = 0
         state.consecutive_failures = 0

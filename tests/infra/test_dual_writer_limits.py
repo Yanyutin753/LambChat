@@ -405,12 +405,14 @@ async def test_flush_mongo_buffer_cancels_delayed_flush_before_task_starts(
     async def _write_to_redis_direct(stream_key: str, fields: dict[str, str]) -> bool:
         return True
 
-    async def _fake_do_flush() -> None:
+    async def _fake_do_flush():
         nonlocal flush_calls
         flush_calls += 1
         async with writer._mongo_lock:
+            required = list(writer._mongo_buffer)
             writer._mongo_buffer = []
         writer._flush_event.set()
+        return required
 
     writer._write_to_redis_direct = _write_to_redis_direct  # type: ignore[method-assign]
     writer._do_flush = _fake_do_flush  # type: ignore[method-assign]
@@ -998,8 +1000,9 @@ async def test_flush_mongo_buffer_can_require_only_current_trace_to_be_durable()
     writer = dual_writer.DualEventWriter()
     writer._mongo_buffer = [current_event, other_event]
 
-    async def _flush_current_and_requeue_other() -> None:
+    async def _flush_current_and_requeue_other():
         writer._mongo_buffer = [other_event]
+        return [current_event, other_event]
 
     writer._do_flush = _flush_current_and_requeue_other  # type: ignore[method-assign]
 

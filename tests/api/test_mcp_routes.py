@@ -376,7 +376,9 @@ async def test_user_retest_server_persists_status_and_returns_payload() -> None:
         def __init__(self) -> None:
             self.status_writes: list[dict] = []
 
-        async def probe_server_connection(self, name, user_id, user_roles=None, is_admin=False):
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
             assert name == "my-server"
             assert user_id == "user-1"
             return (True, 412, 3, None, "user")
@@ -413,7 +415,9 @@ async def test_user_retest_server_failure_still_returns_200_with_error() -> None
         def __init__(self) -> None:
             self.status_writes: list[dict] = []
 
-        async def probe_server_connection(self, name, user_id, user_roles=None, is_admin=False):
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
             return (False, 1500, 0, "OSError: connection refused", "system")
 
         async def update_system_server_load_status(self, name, *, ok, error=None):
@@ -441,7 +445,9 @@ async def test_user_retest_server_failure_still_returns_200_with_error() -> None
 @pytest.mark.asyncio
 async def test_retest_unknown_server_returns_404() -> None:
     class _FakeStorage:
-        async def probe_server_connection(self, name, user_id, user_roles=None, is_admin=False):
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
             return (False, 0, 0, None, None)
 
     app = FastAPI()
@@ -461,8 +467,10 @@ async def test_retest_unknown_server_returns_404() -> None:
 @pytest.mark.asyncio
 async def test_admin_retest_uses_admin_router() -> None:
     class _FakeStorage:
-        async def probe_server_connection(self, name, user_id, user_roles=None, is_admin=False):
-            assert is_admin is True
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
+            assert is_admin is True and system_only is True
             return (True, 50, 1, None, "system")
 
         async def update_system_server_load_status(self, name, *, ok, error=None):

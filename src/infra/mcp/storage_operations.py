@@ -796,6 +796,7 @@ class StorageOperations:
         user_id: str,
         user_roles: list[str] | None = None,
         is_admin: bool = False,
+        system_only: bool = False,
     ) -> tuple[bool, int, int, Optional[str], Optional[str]]:
         """Direct-connect probe of one MCP server (issue #991).
 
@@ -808,12 +809,12 @@ class StorageOperations:
         from src.infra.tool.mcp_load_status import _format_load_error
 
         manager = None
+        server: UserMCPServer | SystemMCPServer | None = None
         started = time.monotonic()
         scope: Optional[str] = None
         try:
-            server: UserMCPServer | SystemMCPServer | None = await self.get_user_server(
-                server_name, user_id
-            )
+            if not system_only:
+                server = await self.get_user_server(server_name, user_id)
             scope = "user" if server else None
             if not server:
                 server = await self.get_system_server(server_name)
@@ -833,13 +834,22 @@ class StorageOperations:
             config = {"mcpServers": {server_name: config_dict}}
             await manager._initialize_with_config(config)
             latency_ms = int((time.monotonic() - started) * 1000)
+            if server_name in manager.unavailable_server_names:
+                return (
+                    False,
+                    latency_ms,
+                    0,
+                    getattr(manager, "server_load_errors", {}).get(
+                        server_name, "MCP tool list could not be loaded"
+                    ),
+                    scope,
+                )
             return True, latency_ms, len(manager._tools or []), None, scope
         except Exception as e:
             latency_ms = int((time.monotonic() - started) * 1000)
-            get_logger(__name__).error(
-                f"[MCP] Retest failed for server '{server_name}': {_format_load_error(e)}"
-            )
-            return False, latency_ms, 0, _format_load_error(e), scope
+            error = _format_load_error(e, tuple((server.headers or {}).values()) if server else ())
+            get_logger(__name__).error(f"[MCP] Retest failed for server '{server_name}': {error}")
+            return False, latency_ms, 0, error, scope
         finally:
             if manager:
                 await manager.close()

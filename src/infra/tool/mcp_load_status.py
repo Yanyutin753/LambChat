@@ -3,14 +3,16 @@
 从 mcp_client.py 拆出以遵守后端单文件 1000 行上限（拆分先例见
 mcp_schema_sanitizer）。包含：
 - _format_load_error：递归展开 ExceptionGroup 的加载失败日志文本
-- _persist_load_status / _schedule_status_write：熔断状态迁移的
+- _persist_load_status / _schedule_status_write：加载失败及恢复的
   fire-and-forget 落库（面板徽标数据源）
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Optional
+from urllib.parse import urlsplit
 
 from src.infra.logging import get_logger
 
@@ -20,7 +22,15 @@ logger = get_logger(__name__)
 _status_write_tasks: set["asyncio.Task[None]"] = set()
 
 
-def _format_load_error(exc: BaseException) -> str:
+def _safe_load_url(url: str) -> str:
+    try:
+        parsed = urlsplit(url)
+        return f"{parsed.scheme}://{parsed.hostname}" if parsed.hostname else "[redacted URL]"
+    except ValueError:
+        return "[redacted URL]"
+
+
+def _format_load_error(exc: BaseException, secrets: tuple[str, ...] = ()) -> str:
     """展开加载失败的异常链（含 ExceptionGroup 的全部子异常）。
 
     asyncio TaskGroup 把真实错误包进 ExceptionGroup，str() 只显示
@@ -38,7 +48,12 @@ def _format_load_error(exc: BaseException) -> str:
             parts.append("  " * depth + f"{type(err).__name__}: {err}")
 
     _walk(exc, 0)
-    return "\n".join(parts)
+    text = "\n".join(parts)
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, "[REDACTED]")
+    text = re.sub(r"https?://[^\s'\"<>]+", lambda m: _safe_load_url(m.group()), text)
+    return text[:1000]
 
 
 async def _persist_load_status(

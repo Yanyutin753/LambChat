@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pymongo import ReturnDocument
+
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import utc_now
@@ -39,6 +41,7 @@ class PushSubscriptionStorage:
             "keys": data["keys"],
             "user_agent": user_agent,
             "created_at": now,
+            "bad_request_count": 0,
         }
         # Upsert: if endpoint already exists under a different user, replace it
         await self.collection.update_one(
@@ -66,11 +69,31 @@ class PushSubscriptionStorage:
             items.append(PushSubscription.model_validate(doc))
         return items
 
+    async def has_subscription(self, user_id: str, endpoint: str) -> bool:
+        return bool(
+            await self.collection.find_one({"user_id": user_id, "endpoint": endpoint}, {"_id": 1})
+        )
+
     async def touch_last_used(self, endpoint: str) -> None:
         await self.collection.update_one(
             {"endpoint": endpoint},
-            {"$set": {"last_used_at": utc_now()}},
+            {"$set": {"last_used_at": utc_now(), "bad_request_count": 0}},
         )
+
+    async def record_bad_request(self, subscription: PushSubscription) -> bool:
+        identity = {
+            "endpoint": subscription.endpoint,
+            "user_id": subscription.user_id,
+            "keys": subscription.keys.model_dump(),
+            "created_at": subscription.created_at,
+        }
+        record = await self.collection.find_one_and_update(
+            identity, {"$inc": {"bad_request_count": 1}}, return_document=ReturnDocument.AFTER
+        )
+        if not record or record.get("bad_request_count", 0) < 2:
+            return False
+        result = await self.collection.delete_one({**identity, "bad_request_count": {"$gte": 2}})
+        return result.deleted_count > 0
 
     async def delete_expired(self, days: int = 90) -> int:
         from datetime import timedelta

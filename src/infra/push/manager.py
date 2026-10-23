@@ -26,6 +26,9 @@ class PushManager:
     async def remove_all_for_user(self, user_id: str) -> int:
         return await self.storage.delete_by_user(user_id)
 
+    async def has_subscription(self, user_id: str, endpoint: str) -> bool:
+        return await self.storage.has_subscription(user_id, endpoint)
+
     async def send_push_to_user(self, user_id: str, payload: dict) -> int:
         """Send Web Push notification to all of user's subscriptions. Returns delivered count."""
         if not settings.VAPID_PUBLIC_KEY or not settings.VAPID_PRIVATE_KEY:
@@ -66,7 +69,13 @@ class PushManager:
                 status_code = getattr(e, "status_code", None) or getattr(
                     response, "status_code", None
                 )
-                if status_code in (404, 410):
+                if status_code == 400:
+                    removed = await self.storage.record_bad_request(sub)
+                    logger.info(
+                        "Push subscription rejected (HTTP 400), retired_after_repeated_rejection=%s",
+                        removed,
+                    )
+                elif status_code in (404, 410):
                     # Subscription expired or revoked
                     logger.info(
                         "Push subscription gone (HTTP %s), removing stored subscription",

@@ -80,6 +80,11 @@ class NativeMemoryBackend(MemoryBackend):
         self._logger = logger
         # In-memory cache for memory index: {(user_id, project_id): (built_at, index_str)}
         self._index_cache: dict[tuple[str, str], tuple[float, str]] = {}
+        self.search_status = {
+            "vector_backend": "disabled",
+            "mongodb_index": "not_requested",
+            "fallback": "text",
+        }
 
     @property
     def name(self) -> str:
@@ -887,18 +892,36 @@ class NativeMemoryBackend(MemoryBackend):
             logger.warning(f"[NativeMemory] Scope index creation skipped: {e}")
 
     async def _maybe_create_vector_index(self) -> None:
-        """Best-effort 创建 vectorSearch 索引（MongoDB 8.2+ 社区版内置）。
-
-        未配置 embedding 或服务器无 mongot 时静默跳过——检索侧已有
-        Python 余弦兜底（search.vector_search fallback）。
-        """
+        """按配置初始化向量索引；Mongo 不支持时保留 Python 余弦兜底。"""
         if self._embedding_fn is None:
+            return
+        from src.infra.memory.client.native.vector_store import vector_backend_enabled
+
+        self.search_status = {
+            "vector_backend": "qdrant" if vector_backend_enabled() else "mongo",
+            "mongodb_index": "not_required",
+            "fallback": "cosine",
+        }
+        if vector_backend_enabled():
+            logger.info(
+                "[NativeMemory] vector_backend=qdrant mongodb_index=not_required fallback=cosine"
+            )
             return
         try:
             sync_col = get_mongo_sync_client()[settings.MONGODB_DB][COLLECTION_NAME]
             await run_long_blocking_io(self._create_vector_index_sync, sync_col)
+            self.search_status["mongodb_index"] = "requested"
         except Exception as e:
-            logger.warning(f"[NativeMemory] Vector index setup skipped: {e}")
+            self.search_status["mongodb_index"] = "unavailable"
+            if getattr(e, "code", None) in (31082, 59):
+                logger.info(
+                    "[NativeMemory] Mongo search unavailable; vector_backend=mongo fallback=cosine"
+                )
+            else:
+                logger.warning(
+                    "[NativeMemory] Mongo vector index unavailable; fallback=cosine error_type=%s",
+                    type(e).__name__,
+                )
 
     @staticmethod
     def _create_vector_index_sync(col: Any) -> None:
