@@ -151,6 +151,26 @@ class MCPServerResponse(MCPServerBase):
     )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    last_load_status: Optional[str] = Field(
+        None,
+        description="Latest tool-load probe status: 'ok' or 'failed' (issue #991)",
+    )
+    consecutive_failures: int = Field(
+        0,
+        description="Consecutive failed tool loads; reset to 0 on success",
+    )
+    last_load_at: Optional[str] = Field(None, description="Last probe timestamp (ISO)")
+    last_load_error: Optional[str] = Field(None, description="Last probe error detail (truncated)")
+
+
+class MCPServerRetestResponse(BaseModel):
+    """Response after retesting an MCP server connection (issue #991)"""
+
+    server_name: str
+    status: str = Field(..., description="'ok' or 'failed'")
+    latency_ms: int = Field(0, description="Probe round-trip in milliseconds")
+    tool_count: int = Field(0, description="Number of tools discovered during probe")
+    error: Optional[str] = Field(None, description="Error detail when status is 'failed'")
 
 
 class MCPServersResponse(BaseModel):

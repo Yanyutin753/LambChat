@@ -1,6 +1,7 @@
 """MCP storage combined operations, import/export, promote/demote, and tool discovery."""
 
 import copy
+import time
 from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.async_utils import run_blocking_io
@@ -315,7 +316,12 @@ class StorageOperations:
             f"[MCP] Effective config for user {user_id}: {list(result.keys())} servers enabled"
         )
 
-        return {"mcpServers": result}
+        # 作用域标记：熔断按 sys:/user: 前缀区分同名 server（issue #991）。
+        # key 存在即表示数据库路径配置，直接 config（探测/文件）不启用熔断。
+        return {
+            "mcpServers": result,
+            "mcp_system_server_names": list(system_servers),
+        }
 
     async def get_visible_servers(  # type: ignore[misc]
         self: "MCPStorage",
@@ -724,3 +730,125 @@ class StorageOperations:
             servers[doc["name"]] = config
 
         return {"mcpServers": servers}
+
+    async def update_system_server_load_status(  # type: ignore[misc]
+        self: "MCPStorage", server_name: str, *, ok: bool, error: str | None = None
+    ) -> bool:
+        """Record the latest tool-load probe outcome for a system server (issue #991).
+
+        Small-granularity status write: deliberately does NOT invalidate the
+        effective-config cache — status fields never affect the tool catalog.
+        Failure increments consecutive_failures atomically; success resets it.
+        """
+        collection = self._get_system_collection()
+        now = utc_now_iso()
+        if ok:
+            update: dict[str, Any] = {
+                "$set": {
+                    "last_load_status": "ok",
+                    "last_load_at": now,
+                    "last_load_error": None,
+                    "consecutive_failures": 0,
+                }
+            }
+        else:
+            update = {
+                "$set": {
+                    "last_load_status": "failed",
+                    "last_load_at": now,
+                    "last_load_error": (error or "")[:500] or None,
+                },
+                "$inc": {"consecutive_failures": 1},
+            }
+        result = await collection.update_one({"name": server_name}, update)
+        return bool(result.matched_count)
+
+    async def update_user_server_load_status(  # type: ignore[misc]
+        self: "MCPStorage", server_name: str, user_id: str, *, ok: bool, error: str | None = None
+    ) -> bool:
+        """Record the latest tool-load probe outcome for a user-owned server (issue #991)."""
+        collection = self._get_user_collection()
+        now = utc_now_iso()
+        if ok:
+            update: dict[str, Any] = {
+                "$set": {
+                    "last_load_status": "ok",
+                    "last_load_at": now,
+                    "last_load_error": None,
+                    "consecutive_failures": 0,
+                }
+            }
+        else:
+            update = {
+                "$set": {
+                    "last_load_status": "failed",
+                    "last_load_at": now,
+                    "last_load_error": (error or "")[:500] or None,
+                },
+                "$inc": {"consecutive_failures": 1},
+            }
+        result = await collection.update_one({"name": server_name, "user_id": user_id}, update)
+        return bool(result.matched_count)
+
+    async def probe_server_connection(  # type: ignore[misc]
+        self: "MCPStorage",
+        server_name: str,
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+    ) -> tuple[bool, int, int, Optional[str], Optional[str]]:
+        """Direct-connect probe of one MCP server (issue #991).
+
+        Connects without cache and lists raw tools to measure reachability.
+        Returns (ok, latency_ms, tool_count, error, scope) where scope is
+        "user" | "system" | None (not found / no access). The per-server load
+        timeout bounds the probe; a hung upstream cannot pin the request.
+        """
+        from src.infra.tool.mcp_client import MCPClientManager
+        from src.infra.tool.mcp_load_status import _format_load_error
+
+        manager = None
+        started = time.monotonic()
+        scope: Optional[str] = None
+        try:
+            server: UserMCPServer | SystemMCPServer | None = await self.get_user_server(
+                server_name, user_id
+            )
+            scope = "user" if server else None
+            if not server:
+                server = await self.get_system_server(server_name)
+                if server and not _can_access_system_server(
+                    getattr(server, "allowed_roles", []),
+                    user_roles,
+                    is_admin=is_admin,
+                ):
+                    return False, 0, 0, f"Server '{server_name}' not found", None
+                if server:
+                    scope = "system"
+            if not server:
+                return False, 0, 0, f"Server '{server_name}' not found", None
+
+            manager = MCPClientManager(use_database=False)
+            config_dict = self._server_to_config_dict_static(server)
+            config = {"mcpServers": {server_name: config_dict}}
+            await manager._initialize_with_config(config)
+            latency_ms = int((time.monotonic() - started) * 1000)
+            return True, latency_ms, len(manager._tools or []), None, scope
+        except Exception as e:
+            latency_ms = int((time.monotonic() - started) * 1000)
+            get_logger(__name__).error(
+                f"[MCP] Retest failed for server '{server_name}': {_format_load_error(e)}"
+            )
+            return False, latency_ms, 0, _format_load_error(e), scope
+        finally:
+            if manager:
+                await manager.close()
+
+    def _server_to_config_dict_static(self, server) -> dict[str, Any]:
+        """Convert a server object to config dict (static method style)"""
+        result = {"transport": server.transport.value}
+        if server.url:
+            result["url"] = server.url
+        if server.headers:
+            result["headers"] = server.headers
+        return result

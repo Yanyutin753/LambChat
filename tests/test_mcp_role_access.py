@@ -195,7 +195,8 @@ async def test_legacy_sandbox_servers_are_hidden_from_runtime_reads() -> None:
     effective_config = await storage.get_effective_config("user-1")
 
     assert visible_servers == []
-    assert effective_config == {"mcpServers": {}}
+    # mcp_system_server_names 是熔断作用域标记（issue #991），空配置同样携带
+    assert effective_config == {"mcpServers": {}, "mcp_system_server_names": []}
 
 
 @pytest.mark.asyncio

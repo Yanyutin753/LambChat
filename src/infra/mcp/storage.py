@@ -516,15 +516,6 @@ class MCPStorage(StorageOperations):
             if manager:
                 await manager.close()
 
-    def _server_to_config_dict_static(self, server) -> dict[str, Any]:
-        """Convert a server object to config dict (static method style)"""
-        result = {"transport": server.transport.value}
-        if server.url:
-            result["url"] = server.url
-        if server.headers:
-            result["headers"] = server.headers
-        return result
-
     async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
         """
         Get user's tool-level preferences.
@@ -918,11 +909,14 @@ class MCPStorage(StorageOperations):
         # Convert datetime to ISO string if needed
         created_at = doc_copy.get("created_at")
         updated_at = doc_copy.get("updated_at")
+        last_load_at = doc_copy.get("last_load_at")
 
         if created_at and hasattr(created_at, "isoformat"):
             created_at = to_iso(created_at)
         if updated_at and hasattr(updated_at, "isoformat"):
             updated_at = to_iso(updated_at)
+        if last_load_at and hasattr(last_load_at, "isoformat"):
+            last_load_at = to_iso(last_load_at)
 
         return MCPServerResponse(
             name=doc_copy["name"],
@@ -939,6 +933,10 @@ class MCPStorage(StorageOperations):
             role_quotas=doc_copy.get("role_quotas", {}),
             created_at=created_at,
             updated_at=updated_at,
+            last_load_status=doc_copy.get("last_load_status"),
+            consecutive_failures=int(doc_copy.get("consecutive_failures", 0) or 0),
+            last_load_at=last_load_at,
+            last_load_error=doc_copy.get("last_load_error"),
         )
 
     def _doc_to_config_dict(

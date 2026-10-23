@@ -114,6 +114,16 @@ class Settings(BaseSettings):
     # 单次工具调用超时（秒）。识图等 vision 调用可持续生成 5 分钟以上，
     # 300s 会掐断健康长调用且三次重试全部作废（2026-10-08 生产事故）。
     MCP_TOOL_TIMEOUT: int = 900
+    # 单个 MCP server 工具加载（initialize + list_tools）总超时（秒）。
+    # mcp SDK 的请求级 read_timeout_seconds 默认 None，挂死型上游（TCP 通
+    # 但不响应）会永久挂起加载协程（issue #991 / python-sdk #2432）。
+    # 只作用于加载路径，不影响 MCP_TOOL_TIMEOUT 管的工具调用。
+    MCP_SERVER_LOAD_TIMEOUT: int = 30
+    # MCP server 加载熔断（issue #991）：连续失败达到阈值后跳过该 server
+    # 的加载，冷却到期后放行单次探测，成功闭合。阈值设得极大即事实关闭。
+    MCP_BREAKER_FAILURE_THRESHOLD: int = 3
+    MCP_BREAKER_COOLDOWN_SECONDS: int = 60
+    MCP_BREAKER_COOLDOWN_MAX_SECONDS: int = 1800
     MCP_GLOBAL_CACHE_TTL_SECONDS: int = 900
     MCP_GLOBAL_MAX_ENTRIES: int = 100
     MCP_GLOBAL_INIT_WAIT_SECONDS: int = 5
