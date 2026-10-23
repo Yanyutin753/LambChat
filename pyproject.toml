@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.16.0",
     "python-multipart>=0.0.32",
     "Pillow>=12.3.0",
+    "defusedxml>=0.7.1",
     # LangChain Ecosystem
     "langchain>=1.4.6",
     "langchain-core>=1.6.10",

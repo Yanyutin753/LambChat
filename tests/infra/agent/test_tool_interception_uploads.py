@@ -10,8 +10,15 @@ from typing import Any
 
 import pytest
 from langchain_core.messages import ToolMessage
+from PIL import Image
 
 from src.infra.agent.middleware import tool_interception
+
+
+def _png_bytes() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (2, 2), "red").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 class _TrackableBytes(bytearray):
@@ -221,7 +228,7 @@ async def test_read_file_binary_upload_uses_file_stream(monkeypatch: pytest.Monk
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
             assert paths == ["/workspace/chart.png"]
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
@@ -264,8 +271,8 @@ async def test_read_file_binary_upload_uses_file_stream(monkeypatch: pytest.Monk
     payload = json.loads(message.content)
     assert payload["key"] == "revealed_files/chart.png"
     assert payload["url"] == "https://app.example.com/api/upload/file/revealed_files/chart.png"
-    assert payload["size"] == len(b"png-data")
-    assert uploaded == [(b"png-data", "revealed_files", "chart.png", "image/png")]
+    assert payload["size"] == len(_png_bytes())
+    assert uploaded == [(_png_bytes(), "revealed_files", "chart.png", "image/png")]
 
 
 @pytest.mark.asyncio
@@ -300,7 +307,7 @@ async def test_read_file_binary_upload_offloads_spool_writes(
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
             assert paths == ["/workspace/chart.png"]
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
@@ -349,7 +356,7 @@ async def test_read_file_binary_upload_offloads_spool_writes(
     message = await middleware._handle_read_file_binary(request, "/workspace/chart.png")
 
     assert message is not None
-    assert uploaded == [(b"png-data", "revealed_files", "chart.png", "image/png")]
+    assert uploaded == [(_png_bytes(), "revealed_files", "chart.png", "image/png")]
 
 
 @pytest.mark.asyncio
@@ -361,7 +368,7 @@ async def test_read_file_binary_upload_offloads_result_json_formatting(
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
             assert paths == ["/workspace/chart.png"]
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
@@ -403,7 +410,11 @@ async def test_read_file_binary_upload_offloads_result_json_formatting(
     message = await middleware._handle_read_file_binary(request, "/workspace/chart.png")
 
     assert message is not None
-    assert calls == [tool_interception._write_bytes_to_file, json.dumps]
+    assert calls == [
+        tool_interception.inspect_image_content,
+        tool_interception._write_bytes_to_file,
+        json.dumps,
+    ]
     assert json.loads(message.content)["url"] == (
         "https://app.example.com/api/upload/file/revealed_files/chart.png"
     )
@@ -420,7 +431,7 @@ async def test_read_file_binary_upload_releases_download_buffer_before_upload_aw
         async def adownload_files(self, paths: list[str]):
             assert paths == ["/workspace/chart.png"]
             nonlocal buffer_ref
-            data = _TrackableBytes(b"png-data")
+            data = _TrackableBytes(_png_bytes())
             buffer_ref = weakref.ref(data)
             return [SimpleNamespace(content=data)]
 
@@ -618,7 +629,7 @@ async def test_read_file_binary_interception_emits_tool_lifecycle_events(
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
             assert paths == ["/workspace/chart.png"]
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
@@ -699,7 +710,7 @@ async def test_read_file_binary_interception_survives_presenter_emit_failure(
 
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
@@ -756,7 +767,7 @@ async def test_read_file_binary_interception_without_presenter_returns_message(
 
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
-            return [SimpleNamespace(content=b"png-data")]
+            return [SimpleNamespace(content=_png_bytes())]
 
     class _FakeStorage:
         async def upload_file(
