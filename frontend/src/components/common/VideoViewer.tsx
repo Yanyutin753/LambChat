@@ -1,3 +1,5 @@
+import { useUploadFileUrl } from "../../hooks/useUploadFileUrl";
+import { mediaProxyFallbackSrc } from "../documents/documentFetchCache";
 import {
   useEffect,
   useLayoutEffect,
@@ -32,6 +34,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
   const Surface = nativeModal ? "dialog" : "div";
   const [hasError, setHasError] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const mediaSource = useUploadFileUrl(isOpen ? src : undefined, retryAttempt);
   useDialogFocus({
     open: isOpen && !nativeModal,
     onClose,
@@ -104,7 +107,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           </span>
         )}
         <ViewerTopBarButton
-          onClick={() => downloadUrl(src)}
+          onClick={() => mediaSource.src && downloadUrl(mediaSource.src)}
           aria-label={t("imageViewer.download")}
           icon={<Download size={18} className="text-white/70" />}
         >
@@ -123,11 +126,16 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           aria-label={title || t("fileLibrary.types.video")}
           autoPlay={false}
           playsInline
-          hidden={hasError}
+          hidden={hasError || mediaSource.failed}
           preload="metadata"
           className="max-w-full max-h-full"
-          src={src}
-          onError={() => {
+          src={mediaSource.src}
+          onError={(event) => {
+            const fallback = mediaProxyFallbackSrc(event.currentTarget);
+            if (fallback) {
+              event.currentTarget.src = fallback;
+              return;
+            }
             if (surfaceRef.current?.contains(document.activeElement))
               surfaceRef.current.focus();
             setHasError(true);
@@ -136,7 +144,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
         >
           {t("documents.videoNotSupported")}
         </video>
-        {hasError && (
+        {(hasError || mediaSource.failed) && (
           <div className="flex flex-col items-center gap-3 px-6 text-center text-white/80">
             <SceneIllustration scene="files" />
             <p role="alert" className="text-14">

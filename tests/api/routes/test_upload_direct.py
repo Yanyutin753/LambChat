@@ -477,6 +477,8 @@ async def test_upload_phase_headers_are_bounded_and_never_include_ticket_or_file
         )
     if route == "redirect":
         env.records.is_private_key = AsyncMock(return_value=False)
+        env.records.find_by_key = AsyncMock(return_value={"uploaded_by": env.user.sub})
+        monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: env.records)
         env.storage._config = SimpleNamespace(public_bucket=False)
         env.storage.get_presigned_url = AsyncMock(
             return_value="https://storage.example/private?secret=1"

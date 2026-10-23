@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from PIL import Image, ImageDraw, ImageFont
@@ -17,6 +18,12 @@ from PIL import Image, ImageDraw, ImageFont
 from src.api.routes import upload, upload_cover
 from src.api.routes.upload_cover import render_sheet_cover
 from src.kernel.errors import AppError
+
+
+@pytest.fixture(autouse=True)
+def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise cover rendering after the separate file-access gate accepts."""
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
 
 
 @pytest.fixture(autouse=True)

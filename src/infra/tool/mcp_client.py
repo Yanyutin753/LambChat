@@ -1,9 +1,4 @@
-"""
-MCP 客户端管理器
-
-与 Model Context Protocol 服务器通信。
-支持从数据库或文件读取配置。
-"""
+"""MCP 客户端管理器，支持从数据库或文件加载服务器配置。"""
 
 import asyncio
 import json
@@ -495,7 +490,10 @@ class MCPClientManager:
 
     def _server_to_config_dict(self, server) -> dict:
         """将服务器对象转换为配置字典"""
-        result = {"transport": server.transport.value}
+        result = {
+            "transport": server.transport.value,
+            "_trusted_network": getattr(server, "is_system", False),
+        }
 
         if server.url:
             result["url"] = server.url
@@ -598,6 +596,10 @@ class MCPClientManager:
                     "url": server_config.get("url"),
                     "transport": transport,
                 }
+                if not server_config.get("_trusted_network", False):
+                    from src.infra.mcp.network import public_mcp_http_client
+
+                    server_configs[server_name]["httpx_client_factory"] = public_mcp_http_client
                 # 添加 headers（如 Authorization）
                 if server_config.get("headers"):
                     server_configs[server_name]["headers"] = server_config["headers"]

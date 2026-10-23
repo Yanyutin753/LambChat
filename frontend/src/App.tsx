@@ -42,8 +42,8 @@ const ServerSetupScreen = lazy(() =>
 import { useAppViewport } from "./hooks/useAppViewport";
 
 // Native update services and titlebar stay outside the web startup graph.
-const NativeUpdateShell = lazy(() =>
-  import("./components/update/NativeUpdateShell"),
+const NativeUpdateShell = lazy(
+  () => import("./components/update/NativeUpdateShell"),
 );
 
 const SharedEntry = lazy(() =>
@@ -534,7 +534,7 @@ function App() {
                   path="/feedback"
                   element={
                     <ProtectedRoute
-                      permissions={[Permission.FEEDBACK_READ]}
+                      permissions={[Permission.FEEDBACK_ADMIN]}
                       redirectTo="/chat"
                       showToast
                       toastMessage={t("errors.noPermission")}
@@ -712,7 +712,10 @@ function App() {
             <>
               {updatePlatform !== "web" && (
                 <Suspense fallback={null}>
-                  <NativeUpdateShell platform={updatePlatform} titlebarOs={null} />
+                  <NativeUpdateShell
+                    platform={updatePlatform}
+                    titlebarOs={null}
+                  />
                 </Suspense>
               )}
               {appRoutes}

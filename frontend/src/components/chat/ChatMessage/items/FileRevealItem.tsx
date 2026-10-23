@@ -1,3 +1,4 @@
+import { useUploadFileUrl } from "../../../../hooks/useUploadFileUrl";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { clsx } from "clsx";
@@ -196,6 +197,9 @@ export function FileRevealItem({
   const isAudio = fileInfo.category === "audio";
   const isExcalidraw = isExcalidrawFile(getFileExtension(parsed.filePath));
   const canPreview = isImage || isVideo || isAudio;
+  const mediaSource = useUploadFileUrl(
+    isVideo || isAudio ? parsed.s3Url : undefined,
+  );
   const Preview = isVideo ? "div" : "button";
   const Footer = !isImage && !isAudio ? "button" : "div";
   const previewAutoOpenKey = getFileRevealAutoOpenKey({
@@ -349,12 +353,16 @@ export function FileRevealItem({
             isImage && "max-w-md",
           )}
         >
-          {isAudio ? (
+          {mediaSource.failed ? (
+            <p role="alert" className="p-4 text-14 text-theme-text-secondary">
+              {t("documents.failedToLoadFromS3")}
+            </p>
+          ) : isAudio ? (
             <div className="px-4 py-4">
               <audio
                 controls
                 className="w-full"
-                src={parsed.s3Url}
+                src={mediaSource.src}
                 preload="metadata"
                 onError={(e) => {
                   // 直连 302 的预签名地址不可达时，改走应用代理流式加载
@@ -400,7 +408,7 @@ export function FileRevealItem({
                 parsed.s3Url && (
                   <video
                     ref={inlineVideoRef}
-                    src={parsed.s3Url}
+                    src={mediaSource.src}
                     controls
                     preload="metadata"
                     className="w-full h-full bg-black relative z-[1]"

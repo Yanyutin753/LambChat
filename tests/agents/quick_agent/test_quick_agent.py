@@ -378,3 +378,92 @@ async def test_quick_checkpoint_and_output_hide_model_authored_write_receipts(mo
         == result["output"]
         == "Verified. [Unverified activity receipt removed.]"
     )
+
+
+async def test_quick_agent_refreshes_historical_images_without_changing_checkpoint(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.upload.file_record import FileRecordStorage
+
+    model = _FakeModel()
+    _patch_model(monkeypatch, model)
+    monkeypatch.setattr(
+        FileRecordStorage, "find_by_key", AsyncMock(return_value={"uploaded_by": "owner"})
+    )
+    original = "/api/upload/file/image/owner/history.png?file_token=expired"
+    history = HumanMessage(content=[{"type": "image_url", "image_url": {"url": original}}])
+    await quick_agent_node(
+        _state("describe again", [history]),
+        {
+            "configurable": {
+                "context": SimpleNamespace(user_id="owner"),
+                "base_url": "https://app.example",
+                "agent_options": {"_resolved_image_url_mode": "url"},
+            }
+        },
+    )
+    outgoing = model.calls[0][1].content[0]["image_url"]["url"]
+    assert outgoing.startswith(
+        "https://app.example/api/upload/file/image/owner/history.png?file_token="
+    )
+    assert "expired" not in outgoing
+    assert history.content[0]["image_url"]["url"] == original
+
+
+async def test_quick_fallback_reprepares_original_images_for_its_own_mode(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import httpx
+
+    from src.agents.quick_agent import nodes
+    from src.infra.storage.s3 import service
+    from src.infra.upload.file_record import FileRecordStorage
+
+    class Primary(_FakeModel):
+        async def ainvoke(self, messages, **kwargs):
+            self.calls.append(list(messages))
+            raise httpx.ReadTimeout("upstream timed out")
+
+    primary = Primary()
+    fallback = _FakeModel("fallback answer")
+
+    async def get_model(**kwargs):
+        return fallback if kwargs.get("model") == "fallback" else primary
+
+    async def download(key, target):
+        target.write(b"image")
+        return 5
+
+    storage = SimpleNamespace(
+        is_local=False,
+        get_presigned_url=AsyncMock(return_value="https://storage.example/fresh"),
+        download_to_file=AsyncMock(side_effect=download),
+    )
+    monkeypatch.setattr(nodes.LLMClient, "get_model", get_model)
+    monkeypatch.setattr(nodes, "resolve_model_image_url_mode", AsyncMock(return_value="base64"))
+    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 0)
+    monkeypatch.setattr(
+        FileRecordStorage, "find_by_key", AsyncMock(return_value={"uploaded_by": "owner"})
+    )
+    monkeypatch.setattr(service, "get_or_init_storage", AsyncMock(return_value=storage))
+    original = "/api/upload/file/image/owner/history.png"
+    history = HumanMessage(content=[{"type": "image_url", "image_url": {"url": original}}])
+    result = await nodes.quick_agent_node(
+        _state("describe again", [history]),
+        {
+            "configurable": {
+                "context": SimpleNamespace(user_id="owner"),
+                "base_url": "https://app.example",
+                "agent_options": {
+                    "_resolved_image_url_mode": "storage_direct",
+                    "_resolved_fallback_model": "fallback",
+                },
+            }
+        },
+    )
+    assert result["output"] == "fallback answer"
+    assert primary.calls[0][1].content[0]["image_url"]["url"] == "https://storage.example/fresh"
+    assert fallback.calls[0][1].content[0]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert history.content[0]["image_url"]["url"] == original

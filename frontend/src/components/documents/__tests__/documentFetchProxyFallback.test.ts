@@ -63,7 +63,7 @@ describe("fetchDocumentText proxy fallback", () => {
     expect(text).toBe("# code");
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][0]).toBe(
-      "/api/upload/file/revealed_files/x.R?proxy=true",
+      "/api/upload/file/revealed_files/x.R?resolve_resources=true&proxy=true",
     );
   });
 
@@ -205,3 +205,8 @@ test("proxy retry puts the query before an image fragment", () => {
     buildProxyFallbackUrl("https://app.example/api/upload/file/a.png#preview"),
   ).toBe("https://app.example/api/upload/file/a.png?proxy=true#preview");
 });
+
+vi.mock("../../../services/api/uploadFileUrl", async (original) => ({
+  ...(await original<typeof import("../../../services/api/uploadFileUrl")>()),
+  resolveUploadFileUrl: vi.fn(async (url: string) => url),
+}));

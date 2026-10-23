@@ -10,12 +10,19 @@ from __future__ import annotations
 
 import io
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from PIL import Image
 
 from src.api.routes import upload
 from src.kernel.errors import AppError
+
+
+@pytest.fixture(autouse=True)
+def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise thumbnail rendering after the separate file-access gate accepts."""
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
 
 
 @pytest.fixture(autouse=True)
@@ -88,7 +95,7 @@ async def test_thumb_redirects_to_lfit_presigned_url_on_aliyun(
     assert storage.presigned_calls[0]["expires"] >= 86400
     assert storage.presigned_calls[0]["expires"] % 86400 == 0
     assert "signed.example" in resp.headers["location"]
-    assert resp.headers["cache-control"] == "public, max-age=86400"
+    assert resp.headers["cache-control"] == "private, no-store"
 
 
 @pytest.mark.asyncio
@@ -166,7 +173,7 @@ async def test_thumb_local_renders_aspect_fit_without_cropping(
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
-    assert resp.headers["cache-control"] == "public, max-age=86400"
+    assert resp.headers["cache-control"] == "private, no-store"
     thumb = Image.open(io.BytesIO(resp.body))
     # m_lfit：等比缩放，整图可见（640x400 → 560x350）
     assert thumb.size == (560, 350)
@@ -269,7 +276,7 @@ async def test_thumb_non_aliyun_renders_and_caches_beside_original(
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
-    assert resp.headers["cache-control"] == "public, max-age=86400"
+    assert resp.headers["cache-control"] == "private, no-store"
     assert storage.downloads == ["revealed_files/hero.jpg"]
     assert storage.uploads == ["thumbs/560/revealed_files/hero.jpg.jpg"]
     thumb = Image.open(io.BytesIO(resp.body))
@@ -357,7 +364,7 @@ async def test_image_variant_proxy_fetches_processed_bytes_without_forwarding_us
     assert response.status_code == 200
     assert response.media_type == "image/jpeg"
     assert Image.open(io.BytesIO(response.body)).size == (560, 315)
-    assert response.headers["cache-control"] == "public, max-age=86400"
+    assert response.headers["cache-control"] == "private, no-store"
     assert len(requests) == 1
     assert requests[0].url.host == "signed.example"
     assert "authorization" not in requests[0].headers

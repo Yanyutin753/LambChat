@@ -1,3 +1,4 @@
+import { useUploadFileUrl } from "../../hooks/useUploadFileUrl";
 import { SceneIllustration } from "../common/SceneIllustration";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -81,7 +82,8 @@ export function BinaryFilePreview({
   const [failedSource, setFailedSource] = useState<string>();
   const [retryAttempt, setRetryAttempt] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
-  const hasError = failedSource === fullUrl;
+  const mediaSource = useUploadFileUrl(fullUrl, retryAttempt);
+  const hasError = failedSource === fullUrl || mediaSource.failed;
   useEffect(() => {
     setFailedSource(undefined);
     setLoadedImage(undefined);
@@ -100,14 +102,15 @@ export function BinaryFilePreview({
 
   const handleDownload = useCallback(() => {
     const a = document.createElement("a");
-    a.href = fullUrl;
+    if (!mediaSource.src) return;
+    a.href = mediaSource.src;
     a.download = fileName;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }, [fullUrl, fileName]);
+  }, [mediaSource.src, fileName]);
 
   return (
     <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] flex-col rounded-2xl bg-[var(--theme-bg)] overflow-hidden">
@@ -185,7 +188,7 @@ export function BinaryFilePreview({
               <div className="relative flex items-center justify-center bg-[var(--theme-bg-subtle)] p-4 sm:p-6 min-h-full">
                 <video
                   key={`${fullUrl}:${retryAttempt}`}
-                  src={fullUrl}
+                  src={mediaSource.src}
                   controls
                   preload="metadata"
                   autoPlay={false}
@@ -208,7 +211,7 @@ export function BinaryFilePreview({
                 </div>
                 <audio
                   key={`${fullUrl}:${retryAttempt}`}
-                  src={fullUrl}
+                  src={mediaSource.src}
                   controls
                   preload="metadata"
                   aria-label={fileName}
@@ -221,7 +224,7 @@ export function BinaryFilePreview({
             {/* PDF preview */}
             {isPdf(mime_type) && (
               <iframe
-                src={fullUrl}
+                src={mediaSource.src}
                 className="w-full h-full min-h-[400px] border-0"
                 title={fileName}
               />

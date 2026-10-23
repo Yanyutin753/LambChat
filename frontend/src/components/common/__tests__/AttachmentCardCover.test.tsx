@@ -1,10 +1,22 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
-import { beforeEach, expect, test } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, test, vi } from "vitest";
 import i18n from "../../../i18n";
 import type { MessageAttachment } from "../../../types";
 import { AttachmentCard } from "../AttachmentCard";
+
+vi.mock("../../../services/api/authenticatedRequest", () => ({
+  authenticatedRequest: vi.fn(async (input: string) => {
+    const request = new URL(input, window.location.origin);
+    const key = request.searchParams.get("key");
+    return new Response(
+      JSON.stringify({
+        url: `${window.location.origin}/api/upload/file/${key}?file_token=cover-capability`,
+      }),
+    );
+  }),
+}));
 
 function makeAttachment(
   overrides: Partial<MessageAttachment>,
@@ -24,7 +36,7 @@ beforeEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-test("image attachments load the thumbnail URL, not the original", () => {
+test("image attachments load the thumbnail URL, not the original", async () => {
   render(
     <AttachmentCard
       attachment={makeAttachment({
@@ -36,12 +48,16 @@ test("image attachments load the thumbnail URL, not the original", () => {
     />,
   );
   const img = screen.getByAltText("hero.jpg") as HTMLImageElement;
-  expect(img.getAttribute("src")).toBe(
-    "http://localhost:3000/api/upload/file/abc/hero.jpg?thumb=1",
+  expect(img).not.toHaveAttribute("src");
+  await waitFor(() =>
+    expect(img).toHaveAttribute(
+      "src",
+      `${window.location.origin}/api/upload/file/abc/hero.jpg?file_token=cover-capability&thumb=1`,
+    ),
   );
 });
 
-test("pdf attachments render the server-side cover preview", () => {
+test("pdf attachments render the server-side cover preview", async () => {
   render(
     <AttachmentCard
       attachment={makeAttachment({
@@ -50,8 +66,12 @@ test("pdf attachments render the server-side cover preview", () => {
     />,
   );
   const img = screen.getByAltText("report.pdf") as HTMLImageElement;
-  expect(img.getAttribute("src")).toBe(
-    "http://localhost:3000/api/upload/file/abc/report.pdf?cover=1",
+  expect(img).not.toHaveAttribute("src");
+  await waitFor(() =>
+    expect(img).toHaveAttribute(
+      "src",
+      `${window.location.origin}/api/upload/file/abc/report.pdf?file_token=cover-capability&cover=1`,
+    ),
   );
 });
 

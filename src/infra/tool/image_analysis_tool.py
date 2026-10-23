@@ -19,16 +19,20 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from src.agents.core.node_utils import (
     build_human_message,
     get_image_download_max_bytes,
-    inline_image_attachments_as_data_urls,
 )
-from src.infra.agent.middleware.image_url import _append_proxy_direct_param
+from src.infra.agent.middleware.image_url import prepare_image_messages
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.llm.client import LLMClient
 from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import is_retryable_model_error
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
+from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
+    get_base_url_from_runtime,
+    get_session_id_from_runtime,
+    get_user_id_from_runtime,
+)
 from src.kernel.config import settings
 from src.kernel.errors import AppError
 from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
@@ -402,28 +406,6 @@ async def image_analyze(
             return await _json_dumps_result({"error": "image_urls must include at least one image"})
 
         attachments = await _inline_backend_image_paths(attachments, runtime)
-        # 本工具直连 LLM,不经 agent 中间件链:base64 模式只能在此临场内联;
-        # proxy_direct 模式给 URL 加直出参数,不增加请求体体积。
-        image_url_mode = effective_image_url_mode(model_config.profile)
-        attachments = await inline_image_attachments_as_data_urls(
-            attachments,
-            base_url=get_base_url_from_runtime(runtime),
-            force_data_url=image_url_mode == "base64",
-        )
-        if image_url_mode == "proxy_direct":
-            attachments = [
-                ({**att, "url": _append_proxy_direct_param(att["url"])} if att.get("url") else att)
-                for att in attachments
-            ]
-        if image_url_mode == "storage_direct":
-            from src.infra.agent.middleware.image_url import _resolve_storage_image_url
-
-            attachments = [
-                {**att, "url": await _resolve_storage_image_url(att["url"])}
-                if att.get("url")
-                else att
-                for att in attachments
-            ]
         try:
             await run_long_blocking_io(_validate_attachment_data_urls, attachments)
         except ValueError:
@@ -435,9 +417,16 @@ async def image_analyze(
         if isinstance(message.content, str):
             return await _json_dumps_result({"error": "No readable image URLs were provided"})
 
+        messages = await prepare_image_messages(
+            [message],
+            mode=effective_image_url_mode(model_config.profile),
+            user_id=get_user_id_from_runtime(runtime),
+            session_id=get_session_id_from_runtime(runtime),
+            base_url=get_base_url_from_runtime(runtime),
+        )
         llm = await LLMClient.get_model(model_config=model_config)
         async with asyncio.timeout(30):
-            response = await _call_with_retries(llm, [message])
+            response = await _call_with_retries(llm, messages)
         analysis = _content_to_text(getattr(response, "content", response))
         return await _json_dumps_result(
             {

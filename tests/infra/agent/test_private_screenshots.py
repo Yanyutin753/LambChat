@@ -76,12 +76,12 @@ async def test_generic_internal_image_download_does_not_bypass_capture_authoriza
 
     storage = SimpleNamespace(download_to_file=AsyncMock())
     monkeypatch.setattr(service, "get_or_init_storage", AsyncMock(return_value=storage))
-    assert (
+    from src.kernel.errors import AppError
+
+    with pytest.raises(AppError):
         await _download_image_url_as_data_url(
             "/api/upload/file/cua_screenshots/owner/session/a.png", "image/png"
         )
-        is None
-    )
     storage.download_to_file.assert_not_awaited()
 
 

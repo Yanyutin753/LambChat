@@ -87,13 +87,13 @@ async def list_feedback(
     rating: Optional[RatingValue] = Query(None, description="评分过滤：up 或 down"),
     user_id: Optional[str] = Query(None, description="用户ID过滤"),
     session_id: Optional[str] = Query(None, description="会话ID过滤"),
-    _: None = Depends(require_permissions("feedback:read")),
+    _: None = Depends(require_permissions("feedback:admin")),
     manager: FeedbackManager = Depends(get_feedback_manager),
 ) -> FeedbackListResponse:
     """
     获取反馈列表
 
-    需要 feedback:read 权限
+    需要 feedback:admin 权限
     """
     async with timed_server_phase("feedback"):
         return await manager.list_feedback(
@@ -109,13 +109,13 @@ async def list_feedback(
 async def get_feedback_stats(
     session_id: Optional[str] = Query(None, description="会话ID过滤"),
     run_id: Optional[str] = Query(None, description="运行ID过滤"),
-    _: None = Depends(require_permissions("feedback:read")),
+    _: None = Depends(require_permissions("feedback:admin")),
     manager: FeedbackManager = Depends(get_feedback_manager),
 ) -> FeedbackStats:
     """
     获取反馈统计信息
 
-    需要 feedback:read 权限
+    需要 feedback:admin 权限
     """
     return await manager.get_stats(session_id, run_id)
 
@@ -141,13 +141,13 @@ async def get_my_feedback_for_run(
 async def get_feedback_by_run(
     session_id: str,
     run_id: str,
-    _: None = Depends(require_permissions("feedback:read")),
+    _: None = Depends(require_permissions("feedback:admin")),
     manager: FeedbackManager = Depends(get_feedback_manager),
 ) -> list[Feedback]:
     """
     获取某个 run 的所有反馈
 
-    需要 feedback:read 权限
+    需要 feedback:admin 权限
     """
     return await manager.get_feedback_by_run(session_id, run_id)
 
@@ -156,13 +156,13 @@ async def get_feedback_by_run(
 async def get_run_feedback_stats(
     session_id: str,
     run_id: str,
-    _: None = Depends(require_permissions("feedback:read")),
+    _: None = Depends(require_permissions("feedback:admin")),
     manager: FeedbackManager = Depends(get_feedback_manager),
 ) -> FeedbackStats:
     """
     获取某个 run 的反馈统计
 
-    需要 feedback:read 权限
+    需要 feedback:admin 权限
     """
     return await manager.get_stats(session_id, run_id)
 

@@ -15,6 +15,20 @@ from src.infra.backend.lazy_sandbox import LazySandboxBackend, SandboxInitializa
 from src.infra.tool import upload_url_tool
 
 
+@pytest.fixture(autouse=True)
+def owned_download_files(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    async def authorize(url, *args, **kwargs):
+        return url
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key",
+        AsyncMock(return_value={"uploaded_by": "user-1"}),
+    )
+    monkeypatch.setattr(upload_url_tool, "authorize_file_url", authorize)
+
+
 def _download_script(command: str) -> str:
     payload = command.split("b64decode('", 1)[1].split("')", 1)[0]
     return base64.b64decode(payload).decode()
@@ -22,7 +36,14 @@ def _download_script(command: str) -> str:
 
 class _Runtime:
     def __init__(self, backend: object, base_url: str = "https://app.example.com") -> None:
-        self.config = {"configurable": {"backend": backend, "base_url": base_url}}
+        self.config = {
+            "configurable": {
+                "backend": backend,
+                "base_url": base_url,
+                "context": SimpleNamespace(user_id="user-1"),
+                "session_id": "session",
+            }
+        }
 
 
 class _RecordingSandbox(BaseSandbox):

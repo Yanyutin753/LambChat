@@ -128,9 +128,9 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         logger.info("MCPStorage indexes initialized")
 
     async def _init_file_record_storage() -> None:
-        from src.infra.upload.file_record import FileRecordStorage
+        from src.infra.upload.file_record import get_file_record_storage
 
-        await FileRecordStorage().initialize_indexes()
+        await get_file_record_storage().initialize_indexes()
         logger.info("FileRecordStorage indexes initialized")
 
     async def _init_pat_storage() -> None:

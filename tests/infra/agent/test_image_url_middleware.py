@@ -13,6 +13,21 @@ from src.infra.agent.middleware.image_url import (
 )
 
 
+@pytest.fixture(autouse=True)
+def authorized_transport_urls(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    async def authorize(url, *args, **kwargs):
+        return url
+
+    monkeypatch.setattr("src.kernel.config.settings.APP_BASE_URL", "https://lambchat.com")
+    monkeypatch.setattr("src.infra.upload.access.authorize_file_url", authorize)
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.is_private_key",
+        AsyncMock(side_effect=lambda key: key.startswith("cua_screenshots/")),
+    )
+
+
 async def test_base64_preparation_overlaps_images_with_bounded_concurrency(monkeypatch):
     active = peak = 0
     release = asyncio.Event()
@@ -168,9 +183,10 @@ async def test_image_url_middleware_failure_log_omits_exception_details(
     middleware = ImageUrlToBase64Middleware()
 
     with caplog.at_level(logging.WARNING):
-        content = await middleware._convert_content_blocks(
-            [{"type": "image_url", "image_url": {"url": secret_url}}]
+        messages = await middleware._convert_messages(
+            [HumanMessage(content=[{"type": "image_url", "image_url": {"url": secret_url}}])]
         )
+        content = messages[0].content
 
     assert content[0]["image_url"]["url"] == secret_url
     assert secret_url not in caplog.text
@@ -386,8 +402,8 @@ async def test_storage_direct_does_not_sign_private_capture_urls(monkeypatch):
     async def handler(request):
         return request
 
-    assert (
+    from src.kernel.errors import AppError
+
+    with pytest.raises(AppError):
         await image_url_middleware_for_mode("storage_direct").awrap_model_call(request, handler)
-        is request
-    )
     storage.get_presigned_url.assert_not_awaited()

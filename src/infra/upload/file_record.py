@@ -203,6 +203,33 @@ class FileRecordStorage:
             return bool(record and record.get("private_session_id"))
         return False
 
+    async def register_generated(self, result, user_id: str, session_id: str | None) -> None:
+        """Persist generated-object ownership before exposing its URL."""
+        await self.ensure_indexes_if_needed()
+        now = utc_now()
+        mime = result.content_type or "application/octet-stream"
+        category = mime.split("/", 1)[0]
+        await self.collection.update_one(
+            {"key": result.key},
+            {
+                "$setOnInsert": {
+                    "key": result.key,
+                    # Generated objects are immutable identities, not upload-dedup candidates.
+                    "hash": "generated:" + result.key,
+                    "uploaded_by": user_id,
+                    "generated_session_id": session_id,
+                    "name": result.key.rsplit("/", 1)[-1],
+                    "mime_type": mime,
+                    "size": result.size,
+                    "category": category if category in ("image", "video", "audio") else "document",
+                    "reference_count": 1,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            },
+            upsert=True,
+        )
+
     async def require_private_access(
         self, key: str, user_id: str | None, session_id: str | None = None
     ) -> dict:
@@ -588,3 +615,14 @@ class FileRecordStorage:
         if hasattr(self, "_indexes_ensured"):
             delattr(self, "_indexes_ensured")
         self._collection = None
+
+
+_file_record_storage: FileRecordStorage | None = None
+
+
+def get_file_record_storage() -> FileRecordStorage:
+    """Reuse collection/index initialization, while every access still queries ownership."""
+    global _file_record_storage
+    if _file_record_storage is None:
+        _file_record_storage = FileRecordStorage()
+    return _file_record_storage

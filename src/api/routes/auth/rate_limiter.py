@@ -3,6 +3,8 @@ Rate limiting helper for auth routes
 """
 
 import re
+from collections.abc import Awaitable
+from typing import cast
 
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
@@ -58,25 +60,24 @@ class RateLimiter:
         """
         try:
             redis = get_redis_client()
-            current = await redis.get(key)
-
-            if current is None:
-                await redis.setex(key, window_seconds, 1)
-                return True, max_requests - 1
-
-            current_count = int(current)
-            if current_count >= max_requests:
-                ttl = await redis.ttl(key)
-                logger.warning("[RateLimiter] Rate limit exceeded for %s, TTL=%d", key, ttl)
-                return False, 0
-
-            await redis.incr(key)
-            return True, max_requests - current_count - 1
-
+            current_count = int(
+                await cast(
+                    Awaitable[str],
+                    redis.eval(
+                        "local n = redis.call('INCR', KEYS[1]); "
+                        "if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end; return n",
+                        1,
+                        key,
+                        str(window_seconds),
+                    ),
+                )
+            )
+            return current_count <= max_requests, max(0, max_requests - current_count)
         except Exception as e:
-            # If Redis fails, allow the request (fail open)
+            from src.kernel.errors import AppError, ErrorCode
+
             logger.error("[RateLimiter] Redis error: %s", e)
-            return True, max_requests
+            raise AppError(ErrorCode.SERVICE_UNAVAILABLE) from e
 
     async def close(self) -> None:
         """No-op: Redis client is managed by get_redis_client() singleton."""

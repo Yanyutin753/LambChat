@@ -157,7 +157,7 @@ async def test_public_auth_config_exposes_only_contact_fields_without_unlocking_
     assert response.json() == {
         "providers": [],
         "registration_enabled": True,
-        "admin_contact": {"email": email, "url": url},
+        "admin_contact": {"email": "", "url": url},
         "turnstile": {
             "enabled": False,
             "site_key": "",

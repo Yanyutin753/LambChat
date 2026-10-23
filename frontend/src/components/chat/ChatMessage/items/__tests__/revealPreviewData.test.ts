@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import {
   clearProjectRevealFilesCache,
   getCachedProjectRevealFiles,
@@ -13,7 +14,7 @@ function makeTextManifest(count: number): Record<string, FileManifestEntry> {
   const files: Record<string, FileManifestEntry> = {};
   for (let index = 0; index < count; index++) {
     files[`/file-${index}.txt`] = {
-      url: `/api/upload/file/file-${index}`,
+      url: `/api/upload/file/revealed_projects/perf/file-${index}`,
       is_binary: false,
       size: 7,
     };
@@ -266,3 +267,10 @@ test("project reveal file cache evicts least recently used entries", async () =>
     clearProjectRevealFilesCache();
   }
 });
+
+vi.mock("../../../../../services/api/uploadFileUrl", async (original) => ({
+  ...(await original<
+    typeof import("../../../../../services/api/uploadFileUrl")
+  >()),
+  resolveUploadFileUrl: vi.fn(async (url: string) => url),
+}));

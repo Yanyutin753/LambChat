@@ -517,7 +517,13 @@ class UserStorage:
                 ]
             }
         )
-        if not user_dict:
+        if not user_dict or not user_dict.get("password_hash"):
+            # Match bcrypt work for unknown and OAuth-only accounts to prevent enumeration.
+            await run_blocking_io(
+                verify_password,
+                password,
+                "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6Ttx6HrK1JZ9M.v7PDVHyIcW6.U8u",
+            )
             return None
 
         user_dict["id"] = str(user_dict.pop("_id"))

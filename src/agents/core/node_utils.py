@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from tempfile import SpooledTemporaryFile
 from typing import Any, Literal
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, urlsplit
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables.config import var_child_runnable_config
@@ -23,6 +23,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.image_utils import compress_image_bytes_if_needed
 from src.infra.logging import get_logger
 from src.infra.memory.control_frames import escape_control_frame_tags
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 DEFAULT_IMAGE_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024
@@ -288,18 +289,10 @@ def _attachment_url_from_key(key: object, base_url: str) -> str:
     return f"{clean_base_url}/api/upload/file/{quoted_key}"
 
 
-def _upload_key_from_image_url(url: str) -> str | None:
-    if url.startswith("data:"):
-        return None
+def _upload_key_from_image_url(url: str, base_url: str | None = None) -> str | None:
+    from src.infra.upload.access import upload_key_from_url
 
-    parsed = urlsplit(url)
-    path = unquote(parsed.path or url)
-    marker = "/api/upload/file/"
-    if marker not in path:
-        return None
-
-    key = path.split(marker, 1)[1].lstrip("/")
-    return key or None
+    return upload_key_from_url(url, base_url)
 
 
 _PRIVATE_NETWORKS = [
@@ -364,16 +357,17 @@ async def _download_image_as_data_url(
     private_user_id: str | None = None,
     private_session_id: str | None = None,
 ) -> str | None:
-    from posixpath import normpath
+    from src.infra.logging.context import TraceContext
+    from src.infra.upload.access import require_file_access
+    from src.infra.upload.file_record import get_file_record_storage
 
-    from src.infra.upload.file_record import FileRecordStorage
-
-    if await FileRecordStorage().is_private_key(normpath(str(key).replace("\\", "/")).lstrip("/")):
-        if not private_user_id or not private_session_id:
-            return None
-        await FileRecordStorage().require_private_access(
-            str(key), private_user_id, private_session_id
-        )
+    user_id = private_user_id if private_user_id is not None else TraceContext.get_user_id()
+    session_id = (
+        private_session_id if private_session_id is not None else TraceContext.get_session_id()
+    )
+    if await get_file_record_storage().is_private_key(str(key)) and (not user_id or not session_id):
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
+    await require_file_access(str(key), user_id, session_id=session_id)
     max_bytes = get_image_download_max_bytes()
     spooled = SpooledTemporaryFile(
         max_size=IMAGE_DATA_URL_SPOOL_MAX_MEMORY_BYTES,
@@ -399,9 +393,13 @@ async def _download_image_as_data_url(
 async def _download_image_url_as_data_url(
     url: str,
     mime_type: str,
+    *,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    base_url: str | None = None,
 ) -> str | None:
     max_bytes = get_image_download_max_bytes()
-    key = _upload_key_from_image_url(url)
+    key = _upload_key_from_image_url(url, base_url)
     if key:
         from src.infra.storage.s3.service import get_or_init_storage
 
@@ -410,6 +408,8 @@ async def _download_image_url_as_data_url(
             storage,
             key,
             mime_type,
+            private_user_id=user_id,
+            private_session_id=session_id,
         )
 
     if _is_private_url(url):
@@ -418,6 +418,8 @@ async def _download_image_url_as_data_url(
 
     try:
         import httpx
+
+        from src.infra.mcp.network import public_mcp_http_client
     except Exception:
         logger.warning("Cannot inline remote image URL without httpx")
         return None
@@ -428,7 +430,7 @@ async def _download_image_url_as_data_url(
     )
     try:
         downloaded_size = 0
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+        async with public_mcp_http_client(timeout=httpx.Timeout(30.0)) as client:
             async with client.stream("GET", url) as response:
                 response.raise_for_status()
                 content_type = response.headers.get("content-type", "").split(";", 1)[0].strip()
@@ -457,6 +459,8 @@ async def inline_image_attachments_as_data_urls(
     *,
     base_url: str = "",
     force_data_url: bool = False,
+    user_id: str | None = None,
+    session_id: str | None = None,
 ) -> list[dict]:
     """Return image attachments with URLs preferred over in-memory data URLs."""
     if not attachments:
@@ -491,10 +495,15 @@ async def inline_image_attachments_as_data_urls(
                 data_url = await _download_image_url_as_data_url(
                     str(existing_url),
                     mime_type,
+                    user_id=user_id,
+                    session_id=session_id,
+                    base_url=base_url,
                 )
                 if data_url is None:
                     inlined.append(attachment)
                     continue
+            except AppError:
+                raise
             except Exception as e:
                 logger.warning(
                     "Failed to inline image URL: error_type=%s",
@@ -534,10 +543,14 @@ async def inline_image_attachments_as_data_urls(
                 from src.infra.storage.s3.service import get_or_init_storage
 
                 storage = await get_or_init_storage()
-            data_url = await _download_image_as_data_url(storage, key, mime_type)
+            data_url = await _download_image_as_data_url(
+                storage, key, mime_type, private_user_id=user_id, private_session_id=session_id
+            )
             if data_url is None:
                 inlined.append(attachment)
                 continue
+        except AppError:
+            raise
         except Exception as e:
             logger.warning(
                 "Failed to inline image attachment: error_type=%s",

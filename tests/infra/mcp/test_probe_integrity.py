@@ -57,6 +57,7 @@ async def test_admin_system_probe_ignores_same_named_user_override(monkeypatch):
                 url="https://system/mcp",
                 headers=None,
                 allowed_roles=[],
+                is_system=True,
             )
         ),
     )

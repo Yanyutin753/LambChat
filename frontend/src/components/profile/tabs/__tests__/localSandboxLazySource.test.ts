@@ -28,15 +28,22 @@ test("local sandbox section keeps a default export for React.lazy", () => {
 
 test("web startup excludes the native updater and its dialog", () => {
   const updateShell = readFileSync(
-    join(process.cwd(), "src/components/update/NativeUpdateShell.tsx"), "utf8",
+    join(process.cwd(), "src/components/update/NativeUpdateShell.tsx"),
+    "utf8",
   );
   expect(appSource).not.toMatch(/import \{ useAutoUpdate \}/);
-  expect(appSource).toContain('import("./components/update/NativeUpdateShell")');
+  expect(appSource).toContain(
+    'import("./components/update/NativeUpdateShell")',
+  );
   expect(appSource).toContain('updatePlatform !== "web"');
   expect(updateShell).toContain('import("./UpdateDialog")');
-  expect(updateShell).toMatch(/<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/);
+  expect(updateShell).toMatch(
+    /<Suspense fallback=\{null\}>[\s\S]*?<UpdateDialog/,
+  );
 });
 
 test("mobile updater loading does not gate route mounting", () => {
-  expect(appSource).toMatch(/<Suspense fallback=\{null\}>\s*<NativeUpdateShell platform=\{updatePlatform\} titlebarOs=\{null\} \/>\s*<\/Suspense>\s*\)\}\s*\{appRoutes\}/);
+  expect(appSource).toMatch(
+    /<Suspense fallback=\{null\}>\s*<NativeUpdateShell\s+platform=\{updatePlatform\}\s+titlebarOs=\{null\}\s*\/>\s*<\/Suspense>\s*\)\}\s*\{appRoutes\}/,
+  );
 });

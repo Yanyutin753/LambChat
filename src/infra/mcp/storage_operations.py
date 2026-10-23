@@ -283,6 +283,7 @@ class StorageOperations:
         system_servers = {}
         for server_name, doc in system_docs:
             config = await _doc_to_config_dict(self, doc)
+            config["_trusted_network"] = True
             tool_policies = system_tool_policies.get(server_name, {})
             if tool_policies:
                 config["tool_policies"] = {
@@ -856,7 +857,10 @@ class StorageOperations:
 
     def _server_to_config_dict_static(self, server) -> dict[str, Any]:
         """Convert a server object to config dict (static method style)"""
-        result = {"transport": server.transport.value}
+        result = {
+            "transport": server.transport.value,
+            "_trusted_network": getattr(server, "is_system", False),
+        }
         if server.url:
             result["url"] = server.url
         if server.headers:

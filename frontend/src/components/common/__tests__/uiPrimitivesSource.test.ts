@@ -193,7 +193,7 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   );
 });
 
-test("image and video viewers share direct URL download behavior", () => {
+test("image and video viewers share authorized URL download behavior", () => {
   const commonIndex = readSource("../index.ts");
   const helper = readSource("../viewerDownload.ts");
   const imageViewer = readSource("../ImageViewer.tsx");
@@ -208,7 +208,9 @@ test("image and video viewers share direct URL download behavior", () => {
   expect(imageViewer).toMatch(/import \{ downloadUrl \}/);
   expect(videoViewer).toMatch(/import \{ downloadUrl \}/);
   expect(imageViewer).toMatch(/downloadUrl\(privateImage.src\)/);
-  expect(videoViewer).toMatch(/onClick=\{\(\) => downloadUrl\(src\)\}/);
+  expect(videoViewer).toMatch(
+    /onClick=\{\(\) => mediaSource\.src && downloadUrl\(mediaSource\.src\)\}/,
+  );
   expect([imageViewer, videoViewer].join("\n")).not.toMatch(
     /document\.createElement\("a"\)|\.download = ""/,
   );

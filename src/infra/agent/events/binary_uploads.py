@@ -184,7 +184,7 @@ async def upload_binary_blocks(
 
 async def _upload_private_screenshot(storage, file, filename, mime_type, size, user_id, session_id):
     from src.infra.session.storage import SessionStorage
-    from src.infra.upload.file_record import FileRecordStorage
+    from src.infra.upload.file_record import get_file_record_storage
 
     if not storage.is_local and storage._config.public_bucket:
         raise ValueError("Desktop captures require private storage")
@@ -203,7 +203,7 @@ async def _upload_private_screenshot(storage, file, filename, mime_type, size, u
             content_type=mime_type,
             skip_size_limit=True,
         )
-        await FileRecordStorage().create(
+        await get_file_record_storage().create(
             file_hash=uuid.uuid4().hex,
             key=uploaded.key,
             name=filename,
@@ -223,7 +223,7 @@ async def _upload_private_screenshot(storage, file, filename, mime_type, size, u
         if uploaded:
             await storage.delete_file(uploaded.key)
             if registered:
-                await FileRecordStorage().delete_by_key(uploaded.key, user_id)
+                await get_file_record_storage().delete_by_key(uploaded.key, user_id)
         raise
     finally:
         await sessions.release_trace_write(session_id)
