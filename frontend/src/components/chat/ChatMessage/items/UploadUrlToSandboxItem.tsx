@@ -20,7 +20,7 @@ function truncate(value: string, maxLength: number) {
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
-  const url = (args.url as string) || "";
+  const url = (args.attachment_id as string) || (args.url as string) || "";
   const filePath = (args.file_path as string) || "";
   const hasResult = result !== undefined;
 
@@ -76,7 +76,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
-  const url = (args.url as string) || "";
+  const url = (args.attachment_id as string) || (args.url as string) || "";
   const filePath = (args.file_path as string) || "";
   const hasResult = result !== undefined;
   // 参数生成中（无结果）也允许打开面板：实时等待上传结果

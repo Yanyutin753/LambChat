@@ -22,6 +22,7 @@ from src.infra.logging import get_logger
 from src.infra.tool import mcp_server_breaker
 from src.infra.tool.mcp_load_status import (  # noqa: F401
     _format_load_error,
+    _safe_load_url,
     _schedule_status_write,
 )
 from src.infra.tool.mcp_schema_sanitizer import (  # noqa: F401
@@ -365,6 +366,7 @@ class MCPClientManager:
         self._client: Optional[MultiServerMCPClient] = None
         self._tools: list[BaseTool] = []
         self.unavailable_server_names: tuple[str, ...] = ()
+        self.server_load_errors: dict[str, str] = {}
         self._tool_server_map: dict[tuple[str, str], str] = {}
         self._tool_name_server_map: dict[str, str] = {}
         self._server_role_quotas: dict[str, dict[str, MCPRoleQuota]] = {}
@@ -529,6 +531,7 @@ class MCPClientManager:
             tuple: (tools, client) - 工具列表和客户端
         """
         self.unavailable_server_names = ()
+        self.server_load_errors.clear()
         mcp_servers = config.get("mcpServers", {})
         if not mcp_servers:
             return [], None
@@ -673,7 +676,12 @@ class MCPClientManager:
                     next_index += 1
                 results.append(await _load_one(server_name))
 
-        await asyncio.gather(*(_load_worker() for _ in range(concurrency)))
+        try:
+            await asyncio.gather(*(_load_worker() for _ in range(concurrency)))
+        except asyncio.CancelledError:
+            for key in breaker_keys.values():
+                mcp_server_breaker.release_load_slot(key)
+            raise
 
         # 处理结果
         all_tools: list[BaseTool] = []
@@ -686,8 +694,12 @@ class MCPClientManager:
         for server_name, result in results:
             if isinstance(result, Exception):
                 failed_servers.append(server_name)
-                error_msg = _format_load_error(result)
-                url = (server_configs.get(server_name) or {}).get("url") or "unknown-url"
+                connection = server_configs.get(server_name) or {}
+                error_msg = _format_load_error(
+                    result, tuple((connection.get("headers") or {}).values())
+                )
+                self.server_load_errors[server_name] = error_msg
+                url = _safe_load_url(connection.get("url") or "")
                 if "ValidationError" in error_msg or "JSONRPCMessage" in error_msg:
                     logger.warning(
                         f"[MCP] Server '{server_name}' ({url}) returned invalid JSON-RPC response. "
@@ -700,15 +712,14 @@ class MCPClientManager:
                     )
                 key = breaker_keys.get(server_name)
                 if key:
-                    event = mcp_server_breaker.record_failure(key, error_msg[:500])
-                    if event is not None:
-                        _schedule_status_write(
-                            breaker_scopes[server_name],
-                            server_name,
-                            self._user_id,
-                            ok=False,
-                            error=event.error,
-                        )
+                    mcp_server_breaker.record_failure(key, error_msg[:500])
+                    _schedule_status_write(
+                        breaker_scopes[server_name],
+                        server_name,
+                        self._user_id,
+                        ok=False,
+                        error=error_msg[:500],
+                    )
             else:
                 key = breaker_keys.get(server_name)
                 if key:
@@ -917,6 +928,7 @@ class MCPClientManager:
         self._server_role_quotas.clear()
         self._server_tool_policies.clear()
         self._initialized = False
+        self.server_load_errors.clear()
 
 
 class MCPClient:

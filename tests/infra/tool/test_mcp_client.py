@@ -492,7 +492,7 @@ async def test_mcp_client_failure_log_expands_error_and_hides_headers(
 
     joined = "\n".join(warnings)
     assert "ValueError: boom-detail" in joined
-    assert "https://example.test/secret" in joined
+    assert "https://example.test" in joined
     assert "secret-token-value" not in joined
 
 
@@ -630,7 +630,7 @@ async def test_mcp_client_persists_status_on_breaker_open(
         await client._create_mcp_client(config)
         await asyncio.sleep(0.05)  # 让 fire-and-forget 写任务落地
 
-        assert len(writes) == 1  # 仅跳闸迁移写一次，前两次失败不写
+        assert len(writes) == 3  # 每次实际失败都计数，熔断跳过不计数
         assert writes[0]["name"] == "doomed"
         assert writes[0]["ok"] is False
         assert "connection refused" in writes[0]["error"]

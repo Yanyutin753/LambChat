@@ -99,10 +99,10 @@ def test_cooldown_backoff_is_capped() -> None:
     assert breaker._cooldown_for(streak=10) == 0.2
 
 
-def test_success_resets_closed_counter_without_event() -> None:
+def test_success_resets_closed_counter_with_recovery_event() -> None:
     breaker.record_failure("sys:a", "e1")
     breaker.record_failure("sys:a", "e2")
-    assert breaker.record_success("sys:a") is None  # 闭合态恢复不产生事件
+    assert breaker.record_success("sys:a").kind == "recovered"
     # 计数清零：需重新积累 3 次才触发
     breaker.record_failure("sys:a", "e1")
     breaker.record_failure("sys:a", "e2")

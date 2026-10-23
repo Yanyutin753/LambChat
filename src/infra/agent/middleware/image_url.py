@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -91,49 +92,53 @@ def _mime_type_from_block(block: dict) -> str:
 class ImageUrlToBase64Middleware(AgentMiddleware):
     """Convert every outbound image_url block to a base64 data URL."""
 
-    async def _convert_content_blocks(self, content: Any) -> Any:
+    async def _convert_content_blocks(
+        self, content: Any, semaphore: asyncio.Semaphore | None = None
+    ) -> Any:
         if not isinstance(content, list):
             return content
+        semaphore = semaphore if semaphore is not None else asyncio.Semaphore(4)
 
-        converted: list[Any] = []
-        changed = False
-        for block in content:
+        async def convert(block):
             url = _image_url_from_block(block)
             if not url or url.startswith("data:") or not isinstance(block, dict):
-                converted.append(block)
-                continue
-
+                return block
             try:
-                data_url = await _download_image_url_as_data_url(
-                    url,
-                    _mime_type_from_block(block),
-                )
+                async with semaphore:
+                    data_url = await _download_image_url_as_data_url(
+                        url, _mime_type_from_block(block)
+                    )
             except Exception as e:
                 logger.warning(
                     "Failed to convert image_url to base64: error_type=%s",
                     type(e).__name__,
                 )
-                data_url = None
+                return block
+            return _with_data_url(block, data_url) if data_url else block
 
-            if data_url:
-                converted.append(_with_data_url(block, data_url))
-                changed = True
-            else:
-                converted.append(block)
-
-        return converted if changed else content
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(convert(block)) for block in content]
+        converted = [task.result() for task in tasks]
+        return converted if any(a is not b for a, b in zip(converted, content)) else content
 
     async def _convert_messages(self, messages: list[Any]) -> list[Any]:
+        # One limit across the entire history avoids serial image waits before the first token.
+        semaphore = asyncio.Semaphore(4)
+        async with asyncio.TaskGroup() as group:
+            tasks = [
+                group.create_task(
+                    self._convert_content_blocks(getattr(m, "content", None), semaphore)
+                )
+                for m in messages
+            ]
         converted_messages: list[Any] = []
         changed = False
-
-        for message in messages:
+        for message, task in zip(messages, tasks):
             content = getattr(message, "content", None)
-            converted_content = await self._convert_content_blocks(content)
+            converted_content = task.result()
             if converted_content is content:
                 converted_messages.append(message)
                 continue
-
             changed = True
             if hasattr(message, "model_copy"):
                 converted_messages.append(message.model_copy(update={"content": converted_content}))
@@ -141,7 +146,6 @@ class ImageUrlToBase64Middleware(AgentMiddleware):
                 clone = message.copy()
                 clone.content = converted_content
                 converted_messages.append(clone)
-
         return converted_messages if changed else messages
 
     async def awrap_model_call(

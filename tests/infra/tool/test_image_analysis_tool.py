@@ -278,7 +278,7 @@ async def test_image_analyze_retries_failed_model_calls(monkeypatch):
             assert config == image_analysis_tool.IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG
             attempts += 1
             if attempts < 3:
-                raise RuntimeError("temporary")
+                raise TimeoutError("temporary")
             return SimpleNamespace(content="ok")
 
     async def fake_get_model(**_kwargs):

@@ -104,6 +104,15 @@ KUBECTL='k3s kubectl' python3 k8s/scripts/update.py develop-YYYYMMDD-HHMMSS \
 
 ## 验证
 
+排查 trace“零事件”时，不要只统计父文档的 `events` 数组：关闭 legacy 双写后，正文保存在
+`trace_event_chunks`，父数组为空是预期状态。先核对 `event_count`，再使用
+`TraceStorage.read_trace_events_compat(trace_id)` 读取实际事件；该入口兼容旧数组与分块存储。
+`status=error` 应结合实际 error 事件和 `metadata.error_code` 判断，不能从空父数组推断事件丢失。
+
+原生记忆的检索状态可在鉴权后的 `/api/memory/` 响应 `search_status` 中查看。
+Qdrant 模式不需要 Mongo Atlas 索引；自建 Mongo 不支持 Search 时保留 Python 余弦检索，
+`mongodb_index=unavailable`、`fallback=cosine` 明确反映该状态。
+
 所有本地验证通过项目共享锁串行运行：
 
 ```bash

@@ -95,6 +95,17 @@ def test_load_missing_returns_none(tmp_path):
     assert load_pat(path=tmp_path / "pat") is None
 
 
+def test_fresh_home_does_not_reuse_another_installation_keyring_pairing(monkeypatch, tmp_path):
+    fake = FakeKeyring()
+    monkeypatch.setattr(auth, "keyring", fake)
+    paired = tmp_path / "paired" / "pat"
+    store_pat("paired-test-pat", path=paired, server_url="https://lambchat.com")
+    assert load_pat(path=paired, server_url="https://lambchat.com") == "paired-test-pat"
+    isolated = tmp_path / "fresh-home" / "pat"
+    assert load_pat(path=isolated, server_url="https://lambchat.com") is None
+    assert not isolated.exists()
+
+
 def test_clear_removes_stored_pat(tmp_path):
     p = tmp_path / "pat"
     store_pat("token-3", path=p)

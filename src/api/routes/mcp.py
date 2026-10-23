@@ -625,6 +625,7 @@ async def admin_retest_server(
         user.sub,
         user_roles=user.roles,
         is_admin=True,
+        system_only=True,
     )
     if scope is None:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
