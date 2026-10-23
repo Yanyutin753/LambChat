@@ -22,6 +22,43 @@ MODEL_SAFE_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/gif",
 MODEL_UNTRANSCODABLE_EXTS = frozenset({"svg"})
 
 TRANSCODE_JPEG_QUALITY = 90
+SVG_TEXT_MAX_CHARS = 20_000
+
+
+def inspect_image_content(content: bytes) -> tuple[str, str | None]:
+    """Validate actual image bytes and extract SVG text without executing resources."""
+    from defusedxml import ElementTree
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            if image.width * image.height > IMAGE_COMPRESSION_MAX_PIXELS:
+                raise ValueError("Image exceeds pixel limit")
+            mime = Image.MIME[image.format or ""]
+            image.verify()
+        with Image.open(BytesIO(content)) as image:
+            image.load()
+        return mime, None
+    except UnidentifiedImageError:
+        pass
+    except Exception as exc:
+        raise ValueError("Image data could not be decoded") from exc
+
+    try:
+        root = ElementTree.fromstring(content, forbid_dtd=True)
+        if root.tag not in ("svg", "{http://www.w3.org/2000/svg}svg"):
+            raise ValueError("Not an SVG image")
+        text = "\n".join(
+            text
+            for node in root.iter()
+            if node.tag in ("text", "{http://www.w3.org/2000/svg}text")
+            if (text := "".join(node.itertext()).strip())
+        )
+        return "image/svg+xml", text
+    except Exception as exc:
+        raise ValueError(
+            "Image is invalid or unsupported; SVG must not contain a DTD or entities"
+        ) from exc
 
 
 def needs_model_safe_transcode(

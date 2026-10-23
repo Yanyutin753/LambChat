@@ -39,6 +39,12 @@ from src.infra.agent.middleware._helpers import (
     _system_message_to_blocks,
 )
 from src.infra.async_utils import run_blocking_io, run_long_blocking_io
+from src.infra.image_utils import (
+    MODEL_SAFE_IMAGE_MIME_TYPES,
+    SVG_TEXT_MAX_CHARS,
+    inspect_image_content,
+    transcode_image_bytes,
+)
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
 from src.kernel.config import settings
 
@@ -536,6 +542,47 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 )
                 return None
 
+            image_text: dict[str, Any] = {}
+            if mime_type.startswith("image/"):
+                try:
+                    mime_type, svg_text = await run_long_blocking_io(
+                        inspect_image_content, file_bytes
+                    )
+                    if svg_text is not None:
+                        image_text = {
+                            "text": svg_text[:SVG_TEXT_MAX_CHARS],
+                            "text_truncated": len(svg_text) > SVG_TEXT_MAX_CHARS,
+                        }
+                        if not svg_text:
+                            image_text["warning"] = (
+                                "SVG has no extractable text. Render it to PNG or JPEG "
+                                "in the sandbox before visual analysis."
+                            )
+                    elif mime_type not in MODEL_SAFE_IMAGE_MIME_TYPES:
+                        file_bytes, mime_type = await run_long_blocking_io(
+                            transcode_image_bytes, file_bytes
+                        )
+                except ValueError as exc:
+                    return ToolMessage(
+                        content=await _json_dumps_for_tool_message(
+                            {
+                                "error": str(exc),
+                                "path": file_path,
+                                "hint": "Inspect the actual file format or render a valid PNG/JPEG before retrying.",
+                            }
+                        ),
+                        tool_call_id=request.tool_call.get("id", ""),
+                        name="read_file",
+                        status="error",
+                    )
+                if mimetypes.guess_type(filename)[0] != mime_type:
+                    ext = (
+                        ".jpg"
+                        if mime_type == "image/jpeg"
+                        else mimetypes.guess_extension(mime_type)
+                    )
+                    filename = os.path.splitext(filename)[0] + (ext or ".bin")
+
             # Upload to storage
             storage = await get_or_init_storage()
             with SpooledTemporaryFile(
@@ -566,6 +613,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     "name": filename,
                     "mime_type": upload_result.content_type or mime_type,
                     "size": file_size,
+                    **image_text,
                     "_meta": {
                         "path": file_path,
                         "source": "read_file_binary_upload",
@@ -636,7 +684,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     "read_file",
                     payload,
                     tool_call_id=tool_call_id,
-                    success=True,
+                    success=message.status != "error",
                     depth=depth,
                     agent_id=agent_id,
                 )
