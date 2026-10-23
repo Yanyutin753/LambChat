@@ -128,3 +128,17 @@ test("logout while minting revokes the unused PAT without saving it", async () =
   expect(mocks.savePairing).not.toHaveBeenCalled();
   expect(mocks.revokePairingPat).toHaveBeenCalledWith("unused");
 });
+
+test("MFA accounts cannot auto-pair or retry without fresh verification", async () => {
+  mocks.createPairingPat.mockRejectedValue(
+    Object.assign(new Error("Verify in settings"), {
+      code: "two_factor_required",
+    }),
+  );
+  renderHook(() => useDesktopAutoPair("mfa-user"));
+  await flush();
+  await act(() => vi.advanceTimersByTimeAsync(10000));
+  expect(mocks.createPairingPat).toHaveBeenCalledTimes(1);
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+});

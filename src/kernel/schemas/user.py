@@ -64,6 +64,7 @@ class User(UserBase):
     permissions: List[str] = Field(default_factory=list)
     is_active: bool = True
     email_verified: bool = False  # 邮箱是否已验证
+    two_factor_enabled: bool = False
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -92,6 +93,10 @@ class UserInDB(User):
     """User model with sensitive data (database view)."""
 
     password_hash: str
+    auth_version: Optional[str] = Field(None, exclude=True)
+    pat_version: Optional[str] = Field(None, exclude=True)
+    two_factor: dict = Field(default_factory=dict, exclude=True)
+    two_factor_pending: Optional[dict] = Field(None, exclude=True)
     verification_token: Optional[str] = None  # 邮箱验证令牌
     verification_token_expires: Optional[datetime] = None  # 邮箱验证令牌过期时间
     reset_token: Optional[str] = None  # 密码重置令牌
@@ -102,6 +107,7 @@ class TokenPayload(BaseModel):
     """JWT Token payload."""
 
     sub: str  # user_id
+    auth_version: Optional[str] = None
     username: str
     roles: List[str] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
@@ -116,6 +122,17 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class PairingToken(Token):
+    """One-use authorization returned only for an explicit pairing login."""
+
+    pairing_token: str
+
+
+class TwoFactorChallenge(BaseModel):
+    two_factor_required: bool = True
+    challenge_token: str
 
 
 class LoginRequest(BaseModel):

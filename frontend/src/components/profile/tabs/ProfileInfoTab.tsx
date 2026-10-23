@@ -1,3 +1,4 @@
+import { ProfileTwoFactorSection } from "./ProfileTwoFactorSection";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -418,6 +419,7 @@ function ProfileInfoContent() {
           </div>
         )}
       </div>
+      <ProfileTwoFactorSection />
     </>
   );
 }

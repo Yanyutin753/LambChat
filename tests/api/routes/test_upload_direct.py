@@ -101,9 +101,19 @@ async def test_start_preserves_limits_and_returns_only_scoped_ticket(env):
     doc = env.collection.insert_one.call_args.args[0]
     assert doc["owner"] == "user" and doc["key"].startswith("document/user/")
     env.adapter.create.assert_awaited_once()
+    assert result["first_part_url"] == "https://storage/part"
+    env.adapter.sign_part.assert_awaited_once_with(doc["key"], "upload-id", 1, 3)
     with pytest.raises(AppError):
         await direct.start_upload(direct.StartUpload(name="a.txt", size=101), env.user)
     assert env.adapter.create.await_count == 1
+
+
+async def test_initial_signature_failure_cleans_up_created_multipart(env):
+    env.adapter.sign_part.side_effect = OSError("signing failed")
+    with pytest.raises(OSError, match="signing failed"):
+        await direct.start_upload(direct.StartUpload(name="a.txt", size=3), env.user)
+    env.adapter.abort.assert_awaited_once()
+    env.collection.delete_one.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -69,6 +69,103 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+test("starts the first part with the ticket URL and refreshes the signature only on retry", async () => {
+  auth.mockResolvedValueOnce(
+    json({
+      mode: "direct",
+      id: "ticket",
+      part_size: 8,
+      part_count: 1,
+      first_part_url: "https://storage.example/initial",
+    }),
+  );
+  const handle = uploadDirect(new File(["abcdef"], "a.txt"), {}, fallback);
+  const first = await nextPart(0);
+  expect(first.url).toBe("https://storage.example/initial");
+  expect(auth.mock.calls.some(([url]) => url.includes("/parts/"))).toBe(false);
+  first.finish(403);
+  const retry = await nextPart(1);
+  expect(retry.url).toBe("https://storage.example/scoped-part");
+  retry.finish();
+  await handle.promise;
+});
+
+test("large uploads send at most three parts concurrently and complete only after every part", async () => {
+  auth.mockResolvedValueOnce(
+    json({ mode: "direct", id: "ticket", part_size: 4, part_count: 5 }),
+  );
+  const progress = vi.fn();
+  const handle = uploadDirect(
+    new File(["abcdefghijklmnopqrst"], "large.txt"),
+    { onProgress: progress },
+    fallback,
+  );
+  await nextPart(2);
+  expect(FakeXHR.sent).toHaveLength(3);
+  FakeXHR.sent[2].progress(4);
+  FakeXHR.sent[0].progress(2);
+  expect(progress).toHaveBeenLastCalledWith(30, 6, 20);
+  FakeXHR.sent[2].finish();
+  (await nextPart(3)).finish();
+  (await nextPart(4)).finish();
+  expect(auth.mock.calls.some(([url]) => url.endsWith("/complete"))).toBe(
+    false,
+  );
+  FakeXHR.sent[1].finish();
+  FakeXHR.sent[0].finish();
+  await handle.promise;
+  expect(progress).toHaveBeenLastCalledWith(100, 20, 20);
+});
+
+test("cancel aborts every active part and never commits a partial large upload", async () => {
+  auth.mockResolvedValueOnce(
+    json({ mode: "direct", id: "ticket", part_size: 4, part_count: 4 }),
+  );
+  const handle = uploadDirect(
+    new File(["abcdefghijklmnop"], "large.txt"),
+    {},
+    fallback,
+  );
+  const rejected = expect(handle.promise).rejects.toMatchObject({
+    name: "AbortError",
+  });
+  await nextPart(2);
+  const aborts = FakeXHR.sent.map((part) => vi.spyOn(part, "abort"));
+  handle.abort();
+  await rejected;
+  expect(aborts.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+  expect(FakeXHR.sent).toHaveLength(3);
+  expect(auth.mock.calls.some(([url]) => url.endsWith("/complete"))).toBe(
+    false,
+  );
+});
+
+test("a permanent part failure aborts its siblings before cleanup and preserves the original error", async () => {
+  auth.mockResolvedValueOnce(
+    json({ mode: "direct", id: "ticket", part_size: 4, part_count: 4 }),
+  );
+  const handle = uploadDirect(
+    new File(["abcdefghijklmnop"], "large.txt"),
+    {},
+    fallback,
+  );
+  const rejected = expect(handle.promise).rejects.toMatchObject({
+    status: 400,
+  });
+  await nextPart(2);
+  const aborts = FakeXHR.sent.slice(1).map((part) => vi.spyOn(part, "abort"));
+  FakeXHR.sent[0].finish(400);
+  await rejected;
+  expect(aborts.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+  expect(auth.mock.calls.some(([, init]) => init.method === "DELETE")).toBe(
+    true,
+  );
+  expect(auth.mock.calls.some(([url]) => url.endsWith("/complete"))).toBe(
+    false,
+  );
+  expect(fallback).not.toHaveBeenCalled();
+});
+
 test("reports real server verification progress while completion is pending and stops polling afterward", async () => {
   let finish!: (response: Response) => void;
   const base = auth.getMockImplementation()!;

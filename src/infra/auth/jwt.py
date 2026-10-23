@@ -18,6 +18,8 @@ from src.kernel.schemas.user import TokenPayload
 def create_access_token(
     user_id: str,
     expires_delta: Optional[timedelta] = None,
+    *,
+    auth_version: Optional[str] = None,
 ) -> str:
     """
     创建访问令牌
@@ -42,6 +44,9 @@ def create_access_token(
         "iat": now,
     }
 
+    if auth_version is not None:
+        payload["auth_version"] = auth_version
+
     return jwt.encode(
         payload,
         settings.JWT_SECRET_KEY,
@@ -53,6 +58,8 @@ def create_refresh_token(
     user_id: str,
     username: str,
     expires_delta: Optional[timedelta] = None,
+    *,
+    auth_version: Optional[str] = None,
 ) -> str:
     """
     创建刷新令牌
@@ -78,6 +85,9 @@ def create_refresh_token(
         "exp": expire,
         "iat": now,
     }
+
+    if auth_version is not None:
+        payload["auth_version"] = auth_version
 
     return jwt.encode(
         payload,
@@ -142,6 +152,7 @@ def verify_token(token: str) -> TokenPayload:
 
     return TokenPayload(
         sub=payload["sub"],
+        auth_version=payload.get("auth_version"),
         username=payload.get("username", ""),
         roles=payload.get("roles", []),
         permissions=payload.get("permissions", []),

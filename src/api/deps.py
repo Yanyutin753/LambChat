@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
+from contextlib import aclosing
+from time import monotonic
 from typing import Optional
 
 from fastapi import Depends, Request
@@ -101,6 +104,7 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
     Raises:
         AppError: USER_NOT_FOUND（用户不存在）
     """
+    token_auth = payload is not None
     if payload is None:
         payload = TokenPayload(sub=user_id, username="")
 
@@ -111,6 +115,9 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
             raise AppError(ErrorCode.USER_NOT_FOUND)
         if user.is_active is False:
             raise AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)
+
+        if token_auth and payload.auth_version != getattr(user, "auth_version", None):
+            raise AppError(ErrorCode.INVALID_TOKEN)
 
         roles, permissions = await _get_user_roles_and_permissions(user.roles)
         payload.username = user.username
@@ -223,6 +230,25 @@ async def get_current_user_from_websocket(
     except Exception as e:
         logger.error("[WebSocket] Auth error: %s", type(e).__name__)
         raise AppError(ErrorCode.INTERNAL_ERROR) from e
+
+
+async def guard_authenticated_stream(source, user: TokenPayload):
+    """Recheck long-lived JWT streams before sending data after each 15-second interval."""
+    next_check = monotonic() + 15
+    async with aclosing(source):
+        async for chunk in source:
+            try:
+                if user.exp is not None and user.exp.timestamp() <= time.time():
+                    raise AppError(ErrorCode.TOKEN_EXPIRED)
+                if monotonic() >= next_check:
+                    await _load_user_payload(user.sub, user.model_copy(deep=True))
+                    next_check = monotonic() + 15
+            except Exception as error:
+                code = error.error_code.code if isinstance(error, AppError) else "internal_error"
+                payload = json.dumps({"error": "Stream authorization expired", "code": code})
+                yield f"event: error\ndata: {payload}\n\n"
+                return
+            yield chunk
 
 
 async def get_user_manager() -> UserManager:

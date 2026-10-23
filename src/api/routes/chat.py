@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
 from src.agents.core.base import normalize_agent_id
-from src.api.deps import get_current_user_required, require_permissions
+from src.api.deps import get_current_user_required, guard_authenticated_stream, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
@@ -733,7 +733,7 @@ async def session_stream(
             yield f"event: error\ndata: {payload}\n\n"
 
     return StreamingResponse(
-        event_generator(),
+        guard_authenticated_stream(event_generator(), user),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

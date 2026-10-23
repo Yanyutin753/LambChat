@@ -1,3 +1,4 @@
+import { toast } from "react-hot-toast";
 import { useEffect } from "react";
 import { sandboxApi } from "../services/api/sandbox";
 import { effectiveApiBase } from "../services/api/serverConfig";
@@ -46,6 +47,10 @@ export function useDesktopAutoPair(userId?: string) {
         await restartDaemon();
         notifySandboxStatusRefresh();
       } catch (error) {
+        if ((error as { code?: string })?.code === "two_factor_required") {
+          if (!cancelled) toast.error((error as Error).message);
+          return;
+        }
         console.warn("[DesktopAutoPair] pairing failed:", error);
         if (!cancelled && attempts < 3) timer = setTimeout(pair, 3000);
       }

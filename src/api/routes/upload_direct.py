@@ -108,6 +108,9 @@ async def start_upload(body: StartUpload, user: TokenPayload = Depends(get_curre
         await tickets().update_one(
             {"_id": ticket_id}, {"$set": {"upload_id": upload_id, "state": "active"}}
         )
+        first_part_url = await storage.direct_upload.sign_part(
+            key, upload_id, 1, min(PART_SIZE, body.size)
+        )
     except Exception:
         await tickets().update_one({"_id": ticket_id}, {"$set": {"state": "cleanup"}})
         if ticket.get("upload_id"):
@@ -118,6 +121,7 @@ async def start_upload(body: StartUpload, user: TokenPayload = Depends(get_curre
         "id": ticket_id,
         "part_size": PART_SIZE,
         "part_count": (body.size + PART_SIZE - 1) // PART_SIZE,
+        "first_part_url": first_part_url,
     }
 
 

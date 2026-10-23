@@ -8,7 +8,10 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+from src.infra.auth.two_factor import TwoFactorService, rate_limit
+from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 PAT_PREFIX = "lc_pat_"
 _COLL_PATS = "pats"
@@ -25,6 +28,7 @@ class PATRecord(BaseModel):
     expires_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
     revoked: bool = False
+    pat_version: Optional[str] = None
 
 
 def _hash_token(token: str) -> str:
@@ -61,7 +65,22 @@ class PATStorage:
         name: str,
         scopes: list[str],
         expires_at: Optional[datetime] = None,
+        auth_version: Optional[str] = None,
+        code: Optional[str] = None,
+        pairing_token: Optional[str] = None,
     ) -> tuple[str, PATRecord]:
+        user = await UserStorage().get_by_id(user_id)
+        if not user or user.is_active is False or user.auth_version != auth_version:
+            raise AppError(ErrorCode.INVALID_TOKEN)
+        if getattr(user, "two_factor_enabled", False):
+            if not code and not pairing_token:
+                raise AppError(ErrorCode.TWO_FACTOR_REQUIRED)
+            await rate_limit("pairing", user_id, 10)
+            service = TwoFactorService()
+            if pairing_token:
+                await service.consume_pairing(user, pairing_token)
+            else:
+                await service.verify_factor(user, code)
         token = f"{PAT_PREFIX}{secrets.token_urlsafe(32)}"
         record = PATRecord(
             pat_id=uuid.uuid4().hex,
@@ -72,6 +91,7 @@ class PATStorage:
             prefix=token[:12],
             created_at=_utcnow(),
             expires_at=expires_at,
+            pat_version=user.pat_version,
         )
         await self._get_collection().insert_one(record.model_dump())
         return token, record
@@ -90,10 +110,18 @@ class PATStorage:
         expires_at = doc.get("expires_at")
         if expires_at is not None and expires_at <= _utcnow():
             return None, "expired"
+        user = await UserStorage().get_by_id(doc["user_id"])
+        if not user or user.is_active is False or doc.get("pat_version") != user.pat_version:
+            return None, "revoked"
         return PATRecord(**doc), None
 
     async def list_for_user(self, user_id: str) -> list[PATRecord]:
-        cursor = self._get_collection().find({"user_id": user_id, "revoked": False})
+        user = await UserStorage().get_by_id(user_id)
+        if not user:
+            return []
+        cursor = self._get_collection().find(
+            {"user_id": user_id, "revoked": False, "pat_version": user.pat_version}
+        )
         docs = await cursor.sort("created_at", -1).to_list(None)
         return [PATRecord(**d) for d in docs]
 

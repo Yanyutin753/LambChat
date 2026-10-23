@@ -473,7 +473,7 @@ test.each(["current", "other"])(
     mocks.daemonProcessStatus.mockResolvedValue("stopped");
     mocks.getStatus.mockResolvedValue({ online: false });
     mocks.getValidAccessToken.mockResolvedValue("fixture-jwt");
-    mocks.pairingLogin.mockResolvedValue("fixture-jwt");
+    mocks.pairingLogin.mockResolvedValue({ access_token: "fixture-jwt" });
     mocks.createPairingPat.mockResolvedValue({
       token: "fixture-pat",
       pat_id: "fixture-id",
@@ -903,7 +903,7 @@ test("pairing runs side-effect-free login → pat → savePairing → restart in
   mocks.daemonProcessStatus.mockResolvedValue("stopped");
   mocks.getStatus.mockResolvedValue({ online: false });
   mocks.getValidAccessToken.mockResolvedValue(null);
-  mocks.pairingLogin.mockResolvedValue("pairing-jwt");
+  mocks.pairingLogin.mockResolvedValue({ access_token: "pairing-jwt" });
   mocks.createPairingPat.mockResolvedValue({
     token: "lcpat_pair",
     pat_id: "p1",
@@ -936,7 +936,7 @@ test("pairing runs side-effect-free login → pat → savePairing → restart in
   expect(loginEvents).toHaveLength(0);
 
   // 铸 PAT 用的是配对账号的 JWT，不是壳会话
-  expect(mocks.createPairingPat).toHaveBeenCalledWith("pairing-jwt");
+  expect(mocks.createPairingPat).toHaveBeenCalledWith("pairing-jwt", {});
   expect(mocks.createPat).not.toHaveBeenCalled();
 
   // savePairing 带上配对回执 pat_id
@@ -1168,7 +1168,7 @@ test("unpaired form offers one-click pairing with the current signed-in account"
 
     // 不走密码通道：一键配对只用当前会话 token，链路走完并提示成功
     expect(mocks.pairingLogin).not.toHaveBeenCalled();
-    expect(mocks.createPairingPat).toHaveBeenCalledWith("jwt-current");
+    expect(mocks.createPairingPat).toHaveBeenCalledWith("jwt-current", {});
     expect(mocks.savePairing).toHaveBeenCalledWith(
       expect.objectContaining({ pat: "lcpat_cur", patId: "p-cur" }),
     );
@@ -1250,4 +1250,40 @@ test("daemon process status follows shell status events instead of polling", asy
   await waitFor(() => expect(screen.getByText("Stopped")).toBeInTheDocument());
   // 事件模式下不追加轮询（仅初始对账那一次）
   expect(mocks.daemonProcessStatus).toHaveBeenCalledTimes(1);
+});
+
+test("current account pairing requires fresh proof and never saves on rejection", async () => {
+  mocks.isShellAvailable.mockReturnValue(true);
+  mocks.daemonProcessStatus.mockResolvedValue("stopped");
+  mocks.getStatus.mockResolvedValue({ online: false });
+  mocks.readPairingPat.mockResolvedValue(null);
+  mocks.getValidAccessToken.mockResolvedValue("jwt-current");
+  mocks.createPairingPat
+    .mockRejectedValueOnce(
+      Object.assign(new Error("Fresh verification required"), {
+        code: "two_factor_required",
+      }),
+    )
+    .mockResolvedValueOnce({ token: "fresh-pat", pat_id: "fresh-id" });
+  mocks.savePairing.mockResolvedValue(undefined);
+  mocks.restartDaemon.mockResolvedValue(undefined);
+  render(<LocalSandboxSection />);
+  const button = await screen.findByRole("button", {
+    name: /pair with current account/i,
+  });
+  fireEvent.click(button);
+  const { toast } = await import("react-hot-toast");
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith("Fresh verification required"),
+  );
+  expect(mocks.savePairing).not.toHaveBeenCalled();
+  expect(mocks.restartDaemon).not.toHaveBeenCalled();
+  const code = document.querySelector('input[autocomplete="one-time-code"]')!;
+  fireEvent.change(code, { target: { value: "123456" } });
+  fireEvent.click(button);
+  await waitFor(() => expect(mocks.savePairing).toHaveBeenCalled());
+  expect(mocks.createPairingPat).toHaveBeenLastCalledWith("jwt-current", {
+    code: "123456",
+  });
+  expect(code).toHaveValue("");
 });

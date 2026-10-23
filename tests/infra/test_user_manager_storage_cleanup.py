@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
+from src.infra.auth import two_factor as two_factor_module
 from src.infra.storage.s3.service import get_storage_service, init_storage
 from src.infra.storage.s3.types import S3Config, S3Provider
 from src.infra.user import manager as user_manager_module
@@ -75,12 +76,12 @@ async def test_login_does_not_fetch_roles_on_token_hot_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        user_manager_module, "create_access_token", lambda user_id: f"access:{user_id}"
+        two_factor_module, "create_access_token", lambda user_id, **_: f"access:{user_id}"
     )
     monkeypatch.setattr(
-        user_manager_module,
+        two_factor_module,
         "create_refresh_token",
-        lambda user_id, username: f"refresh:{user_id}:{username}",
+        lambda user_id, username, **_: f"refresh:{user_id}:{username}",
     )
 
     manager = UserManager()

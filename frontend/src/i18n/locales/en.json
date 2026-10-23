@@ -726,7 +726,12 @@
     "goalConflict": "Goal changed; refresh and retry",
     "usageQuotaExceeded": "Your 5-hour or weekly model budget has been exhausted.",
     "usageQuotaUnavailable": "The model budget could not be checked. Please try again later.",
-    "usageQuotaUnpriced": "This paid API call lacks reliable USD pricing or token bounds, so it cannot be used with a budget."
+    "usageQuotaUnpriced": "This paid API call lacks reliable USD pricing or token bounds, so it cannot be used with a budget.",
+    "twoFactorRequired": "Verify two-factor authentication to pair this computer in local sandbox settings.",
+    "twoFactorInvalid": "Invalid or already used code. Enter a new code.",
+    "twoFactorExpired": "Verification expired. Sign in or pair again.",
+    "twoFactorState": "Two-factor settings changed. Please reload.",
+    "twoFactorUnavailable": "Secure authentication is temporarily unavailable."
   },
   "categories": {
     "scheduled_task": "Scheduled tasks",
@@ -4732,5 +4737,35 @@
     "inherits": "New chats in this project use this computer and folder. Existing chats keep their settings.",
     "optional": "Optional. New chats share this folder; files stay on your computer.",
     "privacy": "Files run on the selected computer; read content may be sent to the chat model."
+  },
+  "twoFactor": {
+    "pairingHint": "Accounts with two-factor authentication must enter a fresh authenticator or recovery code for each pairing, including the signed-in account. Leave blank if it is not enabled.",
+    "title": "Two-factor authentication (2FA)",
+    "description": "Two-factor authentication is optional. Once enabled, sign-in also requires an authenticator code or recovery code.",
+    "enabled": "Enabled",
+    "disabled": "Not enabled",
+    "pair": "Pair authenticator",
+    "passwordHint": "Enter your current account password. For social-only accounts, set a password using “Forgot password” first.",
+    "scanHint": "Scan with your authenticator app, then enter its 6-digit code. Pairing expires after 10 minutes.",
+    "qrAlt": "Authenticator pairing QR code",
+    "manualKey": "Manual setup key (do not share)",
+    "code": "6-digit code",
+    "codeOrRecovery": "Authenticator or recovery code",
+    "confirmEnable": "Confirm and enable",
+    "disable": "Turn off two-factor authentication",
+    "confirmDisable": "Verify and turn off",
+    "regenerate": "Regenerate recovery codes",
+    "confirmRegenerate": "Verify and regenerate",
+    "saveCodes": "Save your recovery codes",
+    "saveCodesHint": "Shown once. Each code works once. Store them safely offline; new codes immediately replace old ones. Do not share them or send them in chat.",
+    "savedCodes": "I saved my codes",
+    "loginHint": "Enter the 6-digit code from your authenticator app. Codes cannot be reused; after pairing, wait for the next code.",
+    "recoveryHint": "Enter an unused recovery code. It becomes invalid immediately after use.",
+    "recoveryCode": "Recovery code",
+    "verify": "Verify and sign in",
+    "useRecovery": "Use a recovery code",
+    "useAuthenticator": "Use authenticator code",
+    "tokenNotice": "Enabling two-factor authentication or regenerating recovery codes revokes other login sessions, existing API tokens, and device pairings. Sign in and pair devices again. Disabling two-factor authentication only revokes other login sessions.",
+    "optionalCode": "Authenticator or recovery code (if 2FA is enabled)"
   }
 }

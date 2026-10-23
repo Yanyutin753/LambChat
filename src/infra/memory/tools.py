@@ -78,6 +78,25 @@ async def _get_backend() -> Optional[MemoryBackend]:
         return _backend
 
 
+async def warmup_backend() -> None:
+    """Prepare local clients and indexes without recalling data or invoking models."""
+    if not settings.ENABLE_MEMORY:
+        return
+    try:
+        from src.infra.memory.client.native.vector_store import (
+            get_vector_index,
+            vector_backend_enabled,
+        )
+
+        if vector_backend_enabled():
+            # Qdrant's first import is CPU-heavy; keep it off the serving event loop.
+            await run_long_blocking_io(__import__, "qdrant_client")
+        await _get_backend()
+        await get_vector_index()
+    except Exception as exc:
+        logger.warning("[Memory] Startup preparation deferred (%s)", type(exc).__name__)
+
+
 # ============================================================================
 # Unified Memory Tools
 # ============================================================================

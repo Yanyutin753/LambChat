@@ -566,3 +566,62 @@ async def test_pair_rejects_nonobject_auth_response_without_persisting_credentia
         )
     assert error.value.code == "invalid_response"
     assert not paths.pat_file().exists()
+
+
+async def test_pair_requires_second_factor_before_minting_pat():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path == "/api/auth/login":
+            return httpx.Response(
+                200, json={"two_factor_required": True, "challenge_token": "challenge"}
+            )
+        if request.url.path == "/api/auth/2fa/verify":
+            assert json.loads(request.content) == {
+                "challenge_token": "challenge",
+                "code": "123456",
+                "for_pairing": True,
+            }
+            return httpx.Response(
+                200, json={"access_token": "verified-jwt", "pairing_token": "one-use-grant"}
+            )
+        assert json.loads(request.content)["pairing_token"] == "one-use-grant"
+        assert request.headers["Authorization"] == "Bearer verified-jwt"
+        return httpx.Response(200, json={"token": "paired-pat"})
+
+    result = await pair(
+        "https://lc.example",
+        "alice",
+        "secret",
+        transport=httpx.MockTransport(handler),
+        persist=False,
+        request_code=lambda: "123456",
+    )
+    assert result == "paired-pat"
+    assert [r.url.path for r in requests] == [
+        "/api/auth/login",
+        "/api/auth/2fa/verify",
+        "/api/auth/pat",
+    ]
+
+
+async def test_pair_does_not_mint_pat_when_second_factor_is_missing():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        return httpx.Response(
+            200, json={"two_factor_required": True, "challenge_token": "challenge"}
+        )
+
+    with pytest.raises(AuthError) as error:
+        await pair(
+            "https://lc.example",
+            "alice",
+            "secret",
+            transport=httpx.MockTransport(handler),
+            persist=False,
+        )
+    assert error.value.code == "two_factor_required"
+    assert calls == ["/api/auth/login"]

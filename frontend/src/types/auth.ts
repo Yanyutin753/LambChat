@@ -89,6 +89,7 @@ export interface User {
   roles: string[];
   permissions?: string[];
   is_active: boolean;
+  two_factor_enabled?: boolean;
   metadata?: {
     language?: string;
     theme?: string;

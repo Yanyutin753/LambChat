@@ -504,6 +504,56 @@ async def edge_cases(user_id: str, machine_id: str) -> None:
         f"code={code3} 用时{time.monotonic() - t0:.1f}s",
     )
 
+    # A long command must not consume another call's ACK/execution budget.
+    await dispatch_local_call(
+        user_id,
+        "fs_write",
+        {
+            "cwd": "/workspace/e2e",
+            "path": "parallel.txt",
+            "content_b64": base64.b64encode(b"ready").decode(),
+        },
+        machine_id=machine_id,
+    )
+    slow = asyncio.create_task(
+        dispatch_local_call(
+            user_id,
+            "exec",
+            {"command": "sleep 3", "cwd": "/workspace/e2e"},
+            machine_id=machine_id,
+            timeout=10,
+        )
+    )
+    try:
+        await asyncio.sleep(0.3)
+        results = await asyncio.gather(
+            dispatch_local_call(
+                user_id,
+                "exec",
+                {"command": "printf fast", "cwd": "/workspace/e2e"},
+                machine_id=machine_id,
+                timeout=1.5,
+            ),
+            dispatch_local_call(
+                user_id,
+                "fs_read",
+                {"cwd": "/workspace/e2e", "path": "parallel.txt"},
+                machine_id=machine_id,
+                timeout=1.5,
+            ),
+            return_exceptions=True,
+        )
+        check(
+            "长命令不阻塞独立 exec",
+            isinstance(results[0], dict) and results[0].get("stdout") == "fast",
+        )
+        check(
+            "长命令不阻塞读文件",
+            isinstance(results[1], dict) and "ready" in str(results[1].get("result")),
+        )
+    finally:
+        await slow
+
     # E4. 0 字节文件流式往返
     from src.infra.sandbox.relay.dispatch import dispatch_local_stream, dispatch_local_stream_upload
 

@@ -10,6 +10,7 @@ interface DirectTicket {
   id: string;
   part_size: number;
   part_count: number;
+  first_part_url?: string;
 }
 
 function aborted(): DOMException {
@@ -59,7 +60,10 @@ export function uploadDirect(
   fallback: () => UploadHandle,
 ): UploadHandle {
   const controller = new AbortController();
-  let xhr: XMLHttpRequest | undefined;
+  const partsController = new AbortController();
+  const activeParts = new Set<XMLHttpRequest>();
+  const loadedParts = new Map<number, number>();
+  let loadedBytes = 0;
   let proxy: UploadHandle | undefined;
   let ticket: DirectTicket | undefined;
   let settled = false;
@@ -87,23 +91,21 @@ export function uploadDirect(
 
   const putPart = (url: string, blob: Blob, offset: number): Promise<void> =>
     new Promise((resolve, reject) => {
-      if (controller.signal.aborted) {
+      if (partsController.signal.aborted) {
         reject(aborted());
         return;
       }
       const part = new XMLHttpRequest();
-      xhr = part;
+      activeParts.add(part);
+      const finished = () => activeParts.delete(part);
+      part.addEventListener("loadend", finished, { once: true });
       part.open("PUT", url);
       // Only the scoped URL authorizes this request; do not send application credentials.
       part.upload.addEventListener("progress", (event) => {
-        const loaded = offset + Math.min(event.loaded, blob.size);
-        options.onProgress?.(
-          Math.min(99, Math.floor((loaded * 100) / file.size)),
-          loaded,
-          file.size,
-        );
+        reportPartProgress(offset, Math.min(event.loaded, blob.size));
       });
       part.addEventListener("load", () => {
+        finished();
         if (part.status >= 200 && part.status < 300) resolve();
         else
           reject(
@@ -112,26 +114,48 @@ export function uploadDirect(
             }),
           );
       });
-      part.addEventListener("error", () =>
+      part.addEventListener("error", () => {
+        finished();
         reject(
           Object.assign(new Error(i18n.t("fileUpload.uploadFailed")), {
             status: 0,
             directNetworkFailure: true,
           }),
-        ),
-      );
-      part.addEventListener("abort", () => reject(aborted()));
+        );
+      });
+      part.addEventListener("abort", () => {
+        finished();
+        reject(aborted());
+      });
       part.timeout = 120_000;
-      part.addEventListener("timeout", () =>
+      part.addEventListener("timeout", () => {
+        finished();
         reject(
           Object.assign(new Error(i18n.t("fileUpload.uploadFailed")), {
             status: 408,
             directNetworkFailure: true,
           }),
-        ),
-      );
+        );
+      });
       part.send(blob);
     });
+
+  const reportPartProgress = (offset: number, bytes: number) => {
+    // Retries and out-of-order parts must not move the progress bar backwards.
+    const previous = loadedParts.get(offset) ?? 0;
+    loadedBytes += Math.max(0, bytes - previous);
+    loadedParts.set(offset, Math.max(previous, bytes));
+    options.onProgress?.(
+      Math.min(99, Math.floor((loadedBytes * 100) / file.size)),
+      loadedBytes,
+      file.size,
+    );
+  };
+
+  const abortParts = () => {
+    partsController.abort();
+    for (const part of activeParts) part.abort();
+  };
 
   const promise = (async (): Promise<UploadResult> => {
     try {
@@ -166,21 +190,31 @@ export function uploadDirect(
         if (controller.signal.aborted) throw aborted();
         return result;
       }
-      for (let number = 1; number <= initialized.part_count; number++) {
+      const uploadPart = async (number: number) => {
         const offset = (number - 1) * initialized.part_size;
         const blob = file.slice(offset, offset + initialized.part_size);
         for (let attempt = 0; ; attempt++) {
-          if (controller.signal.aborted) throw aborted();
+          if (partsController.signal.aborted) throw aborted();
           try {
-            const signed = await request(`/${initialized.id}/parts/${number}`, {
-              method: "POST",
-              signal: controller.signal,
-            });
-            const { url } = await signed.json();
+            let url =
+              number === 1 && attempt === 0
+                ? initialized.first_part_url
+                : undefined;
+            if (!url) {
+              const signed = await request(
+                `/${initialized.id}/parts/${number}`,
+                {
+                  method: "POST",
+                  signal: partsController.signal,
+                },
+              );
+              url = (await signed.json()).url;
+            }
+            if (!url) throw new Error(i18n.t("fileUpload.uploadFailed"));
             await putPart(url, blob, offset);
             break;
           } catch (error) {
-            if (controller.signal.aborted) throw aborted();
+            if (partsController.signal.aborted) throw aborted();
             const status = (error as { status?: number }).status ?? 0;
             if (
               attempt >= 2 ||
@@ -189,13 +223,33 @@ export function uploadDirect(
               throw error;
           }
         }
-        const loaded = Math.min(offset + blob.size, file.size);
-        options.onProgress?.(
-          Math.floor((loaded * 100) / file.size),
-          loaded,
-          file.size,
-        );
-      }
+        reportPartProgress(offset, blob.size);
+      };
+      let nextNumber = 1;
+      let partError: unknown;
+      const worker = async () => {
+        while (
+          !partsController.signal.aborted &&
+          nextNumber <= initialized.part_count
+        ) {
+          const number = nextNumber++;
+          try {
+            await uploadPart(number);
+          } catch (error) {
+            if (!partsController.signal.aborted) {
+              partError = error;
+              abortParts();
+            }
+            return;
+          }
+        }
+      };
+      // Keep small uploads sequential; bound large transfers to three active requests.
+      await Promise.all(
+        Array.from({ length: initialized.part_count >= 3 ? 3 : 1 }, worker),
+      );
+      if (controller.signal.aborted) throw aborted();
+      if (partError) throw partError;
       options.onProgress?.(100, file.size, file.size);
       const monitoring = new AbortController();
       let progressTimer: ReturnType<typeof setTimeout> | undefined;
@@ -269,7 +323,7 @@ export function uploadDirect(
     abort() {
       if (settled) return;
       controller.abort();
-      xhr?.abort();
+      abortParts();
       proxy?.abort();
       void cleanup();
     },

@@ -1250,9 +1250,9 @@ async def test_duplicate_call_id_executes_once():
     assert len(executor.calls) == 2
     dones = [cid for cid, body in client.posted if body.get("stage") == "done"]
     assert dones == ["c1", "c2"]
-    # 已接受 done 的调用已终态：重复帧无需再发 HTTP ACK。
+    # 重复帧可能在首次执行结束前到达，此时补 ACK；终态无需再发。
     acks = [cid for cid, body in client.posted if body.get("stage") == "ack"]
-    assert acks == []
+    assert acks in ([], ["c1"])
 
     # 重复帧有专属审计记录，可事后核对
     duplicates = [
@@ -1586,9 +1586,16 @@ async def test_authoritatively_rejected_call_does_not_reack_every_late_duplicate
 
 async def test_terminal_dedupe_entries_follow_existing_fifo_eviction():
     client, executor = FakeClient(), FakeExecutor()
+
+    async def calls():
+        for index, cid in enumerate(["first", "second", "first"]):
+            yield _call(cid)
+            while len([body for _, body in client.posted if body.get("stage") == "done"]) <= index:
+                await asyncio.sleep(0)
+
     await daemon_module._handle_channel(
         client,
-        _aiter([_call("first"), _call("second"), _call("first")]),
+        calls(),
         cfg=_cfg(),
         executor=executor,
         auditor=MemoryAuditor(),
@@ -1679,7 +1686,7 @@ async def test_download_stream_failure_reports_done_before_reconnect(tmp_path, f
 
 
 @pytest.mark.parametrize(
-    "op", ["fs_download_stream", "fs_upload_stream", "fs_download", "fs_upload"]
+    "op", ["fs_download_stream", "fs_upload_stream", "fs_download", "fs_upload", "exec"]
 )
 async def test_channel_overlaps_independent_transfers_with_bounded_inflight(
     monkeypatch, tmp_path, op
@@ -1729,7 +1736,7 @@ async def test_channel_overlaps_independent_transfers_with_bounded_inflight(
         await asyncio.gather(task, return_exceptions=True)
 
 
-@pytest.mark.parametrize("middle", ["exec", "cua_click", "fs_delete", "fs_read", "fs_edit"])
+@pytest.mark.parametrize("middle", ["fs_delete", "fs_read", "fs_edit"])
 async def test_channel_keeps_nontransfer_operations_as_ordering_barriers(
     monkeypatch, tmp_path, middle
 ):
@@ -1889,3 +1896,178 @@ def test_hard_link_transfer_uses_ordering_barrier(tmp_path):
     os.link(workspace / "original", workspace / "alias")
     call = _call(op="fs_upload", payload={"cwd": "/workspace/s1", "path": "alias"})
     assert daemon_module._transfer_path(call, _cfg(data_root=tmp_path)) is None
+
+
+@pytest.mark.parametrize("following", ["exec", "fs_read", "fs_upload_stream", "cua_click"])
+async def test_long_command_does_not_block_independent_calls(monkeypatch, tmp_path, following):
+    started = asyncio.Event()
+    received = asyncio.Event()
+    release = asyncio.Event()
+
+    async def process(client, call, **kwargs):
+        if call.call_id == "slow":
+            started.set()
+            await release.wait()
+        else:
+            await started.wait()
+            received.set()
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    task = asyncio.create_task(
+        daemon_module._handle_channel(
+            FakeClient(),
+            _aiter([_call("slow"), _fs_call("next", op=following)]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+        )
+    )
+    try:
+        await asyncio.wait_for(received.wait(), 0.2)
+    finally:
+        release.set()
+        await task
+
+
+async def test_queued_file_operation_expires_without_running_or_blocking_exec(
+    monkeypatch, tmp_path
+):
+    running = []
+    release = asyncio.Event()
+    independent = asyncio.Event()
+    client = FakeClient()
+
+    async def process(client, call, **kwargs):
+        running.append(call.call_id)
+        if call.call_id == "write":
+            await release.wait()
+        elif call.call_id == "command":
+            independent.set()
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    task = asyncio.create_task(
+        daemon_module._handle_channel(
+            client,
+            _aiter(
+                [
+                    _fs_call("write", op="fs_upload_stream"),
+                    _fs_call("queued", op="fs_read", timeout=0.01),
+                    _call("command"),
+                ]
+            ),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+        )
+    )
+    try:
+        await asyncio.wait_for(independent.wait(), 0.2)
+        async with asyncio.timeout(0.2):
+            while not any(
+                cid == "queued" and body.get("error") == "expired" for cid, body in client.posted
+            ):
+                await asyncio.sleep(0.001)
+        assert "queued" not in running
+        assert ("queued", {"stage": "ack"}) in client.posted
+    finally:
+        release.set()
+        await task
+
+
+async def test_channel_serializes_desktop_operations_without_blocking_commands(
+    monkeypatch, tmp_path
+):
+    events = []
+    release = asyncio.Event()
+
+    async def process(client, call, **kwargs):
+        events.append("start:" + call.call_id)
+        if call.call_id == "click":
+            await release.wait()
+        elif call.call_id == "command":
+            release.set()
+        events.append("end:" + call.call_id)
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    async with asyncio.timeout(0.5):
+        await daemon_module._handle_channel(
+            FakeClient(),
+            _aiter(
+                [
+                    _call("click", op="cua_click"),
+                    _call("observe", op="cua_state"),
+                    _call("command"),
+                ]
+            ),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+        )
+    assert events.index("end:click") < events.index("start:observe")
+
+
+async def test_channel_rejects_overload_without_executing_rejected_call(monkeypatch, tmp_path):
+    monkeypatch.setattr(daemon_module, "_MAX_PENDING_CALLS", 2)
+    release = asyncio.Event()
+    seen = []
+
+    class Client(FakeClient):
+        async def post_result(self, call_id, body):
+            await super().post_result(call_id, body)
+            if body.get("error") == "sandbox_busy":
+                release.set()
+
+    async def process(client, call, **kwargs):
+        seen.append(call.call_id)
+        await release.wait()
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    client = Client()
+    async with asyncio.timeout(0.5):
+        await daemon_module._handle_channel(
+            client,
+            _aiter([_call("one"), _call("two"), _call("busy"), _call("busy")]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=daemon_module._CallDedupe(),
+        )
+    assert seen == ["one", "two"]
+    assert client.posted == [
+        ("busy", {"stage": "done", "status": "error", "error": "sandbox_busy"})
+    ]
+
+
+async def test_rejected_duplicate_ack_does_not_cancel_other_active_calls(monkeypatch, tmp_path):
+    release = asyncio.Event()
+    completed = []
+
+    class Client(FakeClient):
+        async def post_result(self, call_id, body):
+            if call_id == "slow" and body.get("stage") == "ack":
+                raise ResultRejectedError("assignment expired")
+            await super().post_result(call_id, body)
+
+    async def process(client, call, **kwargs):
+        if call.call_id == "slow":
+            await release.wait()
+        else:
+            release.set()
+        completed.append(call.call_id)
+        return True
+
+    monkeypatch.setattr(daemon_module, "_process_call", process)
+    async with asyncio.timeout(0.5):
+        await daemon_module._handle_channel(
+            Client(),
+            _aiter([_call("slow"), _call("slow"), _call("next")]),
+            cfg=_cfg(data_root=tmp_path),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=daemon_module._CallDedupe(),
+        )
+    assert set(completed) == {"slow", "next"}

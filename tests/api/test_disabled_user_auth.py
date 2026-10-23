@@ -62,7 +62,11 @@ async def test_disabled_account_cannot_refresh_existing_token(monkeypatch):
         core,
         "UserManager",
         lambda: SimpleNamespace(
-            get_user=AsyncMock(return_value=SimpleNamespace(username="disabled", is_active=False))
+            storage=SimpleNamespace(
+                get_by_id=AsyncMock(
+                    return_value=SimpleNamespace(username="disabled", is_active=False)
+                )
+            )
         ),
     )
     issue_access = MagicMock(return_value="access")

@@ -4,9 +4,10 @@
  * 处理 OAuth 提供商重定向回来的请求，从 URL fragment 中提取 token 并完成登录。
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { TwoFactorLogin } from "./TwoFactorLogin";
 import { useAuth } from "../../hooks/useAuth";
 import {
   setTokens,
@@ -17,6 +18,7 @@ import { AutoLoginSplash } from "../landing/AutoLoginSplash";
 
 export function OAuthCallback() {
   const { t } = useTranslation();
+  const [challenge, setChallenge] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { refreshUser } = useAuth();
@@ -34,6 +36,16 @@ export function OAuthCallback() {
 
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
+      const challengeToken = params.get("challenge_token");
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+      if (challengeToken) {
+        setChallenge(challengeToken);
+        return;
+      }
 
       // 检查是否有错误参数（从 query 参数中获取）
       const error = searchParams.get("error");
@@ -76,6 +88,14 @@ export function OAuthCallback() {
 
     handleCallback();
   }, [navigate, refreshUser, searchParams]);
+
+  if (challenge)
+    return (
+      <TwoFactorLogin
+        challenge={challenge}
+        onCancel={() => navigate("/auth/login", { replace: true })}
+      />
+    );
 
   return <AutoLoginSplash text={t("auth.completingLogin")} />;
 }

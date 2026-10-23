@@ -63,10 +63,11 @@ export const sandboxApi = {
   async createPat(
     name: string = DESKTOP_SHELL_PAT_NAME,
     scopes: string[] = ["sandbox:execute"],
+    code?: string,
   ): Promise<PatCreateResult> {
     return authFetch<PatCreateResult>(`${API_BASE}/api/auth/pat`, {
       method: "POST",
-      body: JSON.stringify({ name, scopes }),
+      body: JSON.stringify({ name, scopes, code }),
     });
   },
 
@@ -77,25 +78,53 @@ export const sandboxApi = {
   async pairingLogin(credentials: {
     username: string;
     password: string;
-  }): Promise<string> {
+    code?: string;
+  }): Promise<{ access_token: string; pairing_token?: string }> {
     const resp = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept-Language": i18n.language || "en",
       },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({
+        username: credentials.username,
+        password: credentials.password,
+      }),
     });
     if (!resp.ok) {
       await throwResponseError(resp);
     }
-    const body = (await resp.json().catch(() => null)) as {
+    let body = (await resp.json().catch(() => null)) as {
       access_token?: string;
+      pairing_token?: string;
+      two_factor_required?: boolean;
+      challenge_token?: string;
     } | null;
+    if (body?.two_factor_required && body.challenge_token) {
+      if (!credentials.code?.trim())
+        throw new Error(i18n.t("twoFactor.loginHint"));
+      const verified = await fetch(`${API_BASE}/api/auth/2fa/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Language": i18n.language || "en",
+        },
+        body: JSON.stringify({
+          challenge_token: body.challenge_token,
+          code: credentials.code.trim(),
+          for_pairing: true,
+        }),
+      });
+      if (!verified.ok) await throwResponseError(verified);
+      body = await verified.json();
+    }
     if (!body?.access_token) {
       throw new Error("pairingLogin: login response missing access_token");
     }
-    return body.access_token;
+    return {
+      access_token: body.access_token,
+      ...(body.pairing_token ? { pairing_token: body.pairing_token } : {}),
+    };
   },
 
   /**
@@ -104,6 +133,7 @@ export const sandboxApi = {
    */
   async createPairingPat(
     accessToken: string,
+    proof: { code?: string; pairing_token?: string } = {},
     name: string = DESKTOP_SHELL_PAT_NAME,
   ): Promise<PatCreateResult> {
     const resp = await fetch(`${API_BASE}/api/auth/pat`, {
@@ -113,7 +143,7 @@ export const sandboxApi = {
         "Accept-Language": i18n.language || "en",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ name, scopes: ["sandbox:execute"] }),
+      body: JSON.stringify({ name, scopes: ["sandbox:execute"], ...proof }),
     });
     if (!resp.ok) {
       await throwResponseError(resp);

@@ -18,6 +18,7 @@ from src.kernel.schemas.user import (
     RegisterResponse,
     Token,
     TokenPayload,
+    TwoFactorChallenge,
     User,
     UserCreate,
     UserUpdate,
@@ -44,6 +45,10 @@ async def register(user_data: UserCreate, request: Request):
         if not await turnstile_service.verify(turnstile_token, client_ip):
             raise AppError(ErrorCode.TURNSTILE_FAILED)
 
+    user_data.roles = []
+    user_data.skip_verification = False
+    user_data.oauth_provider = None
+    user_data.oauth_id = None
     manager = UserManager()
     user = await manager.register(user_data)
 
@@ -91,7 +96,7 @@ async def register(user_data: UserCreate, request: Request):
     return RegisterResponse(user=user, requires_verification=requires_verification)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token | TwoFactorChallenge)
 async def login(credentials: LoginRequest, request: Request):
     """用户登录"""
     # Turnstile 验证
@@ -102,6 +107,10 @@ async def login(credentials: LoginRequest, request: Request):
         if not await turnstile_service.verify(turnstile_token, client_ip):
             raise AppError(ErrorCode.TURNSTILE_FAILED)
 
+    from src.infra.auth.two_factor import rate_limit
+
+    await rate_limit("login-ip", _get_client_ip(request), 30)
+    await rate_limit("login-account", credentials.username, 10)
     manager = UserManager()
     try:
         token = await manager.login(credentials.username, credentials.password)
@@ -142,17 +151,23 @@ async def refresh_token(request: Request):
         # 获取用户信息以验证用户仍然存在
         manager = UserManager()
         async with authority_lookup():
-            user = await manager.get_user(user_id)
+            user = await manager.storage.get_by_id(user_id)
         if not user:
             raise AppError(ErrorCode.USER_NOT_FOUND)
         if user.is_active is False:
             raise AppError(ErrorCode.ACCOUNT_NOT_ACTIVE)
 
+        if payload.get("auth_version") != getattr(user, "auth_version", None):
+            raise AppError(ErrorCode.REFRESH_TOKEN_INVALID)
+
         # 生成新的 access token 和 refresh token（轮换 refresh token）
-        access_token = create_access_token(user_id=user_id)
+        access_token = create_access_token(
+            user_id=user_id, auth_version=getattr(user, "auth_version", None)
+        )
         new_refresh_token = create_refresh_token(
             user_id=user_id,
             username=username or user.username,
+            auth_version=getattr(user, "auth_version", None),
         )
 
         return Token(
