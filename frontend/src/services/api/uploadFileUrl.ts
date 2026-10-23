@@ -12,9 +12,7 @@ export function getOwnUploadFileUrl(source?: string): URL | null {
   if (!source) return null;
   try {
     const base =
-      typeof window === "undefined"
-        ? "http://localhost"
-        : window.location.origin;
+      typeof window === "undefined" ? "http://localhost" : window.location.href;
     const endpoint = new URL(getFullUrl(FILE_PREFIX) || FILE_PREFIX, base);
     const url = new URL(
       source.startsWith("//") ? source : getFullUrl(source) || source,
