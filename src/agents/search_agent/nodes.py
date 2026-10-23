@@ -620,6 +620,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             attachments = await inline_image_attachments_as_data_urls(
                 attachments,
                 base_url=configurable.get("base_url", ""),
+                user_id=context.user_id,
+                session_id=str(state.get("session_id") or ""),
             )
         new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
         handoff_message_id = (agent_options.get("_handoff_usage") or {}).get("message_id")

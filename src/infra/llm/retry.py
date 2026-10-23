@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 import httpx
@@ -212,6 +212,7 @@ async def ainvoke_with_retry(
     operation: str = "model",
     retry_if: Callable[[BaseException], bool] = is_retryable_model_error,
     fallback_model: str | None = None,
+    prepare_fallback_prompt: Callable[[str], Awaitable[Any]] | None = None,
     thinking: dict | None = None,
     tools: list | None = None,
     **kwargs: Any,
@@ -262,9 +263,14 @@ async def ainvoke_with_retry(
                     )
                     # Cross-model histories lack the primary model's reasoning blocks.
                     fallback = await LLMClient.get_model(model=fallback_model, thinking=None)
+                    fallback_prompt = (
+                        await prepare_fallback_prompt(fallback_model)
+                        if prepare_fallback_prompt is not None
+                        else prompt
+                    )
                     return await ainvoke_with_retry(
                         fallback,
-                        prompt,
+                        fallback_prompt,
                         max_retries=retries,
                         retry_delay=base_delay,
                         operation=operation,

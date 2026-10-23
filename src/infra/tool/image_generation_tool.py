@@ -26,6 +26,7 @@ from src.infra.storage.s3.service import get_or_init_storage
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
+    get_session_id_from_runtime,
     get_user_id_from_runtime,
 )
 from src.infra.tool.image_model_catalog import (
@@ -33,6 +34,7 @@ from src.infra.tool.image_model_catalog import (
     resolve_model,
     tool_with_dynamic_model_catalog,
 )
+from src.infra.upload.access import authorize_file_url
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
@@ -444,11 +446,17 @@ async def _download_image_source(
         ext = (mimetypes.guess_extension(mime) or ".png").lstrip(".")
         return decoded, mime or "image/png", f"inline-image-{index + 1}.{ext}"
 
+    download_url = await authorize_file_url(
+        resolved,
+        get_user_id_from_runtime(runtime),
+        get_session_id_from_runtime(runtime),
+        base_url=get_base_url_from_runtime(runtime),
+    )
     client = _get_download_client()
     spooled = SpooledTemporaryFile(max_size=_SPOOL_MAX_MEMORY_BYTES, mode="w+b")
     try:
         total_size = 0
-        async with client.stream("GET", resolved) as response:
+        async with client.stream("GET", download_url) as response:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
                 if not chunk:
@@ -464,6 +472,9 @@ async def _download_image_source(
         await run_long_blocking_io(spooled.seek, 0)
         filename = _filename_from_url(resolved, index)
         return spooled, content_type, filename
+    except httpx.HTTPError as exc:
+        spooled.close()
+        raise RuntimeError(f"Image download failed: {type(exc).__name__}") from None
     except Exception:
         spooled.close()
         raise

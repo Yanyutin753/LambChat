@@ -1,3 +1,9 @@
+import {
+  getOwnUploadFileUrl,
+  isCurrentFileAccount,
+  resolveUploadFileUrl,
+} from "../../../../services/api/uploadFileUrl";
+import { getAccessToken } from "../../../../services/api/token";
 import type { ReactNode } from "react";
 import {
   buildUploadProxyUrl,
@@ -150,7 +156,8 @@ function restoreManifestPathKey(path: string, url: string): string | null {
   if (!keyBasename || keyBasename.includes(".")) {
     return null;
   }
-  const urlBasename = url.slice(url.lastIndexOf("/") + 1);
+  const urlPath = url.split(/[?#]/, 1)[0];
+  const urlBasename = urlPath.slice(urlPath.lastIndexOf("/") + 1);
   const original = urlBasename.replace(UPLOADED_FILENAME_PREFIX, "");
   if (!original.includes(".")) {
     return null;
@@ -299,6 +306,41 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+/** Executable previews may only read immutable companions from one server project. */
+function isTrustedProjectManifest(project: ManifestProjectRevealData): boolean {
+  const entries = Object.entries(project.files);
+  if (entries.length === 0) return true;
+  if (project.entry && !Object.hasOwn(project.files, project.entry))
+    return false;
+  const roots = new Set<string>();
+  for (const [, entry] of entries) {
+    const url = getOwnUploadFileUrl(entry.url);
+    if (!url) return false;
+    try {
+      const parts = decodeURIComponent(
+        url.pathname.slice("/api/upload/file/".length),
+      ).split("/");
+      if (
+        parts.length < 3 ||
+        parts[0] !== "revealed_projects" ||
+        parts.some(
+          (part) =>
+            !part || part === "." || part === ".." || part.includes("\\"),
+        )
+      )
+        return false;
+      roots.add(parts[1]);
+    } catch {
+      return false;
+    }
+  }
+  return roots.size === 1;
+}
+
+function rejectProjectManifest(project: ManifestProjectRevealData) {
+  return { files: {}, binaryFiles: {}, failed: Object.keys(project.files) };
+}
+
 export async function loadProjectRevealFiles(
   project: ManifestProjectRevealData,
 ): Promise<{
@@ -306,16 +348,28 @@ export async function loadProjectRevealFiles(
   binaryFiles: Record<string, string>;
   failed: string[];
 }> {
+  if (!isTrustedProjectManifest(project)) return rejectProjectManifest(project);
   const textEntries: Array<[string, FileManifestEntry]> = [];
   const binaryFiles: Record<string, string> = {};
 
-  for (const [path, entry] of Object.entries(project.files)) {
-    if (entry.is_binary) {
-      binaryFiles[path] = getFullUrl(entry.url) || entry.url;
-    } else {
-      textEntries.push([path, entry]);
-    }
-  }
+  const failed: string[] = [];
+  await mapWithConcurrency(
+    Object.entries(project.files),
+    PROJECT_REVEAL_FETCH_CONCURRENCY,
+    async ([path, entry]) => {
+      if (entry.is_binary) {
+        try {
+          binaryFiles[path] = await resolveUploadFileUrl(
+            getFullUrl(entry.url) || entry.url,
+          );
+        } catch {
+          failed.push(path);
+        }
+      } else {
+        textEntries.push([path, entry]);
+      }
+    },
+  );
 
   const entries = await mapWithConcurrency(
     textEntries,
@@ -334,7 +388,6 @@ export async function loadProjectRevealFiles(
   );
 
   const rawFiles: Record<string, string> = {};
-  const failed: string[] = [];
   for (const entry of entries) {
     if (entry) {
       rawFiles[entry[0]] = entry[1];
@@ -379,10 +432,28 @@ const inflightProjectRevealFilesCache = new Map<
   Promise<LoadedProjectRevealFiles>
 >();
 
+let projectCacheAccount: string | null | undefined;
+const projectCacheExpiry = new Map<string, number>();
+
+function syncProjectCacheAccount(): string | null {
+  const account = typeof localStorage === "undefined" ? null : getAccessToken();
+  if (projectCacheAccount !== account) {
+    clearProjectRevealFilesCache();
+    projectCacheAccount = account;
+  }
+  return account;
+}
+
 export function getCachedProjectRevealFiles(
   previewKey: string | null | undefined,
 ): LoadedProjectRevealFiles | null {
+  syncProjectCacheAccount();
   if (!previewKey) return null;
+  if ((projectCacheExpiry.get(previewKey) ?? 0) <= Date.now()) {
+    loadedProjectRevealFilesCache.delete(previewKey);
+    projectCacheExpiry.delete(previewKey);
+    return null;
+  }
   const cached = loadedProjectRevealFilesCache.get(previewKey);
   if (!cached) return null;
   // Map 按插入序维护 LRU：命中后重新插入刷新新鲜度
@@ -396,12 +467,14 @@ function rememberProjectRevealFiles(
   result: LoadedProjectRevealFiles,
 ): void {
   loadedProjectRevealFilesCache.set(previewKey, result);
+  projectCacheExpiry.set(previewKey, Date.now() + 5 * 60_000);
   while (
     loadedProjectRevealFilesCache.size > PROJECT_REVEAL_FILES_CACHE_MAX_ENTRIES
   ) {
     const oldestKey = loadedProjectRevealFilesCache.keys().next().value;
     if (oldestKey === undefined) break;
     loadedProjectRevealFilesCache.delete(oldestKey);
+    projectCacheExpiry.delete(oldestKey);
   }
 }
 
@@ -410,6 +483,8 @@ export async function loadProjectRevealFilesCached(input: {
   project: ManifestProjectRevealData;
 }): Promise<LoadedProjectRevealFiles> {
   const { previewKey, project } = input;
+  if (!isTrustedProjectManifest(project)) return rejectProjectManifest(project);
+  const account = syncProjectCacheAccount();
   const cached = getCachedProjectRevealFiles(previewKey);
   if (cached) {
     return cached;
@@ -422,12 +497,17 @@ export async function loadProjectRevealFilesCached(input: {
 
   const request = loadProjectRevealFiles(project)
     .then((result) => {
+      syncProjectCacheAccount();
+      if (!isCurrentFileAccount(account))
+        throw new Error("File account changed");
       rememberProjectRevealFiles(previewKey, result);
-      inflightProjectRevealFilesCache.delete(previewKey);
+      if (inflightProjectRevealFilesCache.get(previewKey) === request)
+        inflightProjectRevealFilesCache.delete(previewKey);
       return result;
     })
     .catch((error) => {
-      inflightProjectRevealFilesCache.delete(previewKey);
+      if (inflightProjectRevealFilesCache.get(previewKey) === request)
+        inflightProjectRevealFilesCache.delete(previewKey);
       throw error;
     });
 
@@ -436,6 +516,7 @@ export async function loadProjectRevealFilesCached(input: {
 }
 
 export function clearProjectRevealFilesCache(): void {
+  projectCacheExpiry.clear();
   loadedProjectRevealFilesCache.clear();
   inflightProjectRevealFilesCache.clear();
 }

@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   useDocumentPreviewState,
@@ -85,6 +91,7 @@ test("a late previous response cannot overwrite the current file", async () => {
     )
     .mockResolvedValueOnce(new Response("Current document"));
   const view = render(<Preview path="old.md" signedUrl="/preview/old.md" />);
+  await waitFor(() => expect(fetchFile).toHaveBeenCalledTimes(1));
   view.rerender(<Preview path="current.md" signedUrl="/preview/current.md" />);
   expect(await screen.findByText("Current document")).toBeInTheDocument();
   await act(async () => {

@@ -631,6 +631,22 @@ class RoleStorage:
                 # 清除 get_by_name 可能缓存的 None，避免新建角色后查询命中空缓存
                 await self.invalidate_cache(role_data["name"])
             elif role_data["name"] == "user":
+                # The built-in self-service role must not expose global administration.
+                await self.collection.update_one(
+                    {"name": "user"},
+                    {
+                        "$pull": {
+                            "permissions": {
+                                "$in": [
+                                    Permission.NOTIFICATION_MANAGE.value,
+                                    Permission.USAGE_ADMIN.value,
+                                    Permission.FEEDBACK_READ.value,
+                                ]
+                            }
+                        }
+                    },
+                )
+                await self.invalidate_cache("user")
                 migration_key = "scheduled_task_permissions_v1"
                 raw_role = await self.collection.find_one(
                     {"name": role_data["name"]},

@@ -432,7 +432,7 @@ async def test_startup_registers_and_awaits_strict_file_record_index_migration(
         async def initialize_indexes(self) -> None:
             calls.append("initialized")
 
-    monkeypatch.setattr(file_record, "FileRecordStorage", _Storage)
+    monkeypatch.setattr(file_record, "get_file_record_storage", _Storage)
 
     initializers = dict(api_main._startup_index_initializers())
     await initializers["file_record_storage"]()

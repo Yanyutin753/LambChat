@@ -50,10 +50,7 @@ class S3StorageService:
     def __init__(self, config: Optional[S3Config] = None):
         self._backend: Optional[S3StorageBackend] = None
         self._direct_upload: DirectUploadStorage | None = None
-        if config:
-            self._config = config
-        else:
-            self._config = S3Config()
+        self.configure(config or S3Config())
 
     @classmethod
     def get_instance(cls) -> "S3StorageService":
@@ -64,6 +61,8 @@ class S3StorageService:
 
     def configure(self, config: S3Config) -> None:
         """Configure the storage service"""
+        if config.provider != S3Provider.LOCAL and config.public_bucket:
+            raise ValueError("Application files require a private bucket")
         self._config = config
         self._backend = None
         self._direct_upload = None
@@ -175,6 +174,13 @@ class S3StorageService:
         skip_size_limit: bool = False,
     ) -> UploadResult:
         """Upload a file to storage with retry on transient failures."""
+        generated_context = None
+        if folder in ("revealed_files", "tool_binaries") or folder.startswith("revealed_projects/"):
+            from src.infra.logging.context import TraceContext
+
+            generated_context = TraceContext.get_request_context()
+            if not generated_context.user_id:
+                raise ValueError("Generated files require an owner")
         # Check file size via current position
         start_pos = await run_long_blocking_io(file.tell)
         if not skip_size_limit:
@@ -199,10 +205,18 @@ class S3StorageService:
             await run_long_blocking_io(file.seek, start_pos)
             return await backend.upload(file, key, content_type, metadata)
 
-        return await self._retry_async(
+        result = await self._retry_async(
             _upload_attempt,
             label=f"file://{key}",
         )
+        if generated_context is not None:
+            from src.infra.upload.file_record import get_file_record_storage
+
+            assert generated_context.user_id is not None
+            await get_file_record_storage().register_generated(
+                result, generated_context.user_id, generated_context.session_id
+            )
+        return result
 
     async def upload_bytes(
         self,

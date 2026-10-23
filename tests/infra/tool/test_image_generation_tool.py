@@ -14,6 +14,16 @@ from src.infra.tool import image_generation_tool
 
 
 @pytest.fixture(autouse=True)
+def owned_uploaded_input(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key",
+        AsyncMock(return_value={"uploaded_by": "user-1"}),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _reset_image_http_clients():
     """每个测试前重置复用的 httpx client，避免缓存污染并让 monkeypatch 生效。"""
     image_generation_tool._image_api_client = None
@@ -691,9 +701,10 @@ async def test_image_generate_with_input_images_uses_edits_endpoint(
     )
 
     assert captured["request_url"] == "https://api.example.com/v1/images/edits"
-    assert captured["download_urls"] == [
-        "https://app.example.com/api/upload/file/generated-images/user-1/source.png"
-    ]
+    assert len(captured["download_urls"]) == 1
+    assert captured["download_urls"][0].startswith(
+        "https://app.example.com/api/upload/file/generated-images/user-1/source.png?file_token="
+    )
     assert captured["kwargs"]["data"]["prompt"] == "make it brighter"
     assert captured["kwargs"]["data"]["background"] == "auto"
     assert captured["kwargs"]["data"]["input_fidelity"] == "low"

@@ -12,7 +12,7 @@ import json
 import re
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 from langchain.tools import ToolRuntime, tool
@@ -28,7 +28,8 @@ from src.infra.tool.backend_utils import (
     get_session_id_from_runtime,
     get_user_id_from_runtime,
 )
-from src.infra.upload.file_record import FileRecordStorage
+from src.infra.upload.access import authorize_file_url, require_file_access, upload_key_from_url
+from src.infra.upload.file_record import get_file_record_storage
 from src.kernel.errors import AppError
 
 logger = get_logger(__name__)
@@ -102,7 +103,9 @@ except Exception:
     return f"python3 -c \"import base64;exec(base64.b64decode('{encoded}'))\""
 
 
-async def _resolve_storage_direct_url(url: str, base_url: str) -> str | None:
+async def _resolve_storage_direct_url(
+    url: str, base_url: str, *, user_id: str | None = None, session_id: str | None = None
+) -> str | None:
     """把自己的文件代理 URL 就地换成对象存储预签名直链。
 
     沙箱下载代理 URL 要付一整跳重定向链（沙箱→API→存储 302→存储），
@@ -112,16 +115,16 @@ async def _resolve_storage_direct_url(url: str, base_url: str) -> str | None:
     FileResponse 直出无重定向，保持代理 URL。任何失败返回 None 走原
     URL，下载语义不变。
     """
+    key = upload_key_from_url(url, base_url)
+    if key is None:
+        return None
+    await require_file_access(key, user_id, session_id=session_id)
+    if await get_file_record_storage().is_private_key(key):
+        return None
+    # Query variants such as thumbnails must keep their application semantics.
+    if urlparse(url).query:
+        return None
     try:
-        parsed = urlparse(url)
-        if not parsed.path.startswith(_PROXY_URL_PREFIX) or parsed.query:
-            return None
-        if not base_url or parsed.netloc != urlparse(base_url).netloc:
-            return None
-        key = unquote(parsed.path[len(_PROXY_URL_PREFIX) :])
-        if not key:
-            return None
-
         from src.infra.storage.s3.service import get_or_init_storage
 
         storage = await get_or_init_storage()
@@ -227,7 +230,7 @@ async def _resolve_attachment_url(attachment_id: str, runtime: Any, base_url: st
     key = keys.pop()
     if not isinstance(key, str) or "\\" in key or any(p in ("", ".", "..") for p in key.split("/")):
         return None
-    record = await FileRecordStorage().find_by_key(key, get_user_id_from_runtime(runtime))
+    record = await get_file_record_storage().find_by_key(key, get_user_id_from_runtime(runtime))
     if not record or record.get("deleting_at"):
         return None
     return f"{base_url}{_PROXY_URL_PREFIX}{quote(key, safe='/')}"
@@ -248,7 +251,7 @@ async def upload_url_to_sandbox(
                 return await _json_dumps_result({"success": False, "error": "Session unavailable"})
             unique = {a["id"]: a for a in attachments if a.get("id") and a.get("key")}
             items = []
-            records = FileRecordStorage()
+            records = get_file_record_storage()
             # shortcut: discovery lists the latest 100 IDs; add pagination if larger sessions need it.
             for item in list(unique.values())[-100:]:
                 record = await records.find_by_key(item["key"], get_user_id_from_runtime(runtime))
@@ -305,15 +308,19 @@ async def upload_url_to_sandbox(
             )
     # 自己的代理 URL 就地换成存储直链（省沙箱→API→存储的重定向跳），
     # 解析不出来时沿用原 URL，语义不变
-    parsed = urlparse(url)
-    if parsed.netloc == urlparse(base_url).netloc and parsed.path.startswith(_PROXY_URL_PREFIX):
-        key = unquote(parsed.path[len(_PROXY_URL_PREFIX) :])
-        if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
-            return await _json_dumps_result({"success": False, "error": "File unavailable"})
-        records = FileRecordStorage()
+    user_id = get_user_id_from_runtime(runtime)
+    session_id = get_session_id_from_runtime(runtime)
+    try:
+        key = upload_key_from_url(url, base_url)
+    except AppError:
+        return await _json_dumps_result({"success": False, "error": "File unavailable"})
+    if key is not None:
+        records = get_file_record_storage()
         if await records.is_private_key(key):
+            if not user_id or not session_id:
+                return await _json_dumps_result({"success": False, "error": "File unavailable"})
             try:
-                await records.require_private_access(key, get_user_id_from_runtime(runtime))
+                await records.require_private_access(key, user_id, session_id)
                 from src.infra.storage.s3.service import get_or_init_storage
 
                 storage = await get_or_init_storage()
@@ -340,8 +347,15 @@ async def upload_url_to_sandbox(
                 return await _json_dumps_result(
                     {"success": False, "error": "Download failed; please retry later"}
                 )
-    original_url = url
-    direct_url = await _resolve_storage_direct_url(url, base_url)
+    # The fallback must also carry authorized access when storage signing fails.
+    try:
+        original_url = await authorize_file_url(url, user_id, session_id, base_url=base_url)
+        direct_url = await _resolve_storage_direct_url(
+            url, base_url, user_id=user_id, session_id=session_id
+        )
+    except AppError:
+        return await _json_dumps_result({"success": False, "error": "File unavailable"})
+    url = original_url
     if direct_url:
         url = direct_url
         logger.info("[upload_url_to_sandbox] storage_direct_url_resolved=True")

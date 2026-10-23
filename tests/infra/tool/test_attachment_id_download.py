@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.infra.tool import upload_url_tool as module
+from src.infra.upload.file_record import FileRecordStorage
 
 
 @pytest.fixture
@@ -12,13 +13,17 @@ def download(monkeypatch):
     from src.infra.session.storage import SessionStorage
     from src.infra.session.trace_storage import TraceStorage
 
+    async def authorize(url, *args, **kwargs):
+        return url
+
+    monkeypatch.setattr(module, "authorize_file_url", authorize)
     session = SimpleNamespace(user_id="owner", is_active=True)
     monkeypatch.setattr(SessionStorage, "get_by_session_id", AsyncMock(return_value=session))
     monkeypatch.setattr(SessionStorage, "get_by_id", AsyncMock(return_value=None))
     record = {"key": "document/owner/real.pptx", "uploaded_by": "owner"}
     lookup = AsyncMock(return_value=record)
-    monkeypatch.setattr(module.FileRecordStorage, "find_by_key", lookup)
-    monkeypatch.setattr(module.FileRecordStorage, "is_private_key", AsyncMock(return_value=False))
+    monkeypatch.setattr(FileRecordStorage, "find_by_key", lookup)
+    monkeypatch.setattr(FileRecordStorage, "is_private_key", AsyncMock(return_value=False))
     monkeypatch.setattr(module, "_resolve_storage_direct_url", AsyncMock(return_value=None))
     fetch = AsyncMock(return_value=(True, "success"))
     monkeypatch.setattr(module, "_execute_sandbox_download", fetch)

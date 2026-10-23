@@ -16,6 +16,16 @@ from types import SimpleNamespace
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def owned_uploaded_input(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key",
+        AsyncMock(return_value={"uploaded_by": "user-1"}),
+    )
+
+
 class _Runtime:
     def __init__(
         self,
@@ -1126,7 +1136,10 @@ async def test_document_parse_parses_document_and_rewrites_images(
     assert result["provider"] == "mistral:mistral-ocr-latest"
     assert result["pages_processed"] == 2
     assert result["truncated"] is False
-    assert client.download_urls == ["https://app.example.com/api/upload/file/docs/report.docx"]
+    assert len(client.download_urls) == 1
+    assert client.download_urls[0].startswith(
+        "https://app.example.com/api/upload/file/docs/report.docx?file_token="
+    )
     assert client.post_calls[0]["url"] == "https://api.example.com/v1/ocr"
     request_body = client.post_calls[0]["json"]
     assert request_body["document"]["base64"] == base64.b64encode(b"PDFBYTES").decode()
@@ -1482,6 +1495,7 @@ async def test_document_parse_workspace_file_exceeds_size_limit(
 @pytest.mark.asyncio
 async def test_document_parse_download_auth_failure_mentions_supported_inputs(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     from src.infra.tool import document_parse_tool
 
@@ -1491,9 +1505,14 @@ async def test_document_parse_download_auth_failure_mentions_supported_inputs(
     def _failing_stream(method: str, request_url: str):
         assert method == "GET"
         client.download_urls.append(request_url)
+        request = document_parse_tool.httpx.Request(
+            "GET", request_url + "?file_token=private-capability"
+        )
         return _ErrorStreamResponse(
-            RuntimeError(
-                "Client error '401 Unauthorized' for url 'https://app.example.com/w/1.pdf'"
+            document_parse_tool.httpx.HTTPStatusError(
+                f"Client error '401 Unauthorized' for url '{request.url}'",
+                request=request,
+                response=document_parse_tool.httpx.Response(401, request=request),
             )
         )
 
@@ -1512,3 +1531,5 @@ async def test_document_parse_download_auth_failure_mentions_supported_inputs(
     assert "401" in result["error"]
     assert "/workspace" in result["error"]
     assert "/api" in result["error"]
+    assert "private-capability" not in result["error"]
+    assert "private-capability" not in caplog.text

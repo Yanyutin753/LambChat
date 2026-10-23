@@ -538,6 +538,8 @@ async def _resolve_local_references(
     backend: Any,
     storage: Any,
     base_url: str,
+    *,
+    resource_keys: Optional[list[str]] = None,
 ) -> bytes:
     """
     检测并替换文本内容中的本地资源引用（图片、视频、音频）为 S3 URL。
@@ -597,6 +599,12 @@ async def _resolve_local_references(
     for ref_path, url in zip(unique_paths, urls):
         if url:
             path_to_url[ref_path] = url
+            if resource_keys is not None:
+                from src.infra.upload.access import upload_key_from_url
+
+                key = upload_key_from_url(url, base_url)
+                if key and key not in resource_keys:
+                    resource_keys.append(key)
 
     if not path_to_url:
         return content

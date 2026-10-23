@@ -61,7 +61,7 @@ async def get_oauth_providers():
         "providers": providers,
         "registration_enabled": settings.ENABLE_REGISTRATION,
         "admin_contact": {
-            "email": settings.ADMIN_CONTACT_EMAIL,
+            "email": "",
             "url": settings.ADMIN_CONTACT_URL,
         },
         "turnstile": {

@@ -31,12 +31,14 @@ from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
+    get_session_id_from_runtime,
     get_user_id_from_runtime,
 )
 from src.infra.tool.document_parse_providers import (
     DocumentParseError,
     execute_document_parse,
 )
+from src.infra.upload.access import authorize_file_url
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -293,7 +295,13 @@ async def document_parse(
                 follow_redirects=True, timeout=httpx.Timeout(60.0, read=300.0)
             ) as http_client:
                 if sandbox_path is None:
-                    async with http_client.stream("GET", resolved_url) as response:
+                    download_url = await authorize_file_url(
+                        resolved_url,
+                        get_user_id_from_runtime(runtime),
+                        get_session_id_from_runtime(runtime),
+                        base_url=get_base_url_from_runtime(runtime),
+                    )
+                    async with http_client.stream("GET", download_url) as response:
                         response.raise_for_status()
                         known_size = _known_download_size(getattr(response, "headers", {}))
                         if known_size is not None and known_size > max_download_bytes:
@@ -337,9 +345,14 @@ async def document_parse(
         except Exception as exc:
             if is_quota_error(exc):
                 raise
-            logger.warning("[document_parse] download failed for %s: %s", resolved_url, exc)
+            detail = (
+                f"HTTP {exc.response.status_code}"
+                if isinstance(exc, httpx.HTTPStatusError)
+                else type(exc).__name__
+            )
+            logger.warning("[document_parse] download failed: %s", detail)
             return await _json_dumps_result(
-                {"error": f"Document download failed: {exc}{_DOWNLOAD_HINT}"}
+                {"error": f"Document download failed: {detail}{_DOWNLOAD_HINT}"}
             )
 
         markdown = str(parsed.get("markdown") or "")

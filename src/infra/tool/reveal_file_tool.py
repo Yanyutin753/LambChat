@@ -480,6 +480,7 @@ async def reveal_file(
         if not base_url:
             logger.warning("[reveal_file] base_url is empty, URL may be incomplete")
 
+        resource_keys: list[str] = []
         if _needs_local_ref_resolution(filename, mime_type) and (
             file_content is not None
             or not use_filesystem_stream
@@ -491,7 +492,7 @@ async def reveal_file(
                 raise ValueError(f"Unable to read file content for {file_path}")
             file_dir = os.path.dirname(file_path)
             file_content = await _resolve_local_references(
-                file_content, file_dir, backend, storage, base_url
+                file_content, file_dir, backend, storage, base_url, resource_keys=resource_keys
             )
             use_filesystem_stream = False
 
@@ -528,6 +529,11 @@ async def reveal_file(
                         content_type=mime_type,
                         skip_size_limit=True,
                     )
+
+        if resource_keys:
+            from src.infra.upload.resource_links import link_generated_resources
+
+            await link_generated_resources(upload_result.key, reuse_user_id, resource_keys)
 
         file_category = get_file_category(upload_result.content_type or mime_type)
 

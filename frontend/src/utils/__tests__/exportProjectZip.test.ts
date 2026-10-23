@@ -209,3 +209,8 @@ test("rejects a strict export when downloaded bytes exceed the limit", async () 
     ),
   ).rejects.toThrow("Failed to download 1 binary file: large.bin");
 });
+
+vi.mock("../../services/api/uploadFileUrl", async (original) => ({
+  ...(await original<typeof import("../../services/api/uploadFileUrl")>()),
+  resolveUploadFileUrl: vi.fn(async (url: string) => url),
+}));

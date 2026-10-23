@@ -1,3 +1,4 @@
+import { downloadUrl as downloadFileUrl } from "../../common/viewerDownload";
 import { SceneIllustration } from "../../common/SceneIllustration";
 import { type ElementType } from "react";
 import { Download } from "lucide-react";
@@ -35,12 +36,7 @@ export default function FileFallbackPanel({
       return;
     }
     if (!downloadUrl) return;
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadFileUrl(downloadUrl, fileName);
   };
 
   return (

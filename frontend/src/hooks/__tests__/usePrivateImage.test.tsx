@@ -40,6 +40,7 @@ test("external image never receives account credentials", () => {
 });
 
 test("legacy private tool screenshot also loads with authentication", async () => {
+  vi.mocked(authenticatedRequest).mockReset();
   vi.stubGlobal(
     "URL",
     class extends URL {
@@ -53,14 +54,28 @@ test("legacy private tool screenshot also loads with authentication", async () =
   const src = `${window.location.origin}/api/upload/file/tool_binaries/old.jpg`;
   const { result, unmount } = renderHook(() => usePrivateImage(src));
   await waitFor(() => expect(result.current.src).toBe("blob:legacy"));
+  expect(authenticatedRequest).toHaveBeenCalledTimes(1);
+  expect(authenticatedRequest).toHaveBeenCalledWith(
+    src,
+    expect.objectContaining({ cache: "no-store", redirect: "manual" }),
+  );
   unmount();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:legacy");
   vi.unstubAllGlobals();
 });
 
-test("public legacy image follows its storage redirect only as an unauthenticated img", async () => {
-  vi.mocked(authenticatedRequest).mockResolvedValue({
-    type: "opaqueredirect",
-  } as Response);
+test("ordinary tool image resolves an owner capability after its authenticated storage redirect", async () => {
+  localStorage.setItem("access_token", "tool-image-owner");
+  vi.mocked(authenticatedRequest).mockReset();
+  vi.mocked(authenticatedRequest)
+    .mockResolvedValueOnce({ type: "opaqueredirect" } as Response)
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          url: "/api/upload/file/tool_binaries/public.jpg?file_token=tool-owner-capability",
+        }),
+      ),
+    );
   const src = `${window.location.origin}/api/upload/file/tool_binaries/public.jpg`;
   const { result } = renderHook(() => usePrivateImage(src));
   await waitFor(() =>
@@ -69,7 +84,18 @@ test("public legacy image follows its storage redirect only as an unauthenticate
       expect.objectContaining({ redirect: "manual" }),
     ),
   );
-  await waitFor(() => expect(result.current.src).toBe(src));
+  expect(result.current.src).not.toBe(src);
+  await waitFor(() =>
+    expect(result.current.src).toContain("file_token=tool-owner-capability"),
+  );
+  act(() => {
+    expect(result.current.retryWithProxy()).toBe(true);
+  });
+  expect(new URL(result.current.src!).searchParams.get("proxy")).toBe("true");
+  expect(new URL(result.current.src!).searchParams.get("file_token")).toBe(
+    "tool-owner-capability",
+  );
+  localStorage.clear();
 });
 
 test("late private response cannot replace a newly selected image", async () => {
@@ -91,4 +117,40 @@ test("late private response cannot replace a newly selected image", async () => 
   await waitFor(() =>
     expect(result.current.src).toBe("https://example.org/next.jpg"),
   );
+});
+
+test("ordinary upload images wait for owner capability and keep it on proxy fallback", async () => {
+  localStorage.setItem("access_token", "image-owner");
+  vi.mocked(authenticatedRequest).mockReset();
+  vi.mocked(authenticatedRequest).mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        url: "/api/upload/file/uploads/private.png?file_token=owner-capability",
+        expires_in: 3600,
+      }),
+    ),
+  );
+  const source = `${window.location.origin}/api/upload/file/uploads/private.png?thumb=1`;
+  const { result } = renderHook(() => usePrivateImage(source));
+  expect(result.current.src).toBeUndefined();
+  await waitFor(() =>
+    expect(result.current.src).toContain("file_token=owner-capability"),
+  );
+  expect(new URL(result.current.src!).searchParams.get("thumb")).toBe("1");
+  act(() => {
+    expect(result.current.retryWithProxy()).toBe(true);
+  });
+  expect(new URL(result.current.src!).searchParams.get("proxy")).toBe("true");
+  expect(new URL(result.current.src!).searchParams.get("file_token")).toBe(
+    "owner-capability",
+  );
+  localStorage.clear();
+});
+
+test("shared tool images retain their existing capability without account authentication", () => {
+  vi.mocked(authenticatedRequest).mockClear();
+  const src = `${window.location.origin}/api/upload/file/tool_binaries/shared.jpg?file_token=share-capability&thumb=1`;
+  const { result } = renderHook(() => usePrivateImage(src));
+  expect(result.current.src).toBe(src);
+  expect(authenticatedRequest).not.toHaveBeenCalled();
 });

@@ -64,37 +64,40 @@ beforeEach(() => {
   }));
 });
 
-test("file search waits for the lazy viewer instead of accepting a silent no-op",
+test(
+  "file search waits for the lazy viewer instead of accepting a silent no-op",
   // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
-  { timeout: 30000 }, async () => {
-  previewLoad.pending = true;
-  const i18n = appI18n.cloneInstance({ lng: "zh" });
-  render(
-    <I18nextProvider i18n={i18n}>
-      <Preview />
-    </I18nextProvider>,
-  );
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "Loading code preview",
-  );
-  expect(screen.getByRole("button", { name: "搜索" })).toBeDisabled();
-  await act(async () => previewLoad.release?.());
-  await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
-  await waitFor(
-    () => expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled(),
-    { timeout: 8000 },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "搜索" }));
-  expect(
-    await screen.findByRole(
-      "textbox",
-      { name: "查找" },
-      // CI runners load the search extension module cold; the default 1s
-      // findByRole budget times out there while local runs stay warm.
+  { timeout: 30000 },
+  async () => {
+    previewLoad.pending = true;
+    const i18n = appI18n.cloneInstance({ lng: "zh" });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Preview />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading code preview",
+    );
+    expect(screen.getByRole("button", { name: "搜索" })).toBeDisabled();
+    await act(async () => previewLoad.release?.());
+    await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
+    await waitFor(
+      () => expect(screen.getByRole("button", { name: "搜索" })).toBeEnabled(),
       { timeout: 8000 },
-    ),
-  ).toHaveFocus();
-});
+    );
+    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    expect(
+      await screen.findByRole(
+        "textbox",
+        { name: "查找" },
+        // CI runners load the search extension module cold; the default 1s
+        // findByRole budget times out there while local runs stay warm.
+        { timeout: 8000 },
+      ),
+    ).toHaveFocus();
+  },
+);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -127,7 +130,9 @@ test.each([false, true])(
     await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
     expect(container.querySelector(".code-editor-toolbar")).toBeNull();
     const eachSearchButton = screen.getByRole("button", { name: "搜索" });
-    await waitFor(() => expect(eachSearchButton).toBeEnabled(), { timeout: 8000 });
+    await waitFor(() => expect(eachSearchButton).toBeEnabled(), {
+      timeout: 8000,
+    });
     fireEvent.click(eachSearchButton);
     const field = await screen.findByRole(
       "textbox",
@@ -149,29 +154,32 @@ test.each([false, true])(
   },
 );
 
-test("HTML source search shares its existing source toolbar",
+test(
+  "HTML source search shares its existing source toolbar",
   // CI 冷加载下整条用例可能超过 vitest 默认 5s 用例超时。
-  { timeout: 30000 }, async () => {
-  const { container } = render(
-    <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
-      <HtmlPreview content="<p>alpha</p>" />
-    </I18nextProvider>,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "源码" }));
-  await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
-  expect(container.querySelector(".code-editor-toolbar")).toBeNull();
-  // The search trigger stays disabled until the lazy editor mounts; wait for
-  // it to become enabled or the click is a silent no-op on slow CI runners.
-  const searchButton = screen.getByRole("button", { name: "搜索" });
-  await waitFor(() => expect(searchButton).toBeEnabled(), { timeout: 8000 });
-  fireEvent.click(searchButton);
-  expect(
-    await screen.findByRole(
-      "textbox",
-      { name: "查找" },
-      // CI runners load the search extension module cold; the default 1s
-      // findByRole budget times out there while local runs stay warm.
-      { timeout: 8000 },
-    ),
-  ).toHaveFocus();
-});
+  { timeout: 30000 },
+  async () => {
+    const { container } = render(
+      <I18nextProvider i18n={appI18n.cloneInstance({ lng: "zh" })}>
+        <HtmlPreview content="<p>alpha</p>" />
+      </I18nextProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "源码" }));
+    await screen.findByRole("textbox", { name: "代码预览" }, { timeout: 8000 });
+    expect(container.querySelector(".code-editor-toolbar")).toBeNull();
+    // The search trigger stays disabled until the lazy editor mounts; wait for
+    // it to become enabled or the click is a silent no-op on slow CI runners.
+    const searchButton = screen.getByRole("button", { name: "搜索" });
+    await waitFor(() => expect(searchButton).toBeEnabled(), { timeout: 8000 });
+    fireEvent.click(searchButton);
+    expect(
+      await screen.findByRole(
+        "textbox",
+        { name: "查找" },
+        // CI runners load the search extension module cold; the default 1s
+        // findByRole budget times out there while local runs stay warm.
+        { timeout: 8000 },
+      ),
+    ).toHaveFocus();
+  },
+);

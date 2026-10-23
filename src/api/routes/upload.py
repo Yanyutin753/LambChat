@@ -20,12 +20,14 @@ from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
 from src.api.deps import get_current_user, get_current_user_required, require_permissions
+from src.api.routes import upload_preview
 from src.api.routes.file_type import (
     FILE_EXTENSIONS,
     FileCategory,
     get_file_category,
     get_permission_for_category,
 )
+from src.api.routes.upload_cover import _path_exists
 from src.api.routes.upload_direct import router as direct_upload_router
 from src.api.routes.upload_model_safe import get_model_safe_file_response
 from src.api.routes.upload_signed_urls import (
@@ -38,10 +40,7 @@ from src.api.routes.upload_signed_urls import (
 from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
-from src.api.routes.upload_thumb import (
-    get_file_image_variant_response,
-    get_private_file_thumb_response,
-)
+from src.api.routes.upload_thumb import get_file_image_variant_response
 from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
@@ -53,7 +52,7 @@ from src.infra.storage.s3 import (
     S3Provider,
 )
 from src.infra.storage.s3.base import BinaryReadFile
-from src.infra.upload.file_record import FileRecordStorage
+from src.infra.upload.file_record import get_file_record_storage
 from src.infra.utils.hashing import sha256_hexdigest
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
@@ -69,7 +68,7 @@ __all__ = [
     "get_single_signed_url",
 ]
 
-_file_record_storage = FileRecordStorage()
+_file_record_storage = get_file_record_storage()
 _upload_delete_tasks = BestEffortTaskLimiter("upload delete", max_tasks=8)
 
 UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
@@ -209,35 +208,6 @@ async def _delete_avatar_object_if_owned(
         await storage.delete_file(key)
     except Exception as e:
         logger.warning("Failed to delete previous avatar object %s: %s", key, e, exc_info=True)
-
-
-def _path_exists(file_path) -> bool:
-    return file_path.exists()
-
-
-async def _get_file_response_metadata(key: str) -> tuple[str | None, str]:
-    record = await _file_record_storage.find_by_key(key)
-    filename_for_disposition = record["name"] if record else None
-    content_type = record["mime_type"] if record and record.get("mime_type") else None
-
-    if not content_type:
-        import mimetypes
-
-        content_type, _ = mimetypes.guess_type(key)
-        if not content_type:
-            content_type = "application/octet-stream"
-
-    return filename_for_disposition, content_type
-
-
-def _inline_content_disposition(filename: str) -> str:
-    """HTTP 头只允许 latin-1：非 ASCII 文件名按 RFC 5987 走 filename*=utf-8''。"""
-    from urllib.parse import quote
-
-    quoted = quote(filename)
-    if quoted != filename:
-        return f"inline; filename*=utf-8''{quoted}"
-    return f'inline; filename="{filename.replace(chr(34), "")}"'
 
 
 async def _read_upload_file_limited(
@@ -890,6 +860,8 @@ async def get_file_proxy(
     cover: bool = False,
     thumb: bool = False,
     t: int | None = None,
+    file_token: str | None = None,
+    resolve_resources: bool = False,
     current_user: TokenPayload | None = Depends(get_current_user),
 ) -> Response:
     """Serve files or variants; private desktop captures require the session owner."""
@@ -902,29 +874,36 @@ async def get_file_proxy(
             key, getattr(current_user, "sub", None)
         )
         storage = await get_or_init_storage()
-        headers = {"Cache-Control": "private, no-store", "Vary": "Authorization"}
-        if not storage.is_local and storage._config.public_bucket:
-            raise AppError(ErrorCode.FILE_NOT_FOUND)
-        if thumb:
-            return await get_private_file_thumb_response(storage, key)
-        if storage.is_local:
-            path = storage.get_file_path(key)
-            if not await run_long_blocking_io(_path_exists, path):
-                raise AppError(ErrorCode.FILE_NOT_FOUND)
-            return FileResponse(path=str(path), media_type=record["mime_type"], headers=headers)
-        return StreamingResponse(
-            storage.download_stream(key), media_type=record["mime_type"], headers=headers
-        )
+        return await upload_preview.get_private_capture_response(storage, key, record, thumb=thumb)
 
+    from src.infra.upload.access import require_file_access
+
+    shared_access = await require_file_access(
+        key, getattr(current_user, "sub", None), token=file_token
+    )
     storage = await get_or_init_storage()
+    if shared_access:
+        proxy = True
+        direct = False
+
+    if resolve_resources:
+        preview = await upload_preview.get_text_preview_response(
+            storage, key, _file_record_storage, share=shared_access
+        )
+        if preview is not None:
+            return preview
 
     if cover or thumb:
-        return await get_file_image_variant_response(storage, key, cover, proxy, t)
+        response = await get_file_image_variant_response(storage, key, cover, proxy, t)
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Vary"] = "Authorization"
+        return response
 
     # Legacy uploads in vision-unsafe formats (e.g. TIFF) are healed on read:
     # serve a transcoded JPEG so old session URLs keep working for models.
     model_safe_response = await get_model_safe_file_response(storage, key)
     if model_safe_response is not None:
+        model_safe_response.headers["Cache-Control"] = "private, no-store"
         return model_safe_response
 
     base_url = _get_base_url(request)
@@ -933,26 +912,36 @@ async def get_file_proxy(
     # Local storage: serve file directly with FileResponse (native Range/sendfile support)
     if storage.is_local:
         if direct:
-            return JSONResponse({"url": proxy_url})
+            return upload_preview.get_local_file_url_response(proxy_url, key, file_token)
         try:
             file_path = storage.get_file_path(key)
             if not await run_long_blocking_io(_path_exists, file_path):
                 raise AppError(ErrorCode.FILE_NOT_FOUND)
 
-            filename_for_disposition, content_type = await _get_file_response_metadata(key)
+            (
+                filename_for_disposition,
+                content_type,
+            ) = await upload_preview.get_file_response_metadata(key, _file_record_storage)
 
             return FileResponse(
                 path=str(file_path),
                 media_type=content_type,
                 filename=filename_for_disposition,
                 content_disposition_type="inline",
-                headers={"Cache-Control": "public, max-age=86400"},
+                headers={"Cache-Control": "private, no-store"},
             )
         except AppError:
             raise
         except Exception as e:
             logger.error(f"Failed to serve local file {key}: {e}")
             raise AppError(ErrorCode.FILE_READ_FAILED)
+
+    if proxy and (range_header := request.headers.get("range")):
+        from src.api.routes.upload_range import get_private_range_response
+
+        return await get_private_range_response(
+            storage, key, range_header, client=request.app.state.upload_range_client
+        )
 
     try:
         async with timed_server_phase("upload_storage"):
@@ -965,10 +954,14 @@ async def get_file_proxy(
         logger.warning(f"Failed to check file existence for {key}: {e}")
 
     if proxy:
-        filename_for_disposition, content_type = await _get_file_response_metadata(key)
-        headers = {"Cache-Control": "public, max-age=300"}
+        filename_for_disposition, content_type = await upload_preview.get_file_response_metadata(
+            key, _file_record_storage
+        )
+        headers = {"Cache-Control": "private, no-store"}
         if filename_for_disposition:
-            headers["Content-Disposition"] = _inline_content_disposition(filename_for_disposition)
+            headers["Content-Disposition"] = upload_preview.inline_content_disposition(
+                filename_for_disposition
+            )
 
         return StreamingResponse(
             storage.download_stream(key),
@@ -981,18 +974,18 @@ async def get_file_proxy(
             if storage._config.public_bucket:
                 url = await storage.get_file_url(key)
             else:
-                url = await storage.get_presigned_url(key)
+                url = await storage.get_presigned_url(key, 300 if shared_access else 3600)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {key}: {e}")
         raise AppError(ErrorCode.FILE_URL_FAILED)
 
     if direct:
-        return JSONResponse({"url": url})
+        return JSONResponse({"url": url}, headers={"Cache-Control": "private, no-store"})
 
     return Response(
         status_code=302,
         headers={
             "Location": url,
-            "Cache-Control": "public, max-age=300",
+            "Cache-Control": "private, no-store",
         },
     )

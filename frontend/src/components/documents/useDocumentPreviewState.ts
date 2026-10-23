@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { resolveUploadFileUrl } from "../../services/api/uploadFileUrl";
 import { uploadApi } from "../../services/api";
 import {
   buildUploadProxyUrl,
@@ -317,8 +318,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       if (s3Key || signedUrl) {
         try {
           const resolvedSignedUrl = getFullUrl(signedUrl) || signedUrl;
-          const url =
-            (resolvedImageFile && s3Key
+          let url =
+            (resolvedImageFile &&
+            s3Key &&
+            !resolvedSignedUrl?.includes("file_token=")
               ? buildUploadProxyUrlFromKey(s3Key)
               : resolvedSignedUrl) ||
             (s3Key
@@ -332,6 +335,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             throw new Error("No URL available");
           }
 
+          if (!resolvedImageFile) url = await resolveUploadFileUrl(url);
+          if (cancelled) return;
           setResolvedUrl(url);
 
           if (resolvedImageFile) {
@@ -495,7 +500,15 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
       } catch {
-        window.open(downloadUrl, "_blank");
+        try {
+          window.open(
+            await resolveUploadFileUrl(downloadUrl),
+            "_blank",
+            "noopener,noreferrer",
+          );
+        } catch {
+          setError(t("documents.failedToLoadFromS3", "从存储加载文件失败"));
+        }
       }
       return;
     }

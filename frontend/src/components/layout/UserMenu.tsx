@@ -64,7 +64,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_ADMIN]);
   const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
-  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
+  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_ADMIN]);
   const canViewUsage = hasAnyPermission([Permission.USAGE_READ]);
   const canManageNotifications = hasAnyPermission([
     Permission.NOTIFICATION_MANAGE,

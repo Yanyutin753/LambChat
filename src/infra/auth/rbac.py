@@ -158,7 +158,6 @@ class RBACManager:
                     Permission.MCP_DELETE.value,
                     # Feedback
                     Permission.FEEDBACK_WRITE.value,
-                    Permission.FEEDBACK_READ.value,
                     # Channel
                     Permission.CHANNEL_READ.value,
                     Permission.CHANNEL_WRITE.value,

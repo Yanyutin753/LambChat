@@ -20,6 +20,7 @@ from src.api.error_handlers import register_error_handlers
 from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.compression import add_compression_middleware
 from src.api.middleware.tracing import TracingMiddleware
+from src.api.middleware.upload_isolation import UploadIsolationMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
 from src.api.routes import (
     agent,
@@ -599,12 +600,16 @@ async def lifespan(app: FastAPI):
         _reset_memory_monitor_after_startup()
     )
 
+    from src.api.routes.upload_range import create_range_client
+
+    app.state.upload_range_client = create_range_client()
     try:
         yield
     except asyncio.CancelledError:
         # Ctrl+C / server cancellation during lifespan shutdown is a normal exit path.
         logger.info("Application lifespan cancelled, continuing graceful shutdown")
     finally:
+        await app.state.upload_range_client.aclose()
         # 关闭时清理
         from src.agents import AgentFactory
         from src.infra.async_utils import loop_bridge
@@ -754,6 +759,9 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         lifespan=lifespan,
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
     )
 
     # CORS 中间件 — allow_credentials=True 下禁止 "*"，必须显式白名单
@@ -771,6 +779,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
+    app.add_middleware(UploadIsolationMiddleware)
 
     # gzip 压缩（最外层，压缩最终响应体；SSE 与已压缩二进制在模块内排除）
     add_compression_middleware(app)

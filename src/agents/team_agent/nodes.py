@@ -860,6 +860,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             attachments = await inline_image_attachments_as_data_urls(
                 attachments,
                 base_url=configurable.get("base_url", ""),
+                user_id=context.user_id,
+                session_id=str(state.get("session_id") or ""),
             )
         new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
         graph_input = build_goal_input(
