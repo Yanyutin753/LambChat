@@ -140,6 +140,19 @@ def is_quota_error(error: BaseException) -> TypeGuard[AppError]:
     }
 
 
+def quota_preflight_skip_reason(error: BaseException) -> str | None:
+    """配额前置检查异常归类为 skip reason；None = 不归类、原样上抛。
+
+    user_budgets 对已删除/停用用户抛 UNAUTHORIZED：API 语境是 401，
+    后台 pass 语境必须静默 skip，否则残留 due job 每轮扫描刷 WARNING（#1018）。
+    """
+    if is_quota_error(error):
+        return error.error_code.code
+    if isinstance(error, AppError) and error.error_code is ErrorCode.UNAUTHORIZED:
+        return "user_inactive"
+    return None
+
+
 def bind_quota_user(function):
     """Bind the payer for foreground helpers and jobs launched with an empty context."""
     signature = inspect.signature(function)

@@ -594,3 +594,15 @@ async def test_anthropic_cancel_charges_reported_start_usage(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         _ = [chunk async for chunk in model._astream([HumanMessage(content="hi")])]
     ledger.settle.assert_awaited_once_with({"id": "call"}, 0.000012, partial=True)
+
+
+def test_quota_preflight_skip_reason_classifies_quota_and_inactive_user():
+    from src.infra.llm.quota import quota_preflight_skip_reason
+    from src.kernel.errors import AppError, ErrorCode
+
+    assert (
+        quota_preflight_skip_reason(AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE))
+        == "usage_quota_unavailable"
+    )
+    assert quota_preflight_skip_reason(AppError(ErrorCode.UNAUTHORIZED)) == "user_inactive"
+    assert quota_preflight_skip_reason(RuntimeError("boom")) is None

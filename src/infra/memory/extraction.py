@@ -29,7 +29,7 @@ from typing import Any
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from src.infra.llm.quota import bind_quota_user, is_quota_error
+from src.infra.llm.quota import bind_quota_user, is_quota_error, quota_preflight_skip_reason
 from src.infra.logging import get_logger
 from src.infra.memory.extraction_content import (
     _clip_transcript as _clip_transcript,
@@ -732,14 +732,9 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
         budgets = await user_budgets(user_id)
         quota = await UsageQuota().snapshot(user_id, budgets)
     except Exception as exc:
-        if is_quota_error(exc):
-            return {"skipped": 1, "reason": exc.error_code.code}
-        from src.kernel.errors import AppError, ErrorCode
-
-        # user_budgets 对已删除/停用用户抛 UNAUTHORIZED：API 语境是 401，
-        # 后台 pass 语境必须是静默 skip，否则残留 due job 每 15 分钟刷 WARNING
-        if isinstance(exc, AppError) and exc.error_code is ErrorCode.UNAUTHORIZED:
-            return {"skipped": 1, "reason": "user_inactive"}
+        reason = quota_preflight_skip_reason(exc)
+        if reason is not None:
+            return {"skipped": 1, "reason": reason}
         raise
     if any(quota[name]["blocked"] for name in ("five_hour", "weekly")):
         return {"skipped": 1, "reason": "usage_quota_exceeded"}
