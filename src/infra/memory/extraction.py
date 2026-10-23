@@ -734,6 +734,12 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
     except Exception as exc:
         if is_quota_error(exc):
             return {"skipped": 1, "reason": exc.error_code.code}
+        from src.kernel.errors import AppError, ErrorCode
+
+        # user_budgets 对已删除/停用用户抛 UNAUTHORIZED：API 语境是 401，
+        # 后台 pass 语境必须是静默 skip，否则残留 due job 每 15 分钟刷 WARNING
+        if isinstance(exc, AppError) and exc.error_code is ErrorCode.UNAUTHORIZED:
+            return {"skipped": 1, "reason": "user_inactive"}
         raise
     if any(quota[name]["blocked"] for name in ("five_hour", "weekly")):
         return {"skipped": 1, "reason": "usage_quota_exceeded"}
