@@ -29,6 +29,7 @@ import type { MCPServerResponse, MCPServerCreate } from "../../types";
 export function MCPPanel() {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [retestingServer, setRetestingServer] = useState<string | null>(null);
   // Pagination state
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -53,6 +54,7 @@ export function MCPPanel() {
     updateServer,
     deleteServer,
     toggleServer,
+    retestServer,
     importServers,
     exportServers,
     promoteServer,
@@ -287,6 +289,24 @@ export function MCPPanel() {
     [toggleServer],
   );
 
+  const handleRetest = useCallback(
+    async (server: MCPServerResponse) => {
+      if (retestingServer) return;
+      setRetestingServer(server.name);
+      try {
+        const result = await retestServer(server.name, server.is_system);
+        if (result?.status === "ok") {
+          toast.success(t("mcp.card.retestOk", { count: result.tool_count }));
+        } else {
+          toast.error(result?.error || t("mcp.card.retestFailed"));
+        }
+      } finally {
+        setRetestingServer(null);
+      }
+    },
+    [retestingServer, retestServer, t],
+  );
+
   // Stable callback for tool toggled — avoids inline arrow in .map()
   const handleToolToggled = useCallback(() => {
     // Notify useTools hook to refresh conversation tool state
@@ -467,6 +487,8 @@ export function MCPPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onRetest={handleRetest}
+                retesting={retestingServer === server.name}
                 onClick={() => setToolsSidebarServer(server)}
               />
             ))}

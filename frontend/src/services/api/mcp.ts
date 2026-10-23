@@ -4,6 +4,7 @@
 
 import type {
   MCPServerResponse,
+  MCPServerRetestResponse,
   MCPServersResponse,
   MCPServerCreate,
   MCPServerUpdate,
@@ -107,6 +108,24 @@ export const mcpApi = {
       `${API_BASE}/api/mcp/${encodeURIComponent(name)}/toggle`,
       {
         method: "PATCH",
+      },
+    );
+  },
+
+  /**
+   * Retest a server connection and persist its load status (issue #991)
+   */
+  async retest(
+    name: string,
+    isSystem = false,
+  ): Promise<MCPServerRetestResponse> {
+    const base = isSystem
+      ? `${API_BASE}/api/admin/mcp`
+      : `${API_BASE}/api/mcp`;
+    return authFetch<MCPServerRetestResponse>(
+      `${base}/${encodeURIComponent(name)}/retest`,
+      {
+        method: "POST",
       },
     );
   },

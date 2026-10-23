@@ -37,6 +37,28 @@ def _subscription(
     }
 
 
+async def test_subscription_status_checks_only_the_authenticated_owner():
+    calls = []
+
+    class Manager:
+        async def has_subscription(self, user_id, endpoint):
+            calls.append((user_id, endpoint))
+            return False
+
+    app = FastAPI()
+    app.include_router(push_route.router, prefix="/api/push")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[push_route.get_push_manager] = Manager
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        response = await client.post(
+            "/api/push/subscription-status", json={"endpoint": "https://push/secret"}
+        )
+    assert response.status_code == 200 and response.json() == {"registered": False}
+    assert calls == [("user-1", "https://push/secret")]
+
+
 # ── VAPID public key endpoint ──
 
 

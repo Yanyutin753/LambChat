@@ -398,10 +398,6 @@ async def vector_search(
     context_filter: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> list[dict]:
-    query_vec = await backend._maybe_embed(query)
-    if not query_vec:
-        return []
-
     base: dict[str, Any] = {
         "user_id": user_id,
         "source": {"$ne": "session_summary"},
@@ -428,6 +424,10 @@ async def vector_search(
             pass  # Keep the existing hydration/fallback path when the prefilter is unavailable.
         if memory_ids == []:
             return []
+
+    query_vec = await backend._maybe_embed(query)
+    if not query_vec:
+        return []
 
     # 家族前缀 → 具体值列表：Qdrant payload 只存具体 context，MatchAny 下推
     context_values: Optional[list[str]] = None

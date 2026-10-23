@@ -154,6 +154,7 @@ export type {
   MCPTransport,
   MCPServerBase,
   MCPServerResponse,
+  MCPServerRetestResponse,
   MCPServersResponse,
   MCPServerCreate,
   MCPServerUpdate,

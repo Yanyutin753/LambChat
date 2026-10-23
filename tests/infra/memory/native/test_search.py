@@ -733,3 +733,27 @@ async def test_recall_memories_filters_min_score_before_truncation(monkeypatch):
 
     ids = [m["memory_id"] for m in result["memories"]]
     assert ids == ["ok-3", "ok-2", "ok-1"], "低分候选应先过滤，达标者回填 top-N"
+
+
+async def test_empty_visible_vector_scope_skips_embedding_request(monkeypatch):
+    from src.infra.memory.client.native import search, vector_store
+
+    monkeypatch.setattr(vector_store, "vector_backend_enabled", lambda: True)
+    collection = _FakeCollection([])
+
+    async def embed(_query):
+        raise AssertionError("An empty visible vector scope must not call embedding")
+
+    backend = SimpleNamespace(_maybe_embed=embed, _collection=collection)
+    result = await search.vector_search(
+        backend, "owner", "query", 3, ["user"], context_filter="project", project_id="p1"
+    )
+    assert result == []
+    assert collection.find_queries[0] == {
+        "user_id": "owner",
+        "source": {"$ne": "session_summary"},
+        "embedding": {"$exists": True, "$ne": None},
+        "memory_type": {"$in": ["user"]},
+        "context": search.build_context_clause("project"),
+        **search.build_scope_clause("p1"),
+    }

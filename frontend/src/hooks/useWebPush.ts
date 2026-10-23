@@ -64,10 +64,17 @@ export function useWebPush() {
           return;
         }
         const existing = await registration.pushManager.getSubscription();
-        if (existing && !cancelled) {
-          setStatus("subscribed");
-        } else if (!cancelled) {
-          setStatus((current) => (current === "loading" ? current : "idle"));
+        const registered = existing
+          ? (await pushApi.getSubscriptionStatus(existing.endpoint)).registered
+          : false;
+        if (!cancelled) {
+          setStatus((current) =>
+            current === "loading"
+              ? current
+              : registered
+                ? "subscribed"
+                : "idle",
+          );
         }
       } catch {
         if (!cancelled) setStatus("unavailable");
@@ -96,6 +103,13 @@ export function useWebPush() {
       if (!registration) {
         setStatus("unavailable");
         return false;
+      }
+      const existing = await registration.pushManager.getSubscription();
+      if (
+        existing &&
+        !(await pushApi.getSubscriptionStatus(existing.endpoint)).registered
+      ) {
+        await existing.unsubscribe();
       }
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,

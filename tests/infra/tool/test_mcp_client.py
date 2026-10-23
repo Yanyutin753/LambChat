@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 import sys
+import time
 import types
 from typing import Any
 
@@ -379,3 +380,259 @@ async def test_mcp_arun_enforces_configured_tool_timeout(
     result = await wrapper._arun()
 
     assert "timed out after 1 attempts" in result
+
+
+def test_mcp_server_load_timeout_defaults_to_30() -> None:
+    """单 server 工具加载超时默认 30s 且可经 settings 覆盖。
+
+    mcp SDK 的 ClientSession read_timeout_seconds 默认 None（无请求级超时），
+    挂死型上游（TCP 通但不响应）会永久挂起 initialize/list_tools（issue #991 /
+    python-sdk #2432），加载路径必须有外层预算。
+    """
+    from src.infra.tool import mcp_client
+    from src.kernel.config import settings
+
+    assert settings.MCP_SERVER_LOAD_TIMEOUT == 30
+    assert mcp_client._mcp_server_load_timeout() == 30.0
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_load_timeout_marks_hung_server_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """挂死 server 被超时标记失败，同批其它 server 照常加载（隔离不回归）。"""
+    from src.infra.tool import mcp_client
+
+    loaded: list[str] = []
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        name = kwargs["server_name"]
+        loaded.append(name)
+        if name == "hung-server":
+            await asyncio.Event().wait()  # 永不返回，模拟挂死上游
+        return []
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_TIMEOUT", 0.2, raising=False)
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+
+    client = mcp_client.MCPClientManager()
+    config = {
+        "mcpServers": {
+            "hung-server": {
+                "transport": "streamable_http",
+                "url": "https://example.test/hung",
+            },
+            "healthy-server": {
+                "transport": "streamable_http",
+                "url": "https://example.test/ok",
+            },
+        }
+    }
+
+    tools, _ = await asyncio.wait_for(client._create_mcp_client(config), timeout=5)
+
+    assert tools == []
+    assert client.unavailable_server_names == ("hung-server",)
+    assert sorted(loaded) == ["healthy-server", "hung-server"]
+
+
+def test_format_load_error_expands_exception_group() -> None:
+    """TaskGroup 的 ExceptionGroup 必须递归展开子异常（issue #991）。"""
+    from src.infra.tool.mcp_client import _format_load_error
+
+    inner = ExceptionGroup(
+        "taskgroup", [OSError("connection refused"), TimeoutError("read timed out")]
+    )
+    outer = ExceptionGroup("outer", [inner])
+
+    text = _format_load_error(outer)
+
+    assert "OSError: connection refused" in text
+    assert "TimeoutError: read timed out" in text
+    assert _format_load_error(ValueError("plain")) == "ValueError: plain"
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_failure_log_expands_error_and_hides_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """失败日志展开子异常并带上 url；headers 等敏感配置不得进日志。"""
+    from src.infra.tool import mcp_client
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        raise ExceptionGroup("taskgroup", [ValueError("boom-detail")])
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+
+    warnings: list[str] = []
+
+    def fake_warning(msg: Any, *args: Any, **kwargs: Any) -> None:
+        warnings.append(msg % args if args else str(msg))
+
+    monkeypatch.setattr(mcp_client.logger, "warning", fake_warning)
+
+    client = mcp_client.MCPClientManager()
+    config = {
+        "mcpServers": {
+            "secret-server": {
+                "transport": "streamable_http",
+                "url": "https://example.test/secret",
+                "headers": {"Authorization": "secret-token-value"},
+            }
+        }
+    }
+
+    await client._create_mcp_client(config)
+
+    joined = "\n".join(warnings)
+    assert "ValueError: boom-detail" in joined
+    assert "https://example.test" in joined
+    assert "secret-token-value" not in joined
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_skips_open_breaker_servers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """熔断打开的 server 不再连接，直接进 unavailable（issue #991）。"""
+    from src.infra.tool import mcp_client
+    from src.infra.tool import mcp_server_breaker as breaker
+
+    breaker.reset()
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+    for _ in range(3):
+        breaker.record_failure("sys:dead-server", "e")
+
+    loaded: list[str] = []
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        loaded.append(kwargs["server_name"])
+        return []
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+
+    try:
+        client = mcp_client.MCPClientManager()
+        config = {
+            "mcpServers": {
+                "dead-server": {
+                    "transport": "streamable_http",
+                    "url": "https://example.test/dead",
+                },
+                "healthy": {
+                    "transport": "streamable_http",
+                    "url": "https://example.test/ok",
+                },
+            },
+            "mcp_system_server_names": ["dead-server"],
+        }
+
+        await client._create_mcp_client(config)
+
+        assert loaded == ["healthy"]
+        assert client.unavailable_server_names == ("dead-server",)
+    finally:
+        breaker.reset()
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_breaker_recovers_on_successful_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """冷却到期的半开探测 = 正常加载本身；成功即闭合。"""
+    from src.infra.tool import mcp_client
+    from src.infra.tool import mcp_server_breaker as breaker
+
+    breaker.reset()
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+    monkeypatch.setattr(breaker, "_cooldown_seconds", lambda: 0.05)
+    for _ in range(3):
+        breaker.record_failure("sys:flaky", "e")
+    time.sleep(0.06)
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        return []
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+
+    try:
+        client = mcp_client.MCPClientManager()
+        config = {
+            "mcpServers": {
+                "flaky": {
+                    "transport": "streamable_http",
+                    "url": "https://example.test/flaky",
+                },
+            },
+            "mcp_system_server_names": ["flaky"],
+        }
+
+        await client._create_mcp_client(config)
+
+        assert client.unavailable_server_names == ()
+        assert breaker.acquire_load_slot("sys:flaky") is None  # closed
+    finally:
+        breaker.reset()
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_persists_status_on_breaker_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """达到阈值的跳闸迁移触发一次 fire-and-forget 状态落库。"""
+    from src.infra.tool import mcp_client
+    from src.infra.tool import mcp_server_breaker as breaker
+
+    breaker.reset()
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        raise OSError("connection refused")
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+
+    writes: list[dict] = []
+
+    class _FakeStorage:
+        async def update_system_server_load_status(self, name, *, ok, error=None):
+            writes.append({"name": name, "ok": ok, "error": error})
+
+    import src.infra.mcp.storage as mcp_storage_module
+
+    monkeypatch.setattr(mcp_storage_module, "MCPStorage", _FakeStorage)
+
+    client = mcp_client.MCPClientManager()
+    config = {
+        "mcpServers": {
+            "doomed": {
+                "transport": "streamable_http",
+                "url": "https://example.test/doomed",
+            },
+        },
+        "mcp_system_server_names": ["doomed"],
+    }
+
+    try:
+        await client._create_mcp_client(config)
+        await client._create_mcp_client(config)
+        await client._create_mcp_client(config)
+        await asyncio.sleep(0.05)  # 让 fire-and-forget 写任务落地
+
+        assert len(writes) == 3  # 每次实际失败都计数，熔断跳过不计数
+        assert writes[0]["name"] == "doomed"
+        assert writes[0]["ok"] is False
+        assert "connection refused" in writes[0]["error"]
+    finally:
+        breaker.reset()

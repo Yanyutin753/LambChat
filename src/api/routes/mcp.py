@@ -18,6 +18,7 @@ from src.kernel.schemas.mcp import (
     MCPServerMoveRequest,
     MCPServerMoveResponse,
     MCPServerResponse,
+    MCPServerRetestResponse,
     MCPServersResponse,
     MCPServerToggleResponse,
     MCPServerUpdate,
@@ -389,6 +390,49 @@ async def discover_server_tools(
     )
 
 
+@router.post("/{name}/retest", response_model=MCPServerRetestResponse)
+async def retest_server(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
+    storage: MCPStorage = Depends(get_mcp_storage),
+):
+    """
+    Retest one MCP server connection and persist the load status (issue #991).
+
+    Soft-failure style: a failed probe still returns 200 with status="failed"
+    and the error detail, mirroring the tool-discovery endpoint. A successful
+    retest also resets the consecutive-failure counter.
+    """
+    if _is_internal_server(name):
+        raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
+
+    ok, latency_ms, tool_count, error, scope = await storage.probe_server_connection(
+        name,
+        user.sub,
+        user_roles=user.roles,
+        is_admin=_is_admin(user),
+    )
+    if scope is None:
+        raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
+
+    try:
+        if scope == "user":
+            await storage.update_user_server_load_status(name, user.sub, ok=ok, error=error)
+        else:
+            await storage.update_system_server_load_status(name, ok=ok, error=error)
+    except Exception as e:
+        # 状态落库失败不应让探测结果不可见
+        logger.warning(f"[MCP] Failed to persist load status for server '{name}': {e}")
+
+    return MCPServerRetestResponse(
+        server_name=name,
+        status="ok" if ok else "failed",
+        latency_ms=latency_ms,
+        tool_count=tool_count,
+        error=error,
+    )
+
+
 @router.patch("/{name}/tools/{tool_name}", response_model=MCPToolToggleResponse)
 async def toggle_tool(
     name: str,
@@ -562,6 +606,43 @@ async def admin_discover_server_tools(
         server_name=name,
         tools=[MCPToolInfo(**t) for t in tools],
         count=len(tools),
+        error=error,
+    )
+
+
+@admin_router.post("/{name}/retest", response_model=MCPServerRetestResponse)
+async def admin_retest_server(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    storage: MCPStorage = Depends(get_mcp_storage),
+):
+    """Retest a system MCP server connection and persist the load status (admin only)."""
+    if _is_internal_server(name):
+        raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
+
+    ok, latency_ms, tool_count, error, scope = await storage.probe_server_connection(
+        name,
+        user.sub,
+        user_roles=user.roles,
+        is_admin=True,
+        system_only=True,
+    )
+    if scope is None:
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
+
+    try:
+        if scope == "user":
+            await storage.update_user_server_load_status(name, user.sub, ok=ok, error=error)
+        else:
+            await storage.update_system_server_load_status(name, ok=ok, error=error)
+    except Exception as e:
+        logger.warning(f"[MCP] Failed to persist load status for server '{name}': {e}")
+
+    return MCPServerRetestResponse(
+        server_name=name,
+        status="ok" if ok else "failed",
+        latency_ms=latency_ms,
+        tool_count=tool_count,
         error=error,
     )
 

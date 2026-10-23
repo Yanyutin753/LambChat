@@ -8,7 +8,6 @@ Dual Event Writer - 双写事件到 Redis Stream + MongoDB
 性能优化:
 - 使用 bulk_write 批量更新 MongoDB，减少 DB 往返
 - 分离 Redis/Mongo 锁，减少锁竞争
-- 使用 asyncio.Event 替代轮询标志
 """
 
 import asyncio
@@ -372,10 +371,13 @@ class DualEventWriter:
                 self._flush_task = None
         return True
 
-    async def _do_flush(self) -> None:
+    async def _do_flush(self) -> list[MongoBufferItem]:
         # Include drained in-flight batches in the terminal-stream durability barrier.
         async with self._mongo_flush_lock:
+            async with self._mongo_lock:
+                required = list(self._mongo_buffer)
             await self._do_flush_locked()
+            return required
 
     async def _do_flush_locked(self) -> None:
         """实际执行批量写入，使用 bulk_write 优化"""
@@ -604,7 +606,13 @@ class DualEventWriter:
         """强制刷新缓冲（外部调用）"""
         await self._drain_scheduled_flush_task()
         # Events may have arrived after the scheduled task drained its batch.
-        await self._do_flush()
+        required = await self._do_flush()
+        # Later arrivals belong to the next barrier; retries retain the original payload object.
+        required_payloads = (
+            {id(_buffer_item_base(item)[2]) for item in required}
+            if require_trace_id is not None
+            else set()
+        )
         if require_empty:
             async with self._mongo_lock:
                 remaining = len(self._mongo_buffer)
@@ -616,6 +624,7 @@ class DualEventWriter:
                     1
                     for item in self._mongo_buffer
                     if _buffer_item_base(item)[0] == require_trace_id
+                    and id(_buffer_item_base(item)[2]) in required_payloads
                 )
             if remaining_for_trace:
                 raise RuntimeError(

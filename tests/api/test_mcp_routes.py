@@ -366,3 +366,124 @@ async def test_admin_update_tool_policy_accepts_inline_exposure() -> None:
             "updated_by": "admin-1",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_user_retest_server_persists_status_and_returns_payload() -> None:
+    """retest 成功：探测结果 200 返回并写入用户源状态（issue #991）。"""
+
+    class _FakeStorage:
+        def __init__(self) -> None:
+            self.status_writes: list[dict] = []
+
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
+            assert name == "my-server"
+            assert user_id == "user-1"
+            return (True, 412, 3, None, "user")
+
+        async def update_user_server_load_status(self, name, user_id, *, ok, error=None):
+            self.status_writes.append({"name": name, "user_id": user_id, "ok": ok, "error": error})
+
+    storage = _FakeStorage()
+    app = FastAPI()
+    app.include_router(mcp_route.router, prefix="/api/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: storage
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/mcp/my-server/retest")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["tool_count"] == 3
+    assert payload["latency_ms"] == 412
+    assert payload["error"] is None
+    assert storage.status_writes == [
+        {"name": "my-server", "user_id": "user-1", "ok": True, "error": None}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_user_retest_server_failure_still_returns_200_with_error() -> None:
+    """retest 失败：软失败风格 200 + error，状态写 failed（软失败沿用 discover 风格）。"""
+
+    class _FakeStorage:
+        def __init__(self) -> None:
+            self.status_writes: list[dict] = []
+
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
+            return (False, 1500, 0, "OSError: connection refused", "system")
+
+        async def update_system_server_load_status(self, name, *, ok, error=None):
+            self.status_writes.append({"name": name, "ok": ok, "error": error})
+
+    storage = _FakeStorage()
+    app = FastAPI()
+    app.include_router(mcp_route.router, prefix="/api/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: storage
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/mcp/legacy-srv/retest")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["error"] == "OSError: connection refused"
+    assert storage.status_writes == [
+        {"name": "legacy-srv", "ok": False, "error": "OSError: connection refused"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_retest_unknown_server_returns_404() -> None:
+    class _FakeStorage:
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
+            return (False, 0, 0, None, None)
+
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(mcp_route.router, prefix="/api/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/mcp/missing/retest")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "mcp_server_not_found"
+
+
+@pytest.mark.asyncio
+async def test_admin_retest_uses_admin_router() -> None:
+    class _FakeStorage:
+        async def probe_server_connection(
+            self, name, user_id, user_roles=None, is_admin=False, system_only=False
+        ):
+            assert is_admin is True and system_only is True
+            return (True, 50, 1, None, "system")
+
+        async def update_system_server_load_status(self, name, *, ok, error=None):
+            pass
+
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/admin/mcp/global-srv/retest")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
