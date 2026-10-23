@@ -14,6 +14,7 @@ from src.infra.chat.model_facing import (
     append_required_skills_prompt,
 )  # noqa: F401
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
+from src.kernel.schemas.user import TokenPayload
 
 
 def test_build_conversation_config_does_not_persist_run_scoped_goal() -> None:
@@ -164,7 +165,7 @@ async def test_session_stream_formats_sse_events_inline(monkeypatch: pytest.Monk
     response = await session_stream(
         "session-1",
         run_id="run-1",
-        user=type("User", (), {"sub": "user-1"})(),
+        user=TokenPayload(sub="user-1", username="test"),
     )
     body_iterator = response.body_iterator
     chunk = await body_iterator.__anext__()

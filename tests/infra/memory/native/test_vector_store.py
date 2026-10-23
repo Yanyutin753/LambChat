@@ -492,6 +492,7 @@ async def test_get_vector_index_schedules_backfill_task_once(monkeypatch):
     monkeypatch.setattr(vs, "_run_backfill_once", fake_run)
     try:
         idx = await vs.get_vector_index()
+        assert idx._ensured is True
         assert idx is not None
         await asyncio.sleep(0.05)
         assert forces == [True]  # 首建 → force 回填
@@ -500,5 +501,45 @@ async def test_get_vector_index_schedules_backfill_task_once(monkeypatch):
         assert idx2 is idx
         await asyncio.sleep(0.05)
         assert forces == [True]  # 单例复用，不重复调度
+    finally:
+        await vs.reset_vector_index()
+
+
+async def test_vector_startup_and_first_request_share_one_initialization(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    await vs.reset_vector_index()
+    monkeypatch.setattr(vs, "vector_backend_enabled", lambda: True)
+    started = asyncio.Event()
+    release = asyncio.Event()
+    candidates = []
+
+    async def ensure():
+        started.set()
+        await release.wait()
+        return False
+
+    def create():
+        candidate = AsyncMock()
+        candidate._ensured = False
+        candidate.ensure_collection.side_effect = ensure
+        candidates.append(candidate)
+        return candidate
+
+    monkeypatch.setattr(vs, "QdrantVectorIndex", create)
+    monkeypatch.setattr(vs, "_schedule_backfill_once", lambda **kw: None)
+    first = asyncio.create_task(vs.get_vector_index())
+    await started.wait()
+    second = asyncio.create_task(vs.get_vector_index())
+    await asyncio.sleep(0)
+    release.set()
+    try:
+        a, b = await asyncio.gather(first, second)
+        assert a is b
+        assert len(candidates) == 1
+        assert a._ensured is True
     finally:
         await vs.reset_vector_index()

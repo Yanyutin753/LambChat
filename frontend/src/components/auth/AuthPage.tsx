@@ -13,6 +13,8 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { User, Mail, AlertCircle, AtSign } from "lucide-react";
+import { TwoFactorRequiredError } from "../../services/api/auth";
+import { TwoFactorLogin } from "./TwoFactorLogin";
 import { PasswordInput } from "./PasswordInput";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -64,6 +66,9 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
     };
   }, []);
 
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<string | null>(
+    null,
+  );
   const [mode, setMode] = useState<AuthMode>(initialMode ?? "login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -300,6 +305,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           beginSuccessRedirect();
         }
       } catch (err) {
+        if (err instanceof TwoFactorRequiredError) {
+          setPassword("");
+          setTwoFactorChallenge(err.challengeToken);
+          return;
+        }
         const errorMessage =
           (err as Error).message || t("auth.operationFailed");
 
@@ -368,6 +378,20 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
   // RAF-throttled character gaze: buffers pointer events and applies CSS
   // custom properties only once per animation frame.
+  if (twoFactorChallenge) {
+    return (
+      <TwoFactorLogin
+        challenge={twoFactorChallenge}
+        onSuccess={beginSuccessRedirect}
+        onCancel={() => {
+          setTwoFactorChallenge(null);
+          setTurnstileToken(null);
+          setTurnstileKey((key) => key + 1);
+        }}
+      />
+    );
+  }
+
   if (isRedirecting) {
     return <AutoLoginSplash text={t("auth.completingLogin")} />;
   }
@@ -407,9 +431,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
         }`}
       >
         <div className="auth-page-grid grid w-full max-w-[980px] items-center gap-8 lg:min-h-[calc(100svh-var(--titlebar-inset,0px))] lg:max-w-none lg:grid-cols-2 lg:gap-0">
-          <div
-            className="auth-illustration-panel hidden lg:flex"
-          >
+          <div className="auth-illustration-panel hidden lg:flex">
             <Link to="/" className="auth-illustration-brand">
               <BrandLogo alt={APP_NAME} className="h-8" />
               <BrandWordmark
@@ -419,10 +441,20 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             </Link>
 
             <div className="auth-brand-story">
-              <img src={artworkSrc} alt="" aria-hidden="true" className="auth-hero-art" width={1024} height={1280} decoding="async" />
+              <img
+                src={artworkSrc}
+                alt=""
+                aria-hidden="true"
+                className="auth-hero-art"
+                width={1024}
+                height={1280}
+                decoding="async"
+              />
               <p className="auth-brand-eyebrow">{t("landing.badge")}</p>
               <h2 className="font-serif">{t("auth.brandTitle")}</h2>
-              <p className="auth-brand-description font-serif">{t("landing.mainInterfaceDesc")}</p>
+              <p className="auth-brand-description font-serif">
+                {t("landing.mainInterfaceDesc")}
+              </p>
               <div className="auth-brand-capabilities">
                 <span>{t("auth.featureAgents")}</span>
                 <span>{t("auth.featureTools")}</span>
@@ -446,7 +478,15 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               <ThemeToggle className="auth-appearance-control" />
             </div>
             <div className="auth-form-frame w-full">
-              <img src={artworkSrc} alt="" aria-hidden="true" className="auth-mobile-art lg:hidden" width={1024} height={1280} decoding="async" />
+              <img
+                src={artworkSrc}
+                alt=""
+                aria-hidden="true"
+                className="auth-mobile-art lg:hidden"
+                width={1024}
+                height={1280}
+                decoding="async"
+              />
               {/* Form surface */}
               <div className="auth-form-surface">
                 <div className="auth-form-heading mb-7 text-center sm:mb-9">
@@ -551,14 +591,17 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   {/* Password */}
                   <div className="auth-field-group">
                     <div className="auth-password-label-row">
-                    <label
-                      htmlFor={passwordInputId}
-                      className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
-                    >
-                      {t("auth.password")}
-                    </label>
+                      <label
+                        htmlFor={passwordInputId}
+                        className="mb-1.5 block text-14 font-medium text-theme-text-secondary dark:text-theme-text-tertiary"
+                      >
+                        {t("auth.password")}
+                      </label>
                       {mode === "login" && (
-                        <Link to="/auth/reset-request" className="auth-forgot-row">
+                        <Link
+                          to="/auth/reset-request"
+                          className="auth-forgot-row"
+                        >
                           {t("auth.forgotPassword")}
                         </Link>
                       )}
@@ -776,7 +819,9 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     </svg>
                     <span>GitHub</span>
                   </a>
-                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">·</span>
+                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">
+                    ·
+                  </span>
                   <span className="text-theme-text-secondary dark:text-theme-text-tertiary transition-colors">
                     {t("auth.poweredBy")}{" "}
                     <a
@@ -788,7 +833,9 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       {APP_NAME}
                     </a>
                   </span>
-                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">·</span>
+                  <span className="text-theme-text-tertiary dark:text-theme-text-secondary">
+                    ·
+                  </span>
                   <span>{CURRENT_YEAR}</span>
                 </div>
               </div>

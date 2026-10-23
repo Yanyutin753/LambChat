@@ -58,7 +58,15 @@ def cmd_login(args: argparse.Namespace) -> int:
     password = getpass.getpass("密码: ")
 
     try:
-        token = asyncio.run(pair(cfg.server_url, username, password, persist=False))
+        token = asyncio.run(
+            pair(
+                cfg.server_url,
+                username,
+                password,
+                persist=False,
+                request_code=lambda: getpass.getpass("验证码或恢复码: "),
+            )
+        )
         p = config_path()
         p.parent.mkdir(parents=True, exist_ok=True)
         backup = None

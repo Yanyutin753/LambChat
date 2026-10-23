@@ -95,6 +95,8 @@ async def test_list_tools_offloads_agent_discovery_for_unknown_agent_id(
 
 @pytest.mark.asyncio
 async def test_agent_stream_offloads_sse_json_formatting(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.kernel.schemas.user import TokenPayload
+
     calls: list[str] = []
 
     class _Agent:
@@ -122,7 +124,7 @@ async def test_agent_stream_offloads_sse_json_formatting(monkeypatch: pytest.Mon
         "search",
         AgentRequest(message="hi"),
         request=type("Request", (), {"base_url": "http://testserver/"})(),
-        user=type("User", (), {"sub": "user-1"})(),
+        user=TokenPayload(sub="user-1", username="tester"),
     )
     chunk = await response.body_iterator.__anext__()
 

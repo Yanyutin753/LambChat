@@ -47,6 +47,23 @@ class ErrorCode(Enum):
     UNAUTHENTICATED = ("unauthenticated", 401, "Unauthenticated user")
     INVALID_TOKEN = ("invalid_token", 401, "Invalid token")
     TOKEN_EXPIRED = ("token_expired", 401, "Token has expired")
+    TWO_FACTOR_REQUIRED = (
+        "two_factor_required",
+        403,
+        "Verify two-factor authentication to pair this computer",
+    )
+    TWO_FACTOR_INVALID = ("two_factor_invalid", 400, "Invalid or already used verification code")
+    TWO_FACTOR_EXPIRED = (
+        "two_factor_expired",
+        400,
+        "Verification expired. Please sign in or pair again",
+    )
+    TWO_FACTOR_STATE = ("two_factor_state", 409, "Two-factor settings changed. Please reload")
+    TWO_FACTOR_UNAVAILABLE = (
+        "two_factor_unavailable",
+        503,
+        "Secure authentication is temporarily unavailable",
+    )
     INVALID_CREDENTIALS = ("invalid_credentials", 401, "Invalid username or password")
     REFRESH_TOKEN_MISSING = ("refresh_token_missing", 401, "Refresh token missing")
     REFRESH_TOKEN_INVALID = ("refresh_token_invalid", 401, "Invalid refresh token")

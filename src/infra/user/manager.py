@@ -8,12 +8,18 @@ import asyncio
 from typing import Optional
 
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
-from src.infra.auth.jwt import create_access_token, create_refresh_token
 from src.infra.role.storage import RoleStorage
 from src.infra.storage.s3.service import get_or_init_storage, get_s3_enabled
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
-from src.kernel.schemas.user import Token, User, UserCreate, UserListResponse, UserUpdate
+from src.kernel.schemas.user import (
+    Token,
+    TwoFactorChallenge,
+    User,
+    UserCreate,
+    UserListResponse,
+    UserUpdate,
+)
 
 _s3_cleanup_tasks = BestEffortTaskLimiter("user S3 cleanup", max_tasks=4)
 
@@ -59,7 +65,9 @@ class UserManager:
         user = await self.storage.create(user_data)
         return User.model_validate(user.model_dump())
 
-    async def login(self, username_or_email: str, password: str) -> Optional[Token]:
+    async def login(
+        self, username_or_email: str, password: str
+    ) -> Optional[Token | TwoFactorChallenge]:
         """
         用户登录（支持用户名或邮箱）
 
@@ -91,19 +99,9 @@ class UserManager:
 
             raise AccountNotActiveError("账户未激活，请验证邮箱后登录", user.email)
 
-        # 创建 token（用户信息从 API 动态获取）
-        access_token = create_access_token(user_id=user.id)
+        from src.infra.auth.two_factor import begin_login
 
-        refresh_token = create_refresh_token(
-            user_id=user.id,
-            username=user.username,
-        )
-
-        return Token(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-        )
+        return await begin_login(user)
 
     async def get_user(self, user_id: str) -> Optional[User]:
         """

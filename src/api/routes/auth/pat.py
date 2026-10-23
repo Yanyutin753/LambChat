@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_pat_or_jwt, get_current_user_required
@@ -21,6 +21,8 @@ def get_pat_storage() -> PATStorage:
 
 
 class PATCreateRequest(BaseModel):
+    code: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    pairing_token: Optional[str] = Field(default=None, min_length=40, max_length=128)
     name: str = Field(min_length=1, max_length=64)
     scopes: list[str] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
@@ -48,14 +50,22 @@ class PATListResponse(BaseModel):
 @router.post("", response_model=PATCreateResponse)
 async def create_pat(
     body: PATCreateRequest,
+    response: Response,
     user: TokenPayload = Depends(get_current_user_required),
     storage: PATStorage = Depends(get_pat_storage),
 ):
+    response.headers["Cache-Control"] = "no-store"
     for scope in body.scopes:
         if scope not in _ALLOWED_SCOPES:
             raise AppError(ErrorCode.VALIDATION_ERROR, args={"detail": f"unknown scope: {scope}"})
     token, record = await storage.create(
-        user_id=user.sub, name=body.name, scopes=body.scopes, expires_at=body.expires_at
+        user_id=user.sub,
+        name=body.name,
+        scopes=body.scopes,
+        expires_at=body.expires_at,
+        auth_version=user.auth_version,
+        code=body.code,
+        pairing_token=body.pairing_token,
     )
     return PATCreateResponse(token=token, pat_id=record.pat_id)
 

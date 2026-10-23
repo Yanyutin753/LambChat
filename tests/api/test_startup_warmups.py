@@ -9,6 +9,29 @@ import pytest
 from src.api import main as api_main
 
 
+async def test_memory_warmup_is_tracked_and_cancelled_on_shutdown(monkeypatch):
+    from src.infra.memory import tools as memory_tools
+
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    async def warmup():
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    monkeypatch.setattr(memory_tools, "warmup_backend", warmup, raising=False)
+    app = SimpleNamespace(state=SimpleNamespace())
+    task = api_main._schedule_memory_cache_warmup(app)
+    await asyncio.wait_for(started.wait(), 1)
+    assert task is app.state.memory_cache_warmup_task
+    await api_main._cancel_lifespan_background_tasks_for_shutdown(app)
+    assert stopped.is_set()
+    assert task.cancelled()
+
+
 @pytest.mark.asyncio
 async def test_schedule_models_cache_warmup_does_not_wait_for_refresh(
     monkeypatch: pytest.MonkeyPatch,

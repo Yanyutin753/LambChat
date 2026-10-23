@@ -1,10 +1,4 @@
-"""Vision model video analysis tool for LambChat agents（对齐 image_analysis_tool）.
-
-复用 IMAGE_ANALYSIS_MODEL_ID 的 VLM：支持视觉的模型按 provider 约定同样
-接受 ``video_url`` 块（GLM-4V 系等 OpenAI 兼容形态）。视频不压缩（无服务端
-转码设施），以 ``VIDEO_ANALYSIS_MAX_BYTES`` 硬限制体量——base64 膨胀 ×4/3，
-超限整文件拒绝并回报上限，避免把上下文/请求体打爆。
-"""
+"""Analyze bounded video bytes using the configured model's native video protocol."""
 
 from __future__ import annotations
 
@@ -13,6 +7,7 @@ import base64
 import json
 import mimetypes
 import os
+from contextlib import aclosing
 from typing import Annotated, Any
 from urllib.parse import unquote, urlsplit
 
@@ -21,9 +16,16 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from src.agents.core.node_utils import build_human_message
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.llm.quota import is_quota_error
+from src.infra.llm.retry import is_retryable_model_error
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime
+from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
+    get_base_url_from_runtime,
+    get_session_id_from_runtime,
+    get_user_id_from_runtime,
+)
 from src.kernel.config import settings
+from src.kernel.errors import AppError
 
 try:
     from langchain.tools import ToolRuntime  # type: ignore[assignment]
@@ -47,6 +49,8 @@ VIDEO_ANALYSIS_INTERNAL_RUN_CONFIG = {
     "tags": ["internal_tool_call", "video_analysis_tool"],
 }
 _UPLOAD_FILE_MARKER = "/api/upload/file/"
+_MODEL_TIMEOUT_SECONDS = 180
+_DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
 def get_video_analysis_max_bytes() -> int:
@@ -91,7 +95,52 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
 
+async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> bytes | None:
+    from src.infra.revealed_file.storage import get_revealed_file_storage
+    from src.infra.storage.s3.service import get_or_init_storage
+    from src.infra.upload.file_record import FileRecordStorage
+
+    parsed = urlsplit(ref)
+    base = urlsplit(get_base_url_from_runtime(runtime))
+    if parsed.netloc and (parsed.scheme, parsed.netloc) != (base.scheme, base.netloc):
+        return None
+    if parsed.scheme and parsed.scheme not in {"http", "https"}:
+        return None
+    if not parsed.path.startswith(_UPLOAD_FILE_MARKER):
+        return None
+    key = unquote(parsed.path[len(_UPLOAD_FILE_MARKER) :])
+    if "\\" in key or any(part in {"", ".", ".."} for part in key.split("/")):
+        return None
+    user_id = get_user_id_from_runtime(runtime)
+    if not user_id:
+        return None
+    records = FileRecordStorage()
+    if await records.is_private_key(key):
+        await records.require_private_access(key, user_id, get_session_id_from_runtime(runtime))
+    else:
+        record = await records.find_by_key(key, user_id)
+        if record and record.get("deleting_at"):
+            return None
+        if not record and not await get_revealed_file_storage().find_by_file_key(user_id, key):
+            return None
+
+    storage = await get_or_init_storage()
+    content = bytearray()
+    async with aclosing(storage.download_stream(key)) as stream:
+        async for chunk in stream:
+            if len(content) + len(chunk) > max_bytes:
+                raise ValueError("video_too_large")
+            content.extend(chunk)
+    return bytes(content)
+
+
 async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
+    # One deadline covers all attempts and backoff, including SDK/network stalls.
+    async with asyncio.timeout(_MODEL_TIMEOUT_SECONDS):
+        return await _invoke_with_retries(llm, messages)
+
+
+async def _invoke_with_retries(llm: Any, messages: list[Any]) -> Any:
     """与 image_analysis_tool 同款退避重试，但读视频工具自己的
     VIDEO_ANALYSIS_MAX_ATTEMPTS / VIDEO_ANALYSIS_RETRY_DELAY（一工具一套）。"""
     max_attempts = max(1, int(getattr(settings, "VIDEO_ANALYSIS_MAX_ATTEMPTS", 3) or 3))
@@ -105,7 +154,7 @@ async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
             if is_quota_error(exc):
                 raise
             last_exc = exc
-            if attempt >= max_attempts:
+            if attempt >= max_attempts or not is_retryable_model_error(exc):
                 break
             delay = base_delay * (2 ** max(0, attempt - 1))
             logger.warning(
@@ -126,7 +175,8 @@ async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
 async def video_analyze(
     video_urls: Annotated[
         list[str],
-        "Video URLs or project file URLs to inspect (mp4/webm/mov). Provide one or more videos.",
+        "Sandbox video paths or your own LambChat /api/upload/file/ URLs (mp4/webm/mov). "
+        "Webpage/share URLs are unsupported; download the actual video into the sandbox first.",
     ],
     prompt: Annotated[
         str,
@@ -136,7 +186,8 @@ async def video_analyze(
 ) -> str:
     """Analyze one or more videos with the configured vision-language model.
     Returns JSON {success, analysis, model_id, videos, errors?}."""
-    from src.infra.llm.client import LLMClient
+    from src.infra.llm.client import LLMClient, _resolve_use_responses
+    from src.infra.llm.providers import _parse_provider, _resolve_protocol
     from src.infra.tool.image_analysis_tool import (
         _content_to_text,
         _download_file_from_backend,
@@ -163,6 +214,21 @@ async def video_analyze(
                 {"error": f"Configured {configured_key} does not support vision"},
             )
 
+        provider, _ = _parse_provider(model_config.value)
+        protocol = _resolve_protocol(model_config.provider or provider)
+        if protocol not in {"google", "openai"} or _resolve_use_responses(
+            protocol, model_config.api_format
+        ):
+            return await _json_dumps_result(
+                {
+                    "success": False,
+                    "error": "video_model_protocol_unsupported",
+                    "message": "Configure VIDEO_ANALYSIS_MODEL_ID with a native video model "
+                    "using Google or video-capable OpenAI Chat Completions. "
+                    "Image vision support alone does not imply video support.",
+                }
+            )
+
         refs = [str(u).strip() for u in (video_urls or []) if str(u).strip()]
         if not refs:
             return await _json_dumps_result({"error": "video_urls must include at least one video"})
@@ -175,16 +241,28 @@ async def video_analyze(
 
         for index, ref in enumerate(refs):
             backend_path = _backend_path_from_video_reference(ref)
-            if backend is None or backend_path is None:
-                # 非 backend 可解析引用（http/data 等）没有字节来源，无法
-                # 内联为 video_url 块——VLM 视频必须内联字节
+            try:
+                async with asyncio.timeout(_DOWNLOAD_TIMEOUT_SECONDS):
+                    content = (
+                        await _download_file_from_backend(backend, backend_path)
+                        if backend is not None and backend_path is not None
+                        else await _download_uploaded_video(ref, runtime, max_bytes)
+                    )
+            except AppError:
                 errors.append({"url": ref, "error": "video_not_accessible"})
                 continue
-
-            content = await _download_file_from_backend(backend, backend_path)
-            if content is None:
-                errors.append({"url": ref, "error": "video_download_failed"})
+            except TimeoutError:
+                errors.append({"url": ref, "error": "video_download_timeout"})
                 continue
+            except ValueError as exc:
+                if str(exc) != "video_too_large":
+                    raise
+                errors.append({"url": ref, "error": "video_too_large", "max_bytes": max_bytes})
+                continue
+            if content is None:
+                errors.append({"url": ref, "error": "video_not_accessible"})
+                continue
+            backend_path = backend_path or unquote(urlsplit(ref).path)
             if len(content) > max_bytes:
                 logger.warning(
                     "[video_analyze] refusing oversized video: %s size=%s max=%s",
@@ -230,9 +308,23 @@ async def video_analyze(
         if isinstance(message.content, str):
             return await _json_dumps_result({"success": False, "errors": errors})
 
+        if protocol == "google":
+            message.content = [
+                {
+                    "type": "video",
+                    "mime_type": item["mime_type"],
+                    "base64": item["data_url"].split(",", 1)[1],
+                }
+                if isinstance(part, dict) and part.get("type") == "video_url"
+                else part
+                for part, item in zip(message.content, [{}, *attachments], strict=True)
+            ]
+
         llm = await LLMClient.get_model(model_config=model_config)
         response = await _call_with_retries(llm, [message])
         analysis = _content_to_text(getattr(response, "content", response))
+        if not analysis.strip():
+            return await _json_dumps_result({"success": False, "error": "empty_video_analysis"})
         return await _json_dumps_result(
             {
                 "success": True,
@@ -242,12 +334,20 @@ async def video_analyze(
                 **({"errors": errors} if errors else {}),
             },
         )
+    except TimeoutError:
+        return await _json_dumps_result(
+            {
+                "success": False,
+                "error": "video_analysis_timeout",
+                "timeout_seconds": _MODEL_TIMEOUT_SECONDS,
+            }
+        )
     except Exception as exc:
         # 只记异常类型不记正文（对齐 image_analyze：请求体内嵌视频 data URL）
         if is_quota_error(exc):
             raise
         logger.warning("[video_analyze] failed: error_type=%s", type(exc).__name__)
-        return await _json_dumps_result({"error": "Video analysis failed"})
+        return await _json_dumps_result({"success": False, "error": "Video analysis failed"})
 
 
 def get_video_analysis_tool() -> BaseTool:

@@ -160,3 +160,13 @@ async def test_authenticate_fetches_username_or_email_with_single_query() -> Non
     assert storage.collection.find_one_calls == [
         {"$or": [{"username": "alice@example.com"}, {"email": "alice@example.com"}]}
     ]
+
+
+async def test_password_change_revokes_old_sessions_without_disabling_two_factor():
+    storage = UserStorage()
+    storage._collection = _FakeCollection()
+    await storage.update("507f1f77bcf86cd799439011", UserUpdate(password="new-secret"))
+    fields = storage.collection.updated
+    assert len(fields["auth_version"]) >= 32
+    assert "two_factor" not in fields
+    assert "two_factor_enabled" not in fields

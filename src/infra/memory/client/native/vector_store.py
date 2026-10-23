@@ -17,6 +17,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional
 
+from src.infra.memory.client.base import get_client_lock
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -320,29 +321,35 @@ async def get_vector_index() -> Optional[QdrantVectorIndex]:
     global _vector_index, _index_failed_until
     if not vector_backend_enabled():
         return None
-    if _vector_index is None:
-        if time.monotonic() < _index_failed_until:
-            return None
-        candidate = QdrantVectorIndex()
-        try:
-            created = await candidate.ensure_collection()
-        except Exception as e:
-            logger.warning("[MemoryVector] Qdrant unavailable, vector backend degraded: %s", e)
-            await candidate.close()
-            _index_failed_until = time.monotonic() + _INDEX_RETRY_COOLDOWN_SECONDS
-            return None
-        _vector_index = candidate
-        # 首建（或 done 标记缺失的上次未完成回填）→ 后台自动回填存量
-        _schedule_backfill_once(force=created)
-    return _vector_index
+    async with await get_client_lock("memory_vector_index"):
+        if _vector_index is None:
+            if time.monotonic() < _index_failed_until:
+                return None
+            candidate = QdrantVectorIndex()
+            try:
+                created = await candidate.ensure_collection()
+            except asyncio.CancelledError:
+                await candidate.close()
+                raise
+            except Exception as e:
+                logger.warning("[MemoryVector] Qdrant unavailable, vector backend degraded: %s", e)
+                await candidate.close()
+                _index_failed_until = time.monotonic() + _INDEX_RETRY_COOLDOWN_SECONDS
+                return None
+            candidate._ensured = True
+            _vector_index = candidate
+            # 首建（或 done 标记缺失的上次未完成回填）→ 后台自动回填存量
+            _schedule_backfill_once(force=created)
+        return _vector_index
 
 
 async def reset_vector_index() -> None:
     global _vector_index, _index_failed_until
-    if _vector_index is not None:
-        await _vector_index.close()
-    _vector_index = None
-    _index_failed_until = 0.0
+    async with await get_client_lock("memory_vector_index"):
+        if _vector_index is not None:
+            await _vector_index.close()
+        _vector_index = None
+        _index_failed_until = 0.0
 
 
 # ---------------------------------------------------------------------------

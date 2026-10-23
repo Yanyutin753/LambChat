@@ -15,7 +15,7 @@ from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.user import OAuthProvider
+from src.kernel.schemas.user import OAuthProvider, TwoFactorChallenge
 
 from .utils import _get_client_ip, _get_frontend_url, _store_oauth_state, _verify_oauth_state
 
@@ -125,6 +125,8 @@ def _frontend_callback_url(frontend_url: str) -> str:
 
 
 def _token_fragment(token) -> str:
+    if isinstance(token, TwoFactorChallenge):
+        return urlencode({"challenge_token": token.challenge_token})
     return urlencode(
         {
             "access_token": token.access_token,

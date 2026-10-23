@@ -12,10 +12,11 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.api.routes.chat import session_stream
+from src.kernel.schemas.user import TokenPayload
 
 
 def _user(sub="u1"):
-    return SimpleNamespace(sub=sub)
+    return TokenPayload(sub=sub, username="test")
 
 
 def _session(metadata, user_id="u1"):

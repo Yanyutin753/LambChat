@@ -726,7 +726,12 @@
     "goalConflict": "目标已变更，请刷新后重试",
     "usageQuotaExceeded": "5 小时或每周模型费用额度已用尽。",
     "usageQuotaUnavailable": "暂时无法核验模型费用额度，请稍后重试。",
-    "usageQuotaUnpriced": "此付费 API 调用缺少可靠的 USD 定价或 token 上限，无法在额度限制下使用。"
+    "usageQuotaUnpriced": "此付费 API 调用缺少可靠的 USD 定价或 token 上限，无法在额度限制下使用。",
+    "twoFactorRequired": "请完成双重验证后再配对本机，请在设置的本地沙箱中操作。",
+    "twoFactorInvalid": "验证码无效或已使用，请输入新的验证码",
+    "twoFactorExpired": "验证已过期，请重新登录或配对",
+    "twoFactorState": "双重验证设置已更改，请重新加载",
+    "twoFactorUnavailable": "安全认证暂时不可用，请稍后重试"
   },
   "categories": {
     "scheduled_task": "定时任务",
@@ -4732,5 +4737,35 @@
     "inherits": "此项目的新会话默认使用这台电脑和目录，已有会话保持不变。",
     "optional": "可选。绑定后，新会话共用此目录，文件保留在本机。",
     "privacy": "在所选电脑操作文件；读取内容可能发送给对话模型。"
+  },
+  "twoFactor": {
+    "pairingHint": "已开启双重验证的账号每次配对都需输入新的验证码或恢复码，当前登录账号也不例外；未开启的账号可留空。",
+    "title": "双重验证（2FA）",
+    "description": "双重验证为可选功能。开启后，登录时需额外输入验证器 App 的验证码或恢复码。",
+    "enabled": "已启用",
+    "disabled": "未启用",
+    "pair": "配对验证器",
+    "passwordHint": "请输入当前账号密码。仅使用第三方登录的账号，请先通过“忘记密码”设置密码。",
+    "scanHint": "用验证器 App 扫描二维码，然后输入 6 位验证码完成配对。配对在 10 分钟后过期。",
+    "qrAlt": "验证器配对二维码",
+    "manualKey": "无法扫码时，请手动输入此密钥（请勿分享）",
+    "code": "6 位验证码",
+    "codeOrRecovery": "验证码或恢复码",
+    "confirmEnable": "确认启用",
+    "disable": "关闭双重验证",
+    "confirmDisable": "验证并关闭",
+    "regenerate": "重新生成恢复码",
+    "confirmRegenerate": "验证并重新生成",
+    "saveCodes": "请保存恢复码",
+    "saveCodesHint": "恢复码仅显示一次，每个只能使用一次。请离线安全保存；新恢复码会立即替换旧码。请勿分享或发送到聊天中。",
+    "savedCodes": "我已安全保存",
+    "loginHint": "输入验证器 App 中的 6 位验证码以完成登录。验证码不能重复使用；刚完成配对时请等待下一个验证码。",
+    "recoveryHint": "输入一个尚未使用的恢复码。使用后该码立即失效。",
+    "recoveryCode": "恢复码",
+    "verify": "验证并登录",
+    "useRecovery": "使用恢复码",
+    "useAuthenticator": "使用验证器验证码",
+    "tokenNotice": "开启双重验证或重新生成恢复码会使其他登录会话、已有 API 令牌和设备配对失效，设备需重新登录配对。关闭双重验证只会使其他登录会话失效。",
+    "optionalCode": "验证码或恢复码（启用 2FA 时填写）"
   }
 }

@@ -1,5 +1,9 @@
 """PAT 路由测试：创建返回一次明文、列表不含哈希、撤销、自撤销。"""
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -7,6 +11,23 @@ from src.api import deps as api_deps
 from src.api.error_handlers import register_error_handlers
 from src.api.routes.auth import pat as pat_route
 from src.kernel.schemas.user import TokenPayload
+
+
+@pytest.fixture(autouse=True)
+def account_authority(monkeypatch):
+    from src.infra.user.storage import UserStorage
+
+    monkeypatch.setattr(
+        UserStorage,
+        "get_by_id",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                is_active=True,
+                auth_version=None,
+                pat_version=None,
+            )
+        ),
+    )
 
 
 def _fake_user() -> TokenPayload:
@@ -176,3 +197,29 @@ async def test_delete_current_invalid_pat_rejected(monkeypatch):
         )
     assert resp.status_code == 401
     assert resp.json()["detail"]["code"] == "pat_not_found"
+
+
+async def test_route_enforces_fresh_factor_even_for_empty_scopes(monkeypatch):
+    from src.infra.user.storage import UserStorage
+
+    monkeypatch.setattr(
+        UserStorage,
+        "get_by_id",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                is_active=True,
+                auth_version=None,
+                pat_version=None,
+                two_factor_enabled=True,
+            )
+        ),
+    )
+    storage = _StubStorage()
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_app(storage)), base_url="http://test"
+    ) as client:
+        for scopes in ([], ["sandbox:execute"]):
+            response = await client.post("/api/auth/pat", json={"name": "bypass", "scopes": scopes})
+            assert response.status_code == 403
+            assert response.json()["detail"]["code"] == "two_factor_required"
+    assert storage._get_collection().docs == []
