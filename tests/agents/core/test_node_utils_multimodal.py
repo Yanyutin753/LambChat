@@ -53,6 +53,12 @@ def doc_attachment(**overrides):
     }
 
 
+def test_attachment_summary_supplies_id_for_sandbox_download():
+    text = build_human_message("read", [doc_attachment()]).content
+    assert "attachment_id: doc-1" in text
+    assert "never copy or reconstruct the URL" in text
+
+
 def test_vision_model_sends_image_attachment_as_multimodal_block():
     message = build_human_message(
         "what is this?",

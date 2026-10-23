@@ -591,6 +591,9 @@ def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
         image_index = attachment.get("image_index")
         if image_index:
             enhanced_text += f"\n- Corresponding image: #{image_index}"
+        if attachment.get("id") and attachment.get("key"):
+            enhanced_text += f"\n- attachment_id: {attachment['id']}"
+            enhanced_text += "\n- Sandbox download: upload_url_to_sandbox(attachment_id=..., file_path=...). Use this ID, never copy or reconstruct the URL."
         enhanced_text += f"\n- 链接: {url}"
 
     return enhanced_text
