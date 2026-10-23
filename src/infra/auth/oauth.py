@@ -19,7 +19,7 @@ from src.infra.logging import get_logger
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
-from src.kernel.schemas.user import OAuthProvider, Token, User, UserCreate
+from src.kernel.schemas.user import OAuthProvider, Token, TwoFactorChallenge, User, UserCreate
 
 if TYPE_CHECKING:
     from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -66,6 +66,7 @@ class OAuthUserInfo(BaseModel):
     email: str
     username: str
     avatar_url: Optional[str] = None
+    email_verified: bool = False
 
 
 class OAuthService:
@@ -214,7 +215,7 @@ class OAuthService:
 
     async def handle_callback(
         self, provider: OAuthProvider, code: str, state: str, redirect_uri: str
-    ) -> Optional[Token]:
+    ) -> Optional[Token | TwoFactorChallenge]:
         """
         处理 OAuth 回调
 
@@ -260,17 +261,12 @@ class OAuthService:
                 logger.error("Failed to find or create user")
                 return None
 
-            # 生成 JWT token
-            from src.infra.auth.jwt import create_access_token, create_refresh_token
+            from src.infra.auth.two_factor import begin_login
 
-            access_token = create_access_token(user_id=user.id)
-            refresh_token = create_refresh_token(user_id=user.id, username=user.username)
-
-            return Token(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-            )
+            current = await self.storage.get_by_id(user.id)
+            if not current:
+                return None
+            return await begin_login(current)
         except Exception as e:
             logger.error(f"Failed to handle OAuth callback for {provider.value}: {e}")
             return None
@@ -307,6 +303,7 @@ class OAuthService:
             provider=OAuthProvider.GOOGLE,
             oauth_id=data["id"],
             email=data["email"],
+            email_verified=data.get("verified_email") is True,
             username=data.get("name", data["email"].split("@")[0]),
             avatar_url=data.get("picture"),
         )
@@ -328,56 +325,27 @@ class OAuthService:
                 logger.error("Unexpected GitHub user payload: %s", type(data).__name__)
                 return None
 
-            # 获取邮箱（如果用户没有公开邮箱）
-            email = data.get("email")
-            if not email:
-                for attempt in range(2):
-                    resp = await client.get(
-                        "https://api.github.com/user/emails",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                    )
-                    emails = resp.json()
-                    if isinstance(emails, list):
-                        primary_verified = next(
-                            (
-                                item.get("email")
-                                for item in emails
-                                if isinstance(item, dict)
-                                and item.get("primary")
-                                and item.get("verified")
-                                and item.get("email")
-                            ),
-                            None,
-                        )
-                        any_verified = next(
-                            (
-                                item.get("email")
-                                for item in emails
-                                if isinstance(item, dict)
-                                and item.get("verified")
-                                and item.get("email")
-                            ),
-                            None,
-                        )
-                        any_email = next(
-                            (
-                                item.get("email")
-                                for item in emails
-                                if isinstance(item, dict) and item.get("email")
-                            ),
-                            None,
-                        )
-                        email = primary_verified or any_verified or any_email
-                        break
-
-                    github_message = emails.get("message") if isinstance(emails, dict) else None
-                    logger.error(
-                        "Unexpected GitHub emails payload: %s%s",
-                        type(emails).__name__,
-                        f" ({github_message})" if github_message else "",
-                    )
-                    if attempt == 0:
-                        continue
+            # Public profile email does not prove ownership; use the verified-email API.
+            email = None
+            for attempt in range(2):
+                resp = await client.get(
+                    "https://api.github.com/user/emails",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                emails = resp.json()
+                if isinstance(emails, list):
+                    verified = [
+                        item
+                        for item in emails
+                        if isinstance(item, dict)
+                        and item.get("verified") is True
+                        and item.get("email")
+                    ]
+                    primary = next((item for item in verified if item.get("primary") is True), None)
+                    if primary or verified:
+                        email = (primary or verified[0])["email"]
+                    break
+                logger.error("Unexpected GitHub emails payload: %s", type(emails).__name__)
 
         if not email:
             logger.error("No email found for GitHub user")
@@ -385,6 +353,7 @@ class OAuthService:
 
         return OAuthUserInfo(
             provider=OAuthProvider.GITHUB,
+            email_verified=True,
             oauth_id=str(data["id"]),
             email=email,
             username=data.get("login", email.split("@")[0]),
@@ -438,6 +407,7 @@ class OAuthService:
                 provider=OAuthProvider.APPLE,
                 oauth_id=claims["sub"],
                 email=claims.get("email", ""),
+                email_verified=claims.get("email_verified") in (True, "true"),
                 username=claims.get("email", "").split("@")[0]
                 if claims.get("email")
                 else f"apple_{claims['sub'][:8]}",
@@ -466,9 +436,16 @@ class OAuthService:
         if user:
             return User.model_validate(user.model_dump())
 
+        if not user_info.email_verified:
+            logger.warning("OAuth account creation/linking requires a verified email")
+            return None
+
         # 尝试通过邮箱查找用户（如果已存在则绑定 OAuth）
         existing_user = await self.storage.get_by_email(user_info.email)
         if existing_user:
+            # Identify MFA accounts without mutating the profile before the second factor.
+            if existing_user.two_factor_enabled:
+                return existing_user
             # 绑定 OAuth 到现有用户
             from src.kernel.schemas.user import UserUpdate
 

@@ -12,7 +12,8 @@ import type {
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
-import { setTokens, clearTokens } from "./token";
+import i18n from "i18next";
+import { getAccessToken, decodeToken, setTokens, clearTokens } from "./token";
 import { refreshTokens } from "./tokenManager";
 
 export function buildOAuthLoginUrl(
@@ -23,7 +24,67 @@ export function buildOAuthLoginUrl(
   return `${base}/api/auth/oauth/${provider}`;
 }
 
+interface TwoFactorChallenge {
+  two_factor_required: true;
+  challenge_token: string;
+}
+
+export class TwoFactorRequiredError extends Error {
+  constructor(public challengeToken: string) {
+    super("two_factor_required");
+  }
+}
+
+function saveLogin(
+  response: TokenResponse | TwoFactorChallenge,
+): TokenResponse {
+  if ("two_factor_required" in response) {
+    throw new TwoFactorRequiredError(response.challenge_token);
+  }
+  setTokens(response.access_token, response.refresh_token);
+  window.dispatchEvent(new CustomEvent("auth:login"));
+  return response;
+}
+
 export const authApi = {
+  async verifyTwoFactor(challenge_token: string, code: string) {
+    return saveLogin(
+      await authFetch<TokenResponse>(`${API_BASE}/api/auth/2fa/verify`, {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ challenge_token, code }),
+      }),
+    );
+  },
+
+  async setupTwoFactor(
+    password: string,
+  ): Promise<{ secret: string; otpauth_uri: string }> {
+    return authFetch(`${API_BASE}/api/auth/2fa/setup`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  async updateTwoFactor(
+    action: "enable" | "disable" | "recovery-codes",
+    password: string,
+    code: string,
+  ) {
+    const owner = decodeToken(getAccessToken() ?? "")?.sub;
+    const response = await authFetch<
+      TokenResponse & { recovery_codes: string[] }
+    >(`${API_BASE}/api/auth/2fa/${action}`, {
+      method: "POST",
+      body: JSON.stringify({ password, code }),
+    });
+    if (!owner || decodeToken(getAccessToken() ?? "")?.sub !== owner) {
+      throw new Error(i18n.t("backendErrors.invalidToken"));
+    }
+    setTokens(response.access_token, response.refresh_token);
+    return response;
+  },
+
   /**
    * 用户登录
    */
@@ -38,7 +99,7 @@ export const authApi = {
       headers["X-Turnstile-Token"] = turnstileToken;
     }
 
-    const response = await authFetch<TokenResponse>(
+    const response = await authFetch<TokenResponse | TwoFactorChallenge>(
       `${API_BASE}/api/auth/login`,
       {
         method: "POST",
@@ -48,10 +109,7 @@ export const authApi = {
       },
     );
 
-    setTokens(response.access_token, response.refresh_token);
-    window.dispatchEvent(new CustomEvent("auth:login"));
-
-    return response;
+    return saveLogin(response);
   },
 
   /**
@@ -186,7 +244,7 @@ export const authApi = {
     code: string,
     state: string,
   ): Promise<TokenResponse> {
-    const response = await authFetch<TokenResponse>(
+    const response = await authFetch<TokenResponse | TwoFactorChallenge>(
       `${API_BASE}/api/auth/oauth/${provider}/callback`,
       {
         method: "POST",
@@ -195,10 +253,7 @@ export const authApi = {
       },
     );
 
-    setTokens(response.access_token, response.refresh_token);
-    window.dispatchEvent(new CustomEvent("auth:login"));
-
-    return response;
+    return saveLogin(response);
   },
 
   /**

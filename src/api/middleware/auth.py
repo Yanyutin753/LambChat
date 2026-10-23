@@ -31,6 +31,7 @@ class AuthMiddleware:
         "/health",
         "/ready",
         "/api/auth/login",
+        "/api/auth/2fa/verify",
         "/api/auth/register",
         "/docs",
         "/openapi.json",

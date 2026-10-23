@@ -14,7 +14,11 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory, normalize_agent_id
-from src.api.deps import get_current_user_optional, get_current_user_required
+from src.api.deps import (
+    get_current_user_optional,
+    get_current_user_required,
+    guard_authenticated_stream,
+)
 from src.api.routes.chat import validate_agent_model_access
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
@@ -443,7 +447,7 @@ async def chat_stream(
             TraceContext.clear_request_context()
 
     return StreamingResponse(
-        event_generator(),
+        guard_authenticated_stream(event_generator(), user),
         media_type="text/event-stream",
     )
 

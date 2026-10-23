@@ -36,7 +36,9 @@ async def test_authority_dependency_outage_returns_sanitized_503(monkeypatch, en
         monkeypatch.setattr(
             core, "decode_token", lambda _: {"type": "refresh", "sub": "user-1", "username": "user"}
         )
-        monkeypatch.setattr(core, "UserManager", lambda: SimpleNamespace(get_user=lookup))
+        monkeypatch.setattr(
+            core, "UserManager", lambda: SimpleNamespace(storage=SimpleNamespace(get_by_id=lookup))
+        )
 
     with pytest.raises(AppError) as raised:
         if entry == "http":

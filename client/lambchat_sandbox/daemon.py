@@ -38,6 +38,7 @@ import sys
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -78,6 +79,7 @@ _EXEC_ACK_DELAY_S = 8.0
 # 内到达，容量只需覆盖一个重推窗口内的调用数。
 _RECENT_CALL_IDS_MAX = 512
 _TRANSFER_CONCURRENCY = 8
+_MAX_PENDING_CALLS = 64
 _TRANSFER_OPS = STREAM_OPS | {"fs_upload", "fs_download"}
 
 
@@ -227,14 +229,46 @@ async def _handle_channel(
     auditor: Auditor,
     dedupe: _CallDedupe | None = None,
 ) -> None:
-    """独立文件最多并发 8 个；同文件及非传输操作保持到达顺序。"""
-    pending: dict[asyncio.Task[None], Path] = {}
+    """Keep receiving while commands run; serialize dependent file and desktop operations."""
+    pending: dict[asyncio.Task[None], tuple[ToolCall, Path | None]] = {}
+    slots = asyncio.Semaphore(_TRANSFER_CONCURRENCY)
 
-    async def process(call: ToolCall) -> None:
+    async def process(call: ToolCall, dependencies: list[asyncio.Task[None]]) -> None:
         pinned = dedupe is not None and call.call_id not in dedupe._active
         if pinned and dedupe is not None:
             dedupe._active.add(call.call_id)
+        acquired = False
         try:
+            budget = call.timeout if call.timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
+            queued = bool(dependencies) or slots.locked()
+            started = time.monotonic() if queued else 0.0
+            try:
+                async with asyncio.timeout(budget):
+                    if queued:
+                        await client.post_result(call.call_id, {"stage": "ack"})
+                    for dependency in dependencies:
+                        await asyncio.shield(dependency)
+                    await slots.acquire()
+                    acquired = True
+            except TimeoutError:
+                await client.post_result(
+                    call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+                )
+                if dedupe is not None:
+                    dedupe.remember(call.call_id)
+                    dedupe.mark_terminal(call.call_id)
+                return
+            if queued:
+                remaining = budget - (time.monotonic() - started)
+                if remaining <= 0:
+                    await client.post_result(
+                        call.call_id, {"stage": "done", "status": "error", "error": "expired"}
+                    )
+                    if dedupe is not None:
+                        dedupe.remember(call.call_id)
+                        dedupe.mark_terminal(call.call_id)
+                    return
+                call = replace(call, timeout=remaining)
             completed = await _process_call(
                 client, call, cfg=cfg, executor=executor, auditor=auditor, dedupe=dedupe
             )
@@ -242,32 +276,64 @@ async def _handle_channel(
                 dedupe.mark_terminal(call.call_id)
         except ResultRejectedError:
             if dedupe is not None:
+                dedupe.remember(call.call_id)
                 dedupe.mark_terminal(call.call_id)
             auditor.log(
                 _session_id_from_cwd(str(call.payload.get("cwd", ""))),
                 {"event": "result_rejected", "call_id": call.call_id, "op": call.op},
             )
         finally:
+            if acquired:
+                slots.release()
             if pinned and dedupe is not None:
                 dedupe._active.discard(call.call_id)
 
     try:
         async with asyncio.TaskGroup() as group:
             async for call in calls:
-                key = _transfer_path(call, cfg)
-                for task, path in list(pending.items()):
-                    if task.done() or key is None or key == path:
+                for task in list(pending):
+                    if task.done():
                         await task
                         del pending[task]
-                if key is None:
-                    await process(call)
+                terminal = dedupe is not None and dedupe.is_terminal(call.call_id)
+                if terminal or any(
+                    previous.call_id == call.call_id for previous, _ in pending.values()
+                ):
+                    if not terminal:
+                        try:
+                            await client.post_result(call.call_id, {"stage": "ack"})
+                        except ResultRejectedError:
+                            if dedupe is not None:
+                                dedupe.remember(call.call_id)
+                                dedupe.mark_terminal(call.call_id)
+                    auditor.log(
+                        _session_id_from_cwd(str(call.payload.get("cwd", ""))),
+                        {"event": "duplicate_skipped", "call_id": call.call_id, "op": call.op},
+                    )
                     continue
-                if len(pending) >= _TRANSFER_CONCURRENCY:
-                    done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-                    for task in done:
-                        await task
-                        del pending[task]
-                pending[group.create_task(process(call))] = key
+                if len(pending) >= _MAX_PENDING_CALLS:
+                    with contextlib.suppress(ResultRejectedError):
+                        await client.post_result(
+                            call.call_id,
+                            {"stage": "done", "status": "error", "error": "sandbox_busy"},
+                        )
+                    if dedupe is not None:
+                        dedupe.remember(call.call_id)
+                        dedupe.mark_terminal(call.call_id)
+                    continue
+                key = _transfer_path(call, cfg)
+                dependencies = []
+                for task, (previous, path) in pending.items():
+                    if call.op == "exec" or previous.op == "exec":
+                        continue  # Explicitly parallel commands own their filesystem dependencies.
+                    if call.op in CUA_OPS or previous.op in CUA_OPS:
+                        if call.op in CUA_OPS and previous.op in CUA_OPS:
+                            dependencies.append(task)
+                    elif key is None or path is None or key == path:
+                        dependencies.append(task)
+                pending[group.create_task(process(call, dependencies))] = (call, key)
+                # Let scheduled calls pin dedupe IDs and start before consuming another buffered frame.
+                await asyncio.sleep(0)
     except ExceptionGroup as exc:
         # Preserve the reconnect loop's fatal auth/version handling.
         errors = exc.exceptions

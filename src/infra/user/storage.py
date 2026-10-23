@@ -6,6 +6,7 @@
 
 import asyncio
 import re
+import secrets
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -339,6 +340,8 @@ class UserStorage:
             update_dict["email"] = user_data.email
 
         if user_data.password is not None:
+            update_dict["auth_version"] = secrets.token_urlsafe(24)
+            update_dict["two_factor_pending"] = None
             update_dict["password_hash"] = await run_blocking_io(
                 hash_password,
                 user_data.password,
@@ -526,6 +529,34 @@ class UserStorage:
             return None
 
         return user
+
+    async def reset_password(self, user: UserInDB, password: str) -> bool:
+        """Consume the reset link and rotate credentials in the same database write."""
+        from bson import ObjectId
+
+        if not user.reset_token or not user.reset_token_expires:
+            return False
+        password_hash = await run_blocking_io(hash_password, password)
+        result = await self.collection.update_one(
+            {
+                "_id": ObjectId(user.id),
+                "reset_token": user.reset_token,
+                "reset_token_expires": {"$gt": utc_now()},
+                "password_hash": user.password_hash,
+                "auth_version": user.auth_version,
+            },
+            {
+                "$set": {
+                    "password_hash": password_hash,
+                    "auth_version": secrets.token_urlsafe(24),
+                    "reset_token": None,
+                    "reset_token_expires": None,
+                    "two_factor_pending": None,
+                    "updated_at": utc_now(),
+                }
+            },
+        )
+        return bool(result.modified_count)
 
     async def get_by_reset_token(self, token: str) -> Optional[UserInDB]:
         """

@@ -68,7 +68,6 @@ async def _release_hitl_resume_startup_lock(run_id: str, token: str) -> None:
 
 async def worker_startup(ctx: dict[str, Any]) -> None:
     """Validate worker runtime configuration before accepting jobs."""
-    del ctx
     validate_distributed_runtime_settings(settings)
 
     # 登记本进程事件循环：本地沙箱同步文件操作的协程桥接统一投递到该循环，
@@ -78,6 +77,9 @@ async def worker_startup(ctx: dict[str, Any]) -> None:
     loop_bridge.set_main_loop(asyncio.get_running_loop())
 
     _schedule_model_warmup()
+    from src.infra.memory.tools import warmup_backend
+
+    ctx["memory_warmup_task"] = asyncio.create_task(warmup_backend())
 
 
 async def _warmup_model_clients() -> None:
@@ -115,7 +117,10 @@ def _schedule_model_warmup() -> asyncio.Task[None] | None:
 
 async def worker_shutdown(ctx: dict[str, Any]) -> None:
     """Mark the worker process as shutting down so recovery entrypoints go quiet."""
-    del ctx
+    task = ctx.pop("memory_warmup_task", None)
+    if task is not None:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
     from src.infra.async_utils import loop_bridge
 
     from .lifecycle import mark_shutting_down

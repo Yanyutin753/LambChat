@@ -198,9 +198,14 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
         from src.infra.memory.client.native import NativeMemoryBackend
 
         backend = NativeMemoryBackend()
-        await backend.initialize()
+        try:
+            await backend.initialize()
+        except BaseException:
+            await backend.close()
+            raise
         if backend._collection is not None:
             return backend
+        await backend.close()
     except Exception as e:
         logger.warning(f"[Memory] Failed to initialize native backend: {e}")
 

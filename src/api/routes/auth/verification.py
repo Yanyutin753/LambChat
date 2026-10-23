@@ -123,6 +123,9 @@ async def reset_password(request_data: ResetPasswordRequest):
     if not user:
         raise AppError(ErrorCode.INVALID_RESET_TOKEN)
 
+    if not user.reset_token_expires:
+        raise AppError(ErrorCode.INVALID_RESET_TOKEN)
+
     # 检查令牌是否过期
     if user.reset_token_expires:
         expires_dt = user.reset_token_expires
@@ -132,14 +135,8 @@ async def reset_password(request_data: ResetPasswordRequest):
             raise AppError(ErrorCode.RESET_TOKEN_EXPIRED)
 
     # 更新密码并清除重置令牌
-    await manager.storage.update(
-        user.id,
-        UserUpdate(
-            password=new_password,
-            reset_token=None,
-            reset_token_expires=None,
-        ),
-    )
+    if not await manager.storage.reset_password(user, new_password):
+        raise AppError(ErrorCode.INVALID_RESET_TOKEN)
 
     logger.info("[Auth] Password reset successful for user %s", user.username)
 

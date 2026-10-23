@@ -110,6 +110,7 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "agent_discovery_task",
     "models_preload_task",
     "mcp_cache_warmup_task",
+    "memory_cache_warmup_task",
     "stale_task_cleanup_task",
     "stale_task_cleanup_recheck_task",
     "feishu_task",
@@ -291,6 +292,14 @@ async def _warm_mcp_cache() -> None:
 def _schedule_mcp_cache_warmup(app: FastAPI) -> asyncio.Task[None]:
     task = asyncio.create_task(_warm_mcp_cache(), name="mcp-cache-warmup")
     app.state.mcp_cache_warmup_task = task
+    return task
+
+
+def _schedule_memory_cache_warmup(app: FastAPI) -> asyncio.Task[None]:
+    from src.infra.memory.tools import warmup_backend
+
+    task = asyncio.create_task(warmup_backend(), name="memory-cache-warmup")
+    app.state.memory_cache_warmup_task = task
     return task
 
 
@@ -476,6 +485,7 @@ async def lifespan(app: FastAPI):
 
     # 后台预加载模型列表；请求路径仍有 memory -> Redis -> DB 懒加载兜底。
     _schedule_models_cache_warmup(app)
+    _schedule_memory_cache_warmup(app)
 
     # 后台预热最近活跃用户的 MCP 工具目录；不阻塞应用就绪。
     _schedule_mcp_cache_warmup(app)

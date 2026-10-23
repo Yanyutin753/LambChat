@@ -119,6 +119,7 @@ export function LocalSandboxSection({
   const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
   useLayoutEffect(() => {
     const invalidate = () => {
       operationGeneration.current++;
@@ -231,10 +232,7 @@ export function LocalSandboxSection({
   const header = embedded ? (
     <>
       <div className="sandbox-preference-heading">
-        <Monitor
-          size={15}
-          className="text-theme-text-tertiary shrink-0"
-        />
+        <Monitor size={15} className="text-theme-text-tertiary shrink-0" />
         <span className="font-medium text-14 text-theme-text">
           {t("profile.localSandbox.title")}
         </span>
@@ -386,27 +384,48 @@ export function LocalSandboxSection({
   const startPairing = (mode: "current" | "other") => {
     if (pairBusy || (mode === "other" && (!username.trim() || !password)))
       return;
-    const credentials = { username: username.trim(), password };
+    const credentials = {
+      username: username.trim(),
+      password,
+      ...(pairingCode.trim() ? { code: pairingCode.trim() } : {}),
+    };
     const confirmPolicy = policy;
     const serverUrl = resolveServerUrl();
     let receipt:
-      Awaited<ReturnType<typeof sandboxApi.createPairingPat>> | undefined;
+      | Awaited<ReturnType<typeof sandboxApi.createPairingPat>>
+      | undefined;
     let saved = false;
     let message = t("profile.localSandbox.pairFailed");
     startOperation(
       mode,
       async (isCurrent) => {
         if (!receipt) {
-          const jwt =
-            mode === "current"
-              ? await getValidAccessToken()
-              : await sandboxApi.pairingLogin(credentials);
-          if (!isCurrent()) return;
-          if (!jwt) {
-            message = t("profile.localSandbox.pairNeedLogin");
-            throw new Error("Pairing requires a signed-in account");
+          try {
+            const login =
+              mode === "current"
+                ? {
+                    access_token: await getValidAccessToken(),
+                    pairing_token: undefined,
+                  }
+                : await sandboxApi.pairingLogin(credentials);
+            if (!isCurrent()) return;
+            if (!login.access_token) {
+              throw new Error(t("profile.localSandbox.pairNeedLogin"));
+            }
+            receipt = await sandboxApi.createPairingPat(login.access_token, {
+              ...(mode === "current" && credentials.code
+                ? { code: credentials.code }
+                : {}),
+              ...(login.pairing_token
+                ? { pairing_token: login.pairing_token }
+                : {}),
+            });
+          } catch (error) {
+            message = error instanceof Error ? error.message : message;
+            throw error;
+          } finally {
+            if (isCurrent()) setPairingCode("");
           }
-          receipt = await sandboxApi.createPairingPat(jwt);
           if (!isCurrent()) return;
           if (pairFormRef.current?.contains(document.activeElement))
             sectionRef.current?.focus({ preventScroll: true });
@@ -430,6 +449,7 @@ export function LocalSandboxSection({
       () => {
         setPairPrepared(false);
         setPassword("");
+        setPairingCode("");
         toast.success(t("profile.localSandbox.paired"));
       },
       () => message,
@@ -621,7 +641,22 @@ export function LocalSandboxSection({
             <p className="text-12 text-theme-text-secondary dark:text-stone-400">
               {t("profile.localSandbox.pairTitle")}
             </p>
-            {/* 一键配对：当前登录账号铸 PAT（OAuth 账号唯一可用的手动路径） */}
+            <FormField label={t("twoFactor.optionalCode")}>
+              <Input
+                autoComplete="one-time-code"
+                value={pairingCode}
+                disabled={pairBusy}
+                maxLength={64}
+                onChange={(e) => {
+                  discard("native");
+                  setPairingCode(e.target.value);
+                }}
+              />
+            </FormField>
+            <p className="text-12 text-theme-text-secondary">
+              {t("twoFactor.pairingHint")}
+            </p>
+            {/* 当前账号也必须通过服务端的单次配对验证。 */}
             <Button
               variant="primary"
               className="w-full"

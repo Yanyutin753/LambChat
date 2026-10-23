@@ -106,3 +106,116 @@ async def test_touch_last_used(storage):
     await storage.touch_last_used(record.pat_id)
     verified, _reason = await storage.verify(token)
     assert verified.last_used_at is not None
+
+
+@pytest.fixture(autouse=True)
+def account_authority(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.user.storage import UserStorage
+
+    user = SimpleNamespace(is_active=True, auth_version=None, pat_version=None)
+    monkeypatch.setattr(UserStorage, "get_by_id", AsyncMock(return_value=user))
+    return user
+
+
+async def test_security_rotation_rejects_legacy_pat_and_hides_it_from_active_list(
+    storage, account_authority
+):
+    token, _ = await storage.create(user_id="u1", name="legacy", scopes=["sandbox:execute"])
+    # Simulate a record issued before versioned PATs existed.
+    storage._get_collection().docs[0].pop("pat_version", None)
+    account_authority.pat_version = "enrolled"
+    assert await storage.verify(token) == (None, "revoked")
+    assert await storage.list_for_user("u1") == []
+
+
+async def test_new_pairing_works_until_next_recovery_rotation(storage, account_authority):
+    account_authority.pat_version = "enrolled"
+    token, _ = await storage.create(user_id="u1", name="new", scopes=["sandbox:execute"])
+    assert (await storage.verify(token))[0] is not None
+    account_authority.pat_version = "regenerated"
+    assert await storage.verify(token) == (None, "revoked")
+
+
+async def test_old_login_cannot_mint_pat_for_new_security_version(storage, account_authority):
+    from src.kernel.errors import AppError
+
+    account_authority.auth_version = "new-login"
+    account_authority.pat_version = "new-pairing"
+    with pytest.raises(AppError):
+        await storage.create(
+            user_id="u1", name="racing", scopes=["sandbox:execute"], auth_version="old-login"
+        )
+    assert storage._get_collection().docs == []
+
+
+async def test_pat_insert_racing_rotation_is_already_invalid(storage, account_authority):
+    coll = storage._get_collection()
+    original = coll.insert_one
+
+    async def rotate_then_insert(doc):
+        account_authority.pat_version = "rotated"
+        await original(doc)
+
+    coll.insert_one = rotate_then_insert
+    token, _ = await storage.create(user_id="u1", name="racing", scopes=["sandbox:execute"])
+    assert await storage.verify(token) == (None, "revoked")
+
+
+async def test_disabled_or_deleted_account_cannot_use_pat(storage, account_authority):
+    token, _ = await storage.create(user_id="u1", name="test", scopes=["sandbox:execute"])
+    account_authority.is_active = False
+    assert await storage.verify(token) == (None, "revoked")
+
+
+async def test_other_account_rotation_does_not_revoke_unenrolled_users_pat(storage, monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.user.storage import UserStorage
+
+    accounts = {
+        "u1": SimpleNamespace(is_active=True, auth_version=None, pat_version=None),
+        "u2": SimpleNamespace(is_active=True, auth_version=None, pat_version=None),
+    }
+
+    async def get_user(_self, user_id):
+        return accounts[user_id]
+
+    monkeypatch.setattr(UserStorage, "get_by_id", get_user)
+    first, _ = await storage.create(user_id="u1", name="first", scopes=["sandbox:execute"])
+    other, _ = await storage.create(user_id="u2", name="other", scopes=["sandbox:execute"])
+    accounts["u1"].pat_version = "rotated"
+    assert await storage.verify(first) == (None, "revoked")
+    assert (await storage.verify(other))[0] is not None
+
+
+async def test_enabled_account_cannot_mint_pat_with_only_a_valid_session(
+    storage, account_authority
+):
+    from src.kernel.errors import AppError
+
+    account_authority.two_factor_enabled = True
+    with pytest.raises(AppError) as failure:
+        await storage.create(user_id="u1", name="paired", scopes=["sandbox:execute"])
+    assert failure.value.error_code.code == "two_factor_required"
+    assert storage._get_collection().docs == []
+
+
+async def test_each_pat_consumes_a_fresh_factor(storage, account_authority, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.auth import two_factor as mfa
+    from src.kernel.errors import AppError, ErrorCode
+
+    account_authority.id = "u1"
+    account_authority.two_factor_enabled = True
+    verify = AsyncMock(side_effect=[None, AppError(ErrorCode.TWO_FACTOR_INVALID)])
+    monkeypatch.setattr("src.infra.auth.pat.rate_limit", AsyncMock())
+    monkeypatch.setattr(mfa.TwoFactorService, "verify_factor", verify)
+    await storage.create(user_id="u1", name="first", scopes=[], code="123456")
+    with pytest.raises(AppError):
+        await storage.create(user_id="u1", name="replay", scopes=[], code="123456")
+    assert len(storage._get_collection().docs) == 1
+    assert verify.await_count == 2

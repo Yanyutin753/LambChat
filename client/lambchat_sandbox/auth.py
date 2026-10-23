@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import TypeGuard
 
@@ -127,6 +128,7 @@ async def pair(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
     persist: bool = True,
+    request_code: Callable[[], str] | None = None,
 ) -> str:
     """密码登录换取 PAT 并存储，返回 PAT 明文。
 
@@ -141,6 +143,22 @@ async def pair(
         _raise_for_auth_error(login_resp, "登录失败")
         try:
             payload = login_resp.json()
+            if isinstance(payload, dict) and payload.get("two_factor_required") is True:
+                challenge = payload.get("challenge_token")
+                if not isinstance(challenge, str) or not challenge:
+                    raise AuthError("双重验证响应无效", code="invalid_response")
+                if request_code is None:
+                    raise AuthError("请提供验证器验证码或恢复码", code="two_factor_required")
+                login_resp = await client.post(
+                    "/api/auth/2fa/verify",
+                    json={
+                        "challenge_token": challenge,
+                        "code": request_code().strip(),
+                        "for_pairing": True,
+                    },
+                )
+                _raise_for_auth_error(login_resp, "双重验证失败")
+                payload = login_resp.json()
             access_token = payload.get("access_token") if isinstance(payload, dict) else None
         except ValueError:
             access_token = None
@@ -149,9 +167,14 @@ async def pair(
                 f"登录响应缺少 access_token: HTTP {login_resp.status_code}", code="invalid_response"
             )
 
+        pairing_token = payload.get("pairing_token") if isinstance(payload, dict) else None
         pat_resp = await client.post(
             "/api/auth/pat",
-            json={"name": "sandbox-daemon", "scopes": ["sandbox:execute"]},
+            json={
+                "name": "sandbox-daemon",
+                "scopes": ["sandbox:execute"],
+                **({"pairing_token": pairing_token} if pairing_token else {}),
+            },
             headers={"Authorization": f"Bearer {access_token}"},
         )
         _raise_for_auth_error(pat_resp, "创建 PAT 失败")

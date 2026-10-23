@@ -126,6 +126,7 @@ async def _amain(stop: asyncio.Event) -> None:
     runtime = get_arq_runtime()
     loop = asyncio.get_running_loop()
     readiness_task: asyncio.Task[None] | None = None
+    worker_context: dict[str, Any] = {}
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         # 无信号实现的循环（如 Windows Proactor）抛 NotImplementedError，降级忽略
@@ -143,7 +144,7 @@ async def _amain(stop: asyncio.Event) -> None:
         await start_event_loop_lag_monitor()
         await task_manager.start_pubsub_listener()
         await _start_cache_listeners()
-        await worker_startup({})  # 分布式配置校验 + loop_bridge 登记
+        await worker_startup(worker_context)  # 分布式配置校验 + loop_bridge 登记
         await runtime.start(force=True)
         readiness_task = asyncio.create_task(_publish_readiness(runtime, stop))
         logger.info("standalone arq worker started")
@@ -167,7 +168,7 @@ async def _amain(stop: asyncio.Event) -> None:
             logger.warning("task pubsub stop failed", exc_info=True)
         await _stop_started_listeners()
         try:
-            await worker_shutdown({})  # loop_bridge 清理 + 恢复入口静默
+            await worker_shutdown(worker_context)  # loop_bridge 清理 + 恢复入口静默
         except Exception:  # noqa: BLE101
             logger.warning("worker_shutdown failed", exc_info=True)
         logger.info("standalone arq worker stopped")

@@ -76,7 +76,7 @@ test("pairingLogin logs in via plain fetch and returns only the access token", a
 
   await expect(
     sandboxApi.pairingLogin({ username: "m1_smoke", password: "secret" }),
-  ).resolves.toBe("pairing-jwt");
+  ).resolves.toEqual({ access_token: "pairing-jwt" });
 
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/auth/login");
@@ -180,4 +180,60 @@ test("revokePairingPat surfaces structured errors (e.g. already revoked)", async
     .catch((e: Error & { status?: number; code?: string }) => e);
   expect(err.status).toBe(401);
   expect(err.code).toBe("pat_not_found");
+});
+
+test("pairingLogin verifies the second factor without changing the shell identity", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          two_factor_required: true,
+          challenge_token: "challenge",
+        }),
+        { status: 200 },
+      ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          access_token: "verified-pairing-jwt",
+          pairing_token: "one-use-grant",
+        }),
+        { status: 200 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(
+    sandboxApi.pairingLogin({
+      username: "account",
+      password: "secret",
+      code: "123456",
+    }),
+  ).resolves.toEqual({
+    access_token: "verified-pairing-jwt",
+    pairing_token: "one-use-grant",
+  });
+  expect(fetchMock.mock.calls[1][0]).toBe("/api/auth/2fa/verify");
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+    challenge_token: "challenge",
+    code: "123456",
+    for_pairing: true,
+  });
+  expect(mocks.authFetch).not.toHaveBeenCalled();
+});
+
+test("current-account pairing sends fresh proof only on the PAT request", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ token: "pat", pat_id: "id" }), {
+      status: 200,
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  await sandboxApi.createPairingPat("current-jwt", { code: "123456" });
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    name: "lambchat-desktop-shell",
+    scopes: ["sandbox:execute"],
+    code: "123456",
+  });
 });
