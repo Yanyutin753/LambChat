@@ -568,3 +568,28 @@ async def test_create_invalidates_previously_cached_missing_role(monkeypatch):
     found = await storage.get_by_name("new-role")
     assert found is not None
     assert found.id == created.id
+
+
+async def test_builtin_user_role_cannot_retain_global_administration(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    storage = RoleStorage()
+    storage._collection = SimpleNamespace(
+        update_one=AsyncMock(),
+        find_one=AsyncMock(return_value={"migrations": {"scheduled_task_permissions_v1": True}}),
+    )
+    monkeypatch.setattr(
+        storage, "get_by_name", AsyncMock(return_value=SimpleNamespace(name="user"))
+    )
+    monkeypatch.setattr(storage, "invalidate_cache", AsyncMock())
+    monkeypatch.setattr(
+        "src.infra.auth.rbac.RBACManager.get_default_roles", lambda self: [{"name": "user"}]
+    )
+    await storage.init_default_roles()
+    update = storage.collection.update_one.call_args.args[1]
+    assert set(update["$pull"]["permissions"]["$in"]) == {
+        "usage:admin",
+        "notification:manage",
+        "feedback:read",
+    }

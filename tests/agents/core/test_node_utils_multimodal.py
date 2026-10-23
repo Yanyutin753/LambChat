@@ -14,6 +14,14 @@ from src.agents.core.node_utils import (
 from src.kernel.schemas.model import ModelProfile, effective_image_url_mode
 
 
+@pytest.fixture(autouse=True)
+def authorized_image_storage(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock())
+    monkeypatch.setattr("src.kernel.config.settings.APP_BASE_URL", "https://app.example.com")
+
+
 def test_image_download_limit_uses_configured_image_upload_size(monkeypatch):
     monkeypatch.setattr(
         "src.kernel.config.settings.FILE_UPLOAD_MAX_SIZE_IMAGE",
@@ -626,7 +634,7 @@ async def test_inline_image_failure_log_omits_url_and_exception_text(
 ):
     image_url = "https://cdn.example.test/image.png?signature=private-token"
 
-    async def _fail_download(_url: str, _mime_type: str):
+    async def _fail_download(_url: str, _mime_type: str, **_kwargs):
         raise RuntimeError(f"download failed for {image_url}")
 
     monkeypatch.setattr(node_utils, "_download_image_url_as_data_url", _fail_download)

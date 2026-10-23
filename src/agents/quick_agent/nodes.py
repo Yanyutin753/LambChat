@@ -17,11 +17,13 @@ from src.agents.core.node_utils import (
     build_human_message,
     inline_image_attachments_as_data_urls,
     resolve_fallback_model,
+    resolve_model_image_url_mode,
     resolve_model_supports_vision,
 )
 from src.agents.core.subagent_prompts import build_response_language_section
 from src.agents.core.thinking import build_thinking_config
 from src.agents.quick_agent.prompt import QUICK_SYSTEM_PROMPT, SEARCH_HANDOFF_TOOL
+from src.infra.agent.middleware.image_url import prepare_image_messages
 from src.infra.agent.middleware.subagent_activity import ActivityReferenceMiddleware
 from src.infra.llm.client import LLMClient
 from src.infra.llm.retry import ainvoke_with_retry
@@ -72,6 +74,9 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     configurable = config.get("configurable", {})
     agent_options = configurable.get("agent_options") or {}
 
+    context = configurable.get("context")
+    user_id = getattr(context, "user_id", None)
+    session_id = str(state.get("session_id") or "")
     thinking = build_thinking_config(agent_options)
     llm = await LLMClient.get_model(
         model=agent_options.get("model"),
@@ -91,7 +96,10 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
         if supports_vision:
             attachments = await inline_image_attachments_as_data_urls(
-                attachments, base_url=configurable.get("base_url", "")
+                attachments,
+                base_url=configurable.get("base_url", ""),
+                user_id=user_id,
+                session_id=session_id,
             )
     human_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
 
@@ -101,17 +109,44 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         human_message,
     ]
 
+    # Historical images need refreshed authorization too; never write capabilities to state.
+    image_mode = agent_options.get("_resolved_image_url_mode")
+    if image_mode is None and any(isinstance(message.content, list) for message in messages):
+        image_mode = await resolve_model_image_url_mode(
+            agent_options.get("model_id"), agent_options.get("model"), log_prefix="[QuickAgent]"
+        )
+    original_messages = messages
+    messages = await prepare_image_messages(
+        original_messages,
+        mode=image_mode,
+        user_id=user_id,
+        session_id=session_id,
+        base_url=configurable.get("base_url", ""),
+    )
+
     fallback = agent_options.get("_resolved_fallback_model")
     if "_resolved_fallback_model" not in agent_options:
         fallback = await resolve_fallback_model(
             agent_options.get("model_id"), agent_options.get("model"), log_prefix="[QuickAgent]"
         )
+
+    async def prepare_fallback_prompt(model_reference: str):
+        mode = await resolve_model_image_url_mode(None, model_reference, log_prefix="[QuickAgent]")
+        return await prepare_image_messages(
+            original_messages,
+            mode=mode,
+            user_id=user_id,
+            session_id=session_id,
+            base_url=configurable.get("base_url", ""),
+        )
+
     ai_message = await ainvoke_with_retry(
         llm,
         messages,
         config=config,
         operation="quick-agent",
         fallback_model=fallback,
+        prepare_fallback_prompt=prepare_fallback_prompt,
         thinking=thinking,
         tools=[SEARCH_HANDOFF_TOOL] if configurable.get("allow_search_handoff") else None,
     )

@@ -4,6 +4,7 @@ import gc
 import weakref
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
@@ -15,6 +16,12 @@ from src.api.routes.upload import (
     _spool_upload_file_limited,
 )
 from src.kernel.errors import AppError
+
+
+@pytest.fixture(autouse=True)
+def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise file IO limits after the separate file-access gate accepts."""
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
 
 
 class ChunkedUpload:
@@ -319,7 +326,7 @@ async def test_s3_file_proxy_can_stream_through_app_for_preview_fetches(
 
     assert response.media_type == "text/plain"
     assert body == b"hello world"
-    assert response.headers["Cache-Control"] == "public, max-age=300"
+    assert response.headers["Cache-Control"] == "private, no-store"
 
 
 def test_signed_url_request_rejects_too_many_keys() -> None:

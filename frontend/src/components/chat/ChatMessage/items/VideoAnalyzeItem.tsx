@@ -1,3 +1,4 @@
+import { useUploadFileUrl } from "../../../../hooks/useUploadFileUrl";
 // video_analyze 内置工具专属 Item（对齐 ImageAnalyzeItem：CollapsiblePill +
 // 专属图标 + inline 紧凑预览 + 实时面板，配色沿用工具 Item 的 teal/amber accent）
 import { memo, useMemo } from "react";
@@ -62,10 +63,17 @@ function VideoPreview({
   video: { url: string; name: string };
   compact?: boolean;
 }) {
+  const mediaSource = useUploadFileUrl(video.url);
+  const { t } = useTranslation();
   return (
     <figure className="overflow-hidden rounded-lg border border-theme-border">
+      {mediaSource.failed && (
+        <p role="alert" className="p-3 text-14 text-theme-text-secondary">
+          {t("documents.failedToLoadFromS3")}
+        </p>
+      )}
       <video
-        src={video.url}
+        src={mediaSource.src}
         controls
         preload="metadata"
         playsInline

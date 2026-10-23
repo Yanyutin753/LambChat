@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { getFullUrl } from "../services/api/config";
+import { useUploadFileUrl } from "./useUploadFileUrl";
+import {
+  getOwnUploadFileUrl,
+  resolveUploadFileUrl,
+} from "../services/api/uploadFileUrl";
 import { buildProxyFallbackUrl } from "../components/documents/documentFetchCache";
 
-/** Public images load directly; proxy candidates retry once and private captures stay authenticated. */
+/** Capability images load directly; proxy candidates retry once and captures stay authenticated. */
 export function usePrivateImage(src?: string, retry = 0) {
   const url = getFullUrl(src);
   const uploadPrefix = getFullUrl("/api/upload/file/");
   const prefix = getFullUrl("/api/upload/file/cua_screenshots/");
   const legacyPrefix = getFullUrl("/api/upload/file/tool_binaries/");
-  const isLegacy = !!url && !!legacyPrefix && url.startsWith(legacyPrefix);
+  const isLegacy =
+    !!url &&
+    !!legacyPrefix &&
+    url.startsWith(legacyPrefix) &&
+    !getOwnUploadFileUrl(url)?.searchParams.has("file_token");
+  const resolved = useUploadFileUrl(isLegacy ? undefined : src, retry);
   const isPrivate = isLegacy || (!!url && !!prefix && url.startsWith(prefix));
   const [proxySource, setProxySource] = useState<{
     url: string;
@@ -38,8 +48,9 @@ export function usePrivateImage(src?: string, retry = 0) {
         redirect: isLegacy ? "manual" : "error",
       });
       if (isLegacy && response.type === "opaqueredirect") {
+        const capability = await resolveUploadFileUrl(url);
         if (!controller.signal.aborted)
-          setImage({ url, src: url, failed: false });
+          setImage({ url, src: capability, failed: false });
         return;
       }
       if (!response.ok) throw new Error("Image unavailable");
@@ -60,10 +71,7 @@ export function usePrivateImage(src?: string, retry = 0) {
     ? image.url === url
       ? image
       : { src: undefined, failed: false }
-    : {
-        src: uploadPrefix && url?.startsWith(uploadPrefix) ? url : src,
-        failed: false,
-      };
+    : resolved;
   const activeProxy =
     proxySource?.url === url && proxySource?.retry === retry
       ? proxySource
@@ -71,12 +79,15 @@ export function usePrivateImage(src?: string, retry = 0) {
   const displaySrc = activeProxy?.src ?? current.src;
   const retryWithProxy = useCallback(
     (candidate = src) => {
-      // Only our own public uploads may retry without authentication.
+      // Only our own upload paths can reuse the current file capability for proxy retry.
       if (!url || !uploadPrefix || !url.startsWith(uploadPrefix)) return false;
-      if (isPrivate && current.src !== url) return false;
-      const target = getFullUrl(candidate);
-      if (!target?.startsWith(uploadPrefix)) return false;
-      const fallback = buildProxyFallbackUrl(target);
+      const target = getOwnUploadFileUrl(candidate);
+      if (!target || !current.src) return false;
+      const currentUrl = getOwnUploadFileUrl(current.src);
+      if (currentUrl?.pathname !== target.pathname) return false;
+      const token = currentUrl.searchParams.get("file_token");
+      if (token) target.searchParams.set("file_token", token);
+      const fallback = buildProxyFallbackUrl(target.toString());
       if (!fallback || activeProxy?.attempted.includes(fallback)) return false;
       setProxySource({
         url,
@@ -86,7 +97,7 @@ export function usePrivateImage(src?: string, retry = 0) {
       });
       return true;
     },
-    [url, uploadPrefix, isPrivate, current.src, src, activeProxy, retry],
+    [url, uploadPrefix, current.src, src, activeProxy, retry],
   );
   return { ...current, src: displaySrc, retryWithProxy };
 }

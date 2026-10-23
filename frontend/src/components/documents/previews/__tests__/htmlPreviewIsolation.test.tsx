@@ -16,10 +16,11 @@ vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-test("untrusted HTML scripts cannot share the native parent origin", () => {
+test("untrusted HTML scripts cannot share the native parent origin", async () => {
   const { container } = render(
     <HtmlPreview content="<html><body><script>parent.__TAURI_INTERNALS__.invoke('device_submit_task')</script></body></html>" />,
   );
+  await waitFor(() => expect(container.querySelector("iframe")).not.toBeNull());
   const frame = container.querySelector("iframe")!;
   expect(frame).not.toBeNull();
   expect(frame.getAttribute("sandbox")?.split(" ")).not.toContain(

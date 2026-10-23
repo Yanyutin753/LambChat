@@ -325,11 +325,11 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     "mime_type": mime,
                     "name": image.get("name") or message.name or "tool image",
                 }
-                from src.infra.upload.file_record import FileRecordStorage
+                from src.infra.upload.file_record import get_file_record_storage
 
                 image_key = parsed.path.split("/api/upload/file/", 1)[1]
                 try:
-                    private_image = await FileRecordStorage().is_private_key(image_key)
+                    private_image = await get_file_record_storage().is_private_key(image_key)
                 except Exception:
                     logger.warning("Tool image privacy metadata unavailable")
                     continue
@@ -354,7 +354,11 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     attachment = {**attachment, "data_url": data_url}
                 elif _is_private_url(url):
                     inlined = await inline_image_attachments_as_data_urls(
-                        [attachment], base_url=base_url, force_data_url=True
+                        [attachment],
+                        base_url=base_url,
+                        force_data_url=True,
+                        user_id=self._user_id,
+                        session_id=self._session_id,
                     )
                     if not inlined or not inlined[0].get("data_url"):
                         logger.warning("Tool image could not be loaded for model input")

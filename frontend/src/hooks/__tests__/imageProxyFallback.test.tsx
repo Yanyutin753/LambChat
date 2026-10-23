@@ -29,7 +29,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-const source = `${window.location.origin}/api/upload/file/image/u/photo.png`;
+const source = `${window.location.origin}/api/upload/file/image/u/photo.png?file_token=shared`;
 
 test.each(["web", "desktop", "android", "ios"])(
   "%s images start direct and proxy only once after failure",
@@ -43,7 +43,7 @@ test.each(["web", "desktop", "android", "ios"])(
     const img = screen.getByAltText("photo");
     expect(img).toHaveAttribute("src", source);
     fireEvent.error(img);
-    expect(img).toHaveAttribute("src", `${source}?proxy=true`);
+    expect(img).toHaveAttribute("src", `${source}&proxy=true`);
     expect(img.closest(".image-with-skeleton")).toHaveAttribute(
       "aria-busy",
       "true",
@@ -59,7 +59,7 @@ test("tries the original directly before spending proxy bandwidth after a thumbn
   render(
     <ImageWithSkeleton
       src={source}
-      thumbSrc={`${source}?thumb=1`}
+      thumbSrc={`${source}&thumb=1`}
       alt="thumb"
     />,
   );
@@ -67,7 +67,7 @@ test("tries the original directly before spending proxy bandwidth after a thumbn
   fireEvent.error(img);
   expect(img).toHaveAttribute("src", source);
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?thumb=1&proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&thumb=1&proxy=true`);
   fireEvent.load(img);
   expect(img.closest(".image-with-skeleton")).toHaveAttribute(
     "aria-busy",
@@ -81,7 +81,7 @@ test("viewer silently retries with the proxy and resets to direct on manual retr
   );
   let img = screen.getByAltText("viewer");
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&proxy=true`);
   expect(screen.queryByRole("alert")).toBeNull();
   fireEvent.error(img);
   expect(screen.getByRole("alert")).toBeInTheDocument();
@@ -91,13 +91,13 @@ test("viewer silently retries with the proxy and resets to direct on manual retr
   fireEvent.error(img);
   view.rerender(
     <ImageViewer
-      src={`${source}?v=2`}
+      src={`${source}&v=2`}
       alt="viewer"
       isOpen
       onClose={() => {}}
     />,
   );
-  expect(screen.getByAltText("viewer")).toHaveAttribute("src", `${source}?v=2`);
+  expect(screen.getByAltText("viewer")).toHaveAttribute("src", `${source}&v=2`);
 });
 
 test("private images retain authenticated no-redirect fetching and never fall back to an unauthenticated URL", async () => {
@@ -233,9 +233,9 @@ test("file-library image cards exhaust direct sources before a single proxy retr
   fireEvent.error(img);
   expect(img).toHaveAttribute("src", source);
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?cover=1&proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&cover=1&proxy=true`);
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&proxy=true`);
   fireEvent.error(img);
   expect(screen.queryByAltText("card")).toBeNull();
 });
@@ -245,7 +245,7 @@ test("after direct sources fail, a thumbnail proxy is tried before the original 
   render(
     <ImageWithSkeleton
       src={source}
-      thumbSrc={`${source}?thumb=1`}
+      thumbSrc={`${source}&thumb=1`}
       alt="small"
       onError={error}
     />,
@@ -254,16 +254,16 @@ test("after direct sources fail, a thumbnail proxy is tried before the original 
   fireEvent.error(img);
   expect(img).toHaveAttribute("src", source);
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?thumb=1&proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&thumb=1&proxy=true`);
   fireEvent.error(img);
-  expect(img).toHaveAttribute("src", `${source}?proxy=true`);
+  expect(img).toHaveAttribute("src", `${source}&proxy=true`);
   fireEvent.error(img);
   expect(screen.queryByAltText("small")).toBeNull();
   expect(error).toHaveBeenCalledOnce();
 });
 
 test("loading through the proxy does not mark the failed direct source as cached", () => {
-  const src = `${source}?proxy-cache-check=1`;
+  const src = `${source}&proxy-cache-check=1`;
   const first = render(<ImageWithSkeleton src={src} alt="cache-check" />);
   fireEvent.error(screen.getByAltText("cache-check"));
   fireEvent.load(screen.getByAltText("cache-check"));
@@ -276,10 +276,17 @@ test("loading through the proxy does not mark the failed direct source as cached
 
 test.each(["desktop", "android", "ios"])(
   "%s viewer resolves backend-relative uploads before the first image request",
-  (platform) => {
+  async (platform) => {
     if (platform === "desktop") vi.stubGlobal("__TAURI_INTERNALS__", {});
     else vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
     setStoredServerUrl("https://chat.example");
+    vi.mocked(authenticatedRequest).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          url: "/api/upload/file/image/u/relative.png?file_token=native",
+        }),
+      ),
+    );
     render(
       <ImageViewer
         src="/api/upload/file/image/u/relative.png"
@@ -288,14 +295,24 @@ test.each(["desktop", "android", "ios"])(
         onClose={() => {}}
       />,
     );
-    expect(screen.getByAltText("relative")).toHaveAttribute(
-      "src",
-      "https://chat.example/api/upload/file/image/u/relative.png",
+    expect(screen.getByAltText("relative")).not.toHaveAttribute("src");
+    await waitFor(() =>
+      expect(screen.getByAltText("relative")).toHaveAttribute(
+        "src",
+        "https://chat.example/api/upload/file/image/u/relative.png?file_token=native",
+      ),
     );
   },
 );
 
-test("viewer relocates an upload URL from the webview origin before loading it", () => {
+test("viewer relocates an upload URL from the webview origin before loading it", async () => {
+  vi.mocked(authenticatedRequest).mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        url: "/api/upload/file/image/u/relative.png?file_token=native",
+      }),
+    ),
+  );
   vi.stubGlobal("__TAURI_INTERNALS__", {});
   setStoredServerUrl("https://chat.example");
   render(
@@ -306,8 +323,11 @@ test("viewer relocates an upload URL from the webview origin before loading it",
       onClose={() => {}}
     />,
   );
-  expect(screen.getByAltText("webview-origin")).toHaveAttribute(
-    "src",
-    "https://chat.example/api/upload/file/image/u/relative.png",
+  expect(screen.getByAltText("webview-origin")).not.toHaveAttribute("src");
+  await waitFor(() =>
+    expect(screen.getByAltText("webview-origin")).toHaveAttribute(
+      "src",
+      "https://chat.example/api/upload/file/image/u/relative.png?file_token=native",
+    ),
   );
 });

@@ -8,10 +8,17 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.api.routes import upload
+
+
+@pytest.fixture(autouse=True)
+def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise stream rendering after the separate file-access gate accepts."""
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
 
 
 def _fake_request() -> SimpleNamespace:
@@ -102,7 +109,7 @@ async def test_proxy_stream_with_ascii_filename_keeps_plain_header(
 async def test_proxy_stream_without_record_serves_octet_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """查不到文件记录时依旧可代理，缺省 docx 的 MIME 推断不受影响。"""
+    """已授权请求缺少文件元数据时，docx 的 MIME 推断不受影响。"""
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr(upload, "_file_record_storage", _FakeRecordStorage(None))

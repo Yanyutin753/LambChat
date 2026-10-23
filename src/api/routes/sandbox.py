@@ -858,11 +858,11 @@ async def _cloud_backend(user: TokenPayload, session_id: str):
 
 
 def _cloud_rel(path: str) -> str:
-    """前端相对路径（可带 ``./`` 前缀）→ backend 相对路径；空 = 根。"""
-    rel = (path or "").strip()
-    if rel.startswith("./"):
-        rel = rel[2:]
-    return rel or "."
+    """前端路径归一到会话工作区，拒绝绝对路径和越界路径。"""
+    rel = posixpath.normpath((path or "").strip())
+    if rel.startswith("/") or "\\" in rel or "\x00" in rel or ".." in rel.split("/"):
+        raise AppError(ErrorCode.VALIDATION_ERROR, args={"field": "path"})
+    return rel
 
 
 @router.get("/fs/cloud/status")
@@ -899,10 +899,10 @@ async def sandbox_fs_cloud_list(
     from src.infra.sandbox.idle_pause import schedule_browse_reaper, touch_browse_lease
 
     await _owned_session(user, session_id)
+    rel = _cloud_rel(_sanitize_fs_path(path))
     backend, _work_dir = await _cloud_backend(user, session_id)
     await touch_browse_lease(user.sub)
     schedule_browse_reaper(user.sub)
-    rel = _cloud_rel(_sanitize_fs_path(path))
     from src.api.server_timing import timed_server_phase
 
     async with timed_server_phase("cloud_io"):
@@ -940,10 +940,10 @@ async def sandbox_fs_cloud_read(
     from src.infra.sandbox.idle_pause import schedule_browse_reaper, touch_browse_lease
 
     await _owned_session(user, session_id)
+    rel = _cloud_rel(_sanitize_fs_path(path))
     backend, _work_dir = await _cloud_backend(user, session_id)
     await touch_browse_lease(user.sub)
     schedule_browse_reaper(user.sub)
-    rel = _cloud_rel(_sanitize_fs_path(path))
 
     async def read(file_path: str, start: int, lines: int) -> dict[str, Any]:
         from src.api.server_timing import timed_server_phase

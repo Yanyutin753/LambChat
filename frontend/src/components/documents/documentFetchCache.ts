@@ -1,5 +1,28 @@
-const textCache = new Map<string, Promise<string>>();
-const arrayBufferCache = new Map<string, Promise<ArrayBuffer>>();
+import {
+  getOwnUploadFileUrl,
+  isCurrentFileAccount,
+  resolveUploadFileUrl,
+} from "../../services/api/uploadFileUrl";
+import { getAccessToken } from "../../services/api/token";
+
+const textCache = new Map<
+  string,
+  { request: Promise<string>; expiresAt: number }
+>();
+const arrayBufferCache = new Map<
+  string,
+  { request: Promise<ArrayBuffer>; expiresAt: number }
+>();
+let cacheAccount: string | null | undefined;
+
+function syncCacheAccount(): string | null {
+  const account = typeof localStorage === "undefined" ? null : getAccessToken();
+  if (account !== cacheAccount) {
+    clearDocumentFetchCaches();
+    cacheAccount = account;
+  }
+  return account;
+}
 
 /**
  * Build the app-proxy variant (?proxy=true) of an upload file URL.
@@ -37,6 +60,28 @@ async function fetchWithValidation(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
+  const ownUrl = getOwnUploadFileUrl(url);
+  const legacyTool =
+    !!ownUrl?.pathname.startsWith("/api/upload/file/tool_binaries/") &&
+    !ownUrl.searchParams.has("file_token");
+  if (
+    ownUrl &&
+    (ownUrl.pathname.startsWith("/api/upload/file/cua_screenshots/") ||
+      legacyTool)
+  ) {
+    if (legacyTool) ownUrl.searchParams.set("proxy", "true");
+    const { authenticatedRequest } = await import(
+      "../../services/api/authenticatedRequest"
+    );
+    const response = await authenticatedRequest(ownUrl.toString(), {
+      ...init,
+      cache: "no-store",
+      redirect: "error",
+    });
+    if (!response.ok) throw new Error(`File unavailable: ${response.status}`);
+    return response;
+  }
+  url = await resolveUploadFileUrl(url);
   let response: Response | null = null;
   let networkError: unknown = null;
   try {
@@ -98,36 +143,64 @@ export function mediaProxyFallbackSrc(el: {
 }
 
 export function fetchDocumentText(url: string): Promise<string> {
-  const cached = textCache.get(url);
-  if (cached) {
-    return cached;
+  const previewUrl = getOwnUploadFileUrl(url);
+  if (previewUrl) {
+    previewUrl.searchParams.set("resolve_resources", "true");
+    url =
+      url.startsWith("/") && !url.startsWith("//")
+        ? `${previewUrl.pathname}${previewUrl.search}${previewUrl.hash}`
+        : previewUrl.toString();
+  }
+  const account = syncCacheAccount();
+  const key = `${account}\n${url}`;
+  const cached = textCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.request;
   }
 
   const request = fetchWithValidation(url)
-    .then((response) => response.text())
+    .then(async (response) => {
+      const value = await response.text();
+      syncCacheAccount();
+      if (!isCurrentFileAccount(account))
+        throw new Error("File account changed");
+      return value;
+    })
     .catch((error) => {
-      textCache.delete(url);
+      if (textCache.get(key)?.request === request) textCache.delete(key);
       throw error;
     });
 
-  textCache.set(url, request);
+  textCache.set(key, { request, expiresAt: Date.now() + 5 * 60_000 });
+  while (textCache.size > 64) textCache.delete(textCache.keys().next().value!);
   return request;
 }
 
 export function fetchDocumentArrayBuffer(url: string): Promise<ArrayBuffer> {
-  const cached = arrayBufferCache.get(url);
-  if (cached) {
-    return cached;
+  const account = syncCacheAccount();
+  const key = `${account}\n${url}`;
+  const cached = arrayBufferCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.request;
   }
 
   const request = fetchWithValidation(url)
-    .then((response) => response.arrayBuffer())
+    .then(async (response) => {
+      const value = await response.arrayBuffer();
+      syncCacheAccount();
+      if (!isCurrentFileAccount(account))
+        throw new Error("File account changed");
+      return value;
+    })
     .catch((error) => {
-      arrayBufferCache.delete(url);
+      if (arrayBufferCache.get(key)?.request === request)
+        arrayBufferCache.delete(key);
       throw error;
     });
 
-  arrayBufferCache.set(url, request);
+  arrayBufferCache.set(key, { request, expiresAt: Date.now() + 5 * 60_000 });
+  while (arrayBufferCache.size > 64)
+    arrayBufferCache.delete(arrayBufferCache.keys().next().value!);
   return request;
 }
 

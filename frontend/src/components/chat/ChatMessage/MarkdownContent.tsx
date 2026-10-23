@@ -16,6 +16,7 @@ import React, {
 import { Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getFullUrl } from "../../../services/api/config";
+import { getOwnUploadFileUrl } from "../../../services/api/uploadFileUrl";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
 import { ImageViewer } from "../../common";
@@ -482,7 +483,11 @@ const markdownComponents: Components = {
     const linkChildren = renderLinkedImages(children);
     if (href) {
       const fileLinkInfo = getFileLinkInfo(href, extractNodeText(children));
-      if (fileLinkInfo.isFile && shouldInterceptFilePreviewLink(href)) {
+      const uploadUrl = getOwnUploadFileUrl(href);
+      if (
+        uploadUrl ||
+        (fileLinkInfo.isFile && shouldInterceptFilePreviewLink(href))
+      ) {
         return (
           <a
             href={href}
@@ -496,7 +501,10 @@ const markdownComponents: Components = {
                   {
                     kind: "file",
                     previewKey: fullUrl,
-                    filePath: fileLinkInfo.fileName,
+                    filePath:
+                      fileLinkInfo.fileName ||
+                      uploadUrl?.pathname.split("/").pop() ||
+                      "file",
                     signedUrl: fullUrl,
                   },
                   "manual",

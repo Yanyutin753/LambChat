@@ -7,6 +7,16 @@ from types import SimpleNamespace
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def owned_uploaded_input(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key",
+        AsyncMock(return_value={"uploaded_by": "user-1"}),
+    )
+
+
 class _Runtime:
     def __init__(self, user_id: str | None, base_url: str = "https://app.example.com") -> None:
         context = SimpleNamespace(user_id=user_id) if user_id is not None else None
@@ -197,7 +207,9 @@ async def test_audio_transcribe_transcribes_audio_url(monkeypatch: pytest.Monkey
     assert result["filename"] == "demo.wav"
     assert result["model"] == "FunAudioLLM/SenseVoiceSmall"
     assert result["url"] == "https://app.example.com/api/upload/file/audio/demo.wav"
-    assert captured["download_url"] == "https://app.example.com/api/upload/file/audio/demo.wav"
+    assert captured["download_url"].startswith(
+        "https://app.example.com/api/upload/file/audio/demo.wav?file_token="
+    )
     assert captured["model"] == "FunAudioLLM/SenseVoiceSmall"
     assert captured["language"] == "en"
     assert captured["prompt"] == "clean punctuation"

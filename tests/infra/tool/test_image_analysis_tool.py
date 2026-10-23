@@ -10,6 +10,16 @@ from langchain_openai import ChatOpenAI
 from src.kernel.schemas.model import ModelConfig, ModelProfile
 
 
+@pytest.fixture(autouse=True)
+def owned_image_files(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.find_by_key",
+        AsyncMock(return_value={"uploaded_by": "user-1"}),
+    )
+
+
 class _Runtime:
     def __init__(
         self,
@@ -254,10 +264,10 @@ async def test_image_analyze_uses_configured_vlm_model_and_prompt(monkeypatch):
     assert captured["messages"][0].content[0]["type"] == "text"
     assert "Describe the animal." in captured["messages"][0].content[0]["text"]
     assert "/api/upload/file/uploads/lamb.png" in captured["messages"][0].content[0]["text"]
-    assert captured["messages"][0].content[1] == {
-        "type": "image_url",
-        "image_url": {"url": "/api/upload/file/uploads/lamb.png"},
-    }
+    outgoing = captured["messages"][0].content[1]["image_url"]["url"]
+    assert outgoing.startswith(
+        "https://app.example.com/api/upload/file/uploads/lamb.png?file_token="
+    )
 
 
 @pytest.mark.asyncio
@@ -492,7 +502,9 @@ async def test_image_analyze_uses_storage_direct_urls(monkeypatch):
         )
     )
     assert result["success"] is True
-    resolver.assert_awaited_once_with(original)
+    resolver.assert_awaited_once_with(
+        original, user_id="user-1", session_id=None, base_url="https://app.example.com"
+    )
     assert captured["messages"][0].content[1]["image_url"]["url"] == signed
 
 
@@ -527,3 +539,36 @@ async def test_backend_offline_does_not_reach_vision_model(monkeypatch):
     assert result["code"] == "sandbox_machine_offline"
     assert result["args"] == {"machine": "m1"}
     assert "m1" in result["error"]
+
+
+@pytest.mark.parametrize("mode", ["url", "proxy_direct", "storage_direct", "base64"])
+async def test_image_analyze_rejects_foreign_owned_upload_before_model(monkeypatch, mode):
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool import image_analysis_tool
+    from src.infra.upload.file_record import FileRecordStorage
+
+    model = ModelConfig(
+        id="vision-id",
+        value="vision",
+        label="Vision",
+        profile=ModelProfile(supports_vision=True, image_url_mode=mode),
+    )
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage", lambda: _FakeStorage(model)
+    )
+    monkeypatch.setattr(FileRecordStorage, "find_by_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "src.infra.upload.access._owns_generated_file", AsyncMock(return_value=False)
+    )
+    get_model = AsyncMock()
+    monkeypatch.setattr(image_analysis_tool.LLMClient, "get_model", get_model)
+    result = json.loads(
+        await image_analysis_tool.image_analyze.coroutine(
+            image_urls=["/api/upload/file/image/other/secret.png"],
+            runtime=_Runtime(),
+        )
+    )
+    assert result["code"] == "file_not_found"
+    get_model.assert_not_awaited()

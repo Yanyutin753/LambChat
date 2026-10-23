@@ -16,7 +16,12 @@ from openai import AsyncOpenAI
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.llm.quota import is_quota_error, unpriced_usage
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_base_url_from_runtime
+from src.infra.tool.backend_utils import (
+    get_base_url_from_runtime,
+    get_session_id_from_runtime,
+    get_user_id_from_runtime,
+)
+from src.infra.upload.access import authorize_file_url
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -132,6 +137,12 @@ async def audio_transcribe(
 
     try:
         try:
+            download_url = await authorize_file_url(
+                resolved_url,
+                get_user_id_from_runtime(runtime),
+                get_session_id_from_runtime(runtime),
+                base_url=get_base_url_from_runtime(runtime),
+            )
             filename = _guess_filename(resolved_url)
             with SpooledTemporaryFile(max_size=_SPOOL_MAX_MEMORY_BYTES, mode="w+b") as file_obj:
                 max_download_bytes = max(
@@ -147,7 +158,7 @@ async def audio_transcribe(
                 )
                 total_size = 0
                 async with httpx.AsyncClient(follow_redirects=True, timeout=60) as http_client:
-                    async with http_client.stream("GET", resolved_url) as response:
+                    async with http_client.stream("GET", download_url) as response:
                         response.raise_for_status()
                         known_size = _known_download_size(getattr(response, "headers", {}))
                         if known_size is not None and known_size > max_download_bytes:
@@ -183,8 +194,12 @@ async def audio_transcribe(
         except Exception as exc:
             if is_quota_error(exc):
                 raise
-            logger.warning("[audio_transcribe] transcription failed for %s: %s", resolved_url, exc)
-            return await _json_dumps_result({"error": f"Audio transcription failed: {exc}"})
+            logger.warning(
+                "[audio_transcribe] transcription failed: error_type=%s", type(exc).__name__
+            )
+            return await _json_dumps_result(
+                {"error": f"Audio transcription failed: {type(exc).__name__}"}
+            )
 
         text = getattr(result, "text", None)
         if text is None and isinstance(result, str):

@@ -12,12 +12,27 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 import src.agents.core.node_utils as node_utils_module
 import src.infra.agent.middleware.image_url as image_url_module
 from src.infra.agent.middleware.retry import ModelFallbackMiddleware
 from src.infra.llm.client import LLMClient
+
+
+@pytest.fixture(autouse=True)
+def authorized_transport_urls(monkeypatch):
+    async def authorize(url, *args, **kwargs):
+        return url
+
+    monkeypatch.setattr("src.kernel.config.settings.APP_BASE_URL", "https://lambchat.com")
+    monkeypatch.setattr("src.infra.upload.access.authorize_file_url", authorize)
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage.is_private_key",
+        AsyncMock(return_value=False),
+    )
+
 
 _IMAGE_URL = "https://lambchat.com/api/upload/file/image/u1/f.png"
 

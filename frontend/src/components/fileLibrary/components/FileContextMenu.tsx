@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { ResourceCardMenu } from "../../common/ResourceCardMenu";
 import { MessageSquare, Star, Download, ExternalLink } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
-import { getFullUrl } from "../../../services/api";
+import { useUploadFileUrl } from "../../../hooks/useUploadFileUrl";
 
 interface FileContextMenuProps {
   menu: { x: number; y: number; file: RevealedFileItem } | null;
@@ -22,10 +22,13 @@ export function FileContextMenu({
   onToggleFavorite,
 }: FileContextMenuProps) {
   const { t } = useTranslation();
+  const mediaSource = useUploadFileUrl(
+    menu ? file.url ?? undefined : undefined,
+  );
   if (!menu) return null;
 
   const isProject = file.file_type === "project";
-  const hasUrl = !!file.url && !isProject;
+  const hasUrl = !!mediaSource.src && !isProject;
 
   const items: {
     icon: typeof MessageSquare;
@@ -51,7 +54,7 @@ export function FileContextMenu({
             label: t("fileLibrary.context.download"),
             action: () => {
               const a = document.createElement("a");
-              a.href = getFullUrl(file.url!) || "";
+              a.href = mediaSource.src!;
               a.download = file.file_name || "download";
               a.target = "_blank";
               a.rel = "noopener noreferrer";
@@ -68,11 +71,7 @@ export function FileContextMenu({
             icon: ExternalLink,
             label: t("fileLibrary.context.openInNewTab"),
             action: () => {
-              window.open(
-                getFullUrl(file.url!),
-                "_blank",
-                "noopener noreferrer",
-              );
+              window.open(mediaSource.src, "_blank", "noopener noreferrer");
             },
           },
         ]

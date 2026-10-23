@@ -13,12 +13,19 @@ from __future__ import annotations
 
 import io
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from PIL import Image
 
 from src.api.routes import upload
 from src.kernel.errors import AppError
+
+
+@pytest.fixture(autouse=True)
+def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise model-safe rendering after the separate file-access gate accepts."""
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
 
 
 def _tiff_bytes(mode: str = "RGB") -> bytes:

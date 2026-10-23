@@ -5,6 +5,7 @@ import pytest
 
 from src.api.routes import upload
 from src.infra.session.storage import SessionStorage
+from src.infra.upload import access, shared_files
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.errors import AppError
 
@@ -41,6 +42,14 @@ def screenshot(monkeypatch):
         )
     )
     monkeypatch.setattr(upload, "_file_record_storage", records)
+    monkeypatch.setattr(access, "get_file_record_storage", lambda: records)
+    monkeypatch.setattr(shared_files, "get_file_record_storage", lambda: records)
+    revealed = SimpleNamespace(
+        collection=SimpleNamespace(find=Mock(side_effect=lambda query: _documents([])))
+    )
+    monkeypatch.setattr(
+        "src.infra.revealed_file.storage.get_revealed_file_storage", lambda: revealed
+    )
     monkeypatch.setattr(SessionStorage, "__new__", lambda cls: sessions)
     storage = SimpleNamespace(
         is_local=False,
@@ -165,7 +174,7 @@ async def test_batch_signed_urls_preserves_denials_fallback_and_duplicate_result
     }
     keys.extend(f"tool_binaries/{name}.png" for name in denied)
     upload._file_record_storage._collection.find.side_effect = lambda query: _documents(
-        [{**record, "key": KEY}]
+        [{**record, "key": KEY}, {"key": "tool_binaries/legacy.png", "uploaded_by": "owner"}]
         + [
             {**record, **flags, "key": f"tool_binaries/{name}.png"}
             for name, flags in denied.items()
@@ -184,6 +193,8 @@ async def test_batch_signed_urls_preserves_denials_fallback_and_duplicate_result
         assert item.error == (None if item.key == KEY else "File not found")
     assert result.urls[-1].url == "https://signed.example/legacy"
     storage.get_presigned_url.assert_awaited_once_with("tool_binaries/legacy.png", 3600)
+    # Capture authorization and the legacy owner's ordinary-file lookup share this fixture.
+    assert upload._file_record_storage._collection.find.call_count == 2
 
 
 async def test_batch_signed_urls_rejects_session_delete_marker(screenshot):
@@ -210,6 +221,9 @@ async def test_batch_signed_urls_isolates_public_signing_errors(screenshot):
         RuntimeError("unavailable"),
         "https://signed.example/ok",
     ]
+    upload._file_record_storage._collection.find.side_effect = lambda query: _documents(
+        [{"key": key, "uploaded_by": "owner"} for key in query["key"]["$in"]]
+    )
     result = await get_signed_urls(
         SignedUrlRequest(keys=["image/bad.png", "image/ok.png"]),
         req,
@@ -219,7 +233,7 @@ async def test_batch_signed_urls_isolates_public_signing_errors(screenshot):
     assert [item.key for item in result.urls] == ["image/bad.png", "image/ok.png"]
     assert result.urls[0].error == "unavailable"
     assert result.urls[1].url == "https://signed.example/ok"
-    upload._file_record_storage._collection.find.assert_not_called()
+    upload._file_record_storage._collection.find.assert_called_once()
 
 
 async def test_private_batch_lookup_rejects_oversized_keys_before_query(screenshot):
@@ -265,3 +279,24 @@ async def test_private_thumbnail_resizes_without_public_copy_or_redirect(screens
     assert response.headers["cache-control"] == "private, no-store"
     assert "location" not in response.headers
     storage.get_presigned_url.assert_not_awaited()
+
+
+async def test_owner_local_capture_remains_an_authenticated_file_response(
+    screenshot, monkeypatch, tmp_path
+):
+    from starlette.responses import FileResponse
+
+    _, _, original_storage, req = screenshot
+    path = tmp_path / "capture.png"
+    path.write_bytes(b"private-capture")
+    storage = SimpleNamespace(is_local=True, get_file_path=lambda key: path)
+    monkeypatch.setattr(upload, "get_or_init_storage", AsyncMock(return_value=storage))
+    response = await upload.get_file_proxy(
+        KEY, req, current_user=SimpleNamespace(sub="owner"), direct=True
+    )
+    assert isinstance(response, FileResponse)
+    assert response.path == str(path)
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["vary"] == "Authorization"
+    assert "location" not in response.headers
+    original_storage.get_presigned_url.assert_not_awaited()

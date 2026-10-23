@@ -98,7 +98,7 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
 async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> bytes | None:
     from src.infra.revealed_file.storage import get_revealed_file_storage
     from src.infra.storage.s3.service import get_or_init_storage
-    from src.infra.upload.file_record import FileRecordStorage
+    from src.infra.upload.file_record import get_file_record_storage
 
     parsed = urlsplit(ref)
     base = urlsplit(get_base_url_from_runtime(runtime))
@@ -114,7 +114,7 @@ async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> by
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return None
-    records = FileRecordStorage()
+    records = get_file_record_storage()
     if await records.is_private_key(key):
         await records.require_private_access(key, user_id, get_session_id_from_runtime(runtime))
     else:

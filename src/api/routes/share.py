@@ -265,6 +265,9 @@ async def _build_session_content(
         read_events_kwargs["run_ids"] = partial_run_ids
     snapshot = await dual_writer.read_session_events_snapshot(session.id, **read_events_kwargs)
     events = snapshot.events
+    from src.infra.upload.shared_files import authorize_shared_files
+
+    events = await authorize_shared_files(events, share)
     events_limited = event_limit is not None and (
         snapshot.events_truncated or len(events) > event_limit
     )

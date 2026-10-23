@@ -15,30 +15,8 @@ logger = get_logger(__name__)
 
 
 def _get_client_ip(request: Request) -> str:
-    """Get client IP address from request, handling reverse proxies.
-
-    Checks X-Forwarded-For header first (for reverse proxy setups),
-    then falls back to direct client IP.
-
-    Args:
-        request: FastAPI request object
-
-    Returns:
-        Client IP address string
-    """
-    # Check X-Forwarded-For header (comma-separated list, first is original client)
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        # Take the first IP in the chain (original client)
-        ips = [ip.strip() for ip in forwarded_for.split(",")]
-        if ips:
-            return ips[0]
-
-    # Fall back to direct client IP
-    if request.client:
-        return request.client.host
-
-    return "unknown"
+    """Use the peer already normalized by the server's trusted-proxy policy."""
+    return request.client.host if request.client else "unknown"
 
 
 SUPPORTED_EMAIL_LANGUAGES = {"en", "zh", "ja", "ko", "ru"}
