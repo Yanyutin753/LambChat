@@ -382,9 +382,7 @@ async def test_user_retest_server_persists_status_and_returns_payload() -> None:
             return (True, 412, 3, None, "user")
 
         async def update_user_server_load_status(self, name, user_id, *, ok, error=None):
-            self.status_writes.append(
-                {"name": name, "user_id": user_id, "ok": ok, "error": error}
-            )
+            self.status_writes.append({"name": name, "user_id": user_id, "ok": ok, "error": error})
 
     storage = _FakeStorage()
     app = FastAPI()

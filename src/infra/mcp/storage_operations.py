@@ -787,9 +787,7 @@ class StorageOperations:
                 },
                 "$inc": {"consecutive_failures": 1},
             }
-        result = await collection.update_one(
-            {"name": server_name, "user_id": user_id}, update
-        )
+        result = await collection.update_one({"name": server_name, "user_id": user_id}, update)
         return bool(result.matched_count)
 
     async def probe_server_connection(  # type: ignore[misc]

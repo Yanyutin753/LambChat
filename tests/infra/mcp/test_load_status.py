@@ -18,9 +18,7 @@ class _UpdateCollection:
     def __init__(self) -> None:
         self.updates: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
-    async def update_one(
-        self, query: dict[str, Any], update: dict[str, Any]
-    ) -> SimpleNamespace:
+    async def update_one(self, query: dict[str, Any], update: dict[str, Any]) -> SimpleNamespace:
         self.updates.append((query, update))
         return SimpleNamespace(matched_count=1, modified_count=1)
 
@@ -66,9 +64,7 @@ async def test_update_user_server_load_status_scopes_by_owner(monkeypatch) -> No
     storage = MCPStorage()
     monkeypatch.setattr(storage, "_get_user_collection", lambda: collection)
 
-    await storage.update_user_server_load_status(
-        "my-server", "user-1", ok=False, error="timeout"
-    )
+    await storage.update_user_server_load_status("my-server", "user-1", ok=False, error="timeout")
 
     query, update = collection.updates[0]
     assert query == {"name": "my-server", "user_id": "user-1"}
@@ -81,9 +77,7 @@ async def test_update_load_status_truncates_long_error(monkeypatch) -> None:
     storage = MCPStorage()
     monkeypatch.setattr(storage, "_get_system_collection", lambda: collection)
 
-    await storage.update_system_server_load_status(
-        "srv", ok=False, error="x" * 2000
-    )
+    await storage.update_system_server_load_status("srv", ok=False, error="x" * 2000)
 
     _, update = collection.updates[0]
     assert len(update["$set"]["last_load_error"]) == 500

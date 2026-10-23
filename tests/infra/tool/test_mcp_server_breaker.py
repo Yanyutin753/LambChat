@@ -56,7 +56,6 @@ def test_cooldown_expiry_allows_single_half_open_probe() -> None:
     for i in range(3):
         breaker.record_failure("sys:a", f"e{i}")
 
-
     time.sleep(0.06)
 
     # 半开：恰好放行一个探测，第二个调用者被拒
@@ -68,7 +67,6 @@ def test_cooldown_expiry_allows_single_half_open_probe() -> None:
 def test_half_open_probe_success_closes_circuit() -> None:
     for i in range(3):
         breaker.record_failure("sys:a", f"e{i}")
-
 
     time.sleep(0.06)
     breaker.acquire_load_slot("sys:a")  # 占据探测名额
@@ -82,7 +80,6 @@ def test_half_open_probe_success_closes_circuit() -> None:
 def test_half_open_probe_failure_reopens_with_longer_cooldown() -> None:
     for i in range(3):
         breaker.record_failure("sys:a", f"e{i}")
-
 
     time.sleep(0.06)
     breaker.acquire_load_slot("sys:a")

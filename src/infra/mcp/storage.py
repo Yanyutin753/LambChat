@@ -516,7 +516,6 @@ class MCPStorage(StorageOperations):
             if manager:
                 await manager.close()
 
-
     async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
         """
         Get user's tool-level preferences.

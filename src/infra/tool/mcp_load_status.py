@@ -54,13 +54,9 @@ async def _persist_load_status(
 
         storage = MCPStorage()
         if is_system:
-            await storage.update_system_server_load_status(
-                server_name, ok=ok, error=error
-            )
+            await storage.update_system_server_load_status(server_name, ok=ok, error=error)
         elif user_id:
-            await storage.update_user_server_load_status(
-                server_name, user_id, ok=ok, error=error
-            )
+            await storage.update_user_server_load_status(server_name, user_id, ok=ok, error=error)
     except Exception as e:
         logger.debug(f"[MCP] Load-status persistence skipped for '{server_name}': {e}")
 
@@ -74,9 +70,7 @@ def _schedule_status_write(
 ) -> None:
     """Fire-and-forget 调度一次状态落库；失败静默（探测/加载结果优先可见）。"""
     try:
-        task = asyncio.create_task(
-            _persist_load_status(is_system, server_name, user_id, ok, error)
-        )
+        task = asyncio.create_task(_persist_load_status(is_system, server_name, user_id, ok, error))
     except RuntimeError:  # 无事件循环（理论不可达，防御）
         return
     _status_write_tasks.add(task)

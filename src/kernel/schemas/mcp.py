@@ -160,9 +160,7 @@ class MCPServerResponse(MCPServerBase):
         description="Consecutive failed tool loads; reset to 0 on success",
     )
     last_load_at: Optional[str] = Field(None, description="Last probe timestamp (ISO)")
-    last_load_error: Optional[str] = Field(
-        None, description="Last probe error detail (truncated)"
-    )
+    last_load_error: Optional[str] = Field(None, description="Last probe error detail (truncated)")
 
 
 class MCPServerRetestResponse(BaseModel):

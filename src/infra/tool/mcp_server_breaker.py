@@ -138,8 +138,7 @@ def record_failure(key: str, error: Optional[str] = None) -> Optional[BreakerEve
         state.retry_at = now + _cooldown_for(state.streak)
         state.probe_taken = False
         logger.info(
-            "[MCP Breaker] Reopened '%s' after failed probe (streak=%s, "
-            "next probe in %.0fs)",
+            "[MCP Breaker] Reopened '%s' after failed probe (streak=%s, next probe in %.0fs)",
             key,
             state.streak,
             _cooldown_for(state.streak),

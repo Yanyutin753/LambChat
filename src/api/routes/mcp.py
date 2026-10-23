@@ -417,9 +417,7 @@ async def retest_server(
 
     try:
         if scope == "user":
-            await storage.update_user_server_load_status(
-                name, user.sub, ok=ok, error=error
-            )
+            await storage.update_user_server_load_status(name, user.sub, ok=ok, error=error)
         else:
             await storage.update_system_server_load_status(name, ok=ok, error=error)
     except Exception as e:
@@ -633,9 +631,7 @@ async def admin_retest_server(
 
     try:
         if scope == "user":
-            await storage.update_user_server_load_status(
-                name, user.sub, ok=ok, error=error
-            )
+            await storage.update_user_server_load_status(name, user.sub, ok=ok, error=error)
         else:
             await storage.update_system_server_load_status(name, ok=ok, error=error)
     except Exception as e:
