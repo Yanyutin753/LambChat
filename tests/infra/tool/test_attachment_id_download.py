@@ -96,7 +96,17 @@ def test_model_schema_accepts_id_without_exposing_runtime():
     schema = module.upload_url_to_sandbox.tool_call_schema.model_json_schema()
     assert "attachment_id" in schema["properties"]
     assert "runtime" not in schema["properties"]
-    assert schema["required"] == ["file_path"]
+    assert not schema.get("required")
+
+
+async def test_missing_arguments_list_owned_current_and_historical_ids_without_urls(download):
+    download.history.append({**download.attachment, "id": "old-file", "name": "older.pptx"})
+    result = json.loads(await module.upload_url_to_sandbox.coroutine(runtime=download.runtime))
+    assert result["success"] is True
+    assert {a["id"] for a in result["attachments"]} == {"old-file", "file-1"}
+    assert "https://" not in json.dumps(result)
+    assert "key" not in json.dumps(result)
+    download.fetch.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

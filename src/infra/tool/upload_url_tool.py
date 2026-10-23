@@ -185,38 +185,49 @@ async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[
     return False, f"exit_code={exit_code} category={_classify_download_failure(output)}"
 
 
-async def _resolve_attachment_url(attachment_id: str, runtime: Any, base_url: str) -> str | None:
+async def _session_attachments(runtime: Any, attachment_id: str = "") -> list[dict] | None:
     from src.infra.session.storage import SessionStorage
     from src.infra.session.trace_storage import TraceStorage
 
     user_id = get_user_id_from_runtime(runtime)
     session_id = get_session_id_from_runtime(runtime)
-    if not user_id or not session_id or not base_url:
+    if not user_id or not session_id:
         return None
     sessions = SessionStorage()
     session = await sessions.get_by_session_id(session_id) or await sessions.get_by_id(session_id)
     if not session or session.user_id != user_id or not session.is_active:
         return None
-    matches = [
-        a for a in get_attachments_from_runtime(runtime) or [] if a.get("id") == attachment_id
+    current = [
+        a
+        for a in get_attachments_from_runtime(runtime) or []
+        if not attachment_id or a.get("id") == attachment_id
     ]
-    if not matches:
-        # Strict reads include chunked history and propagate failures instead of inventing a URL.
-        async for event in TraceStorage().iter_session_events_for_cleanup(
-            session_id, event_types=["user:message"]
-        ):
-            matches.extend(
-                a
-                for a in (event.get("data") or {}).get("attachments", [])
-                if isinstance(a, dict) and a.get("id") == attachment_id
-            )
+    if attachment_id and current:
+        return current
+    matches: list[dict] = []
+    # Strict reads include chunked history and propagate failures instead of inventing a URL.
+    async for event in TraceStorage().iter_session_events_for_cleanup(
+        session_id, event_types=["user:message"]
+    ):
+        matches.extend(
+            a
+            for a in (event.get("data") or {}).get("attachments", [])
+            if isinstance(a, dict) and (not attachment_id or a.get("id") == attachment_id)
+        )
+    return matches + current
+
+
+async def _resolve_attachment_url(attachment_id: str, runtime: Any, base_url: str) -> str | None:
+    if not base_url:
+        return None
+    matches = await _session_attachments(runtime, attachment_id) or []
     keys = {a.get("key") for a in matches}
     if len(keys) != 1:
         return None
     key = keys.pop()
     if not isinstance(key, str) or "\\" in key or any(p in ("", ".", "..") for p in key.split("/")):
         return None
-    record = await FileRecordStorage().find_by_key(key, user_id)
+    record = await FileRecordStorage().find_by_key(key, get_user_id_from_runtime(runtime))
     if not record or record.get("deleting_at"):
         return None
     return f"{base_url}{_PROXY_URL_PREFIX}{quote(key, safe='/')}"
@@ -224,12 +235,33 @@ async def _resolve_attachment_url(attachment_id: str, runtime: Any, base_url: st
 
 @tool
 async def upload_url_to_sandbox(
-    file_path: Annotated[str, "Absolute sandbox path."],
     runtime: Annotated[ToolRuntime, InjectedToolArg],
+    file_path: Annotated[str, "Absolute sandbox path."] = "",
     attachment_id: Annotated[str, "Uploaded file ID."] = "",
     url: Annotated[str, "External file URL."] = "",
 ) -> str:
-    """Download attachment_id (preferred) or url to file_path."""
+    """Download attachment_id/url. No args lists session attachments."""
+    if not file_path and not attachment_id and not url:
+        try:
+            attachments = await _session_attachments(runtime)
+            if attachments is None:
+                return await _json_dumps_result({"success": False, "error": "Session unavailable"})
+            unique = {a["id"]: a for a in attachments if a.get("id") and a.get("key")}
+            items = []
+            records = FileRecordStorage()
+            # shortcut: discovery lists the latest 100 IDs; add pagination if larger sessions need it.
+            for item in list(unique.values())[-100:]:
+                record = await records.find_by_key(item["key"], get_user_id_from_runtime(runtime))
+                if record and not record.get("deleting_at"):
+                    items.append({k: item[k] for k in ("id", "name", "type", "size") if k in item})
+            return await _json_dumps_result(
+                {"success": True, "attachments": items, "truncated": len(unique) > 100}
+            )
+        except Exception:
+            logger.warning("[upload_url_to_sandbox] attachment_list_failed")
+            return await _json_dumps_result(
+                {"success": False, "error": "Attachment lookup failed; please retry later"}
+            )
     if not file_path.startswith("/"):
         return await _json_dumps_result(
             {"success": False, "error": "file_path must be an absolute path"}
