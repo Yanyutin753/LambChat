@@ -182,7 +182,7 @@ export function buildUploadProxyUrl(
   }
 
   const fallbackBase =
-    typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    typeof window !== "undefined" ? window.location.href : "http://localhost";
 
   try {
     const parsed = new URL(fullUrl, fallbackBase);
