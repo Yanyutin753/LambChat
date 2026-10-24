@@ -410,3 +410,13 @@ async def test_file_tool_authorization_rechecks_read_permission_before_signing(a
             "https://chat.example/api/upload/file/image/owner/a.png", "owner"
         )
     records.find_by_key.assert_not_awaited()
+
+
+def test_upload_key_from_url_returns_none_for_malformed_urls(access):
+    """非 URL 文本（裸 [ 前缀/多冒号伪地址）不得炸 urlsplit：
+    分享页授权重写遇到模型塞进消息的伪 URL 曾以 ValueError 打穿整页 500。"""
+    module, _ = access
+    assert module.upload_key_from_url("http://[::1") is None
+    assert module.upload_key_from_url("[not a url] :: colon :: text") is None
+    valid = "https://chat.example/api/upload/file/image/owner/a.png"
+    assert module.upload_key_from_url(valid) == "image/owner/a.png"
