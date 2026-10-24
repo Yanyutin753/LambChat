@@ -17,6 +17,69 @@ if TYPE_CHECKING:
     from src.kernel.schemas.role import Role
 
 
+RETIRED_PERMISSIONS = {"chat:read", "session:admin", "skill:admin", "role:manage"}
+PERMISSION_MIGRATION = "permission_boundaries_v1"
+
+
+def migrate_permission_grants(permissions: list[str]) -> list[str]:
+    """Expand historical grants once during storage migration, never during authorization."""
+    expanded = {
+        "chat:read": ["session:read"],
+        "user:write": [
+            "user:create",
+            "user:status",
+            "user:reset_password",
+            "user:assign_roles",
+            "role:read",
+        ],
+        "role:manage": [
+            "role:read",
+            "role:write",
+            "role:delete",
+            "role:grant",
+            "usage:quota_manage",
+        ],
+        "model:admin": [
+            "model:read",
+            "model:delete",
+            "model:assign",
+            "pricing:manage",
+            "role:read",
+        ],
+        "agent:admin": ["agent:config_read", "agent:assign", "role:read"],
+        "mcp:admin": ["mcp:system_read", "mcp:system_delete", "mcp:policy_manage", "mcp:export"],
+        "settings:manage": ["settings:read", "settings:security", "settings:reset"],
+        "usage:admin": ["usage:read", "usage:quota_manage"],
+        "notification:manage": ["notification:read", "notification:delete"],
+        "persona_preset:write": ["persona_preset:delete"],
+        "envvar:read": ["envvar:reveal"],
+        "session:read": ["project:read", "memory:read", "file:read", "sandbox:read"],
+        "session:write": ["project:write"],
+        "session:delete": ["project:delete"],
+        "chat:write": [
+            "memory:read",
+            "memory:write",
+            "memory:delete",
+            "memory:export",
+            "sandbox:execute",
+            "sandbox:manage",
+            "envvar:read",
+            "envvar:write",
+            "envvar:delete",
+            "envvar:reveal",
+            "file:read",
+        ],
+    }
+    values = list(dict.fromkeys(permissions))
+    for permission in values:
+        for addition in expanded.get(permission, []):
+            if addition not in values:
+                values.append(addition)
+        if permission.startswith("file:upload") and "file:delete" not in values:
+            values.append("file:delete")
+    return [value for value in values if value not in RETIRED_PERMISSIONS]
+
+
 def check_permission(
     user_permissions: List[str],
     required_permission: str,
@@ -131,7 +194,8 @@ class RBACManager:
             {
                 "name": "admin",
                 "description": "系统管理员 - 拥有所有权限",
-                "permissions": [p.value for p in Permission],
+                "permissions": [p.value for p in Permission if p.value not in RETIRED_PERMISSIONS],
+                "unrestricted_models": True,
                 "limits": None,  # 无限制
                 "is_system": True,
             },
@@ -140,7 +204,6 @@ class RBACManager:
                 "description": "普通用户 - 可使用聊天、会话、技能、MCP、反馈功能",
                 "permissions": [
                     # Chat
-                    Permission.CHAT_READ.value,
                     Permission.CHAT_WRITE.value,
                     # Session
                     Permission.SESSION_READ.value,
@@ -180,6 +243,22 @@ class RBACManager:
                     Permission.SCHEDULED_TASK_DELETE.value,
                     # Usage
                     Permission.USAGE_READ.value,
+                    Permission.PROJECT_READ.value,
+                    Permission.PROJECT_WRITE.value,
+                    Permission.PROJECT_DELETE.value,
+                    Permission.FILE_READ.value,
+                    Permission.MEMORY_READ.value,
+                    Permission.MEMORY_WRITE.value,
+                    Permission.MEMORY_DELETE.value,
+                    Permission.MEMORY_EXPORT.value,
+                    Permission.SANDBOX_READ.value,
+                    Permission.SANDBOX_EXECUTE.value,
+                    Permission.SANDBOX_MANAGE.value,
+                    Permission.ENVVAR_READ.value,
+                    Permission.ENVVAR_WRITE.value,
+                    Permission.ENVVAR_DELETE.value,
+                    Permission.ENVVAR_REVEAL.value,
+                    Permission.PERSONA_PRESET_DELETE.value,
                 ],
                 "limits": {"max_channels": 10},
                 "is_system": False,
@@ -188,7 +267,6 @@ class RBACManager:
                 "name": "guest",
                 "description": "访客 - 只读访问",
                 "permissions": [
-                    Permission.CHAT_READ.value,
                     Permission.SESSION_READ.value,
                     Permission.SKILL_READ.value,
                     Permission.MCP_READ.value,
@@ -202,6 +280,10 @@ class RBACManager:
                     Permission.MARKETPLACE_READ.value,
                     # Persona Preset
                     Permission.PERSONA_PRESET_READ.value,
+                    Permission.PROJECT_READ.value,
+                    Permission.MEMORY_READ.value,
+                    Permission.FILE_READ.value,
+                    Permission.SANDBOX_READ.value,
                 ],
                 "limits": {"max_channels": 0},  # 不能创建渠道
                 "is_system": False,

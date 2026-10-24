@@ -56,6 +56,9 @@ class _FakeEventProcessor:
 
 
 class _FakeDeferredManager:
+    def discover_attachment_tools(self, _attachments):
+        return []
+
     def get_tool(self, _name):
         return None
 

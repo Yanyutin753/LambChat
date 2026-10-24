@@ -16,6 +16,7 @@ from pydantic import BaseModel, field_validator
 
 from src.api.deps import require_pat_only, require_pat_scope
 from src.infra.auth.pat import PATStorage
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay import _frames
 from src.infra.sandbox.relay.dispatch import (
@@ -58,6 +59,20 @@ router = APIRouter()
 _BLPOP_TIMEOUT = 1.0
 _HEARTBEAT_SECONDS = 15
 _NODE_ID = f"{socket.gethostname()}:{uuid.uuid4().hex[:8]}"
+
+
+def _require_sandbox_permission(permission: str, *, daemon: bool = False):
+    # Existing PATs keep their transport scope; roles independently grant operations.
+    authenticate = (
+        require_pat_only("sandbox:execute") if daemon else require_pat_scope("sandbox:execute")
+    )
+
+    async def checker(user: TokenPayload = Depends(authenticate)) -> TokenPayload:
+        if not await has_tool_permission(user.sub, permission):
+            raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": permission})
+        return user
+
+    return checker
 
 
 def _redis():
@@ -171,7 +186,6 @@ async def channel_frames(
                 )
                 continue
             yield f"event: tool_call\ndata: {raw}\n\n"
-            continue
 
 
 @router.get("/channel")
@@ -182,7 +196,7 @@ async def sandbox_channel(
     confirm_policy: str = "",
     machine_id: str = "",
     machine_name: str = "",
-    user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:execute", daemon=True)),
 ):
     """daemon SSE 通道。``?version=``/``?platform=``/``?confirm_policy=`` 是
     daemon connect URL 自带的客户端版本、归一平台与确认策略（服务端访问日志
@@ -459,7 +473,7 @@ async def sandbox_upload_stream(
             # 取消域内，裸 await 立即再抛 CancelledError——必须 shield 后台任务
             # 完成推送（与 sandbox_channel._finalize_stream 同款语义）。
             async def _push_interrupt_sentinel() -> None:
-                try:
+                with contextlib.suppress(Exception):  # 哨兵尽力而为
                     await redis.rpush(
                         resp_key,
                         json.dumps(
@@ -472,14 +486,10 @@ async def sandbox_upload_stream(
                         ),
                     )
                     await redis.expire(resp_key, 120)
-                except Exception:  # noqa: BLE001 - 哨兵尽力而为
-                    pass
 
             async def _cleanup_upblob() -> None:
-                try:
+                with contextlib.suppress(Exception):  # 清理尽力而为
                     await redis.delete(key)
-                except Exception:  # noqa: BLE001 - 清理尽力而为
-                    pass
 
             finalize = asyncio.create_task(
                 _push_interrupt_sentinel() if not saw_eof else _cleanup_upblob()
@@ -495,7 +505,9 @@ async def sandbox_upload_stream(
 
 
 @router.get("/machines")
-async def sandbox_machines(user: TokenPayload = Depends(require_pat_scope("sandbox:execute"))):
+async def sandbox_machines(
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
+):
     """机器列表（多机 daemon）：含已知离线机（记忆层保留，online=False +
     last_seen），前端选择器据此置灰展示而非直接消失。"""
     machines = await _registry().list_machines(user.sub, include_offline=True)
@@ -529,14 +541,13 @@ class MachineConfirmPolicyRequest(BaseModel):
 async def sandbox_machine_rename(
     machine_id: str,
     body: MachineRenameRequest,
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:manage")),
 ):
     """重命名机器：写 rename 覆盖层，daemon 重连上报的 hostname 不冲掉自定义名。"""
     name = body.name.strip()
     if not name:
         raise AppError(ErrorCode.SANDBOX_MACHINE_NOT_FOUND, args={"machine": machine_id})
-    if len(name) > 64:
-        name = name[:64]
+    name = name[:64]
     await _registry().rename_machine(user.sub, machine_id, name)
     await publish_presence(user.sub)
     return {"status": "ok", "machine_id": machine_id, "name": name}
@@ -545,7 +556,7 @@ async def sandbox_machine_rename(
 @router.put("/machines/{machine_id}/default")
 async def sandbox_machine_set_default(
     machine_id: str,
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:manage")),
 ):
     """设默认机：无会话级选择时的执行目标。"""
     await _registry().set_default_machine(user.sub, machine_id)
@@ -557,7 +568,7 @@ async def sandbox_machine_set_default(
 async def sandbox_machine_update_confirm_policy(
     machine_id: str,
     body: MachineConfirmPolicyRequest,
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:manage")),
 ):
     """热更新在线 daemon 的确认策略，下一次执行立即生效。"""
     updated = await _registry().update_confirm_policy(user.sub, machine_id, body.policy)
@@ -570,7 +581,7 @@ async def sandbox_machine_update_confirm_policy(
 @router.delete("/machines/{machine_id}")
 async def sandbox_machine_forget(
     machine_id: str,
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:manage")),
 ):
     """移除离线机器（清集合成员、rename 覆盖层与默认机指向）。"""
     removed = await _registry().forget_machine(user.sub, machine_id)
@@ -586,7 +597,7 @@ async def sandbox_machine_forget(
 @router.get("/status")
 async def sandbox_status(
     machine_id: str = Query("", description="指定机器；缺省走默认机解析"),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """daemon 在线状态。
 
@@ -676,8 +687,7 @@ async def _resolve_fs_target(user: TokenPayload, session_id: str) -> tuple[str, 
     from src.infra.backend.workspace_selection import selected_workspace_id
 
     session = await _owned_session_or_404(user, session_id)
-    metadata = session.metadata or {}
-    agent_options = metadata.get("agent_options")
+    agent_options = (session.metadata or {}).get("agent_options")
     agent_options = agent_options if isinstance(agent_options, dict) else {}
     platform_choice = agent_options.get("sandbox")
     platform = (
@@ -712,7 +722,7 @@ async def _dispatch_fs(user: TokenPayload, op: str, payload: dict, machine_id: s
 async def sandbox_fs_list(
     session_id: str = Query(..., description="会话 id：工作区绑定与目标机的解析依据"),
     path: str = Query("", description="工作区内相对路径；空 = 根目录"),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """列目录（桌面工作区文件树的懒加载源）。
 
@@ -733,7 +743,7 @@ async def sandbox_fs_read(
     offset: int = Query(0, ge=0, description="起始行（0 基）"),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES, description="读取行数"),
     stream: bool = Query(False),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """读文本/二进制预览（行分页语义与模型侧 read_file 完全同源）。
 
@@ -868,7 +878,7 @@ def _cloud_rel(path: str) -> str:
 @router.get("/fs/cloud/status")
 async def sandbox_fs_cloud_status(
     session_id: str = Query(...),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """云端电脑状态速览（零副作用，读绑定落库值，不唤醒沙箱）。
 
@@ -885,7 +895,7 @@ async def sandbox_fs_cloud_status(
 async def sandbox_fs_cloud_list(
     session_id: str = Query(...),
     path: str = Query("", description="会话云端工作区内相对路径；空 = 根"),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """列云端会话工作区目录（会话子目录 ``{base}/sessions/{sid}``）。
 
@@ -894,8 +904,6 @@ async def sandbox_fs_cloud_list(
     （根层 ``./name``、子层 ``dir/name``）。浏览续租约 + 挂回收器
     （唤醒后不再空跑：宽限窗过后自动暂停回去）。
     """
-    import posixpath
-
     from src.infra.sandbox.idle_pause import schedule_browse_reaper, touch_browse_lease
 
     await _owned_session(user, session_id)
@@ -909,19 +917,16 @@ async def sandbox_fs_cloud_list(
         result = await backend.als(rel)
     if result.error:
         return {"error": result.error}
-    entries = []
-    for entry in result.entries or []:
-        entry_path = entry.get("path")
-        if not entry_path:
-            continue
-        name = entry_path.rstrip("/").rsplit("/", 1)[-1]
-        entries.append(
+    return {
+        "entries": [
             {
-                "path": posixpath.join(rel if rel != "." else ".", name),
+                "path": posixpath.join(rel, entry["path"].rstrip("/").rsplit("/", 1)[-1]),
                 "is_dir": entry.get("is_dir", False),
             }
-        )
-    return {"entries": entries}
+            for entry in result.entries or []
+            if entry.get("path")
+        ]
+    }
 
 
 @router.get("/fs/cloud/read")
@@ -931,7 +936,7 @@ async def sandbox_fs_cloud_read(
     offset: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=_FS_READ_MAX_LINES),
     stream: bool = Query(False),
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(_require_sandbox_permission("sandbox:read")),
 ):
     """读云端会话工作区文件（行分页，FileData 契约与本地端点对齐）。
 
@@ -970,8 +975,7 @@ async def sandbox_fs_cloud_read(
         return result.content
 
     async def stream_download(file_path: str) -> AsyncIterator[bytes]:
-        provider = getattr(backend, "default", backend)
-        iterator = provider.astream_file(file_path)
+        iterator = getattr(backend, "default", backend).astream_file(file_path)
         renewed = time.monotonic()
         try:
             async for chunk in iterator:

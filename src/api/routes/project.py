@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.infra.folder.storage import get_project_storage
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
@@ -37,7 +37,7 @@ async def _delete_session_with_related_records(
 
 @router.get("", response_model=list[Project])
 async def list_projects(
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("project:read")),
 ):
     """
     列出所有项目
@@ -56,7 +56,7 @@ async def list_projects(
 @router.post("", response_model=Project, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("project:write")),
 ):
     """
     创建项目
@@ -77,7 +77,7 @@ async def create_project(
 async def update_project(
     project_id: str,
     project_data: ProjectUpdate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("project:write")),
 ):
     """
     更新项目（重命名）
@@ -102,7 +102,7 @@ async def update_project(
 async def delete_project(
     project_id: str,
     delete_sessions: bool = Query(False, description="是否同时删除项目内的所有会话"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("project:delete")),
 ):
     """
     删除项目
@@ -111,6 +111,10 @@ async def delete_project(
     - delete_sessions=false: 项目内的会话会被移动到未分类
     - delete_sessions=true: 同时删除项目内的所有会话
     """
+    required = "session:delete" if delete_sessions else "session:write"
+    if required not in user.permissions:
+        raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": required})
+
     storage = get_project_storage()
 
     # Check if project exists and belongs to user

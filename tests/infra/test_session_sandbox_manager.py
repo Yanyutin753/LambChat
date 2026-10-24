@@ -4,11 +4,23 @@ import asyncio
 from collections import OrderedDict
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.infra.backend.lazy_sandbox import LazySandboxBackend
 from src.infra.sandbox import session_manager as sandbox_module
+
+
+@pytest.fixture(autouse=True)
+def sandbox_account_authority(monkeypatch):
+    from src.infra.role.storage import RoleStorage
+    from src.infra.user.storage import UserStorage
+
+    account = SimpleNamespace(id="user-1", username="runner", roles=["runner"], is_active=True)
+    role = SimpleNamespace(name="runner", permissions=["sandbox:execute", "sandbox:read"])
+    monkeypatch.setattr(UserStorage, "get_by_id", AsyncMock(return_value=account))
+    monkeypatch.setattr(RoleStorage, "get_by_names", AsyncMock(return_value=[role]))
 
 
 class _FakeE2BAdapter:
@@ -138,7 +150,7 @@ async def _cancel_lazy_creation_and_finish_manager(
         manager_factory=lambda: manager,
     )
     operation = asyncio.create_task(backend.aresolve_path("report.txt"))
-    await create_entered.wait()
+    await asyncio.wait_for(create_entered.wait(), timeout=5)
 
     operation.cancel()
     with pytest.raises(asyncio.CancelledError):

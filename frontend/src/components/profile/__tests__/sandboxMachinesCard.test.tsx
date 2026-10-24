@@ -114,3 +114,7 @@ test("forget calls the API then refreshes presence state", async () => {
   fireEvent.click(screen.getByTestId("forget-pc1"));
   await waitFor(() => expect(mocks.forgetMachine).toHaveBeenCalledWith("pc1"));
 });
+
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

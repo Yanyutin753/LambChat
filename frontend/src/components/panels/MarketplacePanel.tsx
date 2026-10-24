@@ -81,6 +81,9 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
     fetchSkills: fetchUserSkills,
     isLoading: userSkillsLoading,
   } = useSkills();
+  const canInstall =
+    hasAnyPermission([Permission.MARKETPLACE_READ]) &&
+    hasAnyPermission([Permission.SKILL_WRITE]);
   const canWrite = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
   const canAdmin = hasAnyPermission([Permission.MARKETPLACE_ADMIN]);
 
@@ -153,6 +156,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   };
 
   const handleInstallClick = (skillName: string) => {
+    if (!canInstall) return;
     const action = installedMarketplaceNames.has(skillName)
       ? "update"
       : "install";
@@ -160,7 +164,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   };
 
   const confirmInstall = async () => {
-    if (!installConfirm) return;
+    if (!canInstall || !installConfirm) return;
 
     const { skillName, action } = installConfirm;
     setInstallingSkill(skillName);
@@ -398,7 +402,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
                 isInstalled={installedMarketplaceNames.has(skill.skill_name)}
                 isOwner={skill.is_owner}
                 canManage={skill.is_owner || canAdmin}
-                canWrite={canWrite}
+                canInstall={canInstall}
                 installingSkill={installingSkill}
                 userSkillsLoading={userSkillsLoading}
                 selectedTags={selectedTags}

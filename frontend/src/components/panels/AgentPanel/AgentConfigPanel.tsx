@@ -31,9 +31,14 @@ type AgentTabType = "global" | "roles";
  */
 export function AgentConfigPanel() {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: actor } = useAuth();
+  const isSystemAdmin = hasPermission(Permission.SYSTEM_ADMIN);
   const canManageAgents = hasPermission(Permission.AGENT_ADMIN);
-  const [activeTab, setActiveTab] = useState<AgentTabType>("global");
+  const canReadConfig = hasPermission(Permission.AGENT_CONFIG_READ);
+  const canAssignAgents = hasPermission(Permission.AGENT_ASSIGN);
+  const [activeTab, setActiveTab] = useState<AgentTabType>(
+    canReadConfig ? "global" : "roles",
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -58,31 +63,22 @@ export function AgentConfigPanel() {
     try {
       // 并行加载所有数据
       const [globalConfig, roleList, agentList] = await Promise.all([
-        canManageAgents
+        canReadConfig
           ? agentConfigApi.getCatalogConfig()
           : Promise.resolve(null),
-        roleApi.list({ limit: 200 }),
+        canAssignAgents
+          ? roleApi.list({ limit: 200 })
+          : Promise.resolve({ roles: [] }),
         agentApi.list(),
       ]);
 
       if (generation !== loadGeneration.current) return;
 
-      // 管理员使用全局配置的全部 agent（用于角色分配），非管理员使用过滤后的列表
-      setAvailableAgents(
-        canManageAgents && globalConfig
-          ? globalConfig.agents
-              .filter((a) => a.enabled)
-              .map((a) => ({
-                id: a.id,
-                name: a.name,
-                description: a.description,
-                version: "",
-                icon: a.icon,
-                sort_order: a.sort_order,
-                labels: a.labels,
-              }))
-          : agentList.agents || [],
+      roleList.roles = (roleList.roles || []).filter(
+        (role) =>
+          isSystemAdmin || actor?.assignable_role_ids?.includes(role.id),
       );
+      setAvailableAgents(agentList.agents || []);
 
       // 设置全局 agents
       if (globalConfig) {
@@ -106,7 +102,7 @@ export function AgentConfigPanel() {
       setRoles(roleList.roles || []);
 
       // 加载角色-agents 映射
-      if (canManageAgents) {
+      if (canAssignAgents) {
         const roleAgentPromises = (roleList.roles || []).map(async (role) => {
           const assignment = await agentConfigApi.getRoleAgents(role.id);
           return { roleId: role.id, agents: assignment.allowed_agents };
@@ -130,7 +126,12 @@ export function AgentConfigPanel() {
         setHasLoaded(true);
       }
     }
-  }, [canManageAgents]);
+  }, [
+    canReadConfig,
+    canAssignAgents,
+    isSystemAdmin,
+    actor?.assignable_role_ids,
+  ]);
 
   useEffect(() => {
     const requests = loadGeneration;
@@ -178,7 +179,7 @@ export function AgentConfigPanel() {
 
   // 更新角色配置
   const handleUpdateRoleAgents = async (roleId: string, agentIds: string[]) => {
-    if (!canManageAgents) return;
+    if (!canAssignAgents) return;
     await agentConfigApi.updateRoleAgents(roleId, agentIds);
     setRoleAgentsMap((prev) => ({ ...prev, [roleId]: agentIds }));
     toast.success(t("agentConfig.saveSuccess"));
@@ -235,9 +236,10 @@ export function AgentConfigPanel() {
       ) : (
         <>
           {/* Tab 切换 */}
-          {canManageAgents && (
+          {(canReadConfig || canAssignAgents) && (
             <div className="flex glass-divider px-2">
               <button
+                disabled={!canReadConfig}
                 onClick={() => setActiveTab("global")}
                 className={`px-4 py-3.5 text-14 font-medium transition-all relative ${
                   activeTab === "global"
@@ -251,6 +253,7 @@ export function AgentConfigPanel() {
                 {t("agentConfig.globalTab")}
               </button>
               <button
+                disabled={!canAssignAgents}
                 onClick={() => setActiveTab("roles")}
                 className={`px-4 py-3.5 text-14 font-medium transition-all relative ${
                   activeTab === "roles"
@@ -268,7 +271,7 @@ export function AgentConfigPanel() {
 
           {/* 内容 */}
           <div className="panel-body flex-1 overflow-y-auto">
-            {canManageAgents ? (
+            {canReadConfig || canAssignAgents ? (
               activeTab === "global" ? (
                 <GlobalAgentTab
                   agents={globalAgents}

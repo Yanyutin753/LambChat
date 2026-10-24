@@ -13,6 +13,20 @@ import { sessionApi } from "../../../services/api";
 import type { Project } from "../../../types";
 import i18n from "../../../i18n";
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      [
+        "session:read",
+        "session:write",
+        "chat:write",
+        "project:read",
+        "project:write",
+        "project:delete",
+      ].includes(permission),
+  }),
+}));
+
 const project: Project = {
   id: "project-1",
   user_id: "user-1",

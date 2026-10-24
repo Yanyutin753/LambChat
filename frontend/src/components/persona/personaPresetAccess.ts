@@ -10,6 +10,7 @@ export function getPersonaPresetCapabilities(
   preset: PersonaPreset,
   options: {
     canWrite: boolean;
+    canDelete?: boolean;
     canAdmin: boolean;
   },
 ): PersonaPresetCapabilities {
@@ -24,6 +25,6 @@ export function getPersonaPresetCapabilities(
   return {
     canCopy: false,
     canEdit: options.canWrite,
-    canDelete: options.canWrite,
+    canDelete: options.canDelete ?? false,
   };
 }

@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from pydantic import Field
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.logging import get_logger
 from src.infra.session.conversation_history import (
     ConversationHistoryInvalidArgumentError,
@@ -47,6 +48,8 @@ async def search_conversation_history(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_result({"success": False, "error": "not_authenticated"})
+    if not await has_tool_permission(user_id, "session:read"):
+        return await _json_result({"error": "Permission denied: session:read required"})
     try:
         return await _json_result(
             await ConversationHistoryService().search(
@@ -85,6 +88,8 @@ async def get_conversation_detail(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_result({"success": False, "error": "not_authenticated"})
+    if not await has_tool_permission(user_id, "session:read"):
+        return await _json_result({"error": "Permission denied: session:read required"})
     try:
         return await _json_result(
             await ConversationHistoryService().get_detail(

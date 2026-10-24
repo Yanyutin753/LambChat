@@ -132,6 +132,8 @@ class StorageOperations:
         This moves the server from user collection to system collection.
         Returns the new system server, or None if user server not found.
         """
+        if user_id != admin_user_id:
+            return None
         # Get the user server
         user_server = await self.get_user_server(name, user_id)
         if not user_server:
@@ -368,9 +370,8 @@ class StorageOperations:
                 doc["enabled"] = user_preferences[server_name]
             # Only the creator (created_by) can see sensitive fields
             # Admins can always edit system servers; non-admins cannot
-            is_creator = doc.get("created_by", doc.get("updated_by")) == user_id
-            can_edit = is_admin or is_creator
-            hide_sensitive = not (is_admin or is_creator)
+            can_edit = is_admin
+            hide_sensitive = not is_admin
             server = await _doc_to_response(
                 self, doc, is_system=True, can_edit=can_edit, hide_sensitive=hide_sensitive
             )
@@ -526,8 +527,9 @@ class StorageOperations:
             # Return updated server response with user's preference applied
             response_doc = copy.deepcopy(system_doc)
             response_doc["enabled"] = new_enabled
-            is_creator = response_doc.get("created_by", response_doc.get("updated_by")) == user_id
-            return await _doc_to_response(self, response_doc, is_system=True, can_edit=is_creator)
+            return await _doc_to_response(
+                self, response_doc, is_system=True, can_edit=False, hide_sensitive=True
+            )
 
         return None
 

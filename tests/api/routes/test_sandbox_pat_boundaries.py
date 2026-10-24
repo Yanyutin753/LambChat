@@ -14,6 +14,20 @@ from src.infra.auth.pat import PATStorage
 from src.kernel.schemas.user import TokenPayload
 
 
+@pytest.fixture(autouse=True)
+def sandbox_account_authority(monkeypatch):
+    from src.infra.role.storage import RoleStorage
+    from src.infra.user.storage import UserStorage
+
+    account = SimpleNamespace(id="u1", username="t", roles=["user"], is_active=True)
+    role = SimpleNamespace(
+        name="user", permissions=["sandbox:read", "sandbox:execute", "sandbox:manage"]
+    )
+    monkeypatch.setattr(UserStorage, "get_by_id", AsyncMock(return_value=account))
+    monkeypatch.setattr(RoleStorage, "get_by_names", AsyncMock(return_value=[role]))
+    return account
+
+
 @pytest.mark.parametrize("scopes", [[], ["sandbox:read"]])
 @pytest.mark.parametrize(
     ("method", "path", "body"),
@@ -131,7 +145,9 @@ async def test_open_channel_stops_before_delivering_calls_after_pat_loses_access
     monkeypatch.setattr(
         sandbox.UserStorage,
         "get_by_id",
-        AsyncMock(return_value=SimpleNamespace(is_active=True)),
+        AsyncMock(
+            return_value=SimpleNamespace(id="u1", username="test", roles=["user"], is_active=True)
+        ),
     )
     registry = SimpleNamespace(register=AsyncMock(), unregister=AsyncMock())
     monkeypatch.setattr(sandbox, "_registry", lambda: registry)

@@ -31,7 +31,7 @@ def _fake_admin() -> TokenPayload:
         sub="admin-1",
         username="admin",
         roles=["admin"],
-        permissions=["mcp:read", "mcp:admin"],
+        permissions=["mcp:read", "mcp:admin", "mcp:system_read", "mcp:policy_manage"],
     )
 
 

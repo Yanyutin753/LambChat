@@ -20,9 +20,13 @@ type ModelTabType = "roles" | "model-config";
 
 export function ModelSection() {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
-  const canManageModels = hasPermission(Permission.MODEL_ADMIN);
-  const [activeTab, setActiveTab] = useState<ModelTabType>("roles");
+  const { hasPermission, user: actor } = useAuth();
+  const isSystemAdmin = hasPermission(Permission.SYSTEM_ADMIN);
+  const canReadModels = hasPermission(Permission.MODEL_READ);
+  const canAssignModels = hasPermission(Permission.MODEL_ASSIGN);
+  const [activeTab, setActiveTab] = useState<ModelTabType>(
+    canAssignModels ? "roles" : "model-config",
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -50,7 +54,7 @@ export function ModelSection() {
 
   const loadData = useCallback(async () => {
     const generation = ++loadGeneration.current;
-    if (!canManageModels) {
+    if (!canReadModels && !canAssignModels) {
       setIsLoading(false);
       return;
     }
@@ -63,29 +67,34 @@ export function ModelSection() {
 
     try {
       const [roleList, modelData] = await Promise.all([
-        roleApi.list({ limit: 200 }),
-        modelApi.list(true),
+        canAssignModels
+          ? roleApi.list({ limit: 200 })
+          : Promise.resolve({ roles: [] }),
+        canReadModels ? modelApi.list(true) : Promise.resolve({ models: [] }),
       ]);
 
       if (generation !== loadGeneration.current) return;
-      const allModelIds = (modelData.models || [])
-        .map((model: ModelConfig) => model.id || "")
-        .filter(Boolean);
+      roleList.roles = (roleList.roles || []).filter(
+        (role) =>
+          isSystemAdmin || actor?.assignable_role_ids?.includes(role.id),
+      );
       const roleModelPromises = (roleList.roles || []).map(async (role) => {
         const assignment = await agentConfigApi.getRoleModels(role.id);
         return {
           roleId: role.id,
-          models:
-            assignment.configured === false
-              ? allModelIds
-              : assignment.allowed_models,
+          models: assignment.allowed_models,
         };
       });
       const roleModelResults = await Promise.all(roleModelPromises);
       if (generation !== loadGeneration.current) return;
       setDbModels(modelData.models || []);
+      const assignmentModels =
+        canAssignModels && (!isSystemAdmin || !canReadModels)
+          ? await modelApi.listAvailable()
+          : modelData;
+      if (generation !== loadGeneration.current) return;
       setAvailableModels(
-        (modelData.models || []).map((m: ModelConfig) => ({
+        (assignmentModels.models || []).map((m) => ({
           id: m.id || "",
           value: m.value,
           provider: m.provider,
@@ -113,7 +122,12 @@ export function ModelSection() {
         setHasLoaded(true);
       }
     }
-  }, [canManageModels]);
+  }, [
+    canReadModels,
+    canAssignModels,
+    isSystemAdmin,
+    actor?.assignable_role_ids,
+  ]);
 
   useEffect(() => {
     const requests = loadGeneration;
@@ -125,19 +139,19 @@ export function ModelSection() {
 
   const handleUpdateRoleModels = useCallback(
     async (roleId: string, modelValues: string[]) => {
-      if (!canManageModels) return;
+      if (!canAssignModels) return;
       await agentConfigApi.updateRoleModels(roleId, modelValues);
       setRoleModelsMap((prev) => ({ ...prev, [roleId]: modelValues }));
       toast.success(t("agentConfig.saveSuccess"));
     },
-    [canManageModels, t],
+    [canAssignModels, t],
   );
 
   if (isLoading && !hasLoaded) {
     return <ModelSectionSkeleton />;
   }
 
-  if (!canManageModels) {
+  if (!canReadModels && !canAssignModels) {
     return (
       <div className="flex h-48 items-center justify-center">
         <p className="text-stone-500 dark:text-stone-400">
@@ -184,6 +198,7 @@ export function ModelSection() {
         <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 self-start max-w-full font-serif">
           <button
             type="button"
+            disabled={!canAssignModels}
             aria-pressed={activeTab === "roles"}
             onClick={() => setActiveTab("roles")}
             className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
@@ -196,6 +211,7 @@ export function ModelSection() {
           </button>
           <button
             type="button"
+            disabled={!canReadModels}
             aria-pressed={activeTab === "model-config"}
             onClick={() => setActiveTab("model-config")}
             className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
@@ -208,10 +224,10 @@ export function ModelSection() {
           </button>
         </div>
 
-        <div hidden={activeTab !== "model-config"}>
+        <div hidden={!canReadModels || activeTab !== "model-config"}>
           <ModelConfigTab models={dbModels} onReload={loadData} />
         </div>
-        <div hidden={activeTab !== "roles"}>
+        <div hidden={!canAssignModels || activeTab !== "roles"}>
           <RolesModelTab
             roles={roles}
             roleModelsMap={roleModelsMap}

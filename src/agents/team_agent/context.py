@@ -242,16 +242,23 @@ class TeamAgentContext:
         # 低频操作，走 search_tools 延迟通道，不常驻工具 schema。
         if settings.ENABLE_MEMORY:
             try:
+                from src.infra.auth.tool_authority import filter_authorized_tools
                 from src.infra.memory.tools import (
                     get_deferred_memory_tools,
                     get_inline_memory_tools,
                 )
 
-                self.tools.extend(get_inline_memory_tools())
+                self.tools.extend(
+                    await filter_authorized_tools(get_inline_memory_tools(), self.user_id)
+                )
                 if settings.ENABLE_DEFERRED_TOOL_LOADING:
-                    self._deferred_system_tools.extend(get_deferred_memory_tools())
+                    self._deferred_system_tools.extend(
+                        await filter_authorized_tools(get_deferred_memory_tools(), self.user_id)
+                    )
                 else:
-                    self.tools.extend(get_deferred_memory_tools())
+                    self.tools.extend(
+                        await filter_authorized_tools(get_deferred_memory_tools(), self.user_id)
+                    )
                 logger.info(
                     "[TeamAgentContext] Added memory tools (delete deferred=%s)",
                     settings.ENABLE_DEFERRED_TOOL_LOADING,

@@ -11,10 +11,9 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.auth.tool_authority import resolve_tool_user as _resolve_user
 from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.role.storage import RoleStorage
 from src.infra.tool.backend_utils import get_user_id_from_runtime
-from src.infra.user.storage import UserStorage
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.persona_preset import (
     PersonaPresetCreate,
@@ -46,28 +45,6 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
 
 def _get_user_id(runtime: ToolRuntime) -> str | None:
     return get_user_id_from_runtime(runtime)
-
-
-async def _resolve_user(user_id: str) -> TokenPayload | None:
-    """Resolve the latest roles and permissions for a user ID."""
-    user = await UserStorage().get_by_id(user_id)
-    if not user:
-        return None
-
-    role_storage = RoleStorage()
-    roles = await role_storage.get_by_names(user.roles or [])
-
-    permissions: set[str] = set()
-    for role in roles:
-        for permission in role.permissions:
-            permissions.add(permission if isinstance(permission, str) else permission.value)
-
-    return TokenPayload(
-        sub=user.id,
-        username=user.username,
-        roles=[r.name for r in roles],
-        permissions=sorted(permissions),
-    )
 
 
 def _is_admin(user: TokenPayload) -> bool:

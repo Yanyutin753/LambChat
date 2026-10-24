@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -31,6 +33,26 @@ import {
 
 export function RevealedFilesPanel() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  if (!hasPermission(Permission.FILE_READ))
+    return (
+      <p role="alert" className="panel-body text-14 text-theme-text-secondary">
+        {t("common.noPermission")}
+      </p>
+    );
+  return (
+    <RevealedFilesContent
+      canReadProjects={hasPermission(Permission.PROJECT_READ)}
+    />
+  );
+}
+
+function RevealedFilesContent({
+  canReadProjects,
+}: {
+  canReadProjects: boolean;
+}) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   /* ── State ── */
@@ -53,6 +75,7 @@ export function RevealedFilesPanel() {
 
   /* ── Data ── */
   useEffect(() => {
+    if (!canReadProjects) return;
     let cancelled = false;
     projectApi
       .list()
@@ -63,7 +86,7 @@ export function RevealedFilesPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canReadProjects]);
 
   const {
     sessionGroups,

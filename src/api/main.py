@@ -432,6 +432,7 @@ async def lifespan(app: FastAPI):
         logger.info("Default roles initialized")
     except Exception as e:
         logger.error("Failed to initialize default roles: %s", e)
+        raise
 
     # 配置 uvicorn 访问日志格式，与项目日志完全统一
     import logging

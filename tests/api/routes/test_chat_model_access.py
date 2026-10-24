@@ -170,7 +170,7 @@ async def test_validate_agent_model_access_allows_role_model_id(
     assert agent_options["model"] == "openai/gpt-allowed"
     assert agent_options["_resolved_model_config"]["id"] == "allowed-enabled"
     assert agent_options["_resolved_model_config"]["api_key"] is None
-    assert agent_options["_resolved_fallback_model"] == "openai/gpt-fallback"
+    assert agent_options["_resolved_fallback_model"] is None
     assert agent_options["_resolved_supports_vision"] is True
     assert agent_options["_resolved_image_url_mode"] == "base64"
 
@@ -392,3 +392,19 @@ async def test_validate_agent_model_access_disabled_model_reports_disabled(
             {"model_id": "disabled-model"},
             user,
         )
+
+
+@pytest.mark.parametrize(
+    "grants",
+    [None, ["allowed-enabled", "fallback-enabled"], ["allowed-enabled", "openai/gpt-fallback"]],
+)
+async def test_fallback_requires_its_own_model_authorization(monkeypatch, grants):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.agent.model_storage.get_model_storage", lambda: _ModelStorage())
+    monkeypatch.setattr(
+        model_access, "resolve_user_allowed_model_ids", AsyncMock(return_value=grants)
+    )
+    options = {"model_id": "allowed-enabled"}
+    await validate_agent_model_access(options, TokenPayload(sub="u", username="u", roles=["user"]))
+    assert options["_resolved_fallback_model"] == "openai/gpt-fallback"

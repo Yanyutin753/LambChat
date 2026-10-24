@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.infra.revealed_file.storage import get_revealed_file_storage
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -24,7 +24,7 @@ async def list_revealed_files(
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
     favorites_only: bool = Query(False),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("file:read")),
 ):
     storage = get_revealed_file_storage()
     result = await storage.list_files(
@@ -49,7 +49,7 @@ async def list_revealed_files(
 
 @router.get("/revealed/stats")
 async def get_revealed_file_stats(
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("file:read")),
 ):
     storage = get_revealed_file_storage()
     stats = await storage.get_stats(user.sub)
@@ -58,7 +58,7 @@ async def get_revealed_file_stats(
 
 @router.get("/revealed/sessions")
 async def list_revealed_file_sessions(
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("file:read")),
 ):
     storage = get_revealed_file_storage()
     sessions = await storage.get_user_sessions(user.sub)
@@ -75,7 +75,7 @@ async def list_revealed_files_grouped(
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
     favorites_only: bool = Query(False),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("file:read")),
 ):
     storage = get_revealed_file_storage()
     result = await storage.list_files_grouped_by_session(
@@ -100,7 +100,7 @@ async def list_revealed_files_grouped(
 @router.patch("/revealed/{file_id}/favorite")
 async def toggle_revealed_file_favorite(
     file_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("file:read")),
 ):
     storage = get_revealed_file_storage()
     try:

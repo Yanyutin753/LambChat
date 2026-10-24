@@ -19,8 +19,8 @@ export function DetailModal({
 }: {
   memory: MemoryItem;
   onClose: () => void;
-  onDelete: (id: string) => void;
-  onEdit: (memory: MemoryItem) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (memory: MemoryItem) => void;
   relativeTime: (dateStr: string | null) => string;
 }) {
   const { t } = useTranslation();
@@ -38,20 +38,24 @@ export function DetailModal({
       icon={<Eye size={16} />}
       footer={
         <PanelFooterActions align="between">
-          <Button
-            variant="danger"
-            onClick={() => onDelete(memory.memory_id)}
-            leftIcon={<Trash2 size={16} />}
-          >
-            {t("common.delete")}
-          </Button>
+          {onDelete && (
+            <Button
+              variant="danger"
+              onClick={() => onDelete(memory.memory_id)}
+              leftIcon={<Trash2 size={16} />}
+            >
+              {t("common.delete")}
+            </Button>
+          )}
           <span className="panel-footer-actions__spacer" />
-          <Button
-            onClick={() => onEdit(memory)}
-            leftIcon={<Pencil size={14} />}
-          >
-            {t("common.edit")}
-          </Button>
+          {onEdit && (
+            <Button
+              onClick={() => onEdit(memory)}
+              leftIcon={<Pencil size={14} />}
+            >
+              {t("common.edit")}
+            </Button>
+          )}
           <Button onClick={onClose}>{t("common.close")}</Button>
         </PanelFooterActions>
       }

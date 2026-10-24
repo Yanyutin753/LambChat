@@ -4,9 +4,18 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from src.infra.utils.datetime import utc_now
+
+
+def public_agent_options(options: dict[str, Any]) -> dict[str, Any]:
+    """Keep provider credentials and trusted execution state out of session metadata."""
+    return {
+        key: value
+        for key, value in options.items()
+        if not key.startswith("_resolved_") and key != "_handoff_usage"
+    }
 
 
 class SessionBase(BaseModel):
@@ -44,6 +53,12 @@ class Session(SessionBase):
     completed_at: Optional[datetime] = None
     unread_count: int = 0
     last_read_at: Optional[datetime] = None
+
+    @field_serializer("metadata")
+    def serialize_public_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(metadata.get("agent_options"), dict):
+            return {**metadata, "agent_options": public_agent_options(metadata["agent_options"])}
+        return metadata
 
     class Config:
         from_attributes = True

@@ -1,3 +1,4 @@
+import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { parseFrontendGoalCommand } from "../../hooks/useAgent/goalCommands";
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
@@ -921,6 +922,8 @@ export const ChatInput = memo(function ChatInput({
         </div>
       </div>
       <ChatInputSelectors
+        canCopyPersonaPresets={hasPermission(Permission.PERSONA_PRESET_WRITE)}
+        canManageSandbox={hasPermission(Permission.SANDBOX_MANAGE)}
         activePanel={activePanel}
         onActivePanelChange={setActivePanel}
         tools={tools}

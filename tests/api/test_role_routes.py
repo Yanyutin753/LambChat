@@ -19,7 +19,7 @@ def _fake_user() -> TokenPayload:
         sub="user-1",
         username="tester",
         roles=["user"],
-        permissions=[],
+        permissions=["role:read"],
     )
 
 

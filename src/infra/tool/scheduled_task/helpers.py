@@ -3,11 +3,9 @@
 import json
 from typing import Any
 
+from src.infra.auth.tool_authority import resolve_tool_user as _resolve_user
 from src.infra.logging import get_logger
-from src.infra.role.storage import RoleStorage
-from src.infra.user.storage import UserStorage
 from src.kernel.schemas.scheduled_task import ChannelDeliveryConfig
-from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
 
@@ -28,28 +26,6 @@ def _strip_resolved_agent_options(options: dict[str, Any]) -> dict[str, Any]:
             "_resolved_model_profile",
         }
     }
-
-
-async def _resolve_user(user_id: str) -> TokenPayload | None:
-    """Resolve the latest roles and permissions for a user ID."""
-    user = await UserStorage().get_by_id(user_id)
-    if not user:
-        return None
-
-    role_storage = RoleStorage()
-    roles = await role_storage.get_by_names(user.roles or [])
-
-    permissions: set[str] = set()
-    for role in roles:
-        for permission in role.permissions:
-            permissions.add(permission if isinstance(permission, str) else permission.value)
-
-    return TokenPayload(
-        sub=user.id,
-        username=user.username,
-        roles=[r.name for r in roles],
-        permissions=sorted(permissions),
-    )
 
 
 async def _get_current_session_defaults() -> tuple[

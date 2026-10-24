@@ -235,6 +235,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
 
+    if context.deferred_manager is not None:
+        context.deferred_manager.discover_attachment_tools(attachments)
+
     if context.deferred_manager is not None and not any(
         getattr(tool, "name", "") == "search_tools" for tool in filtered_tool_list
     ):
@@ -284,6 +287,15 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         if sections:
             mw.append(SectionPromptMiddleware(sections=sections))
         if sandbox_backend:
+            from src.infra.agent.middleware.sandbox_confirm import create_sandbox_confirm_middleware
+
+            mw.append(
+                create_sandbox_confirm_middleware(
+                    context.user_id or "default",
+                    sandbox_backend,
+                    agent_options.get("sandbox_machine_id") or None,
+                )
+            )
             mw.append(
                 EnvVarPromptMiddleware(
                     user_id=context.user_id or "default", additional_keys=runtime_env_keys
@@ -417,26 +429,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
         # 沙箱统一确认门（本地 + 云端）：整批单次 interrupt，本地读 daemon
         # 上报策略，云端读用户 metadata 偏好（未设置归 none 保持云上历史行为）
-        from src.infra.agent.middleware.sandbox_confirm import (
-            SandboxConfirmMiddleware,
-            _CloudPolicyResolver,
-        )
-        from src.infra.backend.local import WorkspaceAliasBackend
+        from src.infra.agent.middleware.sandbox_confirm import create_sandbox_confirm_middleware
 
         user_middleware.append(
-            SandboxConfirmMiddleware(
-                user_id=context.user_id or "default",
-                policy_resolver=(
-                    None
-                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
-                    else _CloudPolicyResolver(context.user_id or "default")
-                ),
-                # 确认策略与执行同机（本地多机）：会话选机透传，与 dispatch 同源
-                machine_id=(
-                    (agent_options or {}).get("sandbox_machine_id") or None
-                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
-                    else None
-                ),
+            create_sandbox_confirm_middleware(
+                context.user_id or "default",
+                sandbox_backend,
+                agent_options.get("sandbox_machine_id") or None,
             )
         )
         if sandbox_runtime_policy:

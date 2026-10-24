@@ -23,9 +23,12 @@ from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
-def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise model-safe rendering after the separate file-access gate accepts."""
-    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
+def _owned_file_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = SimpleNamespace(
+        is_private_key=AsyncMock(return_value=False),
+        find_by_key=AsyncMock(return_value={"uploaded_by": "owner-a"}),
+    )
+    monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: records)
 
 
 def _tiff_bytes(mode: str = "RGB") -> bytes:
@@ -237,7 +240,11 @@ async def test_get_file_transcodes_legacy_tiff_and_caches_beside_original(
     storage = _FakeSafeRenderStorage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("image/owner-a/legacy.tiff", _fake_request())
+    resp = await upload.get_file_proxy(
+        "image/owner-a/legacy.tiff",
+        _fake_request(),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -256,7 +263,11 @@ async def test_get_file_serves_cached_transcode_without_re_render(
     storage.files["model-safe/image/owner-a/legacy.tiff.jpg"] = b"cached-jpeg"
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("image/owner-a/legacy.tiff", _fake_request())
+    resp = await upload.get_file_proxy(
+        "image/owner-a/legacy.tiff",
+        _fake_request(),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.body == b"cached-jpeg"
@@ -281,7 +292,11 @@ async def test_get_file_local_storage_transcodes_on_the_fly(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocal()))
 
-    resp = await upload.get_file_proxy("image/owner-a/legacy.tiff", _fake_request())
+    resp = await upload.get_file_proxy(
+        "image/owner-a/legacy.tiff",
+        _fake_request(),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -299,11 +314,19 @@ async def test_get_file_safe_formats_and_documents_stay_untouched(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     # 安全格式：照旧走 302 presigned
-    resp = await upload.get_file_proxy("image/owner-a/fine.jpg", _fake_request())
+    resp = await upload.get_file_proxy(
+        "image/owner-a/fine.jpg",
+        _fake_request(),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
     assert resp.status_code == 302
 
     # document 前缀的 tiff 不转码（多页文档转 JPEG 会丢页，维持原样 302）
-    resp = await upload.get_file_proxy("document/owner-a/scan.tiff", _fake_request())
+    resp = await upload.get_file_proxy(
+        "document/owner-a/scan.tiff",
+        _fake_request(),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
     assert resp.status_code == 302
 
     assert storage.uploads == []

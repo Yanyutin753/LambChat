@@ -487,9 +487,10 @@ export function ChatAppContent({
 
   const handleCopyPersonaPreset = useCallback(
     async (preset: PersonaPreset) => {
+      if (!hasPermission(Permission.PERSONA_PRESET_WRITE)) return;
       await copyPersonaPreset(preset.id);
     },
-    [copyPersonaPreset],
+    [hasPermission, copyPersonaPreset],
   );
 
   const handleTogglePersonaPreference = useCallback(
@@ -571,7 +572,9 @@ export function ChatAppContent({
     [effectiveTools],
   );
 
-  const canSendMessage = hasPermission(Permission.CHAT_WRITE);
+  const canSendMessage =
+    hasPermission(Permission.CHAT_WRITE) &&
+    hasPermission(Permission.SESSION_WRITE);
 
   const sidebarRef = useRef<SessionSidebarHandle>(null);
 
@@ -603,9 +606,7 @@ export function ChatAppContent({
         void reconcileActiveRun();
       }
     },
-    onCurrentSessionTaskComplete: () => {
-      void reconcileActiveRun();
-    },
+    onCurrentSessionTaskComplete: reconcileActiveRun,
   });
 
   const externalNavigation = useExternalNavigationTarget({
@@ -940,9 +941,7 @@ export function ChatAppContent({
           persistentGoal={persistentGoal}
           persistentGoalBusy={persistentGoalBusy}
           onUpdatePersistentGoal={updatePersistentGoal}
-          onControlPersistentGoal={(action) =>
-            void controlPersistentGoal(action)
-          }
+          onControlPersistentGoal={controlPersistentGoal}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}
           autoModeEnabled={autoModeEnabled}

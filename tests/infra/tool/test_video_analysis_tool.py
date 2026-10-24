@@ -37,6 +37,9 @@ class _FakeStorage:
 def video_model(monkeypatch):
     from src.infra.tool import video_analysis_tool as module
 
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=True)
+    )
     model = ModelConfig(
         id="vision-id",
         value="google/gemini-test",
@@ -415,6 +418,13 @@ async def test_internal_registry_exposes_video_analyze_with_image_analysis(
 
     monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_policies)
 
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        internal_registry,
+        "resolve_tool_user",
+        AsyncMock(return_value=TokenPayload(sub="user-1", username="user")),
+    )
     tools = await internal_registry.get_internal_tools_for_user(
         user_id="user-1", user_roles=[], is_admin=False
     )
@@ -493,3 +503,18 @@ async def test_video_analyze_errors_when_neither_model_configured(
         )
     )
     assert "Neither VIDEO_ANALYSIS_MODEL_ID nor IMAGE_ANALYSIS_MODEL_ID" in result["error"]
+
+
+async def test_uploaded_video_rechecks_file_read_before_storage(monkeypatch):
+    from src.infra.tool import video_analysis_tool as module
+    from src.infra.upload.file_record import FileRecordStorage
+    from src.kernel.errors import AppError
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=False)
+    )
+    lookup = AsyncMock(return_value={"uploaded_by": "user-1"})
+    monkeypatch.setattr(FileRecordStorage, "is_private_key", lookup)
+    with pytest.raises(AppError):
+        await module._download_uploaded_video("/api/upload/file/videos/clip.mp4", _Runtime(), 100)
+    lookup.assert_not_awaited()

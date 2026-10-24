@@ -31,7 +31,14 @@ export function RoleDetailSidebar({
   const { t, i18n } = useTranslation();
   const { hasPermission } = useAuth();
 
-  const canManage = hasPermission(Permission.ROLE_MANAGE);
+  const canDelete = hasPermission(Permission.ROLE_DELETE);
+  const canEdit = role.is_system
+    ? hasPermission(Permission.USAGE_QUOTA_MANAGE)
+    : [
+        Permission.ROLE_WRITE,
+        Permission.ROLE_GRANT,
+        Permission.USAGE_QUOTA_MANAGE,
+      ].some(hasPermission);
 
   // 将角色权限按分组归类
   const groupedPermissions = permissionGroups
@@ -81,7 +88,7 @@ export function RoleDetailSidebar({
       icon={<Eye size={16} />}
       footer={
         <PanelFooterActions align="between">
-          {canManage && !role.is_system && (
+          {canDelete && !role.is_system && (
             <Button
               variant="danger"
               onClick={() => onDelete(role)}
@@ -90,10 +97,10 @@ export function RoleDetailSidebar({
               {t("common.delete")}
             </Button>
           )}
-          {canManage && !role.is_system && (
+          {canDelete && !role.is_system && (
             <span className="panel-footer-actions__spacer" />
           )}
-          {canManage && (
+          {canEdit && (
             <Button
               onClick={() => onEdit(role)}
               leftIcon={<Pencil size={14} />}

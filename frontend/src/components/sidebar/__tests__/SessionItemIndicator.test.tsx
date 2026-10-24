@@ -4,6 +4,12 @@ import { act, fireEvent, render, within } from "@testing-library/react";
 import { SessionItem } from "../SessionItem";
 import type { BackendSession } from "../../../services/api/session";
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) => permission === "session:read",
+  }),
+}));
+
 // Keep label assertions locale-independent: return the in-code fallback text
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();

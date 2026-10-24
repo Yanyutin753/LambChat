@@ -45,3 +45,33 @@ async def test_foreign_upload_url_is_never_presigned_or_downloaded(monkeypatch, 
     storage.get_presigned_url.assert_not_awaited()
     backend.aexecute.assert_not_awaited()
     backend.aupload_files.assert_not_awaited()
+
+
+async def test_owned_private_file_rechecks_read_permission_before_download(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(FileRecordStorage, "is_private_key", AsyncMock(return_value=True))
+    private_access = AsyncMock()
+    monkeypatch.setattr(FileRecordStorage, "require_private_access", private_access)
+    backend = SimpleNamespace(aupload_files=AsyncMock())
+    runtime = SimpleNamespace(
+        config={
+            "configurable": {
+                "backend": backend,
+                "base_url": "https://app.example",
+                "context": SimpleNamespace(user_id="owner"),
+                "session_id": "session",
+            }
+        }
+    )
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="/api/upload/file/cua_screenshots/owner/session/a.png",
+            file_path="/workspace/a.png",
+            runtime=runtime,
+        )
+    )
+    assert result["success"] is False
+    private_access.assert_not_awaited()
+    backend.aupload_files.assert_not_awaited()

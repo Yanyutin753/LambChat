@@ -6,7 +6,14 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.infra.utils.datetime import utc_now
+from src.kernel.schemas.permission import RETIRED_PERMISSIONS
 from src.kernel.types import Permission
+
+
+def _validate_requested_permissions(values):
+    if values is not None and RETIRED_PERMISSIONS.intersection(values):
+        raise ValueError("Retired permissions cannot be granted")
+    return values
 
 
 class RoleQuotaUpdate(BaseModel):
@@ -73,19 +80,39 @@ class RoleBase(BaseModel):
 class RoleCreate(RoleBase):
     """Schema for creating a role."""
 
+    model_config = ConfigDict(extra="forbid")
+
     permissions: List[Permission] = Field(default_factory=list)
+    grantable_permissions: List[Permission] = Field(default_factory=list)
+    assignable_role_ids: List[str] = Field(default_factory=list)
+    unrestricted_models: bool = False
     allowed_agents: List[str] = Field(default_factory=list, description="List of allowed agent IDs")
     limits: Optional[RoleLimits] = Field(default=None, description="Role-specific limits")
+
+    @field_validator("permissions", "grantable_permissions")
+    @classmethod
+    def validate_permissions(cls, values):
+        return _validate_requested_permissions(values)
 
 
 class RoleUpdate(BaseModel):
     """Schema for updating a role."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(None, min_length=2, max_length=50)
     description: Optional[str] = None
     permissions: Optional[List[Permission]] = None
+    grantable_permissions: Optional[List[Permission]] = None
+    assignable_role_ids: Optional[List[str]] = None
+    unrestricted_models: Optional[bool] = None
     allowed_agents: Optional[List[str]] = None
     limits: Optional[RoleLimits] = Field(None, description="Role-specific limits")
+
+    @field_validator("permissions", "grantable_permissions")
+    @classmethod
+    def validate_permissions(cls, values):
+        return _validate_requested_permissions(values)
 
 
 class Role(RoleBase):
@@ -95,6 +122,9 @@ class Role(RoleBase):
 
     id: str
     permissions: List[Permission] = Field(default_factory=list)
+    grantable_permissions: List[Permission] = Field(default_factory=list)
+    assignable_role_ids: List[str] = Field(default_factory=list)
+    unrestricted_models: bool = False
     allowed_agents: List[str] = Field(default_factory=list, description="List of allowed agent IDs")
     limits: Optional[RoleLimits] = Field(default=None, description="Role-specific limits")
     is_system: bool = False  # System roles cannot be deleted

@@ -13,6 +13,7 @@ interface PersonaPresetCardProps {
   selected: boolean;
   activeTag: string | null;
   canWrite: boolean;
+  canDelete?: boolean;
   canAdmin: boolean;
   onUse: (preset: PersonaPreset) => void;
   onClear: () => void;
@@ -31,6 +32,7 @@ export function PersonaPresetCard({
   selected,
   activeTag,
   canWrite,
+  canDelete,
   canAdmin,
   onUse,
   onClear,
@@ -44,6 +46,7 @@ export function PersonaPresetCard({
   const gradient = nameToGradient(preset.name);
   const capabilities = getPersonaPresetCapabilities(preset, {
     canWrite,
+    canDelete,
     canAdmin,
   });
 

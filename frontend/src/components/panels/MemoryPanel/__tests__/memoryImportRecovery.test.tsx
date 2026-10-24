@@ -129,3 +129,7 @@ test("a preflight failure uses the ordinary error and performs no result refresh
   expect(successToast).not.toHaveBeenCalled();
   expect(list).toHaveBeenCalledTimes(1);
 });
+
+vi.mock("../../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

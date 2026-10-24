@@ -90,9 +90,11 @@ export function MCPPanel() {
     isSystem: boolean;
   } | null>(null);
 
-  const canRead = hasAnyPermission([Permission.MCP_READ]);
-  const canWrite = hasAnyPermission([
-    Permission.MCP_ADMIN,
+  const canRead = hasAnyPermission([
+    Permission.MCP_READ,
+    Permission.MCP_SYSTEM_READ,
+  ]);
+  const canWritePersonal = hasAnyPermission([
     Permission.MCP_WRITE_SSE,
     Permission.MCP_WRITE_HTTP,
   ]);
@@ -107,8 +109,22 @@ export function MCPPanel() {
       ? Permission.MCP_WRITE_HTTP
       : null,
   ].filter(Boolean) as Permission[];
-  // Note: canDelete permission is checked server-side
-  // Client-side uses canWrite for UI actions, server validates actual permissions
+  const canManagePolicy = hasAnyPermission([Permission.MCP_POLICY_MANAGE]);
+  const canExport = hasAnyPermission([Permission.MCP_EXPORT]);
+  const canWriteSystem = canAdmin && canManagePolicy;
+  const canWrite = canWritePersonal || canWriteSystem;
+  const canEditServer = (server: MCPServerResponse) =>
+    server.is_system
+      ? canAdmin
+      : hasAnyPermission([
+          server.transport === "sse"
+            ? Permission.MCP_WRITE_SSE
+            : Permission.MCP_WRITE_HTTP,
+        ]);
+  const canDeleteServer = (server: MCPServerResponse) =>
+    hasAnyPermission([
+      server.is_system ? Permission.MCP_SYSTEM_DELETE : Permission.MCP_DELETE,
+    ]);
 
   const filteredServers = servers;
   const paginatedServers = servers;
@@ -121,10 +137,10 @@ export function MCPPanel() {
   const handleCreate = useCallback(async () => {
     setIsCreating(true);
     setEditingServer(null);
-    setCreateAsSystem(false);
+    setCreateAsSystem(!canWritePersonal && canWriteSystem);
     setChangeToSystem(false);
     setShowModal(true);
-  }, [setShowModal]);
+  }, [canWritePersonal, canWriteSystem, setShowModal]);
 
   const handleEdit = useCallback(
     (server: MCPServerResponse) => {
@@ -154,7 +170,12 @@ export function MCPPanel() {
           // Check if server type is changing
           const typeChanging = changeToSystem !== editingServer.is_system;
 
-          if (typeChanging && canAdmin) {
+          if (
+            typeChanging &&
+            canAdmin &&
+            canManagePolicy &&
+            (changeToSystem || canExport)
+          ) {
             // Handle type change
             if (changeToSystem) {
               // Promote user server to system server
@@ -238,6 +259,8 @@ export function MCPPanel() {
       createAsSystem,
       changeToSystem,
       canAdmin,
+      canManagePolicy,
+      canExport,
       createServer,
       updateServer,
       promoteServer,
@@ -421,29 +444,35 @@ export function MCPPanel() {
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("mcp.searchPlaceholder")}
         actions={
-          canWrite && (
+          (canWrite || canExport) && (
             <>
-              <Button
-                onClick={handleImportClick}
-                leftIcon={<Upload size={16} />}
-                title={t("mcp.importFromJSON")}
-              >
-                <span className="hidden sm:inline">{t("common.import")}</span>
-              </Button>
-              <Button
-                onClick={handleExport}
-                leftIcon={<Download size={16} />}
-                title={t("mcp.exportToJSON")}
-              >
-                <span className="hidden sm:inline">{t("common.export")}</span>
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleCreate}
-                leftIcon={<Plus size={16} />}
-              >
-                <span className="hidden sm:inline">{t("mcp.addServer")}</span>
-              </Button>
+              {canWritePersonal && (
+                <Button
+                  onClick={handleImportClick}
+                  leftIcon={<Upload size={16} />}
+                  title={t("mcp.importFromJSON")}
+                >
+                  <span className="hidden sm:inline">{t("common.import")}</span>
+                </Button>
+              )}
+              {canExport && (
+                <Button
+                  onClick={handleExport}
+                  leftIcon={<Download size={16} />}
+                  title={t("mcp.exportToJSON")}
+                >
+                  <span className="hidden sm:inline">{t("common.export")}</span>
+                </Button>
+              )}
+              {canWrite && (
+                <Button
+                  variant="primary"
+                  onClick={handleCreate}
+                  leftIcon={<Plus size={16} />}
+                >
+                  <span className="hidden sm:inline">{t("mcp.addServer")}</span>
+                </Button>
+              )}
             </>
           )
         }
@@ -484,10 +513,10 @@ export function MCPPanel() {
               <MCPServerCard
                 key={server.name}
                 server={server}
-                onToggle={handleToggle}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onRetest={handleRetest}
+                onToggle={canEditServer(server) ? handleToggle : undefined}
+                onEdit={canEditServer(server) ? handleEdit : undefined}
+                onDelete={canDeleteServer(server) ? handleDelete : undefined}
+                onRetest={canEditServer(server) ? handleRetest : undefined}
                 retesting={retestingServer === server.name}
                 onClick={() => setToolsSidebarServer(server)}
               />
@@ -521,12 +550,13 @@ export function MCPPanel() {
       >
         <div className="es-form" style={{ gap: 0 }}>
           {/* Admin option for creating system server */}
-          {isCreating && canAdmin && (
+          {isCreating && canAdmin && canManagePolicy && (
             <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-theme-bg-hover">
               <Checkbox
                 ariaLabel={t("mcp.createAsSystem")}
                 size="sm"
                 checked={createAsSystem}
+                disabled={!canWritePersonal}
                 onChange={() => setCreateAsSystem(!createAsSystem)}
               />
               <span className="text-14 font-medium text-[var(--theme-text)]">
@@ -535,25 +565,29 @@ export function MCPPanel() {
             </label>
           )}
           {/* Admin option for changing server type when editing */}
-          {!isCreating && editingServer && canAdmin && (
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-theme-bg-hover">
-              <Checkbox
-                ariaLabel={
-                  changeToSystem
+          {!isCreating &&
+            editingServer &&
+            canAdmin &&
+            canManagePolicy &&
+            (!editingServer.is_system || canExport) && (
+              <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-theme-bg-hover">
+                <Checkbox
+                  ariaLabel={
+                    changeToSystem
+                      ? t("mcp.systemServerVisible")
+                      : t("mcp.userServerVisible")
+                  }
+                  size="sm"
+                  checked={changeToSystem}
+                  onChange={() => setChangeToSystem(!changeToSystem)}
+                />
+                <span className="text-14 font-medium text-[var(--theme-text)]">
+                  {changeToSystem
                     ? t("mcp.systemServerVisible")
-                    : t("mcp.userServerVisible")
-                }
-                size="sm"
-                checked={changeToSystem}
-                onChange={() => setChangeToSystem(!changeToSystem)}
-              />
-              <span className="text-14 font-medium text-[var(--theme-text)]">
-                {changeToSystem
-                  ? t("mcp.systemServerVisible")
-                  : t("mcp.userServerVisible")}
-              </span>
-            </label>
-          )}
+                    : t("mcp.userServerVisible")}
+                </span>
+              </label>
+            )}
           <MCPServerForm
             server={editingServer}
             onSave={handleSave}
@@ -561,6 +595,7 @@ export function MCPPanel() {
             isLoading={isLoading}
             allowedTransports={allowedTransports}
             isSystemServer={formIsSystemServer}
+            canManagePolicy={canManagePolicy}
             onToolPoliciesChanged={handleToolToggled}
           />
         </div>

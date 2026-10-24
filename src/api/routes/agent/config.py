@@ -12,9 +12,17 @@ from fastapi import APIRouter, Depends
 from src.agents.core.base import AgentFactory, list_registered_agents
 from src.api.deps import require_permissions
 from src.infra.agent.config_storage import get_agent_config_storage
+from src.infra.agent.model_access import resolve_user_allowed_model_ids
+from src.infra.auth.delegation import (
+    authority_mutation,
+    authorize_assignment_target,
+    is_system_administrator,
+    require_capability,
+    resolve_actor_agent_ids,
+)
 from src.infra.logging import get_logger
 from src.infra.role.manager import get_role_manager
-from src.kernel.errors import ErrorCode
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.agent import (
     AgentCatalogConfig,
     AgentCatalogConfigResponse,
@@ -69,12 +77,13 @@ async def _load_catalog_config() -> list[AgentCatalogConfig]:
     else:
         saved_configs_map = {c.id: c for c in saved_configs}
 
-    catalog = [
-        _catalog_entry_from_registered(agent, saved_configs_map.get(agent["id"]))
-        for agent in all_agents
-    ]
+    catalog = []
+    for agent in all_agents:
+        entry = _catalog_entry_from_registered(agent, saved_configs_map.get(agent["id"]))
+        if saved_configs_map and agent["id"] not in saved_configs_map:
+            entry.enabled = False
+        catalog.append(entry)
     catalog.sort(key=lambda agent: (agent.sort_order, agent.name))
-    await storage.set_catalog_config(catalog)
     return catalog
 
 
@@ -97,7 +106,7 @@ def _catalog_to_global_config(agent: AgentCatalogConfig) -> AgentConfig:
 
 @router.get("/global", response_model=GlobalAgentConfigResponse)
 async def get_global_agent_config(
-    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_CONFIG_READ.value)),
 ):
     """获取全局 Agent 配置"""
     catalog = await _load_catalog_config()
@@ -111,7 +120,7 @@ async def get_global_agent_config(
 
 @router.get("/catalog", response_model=AgentCatalogConfigResponse)
 async def get_agent_catalog_config(
-    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_CONFIG_READ.value)),
 ):
     """获取可配置 Agent 展示目录。"""
     catalog = await _load_catalog_config()
@@ -153,6 +162,11 @@ async def update_global_agent_config(
         for agent in config_update.agents
     ]
     await storage.set_catalog_config(catalog_agents)
+    logger.info(
+        "Agent configuration updated actor=%s targets=%s",
+        _.sub,
+        [agent.id for agent in catalog_agents],
+    )
     agents = [_catalog_to_global_config(agent) for agent in catalog_agents]
 
     return GlobalAgentConfigResponse(
@@ -190,6 +204,7 @@ async def update_agent_catalog_config(
         for agent in config_update.agents
     ]
     await storage.set_catalog_config(agents)
+    logger.info("Agent catalog updated actor=%s targets=%s", _.sub, [agent.id for agent in agents])
 
     return AgentCatalogConfigResponse(
         agents=agents,
@@ -200,7 +215,7 @@ async def update_agent_catalog_config(
 @router.get("/roles/{role_id}", response_model=RoleAgentAssignment)
 async def get_role_agents(
     role_id: str,
-    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ASSIGN.value)),
 ):
     """获取角色的可用 Agents"""
     storage = get_agent_config_storage()
@@ -212,6 +227,7 @@ async def get_role_agents(
 
         raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
+    authorize_assignment_target(_, role)
     allowed_agents = await storage.get_role_agents(role_id) or []
 
     return RoleAgentAssignment(
@@ -225,25 +241,33 @@ async def get_role_agents(
 async def update_role_agents(
     role_id: str,
     assignment: RoleAgentAssignmentUpdate,
-    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ASSIGN.value)),
 ):
     """设置角色的可用 Agents"""
-    storage = get_agent_config_storage()
-    role_manager = get_role_manager()
-
-    role = await role_manager.get_role(role_id)
-    if not role:
-        from src.kernel.exceptions import NotFoundError
-
-        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
-
-    allowed_agents = await storage.set_role_agents(role_id, role.name, assignment.allowed_agents)
-
-    return RoleAgentAssignmentResponse(
-        role_id=role_id,
-        role_name=role.name,
-        allowed_agents=allowed_agents,
-    )
+    async with authority_mutation(_) as actor:
+        require_capability(actor, "agent:assign")
+        storage = get_agent_config_storage()
+        role = await get_role_manager().get_role(role_id)
+        if not role:
+            raise AppError(ErrorCode.ROLE_NOT_FOUND)
+        authorize_assignment_target(actor, role)
+        if not is_system_administrator(actor):
+            allowed = await resolve_actor_agent_ids(actor)
+            if not set(assignment.allowed_agents).issubset(allowed):
+                raise AppError(ErrorCode.FORBIDDEN)
+        if not set(assignment.allowed_agents).issubset(list_registered_agents()):
+            raise AppError(ErrorCode.AGENT_NOT_REGISTERED, args={"agent": "unknown"})
+        allowed_agents = await storage.set_role_agents(
+            role_id, role.name, assignment.allowed_agents
+        )
+        logger.info(
+            "Role Agent assignment updated actor=%s target=%s fields=allowed_agents",
+            actor.sub,
+            role_id,
+        )
+        return RoleAgentAssignmentResponse(
+            role_id=role_id, role_name=role.name, allowed_agents=allowed_agents
+        )
 
 
 # ============================================
@@ -254,7 +278,7 @@ async def update_role_agents(
 @router.get("/roles/{role_id}/models", response_model=RoleModelAssignment)
 async def get_role_models(
     role_id: str,
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ASSIGN.value)),
 ):
     """获取角色的可用 Models"""
     storage = get_agent_config_storage()
@@ -266,6 +290,7 @@ async def get_role_models(
 
         raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
+    authorize_assignment_target(_, role)
     allowed_models = await storage.get_role_models(role_id)
 
     return RoleModelAssignment(
@@ -273,6 +298,7 @@ async def get_role_models(
         role_name=role.name,
         allowed_models=allowed_models or [],
         configured=allowed_models is not None,
+        unrestricted_models=getattr(role, "unrestricted_models", False),
     )
 
 
@@ -280,26 +306,45 @@ async def get_role_models(
 async def update_role_models(
     role_id: str,
     assignment: RoleModelAssignmentUpdate,
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ASSIGN.value)),
 ):
     """设置角色的可用 Models"""
-    storage = get_agent_config_storage()
-    role_manager = get_role_manager()
+    async with authority_mutation(_) as actor:
+        require_capability(actor, "model:assign")
+        storage = get_agent_config_storage()
+        role = await get_role_manager().get_role(role_id)
+        if not role:
+            raise AppError(ErrorCode.ROLE_NOT_FOUND)
+        authorize_assignment_target(actor, role)
+        if not is_system_administrator(actor):
+            allowed = await resolve_user_allowed_model_ids(actor)
+            if allowed is not None:
+                if assignment.unrestricted_models:
+                    raise AppError(ErrorCode.FORBIDDEN)
+                from src.infra.agent.model_storage import get_model_storage
 
-    role = await role_manager.get_role(role_id)
-    if not role:
-        from src.kernel.exceptions import NotFoundError
-
-        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
-
-    allowed_models = await storage.set_role_models(role_id, role.name, assignment.allowed_models)
-
-    return RoleModelAssignment(
-        role_id=role_id,
-        role_name=role.name,
-        allowed_models=allowed_models,
-        configured=True,
-    )
+                models = await get_model_storage().list_enabled_by_ids_or_values(allowed)
+                visible = set(allowed) | {model.id for model in models}
+                if not set(assignment.allowed_models).issubset(visible):
+                    raise AppError(ErrorCode.FORBIDDEN)
+        allowed_models = await storage.set_role_models(
+            role_id,
+            role.name,
+            assignment.allowed_models,
+            unrestricted_models=assignment.unrestricted_models,
+        )
+        logger.info(
+            "Role model assignment updated actor=%s target=%s fields=allowed_models,unrestricted_models",
+            actor.sub,
+            role_id,
+        )
+        return RoleModelAssignment(
+            role_id=role_id,
+            role_name=role.name,
+            allowed_models=allowed_models,
+            configured=True,
+            unrestricted_models=assignment.unrestricted_models,
+        )
 
 
 # ============================================

@@ -721,3 +721,10 @@ async def test_memory_retain_project_context_defaults_to_project_scope(monkeypat
         )
     )
     assert seen["kwargs"]["scope"] == "user"
+
+
+@pytest.fixture(autouse=True)
+def _grant_business_capability(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.memory.tools.has_tool_permission", AsyncMock(return_value=True))

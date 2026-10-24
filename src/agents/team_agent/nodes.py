@@ -286,23 +286,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             raise ValueError("team_member_preset_unavailable") from e
 
     if team:
-        default_role = "general-purpose"
+        default_member = team.active_members[0] if team.active_members else None
         if team.default_member_id:
             default_member = next(
                 (m for m in team.active_members if m.member_id == team.default_member_id),
-                team.active_members[0] if team.active_members else None,
+                default_member,
             )
-            default_role = (
-                build_team_member_subagent_type(default_member)
-                if default_member
-                else "general-purpose"
-            )
-        else:
-            default_role = (
-                build_team_member_subagent_type(team.active_members[0])
-                if team.active_members
-                else "general-purpose"
-            )
+        default_role = (
+            build_team_member_subagent_type(default_member) if default_member else "general-purpose"
+        )
         system_prompt = build_team_router_system_prompt(
             team,
             default_role=default_role,
@@ -316,6 +308,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     system_prompt = f"{mode_prompt}\n\n{system_prompt}" if team else mode_prompt
 
     # 过滤工具（懒加载 MCP 工具）
+    if context.deferred_manager is not None:
+        context.deferred_manager.discover_attachment_tools(attachments)
+
     if context.deferred_manager is not None and not any(
         getattr(tool, "name", "") == "search_tools" for tool in filtered_tool_list
     ):
@@ -370,6 +365,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         ]
         mw.append(SectionPromptMiddleware(sections=sections))
         if sandbox_backend:
+            from src.infra.agent.middleware.sandbox_confirm import create_sandbox_confirm_middleware
+
+            mw.append(
+                create_sandbox_confirm_middleware(
+                    context.user_id or "default",
+                    sandbox_backend,
+                    agent_options.get("sandbox_machine_id") or None,
+                )
+            )
             mw.append(
                 EnvVarPromptMiddleware(
                     user_id=context.user_id or "default", additional_keys=runtime_env_keys
@@ -660,19 +664,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 user_id=context.user_id or "default", additional_keys=runtime_env_keys
             )
         )
-        from src.infra.agent.middleware.sandbox_confirm import (
-            SandboxConfirmMiddleware,
-            _CloudPolicyResolver,
-        )
-        from src.infra.backend.local import WorkspaceAliasBackend
+        from src.infra.agent.middleware.sandbox_confirm import create_sandbox_confirm_middleware
 
-        local_sandbox = isinstance(sandbox_backend, WorkspaceAliasBackend)
-        machine_id = agent_options.get("sandbox_machine_id") if local_sandbox else None
         user_middleware.append(
-            SandboxConfirmMiddleware(
-                user_id=tenant_id,
-                policy_resolver=None if local_sandbox else _CloudPolicyResolver(tenant_id),
-                machine_id=machine_id or None,
+            create_sandbox_confirm_middleware(
+                context.user_id or "default",
+                sandbox_backend,
+                agent_options.get("sandbox_machine_id") or None,
             )
         )
         if sandbox_work_dir:

@@ -436,6 +436,190 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
     },
 ]
 
+# Split duties have explicit metadata; legacy values remain parseable only for migration.
+PERMISSION_METADATA.update(
+    {
+        "system:admin": {
+            "label": "系统最高管理",
+            "description": "委派授权和管理受保护账户；不绕过个人数据所有权",
+        },
+        "user:create": {"label": "创建用户", "description": "创建账户，不包含角色分配和凭据管理"},
+        "user:status": {"label": "启停账户", "description": "启用或停用授权范围内的账户"},
+        "user:reset_password": {
+            "label": "重置用户凭据",
+            "description": "重置授权范围内用户密码或修改恢复邮箱",
+        },
+        "user:assign_roles": {
+            "label": "分配用户角色",
+            "description": "在明确委派范围内分配用户角色",
+        },
+        "role:read": {"label": "查看角色", "description": "查看角色目录和授权配置"},
+        "role:write": {
+            "label": "维护角色",
+            "description": "创建角色和维护角色属性，不包含授予权限",
+        },
+        "role:delete": {"label": "删除角色", "description": "删除可管理的非系统角色"},
+        "role:grant": {
+            "label": "委派角色权限",
+            "description": "在明确可授予范围内调整角色权限和委派范围",
+        },
+        "settings:read": {"label": "查看系统配置", "description": "查看掩码后的管理配置"},
+        "settings:security": {
+            "label": "修改安全配置",
+            "description": "修改认证、账户、安全和敏感配置",
+        },
+        "settings:reset": {"label": "重置系统配置", "description": "重置配置或从环境导入配置"},
+        "mcp:system_read": {
+            "label": "查看系统 MCP",
+            "description": "查看系统 MCP 配置的非敏感信息",
+        },
+        "mcp:system_delete": {"label": "删除系统 MCP", "description": "删除系统共享 MCP 服务"},
+        "mcp:policy_manage": {
+            "label": "管理 MCP 授权",
+            "description": "配置工具策略、可用角色和配额",
+        },
+        "mcp:export": {
+            "label": "导出 MCP 凭据",
+            "description": "导出可访问范围内含密钥的 MCP 配置",
+        },
+        "file:read": {"label": "查看个人文件", "description": "查看和下载自己的文件及文件库"},
+        "file:delete": {"label": "删除个人文件", "description": "删除自己的未被引用文件"},
+        "agent:config_read": {"label": "查看智能体配置", "description": "查看智能体管理目录和配置"},
+        "agent:assign": {"label": "分配智能体", "description": "管理角色可用的智能体范围"},
+        "model:read": {"label": "查看模型配置", "description": "查看隐藏凭据的模型管理配置"},
+        "model:delete": {"label": "删除模型", "description": "删除模型配置并清理引用"},
+        "model:assign": {"label": "分配模型", "description": "管理角色模型白名单和显式无限制状态"},
+        "pricing:manage": {"label": "管理计费价格", "description": "同步计费价格或补算历史费用"},
+        "project:read": {"label": "查看个人项目", "description": "查看自己的项目目录"},
+        "project:write": {"label": "维护个人项目", "description": "创建或修改自己的项目"},
+        "project:delete": {
+            "label": "删除个人项目",
+            "description": "删除自己的项目，连带会话还需会话删除权限",
+        },
+        "memory:read": {"label": "查看个人记忆", "description": "查看或召回自己的记忆"},
+        "memory:write": {"label": "维护个人记忆", "description": "创建、编辑或导入自己的记忆"},
+        "memory:delete": {"label": "删除个人记忆", "description": "删除自己的记忆"},
+        "memory:export": {"label": "导出个人记忆", "description": "导出自己的记忆内容"},
+        "sandbox:read": {"label": "查看个人沙箱", "description": "查看自己的设备和沙箱文件"},
+        "sandbox:execute": {"label": "使用个人沙箱", "description": "在自己的沙箱执行工具和代码"},
+        "sandbox:manage": {
+            "label": "管理个人设备",
+            "description": "配对、管理或移除自己的沙箱设备",
+        },
+        "persona_preset:delete": {
+            "label": "删除个人角色预设",
+            "description": "删除自己的角色预设副本",
+        },
+        "envvar:reveal": {"label": "显示变量明文", "description": "显示自己的已保存环境变量明文"},
+        "notification:read": {"label": "查看通知管理", "description": "查看全局通知列表"},
+        "notification:delete": {"label": "删除系统通知", "description": "删除全局通知公告"},
+        "usage:quota_manage": {
+            "label": "管理用量额度",
+            "description": "修改角色预算、重置额度或发放重置卡",
+        },
+    }
+)
+
+for _permission, _label in {
+    "user:write": "编辑用户资料",
+    "model:admin": "维护模型配置",
+    "agent:admin": "维护智能体目录",
+    "mcp:admin": "维护系统 MCP 配置",
+    "usage:admin": "查看全局用量",
+    "settings:manage": "维护普通系统配置",
+    "feedback:admin": "删除反馈",
+    "notification:manage": "编辑系统通知",
+    "envvar:read": "查看环境变量名称",
+}.items():
+    PERMISSION_METADATA[_permission]["label"] = _label
+
+RETIRED_PERMISSIONS = {"chat:read", "session:admin", "skill:admin", "role:manage"}
+
+for _value, _metadata in PERMISSION_METADATA.items():
+    if _value in {
+        "user:write",
+        "model:admin",
+        "agent:admin",
+        "mcp:admin",
+        "usage:admin",
+        "settings:manage",
+    }:
+        _metadata["description"] = {
+            "user:write": "编辑用户资料，不含凭据、启停和角色分配",
+            "model:admin": "创建和修改模型配置，不含授权分配、删除或计费",
+            "agent:admin": "维护智能体目录，不含角色授权",
+            "mcp:admin": "维护系统 MCP 连接配置，不含授权策略或凭据导出",
+            "usage:admin": "查看所有用户用量，不含额度重置和发卡",
+            "settings:manage": "修改非安全类普通配置，不含敏感配置和全量重置",
+        }[_value]
+
+_EXTRA_GROUP_NAMES = {
+    "system": "系统管理",
+    "user": "用户管理",
+    "role": "角色管理",
+    "settings": "系统设置",
+    "mcp": "MCP服务",
+    "file": "文件上传",
+    "agent": "智能体",
+    "model": "模型管理",
+    "pricing": "计费管理",
+    "project": "个人项目",
+    "memory": "个人记忆",
+    "sandbox": "个人沙箱",
+    "persona_preset": "角色预设",
+    "envvar": "环境变量",
+    "notification": "通知公告",
+    "usage": "用量统计",
+}
+
+for _value in [
+    "system:admin",
+    "user:create",
+    "user:status",
+    "user:reset_password",
+    "user:assign_roles",
+    "role:read",
+    "role:write",
+    "role:delete",
+    "role:grant",
+    "settings:read",
+    "settings:security",
+    "settings:reset",
+    "mcp:system_read",
+    "mcp:system_delete",
+    "mcp:policy_manage",
+    "mcp:export",
+    "file:read",
+    "file:delete",
+    "agent:config_read",
+    "agent:assign",
+    "model:read",
+    "model:delete",
+    "model:assign",
+    "pricing:manage",
+    "project:read",
+    "project:write",
+    "project:delete",
+    "memory:read",
+    "memory:write",
+    "memory:delete",
+    "memory:export",
+    "sandbox:read",
+    "sandbox:execute",
+    "sandbox:manage",
+    "persona_preset:delete",
+    "envvar:reveal",
+    "notification:read",
+    "notification:delete",
+    "usage:quota_manage",
+]:
+    _name = _EXTRA_GROUP_NAMES[_value.split(":", 1)[0]]
+    _group = next((group for group in PERMISSION_GROUPS_CONFIG if group["name"] == _name), None)
+    if _group is None:
+        _group = {"name": _name, "permissions": []}
+        PERMISSION_GROUPS_CONFIG.append(_group)
+    _group["permissions"].append(_value)
+
 
 def get_permissions_response() -> PermissionsResponse:
     """
@@ -451,6 +635,8 @@ def get_permissions_response() -> PermissionsResponse:
     for group_config in PERMISSION_GROUPS_CONFIG:
         group_permissions: list[PermissionInfo] = []
         for perm_value in group_config["permissions"]:
+            if perm_value in RETIRED_PERMISSIONS:
+                continue
             metadata = PERMISSION_METADATA.get(perm_value, {})
             perm_info = PermissionInfo(
                 value=perm_value,

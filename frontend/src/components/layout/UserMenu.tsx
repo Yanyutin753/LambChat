@@ -57,19 +57,22 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   };
   const location = useLocation();
 
-  const canManageUsers = hasAnyPermission([
-    Permission.USER_READ,
-    Permission.USER_WRITE,
+  const canManageUsers = hasAnyPermission([Permission.USER_READ]);
+  const canManageRoles = hasAnyPermission([Permission.ROLE_READ]);
+  const canManageAgents = hasAnyPermission([
+    Permission.AGENT_CONFIG_READ,
+    Permission.AGENT_ASSIGN,
   ]);
-  const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
-  const canManageAgents = hasAnyPermission([Permission.AGENT_ADMIN]);
-  const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
-  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_ADMIN]);
+  const canManageModels = hasAnyPermission([
+    Permission.MODEL_READ,
+    Permission.MODEL_ASSIGN,
+  ]);
+  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
   const canViewUsage = hasAnyPermission([Permission.USAGE_READ]);
   const canManageNotifications = hasAnyPermission([
-    Permission.NOTIFICATION_MANAGE,
+    Permission.NOTIFICATION_READ,
   ]);
-  const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
+  const canManageSettings = hasAnyPermission([Permission.SETTINGS_READ]);
 
   // Reactive mobile detection
   useEffect(() => {

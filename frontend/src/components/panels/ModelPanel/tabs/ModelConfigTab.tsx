@@ -27,6 +27,8 @@ import { EmptyState } from "../../../common/EmptyState";
 import { ToggleSwitch } from "../../AgentPanel/shared";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { modelApi } from "../../../../services/api";
+import { useAuth } from "../../../../hooks/useAuth";
+import { Permission } from "../../../../types";
 import { pricingApi } from "../../../../services/api/pricing";
 import type { ModelConfig } from "../../../../services/api/model";
 import { ModelFormModal } from "./ModelFormModal";
@@ -177,6 +179,9 @@ const ModelCard = React.memo(function ModelCard({
   onDragEnd,
   t,
 }: ModelCardProps) {
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.MODEL_ADMIN);
+  const canDelete = hasPermission(Permission.MODEL_DELETE);
   const handleDragLeave = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -203,7 +208,7 @@ const ModelCard = React.memo(function ModelCard({
   return (
     <div
       key={model.id}
-      draggable
+      draggable={canWrite}
       onDragStart={(e) => onDragStart(index, e)}
       onDragOver={(e) => onDragOver(index, e)}
       onDragLeave={handleDragLeave}
@@ -242,6 +247,7 @@ const ModelCard = React.memo(function ModelCard({
             )}
           </div>
           <ToggleSwitch
+            disabled={!canWrite}
             enabled={model.enabled}
             onToggle={handleToggle}
             ariaLabel={
@@ -287,29 +293,33 @@ const ModelCard = React.memo(function ModelCard({
               </InteractiveIcon>
             </button>
           )}
-          <button
-            onClick={handleEdit}
-            className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
-            title={t("agentConfig.edit")}
-          >
-            <InteractiveIcon>
-              <Edit2 size={16} />
-            </InteractiveIcon>
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
-            title={t("agentConfig.delete")}
-          >
-            {isDeleting ? (
-              <LoadingSpinner size="sm" />
-            ) : (
+          {canWrite && (
+            <button
+              onClick={handleEdit}
+              className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
+              title={t("agentConfig.edit")}
+            >
               <InteractiveIcon>
-                <Trash2 size={16} />
+                <Edit2 size={16} />
               </InteractiveIcon>
-            )}
-          </button>
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
+              title={t("agentConfig.delete")}
+            >
+              {isDeleting ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <InteractiveIcon>
+                  <Trash2 size={16} />
+                </InteractiveIcon>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -368,6 +378,7 @@ const ModelCard = React.memo(function ModelCard({
               </button>
             )}
             <ToggleSwitch
+              disabled={!canWrite}
               enabled={model.enabled}
               onToggle={handleToggle}
               ariaLabel={
@@ -376,29 +387,33 @@ const ModelCard = React.memo(function ModelCard({
                   : t("agentConfig.enable")
               }
             />
-            <button
-              onClick={handleEdit}
-              className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
-              title={t("agentConfig.edit")}
-            >
-              <InteractiveIcon>
-                <Edit2 size={16} />
-              </InteractiveIcon>
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
-              title={t("agentConfig.delete")}
-            >
-              {isDeleting ? (
-                <LoadingSpinner size="sm" />
-              ) : (
+            {canWrite && (
+              <button
+                onClick={handleEdit}
+                className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-bg-hover rounded-lg transition-all duration-200"
+                title={t("agentConfig.edit")}
+              >
                 <InteractiveIcon>
-                  <Trash2 size={16} />
+                  <Edit2 size={16} />
                 </InteractiveIcon>
-              )}
-            </button>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50/60 rounded-lg transition-all duration-200 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
+                title={t("agentConfig.delete")}
+              >
+                {isDeleting ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <InteractiveIcon>
+                    <Trash2 size={16} />
+                  </InteractiveIcon>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -424,6 +439,10 @@ const ModelCard = React.memo(function ModelCard({
 
 export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.MODEL_ADMIN);
+  const canDelete = hasPermission(Permission.MODEL_DELETE);
+  const canPrice = hasPermission(Permission.PRICING_MANAGE);
   const { page, pageSize, setPage, slice } = useClientPagination({
     total: models.length,
   });
@@ -483,7 +502,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
+    if (!canDelete || !deleteTarget) return;
     setIsDeleting(deleteTarget);
     setDeleteTarget(null);
     try {
@@ -495,7 +514,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
     } finally {
       setIsDeleting(null);
     }
-  }, [deleteTarget, t, onReload]);
+  }, [canDelete, deleteTarget, t, onReload]);
 
   const handleToggle = useCallback(
     async (model: ModelConfig) => {
@@ -593,6 +612,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
     if (restoreFocus) menuTrigger.current?.focus();
   }, []);
   const handleSyncPrices = async () => {
+    if (!canPrice) return;
     setIsSyncingPrices(true);
     setActionError(null);
     try {
@@ -621,6 +641,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
     }
   };
   const handleBackfillCosts = async () => {
+    if (!canPrice) return;
     setIsBackfillingCosts(true);
     setActionError(null);
     try {
@@ -666,13 +687,15 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
             {t("agentConfig.modelConfigDescription")}
           </p>
           <div className="model-config-toolbar flex items-center gap-1 shrink-0">
-            <Button
-              variant="primary"
-              onClick={() => setIsCreating(true)}
-              leftIcon={<Plus size={16} />}
-            >
-              {t("agentConfig.addModel")}
-            </Button>
+            {canWrite && (
+              <Button
+                variant="primary"
+                onClick={() => setIsCreating(true)}
+                leftIcon={<Plus size={16} />}
+              >
+                {t("agentConfig.addModel")}
+              </Button>
+            )}
             <IconButton
               icon={
                 isSyncingPrices || isBackfillingCosts ? (
@@ -702,40 +725,48 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
                 position={menuPosition}
                 onClose={closeMenu}
                 actions={[
-                  {
-                    label: t("agentConfig.exportModels"),
-                    icon: <Download size={16} />,
-                    disabled: !models.length,
-                    onClick: handleExportModels,
-                  },
-                  {
-                    label: t("agentConfig.importModels"),
-                    icon: <FileJson size={16} />,
-                    onClick: () => {
-                      setBatchInitialTab("jsonImport");
-                      setShowBatchModal(true);
-                    },
-                  },
-                  {
-                    label: t("agentConfig.batchCreate"),
-                    icon: <Layers size={16} />,
-                    onClick: () => {
-                      setBatchInitialTab("addOneByOne");
-                      setShowBatchModal(true);
-                    },
-                  },
-                  {
-                    label: t("agentConfig.pricingSync"),
-                    icon: <RefreshCw size={16} />,
-                    disabled: isSyncingPrices,
-                    onClick: handleSyncPrices,
-                  },
-                  {
-                    label: t("agentConfig.pricingBackfill"),
-                    icon: <History size={16} />,
-                    disabled: isBackfillingCosts,
-                    onClick: handleBackfillCosts,
-                  },
+                  ...(canWrite
+                    ? [
+                        {
+                          label: t("agentConfig.exportModels"),
+                          icon: <Download size={16} />,
+                          disabled: !models.length,
+                          onClick: handleExportModels,
+                        },
+                        {
+                          label: t("agentConfig.importModels"),
+                          icon: <FileJson size={16} />,
+                          onClick: () => {
+                            setBatchInitialTab("jsonImport");
+                            setShowBatchModal(true);
+                          },
+                        },
+                        {
+                          label: t("agentConfig.batchCreate"),
+                          icon: <Layers size={16} />,
+                          onClick: () => {
+                            setBatchInitialTab("addOneByOne");
+                            setShowBatchModal(true);
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(canPrice
+                    ? [
+                        {
+                          label: t("agentConfig.pricingSync"),
+                          icon: <RefreshCw size={16} />,
+                          disabled: isSyncingPrices,
+                          onClick: handleSyncPrices,
+                        },
+                        {
+                          label: t("agentConfig.pricingBackfill"),
+                          icon: <History size={16} />,
+                          disabled: isBackfillingCosts,
+                          onClick: handleBackfillCosts,
+                        },
+                      ]
+                    : []),
                 ]}
               />
             )}
@@ -804,11 +835,12 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
       </div>
 
       {/* Create / Edit Modal — isolated component, form state lives here */}
-      {(editingModel || isCreating) && (
+      {canWrite && (editingModel || isCreating) && (
         <ModelFormModal
           key={editingModel?.id ?? "new"}
           model={editingModel}
           models={models}
+          canManagePricing={canPrice}
           onClose={() => {
             setEditingModel(null);
             setIsCreating(false);
@@ -818,7 +850,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
       )}
 
       {/* Batch Create Modal — isolated component, batch state lives here */}
-      {showBatchModal && (
+      {canWrite && showBatchModal && (
         <BatchCreateModal
           initialTab={batchInitialTab}
           onClose={handleBatchClosed}

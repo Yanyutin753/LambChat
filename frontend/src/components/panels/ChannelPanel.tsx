@@ -360,6 +360,7 @@ export function ChannelPanel({
   };
 
   const handleTest = async () => {
+    if (!canWrite) return;
     setIsTesting(true);
     setSaveError(null);
     try {
@@ -554,7 +555,7 @@ export function ChannelPanel({
             </div>
             <Button
               onClick={handleTest}
-              disabled={isTesting || !enabled}
+              disabled={!canWrite || isTesting || !enabled}
               loading={isTesting}
               leftIcon={<RefreshCw size={14} />}
               size="sm"

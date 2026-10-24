@@ -35,3 +35,10 @@ async def test_personal_preference_tool_scope_honors_default_and_explicit_overri
     assert result["success"] is True
     assert backend.retain.await_args.kwargs["scope"] == expected
     assert backend.retain.await_args.kwargs["source"] == "auto_retained"
+
+
+@pytest.fixture(autouse=True)
+def _grant_business_capability(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.memory.tools.has_tool_permission", AsyncMock(return_value=True))

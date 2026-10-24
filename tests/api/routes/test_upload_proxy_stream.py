@@ -16,9 +16,12 @@ from src.api.routes import upload
 
 
 @pytest.fixture(autouse=True)
-def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise stream rendering after the separate file-access gate accepts."""
-    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
+def _owned_file_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = SimpleNamespace(
+        is_private_key=AsyncMock(return_value=False),
+        find_by_key=AsyncMock(return_value={"uploaded_by": "owner-a"}),
+    )
+    monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: records)
 
 
 def _fake_request() -> SimpleNamespace:
@@ -77,7 +80,12 @@ async def test_proxy_stream_with_cjk_filename_builds_headers(
         ),
     )
 
-    resp = await upload.get_file_proxy("document/u1/abc.docx", _fake_request(), proxy=True)
+    resp = await upload.get_file_proxy(
+        "document/u1/abc.docx",
+        _fake_request(),
+        proxy=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     disposition = resp.headers["content-disposition"]
@@ -99,7 +107,12 @@ async def test_proxy_stream_with_ascii_filename_keeps_plain_header(
         _FakeRecordStorage({"name": "report.docx", "mime_type": None}),
     )
 
-    resp = await upload.get_file_proxy("document/u1/abc.docx", _fake_request(), proxy=True)
+    resp = await upload.get_file_proxy(
+        "document/u1/abc.docx",
+        _fake_request(),
+        proxy=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.headers["content-disposition"] == 'inline; filename="report.docx"'
@@ -114,7 +127,12 @@ async def test_proxy_stream_without_record_serves_octet_stream(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr(upload, "_file_record_storage", _FakeRecordStorage(None))
 
-    resp = await upload.get_file_proxy("document/u1/abc.docx", _fake_request(), proxy=True)
+    resp = await upload.get_file_proxy(
+        "document/u1/abc.docx",
+        _fake_request(),
+        proxy=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert "content-disposition" not in resp.headers

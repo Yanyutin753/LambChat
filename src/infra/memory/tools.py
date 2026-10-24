@@ -14,6 +14,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.llm.quota import is_quota_error
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import (
@@ -153,6 +154,8 @@ async def memory_retain(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await has_tool_permission(user_id, "memory:write"):
+        return await _json_dumps_result({"error": "Permission denied: memory:write required"})
     if not await user_memory_enabled(user_id):
         return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 
@@ -238,6 +241,8 @@ async def memory_recall(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await has_tool_permission(user_id, "memory:read"):
+        return await _json_dumps_result({"error": "Permission denied: memory:read required"})
     if not await user_memory_enabled(user_id):
         return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 
@@ -274,6 +279,8 @@ async def memory_delete(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await has_tool_permission(user_id, "memory:delete"):
+        return await _json_dumps_result({"error": "Permission denied: memory:delete required"})
     if not await user_memory_enabled(user_id):
         return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 

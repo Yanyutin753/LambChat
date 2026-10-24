@@ -9,7 +9,7 @@ import { Button } from "../common/ui/Button";
 export function UserQuotaControls({ userId }: { userId: string }) {
   const { t, i18n } = useTranslation();
   const { hasPermission } = useAuth();
-  const allowed = hasPermission(Permission.USAGE_ADMIN);
+  const allowed = hasPermission(Permission.USAGE_QUOTA_MANAGE);
   const [quota, setQuota] = useState<UsageQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

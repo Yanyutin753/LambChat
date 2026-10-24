@@ -40,7 +40,7 @@ async def reset_api(monkeypatch):
     )
     app = FastAPI()
     app.include_router(usage.router, prefix="/usage")
-    user = TokenPayload(sub="owner", username="Owner", permissions=[])
+    user = TokenPayload(sub="owner", username="Owner", permissions=["usage:read"])
     app.dependency_overrides[get_current_user_required] = lambda: user
 
     @app.exception_handler(AppError)
@@ -73,7 +73,7 @@ async def test_admin_routes_require_usage_admin(reset_api):
 
 async def test_committed_mutations_notify_target_and_owner_only(reset_api):
     client, service, user = reset_api
-    user.permissions = ["usage:admin"]
+    user.permissions = ["usage:read", "usage:admin", "usage:quota_manage"]
     response = await client.post(
         "/usage/users/target/quota/reset-cards", json={"idempotency_key": str(uuid.uuid4())}
     )
@@ -129,7 +129,7 @@ async def test_admin_target_must_be_active_and_actor_is_audited(reset_api, monke
     from src.infra.user.storage import UserStorage
 
     client, service, user = reset_api
-    user.permissions = ["usage:admin"]
+    user.permissions = ["usage:read", "usage:admin", "usage:quota_manage"]
     operation = str(uuid.uuid4())
     response = await client.post(
         "/usage/users/target/quota/reset", json={"window": "weekly", "idempotency_key": operation}
@@ -147,7 +147,7 @@ async def test_admin_target_must_be_active_and_actor_is_audited(reset_api, monke
 
 async def test_issue_card_forwards_validated_window(reset_api):
     client, service, user = reset_api
-    user.permissions = ["usage:admin"]
+    user.permissions = ["usage:read", "usage:admin", "usage:quota_manage"]
     key = str(uuid.uuid4())
     response = await client.post(
         "/usage/users/target/quota/reset-cards", json={"idempotency_key": key, "window": "weekly"}

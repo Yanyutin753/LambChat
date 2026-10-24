@@ -241,12 +241,14 @@ def to_available_model(model: ModelConfig) -> AvailableModel:
 
 
 def mask_api_key(model: ModelConfig) -> ModelConfig:
-    """Return a copy of the model with the API key masked for safe display."""
+    """Return credentials masked, including arbitrary custom authentication headers."""
+    updates: dict = {}
+    if model.request_headers:
+        updates["request_headers"] = {key: "********" for key in model.request_headers}
     if model.api_key:
         key = model.api_key
-        masked = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "****"
-        return model.model_copy(update={"api_key": masked})
-    return model
+        updates["api_key"] = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "****"
+    return model.model_copy(update=updates)
 
 
 class ModelResponse(BaseModel):

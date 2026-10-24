@@ -20,9 +20,12 @@ from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
-def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise thumbnail rendering after the separate file-access gate accepts."""
-    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
+def _owned_file_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = SimpleNamespace(
+        is_private_key=AsyncMock(return_value=False),
+        find_by_key=AsyncMock(return_value={"uploaded_by": "owner-a"}),
+    )
+    monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: records)
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +89,12 @@ async def test_thumb_redirects_to_lfit_presigned_url_on_aliyun(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code in (302, 307)
     assert storage.presigned_calls[0]["process"] == (
@@ -105,7 +113,12 @@ async def test_aliyun_thumb_signing_does_not_wait_for_a_remote_existence_check(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.png", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.png",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 302
     assert storage.existence_checks == []
@@ -118,8 +131,18 @@ async def test_thumb_signature_is_day_aligned_and_stable(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), thumb=True)
-    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), thumb=True)
+    await upload.get_file_proxy(
+        "a/b/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
+    await upload.get_file_proxy(
+        "a/b/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     expires = [c["expires"] for c in storage.presigned_calls]
     assert expires[0] == expires[1]
@@ -134,7 +157,12 @@ async def test_thumb_404s_for_unsupported_types_without_traffic(
 
     for key in ("a/b/anim.gif", "a/b/icon.svg", "a/b/archive.zip", "a/b/clip.mp4"):
         with pytest.raises(AppError) as exc:
-            await upload.get_file_proxy(key, _fake_request(), thumb=True)
+            await upload.get_file_proxy(
+                key,
+                _fake_request(),
+                thumb=True,
+                current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+            )
         assert exc.value.error_code.code == "thumb_not_available"
         assert exc.value.http_status == 404
 
@@ -169,7 +197,12 @@ async def test_thumb_local_renders_aspect_fit_without_cropping(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage(src)))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -188,7 +221,12 @@ async def test_thumb_local_binds_both_dimensions_for_tall_images(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage(src)))
 
-    resp = await upload.get_file_proxy("revealed_files/tall.jpg", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/tall.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     thumb = Image.open(io.BytesIO(resp.body))
     assert thumb.size[1] == 560
@@ -204,7 +242,12 @@ async def test_thumb_local_composites_alpha_onto_white(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage(src)))
 
-    resp = await upload.get_file_proxy("revealed_files/logo.png", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/logo.png",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     thumb = Image.open(io.BytesIO(resp.body))
     assert thumb.mode == "RGB"
@@ -222,7 +265,12 @@ async def test_thumb_local_missing_file_404s(monkeypatch: pytest.MonkeyPatch, tm
     )
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("revealed_files/nope.jpg", _fake_request(), thumb=True)
+        await upload.get_file_proxy(
+            "revealed_files/nope.jpg",
+            _fake_request(),
+            thumb=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "file_not_found"
     assert exc.value.http_status == 404
 
@@ -272,7 +320,12 @@ async def test_thumb_non_aliyun_renders_and_caches_beside_original(
     storage = _FakeRenderStorage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -290,7 +343,12 @@ async def test_thumb_non_aliyun_serves_cache_without_re_render(
     storage = _FakeRenderStorage(cached=True)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        thumb=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert storage.downloads == ["thumbs/560/revealed_files/hero.jpg.jpg"]
@@ -305,7 +363,12 @@ async def test_thumb_non_aliyun_skips_oversized_sources(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("revealed_files/huge.jpg", _fake_request(), thumb=True)
+        await upload.get_file_proxy(
+            "revealed_files/huge.jpg",
+            _fake_request(),
+            thumb=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "thumb_not_available"
     assert exc.value.http_status == 404
     assert storage.downloads == []
@@ -322,7 +385,12 @@ async def test_thumb_concurrent_first_requests_render_only_once(
 
     responses = await asyncio.gather(
         *[
-            upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), thumb=True)
+            upload.get_file_proxy(
+                "revealed_files/hero.jpg",
+                _fake_request(),
+                thumb=True,
+                current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+            )
             for _ in range(4)
         ]
     )
@@ -358,7 +426,11 @@ async def test_image_variant_proxy_fetches_processed_bytes_without_forwarding_us
     request = _fake_request()
     request.headers["authorization"] = "Bearer must-not-leak"
     response = await upload.get_file_proxy(
-        "revealed_files/hero.jpg", request, proxy=True, **{variant: True}
+        "revealed_files/hero.jpg",
+        request,
+        proxy=True,
+        **{variant: True},
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
     )
 
     assert response.status_code == 200
@@ -391,6 +463,10 @@ async def test_image_variant_proxy_rejects_upstream_errors_and_redirects(
     )
     with pytest.raises(AppError) as exc:
         await upload.get_file_proxy(
-            "revealed_files/hero.jpg", _fake_request(), thumb=True, proxy=True
+            "revealed_files/hero.jpg",
+            _fake_request(),
+            thumb=True,
+            proxy=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
         )
     assert exc.value.error_code.code == "file_read_failed"

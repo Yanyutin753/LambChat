@@ -212,27 +212,11 @@ async def check_and_consume_mcp_quota(
 
 
 async def resolve_user_mcp_access(user_id: str) -> tuple[list[str], bool]:
-    """Resolve user's role names and whether they have MCP admin permission."""
-    try:
-        from src.infra.role.storage import RoleStorage
-        from src.infra.user.storage import UserStorage
+    """Configuration administration never bypasses execution policy or quotas."""
+    from src.infra.auth.tool_authority import resolve_tool_user
 
-        user = await UserStorage().get_by_id(user_id)
-        if not user or not user.roles:
-            return [], False
-
-        role_storage = RoleStorage()
-        roles = await role_storage.get_by_names(user.roles)
-        resolved_roles: list[str] = []
-        permissions: set[str] = set()
-        for role in roles:
-            resolved_roles.append(role.name)
-            for permission in role.permissions:
-                permissions.add(permission if isinstance(permission, str) else permission.value)
-        return resolved_roles, "mcp:admin" in permissions
-    except Exception as exc:
-        logger.warning("[MCP Quota] Failed to resolve user MCP access: %s", exc)
-        return [], False
+    user = await resolve_tool_user(user_id)
+    return (user.roles, False) if user else ([], False)
 
 
 async def check_and_consume_system_mcp_quota(

@@ -19,6 +19,25 @@ from src.infra.tool import upload_url_tool
 def owned_download_files(monkeypatch):
     from unittest.mock import AsyncMock
 
+    from src.kernel.schemas.user import TokenPayload
+
+    reader = TokenPayload(
+        sub="user-1",
+        username="reader",
+        roles=["reader"],
+        permissions=["file:read", "sandbox:execute"],
+    )
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            side_effect=lambda user_id: (
+                reader.model_copy(update={"sub": user_id})
+                if user_id in {"user-1", "owner"}
+                else None
+            )
+        ),
+    )
+
     async def authorize(url, *args, **kwargs):
         return url
 

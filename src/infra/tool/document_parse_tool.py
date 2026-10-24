@@ -236,20 +236,36 @@ async def _upload_image_to_storage(
 async def document_parse(
     url: Annotated[
         str,
-        "Document URL: absolute http(s), /api attachment path, or /workspace sandbox path.",
-    ],
+        "http(s) URL, /api attachment path, or /workspace path.",
+    ] = "",
     include_images: Annotated[
         bool,
-        "Extract embedded images, upload them to storage and inline them as Markdown image URLs.",
+        "Upload embedded images and inline their Markdown URLs.",
     ] = True,
-    pages: Annotated[
-        str | None, "Optional 0-based page range for large documents, such as '0-3' or '0,2-4'."
-    ] = None,
+    pages: Annotated[str | None, "0-based pages, e.g. '0-3' or '0,2-4'."] = None,
+    attachment_id: Annotated[str, "Uploaded attachment ID (preferred over URL)."] = "",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Parse a document (PDF, DOCX, PPTX, DOC, PPT, ODT) into Markdown with
-    embedded images uploaded and inlined as image URLs. Use this to read user
-    document attachments instead of writing ad-hoc sandbox parsing code."""
+    """Read PDF/DOCX/PPTX/DOC/PPT/ODT as Markdown with embedded images.
+    Pass attachment_id directly for uploads; no sandbox download is needed.
+    Otherwise pass url for external URLs or sandbox paths."""
+
+    if bool(attachment_id) == bool(url):
+        return await _json_dumps_result({"error": "Supply exactly one of attachment_id or url"})
+    if attachment_id:
+        from src.infra.tool.upload_url_tool import _resolve_attachment_url
+
+        try:
+            resolved = await _resolve_attachment_url(
+                attachment_id, runtime, get_base_url_from_runtime(runtime)
+            )
+        except Exception:
+            return await _json_dumps_result(
+                {"error": "Attachment lookup failed; please retry later"}
+            )
+        if not resolved:
+            return await _json_dumps_result({"error": "Attachment unavailable in this session"})
+        url = resolved
 
     sandbox_path = _sandbox_path_of(url)
     resolved_url = sandbox_path if sandbox_path is not None else _resolve_url(url, runtime)

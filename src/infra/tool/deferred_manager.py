@@ -44,10 +44,9 @@ def _system_domain(name: str) -> str:
 
 DEFERRED_TOOL_SEARCH_GUIDE = (
     "## Tool Search Guide\n\n"
-    "Deferred MCP/system tool schemas are not loaded. If a listed tool helps, "
-    "call `search_tools` once, then call the loaded tool directly. Before "
-    "calling data or a tool unavailable, `search_tools` the domain (git, "
-    "filesystem, command execution, database) first."
+    "Call already-loaded tools directly. For tools without a loaded schema, "
+    "call `search_tools` once, then use the tool. Before declaring data or a "
+    "tool unavailable, search its domain (git, filesystem, command execution, database)."
 )
 
 
@@ -360,6 +359,16 @@ class DeferredToolManager:
             )
 
         return newly_discovered
+
+    def discover_attachment_tools(self, attachments: list[dict] | None) -> None:
+        """Expose an already-authorized parser without a model discovery round trip."""
+        from src.infra.tool.document_parse_tool import detect_document_extension
+
+        if self._tool_kinds.get("document_parse") == "system" and any(
+            detect_document_extension(str(attachment.get("name") or ""))
+            for attachment in attachments or []
+        ):
+            self.discover_tools(["document_parse"])
 
     def is_discovered(self, name: str) -> bool:
         """检查工具是否已发现"""

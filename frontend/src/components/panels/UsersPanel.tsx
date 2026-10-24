@@ -112,8 +112,23 @@ function UserFormModal({
   isLoading,
 }: UserFormModalProps) {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
-  const canWrite = hasPermission(Permission.USER_WRITE);
+  const { hasPermission, user: actor } = useAuth();
+  const isEditing = !!user;
+  const canProfile = hasPermission(
+    isEditing ? Permission.USER_WRITE : Permission.USER_CREATE,
+  );
+  const canPassword =
+    !isEditing || hasPermission(Permission.USER_RESET_PASSWORD);
+  const canStatus = hasPermission(Permission.USER_STATUS);
+  const canAssignRoles = hasPermission(Permission.USER_ASSIGN_ROLES);
+  const canWrite = isEditing
+    ? canProfile || canPassword || canStatus || canAssignRoles
+    : canProfile;
+  const assignableRoles = roles.filter(
+    (role) =>
+      hasPermission(Permission.SYSTEM_ADMIN) ||
+      actor?.assignable_role_ids?.includes(role.id),
+  );
   const formId = useId();
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
@@ -123,8 +138,6 @@ function UserFormModal({
   );
   const [isActive, setIsActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
-
-  const isEditing = !!user;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,13 +164,14 @@ function UserFormModal({
 
     try {
       if (isEditing) {
-        const updateData: UserUpdate = {
-          username: username.trim(),
-          email: email.trim(),
-          roles: selectedRoles,
-          is_active: isActive,
-        };
-        if (password) {
+        const updateData: UserUpdate = {};
+        if (canProfile) {
+          updateData.username = username.trim();
+          if (canPassword) updateData.email = email.trim();
+        }
+        if (canAssignRoles) updateData.roles = selectedRoles;
+        if (canStatus) updateData.is_active = isActive;
+        if (canPassword && password) {
           updateData.password = password;
         }
         await onSave(updateData);
@@ -166,7 +180,7 @@ function UserFormModal({
           username: username.trim(),
           email: email.trim(),
           password,
-          roles: selectedRoles,
+          ...(canAssignRoles ? { roles: selectedRoles } : {}),
         };
         await onSave(createData);
       }
@@ -234,6 +248,7 @@ function UserFormModal({
             <Input
               id={`${formId}-username`}
               type="text"
+              disabled={!canProfile}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               leadingIcon={<User size={16} />}
@@ -250,6 +265,7 @@ function UserFormModal({
             <Input
               id={`${formId}-email`}
               type="email"
+              disabled={!canProfile || (isEditing && !canPassword)}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               leadingIcon={<Mail size={16} />}
@@ -259,73 +275,75 @@ function UserFormModal({
           </div>
 
           {/* 密码 */}
-          <div className="es-field">
-            <label htmlFor={`${formId}-password`} className="es-label">
-              {t("users.password")} {isEditing && t("users.passwordHint")}
-            </label>
-            <Input
-              id={`${formId}-password`}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              leadingIcon={<Lock size={16} />}
-              className="es-input"
-              placeholder={
-                isEditing
-                  ? t("users.passwordPlaceholderEdit")
-                  : t("users.passwordPlaceholder")
-              }
-            />
-          </div>
-
-          {/* 角色 */}
-          <div className="es-field">
-            <label className="es-label">{t("users.roles")}</label>
-            <div className="es-section">
-              {rolesLoading ? (
-                <p className="es-hint" role="status">
-                  {t("common.loading")}
-                </p>
-              ) : rolesLoadError ? (
-                <div
-                  role="alert"
-                  className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
-                >
-                  <span>{t("common.loadFailed")}</span>
-                  <Button onClick={onRetryRoles} size="sm">
-                    {t("common.refresh")}
-                  </Button>
-                </div>
-              ) : roles.length === 0 ? (
-                <p className="es-hint">{t("users.noRolesAvailable")}</p>
-              ) : (
-                <div className="space-y-1">
-                  {roles.map((role) => (
-                    <label
-                      key={role.id}
-                      className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
-                    >
-                      <Checkbox
-                        ariaLabel={role.name}
-                        size="sm"
-                        checked={selectedRoles.includes(role.name)}
-                        onChange={() => toggleRole(role.name)}
-                      />
-                      <span className="text-14 text-theme-text">
-                        {role.name}
-                      </span>
-                      {role.is_system && (
-                        <span className="es-chip">{t("users.system")}</span>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              )}
+          {canPassword && (
+            <div className="es-field">
+              <label htmlFor={`${formId}-password`} className="es-label">
+                {t("users.password")} {isEditing && t("users.passwordHint")}
+              </label>
+              <Input
+                id={`${formId}-password`}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leadingIcon={<Lock size={16} />}
+                className="es-input"
+                placeholder={
+                  isEditing
+                    ? t("users.passwordPlaceholderEdit")
+                    : t("users.passwordPlaceholder")
+                }
+              />
             </div>
-          </div>
-
+          )}
+          {/* 角色 */}
+          {canAssignRoles && (
+            <div className="es-field">
+              <label className="es-label">{t("users.roles")}</label>
+              <div className="es-section">
+                {rolesLoading ? (
+                  <p className="es-hint" role="status">
+                    {t("common.loading")}
+                  </p>
+                ) : rolesLoadError ? (
+                  <div
+                    role="alert"
+                    className="flex flex-wrap items-center justify-between gap-2 text-12 text-theme-text-secondary"
+                  >
+                    <span>{t("common.loadFailed")}</span>
+                    <Button onClick={onRetryRoles} size="sm">
+                      {t("common.refresh")}
+                    </Button>
+                  </div>
+                ) : roles.length === 0 ? (
+                  <p className="es-hint">{t("users.noRolesAvailable")}</p>
+                ) : (
+                  <div className="space-y-1">
+                    {assignableRoles.map((role) => (
+                      <label
+                        key={role.id}
+                        className="group flex min-h-11 sm:min-h-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
+                      >
+                        <Checkbox
+                          ariaLabel={role.name}
+                          size="sm"
+                          checked={selectedRoles.includes(role.name)}
+                          onChange={() => toggleRole(role.name)}
+                        />
+                        <span className="text-14 text-theme-text">
+                          {role.name}
+                        </span>
+                        {role.is_system && (
+                          <span className="es-chip">{t("users.system")}</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {/* 状态 */}
-          {isEditing && (
+          {isEditing && canStatus && (
             <div className="es-field">
               <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
                 <Checkbox
@@ -384,13 +402,24 @@ export function UsersPanel() {
   const [showBulkCards, setShowBulkCards] = useState(false);
 
   // 权限检查
-  const canCreate = hasPermission(Permission.USER_WRITE);
-  const canEdit = hasPermission(Permission.USER_WRITE);
-  const canManageQuota = hasPermission(Permission.USAGE_ADMIN);
+  const canCreate = hasPermission(Permission.USER_CREATE);
+  const canAssignRoles = hasPermission(Permission.USER_ASSIGN_ROLES);
+  const canEdit = [
+    Permission.USER_WRITE,
+    Permission.USER_STATUS,
+    Permission.USER_RESET_PASSWORD,
+    Permission.USER_ASSIGN_ROLES,
+  ].some(hasPermission);
+  const canManageQuota = hasPermission(Permission.USAGE_QUOTA_MANAGE);
   const canOpenUser = canEdit || canManageQuota;
   const canDelete = hasPermission(Permission.USER_DELETE);
 
   const loadRoles = useCallback(async () => {
+    if (!canAssignRoles) {
+      setRoles([]);
+      setRolesLoading(false);
+      return;
+    }
     setRolesLoading(true);
     setRolesLoadError(false);
     try {
@@ -401,7 +430,7 @@ export function UsersPanel() {
     } finally {
       setRolesLoading(false);
     }
-  }, []);
+  }, [canAssignRoles]);
 
   // 加载数据
   const loadData = useCallback(async () => {

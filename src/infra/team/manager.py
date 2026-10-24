@@ -41,7 +41,9 @@ class TeamManager:
         hydrated_members = []
         for member in team.members:
             preset = personas.get(member.persona_preset_id)
-            if not preset:
+            if not preset or not PersonaPresetManager._can_view(
+                preset, user_id=team.owner_user_id, is_admin=False
+            ):
                 hydrated_members.append(member)
                 continue
             try:

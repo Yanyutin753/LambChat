@@ -20,7 +20,7 @@ vi.mock("../../../services/api/usage", () => ({ usageApi: mocks }));
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({
     hasPermission: (permission: Permission) =>
-      permission === Permission.USAGE_ADMIN && mocks.allowed,
+      permission === Permission.USAGE_QUOTA_MANAGE && mocks.allowed,
   }),
 }));
 afterEach(cleanup);

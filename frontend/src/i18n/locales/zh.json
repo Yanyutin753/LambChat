@@ -3101,7 +3101,12 @@
     "budgetTitle": "模型费用额度（USD）",
     "weeklyBudgetUsd": "每周额度（USD）",
     "budgetHint": "留空表示此角色不设置额度。多个角色中采用已配置的最高额度；仅当所有匹配角色都未设置额度时才不限额。0 禁止模型调用。首次模型调用分别开启 5 小时和 7 天窗口；各自到期后，下一次调用开启相应的新窗口。查看余额不会开始计时。",
-    "fiveHourBudgetUsd": "5 小时额度（USD）"
+    "fiveHourBudgetUsd": "5 小时额度（USD）",
+    "grantablePermissions": "可委派的权限",
+    "assignableRoles": "可分配的角色",
+    "delegationHint": "仅可委派此处明确选择的权限与角色。系统管理权限不可委派。",
+    "unrestrictedModels": "允许使用全部已配置模型",
+    "explicitModelsHint": "未选择模型表示不允许使用任何模型；无限制访问必须显式开启。"
   },
   "scheduledTask": {
     "noTimeLimit": "无总时长限制",
@@ -4767,5 +4772,390 @@
     "useAuthenticator": "使用验证器验证码",
     "tokenNotice": "开启双重验证或重新生成恢复码会使其他登录会话、已有 API 令牌和设备配对失效，设备需重新登录配对。关闭双重验证只会使其他登录会话失效。",
     "optionalCode": "验证码或恢复码（启用 2FA 时填写）"
+  },
+  "permissionCatalog": {
+    "system:admin": {
+      "label": "受保护的系统管理",
+      "description": "允许：受保护的系统管理。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:create": {
+      "label": "创建账号",
+      "description": "允许：创建账号。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:status": {
+      "label": "启用或停用账号",
+      "description": "允许：启用或停用账号。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:reset_password": {
+      "label": "重置账号凭据",
+      "description": "允许：重置账号凭据。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:assign_roles": {
+      "label": "在授权范围内分配账号角色",
+      "description": "允许：在授权范围内分配账号角色。仍须满足其他操作权限与资源归属限制。"
+    },
+    "role:read": {
+      "label": "查看角色与授权规则",
+      "description": "允许：查看角色与授权规则。仍须满足其他操作权限与资源归属限制。"
+    },
+    "role:write": {
+      "label": "创建角色与编辑角色资料",
+      "description": "允许：创建角色与编辑角色资料。仍须满足其他操作权限与资源归属限制。"
+    },
+    "role:delete": {
+      "label": "删除自定义角色",
+      "description": "允许：删除自定义角色。仍须满足其他操作权限与资源归属限制。"
+    },
+    "role:grant": {
+      "label": "在授权范围内委派权限",
+      "description": "允许：在授权范围内委派权限。仍须满足其他操作权限与资源归属限制。"
+    },
+    "settings:read": {
+      "label": "查看系统设置",
+      "description": "允许：查看系统设置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "settings:security": {
+      "label": "编辑安全与凭据设置",
+      "description": "允许：编辑安全与凭据设置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "settings:reset": {
+      "label": "重置系统设置",
+      "description": "允许：重置系统设置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:system_read": {
+      "label": "查看系统 MCP 配置",
+      "description": "允许：查看系统 MCP 配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:system_delete": {
+      "label": "删除系统 MCP 服务器",
+      "description": "允许：删除系统 MCP 服务器。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:policy_manage": {
+      "label": "管理 MCP 工具授权策略",
+      "description": "允许：管理 MCP 工具授权策略。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:export": {
+      "label": "导出 MCP 配置与密钥",
+      "description": "允许：导出 MCP 配置与密钥。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:read": {
+      "label": "读取自己的文件",
+      "description": "允许：读取自己的文件。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:delete": {
+      "label": "删除自己的文件",
+      "description": "允许：删除自己的文件。仍须满足其他操作权限与资源归属限制。"
+    },
+    "agent:config_read": {
+      "label": "查看 Agent 配置",
+      "description": "允许：查看 Agent 配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "agent:assign": {
+      "label": "向角色分配 Agent",
+      "description": "允许：向角色分配 Agent。仍须满足其他操作权限与资源归属限制。"
+    },
+    "model:read": {
+      "label": "查看模型配置",
+      "description": "允许：查看模型配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "model:delete": {
+      "label": "删除模型配置",
+      "description": "允许：删除模型配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "model:assign": {
+      "label": "向角色分配模型",
+      "description": "允许：向角色分配模型。仍须满足其他操作权限与资源归属限制。"
+    },
+    "pricing:manage": {
+      "label": "管理价格与历史用量补价",
+      "description": "允许：管理价格与历史用量补价。仍须满足其他操作权限与资源归属限制。"
+    },
+    "project:read": {
+      "label": "查看自己的项目",
+      "description": "允许：查看自己的项目。仍须满足其他操作权限与资源归属限制。"
+    },
+    "project:write": {
+      "label": "创建和编辑自己的项目",
+      "description": "允许：创建和编辑自己的项目。仍须满足其他操作权限与资源归属限制。"
+    },
+    "project:delete": {
+      "label": "删除自己的项目",
+      "description": "允许：删除自己的项目。仍须满足其他操作权限与资源归属限制。"
+    },
+    "memory:read": {
+      "label": "读取自己的记忆",
+      "description": "允许：读取自己的记忆。仍须满足其他操作权限与资源归属限制。"
+    },
+    "memory:write": {
+      "label": "创建、编辑和导入自己的记忆",
+      "description": "允许：创建、编辑和导入自己的记忆。仍须满足其他操作权限与资源归属限制。"
+    },
+    "memory:delete": {
+      "label": "删除自己的记忆",
+      "description": "允许：删除自己的记忆。仍须满足其他操作权限与资源归属限制。"
+    },
+    "memory:export": {
+      "label": "导出自己的记忆",
+      "description": "允许：导出自己的记忆。仍须满足其他操作权限与资源归属限制。"
+    },
+    "sandbox:read": {
+      "label": "查看自己的沙箱连接与文件",
+      "description": "允许：查看自己的沙箱连接与文件。仍须满足其他操作权限与资源归属限制。"
+    },
+    "sandbox:execute": {
+      "label": "在自己的沙箱中执行操作",
+      "description": "允许：在自己的沙箱中执行操作。仍须满足其他操作权限与资源归属限制。"
+    },
+    "sandbox:manage": {
+      "label": "管理自己的沙箱连接",
+      "description": "允许：管理自己的沙箱连接。仍须满足其他操作权限与资源归属限制。"
+    },
+    "persona_preset:delete": {
+      "label": "删除自己的角色预设",
+      "description": "允许：删除自己的角色预设。仍须满足其他操作权限与资源归属限制。"
+    },
+    "envvar:reveal": {
+      "label": "查看自己的环境变量明文",
+      "description": "允许：查看自己的环境变量明文。仍须满足其他操作权限与资源归属限制。"
+    },
+    "notification:read": {
+      "label": "查看通知管理",
+      "description": "允许：查看通知管理。仍须满足其他操作权限与资源归属限制。"
+    },
+    "notification:delete": {
+      "label": "删除通知",
+      "description": "允许：删除通知。仍须满足其他操作权限与资源归属限制。"
+    },
+    "usage:quota_manage": {
+      "label": "管理额度与发放重置卡",
+      "description": "允许：管理额度与发放重置卡。仍须满足其他操作权限与资源归属限制。"
+    },
+    "chat:write": {
+      "label": "向已授权 Agent 发送消息",
+      "description": "允许：向已授权 Agent 发送消息。仍须满足其他操作权限与资源归属限制。"
+    },
+    "session:read": {
+      "label": "读取自己的会话与偏好",
+      "description": "允许：读取自己的会话与偏好。仍须满足其他操作权限与资源归属限制。"
+    },
+    "session:write": {
+      "label": "创建和编辑自己的会话",
+      "description": "允许：创建和编辑自己的会话。仍须满足其他操作权限与资源归属限制。"
+    },
+    "session:delete": {
+      "label": "删除自己的会话与消息",
+      "description": "允许：删除自己的会话与消息。仍须满足其他操作权限与资源归属限制。"
+    },
+    "session:share": {
+      "label": "分享自己的会话与项目",
+      "description": "允许：分享自己的会话与项目。仍须满足其他操作权限与资源归属限制。"
+    },
+    "skill:read": {
+      "label": "读取自己的技能",
+      "description": "允许：读取自己的技能。仍须满足其他操作权限与资源归属限制。"
+    },
+    "skill:write": {
+      "label": "创建、编辑和安装自己的技能",
+      "description": "允许：创建、编辑和安装自己的技能。仍须满足其他操作权限与资源归属限制。"
+    },
+    "skill:delete": {
+      "label": "删除自己的技能",
+      "description": "允许：删除自己的技能。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:read": {
+      "label": "查看账号目录",
+      "description": "允许：查看账号目录。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:write": {
+      "label": "编辑账号基本资料",
+      "description": "允许：编辑账号基本资料。仍须满足其他操作权限与资源归属限制。"
+    },
+    "user:delete": {
+      "label": "删除可管理的账号",
+      "description": "允许：删除可管理的账号。仍须满足其他操作权限与资源归属限制。"
+    },
+    "settings:manage": {
+      "label": "编辑运行配置",
+      "description": "允许：编辑运行配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:read": {
+      "label": "读取 MCP 元数据与个人偏好",
+      "description": "允许：读取 MCP 元数据与个人偏好。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:write_sse": {
+      "label": "创建和编辑自己的 SSE MCP 服务器",
+      "description": "允许：创建和编辑自己的 SSE MCP 服务器。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:write_http": {
+      "label": "创建和编辑自己的 HTTP MCP 服务器",
+      "description": "允许：创建和编辑自己的 HTTP MCP 服务器。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:delete": {
+      "label": "删除自己的 MCP 服务器",
+      "description": "允许：删除自己的 MCP 服务器。仍须满足其他操作权限与资源归属限制。"
+    },
+    "mcp:admin": {
+      "label": "维护系统 MCP 配置",
+      "description": "允许：维护系统 MCP 配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:upload": {
+      "label": "上传自己的文件",
+      "description": "允许：上传自己的文件。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:upload:image": {
+      "label": "上传自己的图片",
+      "description": "允许：上传自己的图片。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:upload:video": {
+      "label": "上传自己的视频",
+      "description": "允许：上传自己的视频。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:upload:audio": {
+      "label": "上传自己的音频",
+      "description": "允许：上传自己的音频。仍须满足其他操作权限与资源归属限制。"
+    },
+    "file:upload:document": {
+      "label": "上传自己的文档",
+      "description": "允许：上传自己的文档。仍须满足其他操作权限与资源归属限制。"
+    },
+    "avatar:upload": {
+      "label": "管理自己的头像",
+      "description": "允许：管理自己的头像。仍须满足其他操作权限与资源归属限制。"
+    },
+    "feedback:write": {
+      "label": "提交自己的反馈",
+      "description": "允许：提交自己的反馈。仍须满足其他操作权限与资源归属限制。"
+    },
+    "feedback:read": {
+      "label": "查看平台反馈",
+      "description": "允许：查看平台反馈。仍须满足其他操作权限与资源归属限制。"
+    },
+    "feedback:admin": {
+      "label": "删除平台反馈",
+      "description": "允许：删除平台反馈。仍须满足其他操作权限与资源归属限制。"
+    },
+    "channel:read": {
+      "label": "查看自己的渠道配置",
+      "description": "允许：查看自己的渠道配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "channel:write": {
+      "label": "创建、编辑和测试自己的渠道",
+      "description": "允许：创建、编辑和测试自己的渠道。仍须满足其他操作权限与资源归属限制。"
+    },
+    "channel:delete": {
+      "label": "删除自己的渠道",
+      "description": "允许：删除自己的渠道。仍须满足其他操作权限与资源归属限制。"
+    },
+    "agent:read": {
+      "label": "查看已授权的 Agent",
+      "description": "允许：查看已授权的 Agent。仍须满足其他操作权限与资源归属限制。"
+    },
+    "agent:admin": {
+      "label": "维护 Agent 配置",
+      "description": "允许：维护 Agent 配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "model:admin": {
+      "label": "维护模型配置",
+      "description": "允许：维护模型配置。仍须满足其他操作权限与资源归属限制。"
+    },
+    "marketplace:read": {
+      "label": "浏览技能市场",
+      "description": "允许：浏览技能市场。仍须满足其他操作权限与资源归属限制。"
+    },
+    "marketplace:publish": {
+      "label": "发布和更新自己的市场技能",
+      "description": "允许：发布和更新自己的市场技能。仍须满足其他操作权限与资源归属限制。"
+    },
+    "marketplace:admin": {
+      "label": "审核和管理市场条目",
+      "description": "允许：审核和管理市场条目。仍须满足其他操作权限与资源归属限制。"
+    },
+    "persona_preset:read": {
+      "label": "浏览可用的角色预设",
+      "description": "允许：浏览可用的角色预设。仍须满足其他操作权限与资源归属限制。"
+    },
+    "persona_preset:write": {
+      "label": "创建和编辑自己的角色预设",
+      "description": "允许：创建和编辑自己的角色预设。仍须满足其他操作权限与资源归属限制。"
+    },
+    "persona_preset:admin": {
+      "label": "管理公共角色预设",
+      "description": "允许：管理公共角色预设。仍须满足其他操作权限与资源归属限制。"
+    },
+    "scheduled_task:read": {
+      "label": "查看自己的定时任务",
+      "description": "允许：查看自己的定时任务。仍须满足其他操作权限与资源归属限制。"
+    },
+    "scheduled_task:write": {
+      "label": "创建和编辑自己的定时任务",
+      "description": "允许：创建和编辑自己的定时任务。仍须满足其他操作权限与资源归属限制。"
+    },
+    "scheduled_task:delete": {
+      "label": "删除自己的定时任务",
+      "description": "允许：删除自己的定时任务。仍须满足其他操作权限与资源归属限制。"
+    },
+    "envvar:read": {
+      "label": "查看自己的环境变量名称",
+      "description": "允许：查看自己的环境变量名称。仍须满足其他操作权限与资源归属限制。"
+    },
+    "envvar:write": {
+      "label": "设置自己的环境变量值",
+      "description": "允许：设置自己的环境变量值。仍须满足其他操作权限与资源归属限制。"
+    },
+    "envvar:delete": {
+      "label": "删除自己的环境变量",
+      "description": "允许：删除自己的环境变量。仍须满足其他操作权限与资源归属限制。"
+    },
+    "team:read": {
+      "label": "查看自己的团队与偏好",
+      "description": "允许：查看自己的团队与偏好。仍须满足其他操作权限与资源归属限制。"
+    },
+    "team:write": {
+      "label": "创建、编辑和克隆自己的团队",
+      "description": "允许：创建、编辑和克隆自己的团队。仍须满足其他操作权限与资源归属限制。"
+    },
+    "team:delete": {
+      "label": "删除自己的团队",
+      "description": "允许：删除自己的团队。仍须满足其他操作权限与资源归属限制。"
+    },
+    "notification:manage": {
+      "label": "创建和编辑通知",
+      "description": "允许：创建和编辑通知。仍须满足其他操作权限与资源归属限制。"
+    },
+    "usage:read": {
+      "label": "查看自己的用量与额度",
+      "description": "允许：查看自己的用量与额度。仍须满足其他操作权限与资源归属限制。"
+    },
+    "usage:admin": {
+      "label": "查看平台用量",
+      "description": "允许：查看平台用量。仍须满足其他操作权限与资源归属限制。"
+    }
+  },
+  "permissionGroups": {
+    "chat": "聊天",
+    "session": "会话",
+    "skill": "技能",
+    "user": "账号",
+    "role": "角色",
+    "settings": "系统设置",
+    "mcp": "MCP 服务",
+    "file": "文件",
+    "avatar": "头像",
+    "feedback": "反馈",
+    "agent": "智能体",
+    "team": "团队",
+    "model": "模型",
+    "channel": "渠道",
+    "marketplace": "技能市场",
+    "persona_preset": "角色预设",
+    "scheduled_task": "定时任务",
+    "notification": "通知",
+    "usage": "用量与额度",
+    "envvar": "环境变量",
+    "system": "受保护的管理",
+    "pricing": "计费价格",
+    "project": "项目",
+    "memory": "记忆",
+    "sandbox": "沙箱"
   }
 }

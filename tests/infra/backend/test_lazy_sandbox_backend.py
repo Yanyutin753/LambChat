@@ -1881,3 +1881,13 @@ async def test_evidence_read_tool_policy_does_not_initialize_sandbox():
     assert manager.calls == []
     assert presenter.attempts == []
     assert backend.id == "pending"
+
+
+@pytest.fixture(autouse=True)
+def authorized_sandbox_initializer(monkeypatch):
+    # Provider lifecycle tests run with an authorized owner; denial is covered separately.
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=True)
+    )

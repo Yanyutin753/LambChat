@@ -365,6 +365,7 @@ export function SessionListContent({
         }
       >
         <button
+          disabled={!hasPermission(Permission.SESSION_WRITE)}
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors group/nav"
         >
@@ -411,6 +412,7 @@ export function SessionListContent({
 
         {!compactChrome && (
           <button
+            disabled={!hasPermission(Permission.FILE_READ)}
             onClick={() => navigate("/files")}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
           >
@@ -559,7 +561,11 @@ export function SessionListContent({
             collapsed={isProjectsCollapsed}
             onToggle={onToggleProjectsCollapsed}
             createLabel={t("sidebar.newProject")}
-            onCreate={projectActions.onOpenNewProjectModal}
+            onCreate={
+              hasPermission(Permission.PROJECT_WRITE)
+                ? projectActions.onOpenNewProjectModal
+                : undefined
+            }
           >
             {selectModeButton}
           </SidebarSectionHeader>
@@ -656,7 +662,11 @@ export function SessionListContent({
                 collapsed={isChatsCollapsed}
                 onToggle={onToggleChatsCollapsed}
                 createLabel={t("sidebar.newChat")}
-                onCreate={isSelectionMode ? undefined : onNewSession}
+                onCreate={
+                  isSelectionMode || !hasPermission(Permission.SESSION_WRITE)
+                    ? undefined
+                    : onNewSession
+                }
                 createIcon="compose"
               >
                 {isSelectionMode ? (
@@ -818,7 +828,11 @@ export function SessionListContent({
                 <Tooltip content={t("sidebar.moveSelectedToProject")}>
                   <button
                     type="button"
-                    disabled={selectedCount === 0}
+                    disabled={
+                      !hasPermission(Permission.SESSION_WRITE) ||
+                      !hasPermission(Permission.PROJECT_READ) ||
+                      selectedCount === 0
+                    }
                     onClick={() => setIsProjectPickerOpen((value) => !value)}
                     aria-label={t("sidebar.moveSelectedToProject")}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-text-secondary transition hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-45 dark:text-stone-300 dark:hover:text-stone-50"
@@ -831,7 +845,10 @@ export function SessionListContent({
                 <Tooltip content={t("sidebar.deleteSelected")}>
                   <button
                     type="button"
-                    disabled={selectedCount === 0}
+                    disabled={
+                      !hasPermission(Permission.SESSION_DELETE) ||
+                      selectedCount === 0
+                    }
                     onClick={handleRequestDeleteSelected}
                     aria-label={t("sidebar.deleteSelected")}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-theme-error transition hover:text-theme-error disabled:cursor-not-allowed disabled:opacity-45 dark:text-red-400 dark:hover:text-red-300"

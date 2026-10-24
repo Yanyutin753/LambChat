@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from src.api.routes import agent as agent_routes
-from src.kernel.schemas.agent import AgentRequest
 
 
 @pytest.mark.asyncio
@@ -93,40 +92,18 @@ async def test_list_tools_offloads_agent_discovery_for_unknown_agent_id(
     assert calls == ["fake_discover_agents"]
 
 
-@pytest.mark.asyncio
-async def test_agent_stream_offloads_sse_json_formatting(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.kernel.schemas.user import TokenPayload
+@pytest.mark.parametrize("path", ["/search/chat", "/search/stream"])
+async def test_direct_agent_routes_are_retired(path, monkeypatch):
+    from unittest.mock import AsyncMock
 
-    calls: list[str] = []
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
 
-    class _Agent:
-        async def stream(self, *args, **kwargs):
-            yield {
-                "event": "message:chunk",
-                "data": {"content": "hello", "payload": ["x" * 1024]},
-            }
-
-    async def fake_get(agent_id: str):
-        return _Agent()
-
-    async def fake_validate(agent_options, user):
-        return None
-
-    async def fake_run_blocking_io(func, *args, **kwargs):
-        calls.append(func.__name__)
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(agent_routes.AgentFactory, "get", fake_get)
-    monkeypatch.setattr(agent_routes, "validate_agent_model_access", fake_validate)
-    monkeypatch.setattr(agent_routes, "run_blocking_io", fake_run_blocking_io)
-
-    response = await agent_routes.chat_stream(
-        "search",
-        AgentRequest(message="hi"),
-        request=type("Request", (), {"base_url": "http://testserver/"})(),
-        user=TokenPayload(sub="user-1", username="tester"),
-    )
-    chunk = await response.body_iterator.__anext__()
-
-    assert "event: message:chunk" in chunk
-    assert calls == ["_format_agent_sse_event"]
+    get_agent = AsyncMock()
+    monkeypatch.setattr(agent_routes.AgentFactory, "get", get_agent)
+    app = FastAPI()
+    app.include_router(agent_routes.router)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(path, json={"message": "hello", "session_id": "other"})
+    assert response.status_code == 404
+    get_agent.assert_not_awaited()

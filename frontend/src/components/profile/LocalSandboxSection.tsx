@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import {
   useCallback,
   useEffect,
@@ -91,6 +93,8 @@ export function LocalSandboxSection({
   embedded?: boolean;
 }) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permission.SANDBOX_MANAGE);
   const navigate = useNavigate();
   const shell = isShellAvailable();
   const { status, statusError, refreshing, online, refresh, currentMachineId } =
@@ -114,7 +118,8 @@ export function LocalSandboxSection({
   const pathBusy = states.path === "saving";
   const pairing = action === "other" && busy;
   const pairingCurrent = action === "current" && busy;
-  const blocked = busy || pathBusy || pairPrepared || locationBusy;
+  const blocked =
+    !canManage || busy || pathBusy || pairPrepared || locationBusy;
   const pairBusy = blocked;
   const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
@@ -344,7 +349,7 @@ export function LocalSandboxSection({
     onSaved?: () => void,
     errorText: () => string = () => t("common.operationFailed"),
   ) => {
-    if (locationBusy || pathBusy) return false;
+    if (!canManage || locationBusy || pathBusy) return false;
     const generation = operationGeneration.current;
     const isCurrent = () => generation === operationGeneration.current;
     const accepted = save(

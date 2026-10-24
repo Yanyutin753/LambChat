@@ -196,3 +196,31 @@ async def test_deferred_search_history_receives_agent_tool_runtime(monkeypatch) 
     assert isinstance(result, ToolMessage)
     assert json.loads(result.content)["success"] is True
     assert calls == [("user-1", "介绍 自己 信息", 10, None)]
+
+
+@pytest.fixture(autouse=True)
+def _grant_business_capability(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.tool.conversation_history_tool.has_tool_permission", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
+def _active_history_reader(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(
+                sub="user-1", username="tester", roles=["user"], permissions=["session:read"]
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tool_policies", AsyncMock(return_value={})
+    )

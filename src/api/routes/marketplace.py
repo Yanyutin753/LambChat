@@ -271,7 +271,7 @@ async def get_marketplace_file(
 @router.post("/{name}/install")
 async def install_marketplace_skill(
     name: str,
-    user: TokenPayload = Depends(require_permissions("marketplace:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read", "skill:write")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
     storage: SkillStorage = Depends(get_storage),
 ):
@@ -324,7 +324,7 @@ async def install_marketplace_skill(
 @router.post("/{name}/update")
 async def update_from_marketplace(
     name: str,
-    user: TokenPayload = Depends(require_permissions("marketplace:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read", "skill:write")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
     storage: SkillStorage = Depends(get_storage),
 ):
