@@ -81,7 +81,7 @@ test("tool live panel details fill the panel height while inline previews keep t
     expect(
       root,
       `${item} panel detail root should fill the panel height`,
-    ).toContain("flex h-full min-h-0 flex-col");
+    ).toContain("h-full min-h-0");
     expect(root).toContain("overflow-y-auto");
     expect(root).toContain("[&_pre]:!max-h-none");
     expect(

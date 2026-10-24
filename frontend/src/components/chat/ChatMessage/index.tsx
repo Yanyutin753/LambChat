@@ -746,6 +746,12 @@ export const ChatMessage = memo(function ChatMessage({
           key={`tools-${group.key}`}
           count={group.count}
           category={group.category}
+          isPending={group.tools.some(
+            (tool) =>
+              tool.type === "single" &&
+              tool.part.type === "tool" &&
+              tool.part.isPending,
+          )}
           stateKey={`${message.id}:tools:${group.key}`}
           renderExpanded={() => renderPartGroups(group.tools, false)}
         />

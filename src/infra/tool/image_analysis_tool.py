@@ -50,7 +50,6 @@ from langchain.tools import tool  # noqa: E402
 logger = get_logger(__name__)
 
 DEFAULT_IMAGE_ANALYSIS_PROMPT = "Describe the image clearly and objectively."
-_MODEL_CALL_TIMEOUT_SECONDS = 20.0
 IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG = {
     "metadata": {"lc_source": "image_analysis_tool", "internal_tool_call": True},
     "tags": ["internal_tool_call", "image_analysis_tool"],
@@ -333,14 +332,18 @@ def _model_error_details(exc: BaseException) -> dict[str, Any]:
 
 
 async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
+    async with asyncio.timeout(settings.IMAGE_ANALYSIS_TIMEOUT_SECONDS):
+        return await _invoke_with_retries(llm, messages)
+
+
+async def _invoke_with_retries(llm: Any, messages: list[Any]) -> Any:
     max_attempts = max(1, int(getattr(settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 3) or 3))
     base_delay = float(getattr(settings, "IMAGE_ANALYSIS_RETRY_DELAY", 1.0) or 0)
 
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            async with asyncio.timeout(_MODEL_CALL_TIMEOUT_SECONDS):
-                return await llm.ainvoke(messages, config=IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG)
+            return await llm.ainvoke(messages, config=IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG)
         except Exception as exc:
             if is_quota_error(exc):
                 raise
@@ -425,8 +428,7 @@ async def image_analyze(
             base_url=get_base_url_from_runtime(runtime),
         )
         llm = await LLMClient.get_model(model_config=model_config)
-        async with asyncio.timeout(30):
-            response = await _call_with_retries(llm, messages)
+        response = await _call_with_retries(llm, messages)
         analysis = _content_to_text(getattr(response, "content", response))
         return await _json_dumps_result(
             {

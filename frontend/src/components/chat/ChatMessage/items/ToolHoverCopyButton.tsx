@@ -11,16 +11,17 @@ type ToolHoverCopyPosition =
 
 const positionClasses: Record<ToolHoverCopyPosition, string> = {
   panel:
-    "absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity",
+    "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
   panelRaised:
-    "absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10",
+    "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10",
   panelCompact:
-    "absolute top-1 right-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity",
+    "absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity",
   panelCompactRaised:
-    "absolute top-1 right-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10",
+    "absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
   result:
-    "absolute top-1.5 right-1.5 sm:opacity-0 sm:group-hover/result:opacity-100 transition-opacity",
-  resultCompact: "absolute top-0.5 right-0.5 transition-opacity",
+    "absolute top-1.5 right-1.5 opacity-0 group-hover/result:opacity-100 transition-opacity",
+  resultCompact:
+    "absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity",
 };
 
 export function ToolHoverCopyButton({
@@ -42,7 +43,7 @@ export function ToolHoverCopyButton({
     <div
       className={clsx(
         positionClasses[position],
-        "tool-hover-copy focus-within:opacity-100",
+        "tool-hover-copy pointer-events-none group-hover:pointer-events-auto group-hover/result:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto motion-reduce:transition-none",
         className,
       )}
       onClick={(event) => event.stopPropagation()}

@@ -19,10 +19,34 @@ beforeAll(async () => {
   await appI18n.loadLanguages(["zh", "ja", "ko", "ru"]);
 });
 
+const themeMode = vi.hoisted(() => ({ value: "light" }));
 vi.mock("../../../hooks/useAppThemeMode", () => ({
-  useAppThemeMode: () => "light",
+  useAppThemeMode: () => themeMode.value,
 }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  themeMode.value = "light";
+});
+
+test("dark preview gives its gutter divider priority over the syntax theme reset", () => {
+  themeMode.value = "dark";
+  const { container } = render(
+    <CodeMirrorViewer filePath="notes.txt" value="alpha\nbeta" />,
+  );
+  const gutter = container.querySelector<HTMLElement>(".cm-gutters")!;
+  const rules = Array.from(document.styleSheets).flatMap((sheet) =>
+    Array.from(sheet.cssRules),
+  );
+  expect(
+    rules.some(
+      (rule) =>
+        rule instanceof CSSStyleRule &&
+        gutter.matches(rule.selectorText) &&
+        rule.style.getPropertyPriority("border-right") === "important" &&
+        rule.style.getPropertyValue("border-right").includes("1px solid"),
+    ),
+  ).toBe(true);
+});
 
 async function renderEditor(
   readOnly: boolean | "skill-preview" = false,

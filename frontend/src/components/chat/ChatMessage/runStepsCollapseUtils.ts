@@ -194,7 +194,7 @@ function toolGroupKey(name: string): string | null {
   return null;
 }
 
-/** Only repeated, successful lookups with the same purpose and owner can fold. */
+/** Repeated active or successful lookups with the same purpose and owner can fold. */
 export function groupConsecutiveTools(
   groups: RunPartGroup[],
 ): Array<RunPartGroup | ConsecutiveToolGroup> {
@@ -234,12 +234,11 @@ export function groupConsecutiveTools(
     if (group.type === "single" && group.part.type === "tool") {
       const part = group.part;
       if (
-        part.success === true &&
+        (part.success === true || part.isPending === true) &&
+        part.success !== false &&
         !part.error &&
-        !part.isPending &&
         !part.cancelled &&
         !part.awaitingConfirmation &&
-        !part.argsPartial &&
         toolGroupKey(part.name) !== null
       ) {
         const previous = tools[0]?.part;

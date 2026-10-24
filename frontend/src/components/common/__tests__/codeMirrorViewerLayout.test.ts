@@ -17,12 +17,32 @@ test("CodeMirrorViewer fills the available parent height by default", () => {
   expect(source).toMatch(
     /backgroundColor: "var\(--theme-bg-code\) !important"/,
   );
-  expect(source).toMatch(
-    /backgroundColor: "var\(--theme-bg-code-gutter\) !important"/,
-  );
   expect(source).toMatch(/<CodeMirror[\s\S]*className="h-full"/);
   expect(source).toMatch(/<CodeMirror[\s\S]*height="100%"/);
   expect(source).toMatch(/className=\{`code-editor \$\{wrapperClassName\}`\}/);
+});
+
+test("read-only code uses one surface with a single gutter divider", () => {
+  const source = readSource("../CodeMirrorViewer.tsx");
+  const gutter = source.match(/"\.cm-gutters":\s*\{([^}]+)\}/g)?.at(-1);
+
+  expect(gutter).toContain(
+    'backgroundColor: "var(--theme-bg-code) !important"',
+  );
+  expect(gutter).toContain(
+    'borderRight: "1px solid var(--code-viewer-divider) !important"',
+  );
+  expect(source).not.toContain('".cm-gutters, .cm-gutter"');
+  const css = readSource("../../../styles/code-editor.css");
+  expect(css).toMatch(
+    /\.code-editor-toolbar\s*\{[^}]*background: var\(--theme-bg-code\)/,
+  );
+  expect(css).toMatch(
+    /\.code-editor\s*\{[^}]*--code-viewer-divider: var\(--theme-border\)/,
+  );
+  expect(css).toMatch(
+    /\.dark \.code-editor\s*\{[^}]*--code-viewer-divider: var\(--theme-border-hover\)/,
+  );
 });
 
 test("CodeMirrorViewer exposes selected preview text to native copy", () => {

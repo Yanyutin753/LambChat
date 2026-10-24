@@ -92,15 +92,32 @@ test.each([
   const tools = [tool(1, { name }), tool(2, { name })];
   expect(groupConsecutiveTools(tools)).toEqual(tools);
 });
-test("running, failed, cancelled and interactive tools stay individually visible", () => {
+test.each([
+  { success: undefined, isPending: true },
+  { success: undefined, isPending: true, argsPartial: true },
+])("pending lookups group before results arrive: %j", (pending) => {
+  for (const name of ["read_file", "grep", "web_search"]) {
+    const tools = [
+      tool(1, { name, ...pending }),
+      tool(2, { name, ...pending }),
+    ];
+    expect(groupConsecutiveTools(tools)).toMatchObject([
+      { type: "tools", key: "tool-1", count: 2, tools },
+    ]);
+  }
+});
+
+test("failed, cancelled and interactive tools stay individually visible", () => {
   for (const overrides of [
-    { isPending: true },
     { success: false },
+    { success: false, isPending: true },
     { success: undefined },
     { error: "Could not read file" },
+    { error: "Could not read file", isPending: true },
     { cancelled: true },
+    { cancelled: true, isPending: true },
     { awaitingConfirmation: true },
-    { argsPartial: true },
+    { awaitingConfirmation: true, isPending: true },
     { name: "ask_human" },
     { name: "reveal_file" },
     { name: "write_todos" },
@@ -167,7 +184,7 @@ test("unknown single tools remain unchanged and appended tools preserve the firs
   );
 });
 
-test("streamed reads only group after a second adjacent call completes", async () => {
+test("streamed reads group while waiting and keep the same key through completion", async () => {
   const { processMessageEvent } = await import(
     "../../../../hooks/useAgent/eventProcessor"
   );
@@ -214,14 +231,31 @@ test("streamed reads only group after a second adjacent call completes", async (
     })[0],
   ).toMatchObject({ type: "single", part: { id: "read-1", success: true } });
   expect(
+    dispatch("tool:args:chunk", {
+      tool: "read_file",
+      tool_call_id: "read-2",
+      content: '{"file_path":',
+    }),
+  ).toMatchObject([
+    { type: "tools", key: "read-1", category: "read", count: 2 },
+  ]);
+  expect(
     dispatch("tool:start", {
       tool: "read_file",
       tool_call_id: "read-2",
       args: { file_path: "/other.md" },
     }),
   ).toMatchObject([
-    { type: "single", part: { id: "read-1", success: true } },
-    { type: "single", part: { id: "read-2", isPending: true } },
+    {
+      type: "tools",
+      key: "read-1",
+      category: "read",
+      count: 2,
+      tools: [
+        { part: { id: "read-1", success: true } },
+        { part: { id: "read-2", isPending: true } },
+      ],
+    },
   ]);
   expect(
     dispatch("tool:result", {
@@ -232,6 +266,23 @@ test("streamed reads only group after a second adjacent call completes", async (
     }),
   ).toMatchObject([
     { type: "tools", key: "read-1", category: "read", count: 2 },
+  ]);
+  dispatch("tool:start", {
+    tool: "read_file",
+    tool_call_id: "read-3",
+    args: { file_path: "/missing.md" },
+  });
+  expect(
+    dispatch("tool:result", {
+      tool: "read_file",
+      tool_call_id: "read-3",
+      success: false,
+      result: "missing file",
+      error: "not found",
+    }),
+  ).toMatchObject([
+    { type: "tools", key: "read-1", count: 2 },
+    { type: "single", part: { id: "read-3", success: false } },
   ]);
   dispatch("tool:start", {
     tool: "execute",
@@ -245,7 +296,7 @@ test("streamed reads only group after a second adjacent call completes", async (
       success: false,
       result: "failed",
       error: "exit 1",
-    })[1],
+    })[2],
   ).toMatchObject({ type: "single", part: { success: false } });
   dispatch("thinking", { content: "First ", thinking_id: "thought-1" });
   dispatch("thinking", { content: "second", thinking_id: "thought-1" });

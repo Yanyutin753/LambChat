@@ -24,6 +24,7 @@ from src.infra.tool.backend_utils import (
     get_session_id_from_runtime,
     get_user_id_from_runtime,
 )
+from src.infra.tool.video_compression import compress_video
 from src.kernel.config import settings
 from src.kernel.errors import AppError
 
@@ -43,13 +44,12 @@ from langchain.tools import tool  # noqa: E402
 logger = get_logger(__name__)
 
 DEFAULT_VIDEO_ANALYSIS_PROMPT = "Describe the video content clearly and objectively."
-DEFAULT_VIDEO_ANALYSIS_MAX_BYTES = 50 * 1024 * 1024
+DEFAULT_VIDEO_ANALYSIS_MAX_BYTES = 200 * 1024 * 1024
 VIDEO_ANALYSIS_INTERNAL_RUN_CONFIG = {
     "metadata": {"lc_source": "video_analysis_tool", "internal_tool_call": True},
     "tags": ["internal_tool_call", "video_analysis_tool"],
 }
 _UPLOAD_FILE_MARKER = "/api/upload/file/"
-_MODEL_TIMEOUT_SECONDS = 180
 _DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
@@ -139,7 +139,7 @@ async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> by
 
 async def _call_with_retries(llm: Any, messages: list[Any]) -> Any:
     # One deadline covers all attempts and backoff, including SDK/network stalls.
-    async with asyncio.timeout(_MODEL_TIMEOUT_SECONDS):
+    async with asyncio.timeout(settings.VIDEO_ANALYSIS_TIMEOUT_SECONDS):
         return await _invoke_with_retries(llm, messages)
 
 
@@ -236,6 +236,7 @@ async def video_analyze(
         if not refs:
             return await _json_dumps_result({"error": "video_urls must include at least one video"})
 
+        inline_budget = max(1, settings.VIDEO_ANALYSIS_INLINE_MAX_BYTES // len(refs))
         backend = get_backend_from_runtime(runtime)
         max_bytes = get_video_analysis_max_bytes()
         attachments: list[dict[str, Any]] = []
@@ -287,6 +288,20 @@ async def video_analyze(
                 errors.append({"url": ref, "error": "unsupported_video_format"})
                 continue
 
+            original_size = len(content)
+            compressed = original_size > inline_budget
+            if compressed:
+                try:
+                    content = await compress_video(
+                        content,
+                        inline_budget,
+                        settings.VIDEO_ANALYSIS_TIMEOUT_SECONDS,
+                    )
+                except ValueError as exc:
+                    errors.append({"url": ref, "error": str(exc)})
+                    continue
+                mime_type = "video/mp4"
+
             encoded = await run_long_blocking_io(base64.b64encode, content)
             data_url = f"data:{mime_type};base64,{encoded.decode('ascii')}"
             attachments.append(
@@ -300,14 +315,23 @@ async def video_analyze(
                     "size": len(content),
                 }
             )
-            videos_meta.append({"url": ref, "mime_type": mime_type, "size_bytes": len(content)})
+            videos_meta.append(
+                {
+                    "url": ref,
+                    "mime_type": mime_type,
+                    "size_bytes": original_size,
+                    "analysis_size_bytes": len(content),
+                    "compressed": compressed,
+                }
+            )
 
         if not attachments:
             return await _json_dumps_result({"success": False, "errors": errors})
 
-        message = build_human_message(
-            prompt or DEFAULT_VIDEO_ANALYSIS_PROMPT, attachments, supports_vision=True
-        )
+        analysis_prompt = prompt or DEFAULT_VIDEO_ANALYSIS_PROMPT
+        if any(video["compressed"] for video in videos_meta):
+            analysis_prompt += "\nLarge videos were re-encoded for analysis with the full timeline and audio retained. Fine visual details may be reduced; do not infer unreadable text."
+        message = build_human_message(analysis_prompt, attachments, supports_vision=True)
         if isinstance(message.content, str):
             return await _json_dumps_result({"success": False, "errors": errors})
 
@@ -342,7 +366,7 @@ async def video_analyze(
             {
                 "success": False,
                 "error": "video_analysis_timeout",
-                "timeout_seconds": _MODEL_TIMEOUT_SECONDS,
+                "timeout_seconds": settings.VIDEO_ANALYSIS_TIMEOUT_SECONDS,
             }
         )
     except Exception as exc:

@@ -1,5 +1,5 @@
 import { TagBadge } from "../../../common/TagBadge";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import {
   Brain,
@@ -26,6 +26,9 @@ import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { DetailSection } from "./DetailSection";
 import { SOURCE_STYLES } from "../../../panels/MemoryPanel/constants";
+import { DetailModal } from "../../../panels/MemoryPanel/DetailModal";
+import { useRelativeTime } from "../../../panels/MemoryPanel/useRelativeTime";
+import type { MemoryItem as FullMemoryItem } from "../../../../services/api/memory";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -107,11 +110,11 @@ function ScoreBar({ score }: { score: number }) {
         ? "text-theme-text-secondary"
         : "text-theme-text-tertiary";
   return (
-    <div className="flex items-center gap-1.5 w-full">
-      <div className="flex-1 h-1.5 rounded-full bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg))] overflow-hidden ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_8%,transparent)]">
+    <div className="flex min-w-0 items-center gap-2 w-full">
+      <div className="flex-1 min-w-0 h-1 rounded-full bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg))] overflow-hidden ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_8%,transparent)]">
         <div
           className={clsx(
-            "h-full rounded-full transition-all duration-500",
+            "h-full rounded-full transition-all duration-500 motion-reduce:transition-none",
             barColor,
           )}
           style={{ width: `${pct}%` }}
@@ -119,7 +122,7 @@ function ScoreBar({ score }: { score: number }) {
       </div>
       <span
         className={clsx(
-          "text-11 tabular-nums font-semibold w-6 text-right tracking-tight",
+          "text-11 tabular-nums font-medium w-[3ch] shrink-0 whitespace-nowrap text-right",
           textColor,
         )}
       >
@@ -134,6 +137,8 @@ function ScoreBar({ score }: { score: number }) {
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（召回结果到达即刷新） */
 function MemoryRecallDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
+  const relativeTime = useRelativeTime();
+  const [selected, setSelected] = useState<FullMemoryItem | null>(null);
   const query = (args.query as string) || "";
 
   const parsed = useMemo((): MemoryRecallResult | null => {
@@ -188,27 +193,47 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
             {memories.map((mem, i) => {
               const sourceStyle = SOURCE_STYLES[mem.source] || "";
               return (
-                <div
+                <button
                   key={mem.memory_id || i}
-                  className={clsx(
-                    "group/mem tool-result-card border border-theme-border",
-                  )}
+                  type="button"
+                  disabled={!mem.memory_id}
+                  aria-label={
+                    mem.title || mem.summary || mem.preview || mem.memory_id
+                  }
+                  className="group/mem tool-result-card min-w-0 border border-theme-border text-left cursor-pointer hover:border-theme-text-tertiary focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] focus-visible:outline-offset-2 disabled:cursor-default"
+                  onClick={() =>
+                    setSelected({
+                      memory_id: mem.memory_id,
+                      title: mem.title || "",
+                      summary: mem.summary || mem.preview || "",
+                      content: "",
+                      memory_type: mem.type,
+                      source: mem.source,
+                      created_at: mem.created_at,
+                      updated_at: null,
+                      tags: [],
+                      access_count: 0,
+                      // Recall results may be excerpts; always load the authorized full record.
+                      has_full_content: true,
+                    })
+                  }
                 >
-                  <div className="space-y-3">
-                    {/* Header: title + badges */}
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        {mem.title && (
-                          <div className="text-14 sm:text-16 font-serif font-semibold text-theme-text truncate leading-snug tracking-tight">
-                            {mem.title}
-                          </div>
-                        )}
+                  <div className="min-w-0 space-y-2">
+                    {mem.title && (
+                      <div
+                        className="text-14 font-serif font-semibold text-theme-text truncate leading-snug"
+                        title={mem.title}
+                      >
+                        {mem.title}
                       </div>
-                    </div>
+                    )}
 
                     {/* Summary / content preview */}
                     {(mem.summary || mem.preview) && (
-                      <p className="text-12 sm:text-14 text-theme-text-secondary/80 leading-relaxed line-clamp-3">
+                      <p
+                        className="text-12 text-theme-text-secondary leading-relaxed truncate"
+                        title={mem.summary || mem.preview}
+                      >
                         {mem.summary || mem.preview}
                       </p>
                     )}
@@ -217,18 +242,21 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
                     <ScoreBar score={mem.score} />
 
                     {/* Footer: type badge + source + date */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <TagBadge icon={getTypeIcon(mem.type)}>
+                    <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                      <TagBadge
+                        icon={getTypeIcon(mem.type)}
+                        className="overflow-hidden [&_.tag-badge__label]:truncate"
+                      >
                         {t(`memory.type.${mem.type}`, mem.type)}
                       </TagBadge>
                       {sourceStyle && (
-                        <TagBadge>
+                        <TagBadge className="overflow-hidden [&_.tag-badge__label]:truncate">
                           {t(`memory.source.${mem.source}`, mem.source)}
                         </TagBadge>
                       )}
 
                       {/* Date */}
-                      <span className="inline-flex items-center gap-1 text-12 text-theme-text-tertiary ml-auto">
+                      <span className="inline-flex shrink-0 items-center gap-1 text-12 text-theme-text-tertiary ml-auto whitespace-nowrap">
                         <Clock size={10} className="opacity-50" />
                         {formatDate(mem.created_at, t)}
                       </span>
@@ -247,11 +275,20 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </DetailSection>
+      )}
+
+      {selected && (
+        <DetailModal
+          key={selected.memory_id}
+          memory={selected}
+          onClose={() => setSelected(null)}
+          relativeTime={relativeTime}
+        />
       )}
 
       {/* Raw result fallback */}

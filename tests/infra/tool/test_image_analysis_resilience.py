@@ -30,7 +30,7 @@ async def test_permanent_vision_error_is_not_retried_and_logs_safe_status(monkey
 
 
 async def test_vision_call_has_a_bounded_deadline_and_cancels_provider(monkeypatch):
-    monkeypatch.setattr(module, "_MODEL_CALL_TIMEOUT_SECONDS", 0.001, raising=False)
+    monkeypatch.setattr(module.settings, "IMAGE_ANALYSIS_TIMEOUT_SECONDS", 0.001, raising=False)
     monkeypatch.setattr(module.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 1)
     cancelled = False
 
@@ -46,6 +46,24 @@ async def test_vision_call_has_a_bounded_deadline_and_cancels_provider(monkeypat
     with pytest.raises(TimeoutError):
         await module._call_with_retries(Model(), [])
     assert cancelled
+
+
+async def test_vision_deadline_covers_retry_backoff(monkeypatch):
+    monkeypatch.setattr(module.settings, "IMAGE_ANALYSIS_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(module.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(module.settings, "IMAGE_ANALYSIS_RETRY_DELAY", 1)
+    calls = 0
+
+    class Model:
+        async def ainvoke(self, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            raise httpx.ReadError("temporary connection failure")
+
+    async with asyncio.timeout(0.2):
+        with pytest.raises(TimeoutError):
+            await module._call_with_retries(Model(), [])
+    assert calls == 1
 
 
 def test_provider_diagnostics_include_safe_error_code_without_response_content():
