@@ -142,11 +142,11 @@ jobs:
           TAGS="${{ steps.meta.outputs.tags }}"
           IMAGE_NAME="${{ steps.image.outputs.name }}"
 
-          # 只从本 run 的 arch 镜像拼 manifest（run-<id> 唯一，见 build job）
+          # Publish all aliases in one registry operation, from this run's images only.
+          args=()
           for TAG in $TAGS; do
-            echo "Creating manifest for $TAG"
-            docker buildx imagetools create \
-              --tag $TAG \
-              ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-amd64 \
-              ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-arm64
+            args+=(--tag "$TAG")
           done
+          docker buildx imagetools create "${args[@]}" \
+            ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-amd64 \
+            ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-arm64

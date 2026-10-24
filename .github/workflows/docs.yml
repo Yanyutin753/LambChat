@@ -3,7 +3,7 @@ name: Deploy Docs
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "package.json", "pnpm-lock.yaml"]
+    paths: ["docs/**", "package.json", "pnpm-lock.yaml", ".github/workflows/docs.yml", "scripts/run-validation.mjs", "scripts/run_validation.py"]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
 
       - run: pnpm docs:build
         env:

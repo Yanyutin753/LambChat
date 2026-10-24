@@ -7,6 +7,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/test_windows_installer_hooks.ps1'
+      - 'scripts/pytest_shard.py'
+      - 'scripts/run_validation.py'
+      - 'scripts/run-validation.mjs'
       - 'frontend/**'
       - 'docs/**'
       - '*.md'
@@ -24,6 +27,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/test_windows_installer_hooks.ps1'
+      - 'scripts/pytest_shard.py'
+      - 'scripts/run_validation.py'
+      - 'scripts/run-validation.mjs'
       - 'frontend/**'
       - 'docs/**'
       - '*.md'
@@ -89,13 +95,24 @@ jobs:
           UV_CONCURRENT_DOWNLOADS: "8"
         run: uv sync --group dev || (sleep 15 && uv sync --group dev)
 
+      - name: Restore MyPy cache
+        uses: actions/cache@v4
+        with:
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-${{ github.sha }}
+          restore-keys: mypy-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
+
       - name: Run MyPy
         run: uv run mypy src/
 
-  # Full backend test suite
-  backend-tests:
-    name: Backend Tests
+  # Each shard has its own runner and Redis; each pytest process stays serial.
+  backend-test-shards:
+    name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       # 队列 Lua 脚本等集成测试需要真实 Redis（不可达时测试自动 skip）
       redis:
@@ -125,7 +142,18 @@ jobs:
         run: uv sync --group dev || (sleep 15 && uv sync --group dev)
 
       - name: Run backend tests
-        run: uv run pytest
+        run: uv run python -m pytest -p scripts.pytest_shard --shard=${{ matrix.shard }}/4
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: [backend-test-shards]
+    if: ${{ always() }}
+    steps:
+      - name: Require every backend shard to pass
+        env:
+          BACKEND_TEST_RESULT: ${{ needs.backend-test-shards.result }}
+        run: test "$BACKEND_TEST_RESULT" = success
 
   # Prevent bulky generated artifacts and oversized source files
   large-files:
@@ -197,10 +225,14 @@ jobs:
         run: pnpm run lint
         working-directory: frontend
 
-  # Frontend test suite
-  frontend-tests:
-    name: Frontend Tests
+  # Separate runners keep file isolation and the single-worker limit.
+  frontend-test-shards:
+    name: Frontend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -220,8 +252,20 @@ jobs:
         working-directory: frontend
 
       - name: Run frontend tests
-        run: pnpm test
+        run: pnpm test --shard=${{ matrix.shard }}/4
         working-directory: frontend
+
+  # Preserve the required check name and reject failed, skipped or cancelled shards.
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-test-shards]
+    if: ${{ always() }}
+    steps:
+      - name: Require every frontend shard to pass
+        env:
+          FRONTEND_TEST_RESULT: ${{ needs.frontend-test-shards.result }}
+        run: test "$FRONTEND_TEST_RESULT" = success
 
   windows-installer-hooks:
     name: Windows Installer Hooks

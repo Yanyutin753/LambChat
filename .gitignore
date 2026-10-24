@@ -101,6 +101,7 @@ docs/.vitepress/cache/
 YubbChat/
 .codex
 /scripts/*
+!/scripts/pytest_shard.py
 !/scripts/backfill_generated_file_owners.py
 !/scripts/test_windows_native_update.ps1
 !/scripts/test_windows_device.py

@@ -13,8 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检查 PR 来源分支
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
-          HEAD="${{ github.head_ref }}"
+          HEAD="$PR_HEAD_REF"
           case "$HEAD" in
             develop|hotfix/*)
               echo "✅ 允许来源分支: $HEAD"
