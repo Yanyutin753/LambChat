@@ -16,7 +16,6 @@ from src.kernel.schemas.user import (
     ForgotPasswordRequest,
     ResendVerificationRequest,
     ResetPasswordRequest,
-    UserUpdate,
     VerifyEmailRequest,
 )
 
@@ -74,25 +73,17 @@ async def forgot_password(
         reset_expires = email_service.get_token_expiry()
 
         # 更新用户的重置令牌
-        await manager.storage.update(
-            user.id,
-            UserUpdate(
+        if await manager.storage.set_reset_token(user.id, user.email, reset_token, reset_expires):
+            frontend_url = _get_frontend_url(request)
+            lang = _get_language(request)
+            await email_service.send_password_reset_email(
+                to_email=user.email,
+                username=user.username,
                 reset_token=reset_token,
-                reset_token_expires=reset_expires,
-            ),
-        )
-
-        # 发送重置邮件
-        frontend_url = _get_frontend_url(request)
-        lang = _get_language(request)
-        await email_service.send_password_reset_email(
-            to_email=user.email,
-            username=user.username,
-            reset_token=reset_token,
-            base_url=frontend_url,
-            lang=lang,
-        )
-        logger.info("[Auth] Password reset email sent to %s", email)
+                base_url=frontend_url,
+                lang=lang,
+            )
+            logger.info("[Auth] Password reset email sent to %s", email)
     else:
         # 用户不存在时也执行相同操作以防止时序攻击
         # 生成令牌（但不保存或发送）
@@ -172,17 +163,8 @@ async def verify_email(request_data: VerifyEmailRequest):
     else:
         roles = user.roles
 
-    # 更新用户状态：邮箱验证 + 账户激活
-    await manager.storage.update(
-        user.id,
-        UserUpdate(
-            email_verified=True,
-            is_active=True,  # 激活账户
-            roles=roles,  # 保留已有角色或赋予默认角色
-            verification_token=None,
-            verification_token_expires=None,
-        ),
-    )
+    if not await manager.storage.verify_email(user, roles):
+        raise AppError(ErrorCode.INVALID_VERIFICATION_TOKEN)
 
     logger.info(
         "[Auth] Email verified and account activated for user %s with roles %s",
@@ -238,25 +220,19 @@ async def resend_verification(
         verify_token_expires = email_service.get_token_expiry(hours=24)
 
         # 更新用户的验证令牌
-        await manager.storage.update(
-            user.id,
-            UserUpdate(
-                verification_token=verify_token,
-                verification_token_expires=verify_token_expires,
-            ),
-        )
-
-        # 发送验证邮件
-        frontend_url = _get_frontend_url(request)
-        lang = _get_language(request)
-        await email_service.send_verification_email(
-            to_email=user.email,
-            username=user.username,
-            verify_token=verify_token,
-            base_url=frontend_url,
-            lang=lang,
-        )
-        logger.info("[Auth] Verification email resent to %s", email)
+        if await manager.storage.set_verification_token(
+            user.id, user.email, verify_token, verify_token_expires
+        ):
+            frontend_url = _get_frontend_url(request)
+            lang = _get_language(request)
+            await email_service.send_verification_email(
+                to_email=user.email,
+                username=user.username,
+                verify_token=verify_token,
+                base_url=frontend_url,
+                lang=lang,
+            )
+            logger.info("[Auth] Verification email resent to %s", email)
 
     # 始终返回成功，防止邮箱枚举攻击
     return {"message": "如果邮箱已注册且未验证，您将收到验证邮件"}

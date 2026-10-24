@@ -22,6 +22,42 @@ async def test_private_mcp_destinations_never_reach_transport(monkeypatch, host)
             await client.get(f"http://{host}/mcp")
 
 
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        ["127.0.0.1"],
+        ["::1"],
+        ["8.8.8.8", "127.0.0.1"],
+        ["172.17.0.1", "8.8.8.8"],
+    ],
+)
+async def test_dns_with_any_private_destination_never_reaches_transport(monkeypatch, addresses):
+    import asyncio
+
+    from src.infra.mcp.network import public_mcp_http_client
+
+    async def resolve(*args, **kwargs):
+        return [
+            (
+                socket.AF_INET6 if ":" in address else socket.AF_INET,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                (address, 443),
+            )
+            for address in addresses
+        ]
+
+    async def forbidden(*_):
+        pytest.fail("DNS-resolved private connection reached HTTP transport")
+
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", resolve)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", forbidden)
+    async with public_mcp_http_client() as client:
+        with pytest.raises(ValueError, match="public"):
+            await client.get("https://mcp.example/tools")
+
+
 async def test_dns_is_pinned_and_host_header_cannot_select_an_internal_vhost(monkeypatch):
     import asyncio
 

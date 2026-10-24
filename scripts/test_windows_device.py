@@ -189,7 +189,7 @@ def production_suite(host, root, remote_root):
         host,
         ["python3", remote_root + "/run_validation.py", "python3", "-c", capture],
         log=root / "production-regression.log",
-        timeout=900,
+        timeout=1800,
     )
     copy_from(host, remote_root + "/production-results.jsonl", root / "production-results.jsonl")
     rows = [

@@ -3,6 +3,8 @@
 import copy
 import hashlib
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -175,6 +177,25 @@ def test_partial_failed_or_uncertified_automated_results_are_not_passes(count, b
 
 def test_complete_automated_results_pass_without_native_evidence():
     assert load_runner().check_production_report(complete_production_report()) == 39
+
+
+def test_production_suite_allows_observed_full_regression_duration(tmp_path, monkeypatch):
+    runner = load_runner()
+
+    def remote_run(_host, command, *, log, timeout):
+        # The complete passing production run took 16 minutes and 12 seconds.
+        if timeout < 972:
+            raise subprocess.TimeoutExpired(command, timeout)
+
+    def download_report(_host, _source, destination):
+        destination.write_text("\n".join(map(json.dumps, complete_production_report())))
+
+    monkeypatch.setattr(runner, "ssh", remote_run)
+    monkeypatch.setattr(runner, "copy_from", download_report)
+    assert runner.production_suite("yang", tmp_path, "/tmp/release-run") == {
+        "passed": True,
+        "cases": 39,
+    }
 
 
 def complete_production_report():
