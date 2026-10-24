@@ -277,28 +277,27 @@ async def test_e2b_aexecute_routes_to_long_lane(monkeypatch) -> None:
     assert result.exit_code == 0
 
 
-async def test_fast_lane_applies_default_timeout_to_wedged_calls() -> None:
+async def test_fast_lane_applies_default_timeout_to_wedged_calls(monkeypatch) -> None:
     """快道默认超时：楔死的调用不能永久占用关键线程。"""
     import threading
 
     from src.infra.async_utils import blocking as blocking_mod
 
+    monkeypatch.setenv("BLOCKING_IO_FAST_DEFAULT_TIMEOUT", "0.01")
     release = threading.Event()
 
     def _wedged() -> str:
         release.wait(30)
         return "never"
 
+    task = asyncio.create_task(blocking_mod.run_blocking_io(_wedged))
     try:
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                blocking_mod.run_blocking_io(
-                    _wedged, timeout=blocking_mod._FAST_LANE_DEFAULT_TIMEOUT
-                ),
-                timeout=blocking_mod._FAST_LANE_DEFAULT_TIMEOUT + 5,
-            )
+            await asyncio.wait_for(asyncio.shield(task), timeout=1)
+        assert task.done(), "the default timeout must fire before the watchdog"
     finally:
         release.set()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 async def test_urgent_ops_use_isolated_shape_pool() -> None:

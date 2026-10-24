@@ -75,6 +75,9 @@ jobs:
             frontend/src-tauri/target/release/deps
             frontend/src-tauri/target/release/build
             frontend/src-tauri/target/release/.fingerprint
+            frontend/src-tauri/target/debug/deps
+            frontend/src-tauri/target/debug/build
+            frontend/src-tauri/target/debug/.fingerprint
           key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
           restore-keys: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-
 
@@ -147,8 +150,10 @@ jobs:
 
       - name: Native updater version-binding regression
         shell: pwsh
+        env:
+          CARGO_PROFILE_DEV_DEBUG: "0"
         run: |
-          python scripts/run_validation.py cargo test --manifest-path frontend/src-tauri/Cargo.toml --release --locked --features updater-verification --example verify_updater --jobs 1 -- --test-threads=1
+          python scripts/run_validation.py cargo test --manifest-path frontend/src-tauri/Cargo.toml --profile dev --locked --features updater-verification --example verify_updater --jobs 1 -- --test-threads=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $tokens = $null
           $errors = $null
@@ -163,7 +168,7 @@ jobs:
           if ($installers.Count -ne 1) { throw 'Expected exactly one test NSIS installer' }
           Copy-Item $installers[0].FullName verification-artifacts/
           Copy-Item frontend/src-tauri/verification.conf.json verification-artifacts/
-          Get-ChildItem frontend/src-tauri/target/release/examples -Filter 'verify_updater*.exe' -ErrorAction SilentlyContinue |
+          Get-ChildItem frontend/src-tauri/target/debug/examples -Filter 'verify_updater*.exe' -ErrorAction SilentlyContinue |
             Copy-Item -Destination verification-artifacts/
           Get-ChildItem verification-artifacts -File | Get-FileHash -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } |
@@ -186,4 +191,7 @@ jobs:
             frontend/src-tauri/target/release/deps
             frontend/src-tauri/target/release/build
             frontend/src-tauri/target/release/.fingerprint
+            frontend/src-tauri/target/debug/deps
+            frontend/src-tauri/target/debug/build
+            frontend/src-tauri/target/debug/.fingerprint
           key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}

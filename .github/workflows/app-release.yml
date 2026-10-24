@@ -188,6 +188,10 @@ jobs:
         run: |
           # xdg-utils：tauri deb 打包要拷贝 /usr/bin/xdg-open 入包；x86_64 官方
           # 镜像预装、ubuntu-24.04-arm 不带（缺失时 deb bundle 直接失败）
+          # The Azure mirror has taken 27 minutes for 64 MB on hosted x64 runners.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -217,12 +221,26 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Setup Rust
+        id: rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Add macOS Rust target
         if: runner.os == 'macOS'
         # 双架构条目各取所需（Intel 条目在 arm64 宿主上交叉编译 x86_64）
         run: rustup target add ${{ matrix.target }}
+
+      # Tag-scoped caches accelerate retries; GitHub does not share them across tags.
+      - name: Cache native build dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git/db
+            frontend/src-tauri/target/**/deps
+            frontend/src-tauri/target/**/build
+            frontend/src-tauri/target/**/.fingerprint
+          key: native-${{ runner.os }}-${{ matrix.artifact_slug }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: native-${{ runner.os }}-${{ matrix.artifact_slug }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -497,9 +515,11 @@ jobs:
         shell: bash
         env:
           CARGO_BUILD_JOBS: 1
+          CARGO_PROFILE_DEV_DEBUG: "0"
         run: |
           set -euo pipefail
-          args=(--manifest-path frontend/src-tauri/Cargo.toml --release --locked --features updater-verification --example verify_updater --jobs 1)
+          # This helper verifies the signed release artifact; optimizing the helper wastes minutes.
+          args=(--manifest-path frontend/src-tauri/Cargo.toml --profile dev --locked --features updater-verification --example verify_updater --jobs 1)
           target="${{ matrix.target || '' }}"
           if [ -n "$target" ]; then args+=(--target "$target"); fi
           cargo test "${args[@]}" -- --test-threads=1
@@ -516,7 +536,7 @@ jobs:
           $validation = Join-Path $env:RUNNER_TEMP 'test_windows_native_update.ps1'
           gh api "repos/$env:GITHUB_REPOSITORY/contents/scripts/test_windows_native_update.ps1?ref=$env:GITHUB_SHA" --header 'Accept: application/vnd.github.raw+json' > $validation
           if ($LASTEXITCODE -ne 0) { throw 'Cannot load the pinned release validation script' }
-          & $validation -Verifier frontend/src-tauri/target/release/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
+          & $validation -Verifier frontend/src-tauri/target/debug/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
 
       - name: Native macOS update installation regression
         if: runner.os == 'macOS'
@@ -525,7 +545,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash scripts/test_macos_native_update.sh \
-            "frontend/src-tauri/target/${{ matrix.target }}/release/examples/verify_updater" \
+            "frontend/src-tauri/target/${{ matrix.target }}/debug/examples/verify_updater" \
             "release-assets/LambChat-${RELEASE_TAG}-${{ matrix.updater_asset_suffix }}" \
             "${RELEASE_TAG#v}" "${{ matrix.asset_suffix }}" \
             "frontend/src-tauri/target/${{ matrix.target }}/release/bundle/macos/LambChat.app"
@@ -737,6 +757,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            frontend/android/**/*.gradle
+            frontend/android/**/gradle-wrapper.properties
+            frontend/android/gradle.properties
 
       - name: Setup Android SDK
         # v3 硬编码 sdkmanager tools，Google 已把 legacy tools 包从 SDK 仓库下架，
@@ -761,7 +786,7 @@ jobs:
       - name: Build Android APKs
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease assembleDebug
+          ./gradlew assembleRelease assembleDebug --build-cache --max-workers=1 --no-parallel
         working-directory: frontend/android
 
       - name: Prepare Android APK artifact

@@ -10,6 +10,11 @@ from src.api import deps
 from src.kernel.schemas.user import TokenPayload, UserInDB
 
 
+@pytest.fixture(autouse=True)
+def _isolated_auth_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(deps, "_auth_cache", {})
+
+
 class _UserStorage:
     async def get_by_id(self, user_id: str) -> UserInDB | None:
         assert user_id == "user-1"
