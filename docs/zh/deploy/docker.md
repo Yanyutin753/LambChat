@@ -66,6 +66,8 @@ LLM 模型通过部署后的 **模型配置 UI** 添加，无需在环境变量�
 
 生产环境建议使用反向代理（nginx、Traefik、Caddy）并配置 SSL：
 
+上传网关上限需高于应用的文件大小设置，并为 multipart 留出余量；示例支持最大 1 GiB 文件，实际图片/视频上限仍由系统设置控制。
+
 **nginx 示例：**
 
 ```nginx
@@ -76,7 +78,7 @@ server {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    client_max_body_size 100M;
+    client_max_body_size 1100M;
 
     location / {
         proxy_pass http://127.0.0.1:8000;

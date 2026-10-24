@@ -67,6 +67,8 @@ See [Environment Variables](/en/env/app) for the complete reference.
 
 For production, use a reverse proxy (nginx, Traefik, Caddy) with SSL:
 
+Set the gateway body limit above the application file limits, allowing room for multipart overhead. This example supports files up to 1 GiB; system settings still enforce the actual image/video limits.
+
 **nginx example:**
 
 ```nginx
@@ -77,7 +79,7 @@ server {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    client_max_body_size 100M;
+    client_max_body_size 1100M;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
