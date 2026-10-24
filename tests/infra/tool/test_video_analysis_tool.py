@@ -98,6 +98,85 @@ async def test_anthropic_image_model_is_rejected_before_video_download(monkeypat
     video_model[1].ainvoke.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"C:\Users\reader\Videos\12月5日 (1).mp4",
+        "d:/Videos/clip.mp4",
+        r"\\server\share\clip.mp4",
+        r"\\?\C:\Videos\clip.mp4",
+        "/Users/reader/Movies/视频 (1).mp4",
+        "/home/reader/Videos/视频 (1).mp4",
+        "/workspace/session/clip.mp4",
+        "clip.mp4",
+    ],
+)
+async def test_native_video_path_reaches_backend_and_model(video_model, path):
+    from src.infra.tool import video_analysis_tool as module
+
+    class Backend:
+        async def adownload_files(self, paths):
+            assert paths == [path]
+            return [SimpleNamespace(path=path, content=_mp4_bytes(), error=None)]
+
+    result = json.loads(
+        await module.video_analyze.coroutine(video_urls=[path], runtime=_Runtime(Backend()))
+    )
+    assert result["success"] is True
+    assert result["analysis"] == "A cat."
+    message = video_model[1].ainvoke.call_args.args[0][0]
+    assert base64.b64decode(message.content[1]["base64"]) == _mp4_bytes()
+
+
+async def test_backend_video_download_uses_configured_video_deadline(monkeypatch, video_model):
+    from src.infra.tool import video_analysis_tool as module
+
+    monkeypatch.setattr(module, "_DOWNLOAD_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(module.settings, "VIDEO_ANALYSIS_TIMEOUT_SECONDS", 1)
+
+    class Backend:
+        async def adownload_files(self, paths):
+            await asyncio.sleep(0.02)
+            return [SimpleNamespace(path=paths[0], content=_mp4_bytes(), error=None)]
+
+    result = json.loads(
+        await module.video_analyze.coroutine(
+            video_urls=[r"C:\Videos\clip.mp4"], runtime=_Runtime(Backend())
+        )
+    )
+    assert result["success"] is True
+
+
+@pytest.mark.parametrize("uploaded", [False, True])
+async def test_stalled_video_download_is_cancelled(monkeypatch, video_model, uploaded):
+    from src.infra.tool import video_analysis_tool as module
+
+    monkeypatch.setattr(module, "_DOWNLOAD_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(module.settings, "VIDEO_ANALYSIS_TIMEOUT_SECONDS", 0.01)
+    cancelled = asyncio.Event()
+
+    async def hang(*args):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    monkeypatch.setattr(module, "_download_uploaded_video", hang)
+    ref = "/api/upload/file/videos/clip.mp4" if uploaded else r"C:\Videos\clip.mp4"
+    async with asyncio.timeout(1):
+        result = json.loads(
+            await module.video_analyze.coroutine(
+                video_urls=[ref], runtime=_Runtime(SimpleNamespace(adownload_files=hang))
+            )
+        )
+    assert result == {
+        "success": False,
+        "errors": [{"url": ref, "error": "video_download_timeout"}],
+    }
+    assert cancelled.is_set()
+    video_model[1].ainvoke.assert_not_called()
+
+
 async def test_video_permanent_model_error_is_not_retried(monkeypatch):
     from src.infra.tool import video_analysis_tool as module
 
