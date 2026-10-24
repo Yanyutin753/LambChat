@@ -1,12 +1,6 @@
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import "../../../styles/desktop.css";
 import { Header } from "./Header";
-import { isStandaloneDisplayMode } from "../../../hooks/useAppViewport";
-import {
-  getBrowserChromeNudgeScrollY,
-  shouldNudgeBrowserChrome,
-} from "./appBrowserChrome";
-import { isMobileDevice } from "../../../utils/mobile";
 import type { TabType } from "./types";
 
 const ProfileModal = lazy(() =>
@@ -65,49 +59,6 @@ export function AppShell({
     "var(--app-safe-area-top-active, max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px)))";
   const appSafeAreaBottom =
     "var(--app-safe-area-bottom-active, max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px)))";
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const enabled = shouldNudgeBrowserChrome({
-      isMobileDevice: isMobileDevice(),
-      isStandaloneDisplayMode: isStandaloneDisplayMode(),
-      hasVisualViewport: Boolean(window.visualViewport),
-    });
-
-    if (!enabled) return undefined;
-
-    document.documentElement.setAttribute("data-browser-chrome-nudge", "true");
-
-    let raf = 0;
-    const nudgeBrowserChrome = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const top = getBrowserChromeNudgeScrollY({
-          scrollHeight: document.documentElement.scrollHeight,
-          innerHeight: window.innerHeight,
-        });
-        if (top > 0 && window.scrollY < top) {
-          window.scrollTo(0, top);
-        }
-      });
-    };
-
-    const timers = [120, 420, 900].map((delay) =>
-      window.setTimeout(nudgeBrowserChrome, delay),
-    );
-    nudgeBrowserChrome();
-    window.addEventListener("resize", nudgeBrowserChrome);
-    window.addEventListener("orientationchange", nudgeBrowserChrome);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      timers.forEach((timer) => window.clearTimeout(timer));
-      window.removeEventListener("resize", nudgeBrowserChrome);
-      window.removeEventListener("orientationchange", nudgeBrowserChrome);
-      document.documentElement.removeAttribute("data-browser-chrome-nudge");
-    };
-  }, []);
 
   return (
     <>

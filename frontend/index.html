@@ -67,7 +67,7 @@
     <meta
       name="theme-color"
       media="(prefers-color-scheme: dark)"
-      content="#1c1d1f"
+      content="#171819"
     />
 
     <!-- Icons -->
@@ -221,7 +221,7 @@
         :root {
           --boot-theme-primary: #aaa7a2;
           --boot-theme-border: #353639;
-          --boot-theme-bg: #1c1d1f;
+          --boot-theme-bg: #171819;
         }
       }
 
@@ -264,7 +264,7 @@
       (() => {
         const themeColors = {
           light: "#f5f5f4",
-          dark: "#1c1d1f",
+          dark: "#171819",
           sepia: "#f3edde",
         };
         const storageKey = "lambchat-theme";
@@ -312,10 +312,7 @@
         metaThemeColors.forEach((themeColor) => {
           themeColor.setAttribute("content", color);
         });
-        statusBar?.setAttribute(
-          "content",
-          theme === "dark" ? "black" : "default",
-        );
+        statusBar?.setAttribute("content", "default");
 
         // 预刷全局字体大小，避免字体缩放首屏闪烁（与 utils/fontScale.ts 同源约定）
         const fontScaleRoots = {
