@@ -11,7 +11,7 @@ const THEME_CLASSES: Record<Theme, string> = {
 
 const THEME_COLORS: Record<Theme, string> = {
   light: "#f5f5f4",
-  dark: "#1c1d1f",
+  dark: "#171819",
   sepia: "#f3edde",
 };
 
@@ -186,5 +186,5 @@ export function applyThemeToDocument(
 
   doc
     .querySelector?.('meta[name="apple-mobile-web-app-status-bar-style"]')
-    ?.setAttribute("content", theme === "dark" ? "black" : "default");
+    ?.setAttribute("content", "default");
 }
