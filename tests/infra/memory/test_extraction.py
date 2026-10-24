@@ -1289,6 +1289,31 @@ async def test_run_extraction_pass_skips_claiming_when_quota_exceeded(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_run_extraction_pass_skips_when_user_missing_or_inactive(monkeypatch):
+    """已删除/停用用户的 due job 被扫描重踢时不得冒泡 UNAUTHORIZED
+    （生产：每 15 分钟固定刷 "background pass failed: Authentication required"）。"""
+    from unittest.mock import AsyncMock
+
+    from src.infra.usage import quota as usage_quota
+    from src.kernel.errors import AppError, ErrorCode
+
+    async def refuse(_uid):
+        raise AppError(ErrorCode.UNAUTHORIZED)
+
+    _patch_pass_env(monkeypatch, claimed=[], job_docs=[])
+    monkeypatch.setattr(usage_quota, "user_budgets", refuse)
+    monkeypatch.setattr(
+        extraction,
+        "claim_candidate_jobs",
+        AsyncMock(side_effect=AssertionError("inactive user must not claim jobs")),
+    )
+
+    result = await extraction.run_extraction_pass("u1", backend=object())
+
+    assert result == {"skipped": 1, "reason": "user_inactive"}
+
+
+@pytest.mark.asyncio
 async def test_run_extraction_pass_records_quota_only_after_successful_retain(monkeypatch):
     from src.infra.memory import compaction_agent
 
