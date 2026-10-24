@@ -228,20 +228,6 @@ html.allow-scroll[data-right-panel-presentation="docked"]
   display: none;
 }
 
-html[data-browser-chrome-nudge],
-html[data-browser-chrome-nudge] body {
-  height: calc(var(--app-viewport-height, 100dvh) + 1px);
-  overflow-y: auto;
-  overscroll-behavior-y: none;
-}
-
-html[data-browser-chrome-nudge] #root {
-  position: fixed;
-  inset: 0;
-  height: var(--app-viewport-height, 100dvh);
-  overflow: hidden;
-}
-
 html[data-mobile-keyboard="true"],
 html[data-mobile-keyboard="true"] body,
 html[data-mobile-keyboard="true"] #root {

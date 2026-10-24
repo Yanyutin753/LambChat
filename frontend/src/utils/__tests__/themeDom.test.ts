@@ -205,7 +205,7 @@ test("applyThemeToDocument updates every theme-color meta tag", () => {
 
   applyThemeToDocument("dark", documentLike);
 
-  expect(metaValues).toEqual(["#1c1d1f", "#1c1d1f", "#1c1d1f"]);
+  expect(metaValues).toEqual(["#171819", "#171819", "#171819"]);
 });
 
 test("applyThemeToDocument keeps the page background in sync for system bars", () => {
@@ -236,9 +236,9 @@ test("applyThemeToDocument keeps the page background in sync for system bars", (
 
   applyThemeToDocument("dark", documentLike);
 
-  expect(rootStyle.get("background-color")).toBe("#1c1d1f");
+  expect(rootStyle.get("background-color")).toBe("#171819");
   expect(rootStyle.get("color-scheme")).toBe("dark");
-  expect(bodyStyle.get("background-color")).toBe("#1c1d1f");
+  expect(bodyStyle.get("background-color")).toBe("#171819");
   expect(bodyStyle.get("color-scheme")).toBe("dark");
 });
 
