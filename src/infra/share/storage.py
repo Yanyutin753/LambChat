@@ -97,6 +97,7 @@ class ShareStorage:
             visibility=ShareVisibility(
                 normalized.get("visibility") or ShareVisibility.PUBLIC.value
             ),
+            allow_files=normalized.get("allow_files", False),
             created_at=created_at,
             updated_at=normalized.get("updated_at") or created_at,
         )
@@ -113,6 +114,7 @@ class ShareStorage:
             project_name=snapshot.name if snapshot else None,
             share_type=ShareType(share_dict["share_type"]),
             visibility=ShareVisibility(share_dict["visibility"]),
+            allow_files=share_dict.get("allow_files", False),
             run_ids=share_dict.get("run_ids"),
             session_ids=share_dict.get("session_ids"),
             created_at=share_dict["created_at"],
@@ -139,6 +141,7 @@ class ShareStorage:
             "project_id": share_data.project_id,
             "project_snapshot": (project_snapshot.model_dump() if project_snapshot else None),
             "visibility": share_data.visibility.value,
+            "allow_files": share_data.allow_files,
             "created_at": now,
             "updated_at": now,
         }
@@ -158,6 +161,7 @@ class ShareStorage:
             project_id=share_dict["project_id"],
             project_snapshot=self._resolve_project_snapshot(share_dict["project_snapshot"]),
             visibility=ShareVisibility(share_dict["visibility"]),
+            allow_files=share_dict["allow_files"],
             created_at=share_dict["created_at"],
             updated_at=share_dict["updated_at"],
         )
@@ -254,6 +258,7 @@ class ShareStorage:
         run_ids: Optional[list[str]],
         visibility: ShareVisibility,
         session_ids: Optional[list[str]] = None,
+        allow_files: Optional[bool] = None,
     ) -> Optional[SharedSession]:
         """更新分享设置（保持公开 share_id 不变）。
 
@@ -275,6 +280,8 @@ class ShareStorage:
             "visibility": visibility.value,
             "updated_at": now,
         }
+        if allow_files is not None:
+            set_fields["allow_files"] = allow_files
         result = await self.collection.update_one(
             {"_id": object_id, "owner_id": owner_id},
             {"$set": set_fields},

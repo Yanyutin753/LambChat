@@ -3712,6 +3712,8 @@
   },
   "share": {
     "agent": "Agent",
+    "allowFiles": "Allow access to attachments and generated files",
+    "allowFilesDesc": "When enabled, visitors can view and download uploaded attachments and AI-generated files in this share. Off by default. Desktop captures are never shared.",
     "authenticated": "Login Required",
     "authenticatedDesc": "Only logged-in users can view",
     "cancelEdit": "Cancel edit",

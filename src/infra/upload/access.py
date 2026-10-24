@@ -99,6 +99,8 @@ async def require_file_access(
                 share = await ShareStorage().get_by_share_id(claims["share_id"])
                 if not share or share.updated_at.isoformat() != claims.get("share_version"):
                     raise ValueError("revoked share")
+                if not share.allow_files:
+                    raise ValueError("files are not shared")
                 return share
             return
         except (jwt.InvalidTokenError, ValueError, KeyError):

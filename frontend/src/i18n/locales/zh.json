@@ -3712,6 +3712,8 @@
   },
   "share": {
     "agent": "智能体",
+    "allowFiles": "允许访问附件和生成文件",
+    "allowFilesDesc": "开启后，访客可查看和下载当前分享中的上传附件及 AI 生成文件。默认关闭；桌面截图仍不会共享。",
     "authenticated": "需要登录",
     "authenticatedDesc": "只有登录用户可以查看",
     "cancelEdit": "取消编辑",

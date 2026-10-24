@@ -368,6 +368,7 @@ def _build_share_response(shared_session) -> SharedSessionResponse:
         project_id=shared_session.project_id,
         share_type=shared_session.share_type,
         visibility=shared_session.visibility,
+        allow_files=shared_session.allow_files,
         run_ids=shared_session.run_ids,
         session_ids=shared_session.session_ids,
         created_at=shared_session.created_at,
@@ -523,6 +524,9 @@ async def update_share(
         run_ids=next_run_ids,
         visibility=next_visibility,
         session_ids=next_session_ids,
+        allow_files=(
+            share.allow_files if share_data.allow_files is None else share_data.allow_files
+        ),
     )
     if not updated_share:
         raise AppError(ErrorCode.UPDATE_FAILED)

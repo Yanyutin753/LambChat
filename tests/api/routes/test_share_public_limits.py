@@ -133,6 +133,7 @@ class _FakeUpdateShareStorage:
             visibility=ShareVisibility.PUBLIC,
             run_ids=None,
             created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+            allow_files=True,
         )
 
     async def update(self, share_id: str, **kwargs):
@@ -149,6 +150,7 @@ class _FakeUpdateShareStorage:
             visibility=ShareVisibility.AUTHENTICATED,
             run_ids=["run-1"],
             created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+            allow_files=kwargs["allow_files"],
         )
 
 
@@ -178,8 +180,10 @@ async def test_create_share_rejects_partial_share_with_too_many_run_ids(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("allow_files", [None, False, True])
 async def test_update_share_edits_existing_share_without_changing_url(
     monkeypatch: pytest.MonkeyPatch,
+    allow_files,
 ) -> None:
     storage = _FakeUpdateShareStorage()
     monkeypatch.setattr(share_route, "SessionManager", _FakeSessionManager)
@@ -193,6 +197,7 @@ async def test_update_share_edits_existing_share_without_changing_url(
         share_type=ShareType.PARTIAL,
         run_ids=["run-1"],
         visibility=ShareVisibility.AUTHENTICATED,
+        allow_files=allow_files,
     )
 
     response = await share_route.update_share("share-db-id", update_data, user=user)
@@ -202,6 +207,7 @@ async def test_update_share_edits_existing_share_without_changing_url(
     assert response.share_type == ShareType.PARTIAL
     assert response.visibility == ShareVisibility.AUTHENTICATED
     assert response.run_ids == ["run-1"]
+    assert response.allow_files is (True if allow_files is None else allow_files)
     assert storage.updated == {
         "share_id": "share-db-id",
         "owner_id": "owner-1",
@@ -209,6 +215,7 @@ async def test_update_share_edits_existing_share_without_changing_url(
         "run_ids": ["run-1"],
         "visibility": ShareVisibility.AUTHENTICATED,
         "session_ids": None,
+        "allow_files": True if allow_files is None else allow_files,
     }
 
 
