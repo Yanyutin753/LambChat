@@ -34,6 +34,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 - Node 版本由 `frontend/package.json` engines + pnpm lockfile 锁定；Rust 工具链用 `frontend/src-tauri/rust-toolchain.toml` 锁定（**待补**，见 §11）。
 - PBS runtime 与 PyInstaller 版本必须 pin 精确版本，禁止 `latest`；升级单独 PR。
+- daemon 打包使用 `uv.lock` 中的 `daemon-build` 组（含 `cua`），安装到 `client/build/venv`，不安装服务端依赖或改动开发环境。更新器校验使用同一 Cargo workspace 内的 `lambchat-updater-verifier`，复用真实校验源码和锁定版本，只编译校验需要的依赖。
 - 本地开发起点：`make client-fetch-pbs` + `make client-build-daemon`；建议补 `make dev-desktop` 一键拉起桌面开发壳（§11）。
 
 ## 4. 依赖（§4）

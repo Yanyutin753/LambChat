@@ -277,20 +277,18 @@ jobs:
           # uv 安装方式与 lint.yml 保持一致。DAEMON_TARGET_TRIPLE：与
           # Tauri --target 对齐的 sidecar triple；构建 runner 必须匹配目标架构。
           DAEMON_TARGET_TRIPLE: ${{ matrix.target || '' }}
-          # uv.lock pins a CN mirror; GH-hosted runners throttle under
-          # uv's 50 parallel downloads (same mitigation as lint.yml).
+          # Bound downloads on hosted runners.
           UV_CONCURRENT_DOWNLOADS: "8"
         run: |
-          uv sync --group dev || (sleep 15 && uv sync --group dev)
           bash client/scripts/build-daemon.sh
 
       # M4：内嵌 Python 运行时（python-build-standalone install_only 归档，
       # ~111MB/平台）落到 tauri resources 约定位置，使 bundle.resources 有货。
       # tar.gz 由 daemon 首启解压（lambchat_sandbox.pbs.ensure_runtime）。
-      # 产物体积大且随 PBS_TAG 锁定可复现，CI 缓存后加（本任务不做）。
+      # 下载脚本只依赖标准库，不安装项目服务端依赖。
       - name: Fetch embedded Python runtime (PBS)
         shell: bash
-        run: uv run python client/scripts/fetch-pbs.py --platform ${{ matrix.pbs_platform }}
+        run: uv run --no-project --python 3.12 python client/scripts/fetch-pbs.py --platform ${{ matrix.pbs_platform }}
 
       - name: Build desktop package with Tauri
         env:
@@ -519,7 +517,7 @@ jobs:
         run: |
           set -euo pipefail
           # This helper verifies the signed release artifact; optimizing the helper wastes minutes.
-          args=(--manifest-path frontend/src-tauri/Cargo.toml --profile dev --locked --features updater-verification --example verify_updater --jobs 1)
+          args=(--manifest-path frontend/src-tauri/Cargo.toml --package lambchat-updater-verifier --profile dev --locked --bin verify_updater --jobs 1)
           target="${{ matrix.target || '' }}"
           if [ -n "$target" ]; then args+=(--target "$target"); fi
           cargo test "${args[@]}" -- --test-threads=1
@@ -536,7 +534,7 @@ jobs:
           $validation = Join-Path $env:RUNNER_TEMP 'test_windows_native_update.ps1'
           gh api "repos/$env:GITHUB_REPOSITORY/contents/scripts/test_windows_native_update.ps1?ref=$env:GITHUB_SHA" --header 'Accept: application/vnd.github.raw+json' > $validation
           if ($LASTEXITCODE -ne 0) { throw 'Cannot load the pinned release validation script' }
-          & $validation -Verifier frontend/src-tauri/target/debug/examples/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
+          & $validation -Verifier frontend/src-tauri/target/debug/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
 
       - name: Native macOS update installation regression
         if: runner.os == 'macOS'
@@ -545,7 +543,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash scripts/test_macos_native_update.sh \
-            "frontend/src-tauri/target/${{ matrix.target }}/debug/examples/verify_updater" \
+            "frontend/src-tauri/target/${{ matrix.target }}/debug/verify_updater" \
             "release-assets/LambChat-${RELEASE_TAG}-${{ matrix.updater_asset_suffix }}" \
             "${RELEASE_TAG#v}" "${{ matrix.asset_suffix }}" \
             "frontend/src-tauri/target/${{ matrix.target }}/release/bundle/macos/LambChat.app"
@@ -784,9 +782,16 @@ jobs:
         working-directory: frontend
 
       - name: Build Android APKs
+        env:
+          ANDROID_SIGNING_READY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease assembleDebug --build-cache --max-workers=1 --no-parallel
+          if [ "$ANDROID_SIGNING_READY" = true ]; then
+            variant=assembleRelease
+          else
+            variant=assembleDebug
+          fi
+          ./gradlew "$variant" --build-cache --max-workers=1 --no-parallel
         working-directory: frontend/android
 
       - name: Prepare Android APK artifact

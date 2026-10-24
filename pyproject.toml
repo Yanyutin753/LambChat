@@ -71,6 +71,13 @@ dependencies = [
 ]
 
 [dependency-groups]
+daemon-build = [
+    "httpx>=0.28.1",
+    "cryptography>=50.0.2",
+    "psutil>=7.2.2",
+    "pyinstaller==6.22.3",
+    {include-group = "cua"},
+]
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",

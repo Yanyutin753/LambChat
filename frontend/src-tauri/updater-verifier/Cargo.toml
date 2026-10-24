@@ -1,0 +1,18 @@
+[package]
+name = "lambchat-updater-verifier"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "verify_updater"
+path = "../examples/verify_updater.rs"
+
+# Share the app's lockfile and verifier source, without its WebView and shell plugins.
+[dependencies]
+tauri = { version = "2.12.4", default-features = false, features = ["test"] }
+tauri-plugin-updater = "2.14.0"
+serde_json = "1.0.154"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+uuid = { version = "1.28.0", features = ["v4"] }

@@ -7,6 +7,11 @@ license = ""
 repository = ""
 edition = "2021"
 
+[workspace]
+members = ["updater-verifier"]
+default-members = ["."]
+resolver = "2"
+
 [features]
 updater-verification = ["tauri/test"]
 
