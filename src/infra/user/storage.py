@@ -361,17 +361,26 @@ class UserStorage:
         if hasattr(user_data, "email_verified") and user_data.email_verified is not None:
             update_dict["email_verified"] = user_data.email_verified
 
-        if hasattr(user_data, "verification_token") and user_data.verification_token is not None:
-            update_dict["verification_token"] = user_data.verification_token
+        for field in (
+            "verification_token",
+            "verification_token_expires",
+            "reset_token",
+            "reset_token_expires",
+        ):
+            if field in user_data.model_fields_set:
+                update_dict[field] = getattr(user_data, field)
 
-        if hasattr(user_data, "verification_token_expires"):
-            update_dict["verification_token_expires"] = user_data.verification_token_expires
-
-        if hasattr(user_data, "reset_token"):
-            update_dict["reset_token"] = user_data.reset_token
-
-        if hasattr(user_data, "reset_token_expires"):
-            update_dict["reset_token_expires"] = user_data.reset_token_expires
+        if user_data.is_active is not None:
+            # An administrative disable must also block fresh verification emails.
+            update_dict["email_verification_blocked"] = not user_data.is_active
+        if user_data.email is not None or user_data.is_active is False:
+            update_dict.update(verification_token=None, verification_token_expires=None)
+        if (
+            user_data.password is not None
+            or user_data.email is not None
+            or user_data.is_active is False
+        ):
+            update_dict.update(reset_token=None, reset_token_expires=None)
 
         from bson import ObjectId
 
@@ -590,20 +599,90 @@ class UserStorage:
         Returns:
             用户对象或 None（令牌无效或已过期）
         """
+        if not token:
+            return None
         user_dict = await self.collection.find_one({"verification_token": token})
-        if not user_dict:
+        if (
+            not user_dict
+            or user_dict.get("email_verified") is not False
+            or user_dict.get("email_verification_blocked") is True
+        ):
             return None
 
-        # 检查令牌是否过期（如果有设置过期时间）
         expires = user_dict.get("verification_token_expires")
-        if expires is not None:
-            if expires.tzinfo is None:
-                expires = expires.replace(tzinfo=timezone.utc)
-            if utc_now() > expires:
-                return None
+        if expires is None:
+            return None
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if utc_now() >= expires:
+            return None
 
         user_dict["id"] = str(user_dict.pop("_id"))
         return UserInDB(**user_dict)
+
+    async def set_verification_token(
+        self, user_id: str, email: str, token: str, expires: datetime
+    ) -> bool:
+        """Issue a link only while the account is still eligible for verification."""
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {
+                "_id": ObjectId(user_id),
+                "email": email,
+                "email_verified": False,
+                "email_verification_blocked": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "verification_token": token,
+                    "verification_token_expires": expires,
+                    "updated_at": utc_now(),
+                }
+            },
+        )
+        return bool(result.modified_count)
+
+    async def verify_email(self, user: UserInDB, roles: list[str]) -> bool:
+        """Consume the exact pending link and activate in one conditional write."""
+        from bson import ObjectId
+
+        if (
+            not user.verification_token
+            or not user.verification_token_expires
+            or user.email_verified
+        ):
+            return False
+        query = {
+            "_id": ObjectId(user.id),
+            "email": user.email,
+            "verification_token": user.verification_token,
+            "verification_token_expires": {"$gt": utc_now()},
+            "email_verified": False,
+            "email_verification_blocked": {"$ne": True},
+        }
+        if user.roles:
+            query["roles"] = user.roles
+        else:
+            query["$or"] = [{"roles": []}, {"roles": {"$exists": False}}]
+        result = await self.collection.update_one(
+            query,
+            {
+                "$set": {
+                    "email_verified": True,
+                    "is_active": True,
+                    "roles": roles,
+                    "verification_token": None,
+                    "verification_token_expires": None,
+                    "updated_at": utc_now(),
+                }
+            },
+        )
+        if result.modified_count:
+            from src.api.deps import clear_auth_cache
+
+            clear_auth_cache()
+        return bool(result.modified_count)
 
     async def set_email_verified(self, user_id: str, verified: bool = True) -> bool:
         """
@@ -631,12 +710,15 @@ class UserStorage:
                 pass
         return result.modified_count > 0
 
-    async def set_reset_token(self, user_id: str, token: str, expires: datetime) -> bool:
+    async def set_reset_token(
+        self, user_id: str, email: str, token: str, expires: datetime
+    ) -> bool:
         """
         设置用户密码重置令牌
 
         Args:
             user_id: 用户 ID
+            email: 发起请求时的邮箱快照
             token: 重置令牌
             expires: 过期时间
 
@@ -646,7 +728,7 @@ class UserStorage:
         from bson import ObjectId
 
         result = await self.collection.update_one(
-            {"_id": ObjectId(user_id)},
+            {"_id": ObjectId(user_id), "email": email},
             {
                 "$set": {
                     "reset_token": token,

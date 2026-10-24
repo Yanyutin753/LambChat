@@ -21,7 +21,6 @@ from src.kernel.schemas.user import (
     TwoFactorChallenge,
     User,
     UserCreate,
-    UserUpdate,
 )
 
 from .utils import _get_client_ip, _get_frontend_url, _get_language
@@ -67,13 +66,10 @@ async def register(user_data: UserCreate, request: Request):
             from src.infra.user.storage import UserStorage
 
             storage = UserStorage()
-            await storage.update(
-                user.id,
-                UserUpdate(
-                    verification_token=verify_token,
-                    verification_token_expires=verify_token_expires,
-                ),
-            )
+            if not await storage.set_verification_token(
+                user.id, user.email, verify_token, verify_token_expires
+            ):
+                return RegisterResponse(user=user, requires_verification=not user.email_verified)
 
             # 发送验证邮件
             frontend_url = _get_frontend_url(request)
