@@ -465,6 +465,59 @@ test("restoring a cached page reconciles the current run", async () => {
   expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
 });
 
+test("native resume refreshes a completed reply before WebView visibility updates", async () => {
+  const visibility = vi
+    .spyOn(document, "visibilityState", "get")
+    .mockReturnValue("hidden");
+  try {
+    mocks.getStatus.mockResolvedValue({ status: "completed" });
+    const { ctx, onStaleRunStateDetected } =
+      createReconcileContext(streamingBubble());
+    mountReconcile(ctx, "connected");
+
+    await act(async () => {
+      document.dispatchEvent(new Event("resume"));
+    });
+
+    expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
+    expect(ctx.streamingMessageIdRef.current).toBeNull();
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
+test("native resume rechecks immediately and replaces a seemingly healthy pre-background stream", async () => {
+  vi.useFakeTimers();
+  mocks.getStatus.mockResolvedValue({ status: "running" });
+  const { ctx } = createReconcileContext(streamingBubble(), {
+    lastStreamActivityAtRef: { current: Date.now() },
+  });
+  const { result } = mountReconcile(ctx, "connected");
+  await act(async () => {
+    await result.current();
+  });
+  expect(mocks.fetchEventSource).not.toHaveBeenCalled();
+
+  await act(async () => {
+    document.dispatchEvent(new Event("pause"));
+    await vi.advanceTimersByTimeAsync(100);
+    document.dispatchEvent(new Event("resume"));
+  });
+
+  expect(mocks.getStatus).toHaveBeenCalledTimes(2);
+  expect(mocks.fetchEventSource).toHaveBeenCalledTimes(1);
+});
+
+test("unmount removes the native resume listener", async () => {
+  const { ctx } = createReconcileContext(streamingBubble());
+  const { unmount } = mountReconcile(ctx, "connected");
+  unmount();
+  await act(async () => {
+    document.dispatchEvent(new Event("resume"));
+  });
+  expect(mocks.getStatus).not.toHaveBeenCalled();
+});
+
 test("a delayed open-session probe cannot navigate back after switching conversations", async () => {
   let resolveSession!: (value: unknown) => void;
   mocks.get.mockReturnValueOnce(

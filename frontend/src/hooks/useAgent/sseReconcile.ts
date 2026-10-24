@@ -337,13 +337,21 @@ export function useStreamReconcile(
     const handleOffline = () => {
       setConnectionStatus("disconnected");
     };
+    const handleNativeResume = () => {
+      // Capacitor emits resume before WebView visibility settles; its old socket may be dead.
+      connectionStatusRef.current = "disconnected";
+      lastReconcileAtRef.current = 0;
+      void reconcileRef.current();
+    };
 
+    document.addEventListener("resume", handleNativeResume);
     document.addEventListener("visibilitychange", maybeReconcile);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("online", handleOnline);
     window.addEventListener("pageshow", maybeReconcile);
     window.addEventListener("offline", handleOffline);
     return () => {
+      document.removeEventListener("resume", handleNativeResume);
       document.removeEventListener("visibilitychange", maybeReconcile);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("online", handleOnline);
