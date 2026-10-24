@@ -325,7 +325,19 @@ async def test_image_analyze_retries_failed_model_calls(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_image_analyze_supports_backend_file_paths(monkeypatch):
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/workspace/chart.png",
+        r"C:\Users\reader\Pictures\图表 (1).png",
+        "D:/Pictures/chart.png",
+        r"\\server\share\chart.png",
+        r"\\?\C:\Pictures\chart.png",
+        "/Users/reader/Pictures/图表 (1).png",
+        "/home/reader/Pictures/图表 (1).png",
+    ],
+)
+async def test_image_analyze_supports_backend_file_paths(monkeypatch, path):
     from src.infra.tool import image_analysis_tool
 
     model = ModelConfig(
@@ -338,10 +350,10 @@ async def test_image_analyze_supports_backend_file_paths(monkeypatch):
 
     class _FakeBackend:
         async def adownload_files(self, paths: list[str]):
-            assert paths == ["/workspace/chart.png"]
+            assert paths == [path]
             return [
                 SimpleNamespace(
-                    path="/workspace/chart.png",
+                    path=path,
                     content=b"\x89PNG\r\n\x1a\npng-bytes",
                     error=None,
                 )
@@ -366,7 +378,7 @@ async def test_image_analyze_supports_backend_file_paths(monkeypatch):
 
     result = json.loads(
         await image_analysis_tool.image_analyze.coroutine(
-            image_urls=["/workspace/chart.png"],
+            image_urls=[path],
             prompt="Analyze this chart.",
             runtime=_Runtime(backend=_FakeBackend()),
         )

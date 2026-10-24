@@ -75,22 +75,6 @@ def _guess_video_mime_type(file_path: str, content: bytes) -> str | None:
     return None
 
 
-def _backend_path_from_video_reference(video_ref: str) -> str | None:
-    ref = video_ref.strip()
-    if not ref or ref.startswith("data:") or _UPLOAD_FILE_MARKER in ref:
-        return None
-
-    parsed = urlsplit(ref)
-    scheme = (parsed.scheme or "").lower()
-    if scheme in {"http", "https"}:
-        return None
-    if scheme == "file":
-        return unquote(parsed.path or "")
-    if scheme:
-        return None
-    return ref
-
-
 async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
 
@@ -192,6 +176,7 @@ async def video_analyze(
     from src.infra.llm.client import LLMClient, _resolve_use_responses
     from src.infra.llm.providers import _parse_provider, _resolve_protocol
     from src.infra.tool.image_analysis_tool import (
+        _backend_path_from_image_reference,
         _content_to_text,
         _download_file_from_backend,
         _resolve_model_config,
@@ -244,9 +229,15 @@ async def video_analyze(
         errors: list[dict[str, Any]] = []
 
         for index, ref in enumerate(refs):
-            backend_path = _backend_path_from_video_reference(ref)
+            backend_path = _backend_path_from_image_reference(ref)
+            # Native paths can use many bounded transfers on older daemons.
+            download_timeout = (
+                settings.VIDEO_ANALYSIS_TIMEOUT_SECONDS
+                if backend is not None and backend_path is not None
+                else _DOWNLOAD_TIMEOUT_SECONDS
+            )
             try:
-                async with asyncio.timeout(_DOWNLOAD_TIMEOUT_SECONDS):
+                async with asyncio.timeout(download_timeout):
                     content = (
                         await _download_file_from_backend(backend, backend_path)
                         if backend is not None and backend_path is not None
