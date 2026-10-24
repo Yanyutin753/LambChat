@@ -70,7 +70,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
     export OPENSSL_DIR="$(brew --prefix openssl@3)"
     export OPENSSL_STATIC=1
 fi
-uv sync --group dev --group cua
+# Keep the small packaging environment separate from the shared developer venv.
+export UV_PROJECT_ENVIRONMENT="$REPO_ROOT/client/build/venv"
+uv sync --locked --only-group daemon-build
 uv run --no-sync pyinstaller client/pyinstaller.spec \
     --distpath client/dist \
     --workpath client/build \

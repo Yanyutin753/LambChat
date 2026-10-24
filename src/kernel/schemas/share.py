@@ -61,6 +61,7 @@ class ShareCreate(BaseModel):
     # scope=session 且 partial 时必填
     run_ids: Optional[list[str]] = None
     visibility: ShareVisibility = ShareVisibility.PUBLIC
+    allow_files: bool = False
 
     # 项目分享
     share_scope: ShareScope = ShareScope.SESSION
@@ -76,6 +77,7 @@ class ShareUpdate(BaseModel):
     run_ids: Optional[list[str]] = None  # session partial
     session_ids: Optional[list[str]] = None  # project partial (刷新快照)
     visibility: Optional[ShareVisibility] = None
+    allow_files: Optional[bool] = None
 
 
 class SharedSession(BaseModel):
@@ -98,6 +100,7 @@ class SharedSession(BaseModel):
 
     # Access control
     visibility: ShareVisibility
+    allow_files: bool = False
 
     # Timestamps
     created_at: datetime = Field(default_factory=utc_now)
@@ -118,6 +121,7 @@ class SharedSessionResponse(BaseModel):
     project_id: Optional[str] = None
     share_type: ShareType
     visibility: ShareVisibility
+    allow_files: bool = False
     run_ids: Optional[list[str]] = None
     session_ids: Optional[list[str]] = None
     created_at: datetime
@@ -135,6 +139,7 @@ class SharedSessionListItem(BaseModel):
     project_name: Optional[str] = None
     share_type: ShareType
     visibility: ShareVisibility
+    allow_files: bool = False
     run_ids: Optional[list[str]] = None
     session_ids: Optional[list[str]] = None
     created_at: datetime

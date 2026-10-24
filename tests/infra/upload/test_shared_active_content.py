@@ -24,7 +24,11 @@ def sharing(monkeypatch):
     monkeypatch.setattr(shared_files, "owned_file_keys", owned)
     monkeypatch.setattr(shared_files, "file_access_url", mint)
     share = SimpleNamespace(
-        owner_id="owner", share_id="share", updated_at=datetime.now(timezone.utc)
+        owner_id="owner",
+        share_id="share",
+        allow_files=True,
+        visibility="public",
+        updated_at=datetime.now(timezone.utc),
     )
     return share, mint
 

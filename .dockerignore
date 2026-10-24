@@ -20,6 +20,12 @@ build/
 # Node
 frontend/node_modules
 frontend/.npm
+frontend/dist
+frontend/coverage
+frontend/src-tauri
+frontend/android
+frontend/ios
+frontend/src/**/__tests__
 node_modules
 
 # IDE

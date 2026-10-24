@@ -580,8 +580,22 @@ def test_daemon_cross_architecture_build_fails_explicitly():
     script = _source("client/scripts/build-daemon.sh")
     assert '"$TRIPLE" != "$(detect_host_triple)"' in script
     assert "cross-architecture packaging is unsupported" in script
-    assert "uv sync --group dev --group cua" in script
+    assert "uv sync --locked --only-group daemon-build" in script
+    assert 'UV_PROJECT_ENVIRONMENT="$REPO_ROOT/client/build/venv"' in script
     assert "--no-install-package" not in script
+
+
+def test_daemon_build_group_contains_runtime_and_cua_without_server_dependencies():
+    import tomllib
+
+    groups = tomllib.loads(_source("pyproject.toml"))["dependency-groups"]
+    assert groups["daemon-build"] == [
+        "httpx>=0.28.1",
+        "cryptography>=50.0.2",
+        "psutil>=7.2.2",
+        "pyinstaller==6.22.3",
+        {"include-group": "cua"},
+    ]
 
 
 def test_release_workflow_daemon_build_passes_target_triple() -> None:

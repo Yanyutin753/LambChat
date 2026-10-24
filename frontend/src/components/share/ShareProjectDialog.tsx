@@ -55,6 +55,7 @@ export function ShareProjectDialog({
   const { t } = useTranslation();
   const [shareType, setShareType] = useState<ShareType>("full");
   const [visibility, setVisibility] = useState<ShareVisibility>("public");
+  const [allowFiles, setAllowFiles] = useState(false);
   const [sessions, setSessions] = useState<ProjectSessionOption[]>([]);
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [existingShares, setExistingShares] = useState<SharedSession[]>([]);
@@ -62,6 +63,7 @@ export function ShareProjectDialog({
   const [isLoadingShares, setIsLoadingShares] = useState(false);
   const [hasLoadedShares, setHasLoadedShares] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [updatingShareId, setUpdatingShareId] = useState<string | null>(null);
 
   const loadExistingShares = useCallback(async () => {
     setIsLoadingShares(true);
@@ -117,7 +119,22 @@ export function ShareProjectDialog({
     }
   }, [isOpen, shareType, loadSessions]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setShareType("full");
+      setVisibility("public");
+      setAllowFiles(false);
+      setSessions([]);
+      setSelectedSessionIds([]);
+      setExistingShares([]);
+      setHasLoadedShares(false);
+      setIsCreating(false);
+      setUpdatingShareId(null);
+    }
+  }, [isOpen]);
+
   const handleCreate = async () => {
+    if (isCreating) return;
     if (shareType === "partial" && selectedSessionIds.length === 0) {
       toast.error(t("share.selectAtLeastOneSession", "请至少选择一个会话"));
       return;
@@ -129,8 +146,10 @@ export function ShareProjectDialog({
         project_id: projectId,
         share_type: shareType,
         visibility,
+        allow_files: allowFiles,
         session_ids: shareType === "partial" ? selectedSessionIds : undefined,
       });
+      setAllowFiles(false);
       toast.success(t("share.created", "分享链接已创建"));
       await loadExistingShares();
     } catch (error) {
@@ -138,6 +157,29 @@ export function ShareProjectDialog({
       toast.error(t("share.createFailed", "创建分享失败"));
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleUpdateFiles = async (share: SharedSession) => {
+    if (updatingShareId) return;
+    setUpdatingShareId(share.id);
+    try {
+      const updated = await shareApi.update(share.id, {
+        allow_files: !(share.allow_files ?? false),
+      });
+      setExistingShares((current) =>
+        current.map((item) =>
+          item.id === share.id
+            ? { ...item, allow_files: updated.allow_files ?? false }
+            : item,
+        ),
+      );
+      toast.success(t("share.updateSuccess"));
+    } catch (error) {
+      console.error("Failed to update project share:", error);
+      toast.error(t("share.updateFailed"));
+    } finally {
+      setUpdatingShareId(null);
     }
   };
 
@@ -381,6 +423,23 @@ export function ShareProjectDialog({
             </div>
           </div>
 
+          <label className="flex items-start gap-3 text-theme-text-secondary">
+            <Checkbox
+              ariaLabel={t("share.allowFiles")}
+              checked={allowFiles}
+              onChange={() => setAllowFiles((value) => !value)}
+              disabled={isCreating}
+            />
+            <span className="min-w-0">
+              <span className="block text-14 font-medium">
+                {t("share.allowFiles")}
+              </span>
+              <span className="mt-1 block text-12 text-theme-text-tertiary">
+                {t("share.allowFilesDesc")}
+              </span>
+            </span>
+          </label>
+
           {/* Existing shares */}
           {isLoadingShares && !hasLoadedShares ? (
             <div className="space-y-2 py-2">
@@ -395,7 +454,7 @@ export function ShareProjectDialog({
                 {existingShares.map((share) => (
                   <div
                     key={share.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
+                    className="flex flex-col gap-3 p-3 bg-stone-50 dark:bg-stone-900/50 rounded-lg border border-stone-200 dark:border-stone-700"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {share.visibility === "public" ? (
@@ -420,21 +479,34 @@ export function ShareProjectDialog({
                         )
                       </span>
                     </div>
-                    <div className="flex items-center justify-end gap-1 shrink-0">
-                      <CopyButton
-                        text={
-                          getFullUrl(`/shared/${share.share_id}`) ||
-                          `${window.location.origin}/shared/${share.share_id}`
-                        }
-                        label={t("share.copyLink")}
-                      />
-                      <ToolbarIconButton
-                        aria-label={t("share.deleteShare")}
-                        title={t("share.deleteShare")}
-                        onClick={() => handleDelete(share.id)}
-                        icon={<Trash2 size={14} />}
-                        className="hover:text-theme-error"
-                      />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex min-h-11 items-center gap-2 text-12 text-theme-text-secondary">
+                        <Checkbox
+                          ariaLabel={t("share.allowFiles")}
+                          checked={share.allow_files ?? false}
+                          onChange={() => handleUpdateFiles(share)}
+                          disabled={updatingShareId !== null}
+                          pending={updatingShareId === share.id}
+                          size="sm"
+                        />
+                        <span>{t("share.allowFiles")}</span>
+                      </label>
+                      <div className="flex items-center justify-end gap-1 shrink-0">
+                        <CopyButton
+                          text={
+                            getFullUrl(`/shared/${share.share_id}`) ||
+                            `${window.location.origin}/shared/${share.share_id}`
+                          }
+                          label={t("share.copyLink")}
+                        />
+                        <ToolbarIconButton
+                          aria-label={t("share.deleteShare")}
+                          title={t("share.deleteShare")}
+                          onClick={() => handleDelete(share.id)}
+                          icon={<Trash2 size={14} />}
+                          className="hover:text-theme-error"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}

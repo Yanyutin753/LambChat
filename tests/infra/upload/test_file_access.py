@@ -107,7 +107,8 @@ async def test_download_variants_reject_a_leaked_key_before_storage(access, monk
     storage.assert_not_awaited()
 
 
-async def test_generated_upload_registers_owner_before_return(monkeypatch):
+@pytest.mark.parametrize("folder", ["revealed_files", "generated-images/owner"])
+async def test_generated_upload_registers_owner_before_return(monkeypatch, folder):
     from io import BytesIO
 
     from src.infra.logging.context import TraceContext
@@ -117,8 +118,8 @@ async def test_generated_upload_registers_owner_before_return(monkeypatch):
 
     service = S3StorageService()
     result = UploadResult(
-        key="revealed_files/a.png",
-        url="/api/upload/file/revealed_files/a.png",
+        key=folder + "/a.png",
+        url="/api/upload/file/" + folder + "/a.png",
         size=3,
         content_type="image/png",
     )
@@ -129,7 +130,7 @@ async def test_generated_upload_registers_owner_before_return(monkeypatch):
     monkeypatch.setattr(FileRecordStorage, "register_generated", register, raising=False)
     TraceContext.set_request_context(user_id="owner", session_id="session")
     try:
-        assert await service.upload_file(BytesIO(b"abc"), "revealed_files", "a.png") is result
+        assert await service.upload_file(BytesIO(b"abc"), folder, "a.png") is result
     finally:
         TraceContext.clear_request_context()
     register.assert_awaited_once_with(result, "owner", "session")
@@ -159,7 +160,11 @@ async def test_share_projection_only_grants_owner_files_and_preserves_variants(a
 
     module, _ = access
     share = SimpleNamespace(
-        owner_id="owner", share_id="share", updated_at=datetime.now(timezone.utc)
+        owner_id="owner",
+        share_id="share",
+        allow_files=True,
+        visibility="public",
+        updated_at=datetime.now(timezone.utc),
     )
     monkeypatch.setattr(
         shared_files, "owned_file_keys", AsyncMock(return_value={"image/owner/a.png"})
@@ -190,7 +195,11 @@ async def test_shared_text_resources_are_scoped_to_file_owner_and_read_is_bounde
     )
 
     share = SimpleNamespace(
-        owner_id="owner", share_id="share", updated_at=datetime.now(timezone.utc)
+        owner_id="owner",
+        share_id="share",
+        allow_files=True,
+        visibility="public",
+        updated_at=datetime.now(timezone.utc),
     )
     monkeypatch.setattr(
         shared_files, "owned_file_keys", AsyncMock(return_value={"image/owner/a.png"})
@@ -223,7 +232,11 @@ async def test_shared_download_never_exposes_object_storage_capability(access, m
 
     module, records = access
     share = SimpleNamespace(
-        owner_id="owner", share_id="share", updated_at=datetime.now(timezone.utc)
+        owner_id="owner",
+        share_id="share",
+        allow_files=True,
+        visibility="public",
+        updated_at=datetime.now(timezone.utc),
     )
     key = "image/owner/a.png"
     token = parse_qs(
@@ -410,3 +423,13 @@ async def test_file_tool_authorization_rechecks_read_permission_before_signing(a
             "https://chat.example/api/upload/file/image/owner/a.png", "owner"
         )
     records.find_by_key.assert_not_awaited()
+
+
+def test_upload_key_from_url_returns_none_for_malformed_urls(access):
+    """非 URL 文本（裸 [ 前缀/多冒号伪地址）不得炸 urlsplit：
+    分享页授权重写遇到模型塞进消息的伪 URL 曾以 ValueError 打穿整页 500。"""
+    module, _ = access
+    assert module.upload_key_from_url("http://[::1") is None
+    assert module.upload_key_from_url("[not a url] :: colon :: text") is None
+    valid = "https://chat.example/api/upload/file/image/owner/a.png"
+    assert module.upload_key_from_url(valid) == "image/owner/a.png"

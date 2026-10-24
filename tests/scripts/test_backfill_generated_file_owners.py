@@ -52,7 +52,8 @@ def test_server_index_of_uploaded_main_file_establishes_only_its_exact_owner():
     assert rows == original
 
 
-def test_project_manifest_grants_only_explicit_files_inside_its_uploaded_root():
+@pytest.mark.parametrize("legacy_dictionary", [False, True])
+def test_project_manifest_grants_only_explicit_files_inside_its_uploaded_root(legacy_dictionary):
     rows = [
         _file_row(
             source="reveal_project",
@@ -67,6 +68,11 @@ def test_project_manifest_grants_only_explicit_files_inside_its_uploaded_root():
             },
         )
     ]
+    if legacy_dictionary:
+        files = rows[0]["project_meta"]["files"]
+        rows[0]["project_meta"]["files"] = {
+            f"/asset-{index}.png": item for index, item in enumerate(files)
+        }
     assert [item["key"] for item in _plan(rows)] == [IMAGE_KEY]
 
 
