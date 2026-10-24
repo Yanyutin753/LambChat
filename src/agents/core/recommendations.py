@@ -17,7 +17,7 @@ from langchain_core.runnables.config import var_child_runnable_config
 from src.agents.core.base import get_presenter
 from src.agents.core.subagent_prompts import RESPONSE_LANGUAGE_NAMES
 from src.infra.async_utils import run_long_blocking_io
-from src.infra.llm.retry import ainvoke_with_retry
+from src.infra.llm.retry import ainvoke_with_retry, model_failure_context
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -516,6 +516,7 @@ async def generate_recommend_questions(
         history_context,
     )
 
+    model = None
     try:
         model_id: str | None = None
         model_value: str | None = None
@@ -524,7 +525,7 @@ async def generate_recommend_questions(
 
             model_id, model_value = await resolve_model_reference(settings.SESSION_TITLE_MODEL)
         except Exception as exc:
-            logger.debug("Failed to resolve recommendation model reference: %s", exc)
+            logger.debug("Failed to resolve recommendation model reference: %s", type(exc).__name__)
             model_value = (settings.SESSION_TITLE_MODEL or "").strip() or None
         model_kwargs: dict[str, Any] = {
             "model_id": model_id,
@@ -547,7 +548,10 @@ async def generate_recommend_questions(
         if questions:
             return questions
     except Exception as exc:
-        logger.debug("Failed to generate recommended questions with LLM: %s", exc)
+        logger.debug(
+            "Failed to generate recommended questions with LLM: %s",
+            model_failure_context(model, exc),
+        )
 
     return build_recommend_questions(user_input)
 

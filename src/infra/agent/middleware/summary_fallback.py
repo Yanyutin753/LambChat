@@ -28,7 +28,11 @@ from src.infra.backend.resource_authority import (
     protect_server_artifact_eviction,
     server_artifact_backend,
 )
-from src.infra.llm.retry import is_auth_model_error, is_retryable_model_error
+from src.infra.llm.retry import (
+    is_auth_model_error,
+    is_retryable_model_error,
+    model_failure_context,
+)
 
 if TYPE_CHECKING:
     from langchain_core.messages import AnyMessage
@@ -278,7 +282,7 @@ def protect_summarization_middleware(
                 raise
             logger.warning(
                 "[SummaryFallback] Summary model failed: %s — retrying summary with %s",
-                exc,
+                model_failure_context(getattr(lc_helper, "model", None), exc),
                 fallback_model,
             )
             try:
