@@ -25,7 +25,7 @@ vi.mock("../../../hooks/useAuth", () => ({
     user: { id: mocks.userId },
     token: "token",
     hasPermission: (p: Permission) =>
-      p === Permission.USAGE_ADMIN && mocks.allowed,
+      p === Permission.USAGE_QUOTA_MANAGE && mocks.allowed,
   }),
 }));
 const batch = (overrides = {}) => ({

@@ -461,8 +461,20 @@ async def test_list_teams_hydrates_all_members_with_one_batch_query(
     mock_storage.list_teams = AsyncMock(return_value=(teams, 2))
     mock_persona_manager.storage.get_by_ids = AsyncMock(
         return_value={
-            "preset-1": {"name": "Planner", "avatar": "plan.png", "tags": ["plan"]},
-            "preset-2": {"name": "Writer", "avatar": "write.png", "tags": ["write"]},
+            "preset-1": {
+                "scope": "user",
+                "owner_user_id": "user-1",
+                "name": "Planner",
+                "avatar": "plan.png",
+                "tags": ["plan"],
+            },
+            "preset-2": {
+                "scope": "user",
+                "owner_user_id": "user-1",
+                "name": "Writer",
+                "avatar": "write.png",
+                "tags": ["write"],
+            },
         }
     )
 

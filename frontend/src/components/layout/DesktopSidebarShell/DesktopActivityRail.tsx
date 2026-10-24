@@ -47,7 +47,7 @@ export function DesktopActivityRail({
     {
       path: "/files",
       label: t("fileLibrary.title"),
-      show: true,
+      show: hasPermission(Permission.FILE_READ),
     },
     {
       path: "/scheduled-tasks",

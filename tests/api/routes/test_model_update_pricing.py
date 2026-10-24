@@ -32,7 +32,12 @@ async def _noop_invalidate() -> None:
 
 
 def _admin_token() -> TokenPayload:
-    return TokenPayload(sub="admin-1", username="admin", roles=["admin"])
+    return TokenPayload(
+        sub="admin-1",
+        username="admin",
+        roles=["admin"],
+        permissions=["model:admin", "pricing:manage"],
+    )
 
 
 class TestModelPricingOverrideSchema:

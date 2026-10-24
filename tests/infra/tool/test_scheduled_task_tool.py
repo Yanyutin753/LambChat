@@ -1420,3 +1420,33 @@ def test_chat_schedule_defaults_to_conversation_with_quiet_notifications():
     fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
     assert fields["execution_mode"].default == "conversation"
     assert fields["notification_policy"].default is None
+
+
+async def test_create_rechecks_permission_after_approval(monkeypatch):
+    permission = AsyncMock(
+        side_effect=[None, {"error": "Missing permission", "code": "permission_denied"}]
+    )
+    monkeypatch.setattr(scheduled_task_tool, "_permission_error", permission)
+    _auto_approve(monkeypatch)
+    create_task = AsyncMock(return_value=_task())
+    monkeypatch.setattr(
+        scheduled_task_tool, "ScheduledTaskService", _fake_service_cls(create_task=create_task)
+    )
+    result = json.loads(
+        await scheduled_task_tool.scheduled_task_create.coroutine(
+            name="Task",
+            message="Check",
+            trigger_type="interval",
+            interval_seconds=60,
+            runtime=_Runtime("user-1"),
+        )
+    )
+    assert result["code"] == "permission_denied"
+    create_task.assert_not_awaited()
+
+
+@pytest.fixture(autouse=True)
+def _allow_scheduled_related_reads(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.tool.scheduled_task.approval.has_tool_permission", AsyncMock(return_value=True)
+    )

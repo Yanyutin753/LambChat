@@ -40,7 +40,7 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(
         sys.modules,
         "src.api.deps",
-        SimpleNamespace(get_current_user_required=lambda: None),
+        SimpleNamespace(require_permissions=lambda *_permissions: lambda: None),
     )
     monkeypatch.setitem(
         sys.modules,

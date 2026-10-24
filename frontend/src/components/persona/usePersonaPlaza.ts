@@ -88,6 +88,7 @@ export function usePersonaPlaza() {
   const { hasPermission } = useAuth();
   const canRead = hasPermission(Permission.PERSONA_PRESET_READ);
   const canWrite = hasPermission(Permission.PERSONA_PRESET_WRITE);
+  const canDelete = hasPermission(Permission.PERSONA_PRESET_DELETE);
   const canAdmin = hasPermission(Permission.PERSONA_PRESET_ADMIN);
 
   const [query, setQuery] = useState("");
@@ -217,6 +218,7 @@ export function usePersonaPlaza() {
 
   const handleCopy = useCallback(
     async (preset: PersonaPreset) => {
+      if (!canWrite) return;
       const ok = await copyPreset(preset.id);
       if (ok) {
         toast.success(
@@ -228,7 +230,7 @@ export function usePersonaPlaza() {
         toast.error(translateBackendError(error, t));
       }
     },
-    [copyPreset, t, error],
+    [canWrite, copyPreset, t, error],
   );
 
   const handleTogglePreference = useCallback(
@@ -447,6 +449,7 @@ export function usePersonaPlaza() {
     presets,
     canRead,
     canWrite,
+    canDelete,
     canAdmin,
     query,
     setQuery: handleQueryChange,

@@ -523,7 +523,9 @@ class ModelStorage:
             created = await self.create(model)
             return created, True
 
-    async def bulk_upsert_by_value(self, models: list[ModelConfig]) -> list[ModelConfig]:
+    async def bulk_upsert_by_value(
+        self, models: list[ModelConfig], *, update_pricing: bool = True
+    ) -> list[ModelConfig]:
         """批量根据 value 插入或更新模型（单次 bulk_write）
 
         Args:
@@ -554,6 +556,8 @@ class ModelStorage:
                 for k, v in model_dict.items()
                 if k not in ("id", "value", "provider", "api_base", "created_at")
             }
+            if not update_pricing:
+                update_fields.pop("pricing", None)
             update_fields["updated_at"] = now
 
             operations.append(

@@ -754,11 +754,9 @@ test("catalog failure preserves member choices, disables only selectors and retr
       },
     ],
   });
-  api.listModels
-    .mockRejectedValueOnce(new Error("Offline"))
-    .mockResolvedValue({
-      models: [{ id: "keep", value: "keep", label: "Retained model" }],
-    });
+  api.listModels.mockRejectedValueOnce(new Error("Offline")).mockResolvedValue({
+    models: [{ id: "keep", value: "keep", label: "Retained model" }],
+  });
   api.listAgents
     .mockRejectedValueOnce(new Error("Offline"))
     .mockResolvedValue({ agents: [{ id: "fast", name: "Fast" }] });
@@ -844,3 +842,7 @@ test("the team editor retries the shared failed catalog without making a competi
   expect(retry).toHaveBeenCalledOnce();
   expect(api.listModels).not.toHaveBeenCalled();
 });
+
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

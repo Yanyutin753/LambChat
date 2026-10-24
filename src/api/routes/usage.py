@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.infra.auth.delegation import require_capability
 from src.infra.usage.notifications import broadcast_quota_changed as _broadcast_quota_changed
 from src.infra.usage.storage import get_usage_storage
 from src.kernel.schemas.usage import (
@@ -39,7 +40,7 @@ def _now_utc() -> datetime:
 
 
 @router.get("/quota")
-async def get_usage_quota(user: TokenPayload = Depends(get_current_user_required)) -> dict:
+async def get_usage_quota(user: TokenPayload = Depends(require_permissions("usage:read"))) -> dict:
     """Own-account limits; administrative usage visibility never changes the payer."""
     return await _quota_snapshot(user.sub)
 
@@ -66,8 +67,10 @@ async def _active_quota_target(user_id: str) -> None:
 
 @router.get("/users/{user_id}/quota")
 async def get_user_usage_quota(
-    user_id: str, user: TokenPayload = Depends(require_permissions("usage:admin"))
+    user_id: str, user: TokenPayload = Depends(get_current_user_required)
 ) -> dict:
+    if "usage:quota_manage" not in user.permissions:
+        require_capability(user, "usage:admin")
     await _active_quota_target(user_id)
     return await _quota_snapshot(user_id)
 
@@ -76,7 +79,7 @@ async def get_user_usage_quota(
 async def reset_user_usage_quota(
     user_id: str,
     body: QuotaResetRequest,
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.quota import user_budgets
     from src.infra.usage.reset import QuotaReset
@@ -93,7 +96,7 @@ async def reset_user_usage_quota(
 async def issue_usage_reset_card(
     user_id: str,
     body: ScopedResetCardIssueRequest,
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.reset import QuotaReset
 
@@ -108,7 +111,7 @@ async def issue_usage_reset_card(
 @router.post("/quota/reset-cards/consume")
 async def consume_usage_reset_card(
     body: ResetCardConsumeRequest,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> dict:
     from src.infra.usage.quota import user_budgets
     from src.infra.usage.reset import QuotaReset
@@ -123,7 +126,7 @@ async def consume_usage_reset_card(
 @router.post("/quota/reset-card-batches")
 async def create_reset_card_batch(
     body: QuotaResetRequest,
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.reset_batches import ResetCardBatches
 
@@ -133,7 +136,7 @@ async def create_reset_card_batch(
 @router.get("/quota/reset-card-batches")
 async def list_reset_card_batches(
     limit: int = Query(1, ge=1, le=20),
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.reset_batches import ResetCardBatches
 
@@ -143,7 +146,7 @@ async def list_reset_card_batches(
 @router.get("/quota/reset-card-batches/{batch_id}")
 async def get_reset_card_batch(
     batch_id: str,
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.reset_batches import ResetCardBatches
 
@@ -153,7 +156,7 @@ async def get_reset_card_batch(
 @router.post("/quota/reset-card-batches/{batch_id}/advance")
 async def advance_reset_card_batch(
     batch_id: str,
-    user: TokenPayload = Depends(require_permissions("usage:admin")),
+    user: TokenPayload = Depends(require_permissions("usage:quota_manage")),
 ) -> dict:
     from src.infra.usage.reset_batches import ResetCardBatches
 
@@ -169,7 +172,7 @@ async def list_usage_logs(
     start_date: Optional[str] = Query(None, description="开始日期 (ISO)"),
     end_date: Optional[str] = Query(None, description="结束日期 (ISO)"),
     search: Optional[str] = Query(None, description="搜索用户名"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageLogListResponse:
     """
     获取使用日志列表。
@@ -211,7 +214,7 @@ async def get_usage_stats(
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"
     ),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageStats:
     """
     获取聚合用量统计（默认请求者本人；管理员可显式指定 user_id 查他人）。
@@ -240,7 +243,7 @@ async def get_usage_dashboard(
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"
     ),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageDashboardResponse:
     """获取数字员工运营看板聚合数据。"""
     storage = get_usage_storage()

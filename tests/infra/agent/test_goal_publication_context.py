@@ -29,6 +29,25 @@ def test_fork_does_not_inherit_goal_publication_revision():
 
 
 async def test_goal_usage_callback_preserves_background_ownership_guard(monkeypatch):
+    from src.kernel.schemas.user import TokenPayload
+
+    user = TokenPayload(sub="u", username="runner", roles=["runner"], permissions=["chat:write"])
+    role = SimpleNamespace(id="role", name="runner", unrestricted_models=True)
+    monkeypatch.setattr("src.api.deps._load_user_payload", AsyncMock(return_value=user))
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: SimpleNamespace(get_roles_by_names=AsyncMock(return_value=[role])),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: SimpleNamespace(
+            get_role_agents_by_ids=AsyncMock(return_value={"role": ["base"]}),
+            get_role_models_by_ids=AsyncMock(return_value={}),
+        ),
+    )
+    monkeypatch.setattr(
+        base_module.AgentFactory, "get_filtered_agents", AsyncMock(return_value=[{"id": "base"}])
+    )
     captured = []
 
     class Graph:

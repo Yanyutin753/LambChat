@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
@@ -39,6 +41,10 @@ export function ProjectMenu({
 }: ProjectMenuProps) {
   // _project is available for future use (e.g., showing project info in menu)
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.PROJECT_WRITE);
+  const canDelete = hasPermission(Permission.PROJECT_DELETE);
+  const canShare = hasPermission(Permission.SESSION_SHARE);
   const menuRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef(anchorEl);
   anchorRef.current = anchorEl;
@@ -126,30 +132,32 @@ export function ProjectMenu({
 
           {/* Menu items */}
           <div className="px-2 pb-4">
-            {onWorkspaceChange && (
+            {canWrite && onWorkspaceChange && (
               <ProjectWorkspaceField
                 value={_project.workspace}
                 onChange={onWorkspaceChange}
               />
             )}
             {/* New Session */}
-            {onNewSessionInProject && (
-              <button
-                onClick={() => {
-                  onNewSessionInProject(_project.id);
-                  onClose();
-                }}
-                className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover rounded-lg transition-colors"
-              >
-                <InteractiveIcon>
-                  <SquarePen size={16} />
-                </InteractiveIcon>
-                <span>{t("sidebar.newChat")}</span>
-              </button>
-            )}
+            {hasPermission(Permission.SESSION_WRITE) &&
+              onNewSessionInProject && (
+                <button
+                  onClick={() => {
+                    onNewSessionInProject(_project.id);
+                    onClose();
+                  }}
+                  className="ui-menu-item text-[var(--theme-text-secondary)] hover:bg-theme-bg-hover rounded-lg transition-colors"
+                >
+                  <InteractiveIcon>
+                    <SquarePen size={16} />
+                  </InteractiveIcon>
+                  <span>{t("sidebar.newChat")}</span>
+                </button>
+              )}
 
             {/* Rename */}
             <button
+              disabled={!canWrite}
               onClick={() => {
                 onRename();
                 onClose();
@@ -163,7 +171,7 @@ export function ProjectMenu({
             </button>
 
             {/* Share project */}
-            {onShare && (
+            {canShare && onShare && (
               <button
                 onClick={() => {
                   onShare();
@@ -183,6 +191,7 @@ export function ProjectMenu({
 
             {/* Delete */}
             <button
+              disabled={!canDelete}
               onClick={() => {
                 onDelete();
                 onClose();
@@ -203,7 +212,7 @@ export function ProjectMenu({
   // Desktop: dropdown menu
   return createPortal(
     <div ref={menuRef} style={menuStyle} className="ui-menu-surface w-48">
-      {onWorkspaceChange && (
+      {canWrite && onWorkspaceChange && (
         <ProjectWorkspaceField
           value={_project.workspace}
           onChange={onWorkspaceChange}
@@ -211,6 +220,7 @@ export function ProjectMenu({
       )}
       {/* Rename option */}
       <button
+        disabled={!canWrite}
         onClick={() => {
           onRename();
           onClose();
@@ -224,7 +234,7 @@ export function ProjectMenu({
       </button>
 
       {/* Share project option */}
-      {onShare && (
+      {canShare && onShare && (
         <button
           onClick={() => {
             onShare();
@@ -240,7 +250,7 @@ export function ProjectMenu({
       )}
 
       {/* New Session option */}
-      {onNewSessionInProject && (
+      {hasPermission(Permission.SESSION_WRITE) && onNewSessionInProject && (
         <button
           onClick={() => {
             onNewSessionInProject(_project.id);
@@ -260,6 +270,7 @@ export function ProjectMenu({
 
       {/* Delete option */}
       <button
+        disabled={!canDelete}
         onClick={() => {
           onDelete();
           onClose();

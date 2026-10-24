@@ -67,7 +67,7 @@ def env(monkeypatch):
     )
     monkeypatch.setattr(upload, "_file_record_storage", records)
     monkeypatch.setattr(upload, "_get_live_record_by_hash", AsyncMock(return_value=None))
-    user = SimpleNamespace(sub="user", roles=[], permissions=["file:upload"])
+    user = SimpleNamespace(sub="user", roles=[], permissions=["file:upload", "file:read"])
     ticket = {
         "_id": "ticket",
         "owner": "user",

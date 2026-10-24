@@ -97,6 +97,7 @@ export function SidebarRail({
         <Tooltip content={t("sidebar.newChat")}>
           <button
             type="button"
+            disabled={!hasPermission(Permission.SESSION_WRITE)}
             onClick={onNewSession}
             className={railBtn}
             aria-label={t("sidebar.newChat")}
@@ -135,6 +136,7 @@ export function SidebarRail({
         <Tooltip content={t("fileLibrary.title")}>
           <button
             type="button"
+            disabled={!hasPermission(Permission.FILE_READ)}
             onClick={onOpenFileLibrary}
             className={railBtn}
             aria-label={t("fileLibrary.title")}
@@ -147,6 +149,7 @@ export function SidebarRail({
         <Tooltip content={t("bookmarks.title")}>
           <button
             type="button"
+            disabled={!hasPermission(Permission.SESSION_READ)}
             onClick={onOpenBookmarks}
             className={railBtn}
             aria-label={t("bookmarks.title")}

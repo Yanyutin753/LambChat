@@ -161,7 +161,8 @@ def test_search_lazy_runtime_documents_file_tool_shell_bridging() -> None:
         ),
     )
     # 桥接规则属于系统提示词，保持紧凑预算
-    assert len(LAZY_SANDBOX_RUNTIME_POLICY) <= 1700
+    # Direct document reads add one instruction while retaining all sandbox boundaries.
+    assert len(LAZY_SANDBOX_RUNTIME_POLICY) <= 1900
 
 
 def test_team_runtime_keeps_eager_real_work_dir_semantics() -> None:

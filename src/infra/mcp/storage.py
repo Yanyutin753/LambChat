@@ -17,6 +17,7 @@ from src.infra.mcp.encryption import (
     encrypt_server_secrets,
     encrypt_value,
 )
+from src.infra.mcp.redaction import MASKED_SECRET, preserve_mcp_secrets, redact_mcp_url
 from src.infra.mcp.storage_helpers import (
     MCP_DISCOVER_TOOL_LIMIT,
     MCP_DISCOVER_TOOL_PARAMETER_LIMIT,
@@ -51,6 +52,11 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from pymongo import AsyncMongoClient
     from pymongo.asynchronous.collection import AsyncCollection
+
+
+def _document_timestamp(doc: dict[str, Any], key: str) -> Any:
+    value = doc.get(key)
+    return to_iso(value) if value and hasattr(value, "isoformat") else value
 
 
 class MCPStorage(StorageOperations):
@@ -199,6 +205,12 @@ class MCPStorage(StorageOperations):
         """Update a system MCP server (admin only)"""
         collection = self._get_system_collection()
 
+        if "***" in (updates.url or "") or "***" in (updates.headers or {}).values():
+            existing = await self.get_system_server(name)
+            if not existing:
+                return None
+            updates = preserve_mcp_secrets(updates, existing)
+
         update_data: dict[str, Any] = {
             "updated_at": utc_now_iso(),
             "updated_by": admin_user_id,
@@ -310,6 +322,12 @@ class MCPStorage(StorageOperations):
         """Update a user MCP server"""
         collection = self._get_user_collection()
 
+        if "***" in (updates.url or "") or "***" in (updates.headers or {}).values():
+            existing = await self.get_user_server(name, user_id)
+            if not existing:
+                return None
+            updates = preserve_mcp_secrets(updates, existing)
+
         update_data: dict[str, Any] = {"updated_at": utc_now_iso()}
 
         if updates.transport is not None:
@@ -403,11 +421,10 @@ class MCPStorage(StorageOperations):
         Returns (tools_list, error_message).
         """
         manager = None
+        server: UserMCPServer | SystemMCPServer | None = None
         try:
             # Find the server config (user or system)
-            server: UserMCPServer | SystemMCPServer | None = await self.get_user_server(
-                server_name, user_id
-            )
+            server = await self.get_user_server(server_name, user_id)
             if not server:
                 server = await self.get_system_server(server_name)
                 # Check role-based access for system servers
@@ -510,8 +527,11 @@ class MCPStorage(StorageOperations):
             return result, None
 
         except Exception as e:
-            logger.error(f"[MCP] Failed to discover tools for server '{server_name}': {e}")
-            return [], str(e)
+            from src.infra.tool.mcp_load_status import _format_load_error
+
+            error = _format_load_error(e, tuple((server.headers or {}).values()) if server else ())
+            logger.error("[MCP] Failed to discover tools for server '%s': %s", server_name, error)
+            return [], error
         finally:
             if manager:
                 await manager.close()
@@ -799,13 +819,8 @@ class MCPStorage(StorageOperations):
 
     def _doc_to_system_server(self, doc: dict[str, Any]) -> SystemMCPServer:
         """Convert MongoDB document to SystemMCPServer"""
-        created_at = doc.get("created_at")
-        updated_at = doc.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = to_iso(created_at)
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = to_iso(updated_at)
+        created_at = _document_timestamp(doc, "created_at")
+        updated_at = _document_timestamp(doc, "updated_at")
 
         return SystemMCPServer(
             name=doc["name"],
@@ -828,13 +843,8 @@ class MCPStorage(StorageOperations):
 
     def _doc_to_user_server(self, doc: dict[str, Any]) -> UserMCPServer:
         """Convert MongoDB document to UserMCPServer"""
-        created_at = doc.get("created_at")
-        updated_at = doc.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = to_iso(created_at)
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = to_iso(updated_at)
+        created_at = _document_timestamp(doc, "created_at")
+        updated_at = _document_timestamp(doc, "updated_at")
 
         return UserMCPServer(
             name=doc["name"],
@@ -854,13 +864,8 @@ class MCPStorage(StorageOperations):
 
     def _doc_to_tool_policy(self, doc: dict[str, Any]) -> MCPToolPolicy:
         """Convert MongoDB document to MCPToolPolicy."""
-        created_at = doc.get("created_at")
-        updated_at = doc.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = to_iso(created_at)
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = to_iso(updated_at)
+        created_at = _document_timestamp(doc, "created_at")
+        updated_at = _document_timestamp(doc, "updated_at")
 
         return MCPToolPolicy(
             server_name=doc.get("server_name"),
@@ -907,16 +912,9 @@ class MCPStorage(StorageOperations):
             doc_copy = self._mask_sensitive_fields(doc_copy)
 
         # Convert datetime to ISO string if needed
-        created_at = doc_copy.get("created_at")
-        updated_at = doc_copy.get("updated_at")
-        last_load_at = doc_copy.get("last_load_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = to_iso(created_at)
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = to_iso(updated_at)
-        if last_load_at and hasattr(last_load_at, "isoformat"):
-            last_load_at = to_iso(last_load_at)
+        created_at = _document_timestamp(doc_copy, "created_at")
+        updated_at = _document_timestamp(doc_copy, "updated_at")
+        last_load_at = _document_timestamp(doc_copy, "last_load_at")
 
         return MCPServerResponse(
             name=doc_copy["name"],
@@ -964,16 +962,10 @@ class MCPStorage(StorageOperations):
 
     def _mask_sensitive_fields(self, doc: dict[str, Any]) -> dict[str, Any]:
         """Remove sensitive fields from document (not shown in edit UI)"""
-        # Remove sensitive headers
         headers = doc.get("headers")
-        if headers and isinstance(headers, dict):
-            keys_to_remove = [
-                key
-                for key in headers
-                if isinstance(key, str) and key.lower() in ["authorization", "x-api-key", "api-key"]
-            ]
-            for key in keys_to_remove:
-                del headers[key]
+        if isinstance(headers, dict):
+            doc["headers"] = {key: MASKED_SECRET for key in headers}
+        doc["url"] = redact_mcp_url(doc.get("url"))
 
         # Remove sensitive env variables
         env = doc.get("env")

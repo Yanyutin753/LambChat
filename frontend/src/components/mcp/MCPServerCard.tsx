@@ -16,7 +16,7 @@ import { nameToGradient } from "../common/cardUtils";
 
 interface MCPServerCardProps {
   server: MCPServerResponse;
-  onToggle: (name: string) => void;
+  onToggle?: (name: string) => void;
   onEdit?: (server: MCPServerResponse) => void;
   onDelete?: (name: string, isSystem: boolean) => void;
   onRetest?: (server: MCPServerResponse) => void;
@@ -131,7 +131,7 @@ export function MCPServerCard({
               },
             ]
           : []),
-        ...(server.can_edit && !server.is_internal && onDelete
+        ...(!server.is_internal && onDelete
           ? [
               {
                 label: t("mcp.card.delete"),
@@ -163,42 +163,50 @@ export function MCPServerCard({
                 <InteractiveIcon>
                   <RotateCw
                     size={16}
-                    className={retesting ? "animate-spin motion-reduce:animate-none" : undefined}
+                    className={
+                      retesting
+                        ? "animate-spin motion-reduce:animate-none"
+                        : undefined
+                    }
                   />
                 </InteractiveIcon>
               </button>
             </Tooltip>
           )}
-          <Tooltip
-            content={t(server.enabled ? "mcp.card.disable" : "mcp.card.enable")}
-          >
-            <button
-              type="button"
-              role="switch"
-              aria-checked={server.enabled}
-              aria-label={
-                server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(server.name);
-              }}
-              className="scb__action-btn scb__action-btn--ghost"
-            >
-              {server.enabled ? (
-                <InteractiveIcon>
-                  <ToggleRight
-                    size={16}
-                    className="text-theme-success dark:text-green-500"
-                  />
-                </InteractiveIcon>
-              ) : (
-                <InteractiveIcon>
-                  <ToggleLeft size={16} />
-                </InteractiveIcon>
+          {onToggle && (
+            <Tooltip
+              content={t(
+                server.enabled ? "mcp.card.disable" : "mcp.card.enable",
               )}
-            </button>
-          </Tooltip>
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={server.enabled}
+                aria-label={
+                  server.enabled ? t("mcp.card.disable") : t("mcp.card.enable")
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(server.name);
+                }}
+                className="scb__action-btn scb__action-btn--ghost"
+              >
+                {server.enabled ? (
+                  <InteractiveIcon>
+                    <ToggleRight
+                      size={16}
+                      className="text-theme-success dark:text-green-500"
+                    />
+                  </InteractiveIcon>
+                ) : (
+                  <InteractiveIcon>
+                    <ToggleLeft size={16} />
+                  </InteractiveIcon>
+                )}
+              </button>
+            </Tooltip>
+          )}
         </div>
       }
     />

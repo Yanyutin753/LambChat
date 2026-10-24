@@ -754,3 +754,17 @@ async def test_create_many_propagates_cancellation_and_preserves_committed_batch
         )
     assert collection.insert_sizes == [100]
     assert [doc["value"] for doc in collection.inserted_docs] == [str(i) for i in range(100)]
+
+
+@pytest.mark.asyncio
+async def test_model_import_without_pricing_authority_preserves_existing_price() -> None:
+    storage = ModelStorage()
+    collection = _BulkWriteRecordingCollection()
+    storage._collection = collection
+    await storage.bulk_upsert_by_value(
+        [model_storage.ModelConfig(value="existing", label="Renamed")],
+        update_pricing=False,
+    )
+    update = collection.bulk_operations[0]._doc
+    assert "pricing" not in update["$set"]
+    assert update["$set"]["label"] == "Renamed"

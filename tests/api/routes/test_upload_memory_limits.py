@@ -19,9 +19,12 @@ from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
-def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise file IO limits after the separate file-access gate accepts."""
-    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
+def _owned_file_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = SimpleNamespace(
+        is_private_key=AsyncMock(return_value=False),
+        find_by_key=AsyncMock(return_value={"uploaded_by": "owner-a"}),
+    )
+    monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: records)
 
 
 class ChunkedUpload:
@@ -272,6 +275,7 @@ async def test_local_file_proxy_checks_file_existence_in_blocking_executor(
             base_url="https://app.example.com/",
             headers={},
         ),
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
     )
 
     assert response.path == str(file_path)
@@ -320,6 +324,7 @@ async def test_s3_file_proxy_can_stream_through_app_for_preview_fetches(
             headers={},
         ),
         proxy=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
     )
 
     body = b"".join([chunk async for chunk in response.body_iterator])

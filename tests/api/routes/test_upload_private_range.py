@@ -260,7 +260,10 @@ async def test_route_dispatches_authorized_nonlocal_ranges_to_the_stream_helper(
     stream = AsyncMock(return_value=Response(b"2345", status_code=206))
     monkeypatch.setattr(module, "get_private_range_response", stream)
     response = await upload.get_file_proxy(
-        KEY, _range_request(), proxy=not shared, current_user=SimpleNamespace(sub="owner")
+        KEY,
+        _range_request(),
+        proxy=not shared,
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
     assert response.status_code == 206
     assert response.body == b"2345"
@@ -287,7 +290,10 @@ async def test_route_never_opens_a_range_stream_for_an_unauthorized_key(monkeypa
     monkeypatch.setattr(module, "get_private_range_response", stream)
     with pytest.raises(AppError) as error:
         await upload.get_file_proxy(
-            KEY, _range_request(), proxy=True, current_user=SimpleNamespace(sub="other")
+            KEY,
+            _range_request(),
+            proxy=True,
+            current_user=SimpleNamespace(sub="other", permissions=["file:read"]),
         )
     assert error.value.error_code.code == "file_not_found"
     initialize.assert_not_awaited()
@@ -318,7 +324,10 @@ async def test_local_range_still_uses_the_existing_file_response(monkeypatch, tm
     monkeypatch.setattr(module, "get_private_range_response", stream)
     request = _range_request()
     response = await upload.get_file_proxy(
-        KEY, request, proxy=True, current_user=SimpleNamespace(sub="owner")
+        KEY,
+        request,
+        proxy=True,
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
     assert isinstance(response, FileResponse)
     messages = []

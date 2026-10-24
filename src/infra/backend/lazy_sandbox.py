@@ -758,6 +758,11 @@ class LazySandboxBackend(BaseSandbox):
             if self._delegate is not None:
                 return self._delegate
 
+        from src.infra.auth.tool_authority import has_tool_permission
+        from src.kernel.errors import AppError, ErrorCode
+
+        if not await has_tool_permission(self._user_id, "sandbox:execute"):
+            raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "sandbox:execute"})
         task = await self._acquire_initialization_task()
         try:
             delegate = await asyncio.shield(task)

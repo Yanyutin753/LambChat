@@ -2,6 +2,7 @@
 
 import importlib
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -16,6 +17,49 @@ from langgraph.store.memory import InMemoryStore
 
 from src.infra.llm.responses_cache import current_responses_prompt_cache_key
 from src.infra.writer.present import Presenter, PresenterConfig
+
+
+@pytest.fixture(autouse=True)
+def execution_account(monkeypatch):
+    from src.agents.core.base import AgentFactory
+    from src.kernel.schemas.model import ModelConfig
+    from src.kernel.schemas.user import TokenPayload
+
+    user = TokenPayload(
+        sub="user",
+        username="runner",
+        roles=["runner"],
+        permissions=["chat:write", "file:upload:document"],
+    )
+    role = SimpleNamespace(id="role", name="runner", unrestricted_models=False)
+    model = ModelConfig(id="test-model", value="test-model", label="Test model")
+    monkeypatch.setattr("src.api.deps._load_user_payload", AsyncMock(return_value=user))
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user", AsyncMock(return_value=user)
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: SimpleNamespace(get_roles_by_names=AsyncMock(return_value=[role])),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: SimpleNamespace(
+            get_role_agents_by_ids=AsyncMock(return_value={"role": ["search", "team", "quick"]}),
+            get_role_models_by_ids=AsyncMock(return_value={"role": [model.id]}),
+        ),
+    )
+    monkeypatch.setattr(
+        AgentFactory,
+        "get_filtered_agents",
+        AsyncMock(return_value=[{"id": "search"}, {"id": "team"}, {"id": "quick"}]),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: SimpleNamespace(
+            get=AsyncMock(return_value=model),
+            get_many_by_ids_and_values=AsyncMock(return_value=({model.id: model}, {})),
+        ),
+    )
 
 
 class _AnswerModel(BaseChatModel):

@@ -11,6 +11,7 @@ from src.infra.task.concurrency import ConcurrencyResponse, ConcurrencyResult
 from src.infra.upload.file_record import AttachmentClaimError
 from src.kernel.errors import AppError
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.user import TokenPayload
 
 
 def _attachment(key: str, *, attachment_id: str = "attachment-1") -> dict[str, Any]:
@@ -168,6 +169,7 @@ async def _invoke_chat(
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
     monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
+    monkeypatch.setattr(chat, "validate_user_agent_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", lambda *args: None)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(chat, "_get_language", lambda request: "en")
@@ -185,7 +187,12 @@ async def _invoke_chat(
     result = await chat.chat_stream(
         request,
         SimpleNamespace(headers={}),
-        user=SimpleNamespace(sub="owner-1", roles=["member"]),
+        user=TokenPayload(
+            sub="owner-1",
+            username="owner",
+            roles=["member"],
+            permissions=["chat:write", "session:read", "session:write", "file:read"],
+        ),
     )
     if drain_config:
         await chat._session_config_tasks.drain(timeout=2)

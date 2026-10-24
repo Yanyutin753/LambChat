@@ -207,3 +207,24 @@ async def test_business_permissions_batch_roles_without_per_role_reads(monkeypat
     }
     batch.assert_awaited_once_with(["reader", "other"])
     single.assert_not_awaited()
+
+
+@pytest.fixture(autouse=True)
+def _current_active_account(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.auth.tool_authority import TOOL_PERMISSIONS
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        internal_registry,
+        "resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(
+                sub="user-1",
+                username="tester",
+                roles=[],
+                permissions=sorted(set(TOOL_PERMISSIONS.values())),
+            )
+        ),
+    )

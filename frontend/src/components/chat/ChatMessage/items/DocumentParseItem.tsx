@@ -27,6 +27,7 @@ type ParsedImage = {
 type ParsedResult = {
   markdown: string;
   images: ParsedImage[];
+  filename?: string;
   provider?: string;
   pagesProcessed?: number;
   truncated?: boolean;
@@ -65,7 +66,17 @@ function parseDocumentParseResult(
     typeof data.pages_processed === "number" ? data.pages_processed : undefined;
   const truncated = data.truncated === true;
   const error = typeof data.error === "string" ? data.error : undefined;
-  return { markdown, images, provider, pagesProcessed, truncated, error };
+  const filename =
+    typeof data.filename === "string" ? data.filename : undefined;
+  return {
+    markdown,
+    images,
+    filename,
+    provider,
+    pagesProcessed,
+    truncated,
+    error,
+  };
 }
 
 function DocumentParseImages({ images }: { images: ParsedImage[] }) {
@@ -96,19 +107,23 @@ function DocumentParseImages({ images }: { images: ParsedImage[] }) {
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function DocumentParseDetail({ args, result }: ToolDetailProps) {
-  const url = (args.url as string) || "";
   const pages = (args.pages as string) || "";
   const parsed = useMemo(() => parseDocumentParseResult(result), [result]);
+  const source =
+    (args.url as string) ||
+    parsed.filename ||
+    (args.attachment_id as string) ||
+    "";
 
   return (
     <div className="p-4 sm:p-5 tool-panel-content">
-      {url && (
-        <ToolArgsBlock size="detail" copyText={url} wrap>
+      {source && (
+        <ToolArgsBlock size="detail" copyText={source} wrap>
           <FileScan
             size={14}
             className="shrink-0 text-sky-500 dark:text-sky-400"
           />
-          <span className="truncate">{url}</span>
+          <span className="truncate">{source}</span>
         </ToolArgsBlock>
       )}
 
@@ -194,10 +209,15 @@ const DocumentParseItem = memo(function DocumentParseItem({
   const url = (args.url as string) || "";
   const pages = (args.pages as string) || "";
   const parsed = useMemo(() => parseDocumentParseResult(result), [result]);
-  const filename = url.split("/").pop() || url;
+  const filename =
+    parsed.filename ||
+    url.split("/").pop() ||
+    (args.attachment_id as string) ||
+    "";
 
   // 参数生成中（无解析结果）也允许打开面板：实时等待解析结果
-  const canExpand = !!url || !!parsed.markdown || !!isPending;
+  const canExpand =
+    !!filename || !!parsed.markdown || !!parsed.error || !!isPending;
   const status = isPending
     ? "loading"
     : cancelled

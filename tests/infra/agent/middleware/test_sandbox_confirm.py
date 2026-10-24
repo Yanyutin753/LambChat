@@ -360,3 +360,14 @@ async def test_lazy_sandbox_initialization_failure_is_a_tool_error(tool_name, ar
     assert result.name == tool_name
     assert result.content == SandboxInitializationError.PUBLIC_MESSAGE
     assert "private" not in result.content
+
+
+@pytest.fixture(autouse=True)
+def authorized_sandbox_operator(monkeypatch):
+    # These tests isolate confirmation, assuming an operator with execution access.
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.sandbox_confirm.has_tool_permission",
+        AsyncMock(return_value=True),
+    )

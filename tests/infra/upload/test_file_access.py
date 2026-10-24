@@ -13,6 +13,9 @@ from src.kernel.errors import AppError
 def access(monkeypatch):
     from src.infra.upload import access
 
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=True)
+    )
     record = {"key": "image/owner/a.png", "uploaded_by": "owner"}
     records = SimpleNamespace(
         is_private_key=AsyncMock(return_value=False),
@@ -337,7 +340,7 @@ async def test_authorized_text_preview_resolves_resources_using_the_primary_file
     response = await upload.get_file_proxy(
         "document/owner/page.html",
         SimpleNamespace(headers={}),
-        current_user=SimpleNamespace(sub="owner"),
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
         resolve_resources=True,
     )
     assert response.status_code == 200
@@ -390,8 +393,20 @@ async def test_batch_signing_checks_unknown_keys_with_bounded_database_queries(a
     result = await upload_signed_urls.get_signed_urls(
         upload_signed_urls.SignedUrlRequest(keys=[f"image/other/{n}.png" for n in range(100)]),
         SimpleNamespace(),
-        current_user=SimpleNamespace(sub="owner"),
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
     assert len(result.urls) == 100 and all(item.error and not item.url for item in result.urls)
     assert records.find_by_key.await_count + records.collection.find.call_count <= 1
     assert revealed.collection.find.call_count <= 1
+
+
+async def test_file_tool_authorization_rechecks_read_permission_before_signing(access, monkeypatch):
+    module, records = access
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=False)
+    )
+    with pytest.raises(AppError):
+        await module.authorize_file_url(
+            "https://chat.example/api/upload/file/image/owner/a.png", "owner"
+        )
+    records.find_by_key.assert_not_awaited()

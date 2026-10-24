@@ -891,3 +891,45 @@ def test_user_quotation_of_evidence_text_and_other_named_messages_remain_in_hist
     ]
     context = format_history_from_messages(messages)
     assert "part of my question" in context and "Real named user message" in context
+
+
+async def test_rate_limited_recommendations_keep_local_fallback_and_redact_failure_logs(
+    monkeypatch, caplog
+):
+    import logging
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import anthropic
+    import httpx
+
+    request = httpx.Request("POST", "https://private.invalid/v1/messages?key=query-secret")
+    error = anthropic.RateLimitError(
+        "body-secret account-secret",
+        response=httpx.Response(429, request=request),
+        body={"error": {"type": "1302", "message": "body-secret account-secret"}},
+    )
+    model = SimpleNamespace(
+        model="claude-title",
+        quota_provider="anthropic-proxy",
+        quota_model_config_id="title-channel",
+        _llm_type="anthropic-chat",
+        ainvoke=AsyncMock(side_effect=error),
+    )
+    monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", AsyncMock(return_value=model))
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        AsyncMock(return_value=("title-channel", "claude-title")),
+    )
+    monkeypatch.setattr("src.agents.core.recommendations.settings.LLM_MAX_RETRIES", 1)
+    monkeypatch.setattr("src.agents.core.recommendations.settings.LLM_RETRY_DELAY", 0)
+
+    with caplog.at_level(logging.DEBUG):
+        questions = await generate_recommend_questions("How do I get started?")
+
+    assert questions == build_recommend_questions("How do I get started?")
+    assert model.ainvoke.await_count == 2
+    assert "model=claude-title" in caplog.text
+    assert "reason=rate_limit" in caplog.text
+    for secret in ("private.invalid", "query-secret", "body-secret", "account-secret"):
+        assert secret not in caplog.text

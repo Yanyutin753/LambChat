@@ -1287,3 +1287,7 @@ test("current account pairing requires fresh proof and never saves on rejection"
   });
   expect(code).toHaveValue("");
 });
+
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

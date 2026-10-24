@@ -32,6 +32,7 @@ from src.infra.async_utils import (
 )
 from src.infra.backend.daytona import DaytonaBackend
 from src.infra.backend.lazy_sandbox import provider_shared_work_dir
+from src.infra.backend.resource_authority import AuthorizedCompositeBackend
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
@@ -323,7 +324,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
             env_vars=default.env_vars,
             work_dir=work_dir,
         )
-        return CompositeBackend(
+        return AuthorizedCompositeBackend(
+            user_id=user_id,
             default=daytona_backend,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )
@@ -338,7 +340,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
 
         scoped = E2BBackend(sandbox=cast("E2BSandbox", provider_obj), work_dir=work_dir)
         self._share_async_connection(scoped, user_id, provider_obj)
-        return CompositeBackend(
+        return AuthorizedCompositeBackend(
+            user_id=user_id,
             default=scoped,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )
@@ -353,7 +356,8 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
 
         scoped = CubeSandboxBackend(sandbox=cast("CubeSandbox", provider_obj), work_dir=work_dir)
         self._share_async_connection(scoped, user_id, provider_obj)
-        return CompositeBackend(
+        return AuthorizedCompositeBackend(
+            user_id=user_id,
             default=scoped,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )

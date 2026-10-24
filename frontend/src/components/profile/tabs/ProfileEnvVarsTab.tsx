@@ -59,6 +59,7 @@ export function ProfileEnvVarsTab() {
 
   // 添加新变量
   const handleAdd = async () => {
+    if (!canWrite) return;
     const trimmedKey = newKey.trim();
     const trimmedValue = newValue.trim();
     if (!trimmedKey || !trimmedValue) return;
@@ -92,7 +93,7 @@ export function ProfileEnvVarsTab() {
 
   // 保存编辑
   const saveEdit = async () => {
-    if (!editingKey || !editingValue.trim()) return;
+    if (!canWrite || !editingKey || !editingValue.trim()) return;
     setSaving(true);
     try {
       await envvarApi.set(editingKey, editingValue.trim());
@@ -119,7 +120,7 @@ export function ProfileEnvVarsTab() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!canDelete || !deleteTarget) return;
     try {
       await envvarApi.delete(deleteTarget);
       toast.success(t("envVars.deleted"));

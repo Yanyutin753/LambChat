@@ -32,6 +32,7 @@ const preset: PersonaPreset = {
 };
 const props = {
   isSelected: false,
+  canCopy: true,
   isMutating: false,
   isUsingPreset: false,
   onClose: vi.fn(),

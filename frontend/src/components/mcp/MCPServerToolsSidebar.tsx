@@ -4,6 +4,8 @@ import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { mcpApi } from "../../services/api/mcp";
 import type { MCPRoleQuota, MCPServerResponse, MCPToolInfo } from "../../types";
 import { RoleSelector } from "./RoleSelector";
@@ -52,6 +54,11 @@ export function MCPServerToolsSidebar({
   onToolToggled,
 }: MCPServerToolsSidebarProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canManagePolicy = hasPermission(Permission.MCP_POLICY_MANAGE);
+  const canToggleSystemTool = server.is_system
+    ? canManagePolicy
+    : !!server.can_edit;
   const [tools, setTools] = useState<MCPToolInfo[]>([]);
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
@@ -123,7 +130,7 @@ export function MCPServerToolsSidebar({
           await pendingToggleRef.current;
         }
         try {
-          if (server.can_edit) {
+          if (canToggleSystemTool) {
             await mcpApi.toggleSystemTool(server.name, toolName, newEnabled);
           } else {
             await mcpApi.toggleTool(server.name, toolName, newEnabled, "user");
@@ -131,7 +138,7 @@ export function MCPServerToolsSidebar({
           setTools((prev) =>
             prev.map((t) =>
               t.name === toolName
-                ? server.can_edit
+                ? canToggleSystemTool
                   ? { ...t, system_disabled: !newEnabled }
                   : { ...t, user_disabled: !newEnabled }
                 : t,
@@ -147,7 +154,7 @@ export function MCPServerToolsSidebar({
       await togglePromise;
       pendingToggleRef.current = null;
     },
-    [server.can_edit, server.name, onToolToggled, t],
+    [canToggleSystemTool, server.name, onToolToggled, t],
   );
 
   const handleUpdateToolPolicy = useCallback(
@@ -170,6 +177,7 @@ export function MCPServerToolsSidebar({
       const nextInlineExposure =
         updates.inline_exposure ?? current.inline_exposure ?? false;
 
+      if (!canManagePolicy) return;
       setSavingToolPolicy(toolName);
       try {
         await mcpApi.updateToolPolicy(server.name, toolName, {
@@ -199,7 +207,7 @@ export function MCPServerToolsSidebar({
         setSavingToolPolicy(null);
       }
     },
-    [onToolToggled, server.name, t, tools],
+    [canManagePolicy, onToolToggled, server.name, t, tools],
   );
 
   return (
@@ -262,7 +270,7 @@ export function MCPServerToolsSidebar({
               const isDisabled =
                 tool.system_disabled || tool.user_disabled || false;
               const isExpanded = expandedTools.has(tool.name);
-              const canConfigurePolicy = server.can_edit && server.is_system;
+              const canConfigurePolicy = canManagePolicy && server.is_system;
               return (
                 <div
                   key={tool.name}

@@ -12,6 +12,7 @@ from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.async_utils import run_long_blocking_io as _run_long_blocking_io
+from src.infra.backend.resource_authority import AuthorizedCompositeBackend
 from src.infra.backend.sandbox_heal import SANDBOX_REPLACED_NOTICE
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
@@ -303,7 +304,9 @@ class _CubeSandboxMixin:
             )
             cube_backend = CubeSandboxBackend(sandbox=cast("CubeSandbox", sandbox))
             skills_backend = create_skills_backend(user_id=user_id)
-            composite = CompositeBackend(default=cube_backend, routes={"/skills/": skills_backend})
+            composite = AuthorizedCompositeBackend(
+                user_id=user_id, default=cube_backend, routes={"/skills/": skills_backend}
+            )
             return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
 
         backend, work_dir, sandbox_id, provider_obj = await run_long_blocking_io(_sync_create)
@@ -341,7 +344,8 @@ class _CubeSandboxMixin:
     def _build_cube_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
         from src.infra.backend.cubesandbox import CubeSandboxBackend
 
-        return CompositeBackend(
+        return AuthorizedCompositeBackend(
+            user_id=user_id,
             default=CubeSandboxBackend(sandbox=cast("CubeSandbox", provider_obj)),
             routes={"/skills/": create_skills_backend(user_id=user_id)},
         )

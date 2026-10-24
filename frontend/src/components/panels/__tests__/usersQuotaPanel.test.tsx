@@ -46,9 +46,13 @@ vi.mock("../../../services/api/usage", () => ({ usageApi: mocks }));
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({
     hasPermission: (permission: Permission) =>
-      permission === Permission.USER_WRITE
+      [
+        Permission.USER_WRITE,
+        Permission.USER_CREATE,
+        Permission.USER_RESET_PASSWORD,
+      ].includes(permission)
         ? mocks.canEdit
-        : permission === Permission.USAGE_ADMIN
+        : permission === Permission.USAGE_QUOTA_MANAGE
           ? mocks.canManageQuota
           : false,
   }),

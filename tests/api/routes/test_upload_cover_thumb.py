@@ -21,9 +21,12 @@ from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
-def _authorized_file_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise cover rendering after the separate file-access gate accepts."""
-    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock(return_value=None))
+def _owned_file_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = SimpleNamespace(
+        is_private_key=AsyncMock(return_value=False),
+        find_by_key=AsyncMock(return_value={"uploaded_by": "owner-a"}),
+    )
+    monkeypatch.setattr("src.infra.upload.access.get_file_record_storage", lambda: records)
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +79,12 @@ async def test_cover_redirects_to_processed_presigned_url_for_images(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code in (302, 307)
     assert storage.presigned_calls[0]["process"] == ("image/resize,m_fill,w_560,h_315")
@@ -92,8 +100,19 @@ async def test_cover_video_uses_requested_timestamp_defaulting_to_1s(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    await upload.get_file_proxy("revealed_files/clip.mp4", _fake_request(), cover=True)
-    await upload.get_file_proxy("revealed_files/clip.mp4", _fake_request(), cover=True, t=0)
+    await upload.get_file_proxy(
+        "revealed_files/clip.mp4",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
+    await upload.get_file_proxy(
+        "revealed_files/clip.mp4",
+        _fake_request(),
+        cover=True,
+        t=0,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert (
         "video/snapshot,t_1000,f_jpg,w_560,h_315,m_fast" == (storage.presigned_calls[0]["process"])
@@ -110,7 +129,12 @@ async def test_cover_returns_404_for_unsupported_types(
 
     for key in ("a/b/archive.zip", "a/b/anim.gif", "a/b/icon.svg"):
         with pytest.raises(AppError) as exc:
-            await upload.get_file_proxy(key, _fake_request(), cover=True)
+            await upload.get_file_proxy(
+                key,
+                _fake_request(),
+                cover=True,
+                current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+            )
         assert exc.value.error_code.code == "cover_thumbnail_not_available"
         assert exc.value.http_status == 404
 
@@ -127,7 +151,12 @@ async def test_cover_image_renders_and_caches_for_non_aliyun_providers(
     storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "a/b/hero.jpg",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -147,7 +176,12 @@ async def test_cover_video_non_aliyun_still_404s(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("a/b/clip.mp4", _fake_request(), cover=True)
+        await upload.get_file_proxy(
+            "a/b/clip.mp4",
+            _fake_request(),
+            cover=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "cover_thumbnail_not_available"
     assert exc.value.http_status == 404
     assert storage.downloaded == []
@@ -181,7 +215,12 @@ async def test_cover_serves_local_files_resized_by_pillow(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage()))
 
-    resp = await upload.get_file_proxy("revealed_files/hero.jpg", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/hero.jpg",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -207,8 +246,18 @@ async def test_cover_signature_expiry_is_day_aligned_and_stable(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
-    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+    await upload.get_file_proxy(
+        "a/b/hero.jpg",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
+    await upload.get_file_proxy(
+        "a/b/hero.jpg",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     expires = [c["expires"] for c in storage.presigned_calls]
     # Same day → identical signed URL → browser/CDN disk-caches the thumb
@@ -288,7 +337,12 @@ async def test_cover_pdf_renders_first_page_and_caches_beside_original(
     storage = _FakePdfStorage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.pdf",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code in (302, 307)
     assert storage.downloaded == ["revealed_files/report.pdf"]
@@ -305,7 +359,12 @@ async def test_cover_pdf_serves_cached_thumbnail_without_re_render(
     storage = _FakePdfStorage(cached=True)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.pdf",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code in (302, 307)
     assert storage.downloaded == []
@@ -321,7 +380,12 @@ async def test_cover_pdf_renders_and_caches_for_non_aliyun_providers(
     storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.pdf",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -339,7 +403,12 @@ async def test_cover_cached_thumbnail_served_as_bytes_for_non_aliyun(
     storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.pdf",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert storage.downloaded == ["covers/560x315/revealed_files/report.pdf.jpg"]
@@ -354,7 +423,12 @@ async def test_cover_pdf_skips_oversized_sources(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("revealed_files/huge.pdf", _fake_request(), cover=True)
+        await upload.get_file_proxy(
+            "revealed_files/huge.pdf",
+            _fake_request(),
+            cover=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "cover_thumbnail_not_available"
     assert exc.value.http_status == 404
     assert storage.downloaded == []
@@ -376,7 +450,12 @@ async def test_cover_pdf_local_storage_renders_real_jpeg(
 
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage()))
 
-    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.pdf",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code == 200
     assert resp.media_type == "image/jpeg"
@@ -523,7 +602,12 @@ async def test_cover_sheet_renders_real_rows_and_caches(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr("src.api.routes.upload_cover.render_sheet_cover", _fake_render)
 
-    resp = await upload.get_file_proxy("revealed_files/report.xlsx", _fake_request(), cover=True)
+    resp = await upload.get_file_proxy(
+        "revealed_files/report.xlsx",
+        _fake_request(),
+        cover=True,
+        current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+    )
 
     assert resp.status_code in (302, 307)
     assert storage.downloaded == ["revealed_files/report.xlsx"]
@@ -538,7 +622,12 @@ async def test_cover_legacy_xls_falls_back_without_render(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("revealed_files/old.xls", _fake_request(), cover=True)
+        await upload.get_file_proxy(
+            "revealed_files/old.xls",
+            _fake_request(),
+            cover=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "cover_thumbnail_not_available"
     assert exc.value.http_status == 404
     assert storage.downloaded == []
@@ -608,7 +697,12 @@ async def test_concurrent_first_requests_render_only_once(
 
     responses = await asyncio.gather(
         *[
-            upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+            upload.get_file_proxy(
+                "revealed_files/report.pdf",
+                _fake_request(),
+                cover=True,
+                current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+            )
             for _ in range(4)
         ]
     )
@@ -643,14 +737,24 @@ async def test_render_burst_degrades_to_404_instead_of_pool_starvation(
     # Occupy both render slots with distinct keys
     first_two = [
         asyncio.create_task(
-            upload.get_file_proxy(f"revealed_files/a{i}.pdf", _fake_request(), cover=True)
+            upload.get_file_proxy(
+                f"revealed_files/a{i}.pdf",
+                _fake_request(),
+                cover=True,
+                current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+            )
         )
         for i in range(2)
     ]
     await asyncio.sleep(0.05)
 
     with pytest.raises(AppError) as exc:
-        await upload.get_file_proxy("revealed_files/burst.pdf", _fake_request(), cover=True)
+        await upload.get_file_proxy(
+            "revealed_files/burst.pdf",
+            _fake_request(),
+            cover=True,
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
+        )
     assert exc.value.error_code.code == "cover_thumbnail_not_available"
     assert exc.value.http_status == 404
 

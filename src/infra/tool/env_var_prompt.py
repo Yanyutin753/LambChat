@@ -6,6 +6,7 @@ and are injected into sandbox command execution by the backend.
 
 import time
 
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.envvar.storage import EnvVarStorage
 from src.infra.logging import get_logger
 
@@ -19,6 +20,9 @@ _env_var_prompt_cache: dict[str, tuple[str, float]] = {}
 async def build_env_var_prompt(user_id: str, force_refresh: bool = False) -> str:
     """Build a prompt listing environment variable keys for a user."""
     if not user_id:
+        return ""
+    if not await has_tool_permission(user_id, "envvar:read"):
+        _env_var_prompt_cache.pop(user_id, None)
         return ""
 
     _cleanup_stale_cache()

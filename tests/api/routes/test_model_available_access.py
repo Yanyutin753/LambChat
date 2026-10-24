@@ -126,7 +126,7 @@ async def test_list_available_models_filters_by_role_allowed_models(
         "src.infra.role.manager.get_role_manager",
         lambda: _RoleManager(),
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=["agent:read"])
 
     response = await model_routes.list_available_models(user)
 
@@ -149,7 +149,7 @@ async def test_list_available_models_uses_bounded_lookup_for_restricted_roles(
         "src.infra.role.manager.get_role_manager",
         lambda: _RoleManager(),
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=["agent:read"])
 
     response = await model_routes.list_available_models(user)
 
@@ -170,7 +170,7 @@ async def test_list_available_models_returns_public_fields_only(
         "src.infra.role.manager.get_role_manager",
         lambda: _RoleManager(),
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=["agent:read"])
 
     response = await model_routes.list_available_models(user)
     payload = response.model_dump()
@@ -230,7 +230,7 @@ async def test_list_available_models_exposes_thinking_capability(
         "src.infra.agent.model_access.resolve_user_allowed_model_ids",
         _no_model_restrictions,
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=["agent:read"])
 
     response = await model_routes.list_available_models(user)
 
@@ -258,7 +258,9 @@ async def test_list_available_models_returns_empty_when_role_allows_no_models(
         "src.infra.role.manager.get_role_manager",
         lambda: _RoleManager(),
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["empty"])
+    user = TokenPayload(
+        sub="user-1", username="tester", roles=["empty"], permissions=["agent:read"]
+    )
 
     response = await model_routes.list_available_models(user)
 
@@ -284,7 +286,7 @@ async def test_list_available_models_marks_effective_admin_default_model(
         "src.infra.llm.models_service.settings.DEFAULT_MODEL_ID",
         "blocked-model",
     )
-    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=["agent:read"])
 
     response = await model_routes.list_available_models(user)
 

@@ -28,11 +28,12 @@ from typing import Any
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
 from langchain_core.messages import ToolMessage
 
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.backend.lazy_sandbox import SandboxInitializationError
 from src.infra.logging import get_logger
 from src.infra.sandbox.confirm import needs_confirm
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
-from src.kernel.errors import AppError
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -196,6 +197,25 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         # ToolMessage——模型看到失败可调整重试，单条命令失败不再击穿整个 run
         # （deepagents ToolNode 不兜工具异常，实验验证）。编程性异常照旧上抛。
         try:
+            tool_name = str(request.tool_call.get("name", ""))
+            args = request.tool_call.get("args") or {}
+            reads = {"ls", "read_file", "glob", "grep", "download"}
+            writes = {"write_file", "edit_file", "delete", "upload"}
+            if tool_name in reads | writes | {"execute", "upload_url_to_sandbox", "computer_use"}:
+                permission = "sandbox:read" if tool_name in reads else "sandbox:execute"
+                path = str(args.get("file_path", args.get("path", "")))
+                for root, resource in (("/skills", "skill"), ("/memories", "memory")):
+                    if path == root or path.startswith(root + "/"):
+                        action = (
+                            "read"
+                            if tool_name in reads
+                            else "delete"
+                            if tool_name == "delete"
+                            else "write"
+                        )
+                        permission = f"{resource}:{action}"
+                if not await has_tool_permission(self._user_id, permission):
+                    raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": permission})
             return await self._awrap_tool_call_inner(request, handler)
         except (AppError, SandboxInitializationError) as exc:
             return self._error_tool_message(request, exc)
@@ -296,3 +316,17 @@ class SandboxConfirmMiddleware(AgentMiddleware):
             name=str(tool_call.get("name", "")),
             status="error",
         )
+
+
+def create_sandbox_confirm_middleware(
+    user_id: str, backend: Any, machine_id: str | None = None
+) -> SandboxConfirmMiddleware:
+    """Keep parent and child tools on the same current authority and machine policy."""
+    from src.infra.backend.local import WorkspaceAliasBackend
+
+    local = isinstance(backend, WorkspaceAliasBackend)
+    return SandboxConfirmMiddleware(
+        user_id=user_id,
+        policy_resolver=None if local else _CloudPolicyResolver(user_id),
+        machine_id=machine_id if local else None,
+    )

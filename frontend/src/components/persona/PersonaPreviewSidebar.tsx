@@ -13,6 +13,7 @@ import type { PersonaPreset } from "../../types";
 interface PersonaPreviewSidebarProps {
   preset: PersonaPreset;
   isSelected: boolean;
+  canCopy?: boolean;
   isMutating: boolean;
   isUsingPreset: boolean;
   onClose: () => void;
@@ -23,6 +24,7 @@ interface PersonaPreviewSidebarProps {
 export function PersonaPreviewSidebar({
   preset,
   isSelected,
+  canCopy = false,
   isMutating,
   isUsingPreset,
   onClose,
@@ -72,7 +74,7 @@ export function PersonaPreviewSidebar({
                 ? t("personaPresets.using", "使用中")
                 : t("personaPresets.use", "使用")}
           </button>
-          {preset.scope === "global" && (
+          {canCopy && preset.scope === "global" && (
             <button
               type="button"
               disabled={isMutating}

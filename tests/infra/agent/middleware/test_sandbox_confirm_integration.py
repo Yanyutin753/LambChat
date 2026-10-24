@@ -436,3 +436,14 @@ async def test_backend_failure_does_not_kill_run(recorder_install, failure) -> N
         assert "换个方式" in str(final.content)
     finally:
         hitl_interrupt_supported.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def authorized_sandbox_operator(monkeypatch):
+    # These tests isolate confirmation, assuming an operator with execution access.
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.sandbox_confirm.has_tool_permission",
+        AsyncMock(return_value=True),
+    )

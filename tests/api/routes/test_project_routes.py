@@ -107,7 +107,9 @@ async def test_delete_project_clears_channel_config_project_references(
     response = await project_route.delete_project(
         "project-1",
         delete_sessions=False,
-        user=SimpleNamespace(sub="user-1"),
+        user=SimpleNamespace(
+            sub="user-1", permissions=["project:delete", "session:write", "session:delete"]
+        ),
     )
 
     assert response == {"status": "deleted"}
@@ -145,7 +147,9 @@ async def test_delete_project_with_delete_sessions_uses_full_session_cleanup(
     response = await project_route.delete_project(
         "project-1",
         delete_sessions=True,
-        user=SimpleNamespace(sub="user-1"),
+        user=SimpleNamespace(
+            sub="user-1", permissions=["project:delete", "session:write", "session:delete"]
+        ),
     )
 
     assert response == {"status": "deleted"}
@@ -173,7 +177,9 @@ async def test_delete_project_with_delete_sessions_stops_when_session_delete_fai
         await project_route.delete_project(
             "project-1",
             delete_sessions=True,
-            user=SimpleNamespace(sub="user-1"),
+            user=SimpleNamespace(
+                sub="user-1", permissions=["project:delete", "session:write", "session:delete"]
+            ),
         )
 
     assert exc_info.value.error_code.code == "delete_project_sessions_failed"
@@ -207,7 +213,9 @@ async def test_delete_project_cleans_up_live_project_shares(
     response = await project_route.delete_project(
         "project-1",
         delete_sessions=False,
-        user=SimpleNamespace(sub="user-1"),
+        user=SimpleNamespace(
+            sub="user-1", permissions=["project:delete", "session:write", "session:delete"]
+        ),
     )
 
     assert response == {"status": "deleted"}

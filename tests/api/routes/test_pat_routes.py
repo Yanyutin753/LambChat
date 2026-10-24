@@ -31,7 +31,12 @@ def account_authority(monkeypatch):
 
 
 def _fake_user() -> TokenPayload:
-    return TokenPayload(sub="u1", username="tester", roles=["user"], permissions=["chat:write"])
+    return TokenPayload(
+        sub="u1",
+        username="tester",
+        roles=["user"],
+        permissions=["chat:write", "sandbox:manage"],
+    )
 
 
 def _make_app(storage) -> FastAPI:

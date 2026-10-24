@@ -1,18 +1,33 @@
-"""
-用户路由
-"""
+"""User administration with separate profile, credential and grant authority."""
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from starlette.responses import Response
 
-from src.api.deps import require_permissions
+from src.api.deps import get_current_user_required, require_permissions
+from src.infra.auth.delegation import (
+    authority_mutation,
+    authorize_role_assignment,
+    ensure_usable_administrator,
+    ensure_user_target,
+    require_capability,
+)
+from src.infra.logging import get_logger
 from src.infra.user.manager import UserManager
+from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.user import TokenPayload, User, UserCreate, UserListResponse, UserUpdate
+from src.kernel.schemas.user import (
+    AdminUserCreate,
+    AdminUserUpdate,
+    TokenPayload,
+    User,
+    UserCreate,
+    UserListResponse,
+    UserUpdate,
+)
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/", response_model=UserListResponse)
@@ -22,22 +37,27 @@ async def list_users(
     search: Optional[str] = None,
     _: None = Depends(require_permissions("user:read")),
 ):
-    """列出用户（分页）"""
-    manager = UserManager()
-    return await manager.list_users(skip, limit, search)
+    return await UserManager().list_users(skip, limit, search)
 
 
 @router.post("/", response_model=User)
 async def create_user(
-    user_data: UserCreate,
-    _: None = Depends(require_permissions("user:write")),
+    user_data: AdminUserCreate,
+    current_user: TokenPayload = Depends(require_permissions("user:create")),
 ):
-    """创建用户（管理员创建的用户自动激活，无需邮箱验证）"""
-    manager = UserManager()
-    # 管理员创建的用户跳过邮箱验证
-    # 创建新的 UserCreate 对象，设置 skip_verification=True
-    admin_user_data = user_data.model_copy(update={"skip_verification": True})
-    return await manager.register(admin_user_data)
+    async with authority_mutation(current_user) as actor:
+        require_capability(actor, "user:create")
+        if user_data.roles:
+            await authorize_role_assignment(actor, user_data.roles)
+        internal = UserCreate(**user_data.model_dump(), skip_verification=True)
+        user = await UserManager().register(internal, assign_default_role=False)
+        logger.info(
+            "Account created actor=%s target=%s fields=%s",
+            actor.sub,
+            user.id,
+            sorted(user_data.model_fields_set),
+        )
+        return user
 
 
 @router.get("/{user_id}", response_model=User)
@@ -45,9 +65,7 @@ async def get_user(
     user_id: str,
     _: None = Depends(require_permissions("user:read")),
 ):
-    """获取用户"""
-    manager = UserManager()
-    user = await manager.get_user(user_id)
+    user = await UserManager().get_user(user_id)
     if not user:
         raise AppError(ErrorCode.USER_NOT_FOUND)
     return user
@@ -56,38 +74,73 @@ async def get_user(
 @router.put("/{user_id}", response_model=User)
 async def update_user(
     user_id: str,
-    user_data: UserUpdate,
-    current_user: TokenPayload = Depends(require_permissions("user:write")),
+    user_data: AdminUserUpdate,
+    current_user: TokenPayload = Depends(get_current_user_required),
 ):
-    """更新用户"""
-    manager = UserManager()
-    user = await manager.update_user(user_id, user_data)
-    if not user:
-        raise AppError(ErrorCode.USER_NOT_FOUND)
+    fields = user_data.model_fields_set
+    async with authority_mutation(current_user) as actor:
+        if fields & {"username", "email", "avatar_url"} or not fields:
+            require_capability(actor, "user:write")
+        if fields & {"password", "email"}:
+            require_capability(actor, "user:reset_password")
+        if "is_active" in fields:
+            require_capability(actor, "user:status")
+        if "roles" in fields:
+            require_capability(actor, "user:assign_roles")
+            if user_id == actor.sub:
+                raise AppError(ErrorCode.CANNOT_CHANGE_OWN_ROLE_PERMISSIONS)
+        if any(
+            getattr(user_data, key) is None
+            for key in fields & {"roles", "password", "is_active", "email", "username"}
+        ):
+            raise AppError(ErrorCode.BAD_REQUEST)
 
-    # 如果修改了当前用户的角色，返回响应头让前端强制重新登录
-    response = Response()
-    if user_id == current_user.sub and user_data.roles is not None:
-        response.headers["X-Force-Relogin"] = "true"
-        # FastAPI 需要特殊处理来同时返回数据和自定义响应头
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(
-            content=user.model_dump(mode="json"),
-            headers={"X-Force-Relogin": "true"},
+        manager = UserManager()
+        target = await manager.get_user(user_id)
+        if not target:
+            raise AppError(ErrorCode.USER_NOT_FOUND)
+        existing_roles = await ensure_user_target(actor, target)
+        next_roles = existing_roles
+        if user_data.roles is not None:
+            next_roles = await authorize_role_assignment(actor, user_data.roles)
+        had_admin = any("system:admin" in role.permissions for role in existing_roles)
+        keeps_admin = any("system:admin" in role.permissions for role in next_roles)
+        if had_admin and (
+            user_data.is_active is False
+            or not keeps_admin
+            or (
+                user_data.email is not None
+                and user_data.email != target.email
+                and settings.REQUIRE_EMAIL_VERIFICATION
+            )
+        ):
+            await ensure_usable_administrator(excluded_user_id=user_id)
+        user = await manager.update_user(
+            user_id, UserUpdate(**user_data.model_dump(exclude_unset=True))
         )
-
-    return user
+        if not user:
+            raise AppError(ErrorCode.USER_NOT_FOUND)
+        logger.info(
+            "Account updated actor=%s target=%s fields=%s", actor.sub, user_id, sorted(fields)
+        )
+        return user
 
 
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: str,
-    _: None = Depends(require_permissions("user:delete")),
+    current_user: TokenPayload = Depends(require_permissions("user:delete")),
 ):
-    """删除用户"""
-    manager = UserManager()
-    success = await manager.delete_user(user_id)
-    if not success:
-        raise AppError(ErrorCode.USER_NOT_FOUND)
-    return {"status": "deleted"}
+    async with authority_mutation(current_user) as actor:
+        require_capability(actor, "user:delete")
+        manager = UserManager()
+        target = await manager.get_user(user_id)
+        if not target:
+            raise AppError(ErrorCode.USER_NOT_FOUND)
+        roles = await ensure_user_target(actor, target)
+        if any("system:admin" in role.permissions for role in roles):
+            await ensure_usable_administrator(excluded_user_id=user_id)
+        if not await manager.delete_user(user_id):
+            raise AppError(ErrorCode.USER_NOT_FOUND)
+        logger.info("Account deleted actor=%s target=%s", actor.sub, user_id)
+        return {"status": "deleted"}

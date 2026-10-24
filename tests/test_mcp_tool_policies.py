@@ -62,10 +62,28 @@ async def test_mcp_storage_round_trips_tool_policy(monkeypatch: pytest.MonkeyPat
     assert policy.inline_exposure is True
 
 
+def _current_authority(monkeypatch, permissions, role):
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool import internal_registry
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        internal_registry,
+        "resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(
+                sub="user-1", username="tester", roles=[role], permissions=permissions
+            )
+        ),
+    )
+
+
 @pytest.mark.asyncio
 async def test_internal_tool_policies_filter_blocked_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, ["envvar:read"], "user")
     from langchain_core.tools import BaseTool
 
     from src.infra.tool import internal_registry
@@ -112,6 +130,7 @@ async def test_internal_tool_policies_filter_blocked_tools(
 async def test_internal_scheduled_task_tool_infos_follow_role_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, ["scheduled_task:read"], "reader")
     from src.infra.tool import internal_registry
 
     class _FakeRoleStorage:
@@ -147,6 +166,7 @@ async def test_internal_scheduled_task_tool_infos_follow_role_permissions(
 async def test_internal_scheduled_task_tools_follow_role_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, ["scheduled_task:write"], "writer")
     from src.infra.tool import internal_registry
 
     class _FakeRoleStorage:
@@ -184,6 +204,7 @@ async def test_internal_scheduled_task_tools_follow_role_permissions(
 async def test_internal_scheduled_task_create_tool_info_includes_role_team_targeting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, ["scheduled_task:write"], "writer")
     from src.infra.tool import internal_registry
     from src.infra.tool.scheduled_task_tool import get_scheduled_task_tools
 
@@ -221,6 +242,7 @@ async def test_internal_scheduled_task_create_tool_info_includes_role_team_targe
 async def test_internal_scheduled_task_tools_require_permissions_even_for_admin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, ["mcp:admin"], "admin-without-task")
     from src.infra.tool import internal_registry
 
     class _FakeRoleStorage:
@@ -251,6 +273,7 @@ async def test_internal_scheduled_task_tools_require_permissions_even_for_admin(
 async def test_internal_image_generate_tool_infos_include_supported_parameters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _current_authority(monkeypatch, [], "admin")
     from src.infra.tool import internal_registry
     from src.infra.tool.image_generation_tool import (
         get_image_generation_tool,

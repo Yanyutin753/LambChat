@@ -231,3 +231,29 @@ def test_patch_does_not_override_explicit_token_counter(monkeypatch) -> None:
         deepagents_graph.create_summarization_middleware(model, object(), token_counter=explicit)
 
     assert captured["token_counter"] is explicit
+
+
+async def test_summary_rate_limit_fallback_logs_safe_model_diagnostics(monkeypatch, caplog):
+    import httpx
+
+    request = httpx.Request("POST", "https://private.invalid?key=query-secret")
+    error = httpx.HTTPStatusError(
+        "body-secret account-secret", request=request, response=httpx.Response(429, request=request)
+    )
+    middleware = _stub_middleware(fail_with=error)
+    middleware._lc_helper.model = SimpleNamespace(
+        model_name="claude-summary",
+        quota_provider="anthropic-proxy",
+        quota_model_config_id="summary-channel",
+        _llm_type="anthropic-chat",
+    )
+    _fake_fallback_llm(monkeypatch)
+    protected = protect_summarization_middleware(middleware, fallback_model="backup")
+
+    assert await protected._acreate_summary([HumanMessage(content="history")]) == "fallback summary"
+    assert "model=claude-summary" in caplog.text
+    assert "model_config_id=summary-channel" in caplog.text
+    assert "status=429" in caplog.text
+    assert "reason=rate_limit" in caplog.text
+    for secret in ("private.invalid", "query-secret", "body-secret", "account-secret"):
+        assert secret not in caplog.text

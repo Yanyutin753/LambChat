@@ -3101,7 +3101,12 @@
     "budgetTitle": "Model budgets (USD)",
     "weeklyBudgetUsd": "Weekly budget (USD)",
     "budgetHint": "Empty = this role contributes no budget limit. For multiple roles, the highest configured limit applies; usage is unlimited only when no matching role sets a limit. 0 blocks model calls. The first model call starts separate 5-hour and 7-day windows. After each expires, the next call starts a new window of that duration. Viewing the balance does not start either timer.",
-    "fiveHourBudgetUsd": "5-hour budget (USD)"
+    "fiveHourBudgetUsd": "5-hour budget (USD)",
+    "grantablePermissions": "Grantable permissions",
+    "assignableRoles": "Assignable roles",
+    "delegationHint": "Delegation is limited to the permissions and roles explicitly selected here. System administration cannot be delegated.",
+    "unrestrictedModels": "Allow every configured model",
+    "explicitModelsHint": "An empty model selection permits no models. Unlimited access must be enabled explicitly."
   },
   "scheduledTask": {
     "noTimeLimit": "No total execution time limit",
@@ -4767,5 +4772,390 @@
     "useAuthenticator": "Use authenticator code",
     "tokenNotice": "Enabling two-factor authentication or regenerating recovery codes revokes other login sessions, existing API tokens, and device pairings. Sign in and pair devices again. Disabling two-factor authentication only revokes other login sessions.",
     "optionalCode": "Authenticator or recovery code (if 2FA is enabled)"
+  },
+  "permissionCatalog": {
+    "system:admin": {
+      "label": "Protected system administration",
+      "description": "Allows: Protected system administration. Other capabilities and ownership restrictions still apply."
+    },
+    "user:create": {
+      "label": "Create accounts",
+      "description": "Allows: Create accounts. Other capabilities and ownership restrictions still apply."
+    },
+    "user:status": {
+      "label": "Activate or suspend accounts",
+      "description": "Allows: Activate or suspend accounts. Other capabilities and ownership restrictions still apply."
+    },
+    "user:reset_password": {
+      "label": "Reset account credentials",
+      "description": "Allows: Reset account credentials. Other capabilities and ownership restrictions still apply."
+    },
+    "user:assign_roles": {
+      "label": "Assign scoped roles to accounts",
+      "description": "Allows: Assign scoped roles to accounts. Other capabilities and ownership restrictions still apply."
+    },
+    "role:read": {
+      "label": "View roles and access rules",
+      "description": "Allows: View roles and access rules. Other capabilities and ownership restrictions still apply."
+    },
+    "role:write": {
+      "label": "Create roles and edit metadata",
+      "description": "Allows: Create roles and edit metadata. Other capabilities and ownership restrictions still apply."
+    },
+    "role:delete": {
+      "label": "Delete custom roles",
+      "description": "Allows: Delete custom roles. Other capabilities and ownership restrictions still apply."
+    },
+    "role:grant": {
+      "label": "Delegate scoped permissions",
+      "description": "Allows: Delegate scoped permissions. Other capabilities and ownership restrictions still apply."
+    },
+    "settings:read": {
+      "label": "View system settings",
+      "description": "Allows: View system settings. Other capabilities and ownership restrictions still apply."
+    },
+    "settings:security": {
+      "label": "Edit security and credential settings",
+      "description": "Allows: Edit security and credential settings. Other capabilities and ownership restrictions still apply."
+    },
+    "settings:reset": {
+      "label": "Reset system settings",
+      "description": "Allows: Reset system settings. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:system_read": {
+      "label": "View system MCP configuration",
+      "description": "Allows: View system MCP configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:system_delete": {
+      "label": "Delete system MCP servers",
+      "description": "Allows: Delete system MCP servers. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:policy_manage": {
+      "label": "Manage MCP tool access policies",
+      "description": "Allows: Manage MCP tool access policies. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:export": {
+      "label": "Export MCP configuration and secrets",
+      "description": "Allows: Export MCP configuration and secrets. Other capabilities and ownership restrictions still apply."
+    },
+    "file:read": {
+      "label": "Read own files",
+      "description": "Allows: Read own files. Other capabilities and ownership restrictions still apply."
+    },
+    "file:delete": {
+      "label": "Delete own files",
+      "description": "Allows: Delete own files. Other capabilities and ownership restrictions still apply."
+    },
+    "agent:config_read": {
+      "label": "View Agent configuration",
+      "description": "Allows: View Agent configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "agent:assign": {
+      "label": "Assign Agents to roles",
+      "description": "Allows: Assign Agents to roles. Other capabilities and ownership restrictions still apply."
+    },
+    "model:read": {
+      "label": "View model configuration",
+      "description": "Allows: View model configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "model:delete": {
+      "label": "Delete model configurations",
+      "description": "Allows: Delete model configurations. Other capabilities and ownership restrictions still apply."
+    },
+    "model:assign": {
+      "label": "Assign models to roles",
+      "description": "Allows: Assign models to roles. Other capabilities and ownership restrictions still apply."
+    },
+    "pricing:manage": {
+      "label": "Manage pricing and usage repricing",
+      "description": "Allows: Manage pricing and usage repricing. Other capabilities and ownership restrictions still apply."
+    },
+    "project:read": {
+      "label": "View own projects",
+      "description": "Allows: View own projects. Other capabilities and ownership restrictions still apply."
+    },
+    "project:write": {
+      "label": "Create and edit own projects",
+      "description": "Allows: Create and edit own projects. Other capabilities and ownership restrictions still apply."
+    },
+    "project:delete": {
+      "label": "Delete own projects",
+      "description": "Allows: Delete own projects. Other capabilities and ownership restrictions still apply."
+    },
+    "memory:read": {
+      "label": "Read own memories",
+      "description": "Allows: Read own memories. Other capabilities and ownership restrictions still apply."
+    },
+    "memory:write": {
+      "label": "Create, edit and import own memories",
+      "description": "Allows: Create, edit and import own memories. Other capabilities and ownership restrictions still apply."
+    },
+    "memory:delete": {
+      "label": "Delete own memories",
+      "description": "Allows: Delete own memories. Other capabilities and ownership restrictions still apply."
+    },
+    "memory:export": {
+      "label": "Export own memories",
+      "description": "Allows: Export own memories. Other capabilities and ownership restrictions still apply."
+    },
+    "sandbox:read": {
+      "label": "View own sandbox connections and files",
+      "description": "Allows: View own sandbox connections and files. Other capabilities and ownership restrictions still apply."
+    },
+    "sandbox:execute": {
+      "label": "Execute in own sandbox",
+      "description": "Allows: Execute in own sandbox. Other capabilities and ownership restrictions still apply."
+    },
+    "sandbox:manage": {
+      "label": "Manage own sandbox connections",
+      "description": "Allows: Manage own sandbox connections. Other capabilities and ownership restrictions still apply."
+    },
+    "persona_preset:delete": {
+      "label": "Delete own persona presets",
+      "description": "Allows: Delete own persona presets. Other capabilities and ownership restrictions still apply."
+    },
+    "envvar:reveal": {
+      "label": "Reveal own environment secrets",
+      "description": "Allows: Reveal own environment secrets. Other capabilities and ownership restrictions still apply."
+    },
+    "notification:read": {
+      "label": "View notification administration",
+      "description": "Allows: View notification administration. Other capabilities and ownership restrictions still apply."
+    },
+    "notification:delete": {
+      "label": "Delete notifications",
+      "description": "Allows: Delete notifications. Other capabilities and ownership restrictions still apply."
+    },
+    "usage:quota_manage": {
+      "label": "Manage budgets and issue reset cards",
+      "description": "Allows: Manage budgets and issue reset cards. Other capabilities and ownership restrictions still apply."
+    },
+    "chat:write": {
+      "label": "Send messages to authorized Agents",
+      "description": "Allows: Send messages to authorized Agents. Other capabilities and ownership restrictions still apply."
+    },
+    "session:read": {
+      "label": "Read own sessions and preferences",
+      "description": "Allows: Read own sessions and preferences. Other capabilities and ownership restrictions still apply."
+    },
+    "session:write": {
+      "label": "Create and edit own sessions",
+      "description": "Allows: Create and edit own sessions. Other capabilities and ownership restrictions still apply."
+    },
+    "session:delete": {
+      "label": "Delete own sessions and messages",
+      "description": "Allows: Delete own sessions and messages. Other capabilities and ownership restrictions still apply."
+    },
+    "session:share": {
+      "label": "Share own sessions and projects",
+      "description": "Allows: Share own sessions and projects. Other capabilities and ownership restrictions still apply."
+    },
+    "skill:read": {
+      "label": "Read own skills",
+      "description": "Allows: Read own skills. Other capabilities and ownership restrictions still apply."
+    },
+    "skill:write": {
+      "label": "Create, edit and install own skills",
+      "description": "Allows: Create, edit and install own skills. Other capabilities and ownership restrictions still apply."
+    },
+    "skill:delete": {
+      "label": "Delete own skills",
+      "description": "Allows: Delete own skills. Other capabilities and ownership restrictions still apply."
+    },
+    "user:read": {
+      "label": "View account directory",
+      "description": "Allows: View account directory. Other capabilities and ownership restrictions still apply."
+    },
+    "user:write": {
+      "label": "Edit account profile",
+      "description": "Allows: Edit account profile. Other capabilities and ownership restrictions still apply."
+    },
+    "user:delete": {
+      "label": "Delete eligible accounts",
+      "description": "Allows: Delete eligible accounts. Other capabilities and ownership restrictions still apply."
+    },
+    "settings:manage": {
+      "label": "Edit operational system settings",
+      "description": "Allows: Edit operational system settings. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:read": {
+      "label": "Read MCP metadata and own preferences",
+      "description": "Allows: Read MCP metadata and own preferences. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:write_sse": {
+      "label": "Create and edit own SSE MCP servers",
+      "description": "Allows: Create and edit own SSE MCP servers. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:write_http": {
+      "label": "Create and edit own HTTP MCP servers",
+      "description": "Allows: Create and edit own HTTP MCP servers. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:delete": {
+      "label": "Delete own MCP servers",
+      "description": "Allows: Delete own MCP servers. Other capabilities and ownership restrictions still apply."
+    },
+    "mcp:admin": {
+      "label": "Maintain system MCP configuration",
+      "description": "Allows: Maintain system MCP configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "file:upload": {
+      "label": "Upload own files",
+      "description": "Allows: Upload own files. Other capabilities and ownership restrictions still apply."
+    },
+    "file:upload:image": {
+      "label": "Upload own images",
+      "description": "Allows: Upload own images. Other capabilities and ownership restrictions still apply."
+    },
+    "file:upload:video": {
+      "label": "Upload own videos",
+      "description": "Allows: Upload own videos. Other capabilities and ownership restrictions still apply."
+    },
+    "file:upload:audio": {
+      "label": "Upload own audio",
+      "description": "Allows: Upload own audio. Other capabilities and ownership restrictions still apply."
+    },
+    "file:upload:document": {
+      "label": "Upload own documents",
+      "description": "Allows: Upload own documents. Other capabilities and ownership restrictions still apply."
+    },
+    "avatar:upload": {
+      "label": "Manage own avatar",
+      "description": "Allows: Manage own avatar. Other capabilities and ownership restrictions still apply."
+    },
+    "feedback:write": {
+      "label": "Submit own feedback",
+      "description": "Allows: Submit own feedback. Other capabilities and ownership restrictions still apply."
+    },
+    "feedback:read": {
+      "label": "View platform feedback",
+      "description": "Allows: View platform feedback. Other capabilities and ownership restrictions still apply."
+    },
+    "feedback:admin": {
+      "label": "Delete platform feedback",
+      "description": "Allows: Delete platform feedback. Other capabilities and ownership restrictions still apply."
+    },
+    "channel:read": {
+      "label": "View own channel configuration",
+      "description": "Allows: View own channel configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "channel:write": {
+      "label": "Create, edit and test own channels",
+      "description": "Allows: Create, edit and test own channels. Other capabilities and ownership restrictions still apply."
+    },
+    "channel:delete": {
+      "label": "Delete own channels",
+      "description": "Allows: Delete own channels. Other capabilities and ownership restrictions still apply."
+    },
+    "agent:read": {
+      "label": "Discover authorized Agents",
+      "description": "Allows: Discover authorized Agents. Other capabilities and ownership restrictions still apply."
+    },
+    "agent:admin": {
+      "label": "Maintain Agent configuration",
+      "description": "Allows: Maintain Agent configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "model:admin": {
+      "label": "Maintain model configuration",
+      "description": "Allows: Maintain model configuration. Other capabilities and ownership restrictions still apply."
+    },
+    "marketplace:read": {
+      "label": "Browse the skill marketplace",
+      "description": "Allows: Browse the skill marketplace. Other capabilities and ownership restrictions still apply."
+    },
+    "marketplace:publish": {
+      "label": "Publish and update own marketplace skills",
+      "description": "Allows: Publish and update own marketplace skills. Other capabilities and ownership restrictions still apply."
+    },
+    "marketplace:admin": {
+      "label": "Moderate marketplace listings",
+      "description": "Allows: Moderate marketplace listings. Other capabilities and ownership restrictions still apply."
+    },
+    "persona_preset:read": {
+      "label": "Browse available persona presets",
+      "description": "Allows: Browse available persona presets. Other capabilities and ownership restrictions still apply."
+    },
+    "persona_preset:write": {
+      "label": "Create and edit own persona presets",
+      "description": "Allows: Create and edit own persona presets. Other capabilities and ownership restrictions still apply."
+    },
+    "persona_preset:admin": {
+      "label": "Manage shared persona presets",
+      "description": "Allows: Manage shared persona presets. Other capabilities and ownership restrictions still apply."
+    },
+    "scheduled_task:read": {
+      "label": "View own scheduled tasks",
+      "description": "Allows: View own scheduled tasks. Other capabilities and ownership restrictions still apply."
+    },
+    "scheduled_task:write": {
+      "label": "Create and edit own scheduled tasks",
+      "description": "Allows: Create and edit own scheduled tasks. Other capabilities and ownership restrictions still apply."
+    },
+    "scheduled_task:delete": {
+      "label": "Delete own scheduled tasks",
+      "description": "Allows: Delete own scheduled tasks. Other capabilities and ownership restrictions still apply."
+    },
+    "envvar:read": {
+      "label": "View own environment variable names",
+      "description": "Allows: View own environment variable names. Other capabilities and ownership restrictions still apply."
+    },
+    "envvar:write": {
+      "label": "Set own environment variable values",
+      "description": "Allows: Set own environment variable values. Other capabilities and ownership restrictions still apply."
+    },
+    "envvar:delete": {
+      "label": "Delete own environment variables",
+      "description": "Allows: Delete own environment variables. Other capabilities and ownership restrictions still apply."
+    },
+    "team:read": {
+      "label": "View own teams and preferences",
+      "description": "Allows: View own teams and preferences. Other capabilities and ownership restrictions still apply."
+    },
+    "team:write": {
+      "label": "Create, edit and clone own teams",
+      "description": "Allows: Create, edit and clone own teams. Other capabilities and ownership restrictions still apply."
+    },
+    "team:delete": {
+      "label": "Delete own teams",
+      "description": "Allows: Delete own teams. Other capabilities and ownership restrictions still apply."
+    },
+    "notification:manage": {
+      "label": "Create and edit notifications",
+      "description": "Allows: Create and edit notifications. Other capabilities and ownership restrictions still apply."
+    },
+    "usage:read": {
+      "label": "View own usage and quota",
+      "description": "Allows: View own usage and quota. Other capabilities and ownership restrictions still apply."
+    },
+    "usage:admin": {
+      "label": "View platform usage",
+      "description": "Allows: View platform usage. Other capabilities and ownership restrictions still apply."
+    }
+  },
+  "permissionGroups": {
+    "chat": "Chat",
+    "session": "Sessions",
+    "skill": "Skills",
+    "user": "Accounts",
+    "role": "Roles",
+    "settings": "System settings",
+    "mcp": "MCP servers",
+    "file": "Files",
+    "avatar": "Avatars",
+    "feedback": "Feedback",
+    "agent": "Agents",
+    "team": "Teams",
+    "model": "Models",
+    "channel": "Channels",
+    "marketplace": "Marketplace",
+    "persona_preset": "Persona presets",
+    "scheduled_task": "Scheduled tasks",
+    "notification": "Notifications",
+    "usage": "Usage and quotas",
+    "envvar": "Environment variables",
+    "system": "Protected administration",
+    "pricing": "Pricing",
+    "project": "Projects",
+    "memory": "Memory",
+    "sandbox": "Sandbox"
   }
 }

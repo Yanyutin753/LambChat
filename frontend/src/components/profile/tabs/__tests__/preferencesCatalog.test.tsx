@@ -30,7 +30,10 @@ vi.mock("../../../../contexts/ThemeContext", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: "user", metadata: {} } }),
+  useAuth: () => ({
+    hasPermission: () => true,
+    user: { id: "user", metadata: {} },
+  }),
 }));
 vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),

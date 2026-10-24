@@ -12,6 +12,7 @@ from src.infra.persona_preset.manager import (
 )
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
+from src.kernel.schemas.session import public_agent_options
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -56,7 +57,7 @@ def build_conversation_config(
             if BACKGROUND_SUBMISSION_RUN.get()
             else "agent_stream"
         ),
-        "agent_options": request.agent_options or {},
+        "agent_options": public_agent_options(request.agent_options or {}),
         "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],
         "enabled_skills": request.enabled_skills,

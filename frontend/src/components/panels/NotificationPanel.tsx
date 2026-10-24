@@ -297,7 +297,9 @@ export function NotificationPanel() {
     false,
   );
 
+  const canRead = hasPermission(Permission.NOTIFICATION_READ);
   const canManage = hasPermission(Permission.NOTIFICATION_MANAGE);
+  const canDelete = hasPermission(Permission.NOTIFICATION_DELETE);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -321,6 +323,7 @@ export function NotificationPanel() {
 
   // Handle create
   const handleCreate = async (data: NotificationCreate) => {
+    if (!canManage) return;
     try {
       await notificationApi.create(data);
       toast.success(t("notification.createdSuccess"));
@@ -335,7 +338,7 @@ export function NotificationPanel() {
 
   // Handle update
   const handleUpdate = async (data: NotificationCreate) => {
-    if (!editingNotification) return;
+    if (!canManage || !editingNotification) return;
     try {
       await notificationApi.update(editingNotification.id, data);
       toast.success(t("notification.updatedSuccess"));
@@ -350,7 +353,7 @@ export function NotificationPanel() {
 
   // Handle delete
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!canDelete || !deleteTarget) return;
     try {
       await notificationApi.delete(deleteTarget.id);
       toast.success(t("notification.deletedSuccess"));
@@ -406,7 +409,7 @@ export function NotificationPanel() {
   };
 
   // Permission denied
-  if (!canManage) {
+  if (!canRead) {
     return (
       <div className="glass-shell flex h-full flex-col items-center justify-center gap-4 p-8">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
@@ -433,13 +436,17 @@ export function NotificationPanel() {
         subtitle={t("notification.subtitle")}
         illustration="panel-notifications"
         actions={
-          <Button
-            variant="primary"
-            onClick={() => setIsCreating(true)}
-            leftIcon={<Plus size={16} />}
-          >
-            <span className="hidden sm:inline">{t("notification.create")}</span>
-          </Button>
+          canManage ? (
+            <Button
+              variant="primary"
+              onClick={() => setIsCreating(true)}
+              leftIcon={<Plus size={16} />}
+            >
+              <span className="hidden sm:inline">
+                {t("notification.create")}
+              </span>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -547,20 +554,24 @@ export function NotificationPanel() {
                             }
                           />
                         )}
-                        <IconButton
-                          aria-label={t("notification.edit")}
-                          icon={<Pencil size={16} />}
-                          onClick={() => setEditingNotification(notification)}
-                          className="h-9 w-9 rounded-lg text-stone-400 hover:bg-theme-bg-hover hover:text-stone-600 dark:hover:bg-theme-bg-hover dark:hover:text-stone-300"
-                          title={t("notification.edit")}
-                        />
-                        <IconButton
-                          aria-label={t("notification.delete")}
-                          icon={<Trash2 size={16} />}
-                          onClick={() => setDeleteTarget(notification)}
-                          className="h-9 w-9 rounded-lg text-stone-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                          title={t("notification.delete")}
-                        />
+                        {canManage && (
+                          <IconButton
+                            aria-label={t("notification.edit")}
+                            icon={<Pencil size={16} />}
+                            onClick={() => setEditingNotification(notification)}
+                            className="h-9 w-9 rounded-lg text-stone-400 hover:bg-theme-bg-hover hover:text-stone-600 dark:hover:bg-theme-bg-hover dark:hover:text-stone-300"
+                            title={t("notification.edit")}
+                          />
+                        )}
+                        {canDelete && (
+                          <IconButton
+                            aria-label={t("notification.delete")}
+                            icon={<Trash2 size={16} />}
+                            onClick={() => setDeleteTarget(notification)}
+                            className="h-9 w-9 rounded-lg text-stone-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                            title={t("notification.delete")}
+                          />
+                        )}
                       </div>
                     </div>
 

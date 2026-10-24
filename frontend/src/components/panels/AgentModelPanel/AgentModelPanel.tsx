@@ -4,6 +4,8 @@ import { InteractiveIcon } from "../../common/InteractiveIcon";
  * 合并助手配置和模型配置到一个页面，通过顶部 tab 切换
  */
 
+import { useAuth } from "../../../hooks/useAuth";
+import { Permission } from "../../../types";
 import { useState } from "react";
 import { Bot, Cpu } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -16,9 +18,20 @@ export type SectionType = "agents" | "models";
 
 export function AgentModelPanel() {
   const { t } = useTranslation();
-  const [activeSection, setActiveSection] = useState<SectionType>("agents");
+  const { hasPermission } = useAuth();
+  const canViewAgents = [
+    Permission.AGENT_READ,
+    Permission.AGENT_CONFIG_READ,
+    Permission.AGENT_ASSIGN,
+  ].some(hasPermission);
+  const canViewModels = [Permission.MODEL_READ, Permission.MODEL_ASSIGN].some(
+    hasPermission,
+  );
+  const [activeSection, setActiveSection] = useState<SectionType>(
+    canViewAgents ? "agents" : "models",
+  );
 
-  const [modelsVisited, setModelsVisited] = useState(false);
+  const [modelsVisited, setModelsVisited] = useState(!canViewAgents);
 
   const sections: {
     id: SectionType;
@@ -31,31 +44,35 @@ export function AgentModelPanel() {
 
   const sectionSwitcher = (
     <div className="agent-model-section-switcher inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 font-serif">
-      {sections.map((section) => {
-        const Icon = section.icon;
-        const isActive = activeSection === section.id;
-        return (
-          <button
-            key={section.id}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => {
-              if (section.id === "models") setModelsVisited(true);
-              setActiveSection(section.id);
-            }}
-            className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
-              isActive
-                ? "bg-theme-bg-card text-theme-text shadow-sm ring-1 ring-[var(--glass-border)]"
-                : "text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text"
-            }`}
-          >
-            <InteractiveIcon>
-              <Icon size={16} className="flex-shrink-0" />
-            </InteractiveIcon>
-            <span>{section.label}</span>
-          </button>
-        );
-      })}
+      {sections
+        .filter((section) =>
+          section.id === "agents" ? canViewAgents : canViewModels,
+        )
+        .map((section) => {
+          const Icon = section.icon;
+          const isActive = activeSection === section.id;
+          return (
+            <button
+              key={section.id}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => {
+                if (section.id === "models") setModelsVisited(true);
+                setActiveSection(section.id);
+              }}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
+                isActive
+                  ? "bg-theme-bg-card text-theme-text shadow-sm ring-1 ring-[var(--glass-border)]"
+                  : "text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text"
+              }`}
+            >
+              <InteractiveIcon>
+                <Icon size={16} className="flex-shrink-0" />
+              </InteractiveIcon>
+              <span>{section.label}</span>
+            </button>
+          );
+        })}
     </div>
   );
 
@@ -72,10 +89,12 @@ export function AgentModelPanel() {
       />
 
       <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
-        <div hidden={activeSection !== "agents"}>
-          <AgentSection />
-        </div>
-        {modelsVisited && (
+        {canViewAgents && (
+          <div hidden={activeSection !== "agents"}>
+            <AgentSection />
+          </div>
+        )}
+        {canViewModels && modelsVisited && (
           <div hidden={activeSection !== "models"}>
             <ModelSection />
           </div>

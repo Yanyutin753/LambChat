@@ -18,7 +18,7 @@ export function BulkResetCards({
 }) {
   const { t } = useTranslation();
   const { hasPermission, user, token } = useAuth();
-  const allowed = hasPermission(Permission.USAGE_ADMIN);
+  const allowed = hasPermission(Permission.USAGE_QUOTA_MANAGE);
   const storageKey = `lambchat:reset-card-batch:${user?.id ?? ""}`;
   const [window, setWindow] = useState<ResetCardBatch["window"]>("five_hour");
   const [batch, setBatch] = useState<ResetCardBatch | null>(null);

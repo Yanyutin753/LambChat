@@ -298,7 +298,7 @@ async def test_get_all_role_agents_limits_documents_loaded() -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_role_models_caps_written_allowed_models() -> None:
+async def test_set_role_models_caps_written_allowed_models(monkeypatch) -> None:
     storage = config_storage.AgentConfigStorage()
     collection = _RecordingUpdateCollection()
     storage._collections = {
@@ -306,7 +306,19 @@ async def test_set_role_models_caps_written_allowed_models() -> None:
     }
     model_ids = [f"model-{index}" for index in range(model_access.ROLE_MODEL_ACCESS_LIMIT + 25)]
 
-    written = await storage.set_role_models("role-1", "Role", model_ids)
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.role import storage as role_storage
+
+    monkeypatch.setattr(
+        role_storage,
+        "RoleStorage",
+        lambda: SimpleNamespace(
+            collection=_RecordingUpdateCollection(), invalidate_cache=AsyncMock()
+        ),
+    )
+    written = await storage.set_role_models("507f1f77bcf86cd799439011", "Role", model_ids)
 
     assert written == [f"model-{index}" for index in range(model_access.ROLE_MODEL_ACCESS_LIMIT)]
     payload = collection.calls[0][1]["$set"]
@@ -403,7 +415,7 @@ async def test_set_catalog_config_uses_single_bulk_write() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_role_agents_by_ids_batches_all_ids_and_preserves_none(monkeypatch):
+async def test_get_role_agents_by_ids_batches_all_ids_and_preserves_empty_grants(monkeypatch):
     monkeypatch.setattr(config_storage, "ROLE_AGENT_MAPPING_LIST_LIMIT", 2)
     docs = [
         {"role_id": "third", "allowed_agents": []},
@@ -416,7 +428,7 @@ async def test_get_role_agents_by_ids_batches_all_ids_and_preserves_none(monkeyp
     assert await storage.get_role_agents_by_ids(["first", "missing", "third", "first"]) == {
         "first": ["fast", "fast", "search"],
         "missing": None,
-        "third": None,
+        "third": [],
     }
     assert [args[0] for args, _kwargs in collection.calls] == [
         {"role_id": {"$in": ["first", "missing"]}},
@@ -469,3 +481,29 @@ async def test_get_role_models_by_ids_empty_input_skips_storage():
     storage = config_storage.AgentConfigStorage()
     assert await storage.get_role_models_by_ids([]) == {}
     assert storage._collections == {}
+
+
+@pytest.mark.asyncio
+async def test_empty_model_mapping_clears_legacy_unrestricted_flag(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.role import storage as role_storage
+
+    storage = config_storage.AgentConfigStorage()
+    mapping = _RecordingUpdateCollection()
+    roles = _RecordingUpdateCollection()
+    storage._collections = {config_storage._COLL_ROLE_MODELS: mapping}
+    invalidated = []
+
+    async def invalidate(name):
+        invalidated.append(name)
+
+    monkeypatch.setattr(
+        role_storage,
+        "RoleStorage",
+        lambda: SimpleNamespace(collection=roles, invalidate_cache=invalidate),
+    )
+    await storage.set_role_models("507f1f77bcf86cd799439011", "Role", [])
+    assert roles.calls[0][1]["$set"]["unrestricted_models"] is False
+    assert mapping.calls[0][1]["$set"]["allowed_models"] == []
+    assert invalidated == ["Role"]

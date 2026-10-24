@@ -116,6 +116,7 @@ export interface UserAgentPreferenceResponse {
 
 // Role's accessible models
 export interface RoleModelAssignment {
+  unrestricted_models?: boolean;
   role_id: string;
   role_name: string;
   allowed_models: string[];

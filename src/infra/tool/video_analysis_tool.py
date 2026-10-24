@@ -114,6 +114,9 @@ async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> by
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return None
+    from src.infra.auth.tool_authority import require_tool_file_read
+
+    await require_tool_file_read(user_id)
     records = get_file_record_storage()
     if await records.is_private_key(key):
         await records.require_private_access(key, user_id, get_session_id_from_runtime(runtime))

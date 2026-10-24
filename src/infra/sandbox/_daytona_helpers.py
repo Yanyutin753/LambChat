@@ -12,6 +12,7 @@ from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.backend.daytona import DaytonaBackend
+from src.infra.backend.resource_authority import AuthorizedCompositeBackend
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
@@ -164,7 +165,8 @@ class _DaytonaMixin:
             sandbox = client.get(sandbox_id)
             daytona_backend = DaytonaBackend(sandbox=sandbox)
             skills_backend = create_skills_backend(user_id=user_id)
-            return CompositeBackend(
+            return AuthorizedCompositeBackend(
+                user_id=user_id,
                 default=daytona_backend,
                 routes={
                     "/skills/": skills_backend,
@@ -210,7 +212,8 @@ class _DaytonaMixin:
             sandbox = client.create(params)
             daytona_backend = DaytonaBackend(sandbox=sandbox)
             skills_backend = create_skills_backend(user_id=user_id)
-            composite_backend = CompositeBackend(
+            composite_backend = AuthorizedCompositeBackend(
+                user_id=user_id,
                 default=daytona_backend,
                 routes={
                     "/skills/": skills_backend,

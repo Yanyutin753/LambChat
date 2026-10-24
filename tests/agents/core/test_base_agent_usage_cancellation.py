@@ -1,10 +1,49 @@
 import asyncio
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.agents.core import base as base_module
 from src.infra.task.exceptions import TaskInterruptedError
+from src.kernel.schemas.model import ModelConfig
+from src.kernel.schemas.user import TokenPayload
+
+
+@pytest.fixture(autouse=True)
+def execution_account(monkeypatch):
+    role = SimpleNamespace(id="role", name="runner", unrestricted_models=False)
+    model = ModelConfig(id="model-config-1", value="openai/gpt-4.1", label="Test model")
+    monkeypatch.setattr(
+        "src.api.deps._load_user_payload",
+        AsyncMock(
+            side_effect=lambda user_id: TokenPayload(
+                sub=user_id, username="runner", roles=["runner"], permissions=["chat:write"]
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.role.manager.get_role_manager",
+        lambda: SimpleNamespace(get_roles_by_names=AsyncMock(return_value=[role])),
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: SimpleNamespace(
+            get_role_agents_by_ids=AsyncMock(return_value={"role": ["base"]}),
+            get_role_models_by_ids=AsyncMock(return_value={"role": [model.id]}),
+        ),
+    )
+    monkeypatch.setattr(
+        base_module.AgentFactory, "get_filtered_agents", AsyncMock(return_value=[{"id": "base"}])
+    )
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: SimpleNamespace(
+            get=AsyncMock(return_value=model),
+            get_many_by_ids_and_values=AsyncMock(return_value=({model.id: model}, {})),
+        ),
+    )
 
 
 class _FakePresenter:

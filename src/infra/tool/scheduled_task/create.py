@@ -330,6 +330,10 @@ async def scheduled_task_create(
             }
         )
 
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
+
     service = ScheduledTaskService()
     from src.infra.logging.context import TraceContext
 

@@ -16,6 +16,13 @@ import { MemoryEditor } from "../MemoryEditor";
 import { MemoryPanel } from "../index";
 import type { MemoryItem } from "../../../../services/api/memory";
 
+vi.mock("../../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      ["memory:read", "memory:write"].includes(permission),
+  }),
+}));
+
 const { get, update, list } = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
@@ -180,11 +187,8 @@ test("switching card editors starts the new draft and ignores a late full read",
   fireEvent.click(
     within(screen.getByRole("group", { name: memory.title })).getByRole(
       "button",
-      { name: i18n.t("common.moreOptions") },
+      { name: i18n.t("common.edit") },
     ),
-  );
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: i18n.t("common.edit") }),
   );
   expect(
     screen.getByRole("button", { name: i18n.t("common.save") }),
@@ -192,11 +196,8 @@ test("switching card editors starts the new draft and ignores a late full read",
   fireEvent.click(
     within(screen.getByRole("group", { name: other.title })).getByRole(
       "button",
-      { name: i18n.t("common.moreOptions") },
+      { name: i18n.t("common.edit") },
     ),
-  );
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: i18n.t("common.edit") }),
   );
   expect(screen.getByLabelText(i18n.t("memory.titleLabel"))).toHaveValue(
     other.title,
@@ -231,22 +232,16 @@ test("a pending save freezes its draft and cannot close a subsequently opened ed
   fireEvent.click(
     within(screen.getByRole("group", { name: memory.title })).getByRole(
       "button",
-      { name: i18n.t("common.moreOptions") },
+      { name: i18n.t("common.edit") },
     ),
-  );
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: i18n.t("common.edit") }),
   );
   fireEvent.click(screen.getByRole("button", { name: i18n.t("common.save") }));
   expect(screen.getByLabelText(i18n.t("memory.titleLabel"))).toBeDisabled();
   fireEvent.click(
     within(screen.getByRole("group", { name: other.title })).getByRole(
       "button",
-      { name: i18n.t("common.moreOptions") },
+      { name: i18n.t("common.edit") },
     ),
-  );
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: i18n.t("common.edit") }),
   );
   await act(async () => resolve({ success: true }));
   expect(screen.getByLabelText(i18n.t("memory.titleLabel"))).toHaveValue(

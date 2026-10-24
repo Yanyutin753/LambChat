@@ -20,11 +20,13 @@ export function buildPersonaCardModel(
   options: {
     canWrite: boolean;
     canAdmin?: boolean;
+    canDelete?: boolean;
     isSelected: boolean;
   },
 ): PersonaCardModel {
   const capabilities = getPersonaPresetCapabilities(preset, {
     canWrite: options.canWrite,
+    canDelete: options.canDelete,
     canAdmin: options.canAdmin ?? false,
   });
 

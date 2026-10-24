@@ -31,6 +31,7 @@ function createPreset(overrides: Partial<PersonaPreset> = {}): PersonaPreset {
 test("buildPersonaCardModel maps user presets to editable marketplace-style cards", () => {
   const model = buildPersonaCardModel(createPreset(), {
     canWrite: true,
+    canDelete: true,
     isSelected: false,
   });
 

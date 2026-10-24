@@ -215,7 +215,7 @@ class AgentConfigStorage:
         if not doc:
             return None
         allowed_agents = doc.get("allowed_agents")
-        if not allowed_agents:
+        if allowed_agents is None:
             return None
         return allowed_agents[:ROLE_AGENT_ACCESS_LIMIT]
 
@@ -232,7 +232,7 @@ class AgentConfigStorage:
             async for doc in cursor:
                 allowed_agents = doc.get("allowed_agents")
                 result[doc["role_id"]] = (
-                    allowed_agents[:ROLE_AGENT_ACCESS_LIMIT] if allowed_agents else None
+                    allowed_agents[:ROLE_AGENT_ACCESS_LIMIT] if allowed_agents is not None else None
                 )
         return result
 
@@ -315,11 +315,32 @@ class AgentConfigStorage:
         return result
 
     async def set_role_models(
-        self, role_id: str, role_name: str, model_values: list[str]
+        self,
+        role_id: str,
+        role_name: str,
+        model_values: list[str],
+        *,
+        unrestricted_models: bool = False,
     ) -> list[str]:
         """设置角色的可用 Models"""
         now = utc_now()
         bounded_model_values = _bounded_unique(model_values, ROLE_MODEL_ACCESS_LIMIT)
+        from bson import ObjectId
+
+        from src.infra.role.storage import RoleStorage
+
+        role_storage = RoleStorage()
+
+        async def set_unrestricted(value: bool) -> None:
+            await role_storage.collection.update_one(
+                {"_id": ObjectId(role_id)},
+                {"$set": {"unrestricted_models": value, "updated_at": now}},
+            )
+            await role_storage.invalidate_cache(role_name)
+
+        # Restrict before saving; a partial failure must not retain legacy unrestricted access.
+        if not unrestricted_models:
+            await set_unrestricted(False)
         await self._get_collection(_COLL_ROLE_MODELS).update_one(
             {"role_id": role_id},
             {
@@ -331,6 +352,8 @@ class AgentConfigStorage:
             },
             upsert=True,
         )
+        if unrestricted_models:
+            await set_unrestricted(True)
         return bounded_model_values
 
     async def delete_role_models(self, role_id: str) -> bool:

@@ -57,6 +57,6 @@ test("role detail upload limits adapt to their container width", () => {
 test("notification create action text follows hidden sm:inline convention", () => {
   const source = readComponent("panels/NotificationPanel.tsx");
   expect(source).toMatch(
-    /<span className="hidden sm:inline">\{t\("notification\.create"\)\}<\/span>/,
+    /<span className="hidden sm:inline">\s*\{t\("notification\.create"\)\}\s*<\/span>/,
   );
 });

@@ -539,7 +539,7 @@ async def upload_skill_binary_file(
 async def delete_skill_file(
     name: str,
     path: str,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("skill:delete")),
     storage: SkillStorage = Depends(get_storage),
 ):
     """删除 Skill 的单个文件"""

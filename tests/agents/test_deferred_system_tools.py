@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.tools import BaseTool
@@ -24,6 +25,22 @@ class _FakeTool(BaseTool):
 
 @pytest.fixture
 def lean_settings(monkeypatch):
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            side_effect=lambda user_id: (
+                TokenPayload(
+                    sub="user-1",
+                    username="owner",
+                    permissions=["memory:read", "memory:write", "memory:delete"],
+                )
+                if user_id == "user-1"
+                else None
+            )
+        ),
+    )
     for module in (team_context, search_context):
         monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)
         monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
@@ -50,7 +67,7 @@ async def test_context_defers_system_tools_even_when_mcp_is_disabled(
         return [inline], [deferred]
 
     monkeypatch.setattr(module, "get_internal_tools_by_exposure_for_user", internal_tools)
-    context = context_type(session_id="session-1")
+    context = context_type(session_id="session-1", user_id="user-1")
 
     await context.setup()
     await context.get_tools()
@@ -78,7 +95,7 @@ async def test_memory_delete_is_deferred_while_retain_and_recall_stay_inline(
         return [], []
 
     monkeypatch.setattr(module, "get_internal_tools_by_exposure_for_user", no_internal)
-    context = context_type(session_id="session-1")
+    context = context_type(session_id="session-1", user_id="user-1")
 
     await context.setup()
     await context.get_tools()
@@ -107,7 +124,7 @@ async def test_memory_delete_stays_inline_when_deferred_loading_disabled(
         "get_internal_tools_by_exposure_for_user",
         no_internal,
     )
-    context = TeamAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
 
     await context.setup()
 
@@ -134,7 +151,7 @@ async def test_memory_sop_search_tools_loads_memory_delete(
         return [], []
 
     monkeypatch.setattr(module, "get_internal_tools_by_exposure_for_user", no_internal)
-    context = context_type(session_id="session-1")
+    context = context_type(session_id="session-1", user_id="user-1")
 
     await context.setup()
     await context.get_tools()
@@ -188,7 +205,7 @@ async def test_compatibility_registration_does_not_reinline_deferred_env_tool(
         internal_tools,
     )
     monkeypatch.setattr("src.infra.tool.env_var_tool.get_env_var_tools", lambda: [env_tool])
-    context = TeamAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
 
     await context.setup()
 
@@ -214,7 +231,7 @@ async def test_disabling_deferred_loading_inlines_all_authorized_system_tools(
         "get_internal_tools_by_exposure_for_user",
         internal_tools,
     )
-    context = TeamAgentContext(session_id="session-1")
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
 
     await context.setup()
 

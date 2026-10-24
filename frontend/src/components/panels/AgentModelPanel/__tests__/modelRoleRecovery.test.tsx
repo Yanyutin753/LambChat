@@ -23,6 +23,9 @@ const api = vi.hoisted(() => ({
   updateRoleModels: vi.fn(),
   listRoles: vi.fn(),
   listModels: vi.fn(),
+  listAvailable: vi.fn(),
+  permissions: null as Set<string> | null,
+  actor: { assignable_role_ids: ["a", "b"] },
   toggleModel: vi.fn(),
   getCatalogConfig: vi.fn(),
   getRoleAgents: vi.fn(),
@@ -31,11 +34,19 @@ const api = vi.hoisted(() => ({
 vi.mock("../../../../services/api", () => ({
   agentConfigApi: api,
   roleApi: { list: api.listRoles },
-  modelApi: { list: api.listModels, toggle: api.toggleModel },
+  modelApi: {
+    list: api.listModels,
+    listAvailable: api.listAvailable,
+    toggle: api.toggleModel,
+  },
   agentApi: { list: api.listAgents },
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ hasPermission: () => true }),
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      api.permissions?.has(permission) ?? true,
+    user: api.actor,
+  }),
 }));
 vi.mock("react-hot-toast", () => ({
   default: { success: vi.fn(), error: vi.fn() },
@@ -57,6 +68,8 @@ const models = [
 afterEach(cleanup);
 beforeEach(async () => {
   vi.clearAllMocks();
+  api.permissions = null;
+  api.listAvailable.mockResolvedValue({ models });
   await i18n.changeLanguage("en");
   api.listRoles.mockResolvedValue({ roles });
   api.listModels.mockResolvedValue({ models });
@@ -96,10 +109,10 @@ test.each([
   },
 );
 test.each([
-  [false, true],
+  [false, false],
   [true, false],
 ])(
-  "configured=%s preserves the server default-versus-empty distinction",
+  "configured=%s keeps absent and empty model assignments closed",
   async (configured, checked) => {
     api.getRoleModels.mockResolvedValue({ configured, allowed_models: [] });
     render(<ModelSection />);
@@ -381,5 +394,19 @@ test.each([
         .checked,
     ).toBe(true);
     expect(api.updateRoleModels).not.toHaveBeenCalled();
+  },
+);
+
+test.each([
+  ["embedded", ModelSection],
+  ["standalone", ModelPanel],
+])(
+  "%s allows model assignment without configuration read",
+  async (_, Component) => {
+    api.permissions = new Set(["model:assign"]);
+    render(<Component />);
+    await screen.findByRole("checkbox", { name: "One" });
+    expect(api.listModels).not.toHaveBeenCalled();
+    expect(api.listAvailable).toHaveBeenCalled();
   },
 );

@@ -369,3 +369,79 @@ def test_retry_stack_leads_with_dead_attachment_filter() -> None:
     stack = create_retry_middleware(fallback_model="glm-5.3")
 
     assert isinstance(stack[0], DeadAttachmentFilterMiddleware)
+
+
+async def test_rate_limit_fallback_logs_safe_model_and_channel_diagnostics(monkeypatch, caplog):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.agents.core.node_utils.resolve_model_image_url_mode", AsyncMock(return_value="url")
+    )
+    primary = SimpleNamespace(
+        model_name="claude-primary",
+        quota_provider="anthropic-proxy",
+        quota_model_config_id="channel-primary",
+        _llm_type="anthropic-chat",
+    )
+    backup = object()
+    middleware = ModelFallbackMiddleware(fallback_model="backup")
+    middleware._fallback_llm = backup
+    request = httpx.Request(
+        "POST",
+        "https://private.invalid/v1/messages?api_key=query-secret",
+        headers={"Authorization": "Bearer header-secret"},
+    )
+    error = httpx.HTTPStatusError(
+        "1302 account-secret body-secret query-secret header-secret",
+        request=request,
+        response=httpx.Response(429, request=request),
+    )
+
+    async def handler(call):
+        if call.model is primary:
+            raise error
+        return AIMessage(content="fallback answer")
+
+    result = await middleware.awrap_model_call(_Request(primary), handler)
+
+    assert result.content == "fallback answer"
+    assert "model=claude-primary" in caplog.text
+    assert "model_config_id=channel-primary" in caplog.text
+    assert "provider=anthropic-proxy" in caplog.text
+    assert "protocol=anthropic-chat" in caplog.text
+    assert "status=429" in caplog.text
+    assert "reason=rate_limit" in caplog.text
+    for secret in (
+        "private.invalid",
+        "query-secret",
+        "header-secret",
+        "body-secret",
+        "account-secret",
+    ):
+        assert secret not in caplog.text
+
+
+async def test_failed_fallback_does_not_log_raw_upstream_error(monkeypatch, caplog):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.agents.core.node_utils.resolve_model_image_url_mode", AsyncMock(return_value="url")
+    )
+    primary, backup = object(), object()
+    middleware = ModelFallbackMiddleware(fallback_model="backup")
+    middleware._fallback_llm = backup
+
+    async def handler(call):
+        if call.model is primary:
+            raise TimeoutError("primary-key-secret")
+        raise ValueError("fallback-key-secret https://private.invalid?key=secret")
+
+    with pytest.raises(ValueError):
+        await middleware.awrap_model_call(_Request(primary), handler)
+
+    assert "Fallback model backup also failed" in caplog.text
+    assert "ValueError" in caplog.text
+    assert "primary-key-secret" not in caplog.text
+    assert "fallback-key-secret" not in caplog.text
+    assert "private.invalid" not in caplog.text

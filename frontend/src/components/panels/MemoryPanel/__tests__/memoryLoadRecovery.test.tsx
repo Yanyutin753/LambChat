@@ -68,3 +68,7 @@ test("a failed refresh keeps the previous memories available through named butto
   ).toBeInTheDocument();
   expect(screen.queryByText("memory.empty")).toBeNull();
 });
+
+vi.mock("../../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

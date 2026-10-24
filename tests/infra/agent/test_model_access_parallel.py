@@ -71,7 +71,9 @@ async def test_merge_order_and_dedup_preserved(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.asyncio
-async def test_unconfigured_role_means_unrestricted(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_unconfigured_role_does_not_grant_model_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     storage = _Storage({"id-admin": None})
     monkeypatch.setattr("src.infra.agent.config_storage.get_agent_config_storage", lambda: storage)
     import src.infra.role.manager as role_manager_module
@@ -86,7 +88,7 @@ async def test_unconfigured_role_means_unrestricted(monkeypatch: pytest.MonkeyPa
         TokenPayload(sub="u", username="u", roles=["admin", "user"])
     )
 
-    assert result is None
+    assert result == []
 
 
 @pytest.mark.asyncio

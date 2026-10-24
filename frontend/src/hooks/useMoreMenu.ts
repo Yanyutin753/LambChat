@@ -31,9 +31,13 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
+  const canReadMCP = hasAnyPermission([
+    Permission.MCP_READ,
+    Permission.MCP_SYSTEM_READ,
+  ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
-  const canReadMemory = enableMemory;
+  const canReadMemory =
+    enableMemory && hasAnyPermission([Permission.MEMORY_READ]);
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
   const canReadTeam = hasAnyPermission([Permission.TEAM_READ]);
 
@@ -42,7 +46,7 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
       path: "/persona",
       label: t("personaPresets.title", "角色广场"),
       icon: UserRound,
-      show: true,
+      show: hasAnyPermission([Permission.PERSONA_PRESET_READ]),
     },
     {
       path: "/team",

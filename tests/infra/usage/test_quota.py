@@ -89,3 +89,35 @@ async def test_budget_policy_reads_authoritative_roles_instead_of_optional_cache
     )
     assert await user_budgets("user") == (0, None)
     cached.assert_not_awaited()
+
+
+async def test_missing_temporary_role_blocks_quota_until_only_that_assignment_is_removed(
+    monkeypatch,
+):
+    from unittest.mock import AsyncMock
+
+    from src.infra.usage.quota import user_budgets
+    from src.kernel.errors import AppError, ErrorCode
+
+    user = SimpleNamespace(is_active=True, roles=["member", "removed-temporary-role"])
+
+    async def role_documents():
+        yield {
+            "name": "member",
+            "limits": {"five_hour_budget_usd": 50, "weekly_budget_usd": 800},
+        }
+
+    roles = SimpleNamespace(
+        collection=SimpleNamespace(find=lambda *args, **kwargs: role_documents())
+    )
+    monkeypatch.setattr("src.infra.role.storage.RoleStorage", lambda: roles)
+    monkeypatch.setattr(
+        "src.infra.user.storage.UserStorage.get_by_id", AsyncMock(return_value=user)
+    )
+
+    with pytest.raises(AppError) as unavailable:
+        await user_budgets("user")
+    assert unavailable.value.error_code is ErrorCode.USAGE_QUOTA_UNAVAILABLE
+
+    user.roles.remove("removed-temporary-role")
+    assert await user_budgets("user") == (50, 800)

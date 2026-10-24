@@ -188,6 +188,8 @@ async def get_current_user_info(
         raise AppError(ErrorCode.USER_NOT_FOUND)
     # 使用 TokenPayload 中已经动态获取的权限
     user.permissions = current_user.permissions
+    user.grantable_permissions = current_user.grantable_permissions
+    user.assignable_role_ids = current_user.assignable_role_ids
     return user
 
 

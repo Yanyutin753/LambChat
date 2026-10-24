@@ -34,6 +34,7 @@ const preset: PersonaPreset = {
 const props = {
   presets: [preset],
   isOpen: true,
+  canCopyPresets: true,
   onOpenChange: vi.fn(),
   onUsePreset: async () => null,
   onCopyPreset: vi.fn(async () => undefined),
@@ -93,4 +94,11 @@ test("a persona list shrinking to one page corrects a previously selected later 
     screen.getByRole("navigation", { name: "common.pagination" }),
   ).toBeTruthy();
   expect(change).toHaveBeenCalledWith(1);
+});
+
+test("read-only persona selection does not offer preset cloning", () => {
+  render(<PersonaPresetSelector {...props} canCopyPresets={false} />);
+  expect(
+    screen.queryByRole("button", { name: "personaPresets.copy" }),
+  ).toBeNull();
 });

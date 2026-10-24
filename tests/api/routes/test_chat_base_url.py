@@ -17,6 +17,7 @@ import pytest
 from src.api.routes import chat, chat_agent_execution
 from src.infra.task.concurrency import ConcurrencyResponse, ConcurrencyResult
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.user import TokenPayload
 
 
 def _http_request(
@@ -155,6 +156,7 @@ async def _invoke_chat(
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
     monkeypatch.setattr(chat, "build_assistant_identity", identity_build or _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
+    monkeypatch.setattr(chat, "validate_user_agent_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", _noop)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(chat, "_get_language", lambda request: "en")
@@ -173,7 +175,12 @@ async def _invoke_chat(
     await chat.chat_stream(
         request,
         http_request or _http_request(),
-        user=SimpleNamespace(sub="owner-1", roles=["member"]),
+        user=TokenPayload(
+            sub="owner-1",
+            username="owner",
+            roles=["member"],
+            permissions=["chat:write", "session:read", "session:write", "file:read"],
+        ),
     )
     return task_manager
 
@@ -372,6 +379,7 @@ async def test_chat_stream_passes_base_url_in_queued_task_context(
     monkeypatch.setattr(chat, "resolve_persona_request", _noop_async)
     monkeypatch.setattr(chat, "build_assistant_identity", _noop_async)
     monkeypatch.setattr(chat, "validate_agent_model_access", _noop_async)
+    monkeypatch.setattr(chat, "validate_user_agent_access", _noop_async)
     monkeypatch.setattr(chat, "validate_team_agent_request", _noop)
     monkeypatch.setattr(chat, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(chat, "_get_language", lambda request: "en")
@@ -388,7 +396,12 @@ async def test_chat_stream_passes_base_url_in_queued_task_context(
     await chat.chat_stream(
         request,
         _http_request(),
-        user=SimpleNamespace(sub="owner-1", roles=["member"]),
+        user=TokenPayload(
+            sub="owner-1",
+            username="owner",
+            roles=["member"],
+            permissions=["chat:write", "session:read", "session:write", "file:read"],
+        ),
     )
 
     assert limiter.acquire_calls, "应经过并发限制器"

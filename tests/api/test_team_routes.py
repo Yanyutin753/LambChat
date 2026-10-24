@@ -24,7 +24,7 @@ def _fake_user() -> TokenPayload:
         sub="user-1",
         username="tester",
         roles=["user"],
-        permissions=["chat:write"],
+        permissions=["team:read", "team:write", "team:delete"],
     )
 
 

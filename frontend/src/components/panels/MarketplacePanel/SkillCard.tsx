@@ -24,7 +24,7 @@ interface SkillCardProps {
   isInstalled: boolean;
   isOwner: boolean;
   canManage: boolean;
-  canWrite: boolean;
+  canInstall?: boolean;
   installingSkill: string | null;
   userSkillsLoading: boolean;
   selectedTags: string[];
@@ -44,7 +44,7 @@ export function SkillCard({
   isInstalled,
   isOwner,
   canManage,
-  canWrite,
+  canInstall = false,
   installingSkill,
   userSkillsLoading,
   selectedTags,
@@ -152,7 +152,7 @@ export function SkillCard({
                 <Eye size={16} />
               </InteractiveIcon>
             </button>
-            {canWrite &&
+            {canInstall &&
               (installingSkill === skill.skill_name ? (
                 <button
                   disabled

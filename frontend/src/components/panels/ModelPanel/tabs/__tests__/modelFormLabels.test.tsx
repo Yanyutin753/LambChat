@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import i18n from "../../../../../i18n";
@@ -19,8 +19,11 @@ vi.mock("../../../../common/EditorSidebar", () => ({
     </div>
   ),
 }));
+const modelMocks = vi.hoisted(() => ({
+  update: vi.fn(async (_id: string, _data: unknown) => ({})),
+}));
 vi.mock("../../../../../services/api/model", () => ({
-  modelApi: { listProviders: async () => [] },
+  modelApi: { listProviders: async () => [], update: modelMocks.update },
 }));
 vi.mock("../../../../../services/api/pricing", () => ({
   pricingApi: { lookup: vi.fn() },
@@ -31,6 +34,7 @@ test("model fields are named by their visible labels", async () => {
   const user = userEvent.setup();
   render(
     <ModelFormModal
+      canManagePricing={true}
       model={null}
       models={[]}
       onClose={vi.fn()}
@@ -66,4 +70,32 @@ test("model fields are named by their visible labels", async () => {
       screen.getByRole("button", { name: i18n.t(`agentConfig.${key}`) }),
     ).toBeTruthy();
   }
+});
+
+test("model maintainers save metadata without submitting pricing", async () => {
+  const user = userEvent.setup();
+  render(
+    <ModelFormModal
+      model={{
+        id: "m1",
+        value: "model-1",
+        label: "Model",
+        enabled: true,
+        order: 0,
+        pricing: { input: 1 },
+      }}
+      models={[]}
+      canManagePricing={false}
+      onClose={vi.fn()}
+      onSaved={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: i18n.t("common.save") }));
+  await waitFor(() => expect(modelMocks.update).toHaveBeenCalled());
+  expect(modelMocks.update.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+    "pricing",
+  );
+  expect(
+    screen.queryByLabelText(i18n.t("agentConfig.pricingInput")),
+  ).toBeNull();
 });

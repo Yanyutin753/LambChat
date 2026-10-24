@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
 from src.agents.core.base import normalize_agent_id
-from src.api.deps import get_current_user_required, guard_authenticated_stream, require_permissions
+from src.api.deps import guard_authenticated_stream, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
@@ -35,6 +35,7 @@ from src.api.routes.chat_stream_terminal import (
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.api.server_timing import timed_server_phase
+from src.infra.agent.access import validate_user_agent_access
 from src.infra.chat.memory_context import append_memory_context, build_memory_query
 from src.infra.chat.session_baseline import (
     _time_report_due,
@@ -62,6 +63,7 @@ from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
 from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
+from src.kernel.schemas.session import Session
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -93,8 +95,10 @@ def _safe_model_config_dict(model: ModelConfig) -> dict:
     return model.model_copy(update={"api_key": None}).model_dump(mode="json")
 
 
-async def _attach_resolved_model_options(agent_options: dict, model: ModelConfig) -> None:
-    """Persist resolved model details in request options to avoid repeated DB lookups."""
+async def _attach_resolved_model_options(
+    agent_options: dict, model: ModelConfig, allowed_model_ids: list[str] | None
+) -> None:
+    """Attach runtime-only model details after checking the effective model scope."""
     agent_options["model_id"] = model.id
     agent_options["model"] = model.value
     agent_options["_resolved_model_config"] = _safe_model_config_dict(model)
@@ -113,7 +117,15 @@ async def _attach_resolved_model_options(agent_options: dict, model: ModelConfig
 
         try:
             fallback = await get_model_storage().get(model.fallback_model)
-            if fallback and fallback.enabled:
+            if (
+                fallback
+                and fallback.enabled
+                and (
+                    allowed_model_ids is None
+                    or fallback.id in allowed_model_ids
+                    or fallback.value in allowed_model_ids
+                )
+            ):
                 fallback_value = fallback.value
         except Exception as e:
             logger.warning("Failed to resolve fallback model %s: %s", model.fallback_model, e)
@@ -130,6 +142,9 @@ async def validate_agent_model_access(
         agent_options = {}
     # Only the executor/recovery path may supply cumulative handoff accounting.
     agent_options.pop("_handoff_usage", None)
+    for key in list(agent_options):
+        if key.startswith("_resolved_"):
+            agent_options.pop(key)
 
     model_id = agent_options.get("model_id")
     selected_model = agent_options.get("model")
@@ -151,7 +166,7 @@ async def validate_agent_model_access(
             if model is None:
                 model = by_value.get(allowed_model_id)
             if model and model.enabled:
-                await _attach_resolved_model_options(agent_options, model)
+                await _attach_resolved_model_options(agent_options, model, allowed_model_ids)
                 return
         raise AuthorizationError("model_disabled")
 
@@ -170,7 +185,7 @@ async def validate_agent_model_access(
     ):
         raise AuthorizationError("model_not_allowed")
 
-    await _attach_resolved_model_options(agent_options, model)
+    await _attach_resolved_model_options(agent_options, model, allowed_model_ids)
 
 
 async def _update_session_config(
@@ -255,6 +270,7 @@ async def _submit_chat(
 
     session_id = request.session_id or str(uuid.uuid4())
     agent_id = resolve_default_agent_id(agent_id)
+    await validate_user_agent_access(agent_id, user)
     validate_team_agent_request(agent_id, request)
 
     # 并行执行无数据依赖的 I/O 操作：session 查询 / persona 解析 / model 权限验证
@@ -660,7 +676,7 @@ async def _submit_chat(
 async def session_stream(
     session_id: str,
     run_id: str = Query(..., description="Run ID for isolating conversation turns"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     SSE 流式读取特定 run 的事件
@@ -743,19 +759,23 @@ async def session_stream(
     )
 
 
+async def _get_owned_session(session_id: str, user: TokenPayload) -> Session:
+    session = await SessionManager().get_session(session_id)
+    if not session:
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    verify_session_ownership(session, user)
+    return session
+
+
 @router.get("/sessions/{session_id}/status")
 async def get_session_status(
     session_id: str,
     run_id: str = Query(None, description="Run ID (optional, defaults to current run)"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """获取当前任务或指定运行的状态。"""
     # 验证用户对该 session 的所有权
-    session_manager = SessionManager()
-    session = await session_manager.get_session(session_id)
-    if not session:
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    verify_session_ownership(session, user)
+    session = await _get_owned_session(session_id, user)
 
     task_manager = get_task_manager()
 
@@ -791,7 +811,7 @@ async def get_session_status(
 @router.post("/sessions/{session_id}/cancel")
 async def cancel_session(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     取消正在运行的任务（包括排队中的任务）
@@ -807,11 +827,7 @@ async def cancel_session(
     """
     async with conversation_submission(session_id, user.sub, allow_busy=True):
         # 验证用户对该 session 的所有权
-        session_manager = SessionManager()
-        session = await session_manager.get_session(session_id)
-        if not session:
-            raise AppError(ErrorCode.SESSION_NOT_FOUND)
-        verify_session_ownership(session, user)
+        session = await _get_owned_session(session_id, user)
 
         if (session.metadata or {}).get("persistent_goal_id"):
             from src.infra.goal_continuation import publish_goal
@@ -851,17 +867,13 @@ async def cancel_session(
 @router.post("/sessions/{session_id}/resume")
 async def resume_session(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     Resume an interrupted task from the latest checkpoint for this session.
     """
     async with conversation_submission(session_id, user.sub, allow_busy=True):
-        session_manager = SessionManager()
-        session = await session_manager.get_session(session_id)
-        if not session:
-            raise AppError(ErrorCode.SESSION_NOT_FOUND)
-        verify_session_ownership(session, user)
+        await _get_owned_session(session_id, user)
 
     # Recovery performs fresh run/Goal admission; release before its executor takes this fence.
     task_manager = get_task_manager()
@@ -883,7 +895,7 @@ class SteerRequest(BaseModel):
 async def steer_running_agent(
     session_id: str,
     request: SteerRequest,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     向正在运行的会话插话（Codex 式 steer）。
@@ -895,11 +907,7 @@ async def steer_running_agent(
     插话永远等不到下一次模型调用——此时插话视为打断，终止挂起 run
     （前端状态行切「已停止」），消息由前端作为新 run 的普通输入发送。
     """
-    session_manager = SessionManager()
-    session = await session_manager.get_session(session_id)
-    if not session:
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    verify_session_ownership(session, user)
+    session = await _get_owned_session(session_id, user)
 
     message = request.message.strip()
     if not message:
@@ -941,14 +949,10 @@ async def steer_running_agent(
 @router.get("/sessions/{session_id}/steer")
 async def list_pending_steers(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """恢复刷新/重连后仍未送达的 steer，避免 composer 状态丢失。"""
-    session_manager = SessionManager()
-    session = await session_manager.get_session(session_id)
-    if not session:
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    verify_session_ownership(session, user)
+    await _get_owned_session(session_id, user)
     from src.infra.task.steer import get_steer_queue
 
     items = await get_steer_queue().list_items(session_id)
@@ -970,18 +974,14 @@ async def list_pending_steers(
 async def cancel_steered_message(
     session_id: str,
     request: SteerRequest,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     取消一条还在排队、尚未送达的插话消息。
 
     已注入模型调用的消息无法撤回（返回 not_found）。
     """
-    session_manager = SessionManager()
-    session = await session_manager.get_session(session_id)
-    if not session:
-        raise AppError(ErrorCode.SESSION_NOT_FOUND)
-    verify_session_ownership(session, user)
+    await _get_owned_session(session_id, user)
 
     from src.infra.task.steer import get_steer_queue
 

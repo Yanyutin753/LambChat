@@ -1,3 +1,5 @@
+import { useAuth } from "../../../hooks/useAuth";
+import { Permission } from "../../../types";
 import { useRightPanelState } from "../../../hooks/useRightPanelState";
 import { EmptyState } from "../../common/EmptyState";
 import {
@@ -51,6 +53,10 @@ import { DeleteModal } from "./DeleteModal";
 
 export function MemoryPanel() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.MEMORY_WRITE);
+  const canDelete = hasPermission(Permission.MEMORY_DELETE);
+  const canExport = hasPermission(Permission.MEMORY_EXPORT);
   const relativeTime = useRelativeTime();
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -135,7 +141,7 @@ export function MemoryPanel() {
   }, [fetchMemories]);
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!canDelete || !deleteId) return;
     try {
       await memoryApi.delete(deleteId);
       toast.success(t("memory.deleted"));
@@ -148,7 +154,7 @@ export function MemoryPanel() {
   };
 
   const handleBatchDelete = async () => {
-    if (checkedIds.size === 0) return;
+    if (!canDelete || checkedIds.size === 0) return;
     setBatchLoading(true);
     try {
       const res = await memoryApi.batchDelete(Array.from(checkedIds));
@@ -163,6 +169,7 @@ export function MemoryPanel() {
   };
 
   const handleExport = async () => {
+    if (!canExport) return;
     setExportLoading(true);
     try {
       const data = await memoryApi.export();
@@ -193,7 +200,7 @@ export function MemoryPanel() {
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || importLoading) return;
+    if (!canWrite || !file || importLoading) return;
 
     setImportLoading(true);
     setImportFailure(null);
@@ -278,6 +285,7 @@ export function MemoryPanel() {
           <>
             <Button
               variant="primary"
+              disabled={!canWrite}
               onClick={() => setEditingMemory(null)}
               leftIcon={<Plus size={16} />}
               title={t("memory.createTitle")}
@@ -286,7 +294,7 @@ export function MemoryPanel() {
             </Button>
             <Button
               onClick={handleImportClick}
-              disabled={importLoading}
+              disabled={!canWrite || importLoading}
               leftIcon={
                 <Upload
                   size={16}
@@ -299,7 +307,7 @@ export function MemoryPanel() {
             </Button>
             <Button
               onClick={handleExport}
-              disabled={exportLoading}
+              disabled={!canExport || exportLoading}
               leftIcon={
                 <Download
                   size={16}
@@ -314,6 +322,7 @@ export function MemoryPanel() {
               aria-label={
                 allChecked ? t("common.deselectAll") : t("common.selectAll")
               }
+              disabled={!canDelete}
               onClick={toggleAll}
               leftIcon={<Check size={16} />}
             >
@@ -423,6 +432,7 @@ export function MemoryPanel() {
                     <Checkbox
                       ariaLabel={memory.title}
                       size="lg"
+                      disabled={!canDelete}
                       checked={checked}
                       onChange={() => toggleCheck(memory.memory_id)}
                       className="shadow-sm [@media(hover:none)]:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
@@ -462,17 +472,25 @@ export function MemoryPanel() {
                     </span>
                   }
                   actions={[
-                    {
-                      label: t("common.edit"),
-                      icon: <Pencil size={14} />,
-                      onClick: () => setEditingMemory(memory),
-                    },
-                    {
-                      label: t("common.delete"),
-                      icon: <Trash2 size={14} />,
-                      danger: true,
-                      onClick: () => setDeleteId(memory.memory_id),
-                    },
+                    ...(canWrite
+                      ? [
+                          {
+                            label: t("common.edit"),
+                            icon: <Pencil size={14} />,
+                            onClick: () => setEditingMemory(memory),
+                          },
+                        ]
+                      : []),
+                    ...(canDelete
+                      ? [
+                          {
+                            label: t("common.delete"),
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => setDeleteId(memory.memory_id),
+                          },
+                        ]
+                      : []),
                   ]}
                 />
               );
@@ -497,17 +515,21 @@ export function MemoryPanel() {
           key={selected.memory_id}
           memory={selected}
           onClose={() => setSelected(null)}
-          onDelete={setDeleteId}
-          onEdit={(mem) => {
-            setSelected(null);
-            setEditingMemory(mem);
-          }}
+          onDelete={canDelete ? setDeleteId : undefined}
+          onEdit={
+            canWrite
+              ? (mem) => {
+                  setSelected(null);
+                  setEditingMemory(mem);
+                }
+              : undefined
+          }
           relativeTime={relativeTime}
         />
       )}
 
       {/* Memory editor (create / edit) */}
-      {editingMemory !== undefined && (
+      {canWrite && editingMemory !== undefined && (
         <MemoryEditor
           key={editingMemory?.memory_id ?? "new"}
           memory={editingMemory}

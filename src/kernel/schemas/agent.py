@@ -303,10 +303,15 @@ class RoleModelAssignment(BaseModel):
         default_factory=list, description="List of allowed model values"
     )
     configured: bool = Field(True, description="Whether this role has an explicit model assignment")
+    unrestricted_models: bool = False
 
 
 class RoleModelAssignmentUpdate(BaseModel):
     """Update role's accessible models."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    unrestricted_models: bool = False
 
     allowed_models: list[str] = Field(..., description="List of allowed model values")
 

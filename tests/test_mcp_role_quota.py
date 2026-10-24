@@ -200,3 +200,13 @@ async def test_mcp_tool_wrapper_uses_tool_name_for_quota_scope(
     assert seen["server_name"] == "github"
     assert seen["tool_name"] == "image_generate"
     assert result == "called"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_quota_from_authority_refresh(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    # Authority rejection has separate tests; this module exercises limiter outcomes.
+    monkeypatch.setattr(MCPToolWithRetry, "_refresh_authority", AsyncMock(return_value=None))

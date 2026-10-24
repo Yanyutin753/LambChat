@@ -39,7 +39,7 @@ class UserManager:
         self.storage = UserStorage()
         self.role_storage = RoleStorage()
 
-    async def register(self, user_data: UserCreate) -> User:
+    async def register(self, user_data: UserCreate, *, assign_default_role: bool = True) -> User:
         """
         注册新用户
 
@@ -50,7 +50,7 @@ class UserManager:
             创建的用户
         """
         # 如果没有指定角色，检查是否是第一个用户
-        if not user_data.roles:
+        if assign_default_role and not user_data.roles:
             # 检查是否已有用户
             existing_users = await self.storage.list_users(limit=1)
             if not existing_users:

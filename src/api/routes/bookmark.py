@@ -8,7 +8,7 @@ toggle 端点挂在 /api/sessions/{id}/messages/{mid}/bookmark 下（与 fork/ch
 
 from fastapi import APIRouter, Depends
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.api.routes.session import verify_session_ownership
 from src.infra.bookmark.storage import BookmarkStorage
 from src.infra.logging import get_logger
@@ -26,7 +26,7 @@ async def toggle_message_bookmark(
     session_id: str,
     message_id: str,
     payload: BookmarkToggleRequest | None = None,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """Toggle a bookmark anchored on a specific message."""
     manager = SessionManager()
@@ -74,7 +74,7 @@ async def toggle_message_bookmark(
 
 @router.get("/bookmarks/")
 async def list_my_bookmarks(
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ) -> dict:
     """获取当前用户的全部消息书签（联会话名，按创建时间倒序）"""
     items = await BookmarkStorage().list_for_user(user.sub)

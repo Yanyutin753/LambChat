@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 import pytest
 
 from src.api.routes.agent import config as config_routes
@@ -58,6 +60,8 @@ class _RoleAssignmentStorage:
         role_id: str,
         role_name: str,
         allowed_models: list[str],
+        *,
+        unrestricted_models: bool = False,
     ) -> list[str]:
         self.model_calls.append(allowed_models)
         return allowed_models[:2]
@@ -69,7 +73,27 @@ class _RoleManager:
 
 
 def _admin() -> TokenPayload:
-    return TokenPayload(sub="admin-1", username="admin", roles=["admin"])
+    return TokenPayload(
+        sub="admin-1",
+        username="admin",
+        roles=["admin"],
+        permissions=[
+            "system:admin",
+            "agent:assign",
+            "model:assign",
+            "agent:admin",
+            "agent:config_read",
+        ],
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolate_assignment_authority_lock(monkeypatch):
+    @asynccontextmanager
+    async def mutation(actor):
+        yield actor
+
+    monkeypatch.setattr(config_routes, "authority_mutation", mutation)
 
 
 def _registered_agents() -> list[dict]:
@@ -96,7 +120,7 @@ def _registered_agents() -> list[dict]:
 
 
 @pytest.mark.asyncio
-async def test_get_catalog_config_seeds_registered_agents_in_dedicated_catalog(
+async def test_get_catalog_config_returns_registered_agents_without_persisting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _CatalogStorage()
@@ -105,7 +129,7 @@ async def test_get_catalog_config_seeds_registered_agents_in_dedicated_catalog(
 
     response = await config_routes.get_agent_catalog_config(_admin())
 
-    assert storage.saved is not None
+    assert storage.saved is None
     assert [agent.id for agent in response.agents] == ["search", "fast"]
     assert response.agents[0].name == "agents.search.name"
     assert response.agents[0].description == "agents.search.description"
@@ -135,7 +159,8 @@ async def test_get_catalog_config_migrates_legacy_global_enabled_state(
 
     search = next(agent for agent in response.agents if agent.id == "search")
     assert search.enabled is False
-    assert response.available_agents == ["fast"]
+    assert response.available_agents == []
+    assert next(agent for agent in response.agents if agent.id == "fast").enabled is False
 
 
 @pytest.mark.asyncio
@@ -185,6 +210,9 @@ async def test_update_role_agents_returns_bounded_storage_result(
     storage = _RoleAssignmentStorage()
     monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
     monkeypatch.setattr(config_routes, "get_role_manager", lambda: _RoleManager())
+    monkeypatch.setattr(
+        config_routes, "list_registered_agents", lambda: ["agent-1", "agent-2", "agent-3"]
+    )
 
     response = await config_routes.update_role_agents(
         "role-1",
@@ -203,6 +231,9 @@ async def test_update_role_models_returns_bounded_storage_result(
     storage = _RoleAssignmentStorage()
     monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
     monkeypatch.setattr(config_routes, "get_role_manager", lambda: _RoleManager())
+    monkeypatch.setattr(
+        config_routes, "list_registered_agents", lambda: ["agent-1", "agent-2", "agent-3"]
+    )
 
     response = await config_routes.update_role_models(
         "role-1",

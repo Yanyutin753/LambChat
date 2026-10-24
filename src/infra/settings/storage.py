@@ -231,8 +231,9 @@ class SettingsStorage:
             is_sensitive = definition.get("is_sensitive", False)
 
             # Mask sensitive settings in API responses
-            if mask_sensitive and is_sensitive and value:
-                value = "********"
+            if mask_sensitive and is_sensitive:
+                value = "********" if value else value
+                default_value = "********" if default_value else default_value
 
             item = SettingItem(
                 key=key,
@@ -334,8 +335,9 @@ class SettingsStorage:
         is_sensitive = definition.get("is_sensitive", False)
 
         # Mask sensitive settings in API responses (if requested)
-        if mask_sensitive and is_sensitive and value:
-            value = "********"
+        if mask_sensitive and is_sensitive:
+            value = "********" if value else value
+            default_value = "********" if default_value else default_value
 
         try:
             return SettingItem(

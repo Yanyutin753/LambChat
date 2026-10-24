@@ -26,8 +26,8 @@ from src.infra.agent.middleware.dead_attachment import (
 from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import (
     _is_output_limit_response,
-    is_auth_model_error,
     is_retryable_model_error,
+    model_failure_context,
 )
 from src.kernel.config import settings
 
@@ -210,13 +210,13 @@ class ModelFallbackMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
         reason: str,
         *,
-        failure_kind: str = "invalid_output",
+        error: BaseException | None = None,
     ) -> ModelResponse[ResponseT]:
         logger.warning(
-            "[ModelFallback] Primary model failed: %s — falling back to %s (reason=%s)",
+            "[ModelFallback] Primary model failed: %s (%s) — falling back to %s",
             reason,
+            model_failure_context(request.model, error),
             self._fallback_model,
-            failure_kind,
         )
 
         fallback_llm = await self._get_fallback_llm()
@@ -231,7 +231,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
             logger.error(
                 "[ModelFallback] Fallback model %s also failed: %s",
                 self._fallback_model,
-                fallback_exc,
+                model_failure_context(fallback_llm, fallback_exc),
             )
             raise
 
@@ -246,16 +246,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
         except Exception as exc:
             if is_quota_error(exc):
                 raise
-            failure_kind = (
-                "auth"
-                if is_auth_model_error(exc)
-                else "transient"
-                if is_retryable_model_error(exc)
-                else "error"
-            )
-            return await self._invoke_fallback(
-                request, handler, str(exc), failure_kind=failure_kind
-            )
+            return await self._invoke_fallback(request, handler, type(exc).__name__, error=exc)
 
         if _response_is_invalid(response):
             messages = _extract_messages(response)

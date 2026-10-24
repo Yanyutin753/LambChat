@@ -18,6 +18,13 @@ import { SkillsList } from "../SkillsList";
 import { MemoryPanel } from "../../MemoryPanel";
 import { memoryApi } from "../../../../services/api/memory";
 
+vi.mock("../../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      ["memory:read", "memory:delete"].includes(permission),
+  }),
+}));
+
 const fetchMock = vi.fn<typeof fetch>();
 let current = [
   { name: "alpha", enabled: true },

@@ -90,6 +90,8 @@ export interface ChatInputSelectorsProps {
   onCopyPersonaPreset?: (preset: PersonaPreset) => Promise<void>;
   onClearPersonaPreset?: () => void;
   canManagePersonaPresets?: boolean;
+  canCopyPersonaPresets?: boolean;
+  canManageSandbox?: boolean;
   // Agent mode
   agents?: AgentInfo[];
   agentsLoading?: boolean;
@@ -144,6 +146,8 @@ export function ChatInputSelectors({
   onCopyPersonaPreset,
   onClearPersonaPreset,
   canManagePersonaPresets = false,
+  canCopyPersonaPresets = false,
+  canManageSandbox = false,
   agents = [],
   agentsLoading = false,
   agentsError = false,
@@ -210,6 +214,7 @@ export function ChatInputSelectors({
           : "none";
   const policySaving = Object.values(states).includes("saving");
   const handlePolicyChange = (policy: string) => {
+    if (!canManageSandbox) return;
     if (
       policySaving ||
       (isLocal && (!selectedMachine || selectedMachine.online === false))
@@ -346,7 +351,9 @@ export function ChatInputSelectors({
           value={executionPolicy}
           onChange={handlePolicyChange}
           disabled={
-            policySaving || (isLocal && selectedMachine?.online === false)
+            !canManageSandbox ||
+            policySaving ||
+            (isLocal && selectedMachine?.online === false)
           }
           options={["all", "commands", "none"].map((policy) => ({
             value: policy,
@@ -427,6 +434,7 @@ export function ChatInputSelectors({
           onRetry={onRetryPersonaPresets}
           isMutating={personaPresetsMutating}
           canManagePresets={canManagePersonaPresets}
+          canCopyPresets={canCopyPersonaPresets}
           onOpenChange={(open) => onActivePanelChange(open ? "persona" : null)}
           onPageChange={onPersonaPresetsPageChange}
           onSearchChange={onPersonaPresetsSearchChange}

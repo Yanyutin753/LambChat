@@ -6,6 +6,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.infra.logging import get_logger
 from src.infra.notification.manager import NotificationManager
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.notification import (
@@ -17,6 +18,7 @@ from src.kernel.schemas.notification import (
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @lru_cache
@@ -45,7 +47,7 @@ async def get_active_notifications(
 async def list_notifications(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    _: None = Depends(require_permissions("notification:manage")),
+    _: None = Depends(require_permissions("notification:read")),
     manager: NotificationManager = Depends(get_notification_manager),
 ) -> NotificationListResponse:
     items, total = await manager.list_notifications(skip=skip, limit=limit)
@@ -56,17 +58,24 @@ async def list_notifications(
 async def create_notification(
     data: NotificationCreate,
     user: TokenPayload = Depends(get_current_user_required),
-    _: None = Depends(require_permissions("notification:manage")),
+    _: TokenPayload = Depends(require_permissions("notification:manage")),
     manager: NotificationManager = Depends(get_notification_manager),
 ) -> Notification:
-    return await manager.create(data, user.sub)
+    created = await manager.create(data, user.sub)
+    logger.info(
+        "Notification created actor=%s target=%s fields=%s",
+        user.sub,
+        created.id,
+        sorted(data.model_fields_set),
+    )
+    return created
 
 
 @router.put("/{notification_id}", response_model=Notification)
 async def update_notification(
     notification_id: str,
     data: NotificationUpdate,
-    _: None = Depends(require_permissions("notification:manage")),
+    _: TokenPayload = Depends(require_permissions("notification:manage")),
     manager: NotificationManager = Depends(get_notification_manager),
 ) -> Notification:
     try:
@@ -75,18 +84,25 @@ async def update_notification(
         result = None
     if not result:
         raise AppError(ErrorCode.NOTIFICATION_NOT_FOUND)
+    logger.info(
+        "Notification updated actor=%s target=%s fields=%s",
+        _.sub,
+        notification_id,
+        sorted(data.model_fields_set),
+    )
     return result
 
 
 @router.delete("/{notification_id}")
 async def delete_notification(
     notification_id: str,
-    _: None = Depends(require_permissions("notification:manage")),
+    _: TokenPayload = Depends(require_permissions("notification:delete")),
     manager: NotificationManager = Depends(get_notification_manager),
 ) -> dict:
     success = await manager.delete(notification_id)
     if not success:
         raise AppError(ErrorCode.NOTIFICATION_NOT_FOUND)
+    logger.info("Notification deleted actor=%s target=%s", _.sub, notification_id)
     return {"status": "deleted"}
 
 

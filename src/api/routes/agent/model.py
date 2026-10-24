@@ -12,8 +12,9 @@ Model 配置路由
 
 from fastapi import APIRouter, Body, Depends
 
-from src.api.deps import require_permissions
+from src.api.deps import get_current_user_required, require_permissions
 from src.infra.agent.model_storage import ModelStorage, get_model_storage
+from src.infra.auth.delegation import require_capability
 from src.infra.logging import get_logger
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.model import (
@@ -38,6 +39,15 @@ MODEL_BATCH_MAX_ITEMS = 200
 def _reject_oversized_model_batch(count: int) -> None:
     if count > MODEL_BATCH_MAX_ITEMS:
         raise AppError(ErrorCode.MODEL_BATCH_LIMIT, args={"max": MODEL_BATCH_MAX_ITEMS})
+
+
+def _reject_masked_credentials(model: ModelConfig) -> None:
+    if (
+        model.api_key
+        and (set(model.api_key) == {"*"} or "..." in model.api_key)
+        or any(value == "********" for value in (model.request_headers or {}).values())
+    ):
+        raise AppError(ErrorCode.BAD_REQUEST)
 
 
 async def _clear_deleted_compaction_model_reference(
@@ -72,7 +82,7 @@ async def _clear_deleted_compaction_model_reference(
 @router.get("/", response_model=ModelListResponse)
 async def list_models(
     include_disabled: bool = False,
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_READ.value)),
 ):
     """获取所有模型配置（仅管理员）"""
     storage = get_model_storage()
@@ -88,9 +98,11 @@ async def list_models(
 
 @router.get("/available", response_model=AvailableModelListResponse)
 async def list_available_models(
-    user: TokenPayload = Depends(require_permissions(Permission.AGENT_READ.value)),
+    user: TokenPayload = Depends(get_current_user_required),
 ):
     """获取当前用户可用模型（仅启用模型，按角色授权过滤，返回公开字段）"""
+    if not {"agent:read", "model:assign"}.intersection(user.permissions):
+        raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "agent:read"})
     logger.info("[Model] list_available_models called")
     storage = get_model_storage()
 
@@ -125,7 +137,7 @@ async def list_available_models(
 @router.get("/{model_id}", response_model=ModelResponse)
 async def get_model(
     model_id: str,
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_READ.value)),
 ):
     """获取单个模型配置"""
     storage = get_model_storage()
@@ -147,7 +159,10 @@ async def create_model(
     """创建新模型配置"""
     storage = get_model_storage()
 
+    if "pricing" in model_create.model_fields_set:
+        require_capability(_, "pricing:manage")
     model = ModelConfig(**model_create.model_dump())
+    _reject_masked_credentials(model)
     try:
         created = await storage.create(model)
     except Exception as e:
@@ -157,7 +172,12 @@ async def create_model(
             raise ValidationError(f"Model with id '{model.id}' already exists")
         raise
 
-    logger.info(f"[Model] Created model: {created.value} (id={created.id})")
+    logger.info(
+        "Model created actor=%s target=%s fields=%s",
+        _.sub,
+        created.id,
+        sorted(model_create.model_fields_set),
+    )
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -197,7 +217,7 @@ async def reorder_models(
 
     models = await storage.reorder(model_ids)
 
-    logger.info(f"[Model] Reordered {len(models)} models")
+    logger.info("Models reordered actor=%s targets=%s", _.sub, model_ids)
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -227,8 +247,25 @@ async def update_model(
 
         raise NotFoundError(f"Model '{model_id}' not found")
 
+    if "pricing" in model_update.model_fields_set:
+        require_capability(_, "pricing:manage")
+
     # 执行更新
     update_data = {k: v for k, v in model_update.model_dump(exclude_none=True).items()}
+    if update_data.get("api_key") == mask_api_key(existing).api_key:
+        update_data.pop("api_key", None)
+    headers = update_data.get("request_headers")
+    if headers:
+        saved_headers = {
+            name.lower(): value for name, value in (existing.request_headers or {}).items()
+        }
+        for name, value in headers.items():
+            if value == "********":
+                if name.lower() not in saved_headers:
+                    raise AppError(ErrorCode.BAD_REQUEST)
+                headers[name] = saved_headers[name.lower()]
+    if update_data.get("api_key") and set(update_data["api_key"]) == {"*"}:
+        raise AppError(ErrorCode.BAD_REQUEST)
     # Allow clearing api_key by sending empty string ""
     if "api_key" in update_data and update_data["api_key"] == "":
         update_data["api_key"] = None
@@ -261,7 +298,12 @@ async def update_model(
 
         raise NotFoundError(f"Model '{model_id}' not found during update")
 
-    logger.info(f"[Model] Updated model: {updated.value} (id={updated.id})")
+    logger.info(
+        "Model updated actor=%s target=%s fields=%s",
+        _.sub,
+        model_id,
+        sorted(model_update.model_fields_set),
+    )
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -274,7 +316,7 @@ async def update_model(
 @router.delete("/{model_id}", status_code=204)
 async def delete_model(
     model_id: str,
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_DELETE.value)),
 ):
     """删除模型配置"""
     storage = get_model_storage()
@@ -295,7 +337,7 @@ async def delete_model(
 
     await invalidate_cache()
 
-    logger.info(f"[Model] Deleted model: {model_value} (id={model_id})")
+    logger.info("Model deleted actor=%s target=%s", _.sub, model_id)
 
     # 清理所有模型中被删模型作为 fallback_model 的孤儿引用
     from src.infra.utils.datetime import utc_now_iso
@@ -339,7 +381,7 @@ async def toggle_model(
         raise NotFoundError(f"Model '{model_id}' not found")
 
     action = "enabled" if enabled else "disabled"
-    logger.info(f"[Model] {action.capitalize()} model: {model.value} (id={model.id})")
+    logger.info("Model status updated actor=%s target=%s fields=enabled", _.sub, model_id)
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -358,10 +400,17 @@ async def import_models(
     _reject_oversized_model_batch(len(models))
     storage = get_model_storage()
 
+    for entry in models:
+        if "pricing" in entry.model_fields_set:
+            require_capability(_, "pricing:manage")
     config_models = [ModelConfig(**m.model_dump()) for m in models]
-    imported = await storage.bulk_upsert_by_value(config_models)
+    for config_model in config_models:
+        _reject_masked_credentials(config_model)
+    imported = await storage.bulk_upsert_by_value(
+        config_models, update_pricing="pricing:manage" in _.permissions
+    )
 
-    logger.info(f"[Model] Imported {len(imported)} models")
+    logger.info("Models imported actor=%s targets=%s", _.sub, [model.id for model in imported])
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -417,6 +466,9 @@ async def batch_create_models(
         for item in models:
             if not item.get("value") or not item.get("label"):
                 continue
+            _reject_masked_credentials(
+                ModelConfig(value=item["value"], label=item["label"], api_key=shared.get("api_key"))
+            )
             yield ModelConfig(
                 value=item["value"],
                 label=item["label"],
@@ -437,7 +489,7 @@ async def batch_create_models(
 
         await invalidate_cache()
 
-    logger.info(f"[Model] Batch created {len(created_models)} models")
+    logger.info("Models created actor=%s targets=%s", _.sub, [model.id for model in created_models])
 
     counts = await storage.count()
     return ModelListResponse(
@@ -449,14 +501,14 @@ async def batch_create_models(
 
 @router.delete("/", status_code=204)
 async def delete_all_models(
-    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_DELETE.value)),
 ):
     """删除所有模型配置（危险操作）"""
     storage = get_model_storage()
 
     count = await storage.delete_all()
 
-    logger.warning(f"[Model] Deleted all {count} models")
+    logger.warning("All models deleted actor=%s count=%s", _.sub, count)
 
     # 同步清空所有角色的模型关联（单次批量操作）
     from src.infra.agent.config_storage import get_agent_config_storage

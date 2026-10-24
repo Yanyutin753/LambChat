@@ -2,6 +2,7 @@
 
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
@@ -12,10 +13,22 @@ from src.api.error_handlers import register_error_handlers
 from src.api.routes import sandbox as sandbox_route
 
 
+@pytest.fixture(autouse=True)
+def sandbox_account_authority(monkeypatch):
+    from src.infra.role.storage import RoleStorage
+    from src.infra.user.storage import UserStorage
+
+    account = SimpleNamespace(id="u1", username="t", roles=["user"], is_active=True)
+    role = SimpleNamespace(name="user", permissions=["sandbox:read"])
+    monkeypatch.setattr(UserStorage, "get_by_id", AsyncMock(return_value=account))
+    monkeypatch.setattr(RoleStorage, "get_by_names", AsyncMock(return_value=[role]))
+    return account
+
+
 def _fake_user():
     from src.kernel.schemas.user import TokenPayload
 
-    return TokenPayload(sub="u1", username="t", roles=["user"], permissions=["sandbox:execute"])
+    return TokenPayload(sub="u1", username="t", roles=["user"], permissions=["sandbox:read"])
 
 
 def _bound_agent_options(machine_id="m1") -> dict:

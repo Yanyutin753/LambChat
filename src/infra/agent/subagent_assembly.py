@@ -14,6 +14,7 @@ from src.infra.agent.middleware import summarization_fallback_patch
 from src.infra.agent.middleware.evidence import EvidenceMiddleware
 from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
 from src.infra.agent.subagent_sessions import SubagentSessions
+from src.infra.backend.resource_authority import protect_server_artifact_eviction
 
 
 async def refresh_subagent_context(context: Any) -> Any:
@@ -78,7 +79,7 @@ def assemble_subagent_sessions(
                         "model": child_model,
                         "tools": spec.get("tools", tools),
                         "middleware": [
-                            FilesystemMiddleware(backend=backend),
+                            protect_server_artifact_eviction(FilesystemMiddleware(backend=backend)),
                             PatchToolCallsMiddleware(),
                             *spec.get("middleware", []),
                             *extra_middleware,

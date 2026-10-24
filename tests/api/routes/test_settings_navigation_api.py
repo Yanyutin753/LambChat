@@ -19,7 +19,17 @@ def settings_app():
     app.include_router(router, prefix="/settings")
     service = AsyncMock()
     service.reset.return_value = 2
-    user = TokenPayload(sub="test", username="test", permissions=["settings:manage"])
+    user = TokenPayload(
+        sub="test",
+        username="test",
+        permissions=[
+            "settings:read",
+            "settings:manage",
+            "settings:reset",
+            "settings:security",
+            "system:admin",
+        ],
+    )
     app.dependency_overrides[get_current_user_required] = lambda: user
     app.dependency_overrides[get_settings_service] = lambda: service
     return app, service, user
@@ -57,7 +67,7 @@ async def test_confirmed_admin_reset_runs_once(settings_app):
 @pytest.mark.parametrize("admin", [True, False])
 async def test_list_returns_navigation_for_permission_filtered_settings(settings_app, admin):
     app, service, user = settings_app
-    user.permissions = ["settings:manage"] if admin else []
+    user.permissions = ["settings:read"] if admin else []
     service.get_all.return_value = {
         "scheduled_task": [
             SettingItem(

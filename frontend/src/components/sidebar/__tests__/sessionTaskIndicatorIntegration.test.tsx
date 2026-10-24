@@ -6,6 +6,12 @@ import { RecentChatsDialog } from "../RecentChatsDialog";
 import { sessionApi } from "../../../services/api/session";
 import type { BackendSession } from "../../../services/api/session";
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) => permission === "session:read",
+  }),
+}));
+
 vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({

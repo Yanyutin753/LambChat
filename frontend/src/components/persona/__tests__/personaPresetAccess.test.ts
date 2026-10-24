@@ -45,7 +45,7 @@ test("admins can manage official presets directly", () => {
   });
 });
 
-test("writers can manage their own presets", () => {
+test("writers can edit their own presets without deletion permission", () => {
   expect(
     getPersonaPresetCapabilities(buildPreset("user"), {
       canWrite: true,
@@ -54,6 +54,16 @@ test("writers can manage their own presets", () => {
   ).toEqual({
     canCopy: false,
     canEdit: true,
-    canDelete: true,
+    canDelete: false,
   });
+});
+
+test("personal deletion is independent from writing", () => {
+  expect(
+    getPersonaPresetCapabilities(buildPreset("user"), {
+      canWrite: false,
+      canAdmin: false,
+      canDelete: true,
+    }),
+  ).toEqual({ canCopy: false, canEdit: false, canDelete: true });
 });

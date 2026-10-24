@@ -525,7 +525,7 @@ test("mcp panel generic shell actions use shared buttons", () => {
 test("mcp tool expanded settings expose inline function policy toggle", () => {
   const source = readSource("../../mcp/MCPServerToolsSidebar.tsx");
 
-  expect(source).toMatch(/server\.can_edit\s*&&\s*server\.is_system/);
+  expect(source).toMatch(/canManagePolicy\s*&&\s*server\.is_system/);
   expect(source).toMatch(/mcp\.form\.inlineExposure/);
   expect(source).toMatch(/mcp\.form\.inlineExposureDescription/);
   expect(source).toMatch(/inline_exposure:\s*!\([\s\S]*?tool\.inline_exposure/);
