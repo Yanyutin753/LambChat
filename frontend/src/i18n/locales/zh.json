@@ -1402,6 +1402,7 @@
       "toolImageAnalyzeAlt": "图片 {{index}}",
       "toolVideoAnalyze": "视频分析",
       "toolVideoAnalyzeCount": "{{count}} 段视频",
+      "toolVideoPreviewUnavailable": "本地视频暂无可用预览。重新分析可生成预览文件。",
       "toolImageCount": "{{count}} 张图片",
       "toolImageGenerate": "生成",
       "toolImageGenerateDesc": "AI 驱动的图像生成",

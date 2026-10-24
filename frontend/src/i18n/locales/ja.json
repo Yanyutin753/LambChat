@@ -1402,6 +1402,7 @@
       "toolImageAnalyzeAlt": "画像 {{index}}",
       "toolVideoAnalyze": "動画分析",
       "toolVideoAnalyzeCount": "{{count}} 本の動画",
+      "toolVideoPreviewUnavailable": "このローカル動画のプレビューはありません。再分析すると生成できます。",
       "toolImageCount": "{{count}} 枚の画像",
       "toolImageGenerate": "生成",
       "toolImageGenerateDesc": "AIによる画像生成",

@@ -2,7 +2,55 @@ import { readFileSync } from "node:fs";
 import {
   extractGeneratedImageResults,
   extractSingleImageResult,
+  fileNameFromUrl,
+  resolveVideoPreviews,
 } from "../toolImageResults.ts";
+
+test.each([
+  String.raw`C:\Users\yangyang\Videos\12月5日(1).mp4`,
+  String.raw`\\server\share\12月5日(1).mp4`,
+])("shows only the filename of native video %s", (path) => {
+  expect(fileNameFromUrl(path)).toBe("12月5日(1).mp4");
+});
+
+test.each([false, true])(
+  "video preview uses its matching stored result (JSON=%s)",
+  (json) => {
+    const path = String.raw`C:\Users\yangyang\Videos\12月5日(1).mp4`;
+    const result = {
+      videos: [
+        {
+          url: "/workspace/other.mp4",
+          preview_url: "/api/upload/file/other.mp4",
+        },
+        {
+          url: path,
+          preview_url: "/api/upload/file/revealed_files/preview.mp4",
+        },
+      ],
+    };
+    expect(
+      resolveVideoPreviews(
+        [path],
+        json ? JSON.stringify(result) : result,
+        "https://app.example",
+      ),
+    ).toEqual([
+      {
+        url: "https://app.example/api/upload/file/revealed_files/preview.mp4",
+        name: "12月5日(1).mp4",
+      },
+    ]);
+  },
+);
+
+test("old video results preserve the source and do not borrow another video's preview", () => {
+  expect(
+    resolveVideoPreviews(["https://example.com/video.mp4"], {
+      videos: [{ url: "other.mp4", preview_url: "/api/upload/file/other.mp4" }],
+    }),
+  ).toEqual([{ url: "https://example.com/video.mp4", name: "video.mp4" }]);
+});
 
 test("extracts generated image uploads from Image Generate tool results", () => {
   const result = {

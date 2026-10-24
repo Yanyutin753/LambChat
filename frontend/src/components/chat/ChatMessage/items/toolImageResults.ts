@@ -30,6 +30,9 @@ export function getGeneratedImageModel(
 }
 
 export function fileNameFromUrl(url: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(url) || url.startsWith("\\\\")) {
+    return url.split(/[\\/]/).filter(Boolean).pop() || url;
+  }
   try {
     const baseUrl =
       typeof window === "undefined"
@@ -42,6 +45,38 @@ export function fileNameFromUrl(url: string): string {
     const lastSegment = url.split("?")[0]?.split("/").filter(Boolean).pop();
     return lastSegment ? decodeURIComponent(lastSegment) : url;
   }
+}
+
+export function resolveVideoPreviews(
+  urls: string[],
+  result: unknown,
+  apiBase?: string,
+) {
+  let parsed = result;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = null;
+    }
+  }
+  const videos =
+    isRecord(parsed) && Array.isArray(parsed.videos) ? parsed.videos : [];
+  return urls.map((source) => {
+    const match = videos.find(
+      (video) => isRecord(video) && video.url === source,
+    );
+    const preview =
+      isRecord(match) &&
+      typeof match.preview_url === "string" &&
+      match.preview_url
+        ? match.preview_url
+        : source;
+    return {
+      url: getFullUrl(preview, apiBase) || preview,
+      name: fileNameFromUrl(source),
+    };
+  });
 }
 
 function isImageEntry(entry: Record<string, unknown>): boolean {
