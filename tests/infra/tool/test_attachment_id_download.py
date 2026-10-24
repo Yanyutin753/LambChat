@@ -6,6 +6,17 @@ import pytest
 
 from src.infra.tool import upload_url_tool as module
 from src.infra.upload.file_record import FileRecordStorage
+from src.kernel.schemas.user import TokenPayload
+
+
+@pytest.fixture(autouse=True)
+def current_file_reader(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(sub="owner", username="owner", permissions=["file:read"])
+        ),
+    )
 
 
 @pytest.fixture

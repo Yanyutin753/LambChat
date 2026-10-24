@@ -10,6 +10,12 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 import { SessionItem } from "../SessionItem";
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) => permission === "session:read",
+  }),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

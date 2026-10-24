@@ -56,12 +56,39 @@ class UserUpdate(BaseModel):
     reset_token_expires: Optional[datetime] = None
 
 
+class AdminUserCreate(BaseModel):
+    """Public account creation excludes internal authentication state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(..., min_length=1, max_length=50)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    avatar_url: Optional[str] = None
+    roles: List[str] = Field(default_factory=list)
+
+
+class AdminUserUpdate(BaseModel):
+    """Each administrative operation is authorized separately by the route."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: Optional[str] = Field(None, min_length=1, max_length=50)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=6)
+    avatar_url: Optional[str] = None
+    roles: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+
+
 class User(UserBase):
     """User model (public view)."""
 
     id: str
     roles: List[str] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
+    grantable_permissions: List[str] = Field(default_factory=list)
+    assignable_role_ids: List[str] = Field(default_factory=list)
     is_active: bool = True
     email_verified: bool = False  # 邮箱是否已验证
     two_factor_enabled: bool = False
@@ -111,6 +138,8 @@ class TokenPayload(BaseModel):
     username: str
     roles: List[str] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
+    grantable_permissions: List[str] = Field(default_factory=list)
+    assignable_role_ids: List[str] = Field(default_factory=list)
     exp: Optional[datetime] = None
     iat: Optional[datetime] = None
 

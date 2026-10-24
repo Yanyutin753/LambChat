@@ -31,9 +31,12 @@ def _active_events_app(monkeypatch, *, owner="user-1", status="running"):
     )
     app = FastAPI()
     app.include_router(routes.router, prefix="/api/sessions")
-    app.dependency_overrides[routes.get_current_user_required] = lambda: type(
-        "User", (), {"sub": owner}
-    )()
+    user_dependency = (
+        next(route for route in routes.router.routes if route.name == "get_session_events")
+        .dependant.dependencies[0]
+        .call
+    )
+    app.dependency_overrides[user_dependency] = lambda: type("User", (), {"sub": owner})()
     register_error_handlers(app)
     return app
 

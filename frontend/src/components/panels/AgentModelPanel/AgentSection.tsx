@@ -25,9 +25,14 @@ type AgentTabType = "global" | "roles";
 
 export function AgentSection() {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: actor } = useAuth();
+  const isSystemAdmin = hasPermission(Permission.SYSTEM_ADMIN);
   const canManageAgents = hasPermission(Permission.AGENT_ADMIN);
-  const [activeTab, setActiveTab] = useState<AgentTabType>("global");
+  const canReadConfig = hasPermission(Permission.AGENT_CONFIG_READ);
+  const canAssignAgents = hasPermission(Permission.AGENT_ASSIGN);
+  const [activeTab, setActiveTab] = useState<AgentTabType>(
+    canReadConfig ? "global" : "roles",
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -49,29 +54,21 @@ export function AgentSection() {
 
     try {
       const [globalConfig, roleList, agentList] = await Promise.all([
-        canManageAgents
+        canReadConfig
           ? agentConfigApi.getCatalogConfig()
           : Promise.resolve(null),
-        roleApi.list({ limit: 200 }),
+        canAssignAgents
+          ? roleApi.list({ limit: 200 })
+          : Promise.resolve({ roles: [] }),
         agentApi.list(),
       ]);
 
       if (generation !== loadGeneration.current) return;
-      setAvailableAgents(
-        canManageAgents && globalConfig
-          ? globalConfig.agents
-              .filter((a) => a.enabled)
-              .map((a) => ({
-                id: a.id,
-                name: a.name,
-                description: a.description,
-                version: "",
-                icon: a.icon,
-                sort_order: a.sort_order,
-                labels: a.labels,
-              }))
-          : agentList.agents || [],
+      roleList.roles = (roleList.roles || []).filter(
+        (role) =>
+          isSystemAdmin || actor?.assignable_role_ids?.includes(role.id),
       );
+      setAvailableAgents(agentList.agents || []);
 
       if (globalConfig) {
         setGlobalAgents(globalConfig.agents || []);
@@ -91,7 +88,7 @@ export function AgentSection() {
 
       setRoles(roleList.roles || []);
 
-      if (canManageAgents) {
+      if (canAssignAgents) {
         const roleAgentPromises = (roleList.roles || []).map(async (role) => {
           const assignment = await agentConfigApi.getRoleAgents(role.id);
           return { roleId: role.id, agents: assignment.allowed_agents };
@@ -115,7 +112,12 @@ export function AgentSection() {
         setHasLoaded(true);
       }
     }
-  }, [canManageAgents]);
+  }, [
+    canReadConfig,
+    canAssignAgents,
+    isSystemAdmin,
+    actor?.assignable_role_ids,
+  ]);
 
   useEffect(() => {
     const requests = loadGeneration;
@@ -161,7 +163,7 @@ export function AgentSection() {
   };
 
   const handleUpdateRoleAgents = async (roleId: string, agentIds: string[]) => {
-    if (!canManageAgents) return;
+    if (!canAssignAgents) return;
     await agentConfigApi.updateRoleAgents(roleId, agentIds);
     setRoleAgentsMap((prev) => ({ ...prev, [roleId]: agentIds }));
     toast.success(t("agentConfig.saveSuccess"));
@@ -196,10 +198,11 @@ export function AgentSection() {
         <AgentSectionSkeleton />
       ) : (
         <>
-          {canManageAgents && (
+          {(canReadConfig || canAssignAgents) && (
             <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 self-start max-w-full font-serif">
               <button
                 type="button"
+                disabled={!canReadConfig}
                 aria-pressed={activeTab === "global"}
                 onClick={() => setActiveTab("global")}
                 className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
@@ -212,6 +215,7 @@ export function AgentSection() {
               </button>
               <button
                 type="button"
+                disabled={!canAssignAgents}
                 aria-pressed={activeTab === "roles"}
                 onClick={() => setActiveTab("roles")}
                 className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-14 font-medium min-h-11 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)] ${
@@ -225,9 +229,9 @@ export function AgentSection() {
             </div>
           )}
 
-          {canManageAgents ? (
+          {canReadConfig || canAssignAgents ? (
             <>
-              <div hidden={activeTab !== "global"}>
+              <div hidden={!canReadConfig || activeTab !== "global"}>
                 <GlobalAgentTab
                   agents={globalAgents}
                   onUpdate={handleUpdateGlobalConfig}
@@ -235,7 +239,7 @@ export function AgentSection() {
                   isSaving={isSaving}
                 />
               </div>
-              <div hidden={activeTab !== "roles"}>
+              <div hidden={!canAssignAgents || activeTab !== "roles"}>
                 <RolesAgentTab
                   roles={roles}
                   roleAgentsMap={roleAgentsMap}

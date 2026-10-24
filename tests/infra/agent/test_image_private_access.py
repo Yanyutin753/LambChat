@@ -26,7 +26,18 @@ class Request:
 @pytest.fixture
 def owned_image(monkeypatch):
     from src.infra.upload.file_record import FileRecordStorage
+    from src.kernel.schemas.user import TokenPayload
 
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            side_effect=lambda user_id: (
+                TokenPayload(sub="owner", username="owner", permissions=["file:read"])
+                if user_id == "owner"
+                else None
+            )
+        ),
+    )
     monkeypatch.setattr("src.kernel.config.settings.APP_BASE_URL", "https://app.example")
     monkeypatch.setattr(
         "src.infra.upload.access._owns_generated_file", AsyncMock(return_value=False)
@@ -150,3 +161,21 @@ async def test_outbound_foreign_upload_shape_is_untouched(owned_image):
     )
     assert result is request
     assert message.content[0]["image_url"]["url"] == original
+
+
+async def test_base64_image_download_rechecks_current_file_read(monkeypatch):
+    from src.agents.core import node_utils
+    from src.infra.upload.file_record import FileRecordStorage
+    from src.kernel.errors import AppError
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.has_tool_permission", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(FileRecordStorage, "is_private_key", AsyncMock(return_value=False))
+    monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock())
+    storage = SimpleNamespace(download_to_file=AsyncMock(return_value=0))
+    with pytest.raises(AppError):
+        await node_utils._download_image_as_data_url(
+            storage, "image/owner/a.png", "image/png", private_user_id="owner"
+        )
+    storage.download_to_file.assert_not_awaited()

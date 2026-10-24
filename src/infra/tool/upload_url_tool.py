@@ -315,6 +315,12 @@ async def upload_url_to_sandbox(
     except AppError:
         return await _json_dumps_result({"success": False, "error": "File unavailable"})
     if key is not None:
+        from src.infra.auth.tool_authority import require_tool_file_read
+
+        try:
+            await require_tool_file_read(user_id)
+        except AppError:
+            return await _json_dumps_result({"success": False, "error": "File unavailable"})
         records = get_file_record_storage()
         if await records.is_private_key(key):
             if not user_id or not session_id:

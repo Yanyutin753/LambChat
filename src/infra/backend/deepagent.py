@@ -26,6 +26,7 @@ from deepagents.backends.protocol import (
     WriteResult,
 )
 
+from src.infra.backend.resource_authority import AuthorizedCompositeBackend
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
@@ -280,7 +281,8 @@ def create_memory_backend(
     from src.infra.backend.skills_store import create_skills_backend
 
     skills_backend = create_skills_backend(user_id=user_id or "default")
-    return CompositeBackend(
+    return AuthorizedCompositeBackend(
+        user_id=user_id,
         default=StateBackend(),
         routes={"/skills/": skills_backend},
     )
@@ -302,7 +304,8 @@ def create_persistent_backend(
         namespace=lambda _rt: (assistant_id, "workflow", workflow_session_id)
     )
 
-    backend = CompositeBackend(
+    backend = AuthorizedCompositeBackend(
+        user_id=user_id,
         default=WorkflowScopedBackend(filesystem_backend, workspace_path),
         routes=routes,
     )
@@ -320,7 +323,8 @@ def create_sandbox_backend(
     evidence_session = session_id or getattr(sandbox_backend, "_session_id", None) or assistant_id
     routes = _create_routes(user_id or "default", evidence_session)
 
-    backend = CompositeBackend(
+    backend = AuthorizedCompositeBackend(
+        user_id=user_id,
         default=sandbox_backend,
         routes=routes,
         # Anchor offloaded artifacts (conversation history, large tool

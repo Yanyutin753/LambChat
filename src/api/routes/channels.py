@@ -588,7 +588,7 @@ async def get_channel_instance_status(
 
 @router.post(
     "/{channel_type}/{instance_id}/test",
-    dependencies=[Depends(require_permissions(Permission.CHANNEL_READ))],
+    dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
 )
 async def test_channel_instance_connection(
     channel_type: ChannelType,

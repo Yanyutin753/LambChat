@@ -120,3 +120,7 @@ test("backfill reports recovered partial costs separately from fully priced reco
     ),
   );
 });
+
+vi.mock("../../../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));

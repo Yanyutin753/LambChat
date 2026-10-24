@@ -62,6 +62,9 @@ def _role_to_cache_dict(role: Role) -> dict:
         "description": role.description,
         "permissions": [p if isinstance(p, str) else p.value for p in role.permissions],
         "allowed_agents": _bounded_allowed_agents(role.allowed_agents),
+        "grantable_permissions": list(role.grantable_permissions),
+        "assignable_role_ids": list(role.assignable_role_ids),
+        "unrestricted_models": role.unrestricted_models,
         "limits": role.limits.model_dump() if role.limits else None,
         "is_system": role.is_system,
         "created_at": to_iso(role.created_at)
@@ -195,6 +198,11 @@ class RoleStorage:
             "name": role_data.name,
             "description": role_data.description,
             "permissions": [p.value for p in role_data.permissions],
+            "allowed_agents": _bounded_allowed_agents(role_data.allowed_agents),
+            "grantable_permissions": [p.value for p in role_data.grantable_permissions],
+            "assignable_role_ids": list(role_data.assignable_role_ids),
+            "unrestricted_models": role_data.unrestricted_models,
+            "migrations": {"permission_boundaries_v1": True},
             "limits": role_data.limits.model_dump() if role_data.limits else None,
             "is_system": False,
             "created_at": now,
@@ -352,6 +360,17 @@ class RoleStorage:
 
         if role_data.permissions is not None:
             update_dict["permissions"] = [p.value for p in role_data.permissions]
+
+        if role_data.allowed_agents is not None:
+            update_dict["allowed_agents"] = _bounded_allowed_agents(role_data.allowed_agents)
+        if role_data.grantable_permissions is not None:
+            update_dict["grantable_permissions"] = [
+                p.value for p in role_data.grantable_permissions
+            ]
+        if role_data.assignable_role_ids is not None:
+            update_dict["assignable_role_ids"] = list(role_data.assignable_role_ids)
+        if role_data.unrestricted_models is not None:
+            update_dict["unrestricted_models"] = role_data.unrestricted_models
 
         if role_data.limits is not None:
             update_dict["limits"] = role_data.limits.model_dump() if role_data.limits else None
@@ -695,3 +714,30 @@ class RoleStorage:
                 )
                 # 系统角色权限可能变更，失效缓存
                 await self.invalidate_cache(role_data["name"])
+
+        await self.migrate_permission_boundaries()
+
+    async def migrate_permission_boundaries(self) -> None:
+        """Snapshot legacy capabilities once, including custom roles and model scope."""
+        from src.infra.agent.config_storage import get_agent_config_storage
+        from src.infra.auth.rbac import PERMISSION_MIGRATION, migrate_permission_grants
+
+        marker = f"migrations.{PERMISSION_MIGRATION}"
+        cursor = self.collection.find({marker: {"$ne": True}})
+        async for doc in cursor:
+            old = doc.get("permissions", [])
+            updates: dict[str, Any] = {
+                "permissions": migrate_permission_grants(old),
+                marker: True,
+            }
+            if "unrestricted_models" not in doc:
+                assignment = await get_agent_config_storage().get_role_models(str(doc["_id"]))
+                updates["unrestricted_models"] = assignment is None
+            result = await self.collection.update_one(
+                {"_id": doc["_id"], marker: {"$ne": True}, "permissions": old},
+                {"$set": updates},
+            )
+            if result.modified_count:
+                await self.invalidate_cache(doc["name"])
+        if await self.collection.find_one({marker: {"$ne": True}}, {"_id": 1}):
+            raise RuntimeError("Permission migration incomplete")

@@ -130,3 +130,10 @@ async def test_pref_cache_bounded_under_burst(monkeypatch):
 
     assert len(user_pref._pref_cache) <= cap
     assert "fresh-user" in user_pref._pref_cache
+
+
+@pytest.fixture(autouse=True)
+def _grant_business_capability(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.memory.tools.has_tool_permission", AsyncMock(return_value=True))

@@ -3,6 +3,7 @@
 import asyncio
 from typing import Any
 
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.storage.mongodb import get_approval_storage
@@ -66,6 +67,8 @@ async def _resolve_persona_preset_id_from_query(
 ) -> tuple[str | None, dict[str, Any] | None, str | None]:
     if not query or not query.strip():
         return None, None, None
+    if not await has_tool_permission(user_id, "persona_preset:read"):
+        return None, None, "Missing permission: persona_preset:read"
     try:
         presets = await PersonaPresetManager().list_presets(
             user_id=user_id,
@@ -97,6 +100,8 @@ async def _resolve_team_id_from_query(
 ) -> tuple[str | None, dict[str, Any] | None, str | None]:
     if not query or not query.strip():
         return None, None, None
+    if not await has_tool_permission(user_id, "team:read"):
+        return None, None, "Missing permission: team:read"
     try:
         response = await TeamManager().list_teams(
             owner_user_id=user_id,

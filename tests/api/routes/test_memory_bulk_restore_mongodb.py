@@ -40,6 +40,7 @@ async def test_fifty_thousand_memory_backup_preflight_restore_retry_and_export(m
     app.dependency_overrides[get_current_user_required] = lambda: TokenPayload(
         sub="owner",
         username="owned-bulk-restore",
+        permissions=["memory:read", "memory:write", "memory:delete", "memory:export"],
         roles=["user"],
     )
     backup = []

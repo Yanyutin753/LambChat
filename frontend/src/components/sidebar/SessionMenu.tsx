@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { DialogCloseButton } from "../common/DialogCloseButton";
 import { ModalSurface } from "../common/ModalSurface";
@@ -95,6 +97,10 @@ export function SessionMenu({
   currentProjectId,
 }: SessionMenuProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.SESSION_WRITE);
+  const canDelete = hasPermission(Permission.SESSION_DELETE);
+  const canShare = hasPermission(Permission.SESSION_SHARE);
   const menuRef = useRef<HTMLDivElement>(null);
   const [subPanel, setSubPanel] = useState<string | null>(null);
   const anchorRef = useRef(anchorEl);
@@ -180,6 +186,7 @@ export function SessionMenu({
       {/* Rename */}
       <button
         type="button"
+        disabled={!canWrite}
         onClick={() => {
           onRename();
           onClose();
@@ -195,6 +202,7 @@ export function SessionMenu({
       {/* Move to project — navigates to sub-panel */}
       <button
         type="button"
+        disabled={!canWrite || !hasPermission(Permission.PROJECT_READ)}
         onClick={() => setSubPanel("project")}
         className="ui-menu-item text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] transition-colors"
       >
@@ -205,7 +213,7 @@ export function SessionMenu({
       </button>
 
       {/* Favorite */}
-      {onToggleFavorite && (
+      {hasPermission(Permission.SESSION_READ) && onToggleFavorite && (
         <button
           type="button"
           onClick={() => {
@@ -233,7 +241,7 @@ export function SessionMenu({
       )}
 
       {/* Pin */}
-      {onTogglePin && (
+      {hasPermission(Permission.SESSION_READ) && onTogglePin && (
         <button
           type="button"
           onClick={() => {
@@ -259,7 +267,7 @@ export function SessionMenu({
       )}
 
       {/* Share */}
-      {onShare && (
+      {canShare && onShare && (
         <button
           type="button"
           onClick={() => {
@@ -284,6 +292,7 @@ export function SessionMenu({
       {/* Delete */}
       <button
         type="button"
+        disabled={!canDelete}
         onClick={() => {
           onDelete();
           onClose();

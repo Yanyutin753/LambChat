@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+from src.infra.backend.resource_authority import trusted_backend_io
 from src.infra.memory.control_frames import escape_control_frame_tags
 
 GRADER_STALE_EVIDENCE_WARNING = (
@@ -187,7 +188,8 @@ async def load_grader_evidence(
             entries.append(entry)
             continue
         try:
-            result = await backend.aread(expected)
+            with trusted_backend_io(backend, expected):
+                result = await backend.aread(expected)
             if current_clock is not None and (
                 (current_clock.token, current_clock.generation) != clock_snapshot
                 or getattr(current_clock, "active_writes", 0) > 0

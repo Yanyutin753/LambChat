@@ -64,7 +64,7 @@ export function SettingsPanel() {
     exportSettings,
     importSettings,
   } = useSettingsContext();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: actor } = useAuth();
 
   const CATEGORY_LABELS = useMemo<Record<SettingCategory, string>>(
     () => buildCategoryLabels((key) => t(key)),
@@ -96,20 +96,52 @@ export function SettingsPanel() {
   const [isResetAllConfirmOpen, setIsResetAllConfirmOpen] = useState(false);
   const [isResettingAll, setIsResettingAll] = useState(false);
 
-  const canManage = hasPermission(Permission.SETTINGS_MANAGE);
+  const canManage =
+    hasPermission(Permission.SETTINGS_MANAGE) ||
+    hasPermission(Permission.SETTINGS_SECURITY);
+  const canRead = hasPermission(Permission.SETTINGS_READ);
+  const canReset = hasPermission(Permission.SETTINGS_RESET);
+  const isSystemAdmin = hasPermission(Permission.SYSTEM_ADMIN);
+  const canAssignRoles = hasPermission(Permission.USER_ASSIGN_ROLES);
+  const canResetAll =
+    canReset && hasPermission(Permission.SETTINGS_SECURITY) && isSystemAdmin;
+  const canEditSetting = useCallback(
+    (setting: SettingItem) => {
+      if (setting.key === "DEFAULT_USER_ROLE" && !canAssignRoles) return false;
+      if (
+        ["JWT_SECRET_KEY", "MCP_ENCRYPTION_SALT"].includes(setting.key) &&
+        !isSystemAdmin
+      )
+        return false;
+      return hasPermission(
+        setting.is_sensitive ||
+          ["security", "oauth", "user", "email", "captcha"].includes(
+            setting.category,
+          )
+          ? Permission.SETTINGS_SECURITY
+          : Permission.SETTINGS_MANAGE,
+      );
+    },
+    [canAssignRoles, hasPermission, isSystemAdmin],
+  );
 
   // Fetch roles for DEFAULT_USER_ROLE dropdown
   useEffect(() => {
     const fetchRoles = async () => {
       try {
         const roleList = await roleApi.list({ limit: 200 });
-        setRoles(roleList.roles);
+        setRoles(
+          roleList.roles.filter(
+            (role) =>
+              isSystemAdmin || actor?.assignable_role_ids?.includes(role.id),
+          ),
+        );
       } catch (err) {
         console.error("Failed to fetch roles:", err);
       }
     };
-    fetchRoles();
-  }, []);
+    if (canAssignRoles) void fetchRoles();
+  }, [actor?.assignable_role_ids, canAssignRoles, isSystemAdmin]);
 
   // Fetch agents for DEFAULT_AGENT dropdown
   useEffect(() => {
@@ -128,7 +160,7 @@ export function SettingsPanel() {
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        if (hasPermission(Permission.MODEL_ADMIN)) {
+        if (hasPermission(Permission.MODEL_READ)) {
           const data = await modelApi.list(true);
           setAvailableModels(
             (data.models || [])
@@ -202,7 +234,7 @@ export function SettingsPanel() {
     () =>
       filterSettings(Object.values(settings?.settings ?? {}).flat(), {
         query: searchQuery,
-        includeAdmin: canManage,
+        includeAdmin: canRead,
         category: activeCategory,
         subcategory: activeSubcategory,
         isVisible: isSettingVisible,
@@ -212,7 +244,7 @@ export function SettingsPanel() {
       }),
     [
       searchQuery,
-      canManage,
+      canRead,
       settings,
       activeCategory,
       activeSubcategory,
@@ -261,9 +293,8 @@ export function SettingsPanel() {
   // Categories that still expose visible settings; shared by the desktop
   // sidebar nav and the mobile chip strip so both stay in sync
   const visibleCategories = useMemo(
-    () =>
-      buildVisibleCategories(settings?.settings, isSettingVisible, canManage),
-    [settings, isSettingVisible, canManage],
+    () => buildVisibleCategories(settings?.settings, isSettingVisible, canRead),
+    [settings, isSettingVisible, canRead],
   );
 
   const selectCategory = useCallback((category: SettingCategory) => {
@@ -337,6 +368,7 @@ export function SettingsPanel() {
   // Handle save
   const handleSave = useCallback(
     async (setting: SettingItem) => {
+      if (!canEditSetting(setting)) return;
       const editValue = editValues[setting.key];
       if (editValue === undefined) return;
 
@@ -362,17 +394,21 @@ export function SettingsPanel() {
         }, 2000);
       }
     },
-    [editValues, updateSetting, t],
+    [canEditSetting, editValues, updateSetting, t],
   );
 
   // Handle reset to default
-  const handleReset = useCallback(async (key: string) => {
-    setResetConfirmKey(key);
-    setIsResetConfirmOpen(true);
-  }, []);
+  const handleReset = useCallback(
+    async (key: string) => {
+      if (!canReset) return;
+      setResetConfirmKey(key);
+      setIsResetConfirmOpen(true);
+    },
+    [canReset],
+  );
 
   const confirmReset = useCallback(async () => {
-    if (!resetConfirmKey) return;
+    if (!canReset || !resetConfirmKey) return;
     const success = await resetSetting(resetConfirmKey);
     if (success) {
       // Clear edit value
@@ -385,7 +421,7 @@ export function SettingsPanel() {
     }
     setIsResetConfirmOpen(false);
     setResetConfirmKey(null);
-  }, [resetConfirmKey, resetSetting, t]);
+  }, [canReset, resetConfirmKey, resetSetting, t]);
 
   const cancelReset = () => {
     setIsResetConfirmOpen(false);
@@ -398,7 +434,7 @@ export function SettingsPanel() {
   }, []);
 
   const confirmResetAll = useCallback(async () => {
-    if (isResettingAll) return;
+    if (!canResetAll || isResettingAll) return;
     setIsResettingAll(true);
     try {
       const success = await resetAllSettings();
@@ -410,7 +446,7 @@ export function SettingsPanel() {
     } finally {
       setIsResettingAll(false);
     }
-  }, [resetAllSettings, isResettingAll, t]);
+  }, [canResetAll, resetAllSettings, isResettingAll, t]);
 
   const cancelResetAll = () => {
     setIsResetAllConfirmOpen(false);
@@ -428,7 +464,7 @@ export function SettingsPanel() {
   const handleImport = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      if (!file) return;
+      if (!canResetAll || !file) return;
 
       setIsImporting(true);
       try {
@@ -451,7 +487,7 @@ export function SettingsPanel() {
         }
       }
     },
-    [importSettings, t],
+    [canResetAll, importSettings, t],
   );
 
   // Get display value for input
@@ -532,7 +568,7 @@ export function SettingsPanel() {
             >
               {t("common.about", "About")}
             </Button>
-            {canManage && (
+            {canResetAll && (
               <button
                 onClick={handleResetAll}
                 disabled={isLoading}
@@ -602,7 +638,7 @@ export function SettingsPanel() {
                   </Button>
                   <Button
                     onClick={handleImportClick}
-                    disabled={!settings || isImporting}
+                    disabled={!canResetAll || !settings || isImporting}
                     loading={isImporting}
                     leftIcon={<Upload size={16} />}
                     className="h-10 px-3"
@@ -739,6 +775,7 @@ export function SettingsPanel() {
                       </h3>
                     )}
                     {group.settings.map((setting) => {
+                      const editable = canEditSetting(setting);
                       const isSaving = savingKeys.has(setting.key);
                       const modified = isModified(setting);
                       const justSaved = savedKeys.has(setting.key);
@@ -823,7 +860,7 @@ export function SettingsPanel() {
                                       : setting.type,
                                   )
                                 }
-                                disabled={!canManage}
+                                disabled={!editable}
                                 options={
                                   setting.key === "DEFAULT_AGENT"
                                     ? agents.map((agent) => ({
@@ -921,7 +958,7 @@ export function SettingsPanel() {
                                     setting.type,
                                   )
                                 }
-                                disabled={!canManage}
+                                disabled={!editable}
                                 rows={8}
                                 className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                               />
@@ -936,7 +973,7 @@ export function SettingsPanel() {
                                     : getDisplayValue(setting)
                                 }
                                 schema={setting.json_schema}
-                                disabled={!canManage}
+                                disabled={!editable}
                                 onChange={(val) =>
                                   handleValueChange(
                                     setting.key,
@@ -957,7 +994,7 @@ export function SettingsPanel() {
                                     setting.type,
                                   )
                                 }
-                                disabled={!canManage}
+                                disabled={!editable}
                                 rows={20}
                                 className="max-h-[45vh] overflow-y-auto bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-12 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 sm:max-h-none sm:text-14 dark:text-stone-100"
                               />
@@ -980,7 +1017,7 @@ export function SettingsPanel() {
                                       setting.type,
                                     )
                                   }
-                                  disabled={!canManage}
+                                  disabled={!editable}
                                   className="bg-[var(--theme-bg-card)] px-3 py-2 text-14 text-theme-text disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                                 />
                               )}
@@ -988,13 +1025,13 @@ export function SettingsPanel() {
 
                           {/* Actions and Info */}
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                            {canManage && (
+                            {(editable || canReset) && (
                               <div className="flex shrink-0 items-center gap-1.5">
                                 <Button
                                   variant="primary"
                                   size="sm"
                                   onClick={() => handleSave(setting)}
-                                  disabled={!modified || isSaving}
+                                  disabled={!editable || !modified || isSaving}
                                   loading={isSaving}
                                   leftIcon={
                                     justSaved ? (
@@ -1012,7 +1049,7 @@ export function SettingsPanel() {
                                 <Button
                                   size="sm"
                                   onClick={() => handleReset(setting.key)}
-                                  disabled={isSaving}
+                                  disabled={!canReset || !editable || isSaving}
                                   leftIcon={<RotateCcw size={14} />}
                                   className="px-3 py-1.5 text-12 sm:text-14"
                                 >
@@ -1038,7 +1075,7 @@ export function SettingsPanel() {
                           </div>
 
                           {/* Read-only notice */}
-                          {!canManage && (
+                          {!editable && (
                             <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-12 text-theme-text-tertiary dark:text-stone-500">
                               {t("settings.readOnlyNotice")}
                             </div>
@@ -1058,7 +1095,7 @@ export function SettingsPanel() {
               >
                 {t("common.about")}
               </Button>
-              {canManage && (
+              {canResetAll && (
                 <Button
                   size="sm"
                   onClick={handleResetAll}

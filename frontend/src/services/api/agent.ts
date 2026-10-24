@@ -58,21 +58,4 @@ export const agentApi = {
   async list(): Promise<AgentListResponse> {
     return getCachedAgentList(`${API_BASE}/api/agents`);
   },
-
-  /**
-   * Stream chat endpoint URL
-   */
-  getStreamUrl(agentId: string) {
-    return `${API_BASE}/${agentId}/stream`;
-  },
-
-  /**
-   * Non-streaming chat
-   */
-  async chat(agentId: string, message: string, sessionId?: string) {
-    return authFetch(`${API_BASE}/${agentId}/chat`, {
-      method: "POST",
-      body: JSON.stringify({ message, session_id: sessionId }),
-    });
-  },
 };

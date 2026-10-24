@@ -139,7 +139,7 @@ async def update_persona_preset(
 @router.delete("/{preset_id}")
 async def delete_persona_preset(
     preset_id: str,
-    user: TokenPayload = Depends(require_permissions("persona_preset:write")),
+    user: TokenPayload = Depends(require_permissions("persona_preset:delete")),
 ):
     """Delete an editable persona preset."""
     try:

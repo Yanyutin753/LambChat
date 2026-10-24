@@ -47,17 +47,18 @@ async def get_fx_rates(
 
 @router.post("/sync", response_model=PricingSyncResponse)
 async def sync_pricing_prices(
-    user: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    user: TokenPayload = Depends(require_permissions(Permission.PRICING_MANAGE.value)),
 ) -> PricingSyncResponse:
     """手动同步 models.dev 价格与 USD 汇率（强制刷新）。"""
     status = await sync_pricing(force=True)
     pricing_service.reset_runtime_cache()
+    logger.info("Pricing synchronized actor=%s", user.sub)
     return PricingSyncResponse(**status)
 
 
 @router.get("/status", response_model=PricingStatusResponse)
 async def get_pricing_status(
-    user: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    user: TokenPayload = Depends(require_permissions(Permission.PRICING_MANAGE.value)),
 ) -> PricingStatusResponse:
     """查看价格/汇率快照状态。"""
     status = await get_pricing_storage().get_status()
@@ -69,7 +70,7 @@ async def lookup_price(
     value: str = Query(..., description="模型标识，如 openai/gpt-4o"),
     provider: Optional[str] = Query(None, description="Provider 提示"),
     model_id: Optional[str] = Query(None, description="模型配置 ID（覆盖优先）"),
-    user: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    user: TokenPayload = Depends(require_permissions(Permission.PRICING_MANAGE.value)),
 ) -> PricingLookupResponse:
     """查询某模型解析后的单价与来源。"""
     resolved = await pricing_service.resolve_price(
@@ -94,7 +95,7 @@ async def lookup_price(
 @router.post("/backfill-usage", response_model=PricingBackfillResponse)
 async def backfill_usage_costs(
     dry_run: bool = Query(False, description="只统计不写入"),
-    user: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+    user: TokenPayload = Depends(require_permissions(Permission.PRICING_MANAGE.value)),
 ) -> PricingBackfillResponse:
     """用当前价格快照补算存量 usage_logs 的费用（幂等，可重复执行）。"""
 
@@ -103,4 +104,5 @@ async def backfill_usage_costs(
     summary = await run_backfill(dry_run=dry_run)
     if summary.get("lock_contended"):
         raise AppError(ErrorCode.BACKFILL_IN_PROGRESS)
+    logger.info("Usage prices backfilled actor=%s dry_run=%s", user.sub, dry_run)
     return PricingBackfillResponse(**summary)

@@ -85,7 +85,7 @@ async def test_subagent_persona_resolution_uses_current_admin_permissions(monkey
         "_resolve_user",
         AsyncMock(
             return_value=SimpleNamespace(
-                permissions=["chat:write", "persona_preset:admin"],
+                permissions=["persona_preset:read", "persona_preset:admin"],
                 roles=["admin"],
             )
         ),
@@ -124,7 +124,7 @@ async def test_search_persona_presets_returns_visible_personas(
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["team:read"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["persona_preset:read"])),
     )
 
     result = json.loads(
@@ -162,7 +162,7 @@ async def test_search_persona_presets_offloads_result_json(
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["team:read"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["persona_preset:read"])),
     )
     monkeypatch.setattr(team_tool, "run_long_blocking_io", fake_run_long_blocking_io, raising=False)
 
@@ -227,7 +227,7 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["chat:write"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["team:write"])),
     )
 
     result = json.loads(
@@ -263,7 +263,7 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
     assert body.default_member_id == "m-research"
     assert body.team_instructions == "Research first, then synthesize."
     assert body.tags == ["analysis"]
-    assert manager.create_team.await_args.kwargs["user"].permissions == ["chat:write"]
+    assert manager.create_team.await_args.kwargs["user"].permissions == ["team:write"]
 
 
 @pytest.mark.asyncio
@@ -344,7 +344,7 @@ async def test_create_agent_team_passes_member_model_id_to_manager(
         sub="user-1",
         username="tester",
         roles=["user"],
-        permissions=["chat:write"],
+        permissions=["team:write"],
     )
     monkeypatch.setattr(team_tool, "TeamManager", lambda: manager)
     monkeypatch.setattr(team_tool, "_resolve_user", AsyncMock(return_value=user))
@@ -398,7 +398,7 @@ async def test_create_agent_team_passes_member_agent_id_to_manager(
         sub="user-1",
         username="tester",
         roles=["user"],
-        permissions=["chat:write"],
+        permissions=["team:write"],
     )
     monkeypatch.setattr(team_tool, "TeamManager", lambda: manager)
     monkeypatch.setattr(team_tool, "_resolve_user", AsyncMock(return_value=user))
@@ -432,7 +432,7 @@ async def test_create_agent_team_requires_members(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["chat:write"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["team:write"])),
     )
 
     result = json.loads(
@@ -458,7 +458,7 @@ async def test_create_agent_team_rejects_placeholder_persona_ids(
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["chat:write"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["team:write"])),
     )
 
     result = json.loads(
@@ -491,7 +491,7 @@ async def test_create_agent_team_requires_write_permission(monkeypatch: pytest.M
     monkeypatch.setattr(
         team_tool,
         "_resolve_user",
-        AsyncMock(return_value=SimpleNamespace(permissions=["team:read"])),
+        AsyncMock(return_value=SimpleNamespace(permissions=["persona_preset:read"])),
     )
 
     result = json.loads(

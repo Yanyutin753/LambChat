@@ -7,7 +7,11 @@ Provides endpoints for managing MCP server configurations.
 from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import require_permissions
+from src.infra.auth.delegation import require_capability as _require_capability
 from src.infra.logging import get_logger
+from src.infra.mcp.audit import audit_mcp as _audit_mcp
+from src.infra.mcp.audit import policy_changes as _policy_changes
+from src.infra.mcp.redaction import MASKED_SECRET, preserve_mcp_secrets, redact_mcp_url
 from src.infra.mcp.storage import MCPStorage
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.mcp import (
@@ -52,7 +56,9 @@ def _paginate_servers(
     limit: int,
     q: str | None,
 ) -> MCPServersResponse:
-    servers = sorted(servers, key=lambda server: server.name.lower())
+    servers = sorted(
+        (_redact_server(server) for server in servers), key=lambda server: server.name.lower()
+    )
     if q:
         lowered = q.lower()
         servers = [server for server in servers if lowered in server.name.lower()]
@@ -65,9 +71,20 @@ def _paginate_servers(
     )
 
 
-def _is_admin(user: TokenPayload) -> bool:
-    """Check if user has admin permissions"""
-    return "mcp:admin" in (user.permissions or [])
+def _can_inspect_system(user: TokenPayload) -> bool:
+    """Explicit configuration inspection, independent of execution role access."""
+    return "mcp:system_read" in user.permissions
+
+
+def _redact_server(server: MCPServerResponse) -> MCPServerResponse:
+    return server.model_copy(
+        update={
+            "url": redact_mcp_url(server.url),
+            "headers": {key: MASKED_SECRET for key in server.headers}
+            if server.headers
+            else server.headers,
+        }
+    )
 
 
 def _is_internal_server(name: str) -> bool:
@@ -81,13 +98,9 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
     Check if user has permission for a specific transport type.
 
     Permissions:
-    - mcp:admin: can create any transport type
     - mcp:write_sse: can create SSE transport
     - mcp:write_http: can create streamable_http transport
     """
-    if _is_admin(user):
-        return True
-
     permissions = user.permissions or []
 
     if transport == "sse":
@@ -115,11 +128,11 @@ async def list_servers(
     storage_limit = skip + limit + 1
     servers = await storage.get_visible_servers(
         user.sub,
-        is_admin=_is_admin(user),
+        is_admin=_can_inspect_system(user),
         user_roles=user.roles,
         limit=storage_limit,
     )
-    if _is_admin(user):
+    if _can_inspect_system(user):
         from src.infra.tool.internal_registry import build_internal_server_response
 
         servers.append(build_internal_server_response())
@@ -134,6 +147,8 @@ async def create_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Create a new MCP server (requires transport-specific permission)"""
+    if data.allowed_roles or data.role_quotas:
+        raise AppError(ErrorCode.FORBIDDEN)
     # Check permission for specific transport type
     if not _has_permission_for_transport(user, data.transport.value):
         raise AppError(
@@ -150,16 +165,18 @@ async def create_server(
         raise AppError(ErrorCode.MCP_SERVER_EXISTS_AS_SYSTEM, args={"name": data.name})
 
     server = await storage.create_user_server(data, user.sub)
-    return MCPServerResponse(
-        name=server.name,
-        transport=server.transport,
-        enabled=server.enabled,
-        url=server.url,
-        headers=server.headers,
-        is_system=False,
-        can_edit=True,
-        created_at=server.created_at,
-        updated_at=server.updated_at,
+    return _redact_server(
+        MCPServerResponse(
+            name=server.name,
+            transport=server.transport,
+            enabled=server.enabled,
+            url=server.url,
+            headers=server.headers,
+            is_system=False,
+            can_edit=True,
+            created_at=server.created_at,
+            updated_at=server.updated_at,
+        )
     )
 
 
@@ -201,10 +218,11 @@ async def import_servers(
 
 @router.get("/export", response_model=MCPExportResponse)
 async def export_servers(
-    user: TokenPayload = Depends(require_permissions("mcp:read")),
+    user: TokenPayload = Depends(require_permissions("mcp:read", "mcp:export")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Export user's MCP servers as JSON configuration"""
+    _audit_mcp(user, "export_personal_credentials", user.sub)
     config = await storage.export_user_servers(user.sub)
     return MCPExportResponse(servers=config.get("mcpServers", {}))
 
@@ -223,7 +241,7 @@ async def get_server(
 ):
     """Get a specific MCP server"""
     if _is_internal_server(name):
-        if not _is_admin(user):
+        if not _can_inspect_system(user):
             raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
         from src.infra.tool.internal_registry import build_internal_server_response
 
@@ -232,40 +250,44 @@ async def get_server(
     # Try user server first
     server = await storage.get_user_server(name, user.sub)
     if server:
-        return MCPServerResponse(
-            name=server.name,
-            transport=server.transport,
-            enabled=server.enabled,
-            url=server.url,
-            headers=server.headers,
-            is_system=False,
-            can_edit=True,
-            created_at=server.created_at,
-            updated_at=server.updated_at,
+        return _redact_server(
+            MCPServerResponse(
+                name=server.name,
+                transport=server.transport,
+                enabled=server.enabled,
+                url=server.url,
+                headers=server.headers,
+                is_system=False,
+                can_edit=True,
+                created_at=server.created_at,
+                updated_at=server.updated_at,
+            )
         )
 
     # Try system server
     system_server = await storage.get_system_server(name)
     if system_server:
         # Role-based access control: check if user can see this system server
-        if system_server.allowed_roles and not _is_admin(user):
+        if system_server.allowed_roles and not _can_inspect_system(user):
             if not set(user.roles).intersection(system_server.allowed_roles):
                 raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
-        # Only the creator can see sensitive fields (url and headers)
+        # Connection details remain masked; historical authorship grants no authority.
         is_creator = (system_server.created_by or system_server.updated_by) == user.sub
-        return MCPServerResponse(
-            name=system_server.name,
-            transport=system_server.transport,
-            enabled=system_server.enabled,
-            url=system_server.url if is_creator else None,
-            headers=system_server.headers if is_creator else None,
-            is_system=True,
-            can_edit=False,  # System servers are managed through admin routes
-            allowed_roles=system_server.allowed_roles,
-            role_quotas=system_server.role_quotas,
-            created_at=system_server.created_at,
-            updated_at=system_server.updated_at,
+        return _redact_server(
+            MCPServerResponse(
+                name=system_server.name,
+                transport=system_server.transport,
+                enabled=system_server.enabled,
+                url=system_server.url if is_creator else None,
+                headers=system_server.headers if is_creator else None,
+                is_system=True,
+                can_edit=False,  # System servers are managed through admin routes
+                allowed_roles=system_server.allowed_roles,
+                role_quotas=system_server.role_quotas,
+                created_at=system_server.created_at,
+                updated_at=system_server.updated_at,
+            )
         )
 
     raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
@@ -279,34 +301,44 @@ async def update_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Update a user-owned MCP server"""
-    # If changing transport, check permission for the new transport type
-    if data.transport is not None and not _has_permission_for_transport(user, data.transport.value):
+    existing = await storage.get_user_server(name, user.sub)
+    if not existing:
+        raise AppError(ErrorCode.MCP_SERVER_NOT_OWNED, args={"name": name})
+    transport = data.transport or existing.transport
+    if not _has_permission_for_transport(user, transport):
         raise AppError(
             ErrorCode.MCP_WRITE_PERMISSION_DENIED,
-            args={"permission": f"mcp:write_{data.transport.value}"},
+            args={
+                "permission": "mcp:write_sse" if transport == MCPTransport.SSE else "mcp:write_http"
+            },
         )
+    if data.model_fields_set.intersection({"allowed_roles", "role_quotas"}):
+        raise AppError(ErrorCode.FORBIDDEN)
+    data = preserve_mcp_secrets(data, existing)
 
     server = await storage.update_user_server(name, data, user.sub)
     if not server:
         raise AppError(ErrorCode.MCP_SERVER_NOT_OWNED, args={"name": name})
 
-    return MCPServerResponse(
-        name=server.name,
-        transport=server.transport,
-        enabled=server.enabled,
-        url=server.url,
-        headers=server.headers,
-        is_system=False,
-        can_edit=True,
-        created_at=server.created_at,
-        updated_at=server.updated_at,
+    return _redact_server(
+        MCPServerResponse(
+            name=server.name,
+            transport=server.transport,
+            enabled=server.enabled,
+            url=server.url,
+            headers=server.headers,
+            is_system=False,
+            can_edit=True,
+            created_at=server.created_at,
+            updated_at=server.updated_at,
+        )
     )
 
 
 @router.delete("/{name}")
 async def delete_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:read")),
+    user: TokenPayload = Depends(require_permissions("mcp:delete")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Delete a user-owned MCP server"""
@@ -324,11 +356,21 @@ async def toggle_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Toggle a server's enabled status (user servers: direct toggle; system servers: toggle user preference)"""
+    existing = await storage.get_user_server(name, user.sub)
+    if existing and not _has_permission_for_transport(user, existing.transport.value):
+        raise AppError(
+            ErrorCode.MCP_WRITE_PERMISSION_DENIED,
+            args={
+                "permission": "mcp:write_sse"
+                if existing.transport == MCPTransport.SSE
+                else "mcp:write_http"
+            },
+        )
     server = await storage.toggle_server(
         name,
         user.sub,
         user_roles=user.roles,
-        is_admin=_is_admin(user),
+        is_admin=_can_inspect_system(user),
     )
 
     if not server:
@@ -336,7 +378,7 @@ async def toggle_server(
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
-        server=server,
+        server=_redact_server(server),
         message=f"Server '{name}' has been {status_text}",
     )
 
@@ -359,7 +401,7 @@ async def discover_server_tools(
     This endpoint does NOT use cache - it always probes the server directly.
     """
     if _is_internal_server(name):
-        if not _is_admin(user):
+        if not _can_inspect_system(user):
             raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
         from src.infra.tool.internal_registry import get_internal_tool_infos
 
@@ -379,7 +421,7 @@ async def discover_server_tools(
             name,
             user.sub,
             user_roles=user.roles,
-            is_admin=_is_admin(user),
+            is_admin=_can_inspect_system(user),
         )
 
     return MCPToolDiscoveryResponse(
@@ -410,7 +452,7 @@ async def retest_server(
         name,
         user.sub,
         user_roles=user.roles,
-        is_admin=_is_admin(user),
+        is_admin=_can_inspect_system(user),
     )
     if scope is None:
         raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
@@ -451,8 +493,7 @@ async def toggle_tool(
       Sets user_disabled — tool hidden from chat input but visible in preferences (re-enableable).
     """
     if _is_internal_server(name):
-        if not _is_admin(user):
-            raise AppError(ErrorCode.ADMIN_PERMISSION_REQUIRED)
+        _require_capability(user, "mcp:policy_manage")
         await storage.set_tool_policy(
             server_name=name,
             tool_name=tool_name,
@@ -464,7 +505,7 @@ async def toggle_tool(
             name,
             user.sub,
             user_roles=user.roles,
-            is_admin=_is_admin(user),
+            is_admin=_can_inspect_system(user),
         ):
             raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
@@ -475,13 +516,15 @@ async def toggle_tool(
             name,
             user.sub,
             user_roles=user.roles,
-            is_admin=_is_admin(user),
+            is_admin=_can_inspect_system(user),
         ):
             raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
-        # System-level: only creators can toggle
+        # Configuration ownership and current global policy authority are separate.
         user_server = await storage.get_user_server(name, user.sub)
         if user_server:
+            if not _has_permission_for_transport(user, user_server.transport.value):
+                raise AppError(ErrorCode.MCP_WRITE_PERMISSION_DENIED)
             try:
                 await storage.set_user_server_tool_disabled(
                     name, tool_name, user.sub, not data.enabled
@@ -493,15 +536,21 @@ async def toggle_tool(
             if not system_server:
                 raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
-            is_creator = (system_server.created_by or system_server.updated_by) == user.sub
-            if not is_creator:
-                raise AppError(ErrorCode.ONLY_CREATOR_CAN_TOGGLE_TOOLS)
+            _require_capability(user, "mcp:policy_manage")
 
             try:
                 await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
             except ValueError as e:
                 raise AppError(ErrorCode.MCP_SERVER_ERROR, message=str(e))
 
+    if _is_internal_server(name) or data.level != "user":
+        _audit_mcp(
+            user,
+            "toggle_tool_policy",
+            name + ":" + tool_name,
+            fields=["enabled"],
+            changes={"enabled": data.enabled},
+        )
     status_text = "enabled" if data.enabled else "disabled"
     return MCPToolToggleResponse(
         server_name=name,
@@ -521,7 +570,7 @@ async def admin_list_servers(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
     q: str | None = None,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Get all MCP servers (admin view - includes all system servers, bypasses role filter)"""
@@ -545,31 +594,43 @@ async def admin_create_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Create a new system MCP server (admin only)"""
+    if data.enabled or data.allowed_roles or data.role_quotas:
+        _require_capability(user, "mcp:policy_manage")
     if await storage.system_server_name_exists(data.name):
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_EXISTS, args={"name": data.name})
 
     server = await storage.create_system_server(data, user.sub)
-    return MCPServerResponse(
-        name=server.name,
-        transport=server.transport,
-        enabled=server.enabled,
-        url=server.url,
-        headers=server.headers,
-        is_system=True,
-        can_edit=True,
-        allowed_roles=server.allowed_roles,
-        role_quotas=server.role_quotas,
-        created_at=server.created_at,
-        updated_at=server.updated_at,
+    _audit_mcp(
+        user,
+        "create_system_server",
+        data.name,
+        fields=data.model_fields_set,
+        changes=_policy_changes(data),
+    )
+    return _redact_server(
+        MCPServerResponse(
+            name=server.name,
+            transport=server.transport,
+            enabled=server.enabled,
+            url=server.url,
+            headers=server.headers,
+            is_system=True,
+            can_edit=True,
+            allowed_roles=server.allowed_roles,
+            role_quotas=server.role_quotas,
+            created_at=server.created_at,
+            updated_at=server.updated_at,
+        )
     )
 
 
 @admin_router.get("/export", response_model=MCPExportResponse)
 async def admin_export_servers(
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_read", "mcp:export")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Export all system MCP servers as JSON configuration (admin only)"""
+    _audit_mcp(user, "export_system_credentials", "system")
     config = await storage.export_all_servers()
     return MCPExportResponse(servers=config.get("mcpServers", {}))
 
@@ -577,7 +638,7 @@ async def admin_export_servers(
 @admin_router.get("/{name}/tools", response_model=MCPToolDiscoveryResponse)
 async def admin_discover_server_tools(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Discover tools for a system or internal MCP server (admin only)."""
@@ -613,7 +674,7 @@ async def admin_discover_server_tools(
 @admin_router.post("/{name}/retest", response_model=MCPServerRetestResponse)
 async def admin_retest_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Retest a system MCP server connection and persist the load status (admin only)."""
@@ -656,7 +717,7 @@ async def admin_retest_server(
 @admin_router.get("/{name}", response_model=MCPServerResponse)
 async def admin_get_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Get a system MCP server (admin only)"""
@@ -669,18 +730,20 @@ async def admin_get_server(
     if not server:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
-    return MCPServerResponse(
-        name=server.name,
-        transport=server.transport,
-        enabled=server.enabled,
-        url=server.url,
-        headers=server.headers,
-        is_system=True,
-        can_edit=True,
-        allowed_roles=server.allowed_roles,
-        role_quotas=server.role_quotas,
-        created_at=server.created_at,
-        updated_at=server.updated_at,
+    return _redact_server(
+        MCPServerResponse(
+            name=server.name,
+            transport=server.transport,
+            enabled=server.enabled,
+            url=server.url,
+            headers=server.headers,
+            is_system=True,
+            can_edit=True,
+            allowed_roles=server.allowed_roles,
+            role_quotas=server.role_quotas,
+            created_at=server.created_at,
+            updated_at=server.updated_at,
+        )
     )
 
 
@@ -692,33 +755,49 @@ async def admin_update_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Update a system MCP server (admin only)"""
+    if data.model_fields_set.intersection({"enabled", "allowed_roles", "role_quotas"}):
+        _require_capability(user, "mcp:policy_manage")
+    existing = await storage.get_system_server(name)
+    if not existing:
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
+    data = preserve_mcp_secrets(data, existing)
     server = await storage.update_system_server(name, data, user.sub)
+    _audit_mcp(
+        user,
+        "update_system_server",
+        name,
+        fields=data.model_fields_set,
+        changes=_policy_changes(data),
+    )
     if not server:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
-    return MCPServerResponse(
-        name=server.name,
-        transport=server.transport,
-        enabled=server.enabled,
-        url=server.url,
-        headers=server.headers,
-        is_system=True,
-        can_edit=True,
-        allowed_roles=server.allowed_roles,
-        role_quotas=server.role_quotas,
-        created_at=server.created_at,
-        updated_at=server.updated_at,
+    return _redact_server(
+        MCPServerResponse(
+            name=server.name,
+            transport=server.transport,
+            enabled=server.enabled,
+            url=server.url,
+            headers=server.headers,
+            is_system=True,
+            can_edit=True,
+            allowed_roles=server.allowed_roles,
+            role_quotas=server.role_quotas,
+            created_at=server.created_at,
+            updated_at=server.updated_at,
+        )
     )
 
 
 @admin_router.delete("/{name}")
 async def admin_delete_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:system_delete")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Delete a system MCP server (admin only)"""
     deleted = await storage.delete_system_server(name)
+    _audit_mcp(user, "delete_system_server", name, fields=())
     if not deleted:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
@@ -732,14 +811,16 @@ async def admin_toggle_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Toggle a system server's enabled status (admin only)"""
+    _require_capability(user, "mcp:policy_manage")
     server = await storage.toggle_system_server(name)
+    _audit_mcp(user, "toggle_system_server", name, fields=["enabled"])
 
     if not server:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
-        server=server,
+        server=_redact_server(server),
         message=f"System server '{name}' has been {status_text}",
     )
 
@@ -749,7 +830,7 @@ async def admin_toggle_tool(
     name: str,
     tool_name: str,
     data: MCPToolToggleRequest,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:policy_manage")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """
@@ -774,6 +855,13 @@ async def admin_toggle_tool(
         except ValueError as e:
             raise AppError(ErrorCode.MCP_SERVER_ERROR, message=str(e))
 
+    _audit_mcp(
+        user,
+        "toggle_tool_policy",
+        name + ":" + tool_name,
+        fields=["enabled"],
+        changes={"enabled": data.enabled},
+    )
     status_text = "enabled" if data.enabled else "disabled"
     return MCPToolToggleResponse(
         server_name=name,
@@ -788,7 +876,7 @@ async def admin_update_tool_policy(
     name: str,
     tool_name: str,
     data: MCPToolPolicyUpdate,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:policy_manage")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Update role access and quotas for one MCP tool (admin only)."""
@@ -797,7 +885,7 @@ async def admin_update_tool_policy(
         if not server:
             raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
-    return await storage.set_tool_policy(
+    policy = await storage.set_tool_policy(
         server_name=name,
         tool_name=tool_name,
         disabled=data.disabled,
@@ -806,6 +894,14 @@ async def admin_update_tool_policy(
         role_quotas=data.role_quotas,
         updated_by=user.sub,
     )
+    _audit_mcp(
+        user,
+        "update_tool_policy",
+        name + ":" + tool_name,
+        fields=data.model_fields_set,
+        changes=_policy_changes(data),
+    )
+    return policy
 
 
 # ==========================================
@@ -823,29 +919,35 @@ async def promote_server(
     """
     Promote a user server to system server (admin only).
 
-    Requires the owner's user_id in request body to identify which user's server to promote.
+    Only the current user's own server can be promoted.
     """
+    _require_capability(user, "mcp:policy_manage")
     if not data.target_user_id:
         raise AppError(ErrorCode.TARGET_USER_REQUIRED)
+    if data.target_user_id != user.sub:
+        raise AppError(ErrorCode.FORBIDDEN)
 
     server = await storage.promote_to_system_server(name, data.target_user_id, user.sub)
+    _audit_mcp(user, "promote_own_server", name, fields=())
 
     if not server:
         raise AppError(ErrorCode.MCP_USER_SERVER_NOT_FOUND, args={"name": name})
 
     return MCPServerMoveResponse(
-        server=MCPServerResponse(
-            name=server.name,
-            transport=server.transport,
-            enabled=server.enabled,
-            url=server.url,
-            headers=server.headers,
-            is_system=True,
-            can_edit=True,
-            allowed_roles=server.allowed_roles,
-            role_quotas=server.role_quotas,
-            created_at=server.created_at,
-            updated_at=server.updated_at,
+        server=_redact_server(
+            MCPServerResponse(
+                name=server.name,
+                transport=server.transport,
+                enabled=server.enabled,
+                url=server.url,
+                headers=server.headers,
+                is_system=True,
+                can_edit=True,
+                allowed_roles=server.allowed_roles,
+                role_quotas=server.role_quotas,
+                created_at=server.created_at,
+                updated_at=server.updated_at,
+            )
         ),
         message=f"Server '{name}' has been promoted to system server",
         from_type="user",
@@ -865,25 +967,30 @@ async def demote_server(
 
     Requires target_user_id in request body to specify who will own the server.
     """
+    _require_capability(user, "mcp:policy_manage")
+    _require_capability(user, "mcp:export")
     if not data.target_user_id:
         raise AppError(ErrorCode.TARGET_OWNER_REQUIRED)
 
     server = await storage.demote_to_user_server(name, data.target_user_id, user.sub)
+    _audit_mcp(user, "demote_system_server", name, fields=["target_user_id:" + data.target_user_id])
 
     if not server:
         raise AppError(ErrorCode.MCP_SYSTEM_SERVER_CONFLICT, args={"name": name})
 
     return MCPServerMoveResponse(
-        server=MCPServerResponse(
-            name=server.name,
-            transport=server.transport,
-            enabled=server.enabled,
-            url=server.url,
-            headers=server.headers,
-            is_system=False,
-            can_edit=True,
-            created_at=server.created_at,
-            updated_at=server.updated_at,
+        server=_redact_server(
+            MCPServerResponse(
+                name=server.name,
+                transport=server.transport,
+                enabled=server.enabled,
+                url=server.url,
+                headers=server.headers,
+                is_system=False,
+                can_edit=True,
+                created_at=server.created_at,
+                updated_at=server.updated_at,
+            )
         ),
         message=f"System server '{name}' has been demoted to user server",
         from_type="system",

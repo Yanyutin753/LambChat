@@ -15,7 +15,10 @@ import type { Project } from "../../../../types";
 import i18n from "../../../../i18n";
 
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ hasPermission: () => false }),
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      ["session:read", "session:delete", "project:read"].includes(permission),
+  }),
 }));
 
 const noop = () => {};

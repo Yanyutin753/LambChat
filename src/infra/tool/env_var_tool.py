@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.auth.tool_authority import has_tool_permission
 from src.infra.envvar.storage import EnvVarStorage
 from src.infra.envvar.sync import sync_envvar_change
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_user_id_from_runtime
@@ -65,6 +66,8 @@ async def env_var_list(
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
+    if not await has_tool_permission(user_id, "envvar:read"):
+        return await _json_dumps_result({"error": "Permission denied: envvar:read required"})
 
     try:
         variables = await EnvVarStorage().list_vars(user_id)
@@ -85,6 +88,8 @@ async def env_var_set(
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
+    if not await has_tool_permission(user_id, "envvar:write"):
+        return await _json_dumps_result({"error": "Permission denied: envvar:write required"})
 
     validation_error = _validate_key(key)
     if validation_error:
@@ -114,6 +119,8 @@ async def env_var_delete(
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
+    if not await has_tool_permission(user_id, "envvar:delete"):
+        return await _json_dumps_result({"error": "Permission denied: envvar:delete required"})
 
     validation_error = _validate_key(key)
     if validation_error:
@@ -141,6 +148,8 @@ async def env_var_delete_all(
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
+    if not await has_tool_permission(user_id, "envvar:delete"):
+        return await _json_dumps_result({"error": "Permission denied: envvar:delete required"})
 
     try:
         count = await EnvVarStorage().delete_all_vars(user_id)

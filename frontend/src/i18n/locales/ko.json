@@ -3101,7 +3101,12 @@
     "budgetTitle": "모델 비용 한도 (USD)",
     "weeklyBudgetUsd": "주간 한도 (USD)",
     "budgetHint": "비워 두면 이 역할은 비용 한도를 설정하지 않습니다. 여러 역할에서는 설정된 한도 중 가장 높은 한도를 적용하며, 해당하는 모든 역할에 한도가 없을 때만 무제한입니다. 0은 모델 호출을 차단합니다. 첫 모델 호출부터 5시간과 7일 기간을 각각 계산합니다. 각 기간이 만료되면 다음 호출이 해당 기간을 새로 시작합니다. 잔액 조회는 타이머를 시작하지 않습니다.",
-    "fiveHourBudgetUsd": "5시간 한도 (USD)"
+    "fiveHourBudgetUsd": "5시간 한도 (USD)",
+    "grantablePermissions": "위임 가능한 권한",
+    "assignableRoles": "할당 가능한 역할",
+    "delegationHint": "여기에서 명시적으로 선택한 권한과 역할만 위임할 수 있습니다. 시스템 관리는 위임할 수 없습니다.",
+    "unrestrictedModels": "설정된 모든 모델 허용",
+    "explicitModelsHint": "모델을 선택하지 않으면 어떤 모델도 사용할 수 없습니다. 무제한 접근은 명시적으로 활성화해야 합니다."
   },
   "scheduledTask": {
     "noTimeLimit": "총 실행 시간 제한 없음",
@@ -4767,5 +4772,390 @@
     "useAuthenticator": "인증 앱 코드 사용",
     "tokenNotice": "2단계 인증을 활성화하거나 복구 코드를 재생성하면 다른 로그인 세션, 기존 API 토큰 및 기기 연결이 무효화됩니다. 기기에서 다시 로그인하고 연결해야 합니다. 2단계 인증을 비활성화하면 다른 로그인 세션만 종료됩니다.",
     "optionalCode": "인증 또는 복구 코드(2FA 활성화 시)"
+  },
+  "permissionCatalog": {
+    "system:admin": {
+      "label": "보호된 시스템 관리",
+      "description": "허용 작업: 보호된 시스템 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:create": {
+      "label": "계정 생성",
+      "description": "허용 작업: 계정 생성. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:status": {
+      "label": "계정 활성화 또는 정지",
+      "description": "허용 작업: 계정 활성화 또는 정지. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:reset_password": {
+      "label": "계정 인증 정보 재설정",
+      "description": "허용 작업: 계정 인증 정보 재설정. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:assign_roles": {
+      "label": "위임 범위 내 계정 역할 할당",
+      "description": "허용 작업: 위임 범위 내 계정 역할 할당. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "role:read": {
+      "label": "역할 및 접근 규칙 조회",
+      "description": "허용 작업: 역할 및 접근 규칙 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "role:write": {
+      "label": "역할 생성 및 기본 정보 편집",
+      "description": "허용 작업: 역할 생성 및 기본 정보 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "role:delete": {
+      "label": "사용자 지정 역할 삭제",
+      "description": "허용 작업: 사용자 지정 역할 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "role:grant": {
+      "label": "위임 범위 내 권한 부여",
+      "description": "허용 작업: 위임 범위 내 권한 부여. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "settings:read": {
+      "label": "시스템 설정 조회",
+      "description": "허용 작업: 시스템 설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "settings:security": {
+      "label": "보안 및 인증 정보 설정 편집",
+      "description": "허용 작업: 보안 및 인증 정보 설정 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "settings:reset": {
+      "label": "시스템 설정 초기화",
+      "description": "허용 작업: 시스템 설정 초기화. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:system_read": {
+      "label": "시스템 MCP 설정 조회",
+      "description": "허용 작업: 시스템 MCP 설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:system_delete": {
+      "label": "시스템 MCP 서버 삭제",
+      "description": "허용 작업: 시스템 MCP 서버 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:policy_manage": {
+      "label": "MCP 도구 접근 정책 관리",
+      "description": "허용 작업: MCP 도구 접근 정책 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:export": {
+      "label": "MCP 설정 및 비밀 정보 내보내기",
+      "description": "허용 작업: MCP 설정 및 비밀 정보 내보내기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:read": {
+      "label": "내 파일 읽기",
+      "description": "허용 작업: 내 파일 읽기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:delete": {
+      "label": "내 파일 삭제",
+      "description": "허용 작업: 내 파일 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "agent:config_read": {
+      "label": "Agent 설정 조회",
+      "description": "허용 작업: Agent 설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "agent:assign": {
+      "label": "역할에 Agent 할당",
+      "description": "허용 작업: 역할에 Agent 할당. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "model:read": {
+      "label": "모델 설정 조회",
+      "description": "허용 작업: 모델 설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "model:delete": {
+      "label": "모델 설정 삭제",
+      "description": "허용 작업: 모델 설정 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "model:assign": {
+      "label": "역할에 모델 할당",
+      "description": "허용 작업: 역할에 모델 할당. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "pricing:manage": {
+      "label": "가격 관리 및 과거 사용 요금 재계산",
+      "description": "허용 작업: 가격 관리 및 과거 사용 요금 재계산. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "project:read": {
+      "label": "내 프로젝트 조회",
+      "description": "허용 작업: 내 프로젝트 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "project:write": {
+      "label": "내 프로젝트 생성 및 편집",
+      "description": "허용 작업: 내 프로젝트 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "project:delete": {
+      "label": "내 프로젝트 삭제",
+      "description": "허용 작업: 내 프로젝트 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "memory:read": {
+      "label": "내 메모리 읽기",
+      "description": "허용 작업: 내 메모리 읽기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "memory:write": {
+      "label": "내 메모리 생성, 편집 및 가져오기",
+      "description": "허용 작업: 내 메모리 생성, 편집 및 가져오기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "memory:delete": {
+      "label": "내 메모리 삭제",
+      "description": "허용 작업: 내 메모리 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "memory:export": {
+      "label": "내 메모리 내보내기",
+      "description": "허용 작업: 내 메모리 내보내기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "sandbox:read": {
+      "label": "내 샌드박스 연결 및 파일 조회",
+      "description": "허용 작업: 내 샌드박스 연결 및 파일 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "sandbox:execute": {
+      "label": "내 샌드박스에서 실행",
+      "description": "허용 작업: 내 샌드박스에서 실행. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "sandbox:manage": {
+      "label": "내 샌드박스 연결 관리",
+      "description": "허용 작업: 내 샌드박스 연결 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "persona_preset:delete": {
+      "label": "내 페르소나 프리셋 삭제",
+      "description": "허용 작업: 내 페르소나 프리셋 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "envvar:reveal": {
+      "label": "내 환경 변수 비밀 값 표시",
+      "description": "허용 작업: 내 환경 변수 비밀 값 표시. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "notification:read": {
+      "label": "알림 관리 조회",
+      "description": "허용 작업: 알림 관리 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "notification:delete": {
+      "label": "알림 삭제",
+      "description": "허용 작업: 알림 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "usage:quota_manage": {
+      "label": "예산 관리 및 초기화 카드 발급",
+      "description": "허용 작업: 예산 관리 및 초기화 카드 발급. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "chat:write": {
+      "label": "허용된 Agent에 메시지 보내기",
+      "description": "허용 작업: 허용된 Agent에 메시지 보내기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "session:read": {
+      "label": "내 대화 및 환경설정 읽기",
+      "description": "허용 작업: 내 대화 및 환경설정 읽기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "session:write": {
+      "label": "내 대화 생성 및 편집",
+      "description": "허용 작업: 내 대화 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "session:delete": {
+      "label": "내 대화 및 메시지 삭제",
+      "description": "허용 작업: 내 대화 및 메시지 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "session:share": {
+      "label": "내 대화 및 프로젝트 공유",
+      "description": "허용 작업: 내 대화 및 프로젝트 공유. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "skill:read": {
+      "label": "내 스킬 읽기",
+      "description": "허용 작업: 내 스킬 읽기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "skill:write": {
+      "label": "내 스킬 생성, 편집 및 설치",
+      "description": "허용 작업: 내 스킬 생성, 편집 및 설치. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "skill:delete": {
+      "label": "내 스킬 삭제",
+      "description": "허용 작업: 내 스킬 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:read": {
+      "label": "계정 목록 조회",
+      "description": "허용 작업: 계정 목록 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:write": {
+      "label": "계정 기본 정보 편집",
+      "description": "허용 작업: 계정 기본 정보 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "user:delete": {
+      "label": "관리 가능한 계정 삭제",
+      "description": "허용 작업: 관리 가능한 계정 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "settings:manage": {
+      "label": "운영 시스템 설정 편집",
+      "description": "허용 작업: 운영 시스템 설정 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:read": {
+      "label": "MCP 메타데이터 및 내 환경설정 읽기",
+      "description": "허용 작업: MCP 메타데이터 및 내 환경설정 읽기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:write_sse": {
+      "label": "내 SSE MCP 서버 생성 및 편집",
+      "description": "허용 작업: 내 SSE MCP 서버 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:write_http": {
+      "label": "내 HTTP MCP 서버 생성 및 편집",
+      "description": "허용 작업: 내 HTTP MCP 서버 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:delete": {
+      "label": "내 MCP 서버 삭제",
+      "description": "허용 작업: 내 MCP 서버 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "mcp:admin": {
+      "label": "시스템 MCP 설정 유지 관리",
+      "description": "허용 작업: 시스템 MCP 설정 유지 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:upload": {
+      "label": "내 파일 업로드",
+      "description": "허용 작업: 내 파일 업로드. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:upload:image": {
+      "label": "내 이미지 업로드",
+      "description": "허용 작업: 내 이미지 업로드. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:upload:video": {
+      "label": "내 동영상 업로드",
+      "description": "허용 작업: 내 동영상 업로드. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:upload:audio": {
+      "label": "내 오디오 업로드",
+      "description": "허용 작업: 내 오디오 업로드. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "file:upload:document": {
+      "label": "내 문서 업로드",
+      "description": "허용 작업: 내 문서 업로드. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "avatar:upload": {
+      "label": "내 아바타 관리",
+      "description": "허용 작업: 내 아바타 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "feedback:write": {
+      "label": "내 피드백 제출",
+      "description": "허용 작업: 내 피드백 제출. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "feedback:read": {
+      "label": "플랫폼 피드백 조회",
+      "description": "허용 작업: 플랫폼 피드백 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "feedback:admin": {
+      "label": "플랫폼 피드백 삭제",
+      "description": "허용 작업: 플랫폼 피드백 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "channel:read": {
+      "label": "내 채널 설정 조회",
+      "description": "허용 작업: 내 채널 설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "channel:write": {
+      "label": "내 채널 생성, 편집 및 테스트",
+      "description": "허용 작업: 내 채널 생성, 편집 및 테스트. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "channel:delete": {
+      "label": "내 채널 삭제",
+      "description": "허용 작업: 내 채널 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "agent:read": {
+      "label": "허용된 Agent 조회",
+      "description": "허용 작업: 허용된 Agent 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "agent:admin": {
+      "label": "Agent 설정 유지 관리",
+      "description": "허용 작업: Agent 설정 유지 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "model:admin": {
+      "label": "모델 설정 유지 관리",
+      "description": "허용 작업: 모델 설정 유지 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "marketplace:read": {
+      "label": "스킬 마켓 둘러보기",
+      "description": "허용 작업: 스킬 마켓 둘러보기. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "marketplace:publish": {
+      "label": "내 마켓 스킬 게시 및 업데이트",
+      "description": "허용 작업: 내 마켓 스킬 게시 및 업데이트. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "marketplace:admin": {
+      "label": "마켓 등록 항목 관리",
+      "description": "허용 작업: 마켓 등록 항목 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "persona_preset:read": {
+      "label": "사용 가능한 페르소나 프리셋 조회",
+      "description": "허용 작업: 사용 가능한 페르소나 프리셋 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "persona_preset:write": {
+      "label": "내 페르소나 프리셋 생성 및 편집",
+      "description": "허용 작업: 내 페르소나 프리셋 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "persona_preset:admin": {
+      "label": "공유 페르소나 프리셋 관리",
+      "description": "허용 작업: 공유 페르소나 프리셋 관리. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "scheduled_task:read": {
+      "label": "내 예약 작업 조회",
+      "description": "허용 작업: 내 예약 작업 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "scheduled_task:write": {
+      "label": "내 예약 작업 생성 및 편집",
+      "description": "허용 작업: 내 예약 작업 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "scheduled_task:delete": {
+      "label": "내 예약 작업 삭제",
+      "description": "허용 작업: 내 예약 작업 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "envvar:read": {
+      "label": "내 환경 변수 이름 조회",
+      "description": "허용 작업: 내 환경 변수 이름 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "envvar:write": {
+      "label": "내 환경 변수 값 설정",
+      "description": "허용 작업: 내 환경 변수 값 설정. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "envvar:delete": {
+      "label": "내 환경 변수 삭제",
+      "description": "허용 작업: 내 환경 변수 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "team:read": {
+      "label": "내 팀 및 환경설정 조회",
+      "description": "허용 작업: 내 팀 및 환경설정 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "team:write": {
+      "label": "내 팀 생성, 편집 및 복제",
+      "description": "허용 작업: 내 팀 생성, 편집 및 복제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "team:delete": {
+      "label": "내 팀 삭제",
+      "description": "허용 작업: 내 팀 삭제. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "notification:manage": {
+      "label": "알림 생성 및 편집",
+      "description": "허용 작업: 알림 생성 및 편집. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "usage:read": {
+      "label": "내 사용량 및 예산 조회",
+      "description": "허용 작업: 내 사용량 및 예산 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    },
+    "usage:admin": {
+      "label": "플랫폼 사용량 조회",
+      "description": "허용 작업: 플랫폼 사용량 조회. 다른 작업 권한 및 소유권 제한도 적용됩니다."
+    }
+  },
+  "permissionGroups": {
+    "chat": "채팅",
+    "session": "대화",
+    "skill": "스킬",
+    "user": "계정",
+    "role": "역할",
+    "settings": "시스템 설정",
+    "mcp": "MCP 서버",
+    "file": "파일",
+    "avatar": "아바타",
+    "feedback": "피드백",
+    "agent": "에이전트",
+    "team": "팀",
+    "model": "모델",
+    "channel": "채널",
+    "marketplace": "마켓",
+    "persona_preset": "페르소나 프리셋",
+    "scheduled_task": "예약 작업",
+    "notification": "알림",
+    "usage": "사용량 및 예산",
+    "envvar": "환경 변수",
+    "system": "보호된 관리",
+    "pricing": "요금",
+    "project": "프로젝트",
+    "memory": "메모리",
+    "sandbox": "샌드박스"
   }
 }

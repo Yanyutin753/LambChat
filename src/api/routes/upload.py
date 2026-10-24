@@ -437,7 +437,7 @@ class FileCheckRequest(BaseModel):
 async def check_file_exists(
     request: Request,
     body: FileCheckRequest,
-    current_user: TokenPayload = Depends(get_current_user_required),
+    current_user: TokenPayload = Depends(require_permissions("file:read")),
 ) -> dict:
     storage = await get_or_init_storage()
     record = await _get_live_record_by_hash(body.hash, current_user.sub, storage)
@@ -796,7 +796,7 @@ async def delete_avatar(
 router.include_router(direct_upload_router)
 
 
-@router.delete("/{key:path}", dependencies=[Depends(require_permissions("file:upload"))])
+@router.delete("/{key:path}", dependencies=[Depends(require_permissions("file:delete"))])
 async def delete_file(
     key: str,
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -869,6 +869,13 @@ async def get_file_proxy(
 
     if "\\" in key or any(part in (".", "..", "") for part in key.split("/")):
         raise AppError(ErrorCode.FILE_NOT_FOUND)
+    if (
+        current_user
+        and not key.startswith("avatars/")
+        and (not file_token or key.startswith(("cua_screenshots/", "tool_binaries/")))
+    ):
+        if "file:read" not in current_user.permissions:
+            raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "file:read"})
     if await _file_record_storage.is_private_key(key):
         record = await _file_record_storage.require_private_access(
             key, getattr(current_user, "sub", None)

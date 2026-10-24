@@ -111,7 +111,7 @@ async def delete_all_env_vars(
 @router.get("/{key}", response_model=EnvVarResponse)
 async def get_env_var(
     key: str,
-    user: TokenPayload = Depends(require_permissions("envvar:read")),
+    user: TokenPayload = Depends(require_permissions("envvar:read", "envvar:reveal")),
     storage: EnvVarStorage = Depends(get_envvar_storage),
 ):
     """获取单个环境变量（明文）"""

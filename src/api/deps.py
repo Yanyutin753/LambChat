@@ -123,6 +123,22 @@ async def _load_user_payload(user_id: str, payload: TokenPayload | None = None) 
         payload.username = user.username
         payload.roles = roles
         payload.permissions = permissions
+        payload.grantable_permissions = []
+        payload.assignable_role_ids = []
+        if set(permissions).intersection(
+            {"user:assign_roles", "role:grant", "system:admin", "model:assign", "agent:assign"}
+        ):
+            current_roles = await RoleManager().get_roles_by_names(user.roles)
+            payload.grantable_permissions = sorted(
+                {
+                    getattr(permission, "value", permission)
+                    for role in current_roles
+                    for permission in role.grantable_permissions
+                }
+            )
+            payload.assignable_role_ids = sorted(
+                {role_id for role in current_roles for role_id in role.assignable_role_ids}
+            )
         return payload
 
 

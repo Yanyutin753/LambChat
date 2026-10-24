@@ -82,6 +82,11 @@ class TestRBACManager:
         roles = {r["name"]: r for r in manager.get_default_roles()}
         assert {"admin", "user", "guest"} <= set(roles)
         # admin 拥有全部权限
-        assert len(roles["admin"]["permissions"]) == len(list(Permission))
+        from src.infra.auth.rbac import RETIRED_PERMISSIONS
+
+        assert (
+            set(roles["admin"]["permissions"])
+            == {p.value for p in Permission} - RETIRED_PERMISSIONS
+        )
         # guest 权限是 user 的子集（只读 ⊂ 读写）
         assert set(roles["guest"]["permissions"]).issubset(set(roles["user"]["permissions"]))

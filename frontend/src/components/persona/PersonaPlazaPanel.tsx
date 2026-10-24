@@ -44,6 +44,7 @@ export function PersonaPlazaPanel() {
     refresh,
     isMutating,
     canWrite,
+    canDelete,
     canAdmin,
     query,
     setQuery,
@@ -297,6 +298,7 @@ export function PersonaPlazaPanel() {
                   selected={selectedPresetId === preset.id}
                   activeTag={activeTag}
                   canWrite={canWrite}
+                  canDelete={canDelete}
                   canAdmin={canAdmin}
                   onUse={handleUse}
                   onClear={handleClear}

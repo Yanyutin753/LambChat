@@ -22,6 +22,7 @@ interface MCPServerFormProps {
   isLoading?: boolean;
   allowedTransports?: Permission[];
   isSystemServer?: boolean;
+  canManagePolicy?: boolean;
 }
 
 interface KeyValuePair {
@@ -84,6 +85,7 @@ export function MCPServerForm({
     Permission.MCP_WRITE_HTTP,
   ],
   isSystemServer = false,
+  canManagePolicy = false,
 }: MCPServerFormProps) {
   const { t } = useTranslation();
   const formId = useId();
@@ -221,10 +223,12 @@ export function MCPServerForm({
       name: name.trim(),
       transport,
       enabled,
-      allowed_roles: isSystemServer ? allowedRoles : undefined,
-      role_quotas: isSystemServer
-        ? serializeRoleQuotas(allowedRoles, roleQuotas)
-        : undefined,
+      allowed_roles:
+        isSystemServer && canManagePolicy ? allowedRoles : undefined,
+      role_quotas:
+        isSystemServer && canManagePolicy
+          ? serializeRoleQuotas(allowedRoles, roleQuotas)
+          : undefined,
     };
 
     data.url = url.trim();
@@ -334,7 +338,7 @@ export function MCPServerForm({
       </label>
 
       {/* Allowed Roles (system servers only) */}
-      {isSystemServer && (
+      {isSystemServer && canManagePolicy && (
         <div className="es-field">
           <label className="es-label">{t("mcp.form.allowedRoles")}</label>
           <p className="es-hint">{t("mcp.form.allowedRolesDescription")}</p>
@@ -400,7 +404,7 @@ export function MCPServerForm({
         </div>
       )}
 
-      {isSystemServer && isEditing && (
+      {isSystemServer && canManagePolicy && isEditing && (
         <MCPToolPolicyEditor
           serverName={server?.name ?? name}
           onChanged={onToolPoliciesChanged}

@@ -32,6 +32,11 @@ class _FakeUserStorage:
 async def test_stream_includes_user_identity_in_runnable_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.agent.access.validate_current_execution", AsyncMock(return_value={})
+    )
     agent = _TestAgent()
     fake_graph = _FakeGraph()
     agent._initialized = True

@@ -17,6 +17,15 @@ from src.infra.tool import image_generation_tool
 def owned_uploaded_input(monkeypatch):
     from unittest.mock import AsyncMock
 
+    from src.kernel.schemas.user import TokenPayload
+
+    user = TokenPayload(
+        sub="user-1", username="reader", roles=["reader"], permissions=["file:read"]
+    )
+    resolve_user = AsyncMock(side_effect=lambda user_id: user if user_id == user.sub else None)
+    monkeypatch.setattr("src.infra.auth.tool_authority.resolve_tool_user", resolve_user)
+    monkeypatch.setattr("src.infra.tool.internal_registry.resolve_tool_user", resolve_user)
+
     monkeypatch.setattr(
         "src.infra.upload.file_record.FileRecordStorage.find_by_key",
         AsyncMock(return_value={"uploaded_by": "user-1"}),
@@ -93,6 +102,12 @@ def _load_module_from_path(module_name: str, relative_path: str):
 
 
 def _stub_context_tool_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tool_policies", AsyncMock(return_value={})
+    )
+
     def tool(name: str):
         return SimpleNamespace(name=name)
 

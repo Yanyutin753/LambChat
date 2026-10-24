@@ -4,6 +4,46 @@
 
 // 权限枚举
 export enum Permission {
+  SYSTEM_ADMIN = "system:admin",
+  USER_CREATE = "user:create",
+  USER_STATUS = "user:status",
+  USER_RESET_PASSWORD = "user:reset_password",
+  USER_ASSIGN_ROLES = "user:assign_roles",
+  ROLE_READ = "role:read",
+  ROLE_WRITE = "role:write",
+  ROLE_DELETE = "role:delete",
+  ROLE_GRANT = "role:grant",
+  SETTINGS_READ = "settings:read",
+  SETTINGS_SECURITY = "settings:security",
+  SETTINGS_RESET = "settings:reset",
+  MCP_SYSTEM_READ = "mcp:system_read",
+  MCP_SYSTEM_DELETE = "mcp:system_delete",
+  MCP_POLICY_MANAGE = "mcp:policy_manage",
+  MCP_EXPORT = "mcp:export",
+  FILE_READ = "file:read",
+  FILE_DELETE = "file:delete",
+  AGENT_CONFIG_READ = "agent:config_read",
+  AGENT_ASSIGN = "agent:assign",
+  MODEL_READ = "model:read",
+  MODEL_DELETE = "model:delete",
+  MODEL_ASSIGN = "model:assign",
+  PRICING_MANAGE = "pricing:manage",
+  PROJECT_READ = "project:read",
+  PROJECT_WRITE = "project:write",
+  PROJECT_DELETE = "project:delete",
+  MEMORY_READ = "memory:read",
+  MEMORY_WRITE = "memory:write",
+  MEMORY_DELETE = "memory:delete",
+  MEMORY_EXPORT = "memory:export",
+  SANDBOX_READ = "sandbox:read",
+  SANDBOX_EXECUTE = "sandbox:execute",
+  SANDBOX_MANAGE = "sandbox:manage",
+  PERSONA_PRESET_DELETE = "persona_preset:delete",
+  ENVVAR_REVEAL = "envvar:reveal",
+  NOTIFICATION_READ = "notification:read",
+  NOTIFICATION_DELETE = "notification:delete",
+  USAGE_QUOTA_MANAGE = "usage:quota_manage",
+
   // Chat
   CHAT_READ = "chat:read",
   CHAT_WRITE = "chat:write",
@@ -88,6 +128,8 @@ export interface User {
   avatar_url?: string;
   roles: string[];
   permissions?: string[];
+  grantable_permissions?: Permission[];
+  assignable_role_ids?: string[];
   is_active: boolean;
   two_factor_enabled?: boolean;
   metadata?: {
@@ -152,6 +194,9 @@ export interface Role {
   name: string;
   description?: string;
   permissions: Permission[];
+  grantable_permissions?: Permission[];
+  assignable_role_ids?: string[];
+  unrestricted_models?: boolean;
   limits?: RoleLimits;
   is_system: boolean; // 系统角色不可删除
   created_at: string;
@@ -170,6 +215,9 @@ export interface RoleCreate {
   name: string;
   description?: string;
   permissions: Permission[];
+  grantable_permissions?: Permission[];
+  assignable_role_ids?: string[];
+  unrestricted_models?: boolean;
   limits?: RoleLimits;
 }
 
@@ -178,6 +226,9 @@ export interface RoleUpdate {
   name?: string;
   description?: string;
   permissions?: Permission[];
+  grantable_permissions?: Permission[];
+  assignable_role_ids?: string[];
+  unrestricted_models?: boolean;
   limits?: RoleLimits;
 }
 
@@ -201,6 +252,8 @@ export interface TokenPayload {
   username: string;
   roles: string[];
   permissions: string[]; // 合并后的所有权限
+  grantable_permissions?: Permission[];
+  assignable_role_ids?: string[];
   exp: number;
   iat: number;
 }

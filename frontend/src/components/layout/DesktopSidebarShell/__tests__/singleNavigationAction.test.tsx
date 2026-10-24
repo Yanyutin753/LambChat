@@ -6,7 +6,11 @@ import { DesktopActivityRail } from "../DesktopActivityRail";
 import { useMoreMenu } from "../../../../hooks/useMoreMenu";
 import { Permission } from "../../../../types/auth";
 
-const access = vi.hoisted(() => ({ channels: true, memory: false }));
+const access = vi.hoisted(() => ({
+  channels: true,
+  memory: false,
+  persona: false,
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -15,7 +19,9 @@ vi.mock("../../../../hooks/useAuth", () => ({
     user: null,
     hasPermission: () => false,
     hasAnyPermission: (permissions: string[]) =>
-      access.channels && permissions.includes(Permission.CHANNEL_READ),
+      (access.channels && permissions.includes(Permission.CHANNEL_READ)) ||
+      (access.memory && permissions.includes(Permission.MEMORY_READ)) ||
+      (access.persona && permissions.includes(Permission.PERSONA_PRESET_READ)),
   }),
 }));
 vi.mock("../../../../contexts/SettingsContext", () => ({
@@ -28,6 +34,7 @@ afterEach(() => {
   cleanup();
   access.channels = true;
   access.memory = false;
+  access.persona = false;
 });
 function Location() {
   return <output>{useLocation().pathname}</output>;
@@ -68,6 +75,7 @@ function SidebarNavigation() {
 
 test("a single permitted sidebar destination navigates directly", () => {
   access.channels = false;
+  access.persona = true;
   render(
     <MemoryRouter>
       <SidebarNavigation />

@@ -18,8 +18,23 @@ from src.kernel.schemas.model import ModelProfile, effective_image_url_mode
 def authorized_image_storage(monkeypatch):
     from unittest.mock import AsyncMock
 
+    from src.infra.logging.context import TraceContext
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(
+                sub="image-owner", username="owner", permissions=["file:read"]
+            )
+        ),
+    )
+    TraceContext.clear_request_context()
+    TraceContext.set_request_context(user_id="image-owner", session_id="image-session")
     monkeypatch.setattr("src.infra.upload.access.require_file_access", AsyncMock())
     monkeypatch.setattr("src.kernel.config.settings.APP_BASE_URL", "https://app.example.com")
+    yield
+    TraceContext.clear_request_context()
 
 
 def test_image_download_limit_uses_configured_image_upload_size(monkeypatch):

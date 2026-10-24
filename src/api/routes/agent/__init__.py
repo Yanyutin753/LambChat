@@ -6,25 +6,19 @@ Agent 路由
 """
 
 import json
-import uuid
-from contextlib import aclosing
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query
 
 from src.agents.core.base import AgentFactory, normalize_agent_id
 from src.api.deps import (
     get_current_user_optional,
     get_current_user_required,
-    guard_authenticated_stream,
 )
-from src.api.routes.chat import validate_agent_model_access
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 from src.kernel.schemas.agent import (
-    AgentRequest,
     ToolInfo,
     ToolParamInfo,
     ToolsListResponse,
@@ -356,100 +350,6 @@ async def list_agents(
         "default_agent": default_agent,
         "allowed_model_ids": allowed_model_ids,
     }
-
-
-@router.post("/{agent_id}/chat")
-async def chat(
-    agent_id: str,
-    request: AgentRequest,
-    user: TokenPayload = Depends(get_current_user_required),
-):
-    """
-    非流式聊天接口
-
-    调用 Agent.invoke() 并返回最终结果。
-    """
-    agent = await AgentFactory.get(agent_id)
-    response = await agent.invoke(
-        request.message,
-        request.session_id or str(uuid.uuid4()),
-        user_id=user.sub,
-    )
-    return {"response": response}
-
-
-@router.post("/{agent_id}/stream")
-async def chat_stream(
-    agent_id: str,
-    request_body: AgentRequest,
-    request: Request,
-    user: TokenPayload = Depends(get_current_user_required),
-):
-    """
-    流式聊天接口
-
-    调用 Agent.stream()，每个 Agent 就是一个 CompiledGraph。
-    流式请求接入 graph，节点通过 config 获取 Presenter 输出 SSE 事件。
-    需要认证，session 会绑定到当前用户。
-    """
-    agent = await AgentFactory.get(agent_id)
-    session_id = request_body.session_id or str(uuid.uuid4())
-    user_id = user.sub  # 在闭包外部捕获
-
-    # 获取 base_url（用于生成完整的文件 URL）
-    # 优先 APP_BASE_URL 环境变量，fallback 到 request.base_url
-    base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
-    if not base_url:
-        base_url = str(request.base_url).rstrip("/")
-        if base_url == "http://None":
-            base_url = ""
-
-    # Pass all agent_options to the agent
-    agent_options = request_body.agent_options or {}
-    request_body.agent_options = agent_options
-    logger.info(f"[API] request.agent_options: {request_body.agent_options}")
-    logger.info(f"[API] agent_options to pass: {agent_options}")
-    logger.info(f"[API] disabled_tools: {request_body.disabled_tools}")
-
-    await validate_agent_model_access(agent_options, user)
-
-    async def event_generator():
-        from src.infra.task.heartbeat import TaskHeartbeat
-
-        heartbeat = TaskHeartbeat()
-        run_id = None
-        try:
-            async with aclosing(
-                agent.stream(
-                    request_body.message,
-                    session_id,
-                    user_id=user_id,
-                    disabled_tools=request_body.disabled_tools,
-                    agent_options=agent_options,
-                    base_url=base_url,
-                    disabled_skills=request_body.disabled_skills,
-                    disabled_mcp_tools=request_body.disabled_mcp_tools,
-                )
-            ) as stream:
-                async for event in stream:
-                    if run_id is None and event.get("event") == "metadata":
-                        data = event.get("data") or {}
-                        run_id = data.get("run_id")
-                        if run_id:
-                            await heartbeat.start(run_id, trace_id=data.get("trace_id"))
-                    yield await run_blocking_io(_format_agent_sse_event, event)
-        finally:
-            if run_id:
-                await heartbeat.stop(run_id)
-            # 清理请求上下文，防止 contextvars 泄漏
-            from src.infra.logging.context import TraceContext
-
-            TraceContext.clear_request_context()
-
-    return StreamingResponse(
-        guard_authenticated_stream(event_generator(), user),
-        media_type="text/event-stream",
-    )
 
 
 @router.get("/tools", response_model=ToolsListResponse)

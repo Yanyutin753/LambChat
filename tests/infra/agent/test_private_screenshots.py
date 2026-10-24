@@ -146,7 +146,14 @@ async def test_private_model_image_is_authorized_and_inlined_only_for_its_sessio
     from src.infra.agent.middleware.tool_interception import ToolResultBinaryMiddleware
     from src.infra.session.storage import SessionStorage
     from src.infra.storage.s3 import service
+    from src.kernel.schemas.user import TokenPayload
 
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(sub="owner", username="owner", permissions=["file:read"])
+        ),
+    )
     record = {"uploaded_by": "owner", "private_session_id": "session"}
     monkeypatch.setattr(FileRecordStorage, "find_by_key", AsyncMock(return_value=record))
     sessions = SimpleNamespace(

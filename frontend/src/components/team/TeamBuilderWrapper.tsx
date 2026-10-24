@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { useRightPanelState } from "../../hooks/useRightPanelState";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { ResourceCardTags } from "../common/ResourceCardTags";
@@ -191,6 +193,9 @@ function renderMemberAvatar(member: TeamMember) {
 
 export function TeamBuilderWrapper() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.TEAM_WRITE);
+  const canDelete = hasPermission(Permission.TEAM_DELETE);
   const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [query, setQuery] = useState("");
@@ -277,6 +282,7 @@ export function TeamBuilderWrapper() {
   };
 
   const handleCloneTeam = async (teamId: string) => {
+    if (!canWrite) return;
     try {
       await teamApi.clone(teamId);
       toast.success(t("team.cloneSuccess", "团队已克隆"));
@@ -319,6 +325,7 @@ export function TeamBuilderWrapper() {
   );
 
   const handleDeleteTeam = async () => {
+    if (!canDelete) return;
     if (!deleteConfirmId) return;
     setIsDeleting(true);
     try {
@@ -556,7 +563,7 @@ export function TeamBuilderWrapper() {
             </button>
             <button
               onClick={handleImport}
-              disabled={isImporting}
+              disabled={!canWrite || isImporting}
               className="btn-secondary h-10"
               title={t("team.import", "导入团队")}
             >
@@ -569,7 +576,11 @@ export function TeamBuilderWrapper() {
                   : t("personaPresets.import", "导入")}
               </span>
             </button>
-            <button onClick={handleCreateNew} className="btn-primary h-10">
+            <button
+              disabled={!canWrite}
+              onClick={handleCreateNew}
+              className="btn-primary h-10"
+            >
               <InteractiveIcon>
                 <Plus size={15} />
               </InteractiveIcon>
@@ -761,22 +772,30 @@ export function TeamBuilderWrapper() {
                           is_favorite: !team.is_favorite,
                         }),
                     },
-                    {
-                      label: t("team.edit"),
-                      icon: <Pencil size={16} />,
-                      onClick: () => handleEditTeam(team.id),
-                    },
-                    {
-                      label: t("team.clone"),
-                      icon: <Copy size={16} />,
-                      onClick: () => handleCloneTeam(team.id),
-                    },
-                    {
-                      label: t("team.delete"),
-                      icon: <Trash2 size={16} />,
-                      danger: true,
-                      onClick: () => setDeleteConfirmId(team.id),
-                    },
+                    ...(canWrite
+                      ? [
+                          {
+                            label: t("team.edit"),
+                            icon: <Pencil size={16} />,
+                            onClick: () => handleEditTeam(team.id),
+                          },
+                          {
+                            label: t("team.clone"),
+                            icon: <Copy size={16} />,
+                            onClick: () => handleCloneTeam(team.id),
+                          },
+                        ]
+                      : []),
+                    ...(canDelete
+                      ? [
+                          {
+                            label: t("team.delete"),
+                            icon: <Trash2 size={16} />,
+                            danger: true,
+                            onClick: () => setDeleteConfirmId(team.id),
+                          },
+                        ]
+                      : []),
                   ]}
                   footer={
                     <div className="flex items-center justify-between gap-2">
@@ -834,7 +853,7 @@ export function TeamBuilderWrapper() {
               <Button
                 variant="primary"
                 onClick={() => formRef.current?.handleSave()}
-                disabled={!footerState.canSave}
+                disabled={!canWrite || !footerState.canSave}
                 loading={footerState.saving}
                 leftIcon={<Save size={14} />}
               >

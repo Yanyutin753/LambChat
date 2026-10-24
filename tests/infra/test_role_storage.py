@@ -16,6 +16,7 @@ async def test_default_role_refresh_preserves_administrator_configured_budgets(m
 
     storage = RoleStorage()
     storage._collection = SimpleNamespace(update_one=AsyncMock())
+    monkeypatch.setattr(storage, "migrate_permission_boundaries", AsyncMock())
     monkeypatch.setattr(
         storage, "get_by_name", AsyncMock(return_value=SimpleNamespace(name="admin"))
     )
@@ -575,6 +576,7 @@ async def test_builtin_user_role_cannot_retain_global_administration(monkeypatch
     from unittest.mock import AsyncMock
 
     storage = RoleStorage()
+    monkeypatch.setattr(storage, "migrate_permission_boundaries", AsyncMock())
     storage._collection = SimpleNamespace(
         update_one=AsyncMock(),
         find_one=AsyncMock(return_value={"migrations": {"scheduled_task_permissions_v1": True}}),

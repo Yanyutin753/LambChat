@@ -26,8 +26,13 @@ from src.infra.tool.mcp_schema_sanitizer import (  # noqa: F401
     _monkey_patch_model_json_schema,
     _sanitize_json_schema,
 )
+from src.infra.tool.mcp_tool_utils import (  # noqa: F401 - keep existing helper imports
+    _is_retryable_tool_error,
+    _normalize_json_array_args,
+    _schema_allows_array,
+)
 from src.kernel.config import settings
-from src.kernel.schemas.mcp import MCPRoleQuota, MCPToolPolicy
+from src.kernel.schemas.mcp import MCPRoleQuota, MCPToolPolicy, SystemMCPServer, UserMCPServer
 
 logger = get_logger(__name__)
 
@@ -55,50 +60,6 @@ def _mcp_server_load_timeout() -> float:
     except (TypeError, ValueError):
         return default
     return timeout if timeout > 0 else default
-
-
-def _schema_allows_array(value_schema: Any) -> bool:
-    """Return whether a JSON-schema fragment accepts an array value."""
-    if not isinstance(value_schema, dict):
-        return False
-    schema_type = value_schema.get("type")
-    if schema_type == "array" or (isinstance(schema_type, list) and "array" in schema_type):
-        return True
-    return any(
-        _schema_allows_array(option)
-        for keyword in ("anyOf", "oneOf")
-        for option in value_schema.get(keyword, [])
-    )
-
-
-def _normalize_json_array_args(kwargs: dict[str, Any], args_schema: Any = None) -> dict[str, Any]:
-    """Coerce JSON-array-string arguments back to real lists.
-
-    Some callers/LLMs serialize list arguments as a JSON array literal string
-    (e.g. ``urls='["https://..."]'``), which remote MCP servers reject as an
-    invalid value. Parse such values back to a list (issue #198).
-    """
-    schema = args_schema
-    if schema is not None and not isinstance(schema, dict):
-        to_json_schema = getattr(schema, "model_json_schema", None)
-        schema = to_json_schema() if callable(to_json_schema) else None
-    properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
-
-    normalized: dict[str, Any] = {}
-    for key, value in kwargs.items():
-        if (
-            _schema_allows_array(properties.get(key))
-            and isinstance(value, str)
-            and value.lstrip().startswith("[")
-        ):
-            try:
-                parsed = json.loads(value)
-            except (json.JSONDecodeError, ValueError):
-                parsed = None
-            if isinstance(parsed, list):
-                value = parsed
-        normalized[key] = value
-    return normalized
 
 
 # 与 deepagents backend 冲突的工具名（需要过滤掉）
@@ -188,54 +149,73 @@ class MCPToolWithRetry(BaseTool):
             object.__setattr__(self, "server", server_name)
 
     def _is_retryable_error(self, error: Exception) -> bool:
-        """判断错误是否可重试"""
-        error_str = str(error).lower()
-        error_type = type(error).__name__.lower()
-
-        # 可重试的错误模式
-        retryable_patterns = [
-            "429",  # rate limit
-            "503",  # service unavailable
-            "502",  # bad gateway
-            "timeout",
-            "connection",
-            "network",
-            "reset",
-            "refused",
-            "unavailable",
-            # MCP streamable-http transport failures: the SSE GET stream drops
-            # mid-run and the subsequent tool POST fails. Retry so the client
-            # re-establishes the session (issue #198).
-            "streamable http",
-            "posting to endpoint",
-            "stream disconnected",
-        ]
-
-        # 可重试的异常类型
-        retryable_types = [
-            "timeouterror",
-            "connectionerror",
-            "connectionreseterror",
-            "brokenpipeerror",
-        ]
-
-        # 检查错误消息
-        if any(pattern in error_str for pattern in retryable_patterns):
-            return True
-
-        # 检查异常类型
-        if any(rt in error_type for rt in retryable_types):
-            return True
-
-        # 空错误消息可能是临时问题，也重试
-        if not error_str or error_str == "(empty error message)":
-            return True
-
-        return False
+        return _is_retryable_tool_error(error)
 
     def _run(self, *args, **kwargs) -> Any:
         """同步运行（不支持重试，直接调用原始工具）"""
+        if self._server_name and (self._user_id or self._server_name == "lambchat_internal"):
+            raise PermissionError("Bound tools require asynchronous authorization")
         return self._original_tool._run(*args, **kwargs)
+
+    async def _refresh_authority(self) -> str | None:
+        if not self._server_name or (
+            not self._user_id and self._server_name != "lambchat_internal"
+        ):
+            return None
+        from src.infra.auth.tool_authority import TOOL_PERMISSIONS, resolve_tool_user
+        from src.infra.tool.internal_registry import _is_tool_allowed, get_internal_tool_policies
+
+        user = await resolve_tool_user(self._user_id)
+        if not user:
+            return json.dumps({"error": "Permission denied: active account required"})
+        self._user_roles = user.roles
+        self._is_admin = False
+        raw_name = self.name.removeprefix(self._server_name + ":")
+        if self._server_name == "lambchat_internal":
+            required = TOOL_PERMISSIONS.get(raw_name)
+            if required and required not in user.permissions:
+                return json.dumps({"error": f"Permission denied: {required} required"})
+            policies = await get_internal_tool_policies()
+            policy = policies.get(raw_name)
+            if not _is_tool_allowed(policy=policy, user_roles=user.roles, is_admin=False):
+                return json.dumps({"error": "Permission denied: tool policy"})
+            self._role_quotas = dict(policy.role_quotas) if policy else {}
+            return None
+
+        if "mcp:read" not in user.permissions:
+            return json.dumps({"error": "Permission denied: mcp:read required"})
+        from src.infra.mcp.storage import MCPStorage
+
+        storage = MCPStorage()
+        server: UserMCPServer | SystemMCPServer | None = await storage.get_user_server(
+            self._server_name, user.sub
+        )
+        personal = server is not None
+        if not server:
+            server = await storage.get_system_server(self._server_name)
+        if not server:
+            return json.dumps({"error": "Permission denied: server unavailable"})
+        allowed_roles = getattr(server, "allowed_roles", [])
+        if not personal and allowed_roles and not set(user.roles).intersection(allowed_roles):
+            return json.dumps({"error": "Permission denied: server role access"})
+        if personal:
+            enabled = server.enabled
+        else:
+            preferences = await storage._get_user_preferences(user.sub)
+            enabled = preferences.get(self._server_name, server.enabled)
+        if not enabled or raw_name in server.disabled_tools:
+            return json.dumps({"error": "Permission denied: server or tool disabled"})
+        if f"{self._server_name}:{raw_name}" in await storage.get_disabled_tool_names(user.sub):
+            return json.dumps({"error": "Permission denied: tool disabled"})
+        policies = await storage.list_tool_policies(self._server_name)
+        policy = policies.get(raw_name) if not personal else None
+        if not _is_tool_allowed(policy=policy, user_roles=user.roles, is_admin=False):
+            return json.dumps({"error": "Permission denied: tool policy"})
+        self._role_quotas = (
+            dict(policy.role_quotas) if policy else dict(getattr(server, "role_quotas", {}))
+        )
+        self._quota_tool_name = raw_name if policy else None
+        return None
 
     async def _arun(self, *args, config: Optional[RunnableConfig] = None, **kwargs) -> Any:
         """
@@ -249,6 +229,10 @@ class MCPToolWithRetry(BaseTool):
             config: LangChain RunnableConfig（可选）
             **kwargs: 关键字参数
         """
+        denied = await self._refresh_authority()
+        if denied:
+            return denied
+
         if self._role_quotas:
             from src.infra.mcp.quota import (
                 check_and_consume_mcp_quota,
@@ -275,6 +259,10 @@ class MCPToolWithRetry(BaseTool):
         tool_timeout = _mcp_tool_timeout()
         last_error: Exception | None = None
         for attempt in range(self._max_retries):
+            if attempt:
+                denied = await self._refresh_authority()
+                if denied:
+                    return denied
             try:
                 # 使用 wait_for 添加超时
                 return await asyncio.wait_for(
@@ -871,8 +859,6 @@ class MCPClientManager:
         return wrapped_tools
 
     def _is_tool_allowed(self, allowed_roles: list[str] | None) -> bool:
-        if self._is_admin:
-            return True
         if not allowed_roles:
             return True
         return bool(set(self._user_roles).intersection(allowed_roles))

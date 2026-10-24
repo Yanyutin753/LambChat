@@ -672,6 +672,7 @@ export function FeishuPanel({
   };
 
   const handleTest = async () => {
+    if (!canWrite) return;
     setIsTesting(true);
     setSaveError(null);
     try {

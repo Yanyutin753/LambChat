@@ -24,6 +24,10 @@ from typing import TYPE_CHECKING, Any
 
 from src.infra.agent.events.buffers import ActivityReferenceFilter
 from src.infra.agent.middleware.summary_stats import attach_summary_token_stats
+from src.infra.backend.resource_authority import (
+    protect_server_artifact_eviction,
+    server_artifact_backend,
+)
 from src.infra.llm.retry import is_auth_model_error, is_retryable_model_error
 
 if TYPE_CHECKING:
@@ -318,7 +322,7 @@ def summarization_fallback_patch(
 
     def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("token_counter", _image_aware_counter_for(model))
-        middleware = original(model, backend, **kwargs)
+        middleware = original(model, server_artifact_backend(backend), **kwargs)
         middleware = _reuse_summary_prefix(
             middleware, fallback_model=fallback_model, thinking=thinking
         )
@@ -326,7 +330,7 @@ def summarization_fallback_patch(
         return middleware
 
     def merge(*args: Any, **kwargs: Any) -> Any:
-        middleware = original_merge(*args, **kwargs)
+        middleware = [protect_server_artifact_eviction(m) for m in original_merge(*args, **kwargs)]
         # Count and summarize the actual system/tools after all prompt-producing hooks.
         return [m for m in middleware if id(m) not in summaries] + [
             m for m in middleware if id(m) in summaries

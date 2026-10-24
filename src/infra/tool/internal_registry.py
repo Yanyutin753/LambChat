@@ -7,6 +7,7 @@ from typing import Any, get_args, get_origin
 
 from langchain_core.tools import BaseTool
 
+from src.infra.auth.tool_authority import TOOL_PERMISSIONS, resolve_tool_user
 from src.infra.mcp.storage import MCPStorage
 from src.infra.role.storage import RoleStorage
 from src.infra.tool.audio_transcribe_tool import get_audio_transcribe_tool
@@ -32,16 +33,8 @@ from src.kernel.schemas.mcp import (
     MCPToolPolicy,
     MCPTransport,
 )
-from src.kernel.types import Permission
 
 INTERNAL_MCP_SERVER_NAME = "lambchat_internal"
-
-_SCHEDULED_TASK_TOOL_PERMISSIONS = {
-    "scheduled_task_create": Permission.SCHEDULED_TASK_WRITE.value,
-    "scheduled_task_list": Permission.SCHEDULED_TASK_READ.value,
-    "scheduled_task_update": Permission.SCHEDULED_TASK_WRITE.value,
-    "scheduled_task_delete": Permission.SCHEDULED_TASK_DELETE.value,
-}
 
 
 def build_internal_tools() -> list[BaseTool]:
@@ -133,8 +126,6 @@ def _is_tool_allowed(
     user_roles: list[str] | None,
     is_admin: bool,
 ) -> bool:
-    if is_admin:
-        return True
     if policy is None:
         return True
     if policy.disabled:
@@ -177,7 +168,7 @@ def _is_tool_allowed_by_business_permission(
     *,
     user_permissions: set[str],
 ) -> bool:
-    required_permission = _SCHEDULED_TASK_TOOL_PERMISSIONS.get(tool_name)
+    required_permission = TOOL_PERMISSIONS.get(tool_name)
     if required_permission is None:
         return True
     return required_permission in user_permissions
@@ -249,10 +240,7 @@ def _extract_tool_parameters(tool: BaseTool) -> list[dict[str, Any]]:
 
 async def get_internal_tool_policies() -> dict[str, MCPToolPolicy]:
     """Load explicit tool policies for the internal virtual server."""
-    try:
-        return await MCPStorage().list_tool_policies(INTERNAL_MCP_SERVER_NAME)
-    except Exception:
-        return {}
+    return await MCPStorage().list_tool_policies(INTERNAL_MCP_SERVER_NAME)
 
 
 # 默认 inline 直挂的内置工具：能力型系统工具（网页检索/阅读、图像生成/
@@ -304,7 +292,12 @@ async def get_internal_tools_by_exposure_for_user(
         return [], []
 
     policies = await get_internal_tool_policies()
-    user_permissions = await _resolve_permissions_for_roles(user_roles)
+    user = await resolve_tool_user(user_id)
+    if not user:
+        return [], []
+    user_roles = user.roles
+    is_admin = "mcp:admin" in user.permissions
+    user_permissions = set(user.permissions)
     direct: list[BaseTool] = []
     deferred: list[BaseTool] = []
     for tool in tools:
@@ -338,15 +331,22 @@ async def get_internal_tool_infos(
     is_admin: bool,
 ) -> list[MCPToolInfo]:
     """Return tool metadata for the virtual internal server."""
-    del user_id
     policies = await get_internal_tool_policies()
-    user_permissions = await _resolve_permissions_for_roles(user_roles)
+    user = await resolve_tool_user(user_id)
+    if not user:
+        return []
+    user_roles = user.roles
+    is_admin = "mcp:admin" in user.permissions
+    user_permissions = set(user.permissions)
+    can_inspect = bool({"mcp:system_read", "mcp:policy_manage"}.intersection(user_permissions))
     infos: list[MCPToolInfo] = []
     for tool in build_internal_tools():
         policy = _policy_for_tool(policies, tool.name)
-        if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
+        if not can_inspect and not _is_tool_allowed(
+            policy=policy, user_roles=user_roles, is_admin=is_admin
+        ):
             continue
-        if not _is_tool_allowed_by_business_permission(
+        if not can_inspect and not _is_tool_allowed_by_business_permission(
             tool.name,
             user_permissions=user_permissions,
         ):

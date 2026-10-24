@@ -113,6 +113,9 @@ async def authorize_file_url(
     key = upload_key_from_url(url, base_url)
     if key is None:
         return url
+    from src.infra.auth.tool_authority import require_tool_file_read
+
+    await require_tool_file_read(user_id)
     await require_file_access(key, user_id, session_id=session_id)
     # Private captures must be read as authenticated bytes, never handed to third parties.
     if await get_file_record_storage().is_private_key(key):

@@ -25,6 +25,7 @@ from src.infra.agent.evidence import (
     merge_evidence,
     verified_original_content,
 )
+from src.infra.backend.resource_authority import trusted_backend_io
 
 logger = logging.getLogger(__name__)
 
@@ -95,42 +96,43 @@ class EvidenceMiddleware(AgentMiddleware):
 
     async def _write(self, record: dict, content: Any) -> str | None:
         path = f"{evidence_directory(self.backend)}/{record['evidence_id']}.json"
-        async with self._source_lock:
-            try:
+        with trusted_backend_io(self.backend, path):
+            async with self._source_lock:
                 try:
-                    existing = await self.backend.aread(path)
-                except FileNotFoundError:
-                    existing = None
-                if existing is not None:
-                    error = getattr(existing, "error", None)
-                    if not error:
-                        verified_original_content(evidence_read_text(existing), record)
-                        return path
-                    if not any(
-                        marker in str(error).lower()
-                        for marker in (
-                            "not found",
-                            "does not exist",
-                            "no such file",
-                            "enoent",
-                            "file_not_found",
-                        )
-                    ):
-                        raise ValueError("Existing evidence could not be checked")
-                payload = json.dumps(
-                    {"observation": record, "content": content}, ensure_ascii=False, default=str
-                )
-                written = await self.backend.awrite(path, payload)
-                # Re-read also handles a backend refusing an already-existing file
-                # during replay. A generic backend offers no atomic create-only API.
-                original = await self.backend.aread(path)
-                verified_original_content(evidence_read_text(original), record)
-                if getattr(written, "error", None):
-                    logger.debug("Evidence write reused a matching existing observation")
-                return path
-            except Exception:
-                logger.warning("Evidence original could not be preserved", exc_info=True)
-                return None
+                    try:
+                        existing = await self.backend.aread(path)
+                    except FileNotFoundError:
+                        existing = None
+                    if existing is not None:
+                        error = getattr(existing, "error", None)
+                        if not error:
+                            verified_original_content(evidence_read_text(existing), record)
+                            return path
+                        if not any(
+                            marker in str(error).lower()
+                            for marker in (
+                                "not found",
+                                "does not exist",
+                                "no such file",
+                                "enoent",
+                                "file_not_found",
+                            )
+                        ):
+                            raise ValueError("Existing evidence could not be checked")
+                    payload = json.dumps(
+                        {"observation": record, "content": content}, ensure_ascii=False, default=str
+                    )
+                    written = await self.backend.awrite(path, payload)
+                    # Re-read also handles a backend refusing an already-existing file
+                    # during replay. A generic backend offers no atomic create-only API.
+                    original = await self.backend.aread(path)
+                    verified_original_content(evidence_read_text(original), record)
+                    if getattr(written, "error", None):
+                        logger.debug("Evidence write reused a matching existing observation")
+                    return path
+                except Exception:
+                    logger.warning("Evidence original could not be preserved", exc_info=True)
+                    return None
 
     async def abefore_model(self, state, runtime):
         records = self.clock.invalidate_old(state.get("evidence", []))

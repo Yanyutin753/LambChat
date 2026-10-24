@@ -22,6 +22,7 @@ def test_persona_preset_permissions_exist_and_are_grouped() -> None:
     assert grouped_values == {
         "persona_preset:read",
         "persona_preset:write",
+        "persona_preset:delete",
         "persona_preset:admin",
     }
 
@@ -81,6 +82,7 @@ def test_usage_permissions_exist_and_are_grouped() -> None:
     assert grouped_values == {
         "usage:read",
         "usage:admin",
+        "usage:quota_manage",
     }
 
 

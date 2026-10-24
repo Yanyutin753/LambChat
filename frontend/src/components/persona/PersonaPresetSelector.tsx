@@ -38,6 +38,7 @@ interface PersonaPresetSelectorProps {
   onRetry?: () => void;
   isMutating?: boolean;
   canManagePresets?: boolean;
+  canCopyPresets?: boolean;
   onOpenChange: (open: boolean) => void;
   onPageChange?: (page: number) => void;
   onSearchChange?: (query: string) => void;
@@ -64,6 +65,7 @@ export function PersonaPresetSelector({
   onRetry,
   isMutating = false,
   canManagePresets = false,
+  canCopyPresets = false,
   onOpenChange,
   onPageChange,
   onSearchChange,
@@ -474,7 +476,7 @@ export function PersonaPresetSelector({
                               ? t("personaPresets.using", "使用中")
                               : t("personaPresets.use", "使用")}
                         </button>
-                        {preset.scope === "global" && (
+                        {canCopyPresets && preset.scope === "global" && (
                           <button
                             type="button"
                             disabled={isMutating}
@@ -518,6 +520,7 @@ export function PersonaPresetSelector({
     ? createPortal(
         <PersonaPreviewSidebar
           preset={previewPreset}
+          canCopy={canCopyPresets}
           isSelected={selectedPresetId === previewPreset.id}
           isMutating={isMutating}
           isUsingPreset={pendingUsePresetId === previewPreset.id}

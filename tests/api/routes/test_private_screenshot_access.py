@@ -67,7 +67,7 @@ def screenshot(monkeypatch):
     return record, sessions, storage, req
 
 
-@pytest.mark.parametrize("user", [None, SimpleNamespace(sub="other")])
+@pytest.mark.parametrize("user", [None, SimpleNamespace(sub="other", permissions=["file:read"])])
 @pytest.mark.parametrize(
     "flags",
     [
@@ -93,7 +93,7 @@ async def test_leaked_screenshot_url_never_exposes_bytes_to_anonymous_or_other_u
 async def test_owner_gets_no_store_stream_and_never_a_signed_url(screenshot):
     _, _, storage, req = screenshot
     response = await upload.get_file_proxy(
-        KEY, req, current_user=SimpleNamespace(sub="owner"), direct=True
+        KEY, req, current_user=SimpleNamespace(sub="owner", permissions=["file:read"]), direct=True
     )
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
@@ -105,14 +105,18 @@ async def test_shared_or_deleted_session_does_not_grant_screenshot_access(screen
     _, sessions, _, req = screenshot
     sessions.collection.find_one.return_value = None
     with pytest.raises(AppError):
-        await upload.get_file_proxy(KEY, req, current_user=SimpleNamespace(sub="owner"))
+        await upload.get_file_proxy(
+            KEY, req, current_user=SimpleNamespace(sub="owner", permissions=["file:read"])
+        )
 
 
 async def test_missing_record_fails_closed(screenshot):
     _, _, _, req = screenshot
     upload._file_record_storage.find_by_key.return_value = None
     with pytest.raises(AppError):
-        await upload.get_file_proxy(KEY, req, current_user=SimpleNamespace(sub="owner"))
+        await upload.get_file_proxy(
+            KEY, req, current_user=SimpleNamespace(sub="owner", permissions=["file:read"])
+        )
 
 
 @pytest.mark.parametrize("batch", [False, True])
@@ -124,7 +128,7 @@ async def test_signed_url_routes_never_create_bearer_links_for_captures(screensh
     )
 
     _, _, storage, req = screenshot
-    user = SimpleNamespace(sub="owner")
+    user = SimpleNamespace(sub="owner", permissions=["file:read"])
     if batch:
         result = await get_signed_urls(SignedUrlRequest(keys=[KEY]), req, current_user=user)
         url = result.urls[0].url
@@ -146,7 +150,9 @@ async def test_batch_signed_urls_queries_records_and_sessions_once(screenshot, c
         [{**record, "key": key} for key in keys]
     )
     result = await get_signed_urls(
-        SignedUrlRequest(keys=keys), req, current_user=SimpleNamespace(sub="owner")
+        SignedUrlRequest(keys=keys),
+        req,
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
 
     assert [item.key for item in result.urls] == keys
@@ -183,7 +189,9 @@ async def test_batch_signed_urls_preserves_denials_fallback_and_duplicate_result
     storage.get_presigned_url.return_value = "https://signed.example/legacy"
 
     result = await get_signed_urls(
-        SignedUrlRequest(keys=keys), req, current_user=SimpleNamespace(sub="owner")
+        SignedUrlRequest(keys=keys),
+        req,
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
 
     private_keys = [key for key in keys if key != "tool_binaries/legacy.png"]
@@ -203,7 +211,9 @@ async def test_batch_signed_urls_rejects_session_delete_marker(screenshot):
     _, sessions, storage, req = screenshot
     sessions.collection.find.side_effect = lambda query, projection: _documents([])
     result = await get_signed_urls(
-        SignedUrlRequest(keys=[KEY]), req, current_user=SimpleNamespace(sub="owner")
+        SignedUrlRequest(keys=[KEY]),
+        req,
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
 
     assert result.urls[0].error == "File not found"
@@ -227,7 +237,7 @@ async def test_batch_signed_urls_isolates_public_signing_errors(screenshot):
     result = await get_signed_urls(
         SignedUrlRequest(keys=["image/bad.png", "image/ok.png"]),
         req,
-        current_user=SimpleNamespace(sub="owner"),
+        current_user=SimpleNamespace(sub="owner", permissions=["file:read"]),
     )
 
     assert [item.key for item in result.urls] == ["image/bad.png", "image/ok.png"]
@@ -271,7 +281,7 @@ async def test_private_thumbnail_resizes_without_public_copy_or_redirect(screens
 
     storage.download_stream = download_stream
     response = await upload.get_file_proxy(
-        KEY, req, current_user=SimpleNamespace(sub="owner"), thumb=True
+        KEY, req, current_user=SimpleNamespace(sub="owner", permissions=["file:read"]), thumb=True
     )
     assert response.media_type == "image/jpeg"
     with Image.open(io.BytesIO(response.body)) as image:
@@ -292,7 +302,7 @@ async def test_owner_local_capture_remains_an_authenticated_file_response(
     storage = SimpleNamespace(is_local=True, get_file_path=lambda key: path)
     monkeypatch.setattr(upload, "get_or_init_storage", AsyncMock(return_value=storage))
     response = await upload.get_file_proxy(
-        KEY, req, current_user=SimpleNamespace(sub="owner"), direct=True
+        KEY, req, current_user=SimpleNamespace(sub="owner", permissions=["file:read"]), direct=True
     )
     assert isinstance(response, FileResponse)
     assert response.path == str(path)

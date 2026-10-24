@@ -12,6 +12,7 @@ from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.async_utils import run_long_blocking_io as _run_long_blocking_io
+from src.infra.backend.resource_authority import AuthorizedCompositeBackend
 from src.infra.backend.sandbox_heal import SANDBOX_REPLACED_NOTICE
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
@@ -176,7 +177,8 @@ class _E2BMixin:
             )
             e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", sandbox))
             skills_backend = create_skills_backend(user_id=user_id)
-            composite = CompositeBackend(
+            composite = AuthorizedCompositeBackend(
+                user_id=user_id,
                 default=e2b_backend,
                 routes={"/skills/": skills_backend},
                 artifacts_root=work_dir,
@@ -216,7 +218,8 @@ class _E2BMixin:
         from src.infra.backend.e2b import E2BBackend
 
         e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", provider_obj))
-        return CompositeBackend(
+        return AuthorizedCompositeBackend(
+            user_id=user_id,
             default=e2b_backend,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
             artifacts_root=e2b_backend.work_dir,

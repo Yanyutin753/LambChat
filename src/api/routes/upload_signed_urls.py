@@ -5,7 +5,7 @@ Signed URL API routes for upload-backed files.
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.infra.logging import get_logger
 from src.infra.upload.access import file_access_url, require_file_access, validate_file_key
 from src.kernel.errors import AppError, ErrorCode
@@ -58,7 +58,7 @@ class SignedUrlResponse(BaseModel):
 async def get_signed_urls(
     body: SignedUrlRequest,
     req: Request,
-    current_user: TokenPayload = Depends(get_current_user_required),
+    current_user: TokenPayload = Depends(require_permissions("file:read")),
 ) -> SignedUrlResponse:
     """
     Get presigned URLs for private S3 objects.
@@ -175,7 +175,7 @@ async def get_single_signed_url(
     request: Request,
     expires: int = 3600,
     app_url: bool = False,
-    current_user: TokenPayload = Depends(get_current_user_required),
+    current_user: TokenPayload = Depends(require_permissions("file:read")),
 ) -> SignedUrlItem:
     """
     Get a single presigned URL for a private S3 object.

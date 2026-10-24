@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_current_user_pat_or_jwt, get_current_user_required
+from src.api.deps import get_current_user_pat_or_jwt, get_current_user_required, require_permissions
 from src.infra.auth.pat import PATStorage
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -51,7 +51,7 @@ class PATListResponse(BaseModel):
 async def create_pat(
     body: PATCreateRequest,
     response: Response,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("sandbox:manage")),
     storage: PATStorage = Depends(get_pat_storage),
 ):
     response.headers["Cache-Control"] = "no-store"

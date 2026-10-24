@@ -16,6 +16,7 @@ import { toast } from "react-hot-toast";
 import { isNativeAppRuntime } from "../../../services/api/config";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
+import { Permission } from "../../../types";
 import { useAuth } from "../../../hooks/useAuth";
 import { usePreferenceWrites } from "../../../hooks/usePreferenceWrites";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
@@ -112,7 +113,7 @@ function PreferencesContent() {
   const { availableModels, modelsLoading, modelsError, reloadModels } =
     useSettingsContext();
   const { enableMemory } = useSettingsContext();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { states, save, retry } = usePreferenceWrites(user?.id);
   const { languageState, selectLanguage, retryLanguage } =
     useLanguagePreference();
@@ -147,6 +148,7 @@ function PreferencesContent() {
 
   // Keep the selected draft on failure; only a successful save changes server policy.
   const handleCloudSandboxPolicyChange = (next: CloudSandboxPolicy) => {
+    if (!hasPermission(Permission.SANDBOX_MANAGE)) return;
     if (
       !save("cloudSandboxPolicy", () =>
         authApi.updateMetadata({ sandboxCloudConfirmPolicy: next }),
@@ -543,48 +545,55 @@ function PreferencesContent() {
 
       {/* 沙箱：云端 + 本地合并一张卡——平铺分区，分区之间用 hairline 分隔
           （不叠 tile 夹层）；本地分区仍懒加载（M4 T8 PWA 预算） */}
-      <div className="profile-section profile-sandbox-section">
-        <div className="flex items-center gap-2 mb-3">
-          <Container size={13} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="profile-section-heading font-serif">
-            {t("profile.sandbox")}
-          </h3>
-        </div>
-
-        {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
-        <div>
-          <div className="sandbox-preference-heading">
-            <Cloud size={15} className="text-theme-text-tertiary shrink-0" />
-            <span className="font-medium text-14 text-theme-text">
-              {t("profile.cloudSandbox")}
-            </span>
+      {hasPermission(Permission.SANDBOX_READ) && (
+        <div className="profile-section profile-sandbox-section">
+          <div className="flex items-center gap-2 mb-3">
+            <Container
+              size={13}
+              className="text-amber-500 dark:text-amber-400"
+            />
+            <h3 className="profile-section-heading font-serif">
+              {t("profile.sandbox")}
+            </h3>
           </div>
-          <p className="sandbox-preference-description">
-            {t("profile.cloudSandboxDesc")}
-          </p>
-          <div className="sandbox-preference-content">
-            <SelectRow
-              label={t("profile.localSandbox.policy")}
-              value={cloudSandboxPolicy}
-              loading={states.cloudSandboxPolicy === "saving"}
-              options={CLOUD_SANDBOX_POLICY_OPTIONS}
-              open={openDropdown === "cloudSandboxPolicy"}
-              onToggle={() => toggle("cloudSandboxPolicy")}
-              onSelect={handleCloudSandboxPolicyChange}
-            >
-              {renderSaveStatus(
-                "cloudSandboxPolicy",
-                "profile.localSandbox.policy",
-              )}
-            </SelectRow>
+
+          {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
+          <div>
+            <div className="sandbox-preference-heading">
+              <Cloud size={15} className="text-theme-text-tertiary shrink-0" />
+              <span className="font-medium text-14 text-theme-text">
+                {t("profile.cloudSandbox")}
+              </span>
+            </div>
+            <p className="sandbox-preference-description">
+              {t("profile.cloudSandboxDesc")}
+            </p>
+            <div className="sandbox-preference-content">
+              <SelectRow
+                label={t("profile.localSandbox.policy")}
+                value={cloudSandboxPolicy}
+                loading={states.cloudSandboxPolicy === "saving"}
+                options={CLOUD_SANDBOX_POLICY_OPTIONS}
+                open={openDropdown === "cloudSandboxPolicy"}
+                onToggle={() => {
+                  if (hasPermission(Permission.SANDBOX_MANAGE))
+                    toggle("cloudSandboxPolicy");
+                }}
+                onSelect={handleCloudSandboxPolicyChange}
+              >
+                {renderSaveStatus(
+                  "cloudSandboxPolicy",
+                  "profile.localSandbox.policy",
+                )}
+              </SelectRow>
+            </div>
           </div>
+
+          <Suspense fallback={null}>
+            <LocalSandboxSection embedded />
+          </Suspense>
         </div>
-
-        <Suspense fallback={null}>
-          <LocalSandboxSection embedded />
-        </Suspense>
-      </div>
-
+      )}
       {/* 关于：检查更新——仅原生客户端（桌面/移动）渲染；Web 随部署走刷新即更 */}
       {isNativeAppRuntime() && (
         <div className="profile-section">

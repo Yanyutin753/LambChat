@@ -16,6 +16,8 @@ import {
 } from "../../../agent/agentCatalog";
 import { ToggleSwitch } from "../shared/ToggleSwitch";
 import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
+import { useAuth } from "../../../../hooks/useAuth";
+import { Permission } from "../../../../types";
 import type { AgentConfig, AgentCatalogLabels } from "../../../../types";
 
 interface GlobalAgentTabProps {
@@ -32,6 +34,8 @@ export function GlobalAgentTab({
   isSaving,
 }: GlobalAgentTabProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.AGENT_ADMIN);
   const formId = useId();
   const [localAgents, setLocalAgents] = useState<AgentConfig[]>(agents);
   const [editingAgentId, setEditingAgentId] = useRightPanelState<string | null>(
@@ -86,6 +90,7 @@ export function GlobalAgentTab({
   const hasChanges = JSON.stringify(localAgents) !== JSON.stringify(agents);
 
   const handleSave = async () => {
+    if (!canWrite) return;
     setSaveError(null);
     try {
       await onUpdate(localAgents);
@@ -125,6 +130,7 @@ export function GlobalAgentTab({
               <div className="flex items-center justify-between gap-3 font-serif px-4 py-3.5">
                 <button
                   type="button"
+                  disabled={!canWrite}
                   onClick={() => setEditingAgentId(agent.id)}
                   aria-label={displayName}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-3.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ring)]"
@@ -147,6 +153,7 @@ export function GlobalAgentTab({
                 </button>
 
                 <ToggleSwitch
+                  disabled={!canWrite}
                   enabled={agent.enabled}
                   onToggle={() => toggleAgent(agent.id)}
                   ariaLabel={

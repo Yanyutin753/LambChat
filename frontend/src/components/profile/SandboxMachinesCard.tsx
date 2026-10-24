@@ -1,3 +1,5 @@
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 /**
  * 本地沙箱机器管理卡（多机 daemon）：机器列表（含离线机置灰保留）+
@@ -39,6 +41,8 @@ function isMachineOnline(machine: SandboxMachine): boolean {
 
 export function SandboxMachinesCard() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permission.SANDBOX_MANAGE);
   const { machines, defaultMachineId, online } = useSandboxStatus();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -47,7 +51,7 @@ export function SandboxMachinesCard() {
   const serverUrl = effectiveApiBase() || window.location.origin;
 
   const handleSetDefault = async (machineId: string) => {
-    if (busy || machineId === defaultMachineId) return;
+    if (!canManage || busy || machineId === defaultMachineId) return;
     setBusy(true);
     try {
       await sandboxApiMachines.setDefaultMachine(machineId);
@@ -65,7 +69,7 @@ export function SandboxMachinesCard() {
   };
 
   const submitRename = async () => {
-    if (!renamingId || busy) return;
+    if (!canManage || !renamingId || busy) return;
     const name = renameValue.trim();
     if (!name) return;
     setBusy(true);
@@ -81,7 +85,7 @@ export function SandboxMachinesCard() {
   };
 
   const handleForget = async (machine: SandboxMachine) => {
-    if (busy) return;
+    if (!canManage || busy) return;
     if (
       !window.confirm(
         t("profile.localSandbox.forgetMachineConfirm", { name: machine.name }),
@@ -171,7 +175,7 @@ export function SandboxMachinesCard() {
                   <button
                     type="button"
                     onClick={() => void submitRename()}
-                    disabled={busy || !renameValue.trim()}
+                    disabled={!canManage || busy || !renameValue.trim()}
                     className="rounded-md p-1 text-theme-text-secondary hover:text-amber-500 disabled:opacity-40"
                     title={t("profile.localSandbox.renameSave")}
                   >
@@ -243,7 +247,7 @@ export function SandboxMachinesCard() {
                     <button
                       type="button"
                       onClick={() => void handleForget(machine)}
-                      disabled={busy}
+                      disabled={!canManage || busy}
                       className="rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:text-theme-error dark:hover:text-red-400 disabled:opacity-50"
                       title={t("profile.localSandbox.forgetMachine")}
                       data-testid={`forget-${machine.machine_id}`}
@@ -257,7 +261,7 @@ export function SandboxMachinesCard() {
                     <button
                       type="button"
                       onClick={() => void handleSetDefault(machine.machine_id)}
-                      disabled={busy}
+                      disabled={!canManage || busy}
                       className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-12 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50"
                       title={t("profile.localSandbox.setDefault")}
                     >
@@ -270,7 +274,7 @@ export function SandboxMachinesCard() {
                   <button
                     type="button"
                     onClick={() => startRename(machine)}
-                    disabled={busy}
+                    disabled={!canManage || busy}
                     className="shrink-0 rounded-md p-1 text-theme-text-tertiary dark:text-stone-500 transition-colors hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover hover:text-theme-text dark:hover:text-stone-200 disabled:opacity-50"
                     title={t("profile.localSandbox.rename")}
                   >

@@ -7,7 +7,7 @@ from src.kernel.schemas.user import TokenPayload
 
 
 def _admin() -> TokenPayload:
-    return TokenPayload(sub="admin-1", username="Admin", permissions=["model:admin"])
+    return TokenPayload(sub="admin-1", username="Admin", permissions=["pricing:manage"])
 
 
 def _user() -> TokenPayload:

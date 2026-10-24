@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
@@ -16,6 +17,20 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from src.agents.core.base import GraphBuilder
 from src.agents.quick_agent.nodes import quick_agent_node
 from src.agents.quick_agent.state import QuickAgentState
+
+
+@pytest.fixture
+def image_reader(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(sub="owner", username="owner", permissions=["file:read"])
+        ),
+    )
 
 
 class _FakeModel:
@@ -380,7 +395,9 @@ async def test_quick_checkpoint_and_output_hide_model_authored_write_receipts(mo
     )
 
 
-async def test_quick_agent_refreshes_historical_images_without_changing_checkpoint(monkeypatch):
+async def test_quick_agent_refreshes_historical_images_without_changing_checkpoint(
+    monkeypatch, image_reader
+):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
@@ -411,7 +428,9 @@ async def test_quick_agent_refreshes_historical_images_without_changing_checkpoi
     assert history.content[0]["image_url"]["url"] == original
 
 
-async def test_quick_fallback_reprepares_original_images_for_its_own_mode(monkeypatch):
+async def test_quick_fallback_reprepares_original_images_for_its_own_mode(
+    monkeypatch, image_reader
+):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 

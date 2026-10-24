@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from unittest.mock import AsyncMock
 
 import pytest
 from deepagents.backends import CompositeBackend
@@ -54,8 +55,24 @@ class _FakeStore:
     def put(self, namespace, key, value):
         self.items[(namespace, key)] = value
 
+    async def aget(self, namespace, key):
+        return self.get(namespace, key)
 
-def test_persistent_backend_exposes_session_workflow_as_initial_path() -> None:
+    async def aput(self, namespace, key, value):
+        self.put(namespace, key, value)
+
+
+def test_persistent_backend_exposes_session_workflow_as_initial_path(monkeypatch) -> None:
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            return_value=TokenPayload(
+                sub="user-1", username="owner", permissions=["file:upload:document"]
+            )
+        ),
+    )
     backend = create_persistent_backend(
         assistant_id="assistant-user-1",
         user_id="user-1",
@@ -201,12 +218,23 @@ def test_memories_route_namespace_aligned_with_memory_store_family() -> None:
     assert memories_backend._namespace(None) == ("memories", "user-1", "vfs")
 
 
-async def test_evidence_route_uses_session_store_without_starting_sandbox():
+async def test_evidence_route_uses_session_store_without_starting_sandbox(monkeypatch):
     from types import SimpleNamespace
 
     from deepagents.backends.utils import file_data_to_string
 
     from src.infra.backend.deepagent import create_sandbox_backend
+    from src.infra.backend.resource_authority import trusted_backend_io
+    from src.kernel.schemas.user import TokenPayload
+
+    monkeypatch.setattr(
+        "src.infra.auth.tool_authority.resolve_tool_user",
+        AsyncMock(
+            side_effect=lambda user_id: TokenPayload(
+                sub=user_id, username=user_id, permissions=["session:read"]
+            )
+        ),
+    )
 
     class NeverStartSandbox:
         work_dir = "/workspace/s"
@@ -236,7 +264,9 @@ async def test_evidence_route_uses_session_store_without_starting_sandbox():
     for backend in backends:
         backend.routes["/evidence/"]._store = store
         assert backend.evidence_root == "/evidence"
-    assert (await backends[0].awrite("/evidence/proof.json", "actual tool result")).error is None
+    with trusted_backend_io(backends[0], "/evidence/proof.json"):
+        written = await backends[0].awrite("/evidence/proof.json", "actual tool result")
+    assert written.error is None
     first = await backends[0].aread("/evidence/proof.json")
     assert file_data_to_string(first.file_data) == "actual tool result"
     assert (await backends[1].aread("/evidence/proof.json")).error

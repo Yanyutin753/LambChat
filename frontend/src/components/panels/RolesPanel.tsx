@@ -53,6 +53,7 @@ interface RoleFormModalProps {
   isLoading: boolean;
   permissionGroups: PermissionGroup[];
   permissionLabels: Record<string, string>;
+  roles: Role[];
 }
 
 function RoleFormModal({
@@ -62,8 +63,36 @@ function RoleFormModal({
   isLoading,
   permissionGroups,
   permissionLabels,
+  roles,
 }: RoleFormModalProps) {
   const { t } = useTranslation();
+  const { hasPermission, user: actor } = useAuth();
+  const canWrite = hasPermission(Permission.ROLE_WRITE);
+  const canGrant = hasPermission(Permission.ROLE_GRANT);
+  const canQuota = hasPermission(Permission.USAGE_QUOTA_MANAGE);
+  const isSystemAdmin = hasPermission(Permission.SYSTEM_ADMIN);
+  const canGrantPermission = (value: string) =>
+    isSystemAdmin ||
+    (value !== Permission.SYSTEM_ADMIN &&
+      hasPermission(value as Permission) &&
+      !!actor?.grantable_permissions?.includes(value as Permission));
+  const availableGroups = permissionGroups
+    .map((group) => ({
+      ...group,
+      permissions: group.permissions.filter((permission) =>
+        canGrantPermission(permission.value),
+      ),
+    }))
+    .filter((group) => group.permissions.length > 0);
+  const [grantablePermissions, setGrantablePermissions] = useState<string[]>(
+    role?.grantable_permissions ?? [],
+  );
+  const [assignableRoleIds, setAssignableRoleIds] = useState<string[]>(
+    role?.assignable_role_ids ?? [],
+  );
+  const assignableRoles = roles.filter(
+    (item) => isSystemAdmin || actor?.assignable_role_ids?.includes(item.id),
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const [name, setName] = useState(role?.name || "");
   const [description, setDescription] = useState(role?.description || "");
@@ -108,15 +137,12 @@ function RoleFormModal({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!canWrite && !canGrant && !canQuota) return;
     setError(null);
 
     // 验证
     if (!name.trim()) {
       setError(t("roles.validation.enterName"));
-      return;
-    }
-    if (!isSystem && selectedPermissions.length === 0) {
-      setError(t("roles.validation.selectPermission"));
       return;
     }
 
@@ -219,12 +245,33 @@ function RoleFormModal({
           limits.max_files = numValue;
         }
       }
-      const data: RoleCreate | RoleUpdate = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        permissions: selectedPermissions as Permission[],
-        limits: Object.keys(limits).length > 0 ? limits : undefined,
-      };
+      const data: RoleUpdate = {};
+      if (canWrite && !isSystem) {
+        data.name = name.trim();
+        data.description = description.trim();
+      }
+      if (canGrant && !isSystem) {
+        data.permissions = selectedPermissions as Permission[];
+        data.grantable_permissions = grantablePermissions as Permission[];
+        data.assignable_role_ids = assignableRoleIds;
+      }
+      if (canQuota) {
+        data.limits = canWrite
+          ? { ...(role?.limits ?? {}), ...limits }
+          : {
+              five_hour_budget_usd: limits.five_hour_budget_usd,
+              weekly_budget_usd: limits.weekly_budget_usd,
+            };
+      } else if (canWrite && !isSystem) {
+        delete limits.five_hour_budget_usd;
+        delete limits.weekly_budget_usd;
+        const changed = Object.fromEntries(
+          Object.entries(limits).filter(
+            ([key, value]) => value !== role?.limits?.[key],
+          ),
+        );
+        if (Object.keys(changed).length) data.limits = changed;
+      }
       await onSave(data);
       onClose();
     } catch (err) {
@@ -314,13 +361,13 @@ function RoleFormModal({
             aria-label={t("roles.roleName")}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            disabled={isSystem}
+            disabled={isSystem || !canWrite}
             className="es-input px-3"
             placeholder={t("roles.roleNamePlaceholder")}
           />
         </div>
 
-        {!isSystem && (
+        {!isSystem && canWrite && (
           <>
             {/* 描述 */}
             <div className="es-field">
@@ -402,169 +449,267 @@ function RoleFormModal({
           </>
         )}
 
-        <div className="es-section">
-          <div className="es-section-title">{t("roles.budgetTitle")}</div>
-          <div className="es-row es-row-2">
-            {[
-              {
-                label: "fiveHourBudgetUsd",
-                value: fiveHourBudgetUsd,
-                setter: setFiveHourBudgetUsd,
-              },
-              {
-                label: "weeklyBudgetUsd",
-                value: weeklyBudgetUsd,
-                setter: setWeeklyBudgetUsd,
-              },
-            ].map(({ label, value, setter }) => (
-              <div key={label} className="es-field">
-                <label className="es-label" htmlFor={`role-${label}`}>
-                  {t(`roles.${label}`)}
-                </label>
-                <Input
-                  id={`role-${label}`}
-                  type="number"
-                  min="0"
-                  max="1000000"
-                  step="any"
-                  value={value}
-                  onChange={(e) =>
-                    setter(e.target.value === "" ? "" : Number(e.target.value))
-                  }
-                  className="es-input px-3"
-                  placeholder={t("roles.maxChannelsPlaceholder")}
-                />
-              </div>
-            ))}
+        {canQuota && (
+          <div className="es-section">
+            <div className="es-section-title">{t("roles.budgetTitle")}</div>
+            <div className="es-row es-row-2">
+              {[
+                {
+                  label: "fiveHourBudgetUsd",
+                  value: fiveHourBudgetUsd,
+                  setter: setFiveHourBudgetUsd,
+                },
+                {
+                  label: "weeklyBudgetUsd",
+                  value: weeklyBudgetUsd,
+                  setter: setWeeklyBudgetUsd,
+                },
+              ].map(({ label, value, setter }) => (
+                <div key={label} className="es-field">
+                  <label className="es-label" htmlFor={`role-${label}`}>
+                    {t(`roles.${label}`)}
+                  </label>
+                  <Input
+                    id={`role-${label}`}
+                    type="number"
+                    min="0"
+                    max="1000000"
+                    step="any"
+                    value={value}
+                    onChange={(e) =>
+                      setter(
+                        e.target.value === "" ? "" : Number(e.target.value),
+                      )
+                    }
+                    className="es-input px-3"
+                    placeholder={t("roles.maxChannelsPlaceholder")}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="es-hint">{t("roles.budgetHint")}</p>
           </div>
-          <p className="es-hint">{t("roles.budgetHint")}</p>
-        </div>
-
+        )}
         {!isSystem && (
           <>
             {/* 上传限制 */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowUploadLimits(!showUploadLimits)}
-                className="es-section-title cursor-pointer w-full"
-              >
-                {t("roles.uploadLimitsTitle")}
-                <InteractiveIcon>
-                  <ChevronDown
-                    size={14}
-                    className={`ml-auto transition-transform ${
-                      showUploadLimits ? "rotate-180" : ""
-                    }`}
-                  />
-                </InteractiveIcon>
-              </button>
-              {showUploadLimits && (
-                <div className="es-section mt-2">
-                  <p className="es-hint">{t("roles.uploadLimitsHint")}</p>
-                  {[
-                    {
-                      label: "maxUploadSizeImage",
-                      value: maxUploadSizeImage,
-                      setter: setMaxUploadSizeImage,
-                    },
-                    {
-                      label: "maxUploadSizeVideo",
-                      value: maxUploadSizeVideo,
-                      setter: setMaxUploadSizeVideo,
-                    },
-                    {
-                      label: "maxUploadSizeAudio",
-                      value: maxUploadSizeAudio,
-                      setter: setMaxUploadSizeAudio,
-                    },
-                    {
-                      label: "maxUploadSizeDocument",
-                      value: maxUploadSizeDocument,
-                      setter: setMaxUploadSizeDocument,
-                    },
-                    {
-                      label: "maxFiles",
-                      value: maxUploadFiles,
-                      setter: setMaxUploadFiles,
-                    },
-                  ].map(({ label, value, setter }) => (
-                    <div key={label} className="es-field">
-                      <label className="es-label">{t(`roles.${label}`)}</label>
-                      <Input
-                        type="number"
-                        aria-label={t(`roles.${label}`)}
-                        min="0"
-                        value={value}
-                        onChange={(e) =>
-                          setter(
-                            e.target.value === "" ? "" : Number(e.target.value),
-                          )
-                        }
-                        className="es-input px-3"
-                        placeholder={t("roles.maxChannelsPlaceholder")}
-                      />
+            {canWrite && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadLimits(!showUploadLimits)}
+                  className="es-section-title cursor-pointer w-full"
+                >
+                  {t("roles.uploadLimitsTitle")}
+                  <InteractiveIcon>
+                    <ChevronDown
+                      size={14}
+                      className={`ml-auto transition-transform ${
+                        showUploadLimits ? "rotate-180" : ""
+                      }`}
+                    />
+                  </InteractiveIcon>
+                </button>
+                {showUploadLimits && (
+                  <div className="es-section mt-2">
+                    <p className="es-hint">{t("roles.uploadLimitsHint")}</p>
+                    {[
+                      {
+                        label: "maxUploadSizeImage",
+                        value: maxUploadSizeImage,
+                        setter: setMaxUploadSizeImage,
+                      },
+                      {
+                        label: "maxUploadSizeVideo",
+                        value: maxUploadSizeVideo,
+                        setter: setMaxUploadSizeVideo,
+                      },
+                      {
+                        label: "maxUploadSizeAudio",
+                        value: maxUploadSizeAudio,
+                        setter: setMaxUploadSizeAudio,
+                      },
+                      {
+                        label: "maxUploadSizeDocument",
+                        value: maxUploadSizeDocument,
+                        setter: setMaxUploadSizeDocument,
+                      },
+                      {
+                        label: "maxFiles",
+                        value: maxUploadFiles,
+                        setter: setMaxUploadFiles,
+                      },
+                    ].map(({ label, value, setter }) => (
+                      <div key={label} className="es-field">
+                        <label className="es-label">
+                          {t(`roles.${label}`)}
+                        </label>
+                        <Input
+                          type="number"
+                          aria-label={t(`roles.${label}`)}
+                          min="0"
+                          value={value}
+                          onChange={(e) =>
+                            setter(
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value),
+                            )
+                          }
+                          className="es-input px-3"
+                          placeholder={t("roles.maxChannelsPlaceholder")}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* 权限选择 */}
+            {canGrant && (
+              <div className="es-field">
+                <label className="es-label">{t("roles.permissions")}</label>
+                <div className="es-section">
+                  {availableGroups.map((group) => (
+                    <div key={group.name} className="space-y-1.5">
+                      {/* 组标题 */}
+                      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
+                        <Checkbox
+                          ariaLabel={group.name}
+                          size="sm"
+                          checked={isGroupChecked(group.permissions)}
+                          onChange={() =>
+                            toggleGroup(
+                              group.permissions,
+                              !isGroupChecked(group.permissions),
+                            )
+                          }
+                        />
+                        <span className="text-14 font-medium text-theme-text">
+                          {group.name}
+                        </span>
+                      </label>
+                      {/* 组内权限 */}
+                      <div className="ml-7 space-y-0.5">
+                        {group.permissions.map((permission) => (
+                          <label
+                            key={permission.value}
+                            title={t(
+                              `permissionCatalog.${permission.value}.description`,
+                              {
+                                defaultValue: permission.description,
+                                nsSeparator: false,
+                              },
+                            )}
+                            className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
+                          >
+                            <Checkbox
+                              ariaLabel={
+                                permissionLabels[permission.value] ||
+                                permission.label
+                              }
+                              size="sm"
+                              checked={selectedPermissions.includes(
+                                permission.value,
+                              )}
+                              onChange={() =>
+                                togglePermission(permission.value)
+                              }
+                            />
+                            <span className="text-14 text-theme-text-secondary">
+                              {permissionLabels[permission.value] ||
+                                permission.label}
+                            </span>
+                            <code className="es-chip ml-auto">
+                              {permission.value}
+                            </code>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* 权限选择 */}
-            <div className="es-field">
-              <label className="es-label">{t("roles.permissions")}</label>
-              <div className="es-section">
-                {permissionGroups.map((group) => (
-                  <div key={group.name} className="space-y-1.5">
-                    {/* 组标题 */}
-                    <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover">
-                      <Checkbox
-                        ariaLabel={group.name}
-                        size="sm"
-                        checked={isGroupChecked(group.permissions)}
-                        onChange={() =>
-                          toggleGroup(
-                            group.permissions,
-                            !isGroupChecked(group.permissions),
-                          )
-                        }
-                      />
-                      <span className="text-14 font-medium text-theme-text">
-                        {group.name}
-                      </span>
-                    </label>
-                    {/* 组内权限 */}
-                    <div className="ml-7 space-y-0.5">
-                      {group.permissions.map((permission) => (
+              </div>
+            )}
+            {canGrant && (
+              <>
+                <div className="es-field">
+                  <label className="es-label">
+                    {t("roles.grantablePermissions")}
+                  </label>
+                  <p className="es-hint">{t("roles.delegationHint")}</p>
+                  <div className="es-section">
+                    {availableGroups
+                      .flatMap((group) => group.permissions)
+                      .filter(
+                        (permission) =>
+                          permission.value !== Permission.SYSTEM_ADMIN,
+                      )
+                      .map((permission) => (
                         <label
                           key={permission.value}
-                          className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-theme-bg-hover"
+                          className="flex min-h-11 items-center gap-2.5"
                         >
                           <Checkbox
-                            ariaLabel={
+                            ariaLabel={`${t("roles.grantablePermissions")}: ${
                               permissionLabels[permission.value] ||
                               permission.label
-                            }
+                            }`}
                             size="sm"
-                            checked={selectedPermissions.includes(
+                            checked={grantablePermissions.includes(
                               permission.value,
                             )}
-                            onChange={() => togglePermission(permission.value)}
+                            onChange={() =>
+                              setGrantablePermissions((previous) =>
+                                previous.includes(permission.value)
+                                  ? previous.filter(
+                                      (value) => value !== permission.value,
+                                    )
+                                  : [...previous, permission.value],
+                              )
+                            }
                           />
                           <span className="text-14 text-theme-text-secondary">
                             {permissionLabels[permission.value] ||
                               permission.label}
                           </span>
-                          <code className="es-chip ml-auto">
-                            {permission.value}
-                          </code>
                         </label>
                       ))}
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+                <div className="es-field">
+                  <label className="es-label">
+                    {t("roles.assignableRoles")}
+                  </label>
+                  <div className="es-section">
+                    {assignableRoles.map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex min-h-11 items-center gap-2.5"
+                      >
+                        <Checkbox
+                          ariaLabel={`${t("roles.assignableRoles")}: ${
+                            item.name
+                          }`}
+                          size="sm"
+                          checked={assignableRoleIds.includes(item.id)}
+                          onChange={() =>
+                            setAssignableRoleIds((previous) =>
+                              previous.includes(item.id)
+                                ? previous.filter((value) => value !== item.id)
+                                : [...previous, item.id],
+                            )
+                          }
+                        />
+                        <span className="text-14 text-theme-text-secondary">
+                          {item.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -616,24 +761,48 @@ export function RolesPanel() {
   );
 
   // 权限检查
-  const canManage = hasPermission(Permission.ROLE_MANAGE);
+  const canWrite = hasPermission(Permission.ROLE_WRITE);
+  const canDelete = hasPermission(Permission.ROLE_DELETE);
+  const canGrant = hasPermission(Permission.ROLE_GRANT);
+  const canQuota = hasPermission(Permission.USAGE_QUOTA_MANAGE);
+  const canEdit = canWrite || canGrant || canQuota;
 
   // 加载权限数据
   const loadPermissions = useCallback(async () => {
     try {
       const response = await authApi.getPermissions();
-      setPermissionGroups(response.groups);
+      const retired = new Set([
+        "chat:read",
+        "session:admin",
+        "skill:admin",
+        "role:manage",
+      ]);
+      setPermissionGroups(
+        response.groups.map((group) => ({
+          ...group,
+          name: t(
+            `permissionGroups.${group.permissions[0]?.value.split(":")[0]}`,
+            group.name,
+          ),
+          permissions: group.permissions.filter(
+            (permission) => !retired.has(permission.value),
+          ),
+        })),
+      );
 
       // 构建权限标签映射
       const labels: Record<string, string> = {};
       response.all_permissions.forEach((p) => {
-        labels[p.value] = p.label;
+        labels[p.value] = t(`permissionCatalog.${p.value}.label`, {
+          defaultValue: p.label,
+          nsSeparator: false,
+        });
       });
       setPermissionLabels(labels);
     } catch (err) {
       console.error("Failed to load permissions:", err);
     }
-  }, []);
+  }, [t]);
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -665,12 +834,13 @@ export function RolesPanel() {
     setIsSaving(true);
     try {
       if (editingRole) {
-        const updated = editingRole.is_system
-          ? await roleApi.updateQuota(editingRole.id, {
-              five_hour_budget_usd: data.limits?.five_hour_budget_usd ?? null,
-              weekly_budget_usd: data.limits?.weekly_budget_usd ?? null,
-            })
-          : await roleApi.update(editingRole.id, data as RoleUpdate);
+        const updated =
+          editingRole.is_system || (!canWrite && !canGrant && canQuota)
+            ? await roleApi.updateQuota(editingRole.id, {
+                five_hour_budget_usd: data.limits?.five_hour_budget_usd ?? null,
+                weekly_budget_usd: data.limits?.weekly_budget_usd ?? null,
+              })
+            : await roleApi.update(editingRole.id, data as RoleUpdate);
         setRoles((prev) =>
           prev.map((r) => (r.id === editingRole.id ? updated : r)),
         );
@@ -744,7 +914,7 @@ export function RolesPanel() {
         onSearchChange={handleSearchQueryChange}
         searchPlaceholder={t("roles.searchPlaceholder")}
         actions={
-          canManage && (
+          canWrite && (
             <Button
               variant="primary"
               onClick={openCreateModal}
@@ -843,20 +1013,22 @@ export function RolesPanel() {
                 </div>
 
                 {/* Footer actions */}
-                {canManage && (
+                {(canEdit || canDelete) && (
                   <div className="mt-auto flex items-center justify-end gap-2">
-                    <IconButton
-                      aria-label={t("common.edit")}
-                      icon={<Pencil size={14} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(role);
-                      }}
-                      size="sm"
-                      className="h-8 w-8 rounded-lg text-[var(--theme-text-secondary)] hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                      title={t("common.edit")}
-                    />
-                    {!role.is_system && (
+                    {canEdit && (!role.is_system || canQuota) && (
+                      <IconButton
+                        aria-label={t("common.edit")}
+                        icon={<Pencil size={14} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(role);
+                        }}
+                        size="sm"
+                        className="h-8 w-8 rounded-lg text-[var(--theme-text-secondary)] hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                        title={t("common.edit")}
+                      />
+                    )}
+                    {canDelete && !role.is_system && (
                       <IconButton
                         aria-label={t("common.delete")}
                         icon={<Trash2 size={14} />}
@@ -897,6 +1069,7 @@ export function RolesPanel() {
           isLoading={isSaving}
           permissionGroups={permissionGroups}
           permissionLabels={permissionLabels}
+          roles={roles}
         />
       )}
 

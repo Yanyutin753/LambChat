@@ -23,7 +23,7 @@ const api = vi.hoisted(() => ({
   language: "en",
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: api.user }),
+  useAuth: () => ({ hasPermission: () => true, user: api.user }),
 }));
 vi.mock("../../../../contexts/SettingsContext", () => ({
   useSettingsContext: () => ({

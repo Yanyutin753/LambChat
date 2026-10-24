@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pymongo import ReturnDocument
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.memory.cleanup import vector_pending_fields
@@ -255,7 +255,7 @@ async def list_memories(
     source: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:read")),
 ):
     """List stored memories for the current user."""
     backend = await _get_backend()
@@ -338,7 +338,7 @@ async def list_memories(
 @router.post("/")
 async def create_memory(
     payload: dict[str, Any] = Body(...),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:write")),
 ):
     """Create a new memory."""
     from src.infra.memory.client.native.content import build_content_fields
@@ -416,7 +416,7 @@ async def create_memory(
 async def update_memory(
     memory_id: str,
     payload: dict[str, Any] = Body(...),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:write")),
 ):
     """Update an existing memory."""
     from src.infra.memory.client.native.content import (
@@ -542,7 +542,7 @@ async def update_memory(
 
 @router.get("/export")
 async def export_memories(
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:read", "memory:export")),
 ):
     """Export all stored memories for the current user."""
     from src.infra.memory.client.native.content import hydrate_memory_texts
@@ -613,7 +613,7 @@ async def export_memories(
 @router.post("/import")
 async def import_memories(
     payload: dict[str, Any] = Body(...),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:write")),
     validate_only: bool = False,
 ):
     """Import memories for the current user, overwriting matching memory IDs."""
@@ -873,7 +873,7 @@ async def import_memories(
 @router.get("/{memory_id}")
 async def get_memory(
     memory_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:read")),
 ):
     """Get full content of a specific memory."""
     from src.infra.memory.client.native.content import hydrate_memory_text
@@ -911,7 +911,7 @@ async def get_memory(
 @router.delete("/{memory_id}")
 async def delete_memory(
     memory_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:delete")),
 ):
     """Delete a specific memory."""
     backend = await _get_backend()
@@ -928,7 +928,7 @@ async def delete_memory(
 @router.post("/batch-delete")
 async def batch_delete_memories(
     request: Request,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("memory:delete")),
 ):
     """Delete multiple memories at once."""
     body = await request.json()

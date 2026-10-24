@@ -11,6 +11,7 @@ import { Checkbox } from "../../../common/Checkbox";
 import { Button, IconButton } from "../../../common";
 import { ConfigPanelErrorCallout } from "../../ConfigPanelErrorCallout";
 import { EmptyState } from "../../../common/EmptyState";
+import { roleApi } from "../../../../services/api";
 import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
 
@@ -41,6 +42,7 @@ export function RolesModelTab({
     Record<string, string[]>
   >({});
   const [isSaving, setIsSaving] = useState(false);
+  const [unrestricted, setUnrestricted] = useState<Record<string, boolean>>({});
   const [expandedModel, setExpandedModel] = useState<string | null>(null);
 
   const toggleExpand = (id: string) =>
@@ -111,6 +113,7 @@ export function RolesModelTab({
     setIsSaving(true);
     try {
       await onUpdate(selectedRole, currentRoleModels);
+      setUnrestricted((previous) => ({ ...previous, [selectedRole]: false }));
       setLocalRoleModels((prev) => {
         const next = { ...prev };
         delete next[selectedRole];
@@ -159,6 +162,47 @@ export function RolesModelTab({
 
       {selectedRole && (
         <>
+          <label className="flex min-h-11 items-start gap-2.5 text-14 text-theme-text-secondary">
+            <Checkbox
+              ariaLabel={t("roles.unrestrictedModels")}
+              checked={
+                unrestricted[selectedRole] ??
+                selectedRoleData?.unrestricted_models ??
+                false
+              }
+              disabled={isSaving}
+              onChange={async () => {
+                const value = !(
+                  unrestricted[selectedRole] ??
+                  selectedRoleData?.unrestricted_models ??
+                  false
+                );
+                setIsSaving(true);
+                setSaveError(null);
+                try {
+                  await roleApi.update(selectedRole, {
+                    unrestricted_models: value,
+                  });
+                  setUnrestricted((previous) => ({
+                    ...previous,
+                    [selectedRole]: value,
+                  }));
+                } catch (error) {
+                  setSaveError(
+                    (error as Error).message || t("agentConfig.saveFailed"),
+                  );
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            />
+            <span>
+              {t("roles.unrestrictedModels")}
+              <span className="es-hint block">
+                {t("roles.explicitModelsHint")}
+              </span>
+            </span>
+          </label>
           <div className="agent-config-list overflow-hidden rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] divide-y divide-[var(--glass-border)]">
             {/* Header row */}
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-serif bg-[var(--glass-bg-subtle)] px-3.5 py-2.5 sm:px-4">

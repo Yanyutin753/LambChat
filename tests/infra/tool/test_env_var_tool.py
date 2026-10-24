@@ -561,3 +561,81 @@ async def test_team_agent_context_includes_env_var_tools(monkeypatch: pytest.Mon
     }
     assert {"env_var_list", "env_var_set", "env_var_delete"} <= names | deferred_names
     assert "env_var_delete_all" not in names
+
+
+@pytest.fixture(autouse=True)
+def _grant_business_capability(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.tool.env_var_tool.has_tool_permission", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
+def _active_environment_manager(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.user import TokenPayload
+
+    current = AsyncMock(
+        return_value=TokenPayload(
+            sub="user-1",
+            username="tester",
+            roles=["user"],
+            permissions=["mcp:read", "envvar:read", "envvar:write", "envvar:delete"],
+        )
+    )
+    monkeypatch.setattr("src.infra.auth.tool_authority.resolve_tool_user", current)
+    monkeypatch.setattr("src.infra.tool.internal_registry.resolve_tool_user", current)
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tool_policies", AsyncMock(return_value={})
+    )
+
+
+@pytest.mark.parametrize("force_refresh", [False, True])
+async def test_environment_prompt_revocation_hides_cached_keys_before_storage(
+    monkeypatch, force_refresh
+):
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool import env_var_prompt
+
+    user_id = "revoked-prompt-user"
+    env_var_prompt._env_var_prompt_cache[user_id] = (
+        "- `PRIVATE_KEY_NAME`",
+        env_var_prompt.time.time(),
+    )
+    permission = AsyncMock(return_value=False)
+    monkeypatch.setattr(env_var_prompt, "has_tool_permission", permission, raising=False)
+    storage = AsyncMock()
+    monkeypatch.setattr(env_var_prompt, "EnvVarStorage", lambda: storage)
+    assert await env_var_prompt.build_env_var_prompt(user_id, force_refresh=force_refresh) == ""
+    permission.assert_awaited_once_with(user_id, "envvar:read")
+    storage.list_vars.assert_not_awaited()
+
+
+async def test_channel_key_prompt_cannot_attach_revoked_personal_inventory(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware import EnvVarPromptMiddleware
+    from src.infra.tool import env_var_prompt
+
+    env_var_prompt._env_var_prompt_cache["owner"] = (
+        "- `PRIVATE_PERSONAL_KEY`",
+        env_var_prompt.time.time(),
+    )
+    monkeypatch.setattr(
+        env_var_prompt, "has_tool_permission", AsyncMock(return_value=False), raising=False
+    )
+    storage = AsyncMock()
+    monkeypatch.setattr(env_var_prompt, "EnvVarStorage", lambda: storage)
+    execute = _EnvVarListTool().model_copy(update={"name": "execute"})
+    capture = AsyncMock()
+    await EnvVarPromptMiddleware(
+        user_id="owner", additional_keys=("CHANNEL_KEY",)
+    ).awrap_model_call(_Request(SystemMessage(content="base"), tools=[execute]), capture)
+    description = capture.await_args.args[0].tools[0].description
+    assert "CHANNEL_KEY" in description
+    assert "PRIVATE_PERSONAL_KEY" not in description
+    storage.list_vars.assert_not_awaited()

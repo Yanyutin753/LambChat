@@ -9,11 +9,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.auth.tool_authority import resolve_tool_user as _resolve_user
 from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.role.storage import RoleStorage
 from src.infra.team.manager import TeamManager
 from src.infra.tool.backend_utils import get_user_id_from_runtime
-from src.infra.user.storage import UserStorage
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.team import TeamCreate, TeamMemberCreate, TeamUpdate
 from src.kernel.schemas.user import TokenPayload
@@ -36,47 +35,16 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
 
 
-async def _resolve_user(user_id: str) -> TokenPayload | None:
-    user = await UserStorage().get_by_id(user_id)
-    if not user:
-        return None
-
-    role_storage = RoleStorage()
-    roles = await role_storage.get_by_names(user.roles or [])
-
-    permissions: set[str] = set()
-    for role in roles:
-        for permission in role.permissions:
-            permissions.add(permission if isinstance(permission, str) else permission.value)
-
-    return TokenPayload(
-        sub=user.id,
-        username=user.username,
-        roles=[r.name for r in roles],
-        permissions=sorted(permissions),
-    )
-
-
 def _is_admin(user: TokenPayload) -> bool:
     return "persona_preset:admin" in set(user.permissions or [])
 
 
 def _can_read_personas(user: TokenPayload) -> bool:
-    permissions = set(user.permissions or [])
-    return bool(
-        permissions.intersection(
-            {
-                "persona_preset:read",
-                "team:read",
-                "chat:write",
-            }
-        )
-    )
+    return "persona_preset:read" in user.permissions
 
 
 def _can_create_team(user: TokenPayload) -> bool:
-    permissions = set(user.permissions or [])
-    return "team:write" in permissions or "chat:write" in permissions
+    return "team:write" in user.permissions
 
 
 async def resolve_persona_for_subagent(preset_id: str, *, user_id: str) -> PersonaPresetSnapshot:

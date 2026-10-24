@@ -7,7 +7,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.api.routes.session_history_render import (
     parse_event_types_filter as _parse_event_types_filter,
 )
@@ -91,12 +91,12 @@ async def list_sessions(
     search: Optional[str] = Query(None, description="搜索关键词，模糊匹配会话名称"),
     favorites_only: bool = Query(False, description="仅返回已收藏会话"),
     pinned_only: bool = Query(False, description="仅返回已置顶会话"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     列出会话
 
-    普通用户只能看到自己的会话，管理员可以看到所有会话。
+    所有用户只能看到自己的会话。
 
     Args:
         project_id: 可选的项目过滤
@@ -169,7 +169,7 @@ async def list_sessions(
 async def mark_all_sessions_read(
     project_id: Optional[str] = Query(None),
     scheduled_task_id: Optional[str] = Query(None),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """批量将会话标记为已读，支持按项目或定时任务过滤。"""
     manager = SessionManager()
@@ -181,7 +181,7 @@ async def mark_all_sessions_read(
 @router.post("", response_model=Session)
 async def create_session(
     session_data: SessionCreate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write")),
 ):
     """
     创建会话
@@ -195,12 +195,12 @@ async def create_session(
 @router.get("/{session_id}", response_model=Session)
 async def get_session(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     获取会话
 
-    只能获取自己拥有的会话，管理员可以获取任意会话。
+    只能获取自己拥有的会话。
     """
     manager = SessionManager()
     async with timed_server_phase("session_detail"):
@@ -218,7 +218,7 @@ async def get_session(
 @router.delete("/{session_id}")
 async def delete_session(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:delete")),
 ):
     """
     删除会话
@@ -259,7 +259,7 @@ async def delete_session(
 @router.post("/{session_id}/mark-read")
 async def mark_session_read(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """将会话标记为已读（清除未读计数）"""
     manager = SessionManager()
@@ -316,7 +316,7 @@ async def get_session_events(
     ),
     compact_message_chunks: bool = False,
     include_approval_statuses: bool = False,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """获取当前用户拥有的会话事件。"""
     from src.infra.session.dual_writer import get_dual_writer
@@ -448,7 +448,7 @@ async def get_session_runs(
     session_id: str,
     limit: int = Query(50, ge=1, le=100, description="最大返回数量"),
     trace_id: Optional[str] = Query(None, description="精确 trace ID 过滤"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     获取会话的所有 runs（对话轮次）
@@ -532,7 +532,7 @@ async def get_session_runs(
 @router.get("/{session_id}/traces")
 async def get_session_traces(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     获取会话的所有 traces（调试用）
@@ -569,7 +569,7 @@ async def get_session_raw_traces(
         le=SESSION_RAW_TRACE_EVENTS_LIMIT_MAX,
         description="每个 trace 最多返回最近事件数",
     ),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
     获取会话的原始 traces 数据（包含最近 events）
@@ -608,7 +608,7 @@ async def get_session_raw_traces(
 async def update_session_status(
     session_id: str,
     status: str = Query(..., description="新状态: active 或 archived"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write")),
 ):
     """
     更新会话状态
@@ -638,7 +638,7 @@ async def update_session_status(
 @router.post("/{session_id}/clear-messages")
 async def clear_session_messages(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:delete")),
 ):
     """
     清空会话消息
@@ -660,7 +660,7 @@ async def clear_session_messages(
 async def update_session(
     session_id: str,
     session_data: SessionUpdate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write")),
 ):
     """
     更新会话信息（如名称）
@@ -686,7 +686,7 @@ async def update_session(
 async def fork_session_from_message(
     session_id: str,
     message_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read", "session:write")),
 ):
     """Create a new session forked from a specific message."""
     manager = SessionManager()
@@ -714,7 +714,7 @@ async def create_message_checkpoint(
     session_id: str,
     message_id: str,
     payload: MessageCheckpointCreatePayload,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write")),
 ):
     """Create a checkpoint anchored on a specific message."""
     manager = SessionManager()
@@ -742,7 +742,7 @@ async def create_message_checkpoint(
 async def fork_session_from_checkpoint(
     session_id: str,
     checkpoint_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read", "session:write")),
 ):
     """Create a new session forked from a saved checkpoint."""
     manager = SessionManager()
@@ -782,7 +782,7 @@ async def fork_session_from_checkpoint(
 @router.post("/{session_id}/favorite")
 async def toggle_session_favorite(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """Toggle a session's favorite state without changing its project."""
 
@@ -817,7 +817,7 @@ async def toggle_session_favorite(
 @router.post("/{session_id}/pin")
 async def toggle_session_pin(
     session_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """Toggle a session's pinned-to-top state."""
 
@@ -847,7 +847,7 @@ async def generate_session_title(
     session_id: str,
     message: str = Query(..., description="用户消息内容，用于生成标题"),
     lang: str = Query("en", description="语言代码: en, zh, ja, ko, ru（支持 zh-CN 等区域形式）"),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write", "chat:write")),
 ):
     """使用配置的模型和提示词，根据用户消息生成简短标题。"""
     from src.infra.llm.client import LLMClient
@@ -930,7 +930,7 @@ async def generate_session_title(
 async def move_session(
     session_id: str,
     body: dict,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("session:write", "project:read")),
 ):
     """
     移动会话到项目

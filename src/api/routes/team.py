@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from src.api.deps import get_current_user_required
+from src.api.deps import require_permissions
 from src.api.server_timing import timed_server_phase
 from src.infra.team.manager import TeamManager
 from src.kernel.errors import AppError, ErrorCode
@@ -32,7 +32,7 @@ async def list_teams(
     pinned: bool | None = None,
     q: str | None = Query(None, max_length=100),
     tag: str | None = Query(None, max_length=80),
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:read")),
     manager: TeamManager = Depends(_get_manager),
 ):
     async with timed_server_phase("teams"):
@@ -51,7 +51,7 @@ async def list_teams(
 @router.post("/", response_model=TeamResponse, status_code=201)
 async def create_team(
     body: TeamCreate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:write")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
@@ -63,7 +63,7 @@ async def create_team(
 @router.get("/{team_id}", response_model=TeamResponse)
 async def get_team(
     team_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:read")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
@@ -76,7 +76,7 @@ async def get_team(
 async def update_team(
     team_id: str,
     body: TeamUpdate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:write")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
@@ -91,7 +91,7 @@ async def update_team(
 async def update_team_preference(
     team_id: str,
     preference: TeamPreferenceUpdate,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:read")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
@@ -107,7 +107,7 @@ async def update_team_preference(
 @router.delete("/{team_id}", status_code=204)
 async def delete_team(
     team_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:delete")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
@@ -119,7 +119,7 @@ async def delete_team(
 @router.post("/{team_id}/clone", response_model=TeamResponse, status_code=201)
 async def clone_team(
     team_id: str,
-    user: TokenPayload = Depends(get_current_user_required),
+    user: TokenPayload = Depends(require_permissions("team:read", "team:write")),
     manager: TeamManager = Depends(_get_manager),
 ):
     try:

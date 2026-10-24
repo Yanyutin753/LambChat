@@ -367,6 +367,9 @@ async def _download_image_as_data_url(
     )
     if await get_file_record_storage().is_private_key(str(key)) and (not user_id or not session_id):
         raise AppError(ErrorCode.FILE_NOT_FOUND)
+    from src.infra.auth.tool_authority import require_tool_file_read
+
+    await require_tool_file_read(user_id)
     await require_file_access(str(key), user_id, session_id=session_id)
     max_bytes = get_image_download_max_bytes()
     spooled = SpooledTemporaryFile(
@@ -606,6 +609,10 @@ def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
             enhanced_text += f"\n- Corresponding image: #{image_index}"
         if attachment.get("id") and attachment.get("key"):
             enhanced_text += f"\n- attachment_id: {attachment['id']}"
+            from src.infra.tool.document_parse_tool import detect_document_extension
+
+            if detect_document_extension(name):
+                enhanced_text += "\n- Read with document_parse(attachment_id=...) if available, without downloading to the sandbox."
             enhanced_text += "\n- Sandbox download: upload_url_to_sandbox(attachment_id=..., file_path=...). Use this ID, never copy or reconstruct the URL."
         enhanced_text += f"\n- 链接: {url}"
 

@@ -218,39 +218,31 @@ class BaseGraphAgent(ABC):
         Args:
             run_id: 可选，指定要取消的运行 ID。如果不指定，则清理所有资源。
         """
+
+        async def cancel_and_drain(task: asyncio.Task) -> None:
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
         if run_id is not None:
             # 取消特定的 stream_task
             task = self._stream_tasks.pop(run_id, None)
             if task:
-                if not task.done():
-                    task.cancel()
-                try:
-                    await task
-                except (asyncio.CancelledError, Exception):
-                    pass
+                await cancel_and_drain(task)
             logger.info(f"[Agent {self.agent_id}] Cancelled stream task: run_id={run_id}")
         else:
             # 取消所有正在运行的 stream_task
             for _, task in list(self._stream_tasks.items()):
-                if not task.done():
-                    task.cancel()
-                try:
-                    await task
-                except (asyncio.CancelledError, Exception):
-                    pass
+                await cancel_and_drain(task)
             self._stream_tasks.clear()
 
             # 取消后台清理任务（MemorySaver fallback 时会创建）
             cleanup_task = getattr(self, "_cleanup_task", None)
             if cleanup_task is not None:
-                if not cleanup_task.done():
-                    cleanup_task.cancel()
-                try:
-                    await cleanup_task
-                except asyncio.CancelledError:
-                    pass
-                except Exception:
-                    pass
+                await cancel_and_drain(cleanup_task)
             if hasattr(self, "_cleanup_task"):
                 self._cleanup_task = None  # type: ignore[assignment]
 
@@ -314,6 +306,12 @@ class BaseGraphAgent(ABC):
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """内部流式执行"""
+        if user_id:
+            from src.infra.agent.access import validate_current_execution
+
+            kwargs["agent_options"] = await validate_current_execution(
+                self.agent_id, user_id, kwargs.get("agent_options")
+            )
         # 提取 goal 相关参数，用于在 done 之前正确发出 goal:end 事件
         active_goal = kwargs.get("active_goal")
         goal_started_at = kwargs.get("goal_started_at")
@@ -651,13 +649,19 @@ class BaseGraphAgent(ABC):
 
     async def invoke(self, message: str, session_id: str | None = None, **kwargs) -> str:
         """非流式执行，返回最终结果"""
+        if kwargs.get("user_id"):
+            from src.infra.agent.access import validate_current_execution
+
+            kwargs["agent_options"] = await validate_current_execution(
+                self.agent_id, kwargs["user_id"], kwargs.get("agent_options")
+            )
         if session_id is None:
             session_id = str(uuid.uuid4())
         if not self._initialized:
             await self.initialize()
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": session_id, "user_id": kwargs.get("user_id")},
+            "configurable": {"thread_id": session_id, **kwargs},
             "recursion_limit": self.recursion_limit,
         }
 
@@ -869,23 +873,18 @@ class AgentFactory:
         catalog_map = {config.id: config for config in catalog_configs}
         global_configs = [] if catalog_configs else await storage.get_global_config()
 
-        if catalog_configs:
-            configured_ids = {a.id for a in catalog_configs}
+        enabled_configs = catalog_configs or global_configs
+        if enabled_configs:
+            configured_ids = {a.id for a in enabled_configs}
             enabled_agent_ids = {
                 normalize_agent_id(a.id)
-                for a in catalog_configs
+                for a in enabled_configs
                 if a.enabled and not (a.id == "fast" and "search" in configured_ids)
             }
-            logger.info(f"[get_filtered_agents] catalog config exists, enabled={enabled_agent_ids}")
-        elif global_configs:
-            # 全局配置已保存过 → 以它为准（即使全部禁用也尊重）
-            configured_ids = {a.id for a in global_configs}
-            enabled_agent_ids = {
-                normalize_agent_id(a.id)
-                for a in global_configs
-                if a.enabled and not (a.id == "fast" and "search" in configured_ids)
-            }
-            logger.info(f"[get_filtered_agents] global config exists, enabled={enabled_agent_ids}")
+            source = "catalog" if catalog_configs else "global"
+            logger.info(
+                f"[get_filtered_agents] {source} config exists, enabled={enabled_agent_ids}"
+            )
         else:
             # 从未配置过全局设置 → 默认全部启用
             enabled_agent_ids = all_agent_ids

@@ -118,3 +118,7 @@ test("a rejected save keeps the localized draft visible and can be retried", asy
   expect(within(editor).queryByRole("alert")).toBeNull();
   expect(update).toHaveBeenCalledTimes(2);
 });
+
+vi.mock("../../../../../hooks/useAuth", () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
