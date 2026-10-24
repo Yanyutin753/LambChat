@@ -16,7 +16,7 @@ async def read_workspace_preview(
     download: Callable[[str], Awaitable[bytes | str]],
     stream: Callable[[str], AsyncIterator[bytes]] | None = None,
 ) -> dict[str, Any] | AsyncIterator[bytes]:
-    if not is_binary_file(path):
+    if not is_binary_file(path) and not path.lower().endswith(".svg"):
         result = await read(path, offset, limit)
         error = str(result.get("error", ""))
         if not error.startswith(

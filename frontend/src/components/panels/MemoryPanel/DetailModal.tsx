@@ -11,7 +11,7 @@ import { TYPE_STYLES, SOURCE_STYLES, SOURCE_DOTS } from "./constants";
 import { formatDateTime } from "../../../utils/datetime";
 
 export function DetailModal({
-  memory,
+  memory: initialMemory,
   onClose,
   onDelete,
   onEdit,
@@ -24,7 +24,8 @@ export function DetailModal({
   relativeTime: (dateStr: string | null) => string;
 }) {
   const { t } = useTranslation();
-  const { full, loading, error, retry } = useMemoryContent(memory);
+  const { full, loading, error, retry } = useMemoryContent(initialMemory);
+  const memory = full ?? initialMemory;
   const contentRef = useRef<HTMLDivElement>(null);
 
   const style = TYPE_STYLES[memory.memory_type] ?? TYPE_STYLES.user;

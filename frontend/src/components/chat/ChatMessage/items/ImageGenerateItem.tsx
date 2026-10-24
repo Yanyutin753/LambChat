@@ -248,7 +248,7 @@ function ImageGenerateDetail({
         {images.length > 0 && (
           <div
             className={clsx(
-              "grid w-full max-w-md gap-2.5",
+              "grid w-md max-w-full gap-2.5",
               images.length === 1 ? "grid-cols-1" : "grid-cols-2",
             )}
           >
@@ -268,7 +268,7 @@ function ImageGenerateDetail({
                   alt={img.name}
                   skipUrlResolve
                   inline
-                  className="w-full aspect-square object-contain bg-theme-bg-subtle"
+                  className="w-full h-auto object-contain bg-theme-bg-subtle"
                   onClick={() => openImagePreview(img.url)}
                 />
                 <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
@@ -536,7 +536,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                 alt={img.name}
                 skipUrlResolve
                 inline
-                className="w-full aspect-square object-cover"
+                className="w-full h-auto object-contain"
                 onClick={() => openImagePreview(img.url)}
               />
               <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">

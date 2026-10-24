@@ -14,6 +14,29 @@ afterEach(() => {
   cleanup();
   clearUiExpansions();
 });
+test.each(["read", "search"] as const)(
+  "pending %s groups show activity until completion without losing expansion",
+  (category) => {
+    const props = {
+      category,
+      count: 2,
+      stateKey: `pending:${category}`,
+      renderExpanded: () => <div>Live tool details</div>,
+    };
+    const label = category === "read" ? "toolGroupRead" : "toolGroupSearch";
+    const view = render(<ToolCallGroup {...props} isPending />);
+    const trigger = screen.getByRole("button");
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger).toHaveTextContent(`chat.message.${label}Pending 2`);
+    fireEvent.click(trigger);
+    expect(screen.getByText("Live tool details")).toBeVisible();
+    view.rerender(<ToolCallGroup {...props} isPending={false} />);
+    expect(trigger).toHaveAttribute("aria-busy", "false");
+    expect(trigger).toHaveTextContent(`chat.message.${label} 2`);
+    expect(trigger).not.toHaveTextContent("Pending");
+    expect(screen.getByText("Live tool details")).toBeVisible();
+  },
+);
 test("several tools start collapsed and preserve a deliberate expansion when appended or remounted", () => {
   const content = () => <div>Read files and run checks</div>;
   const view = render(

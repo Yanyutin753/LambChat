@@ -134,7 +134,9 @@ def detect_tool_error(out: Any, raw: Any) -> tuple[bool, str | None]:
     if tool_status == "error":
         return True, str(raw) if raw else "Tool execution failed"
 
-    if isinstance(raw, dict) and (raw.get("error") or raw.get("status") == "error"):
+    if isinstance(raw, dict) and (
+        raw.get("error") or raw.get("status") == "error" or raw.get("success") is False
+    ):
         return True, raw.get("error") or raw.get("message") or str(raw)
 
     if isinstance(raw, str) and raw:

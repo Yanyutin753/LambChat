@@ -95,3 +95,23 @@ test("old image results with no byte size do not claim to be zero bytes", () => 
     within(panel.container).getByRole("img", { name: "old.png" }),
   ).toBeInTheDocument();
 });
+
+test("generated images keep chat-sized, uncropped previews in the detail panel", () => {
+  const view = show({
+    args: { prompt: "landscape" },
+    result: { images: [{ url: "/api/upload/file/landscape.png" }] },
+    success: true,
+  });
+  fireEvent.click(view.getByRole("button"));
+  const panel = render(
+    <I18nextProvider i18n={i18n}>
+      {getPersistentToolPanelState()!.children}
+    </I18nextProvider>,
+  );
+  const preview = within(panel.container).getByRole("button", {
+    name: "landscape.png",
+  });
+  expect(preview).toHaveClass("h-auto", "object-contain");
+  expect(preview).not.toHaveClass("aspect-square");
+  expect(preview.closest("figure")!.parentElement).toHaveClass("w-md");
+});

@@ -73,7 +73,7 @@ function LsDetail({ args, result }: ToolDetailProps) {
                 <span
                   title={entry}
                   className={clsx(
-                    "min-w-0 flex-1 truncate",
+                    "min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]",
                     isDir
                       ? "text-theme-text font-medium"
                       : "text-theme-text-secondary",
@@ -232,7 +232,7 @@ const LsItem = memo(function LsItem({
                       )}
                       <span
                         className={clsx(
-                          "min-w-0 flex-1 truncate",
+                          "min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]",
                           isDir
                             ? "text-theme-text font-medium"
                             : "text-theme-text-secondary",

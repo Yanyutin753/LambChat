@@ -84,13 +84,21 @@ function stripWebviewOrigin(url: string): string | null {
  * @param url - 可能是相对路径或完整 URL
  * @returns 完整 URL
  */
+export function isWorkspaceFilePath(url: string | undefined | null): boolean {
+  return (
+    !!url &&
+    (/^(?:\/workspace\/|[A-Za-z]:[\\/]|file:\/\/)/i.test(url) ||
+      url.startsWith("\\\\?\\"))
+  );
+}
+
 export function getFullUrl(
   url: string | undefined | null,
   apiBase: string = API_BASE,
   options: RuntimeDetectOptions = {},
 ): string | undefined {
   if (!url) return undefined;
-  if (/^(blob:|data:)/i.test(url)) return url;
+  if (/^(blob:|data:)/i.test(url) || isWorkspaceFilePath(url)) return url;
 
   // 原生壳内 webview origin（tauri://localhost 等）不是真实服务器：<img>/<video>/
   // <audio> 等媒体元素不走 installServerUrlNetworkPatch 改写的 fetch，相对 URL

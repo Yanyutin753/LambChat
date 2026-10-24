@@ -356,8 +356,8 @@ class Settings(BaseSettings):
     # File Upload Settings
     LOCAL_STORAGE_PATH: str = "./uploads"
     ENABLE_LOCAL_FILESYSTEM_FALLBACK: bool = True
-    FILE_UPLOAD_MAX_SIZE_IMAGE: int = 10
-    FILE_UPLOAD_MAX_SIZE_VIDEO: int = 100
+    FILE_UPLOAD_MAX_SIZE_IMAGE: int = 100
+    FILE_UPLOAD_MAX_SIZE_VIDEO: int = 200
     FILE_UPLOAD_MAX_SIZE_AUDIO: int = 50
     FILE_UPLOAD_MAX_SIZE_DOCUMENT: int = 50
     FILE_UPLOAD_MAX_FILES: int = 10
@@ -566,15 +566,18 @@ class Settings(BaseSettings):
     # Image analysis tool settings
     ENABLE_IMAGE_ANALYSIS: bool = False
     IMAGE_ANALYSIS_MODEL_ID: str = ""
+    IMAGE_ANALYSIS_TIMEOUT_SECONDS: int = 600
     IMAGE_ANALYSIS_MAX_ATTEMPTS: int = 3
     IMAGE_ANALYSIS_RETRY_DELAY: float = 1.0
 
     # Video analysis tool settings（与图片分析同开关挂载；未配模型回落
     # IMAGE_ANALYSIS_MODEL_ID。字节上限硬限：base64 ×4/3 不打爆请求体）
     VIDEO_ANALYSIS_MODEL_ID: str = ""
+    VIDEO_ANALYSIS_TIMEOUT_SECONDS: int = 600
     VIDEO_ANALYSIS_MAX_ATTEMPTS: int = 3
     VIDEO_ANALYSIS_RETRY_DELAY: float = 1.0
-    VIDEO_ANALYSIS_MAX_BYTES: int = 50 * 1024 * 1024
+    VIDEO_ANALYSIS_INLINE_MAX_BYTES: int = 16 * 1024 * 1024
+    VIDEO_ANALYSIS_MAX_BYTES: int = 200 * 1024 * 1024
 
     # Image generation tool settings
     ENABLE_IMAGE_GENERATION: bool = False

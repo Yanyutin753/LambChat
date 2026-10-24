@@ -1,7 +1,8 @@
+import { WorkspaceMediaContext } from "../../../../hooks/workspaceMediaContext";
 import { useUploadFileUrl } from "../../../../hooks/useUploadFileUrl";
 // video_analyze 内置工具专属 Item（对齐 ImageAnalyzeItem：CollapsiblePill +
 // 专属图标 + inline 紧凑预览 + 实时面板，配色沿用工具 Item 的 teal/amber accent）
-import { memo, useMemo } from "react";
+import { memo, useMemo, useContext } from "react";
 import { Eye, Film, MessageSquareText, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
@@ -150,6 +151,7 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
+  const workspace = useContext(WorkspaceMediaContext);
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
@@ -220,9 +222,15 @@ const VideoAnalyzeItem = memo(function VideoAnalyzeItem({
           icon: <Eye size={16} />,
           status,
           subtitle: prompt || videoSummary || undefined,
-          fallback: detailContent || undefined,
+          fallback: (
+            <WorkspaceMediaContext.Provider value={workspace}>
+              {detailContent}
+            </WorkspaceMediaContext.Provider>
+          ),
           buildDetail: (data) => (
-            <VideoAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+            <WorkspaceMediaContext.Provider value={workspace}>
+              <VideoAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+            </WorkspaceMediaContext.Provider>
           ),
           footer: durationFooter,
         });

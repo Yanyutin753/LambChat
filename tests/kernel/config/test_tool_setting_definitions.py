@@ -90,7 +90,9 @@ def test_video_analysis_settings_suite_is_registered() -> None:
         "VIDEO_ANALYSIS_MODEL_ID": "",
         "VIDEO_ANALYSIS_MAX_ATTEMPTS": 3,
         "VIDEO_ANALYSIS_RETRY_DELAY": 1.0,
-        "VIDEO_ANALYSIS_MAX_BYTES": 52428800,
+        "VIDEO_ANALYSIS_MAX_BYTES": 209715200,
+        "VIDEO_ANALYSIS_INLINE_MAX_BYTES": 16777216,
+        "VIDEO_ANALYSIS_TIMEOUT_SECONDS": 600,
     }
     for key, default in expected.items():
         assert Settings.model_fields[key].default == default, key
@@ -98,4 +100,4 @@ def test_video_analysis_settings_suite_is_registered() -> None:
         assert TOOLS_SETTING_DEFINITIONS[key]["subcategory"] == "video_analysis", key
         assert TOOLS_SETTING_DEFINITIONS[key]["depends_on"] == "ENABLE_IMAGE_ANALYSIS", key
     assert TOOLS_SETTING_DEFINITIONS["VIDEO_ANALYSIS_MAX_BYTES"]["min_value"] == 1048576
-    assert TOOLS_SETTING_DEFINITIONS["VIDEO_ANALYSIS_MAX_BYTES"]["max_value"] == 209715200
+    assert TOOLS_SETTING_DEFINITIONS["VIDEO_ANALYSIS_MAX_BYTES"]["max_value"] == 1073741824

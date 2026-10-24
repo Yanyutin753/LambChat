@@ -925,6 +925,32 @@ def test_detect_tool_error_detects_string_error_prefix() -> None:
     assert detect_tool_error(None, "Error: failed to run") == (True, "Error: failed to run")
 
 
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"error": "Image analysis timed out", "retryable": True},
+        {"success": False, "error": "video_model_protocol_unsupported"},
+        {"success": False, "errors": [{"error": "video_too_large"}]},
+    ],
+)
+async def test_structured_media_failure_is_emitted_as_failed_tool(result) -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "video_analyze",
+            "run_id": "media-failure",
+            "data": {"output": json.dumps(result)},
+            "metadata": {},
+        }
+    )
+    data = presenter.emitted[-1]["data"]
+    assert data["success"] is False
+    assert data["error"]
+    assert data["result"] == result
+
+
 def test_detect_tool_error_detects_computer_use_error_code() -> None:
     result = "ERROR ax_not_trusted: grant Accessibility"
     assert detect_tool_error(None, result) == (True, result)
