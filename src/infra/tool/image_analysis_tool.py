@@ -150,6 +150,10 @@ def _backend_path_from_image_reference(image_ref: str) -> str | None:
     if not ref or ref.startswith("data:") or _UPLOAD_FILE_MARKER in ref:
         return None
 
+    # A Windows drive letter is a backend path, not a URL scheme.
+    if re.match(r"^[a-zA-Z]:[/\\]", ref):
+        return ref
+
     parsed = urlsplit(ref)
     scheme = (parsed.scheme or "").lower()
     if scheme in {"http", "https"}:
