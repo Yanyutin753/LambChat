@@ -1406,6 +1406,7 @@
       "toolImageAnalyzeAlt": "Image {{index}}",
       "toolVideoAnalyze": "Video Analysis",
       "toolVideoAnalyzeCount": "{{count}} videos",
+      "toolVideoPreviewUnavailable": "No preview is available for this local video. Analyze it again to create one.",
       "toolImageCount": "{{count}} images",
       "toolImageGenerate": "Generate",
       "toolImageGenerateDesc": "AI-powered image generation",

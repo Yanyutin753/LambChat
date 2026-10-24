@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 import mimetypes
 import os
@@ -77,6 +78,37 @@ def _guess_video_mime_type(file_path: str, content: bytes) -> str | None:
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False)
+
+
+async def _upload_video_preview(content: bytes, mime_type: str, runtime: Any) -> str | None:
+    from src.infra.logging.context import TraceContext
+    from src.infra.storage.s3.service import get_or_init_storage
+
+    context = TraceContext.get_request_context()
+    user_id = get_user_id_from_runtime(runtime)
+    session_id = get_session_id_from_runtime(runtime)
+    if (
+        not user_id
+        or not session_id
+        or (context.user_id, context.session_id) != (user_id, session_id)
+    ):
+        return None
+    try:
+        # The existing generated-file upload registers ownership before returning.
+        async with asyncio.timeout(_DOWNLOAD_TIMEOUT_SECONDS):
+            storage = await get_or_init_storage()
+            with io.BytesIO(content) as file:
+                uploaded = await storage.upload_file(
+                    file,
+                    folder="revealed_files",
+                    filename="video-preview" + (mimetypes.guess_extension(mime_type) or ".mp4"),
+                    content_type=mime_type,
+                    skip_size_limit=True,
+                )
+        return f"{get_base_url_from_runtime(runtime)}/api/upload/file/{uploaded.key}"
+    except Exception as exc:
+        logger.warning("[video_analyze] preview unavailable: error_type=%s", type(exc).__name__)
+        return None
 
 
 async def _download_uploaded_video(ref: str, runtime: Any, max_bytes: int) -> bytes | None:
@@ -226,10 +258,12 @@ async def video_analyze(
         max_bytes = get_video_analysis_max_bytes()
         attachments: list[dict[str, Any]] = []
         videos_meta: list[dict[str, Any]] = []
+        preview_contents: list[tuple[int, bytes, str]] = []
         errors: list[dict[str, Any]] = []
 
         for index, ref in enumerate(refs):
             backend_path = _backend_path_from_image_reference(ref)
+            native_video = backend is not None and backend_path is not None
             # Native paths can use many bounded transfers on older daemons.
             download_timeout = (
                 settings.VIDEO_ANALYSIS_TIMEOUT_SECONDS
@@ -293,6 +327,8 @@ async def video_analyze(
                     continue
                 mime_type = "video/mp4"
 
+            if native_video:
+                preview_contents.append((len(videos_meta), content, mime_type))
             encoded = await run_long_blocking_io(base64.b64encode, content)
             data_url = f"data:{mime_type};base64,{encoded.decode('ascii')}"
             attachments.append(
@@ -343,6 +379,10 @@ async def video_analyze(
         analysis = _content_to_text(getattr(response, "content", response))
         if not analysis.strip():
             return await _json_dumps_result({"success": False, "error": "empty_video_analysis"})
+        for video_index, preview_content, preview_mime in preview_contents:
+            preview_url = await _upload_video_preview(preview_content, preview_mime, runtime)
+            if preview_url:
+                videos_meta[video_index]["preview_url"] = preview_url
         return await _json_dumps_result(
             {
                 "success": True,

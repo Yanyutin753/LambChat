@@ -1414,6 +1414,7 @@
       "toolImageAnalyzeAlt": "Изображение {{index}}",
       "toolVideoAnalyze": "Анализ видео",
       "toolVideoAnalyzeCount": "{{count}} видео",
+      "toolVideoPreviewUnavailable": "Предпросмотр локального видео недоступен. Повторите анализ, чтобы создать его.",
       "toolImageCount": "{{count}} изображений",
       "toolImageGenerate": "Генерация",
       "toolImageGenerateDesc": "Генерация изображений с помощью ИИ",
