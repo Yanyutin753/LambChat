@@ -14,6 +14,7 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { MarkdownContent } from "../MarkdownContent";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -119,15 +120,18 @@ function HistoryQueryChip({
       ) : (
         <History
           size={size === "detail" ? 14 : 12}
-          className="shrink-0 text-sky-500 dark:text-sky-400"
+          className="shrink-0 text-theme-text-tertiary"
         />
       )}
       <span
-        className={`text-sky-600 dark:text-sky-400 ${
-          isSearch ? "" : "font-mono"
-        } font-medium min-w-0 truncate`}
+        title={value}
+        className={`min-w-0 truncate ${isSearch ? "" : "font-mono"} ${
+          isSearch
+            ? "text-sky-600 dark:text-sky-400 font-medium"
+            : "text-12 text-theme-text-tertiary"
+        }`}
       >
-        {isSearch ? truncate(value, 80) : truncate(value, 36)}
+        {isSearch ? truncate(value, 80) : truncate(value, 14)}
       </span>
     </ToolArgsBlock>
   );
@@ -137,21 +141,27 @@ function PreviewLine({
   icon,
   label,
   text,
+  full = false,
 }: {
   icon: React.ReactNode;
   label: string;
   text: string;
+  full?: boolean;
 }) {
   if (!text) return null;
   return (
-    <div className="flex items-start gap-1.5 min-w-0">
-      <span className="inline-flex items-center gap-1 shrink-0 text-10 font-medium text-theme-text-tertiary uppercase tracking-wide mt-0.5">
+    <div className="min-w-0 space-y-2">
+      <div className="flex items-center gap-2 text-12 font-medium text-theme-text-tertiary">
         {icon}
         {label}
-      </span>
-      <span className="text-12 text-theme-text-secondary leading-relaxed min-w-0 break-words line-clamp-2">
-        {text}
-      </span>
+      </div>
+      {full ? (
+        <MarkdownContent content={text} />
+      ) : (
+        <p className="text-12 text-theme-text-secondary leading-relaxed min-w-0 break-words line-clamp-2">
+          {text}
+        </p>
+      )}
     </div>
   );
 }
@@ -169,12 +179,28 @@ function ConversationHistoryDetail({
   const hasRawFallback = !!result && !parsed;
 
   return (
-    <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
-      <HistoryQueryChip toolName={toolName} args={args} size="detail" />
+    <div className="tool-panel-content h-full min-h-0 min-w-0 overflow-y-auto space-y-6 p-4 sm:p-5 [&_pre]:!max-h-none">
+      <div className="space-y-1">
+        {parsed?.kind === "detail" && (
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {parsed.sessionName && (
+              <h3 className="min-w-0 text-16 font-serif font-semibold text-theme-text [overflow-wrap:anywhere]">
+                {parsed.sessionName}
+              </h3>
+            )}
+            <span className="text-12 text-theme-text-tertiary tabular-nums">
+              {t("chat.message.toolHistoryTurnCount", {
+                count: parsed.turns?.length || 0,
+              })}
+            </span>
+          </div>
+        )}
+        <HistoryQueryChip toolName={toolName} args={args} size="detail" />
+      </div>
 
       {parsed?.kind === "search" && parsed.items && parsed.items.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-12 text-theme-text-tertiary px-1">
+        <div className="space-y-5">
+          <div className="text-12 text-theme-text-tertiary">
             {t("chat.message.toolHistorySessionCount", {
               count: parsed.items.length,
             })}
@@ -184,10 +210,10 @@ function ConversationHistoryDetail({
             return (
               <div
                 key={item.session_id + (item.run_id || "") + i}
-                className="tool-result-card border border-theme-border space-y-2"
+                className="min-w-0 space-y-4 border-b border-theme-border pb-5 last:border-0 last:pb-0"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-14 font-serif font-semibold text-theme-text truncate flex-1">
+                <div className="flex flex-wrap items-baseline gap-2 min-w-0">
+                  <span className="min-w-0 text-14 font-serif font-semibold text-theme-text [overflow-wrap:anywhere]">
                     {item.session_name || item.session_id}
                   </span>
                   {badge && <TagBadge>{badge}</TagBadge>}
@@ -215,33 +241,23 @@ function ConversationHistoryDetail({
       )}
 
       {parsed?.kind === "detail" && parsed.turns && parsed.turns.length > 0 && (
-        <div className="space-y-2">
-          {parsed.sessionName && (
-            <div className="flex items-center gap-2 px-1">
-              <span className="text-14 font-semibold text-theme-text truncate">
-                {parsed.sessionName}
-              </span>
-              <span className="shrink-0 text-10 text-theme-text-tertiary tabular-nums">
-                {t("chat.message.toolHistoryTurnCount", {
-                  count: parsed.turns.length,
-                })}
-              </span>
-            </div>
-          )}
+        <div className="space-y-6">
           {parsed.turns.map((turn, i) => (
             <div
               key={turn.run_id || i}
-              className="tool-result-card border border-theme-border space-y-2"
+              className="min-w-0 space-y-5 border-b border-theme-border pb-6 last:border-0 last:pb-0"
             >
               <PreviewLine
                 icon={<User size={10} />}
                 label={t("chat.message.toolHistoryUser")}
                 text={turn.user_message || ""}
+                full
               />
               <PreviewLine
                 icon={<MessageSquareText size={10} />}
                 label={t("chat.message.toolHistoryAssistant")}
                 text={turn.assistant_final || ""}
+                full
               />
             </div>
           ))}

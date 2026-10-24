@@ -1,4 +1,5 @@
-import { memo, useMemo } from "react";
+import { WorkspaceMediaContext } from "../../../../hooks/workspaceMediaContext";
+import { memo, useMemo, useContext } from "react";
 import { Eye, MessageSquareText, ScanSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
@@ -151,6 +152,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
+  const workspace = useContext(WorkspaceMediaContext);
   const { openImage, viewer } = useImagePreviewFallback();
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
@@ -223,9 +225,15 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
             icon: <Eye size={16} />,
             status,
             subtitle: prompt || imageSummary || undefined,
-            fallback: detailContent || undefined,
+            fallback: (
+              <WorkspaceMediaContext.Provider value={workspace}>
+                {detailContent}
+              </WorkspaceMediaContext.Provider>
+            ),
             buildDetail: (data) => (
-              <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+              <WorkspaceMediaContext.Provider value={workspace}>
+                <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+              </WorkspaceMediaContext.Provider>
             ),
             footer: durationFooter,
           });

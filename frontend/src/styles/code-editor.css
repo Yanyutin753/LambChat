@@ -1,10 +1,15 @@
 .code-editor {
+  --code-viewer-divider: var(--theme-border);
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   container: code-editor / inline-size;
+}
+
+.dark .code-editor {
+  --code-viewer-divider: var(--theme-border-hover);
 }
 
 .code-editor > .cm-theme,
@@ -20,7 +25,7 @@
   flex-shrink: 0;
   gap: 4px;
   padding: 4px 8px;
-  background: var(--theme-bg-card);
+  background: var(--theme-bg-code);
 }
 
 .code-editor-toolbar button {

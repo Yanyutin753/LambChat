@@ -268,14 +268,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.FILE_UPLOAD,
         "subcategory": "limits",
         "description": "settingDesc.FILE_UPLOAD_MAX_SIZE_IMAGE",
-        "default": 40,
+        "default": 100,
     },
     "FILE_UPLOAD_MAX_SIZE_VIDEO": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.FILE_UPLOAD,
         "subcategory": "limits",
         "description": "settingDesc.FILE_UPLOAD_MAX_SIZE_VIDEO",
-        "default": 100,
+        "default": 200,
     },
     "FILE_UPLOAD_MAX_SIZE_AUDIO": {
         "type": SettingType.NUMBER,

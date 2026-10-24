@@ -48,9 +48,7 @@ const githubLightStyle = {
     backgroundColor: "rgba(84, 174, 255, 0.3)",
   },
   ".cm-gutters": {
-    backgroundColor: "#fafafa",
     color: "#8b949e",
-    borderRight: "1px solid #d8dee4",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     color: "#8b949e",
@@ -292,9 +290,9 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
             ? "rgba(96, 165, 250, 0.46)"
             : "rgba(37, 99, 235, 0.26)",
         },
-        ".cm-gutters, .cm-gutter": {
-          backgroundColor: "var(--theme-bg-code-gutter) !important",
-          borderRight: "1px solid var(--theme-border-faint)",
+        ".cm-gutters": {
+          backgroundColor: "var(--theme-bg-code) !important",
+          borderRight: "1px solid var(--code-viewer-divider) !important",
         },
         ".cm-lineNumbers .cm-gutterElement": {
           color: "var(--theme-text-tertiary)",

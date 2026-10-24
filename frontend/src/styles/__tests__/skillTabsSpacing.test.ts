@@ -68,6 +68,6 @@ test("skills hub header and search share the list spacing without stacked paddin
     /\.skill-theme-shell > \.panel-header--section-switch\s*\{[^}]*padding-bottom:\s*0;/,
   );
   expect(panelsCss).toMatch(
-    /\.skill-theme-shell \.panel-header--search-only\s*\{[^}]*padding-block:\s*var\(--panel-gap\) 0;/,
+    /\.skill-theme-shell \.panel-header--search-only\s*\{[^}]*padding-block:\s*var\(--panel-gap\);/,
   );
 });

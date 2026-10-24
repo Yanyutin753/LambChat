@@ -192,9 +192,6 @@ class ToolEventMixin:
         tool_call_id = self._get_tool_call_id(event)
 
         raw = await run_long_blocking_io(extract_tool_output, out, urgent=True)
-        is_error, error_message = await run_long_blocking_io(
-            detect_tool_error, out, raw, urgent=True
-        )
 
         result: Any = raw
         if (
@@ -206,6 +203,10 @@ class ToolEventMixin:
             parsed_result = await run_long_blocking_io(_parse_tool_result_json, raw, urgent=True)
             if parsed_result is not None:
                 result = parsed_result
+
+        is_error, error_message = await run_long_blocking_io(
+            detect_tool_error, out, result, urgent=True
+        )
 
         if isinstance(result, dict) and "blocks" in result:
             await upload_binary_blocks(result, self._base_url)

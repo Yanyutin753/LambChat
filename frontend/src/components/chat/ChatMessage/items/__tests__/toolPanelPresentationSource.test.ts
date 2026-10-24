@@ -23,8 +23,9 @@ test("tool panels theme the editor surface and keep content clear of its toolbar
     /\.tool-console-body__content\s*\{[^}]*--theme-bg-code:\s*var\(--theme-bg-card\)/,
   );
   expect(css).toMatch(
-    /\.tool-panel-code \.code-editor-toolbar\s*\{[^}]*border-bottom:/,
+    /\.tool-panel-code \.code-editor-toolbar\s*\{[^}]*border-bottom: 1px solid var\(--code-viewer-divider\);/,
   );
+  expect(css).not.toContain("--theme-bg-code-gutter: var(--theme-bg-subtle)");
   const viewer = readFileSync(
     new URL("../../../../common/CodeMirrorViewer.tsx", import.meta.url),
     "utf8",

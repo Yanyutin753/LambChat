@@ -111,7 +111,7 @@ async def test_video_permanent_model_error_is_not_retried(monkeypatch):
 async def test_video_model_total_deadline(monkeypatch):
     from src.infra.tool import video_analysis_tool as module
 
-    monkeypatch.setattr(module, "_MODEL_TIMEOUT_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(module.settings, "VIDEO_ANALYSIS_TIMEOUT_SECONDS", 0.01, raising=False)
 
     async def hang(*args, **kwargs):
         await asyncio.Event().wait()
@@ -229,9 +229,9 @@ def test_guess_video_mime_type_by_magic_bytes() -> None:
 def test_video_analysis_max_bytes_defaults_and_setting(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.infra.tool import video_analysis_tool
 
-    # 0/负值视为未配置 → 回落默认 50MB（pydantic v2 字段删不得：类上无兜底属性）
+    # 0/负值视为未配置 → 回落默认 200MB（pydantic v2 字段删不得：类上无兜底属性）
     monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MAX_BYTES", 0)
-    assert video_analysis_tool.get_video_analysis_max_bytes() == (50 * 1024 * 1024)
+    assert video_analysis_tool.get_video_analysis_max_bytes() == (200 * 1024 * 1024)
 
     monkeypatch.setattr(video_analysis_tool.settings, "VIDEO_ANALYSIS_MAX_BYTES", 1024 * 1024)
     assert video_analysis_tool.get_video_analysis_max_bytes() == 1024 * 1024
@@ -518,3 +518,35 @@ async def test_uploaded_video_rechecks_file_read_before_storage(monkeypatch):
     with pytest.raises(AppError):
         await module._download_uploaded_video("/api/upload/file/videos/clip.mp4", _Runtime(), 100)
     lookup.assert_not_awaited()
+
+
+@pytest.mark.parametrize("count", [1, 2])
+async def test_large_video_is_compacted_before_native_model_request(
+    monkeypatch, video_model, count
+):
+    from src.infra.tool import video_analysis_tool as module
+
+    monkeypatch.setattr(
+        module,
+        "settings",
+        SimpleNamespace(**{**module.settings.model_dump(), "VIDEO_ANALYSIS_INLINE_MAX_BYTES": 64}),
+    )
+    original = _mp4_bytes() + b"x" * 100
+    backend = SimpleNamespace(
+        adownload_files=AsyncMock(return_value=[SimpleNamespace(content=original, error=None)])
+    )
+    compact = AsyncMock(return_value=_mp4_bytes())
+    monkeypatch.setattr(module, "compress_video", compact, raising=False)
+    result = json.loads(
+        await module.video_analyze.coroutine(
+            video_urls=["/workspace/a.mp4"] * count, runtime=_Runtime(backend)
+        )
+    )
+    assert result["success"] is True
+    assert compact.await_count == count
+    assert compact.call_args.args[1] == 64 // count
+    assert result["videos"][0]["compressed"] is True
+    assert result["videos"][0]["size_bytes"] == len(original)
+    assert result["videos"][0]["analysis_size_bytes"] == len(_mp4_bytes())
+    sent = video_model[1].ainvoke.call_args.args[0][0].content
+    assert base64.b64decode(sent[1]["base64"]) == _mp4_bytes()

@@ -66,9 +66,12 @@ test("MCP form groups do not double their spacing with empty divider rows", () =
   );
 });
 
-test("search headers leave the search-to-content gap to the panel body", () => {
+test("panel headers retain the content gap outside the scrolling body", () => {
   expect(layout).toMatch(
-    /\[data-panel\] \.panel-header\.panel-header--has-search\s*\{\s*padding-bottom:\s*0;/,
+    /\[data-panel\] \.panel-header\s*\{\s*padding-bottom:\s*var\(--panel-gap\);/,
+  );
+  expect(layout).toMatch(
+    /\[data-panel\] \.panel-body\s*\{[^}]*padding:\s*0 var\(--panel-inset\) var\(--panel-gap\);/,
   );
 });
 
@@ -77,7 +80,7 @@ test("file title and toolbar share the same search header spacing", () => {
     /\[data-panel="files"\] \.panel-header\.panel-header--desktop-identity\s*\{\s*padding-bottom:\s*0;/,
   );
   expect(layout).toMatch(
-    /\[data-panel\] \.file-library-toolbar\s*\{\s*padding-block:\s*var\(--panel-gap\) 0;/,
+    /\[data-panel\] \.file-library-toolbar\s*\{\s*padding-block:\s*var\(--panel-gap\);/,
   );
 });
 

@@ -22,11 +22,13 @@ export function ToolCallGroup({
   count,
   category,
   stateKey,
+  isPending = false,
   renderExpanded,
 }: {
   count: number;
   category: ToolGroupCategory;
   stateKey: string;
+  isPending?: boolean;
   renderExpanded: () => ReactNode;
 }) {
   const { t } = useTranslation();
@@ -41,6 +43,7 @@ export function ToolCallGroup({
             type="button"
             className="chat-tool-call-group__toggle"
             aria-expanded={expanded}
+            aria-busy={isPending}
             aria-controls={expanded ? contentId : undefined}
             onClick={() => setExpanded(!expanded)}
           >
@@ -50,7 +53,10 @@ export function ToolCallGroup({
               </InteractiveIcon>
             </span>
             <span className="min-w-0 flex-1 truncate text-left">
-              {t(`chat.message.${labels[category]}`, { count })}
+              {t(
+                `chat.message.${labels[category]}${isPending ? "Pending" : ""}`,
+                { count },
+              )}
             </span>
             <span className="chat-tool-call-group__chevron" aria-hidden="true">
               <ChevronRight

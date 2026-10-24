@@ -28,7 +28,7 @@ async def test_stream_preview_does_not_buffer_or_base64_encode():
     assert await anext(result) == b"\xff"
 
 
-@pytest.mark.parametrize("path", ["image.PNG", "archive.zip", "report.pdf"])
+@pytest.mark.parametrize("path", ["image.PNG", "drawing.svg", "archive.zip", "report.pdf"])
 async def test_binary_preview_transfers_exact_bytes_without_text_read(path):
     async def read(*_args):
         raise AssertionError("binary previews must not read lossy text")
