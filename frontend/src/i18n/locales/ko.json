@@ -1402,6 +1402,7 @@
       "toolImageAnalyzeAlt": "이미지 {{index}}",
       "toolVideoAnalyze": "동영상 분석",
       "toolVideoAnalyzeCount": "동영상 {{count}}개",
+      "toolVideoPreviewUnavailable": "이 로컬 동영상의 미리보기가 없습니다. 다시 분석하면 생성할 수 있습니다.",
       "toolImageCount": "{{count}}개 이미지",
       "toolImageGenerate": "생성",
       "toolImageGenerateDesc": "AI 기반 이미지 생성",
