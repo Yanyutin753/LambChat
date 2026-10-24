@@ -175,12 +175,18 @@ class S3StorageService:
     ) -> UploadResult:
         """Upload a file to storage with retry on transient failures."""
         generated_context = None
-        if folder in ("revealed_files", "tool_binaries") or folder.startswith("revealed_projects/"):
+        if folder in ("revealed_files", "tool_binaries") or folder.startswith(
+            ("revealed_projects/", "generated-images/")
+        ):
             from src.infra.logging.context import TraceContext
 
             generated_context = TraceContext.get_request_context()
             if not generated_context.user_id:
                 raise ValueError("Generated files require an owner")
+            if folder.startswith("generated-images/") and folder != (
+                f"generated-images/{generated_context.user_id}"
+            ):
+                raise ValueError("Generated image folder must match its owner")
         # Check file size via current position
         start_pos = await run_long_blocking_io(file.tell)
         if not skip_size_limit:

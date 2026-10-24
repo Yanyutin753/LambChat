@@ -32,10 +32,10 @@ def indexed_files(row: dict, base_url: str) -> list[tuple[str, str]]:
             if not isinstance(metadata, dict):
                 return []
             files = metadata.get("files", [])
-            if not isinstance(files, list):
+            if not isinstance(files, (dict, list)):
                 return []
             result = []
-            for item in files:
+            for item in files.values() if isinstance(files, dict) else files:
                 if not isinstance(item, dict) or not isinstance(item.get("url"), str):
                     continue
                 try:

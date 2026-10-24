@@ -28,6 +28,7 @@ export interface SharedSession {
   session_ids?: string[];
   visibility: ShareVisibility;
   created_at: string;
+  allow_files: boolean;
 }
 
 export interface ShareCreate {
@@ -38,6 +39,7 @@ export interface ShareCreate {
   share_scope?: ShareScope;
   project_id?: string;
   session_ids?: string[];
+  allow_files?: boolean;
 }
 
 export interface ShareUpdate {
@@ -45,6 +47,7 @@ export interface ShareUpdate {
   run_ids?: string[];
   session_ids?: string[];
   visibility?: ShareVisibility;
+  allow_files?: boolean;
 }
 
 export interface ShareResponse {
@@ -59,6 +62,7 @@ export interface ShareResponse {
   run_ids?: string[];
   session_ids?: string[];
   created_at: string;
+  allow_files: boolean;
 }
 
 export interface ShareListResponse {

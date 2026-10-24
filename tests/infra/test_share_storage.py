@@ -60,6 +60,7 @@ async def test_get_by_share_id_defaults_legacy_share_fields() -> None:
     assert share.visibility == ShareVisibility.PUBLIC
     assert share.run_ids is None
     assert share.updated_at == created_at
+    assert share.allow_files is False
 
 
 @pytest.mark.asyncio
@@ -97,3 +98,45 @@ async def test_update_changes_share_settings_without_changing_public_id() -> Non
     assert share.visibility == ShareVisibility.AUTHENTICATED
     assert share.updated_at > created_at
     assert collection.update_query == {"_id": share_db_id, "owner_id": "owner-1"}
+
+
+@pytest.mark.parametrize("allow_files", [False, True])
+async def test_file_consent_round_trips_create_list_and_update(allow_files):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.kernel.schemas.share import ShareCreate
+
+    storage = ShareStorage()
+    created_id = ObjectId()
+    insert = AsyncMock(return_value=SimpleNamespace(inserted_id=created_id))
+    storage._collection = SimpleNamespace(insert_one=insert)
+    created = await storage.create(
+        ShareCreate(session_id="session-1", allow_files=allow_files), "owner-1"
+    )
+    doc = {**insert.call_args.args[0], "_id": created_id}
+    assert doc["allow_files"] is allow_files
+    assert created.allow_files is allow_files
+    assert storage._build_shared_session(doc).allow_files is allow_files
+    assert storage._build_list_item(doc).allow_files is allow_files
+
+    collection = _FakeUpdateShareCollection(doc)
+    storage._collection = collection
+    updated = await storage.update(
+        str(created_id),
+        owner_id="owner-1",
+        share_type=ShareType.FULL,
+        run_ids=None,
+        visibility=ShareVisibility.PUBLIC,
+        allow_files=not allow_files,
+    )
+    assert updated.allow_files is not allow_files
+    assert updated.updated_at > created.updated_at
+    await storage.update(
+        str(created_id),
+        owner_id="owner-1",
+        share_type=ShareType.FULL,
+        run_ids=None,
+        visibility=ShareVisibility.AUTHENTICATED,
+    )
+    assert collection.doc["allow_files"] is not allow_files

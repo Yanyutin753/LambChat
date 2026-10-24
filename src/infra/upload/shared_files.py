@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 from collections.abc import Callable
 from html import escape, unescape
 from typing import Any
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 from src.infra.upload.access import file_access_url, upload_key_from_url, validate_file_key
 from src.infra.upload.file_record import get_file_record_storage
@@ -17,6 +19,7 @@ TEXT_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 _FILE_URL = re.compile(
     r"""(?:https?:)?//[^\s<>"')\]}]+|(?<![^\s<>"'(\[{=])/api/upload/file/[^\s<>"'\\)\]}]+"""
 )
+_CAPABILITY_URL = re.compile(r"""(?:(?:https?:)?//|(?<![^\s<>"'(\[{=])/)[^\s<>"')\]}]+""")
 _HTML = re.compile(r"<\s*(?:!--|!doctype\b|/?[a-z][\w:-]*(?:\s[^<>]*|/?)>)", re.I)
 _ACTIVE_TYPES = {"html", "code", "javascript", "js", "typescript", "ts", "jsx", "tsx", "css", "svg"}
 _ACTIVE_MIME_TYPES = {
@@ -106,22 +109,19 @@ def _map_file_urls(value: Any, transform: Callable[[str], str], *, skip_active: 
     if isinstance(value, list):
         return [_map_file_urls(child, transform, skip_active=skip_active) for child in value]
     if isinstance(value, str):
-        if skip_active:
-            if value.lstrip().startswith(("{", "[", '"')):
-                try:
-                    decoded = json.loads(value)
-                except (ValueError, RecursionError):
-                    pass
-                else:
-                    if isinstance(decoded, (dict, list, str)):
-                        projected = _map_file_urls(decoded, transform, skip_active=True)
-                        return (
-                            value
-                            if projected == decoded
-                            else json.dumps(projected, ensure_ascii=False)
-                        )
-            if _HTML.search(value):
-                return value
+        if value.lstrip().startswith(("{", "[", '"')):
+            try:
+                decoded = json.loads(value)
+            except (ValueError, RecursionError):
+                pass
+            else:
+                if isinstance(decoded, (dict, list, str)):
+                    projected = _map_file_urls(decoded, transform, skip_active=skip_active)
+                    return (
+                        value if projected == decoded else json.dumps(projected, ensure_ascii=False)
+                    )
+        if skip_active and _HTML.search(value):
+            return value
         return transform(value)
     return value
 
@@ -145,6 +145,15 @@ async def owned_file_keys(keys: set[str], owner_id: str) -> set[str]:
     }
     # Never let an old index override a current owner, deletion or capture boundary.
     missing = keys - existing.keys()
+    # The server image generator reserved this user namespace before ownership records existed.
+    owned.update(
+        key
+        for key in missing
+        if owner_id not in ("anonymous", "default")
+        and key.startswith(f"generated-images/{owner_id}/")
+        and key.count("/") == 2
+        and "%" not in key
+    )
     if missing:
         from src.infra.revealed_file.storage import get_revealed_file_storage
         from src.infra.upload.generated_ownership import indexed_files
@@ -176,6 +185,37 @@ async def authorize_owned_files(
     skip_active: bool = False,
     xml_urls: bool = False,
 ) -> Any:
+    if share is not None:
+
+        def remove_existing_token(text: str) -> str:
+            def clean(match):
+                url = match.group()
+                decoded = unescape(url)
+                try:
+                    parsed = urlsplit(decoded)
+                except ValueError:
+                    return url
+                # Redact old credentials even when browsers normalize the origin or path.
+                if "/api/upload/file/" not in posixpath.normpath(
+                    unquote(parsed.path).replace("\\", "/")
+                ):
+                    return url
+                query = parse_qsl(parsed.query, keep_blank_values=True)
+                if not any(k == "file_token" for k, _ in query):
+                    return url
+                cleaned = urlunsplit(
+                    parsed._replace(
+                        query=urlencode([(k, v) for k, v in query if k != "file_token"])
+                    )
+                )
+                return escape(cleaned, quote=True) if decoded != url else cleaned
+
+            return _CAPABILITY_URL.sub(clean, text)
+
+        value = _map_file_urls(value, remove_existing_token, skip_active=False)
+        if not getattr(share, "allow_files", False):
+            return value
+
     urls: dict[str, str] = {}
 
     def collect(text: str) -> str:
@@ -197,8 +237,6 @@ async def authorize_owned_files(
             url_to_sign = unescape(url) if xml_urls else url
             signed = file_access_url(url_to_sign, key, share=share)
             if resolve_resources:
-                from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-
                 parsed = urlsplit(signed)
                 query = dict(parse_qsl(parsed.query))
                 query["resolve_resources"] = "true"

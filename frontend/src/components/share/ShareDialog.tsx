@@ -58,6 +58,7 @@ export function ShareDialog({
   const { t } = useTranslation();
   const [shareType, setShareType] = useState<ShareType>("full");
   const [visibility, setVisibility] = useState<ShareVisibility>("public");
+  const [allowFiles, setAllowFiles] = useState(false);
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
   const [existingShares, setExistingShares] = useState<SharedSession[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -132,6 +133,8 @@ export function ShareDialog({
   useEffect(() => {
     if (!isOpen) {
       setShareType("full");
+      setVisibility("public");
+      setAllowFiles(false);
       setSelectedRunIds([]);
       setExistingShares([]);
       setRuns([]);
@@ -145,6 +148,7 @@ export function ShareDialog({
   }, [isOpen]);
 
   const handleCreateShare = async () => {
+    if (isCreating) return;
     setIsCreating(true);
     try {
       const response = await shareApi.create({
@@ -152,6 +156,7 @@ export function ShareDialog({
         share_type: shareType,
         run_ids: shareType === "partial" ? selectedRunIds : undefined,
         visibility,
+        allow_files: allowFiles,
       });
 
       // Copy link to clipboard
@@ -165,6 +170,7 @@ export function ShareDialog({
       }
 
       // Refresh shares list
+      setAllowFiles(false);
       await loadExistingShares();
     } catch (error) {
       console.error("Failed to create share:", error);
@@ -175,7 +181,7 @@ export function ShareDialog({
   };
 
   const handleSaveShare = async () => {
-    if (!editingShare) return;
+    if (!editingShare || isCreating) return;
 
     setIsCreating(true);
     try {
@@ -183,10 +189,12 @@ export function ShareDialog({
         share_type: shareType,
         run_ids: shareType === "partial" ? selectedRunIds : undefined,
         visibility,
+        allow_files: allowFiles,
       });
 
       toast.success(t("share.updateSuccess"));
       setEditingShare(null);
+      setAllowFiles(false);
       await loadExistingShares();
     } catch (error) {
       console.error("Failed to update share:", error);
@@ -200,6 +208,7 @@ export function ShareDialog({
     setEditingShare(share);
     setShareType(share.share_type);
     setVisibility(share.visibility);
+    setAllowFiles(share.allow_files ?? false);
     setSelectedRunIds(
       share.share_type === "partial" ? share.run_ids || [] : [],
     );
@@ -209,6 +218,7 @@ export function ShareDialog({
     setEditingShare(null);
     setShareType("full");
     setVisibility("public");
+    setAllowFiles(false);
     setSelectedRunIds([]);
   };
 
@@ -449,6 +459,23 @@ export function ShareDialog({
               </button>
             </div>
           </div>
+
+          <label className="flex items-start gap-3 text-theme-text-secondary">
+            <Checkbox
+              ariaLabel={t("share.allowFiles")}
+              checked={allowFiles}
+              onChange={() => setAllowFiles((value) => !value)}
+              disabled={isCreating}
+            />
+            <span className="min-w-0">
+              <span className="block text-14 font-medium">
+                {t("share.allowFiles")}
+              </span>
+              <span className="mt-1 block text-12 text-theme-text-tertiary">
+                {t("share.allowFilesDesc")}
+              </span>
+            </span>
+          </label>
 
           {/* Existing shares */}
           {shouldShowExistingSharesSkeleton({

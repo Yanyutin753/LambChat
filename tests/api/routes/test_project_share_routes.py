@@ -331,6 +331,7 @@ async def test_update_project_partial_visibility_keeps_stale_membership_snapshot
             run_ids,
             visibility,
             session_ids,
+            allow_files,
         ):
             return share.model_copy(
                 update={
@@ -339,6 +340,7 @@ async def test_update_project_partial_visibility_keeps_stale_membership_snapshot
                     "run_ids": run_ids,
                     "visibility": visibility,
                     "session_ids": session_ids,
+                    "allow_files": allow_files,
                 }
             )
 
