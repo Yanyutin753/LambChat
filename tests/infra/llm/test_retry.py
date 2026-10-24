@@ -358,3 +358,74 @@ async def test_direct_retry_preserves_simple_ainvoke_interface_without_config():
             return "answer"
 
     assert await ainvoke_with_retry(SimpleModel(), "question") == "answer"
+
+
+async def test_auxiliary_rate_limit_retry_logs_safe_model_channel_and_reason(caplog):
+    import anthropic
+
+    request = httpx.Request(
+        "POST",
+        "https://private.invalid/v1/messages?key=query-secret",
+        headers={"Authorization": "Bearer header-secret"},
+    )
+    error = anthropic.RateLimitError(
+        "body-secret account-secret",
+        response=httpx.Response(429, request=request),
+        body={"error": {"type": "1302", "message": "body-secret account-secret"}},
+    )
+    model = _Model([error])
+    model.model = "claude-title"
+    model.quota_provider = "anthropic-proxy"
+    model.quota_model_config_id = "title-channel"
+    model._llm_type = "anthropic-chat"
+
+    result = await ainvoke_with_retry(
+        model, "private user prompt", operation="recommend-questions", max_retries=1, retry_delay=0
+    )
+
+    assert result == "ok"
+    assert model.calls == 2
+    assert "recommend-questions" in caplog.text
+    assert "model=claude-title" in caplog.text
+    assert "model_config_id=title-channel" in caplog.text
+    assert "provider=anthropic-proxy" in caplog.text
+    assert "protocol=anthropic-chat" in caplog.text
+    assert "status=429" in caplog.text
+    assert "reason=rate_limit" in caplog.text
+    for secret in (
+        "private.invalid",
+        "query-secret",
+        "header-secret",
+        "body-secret",
+        "account-secret",
+        "private user prompt",
+    ):
+        assert secret not in caplog.text
+
+
+async def test_auxiliary_fallback_logs_primary_identity_and_failure_reason(monkeypatch, caplog):
+    from unittest.mock import AsyncMock
+
+    primary = _Model([_openai_status_error(openai_module.RateLimitError, 429)])
+    primary.model_name = "primary-model"
+    primary._llm_type = "openai-chat"
+    primary.quota_provider = "openai-proxy"
+    primary.quota_model_config_id = "primary-channel"
+    monkeypatch.setattr(
+        "src.infra.llm.client.LLMClient.get_model", AsyncMock(return_value=_Model([]))
+    )
+
+    assert (
+        await ainvoke_with_retry(
+            primary, "prompt", max_retries=0, operation="auxiliary", fallback_model="backup"
+        )
+        == "ok"
+    )
+
+    assert "model=primary-model" in caplog.text
+    assert "model_config_id=primary-channel" in caplog.text
+    assert "provider=openai-proxy" in caplog.text
+    assert "protocol=openai-chat" in caplog.text
+    assert "status=429" in caplog.text
+    assert "reason=rate_limit" in caplog.text
+    assert "backup" in caplog.text

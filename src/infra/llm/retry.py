@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
@@ -159,6 +160,55 @@ class EmptyModelResponseError(RuntimeError):
     """A completed model call returned no final answer or tool calls."""
 
 
+def model_failure_context(model: Any, exc: BaseException | None = None) -> str:
+    """Bounded diagnostic labels; never serialize clients, URLs or upstream error bodies."""
+    model = getattr(model, "bound", model)
+
+    def label(value: Any) -> str:
+        if (
+            isinstance(value, str)
+            and re.fullmatch(r"[\w./:+-]{1,160}", value)
+            and "://" not in value
+        ):
+            return value
+        return "unknown"
+
+    status = None
+    if exc is not None:
+        for current in _exception_chain(exc):
+            candidate = (
+                getattr(current, "status_code", None)
+                or getattr(getattr(current, "response", None), "status_code", None)
+                or getattr(current, "code", None)
+            )
+            if type(candidate) is int and 100 <= candidate <= 599:
+                status = candidate
+                break
+    reason = (
+        "invalid_output"
+        if exc is None
+        else "auth"
+        if is_auth_model_error(exc)
+        else "rate_limit"
+        if status == 429
+        else "transient"
+        if is_retryable_model_error(exc)
+        else "error"
+    )
+    fields = {
+        "model": model
+        if isinstance(model, str)
+        else getattr(model, "model_name", None) or getattr(model, "model", None),
+        "model_config_id": getattr(model, "quota_model_config_id", None),
+        "provider": getattr(model, "quota_provider", None),
+        "protocol": getattr(model, "_llm_type", None),
+        "status": str(status) if status is not None else "unknown",
+        "reason": reason,
+        "error_type": type(exc).__name__ if exc is not None else "invalid_output",
+    }
+    return " ".join(f"{key}={label(value)}" for key, value in fields.items())
+
+
 class _ModelOutputTracker(AsyncCallbackHandler):
     """Never replay an invocation after its stream has delivered content."""
 
@@ -257,9 +307,10 @@ async def ainvoke_with_retry(
                     from src.infra.llm.client import LLMClient
 
                     logger.warning(
-                        "[%s] primary failed with %s; switching to fallback",
+                        "[%s] primary failed: %s; switching to fallback %s",
                         operation,
-                        type(exc).__name__,
+                        model_failure_context(model, exc),
+                        fallback_model,
                     )
                     # Cross-model histories lack the primary model's reasoning blocks.
                     fallback = await LLMClient.get_model(model=fallback_model, thinking=None)
@@ -281,9 +332,9 @@ async def ainvoke_with_retry(
                 raise
             delay = min(base_delay * (2**attempt), 60.0)
             logger.warning(
-                "[%s] model call failed with %s (attempt %d/%d); retrying in %.1fs",
+                "[%s] model call failed: %s (attempt %d/%d); retrying in %.1fs",
                 operation,
-                type(exc).__name__,
+                model_failure_context(model, exc),
                 attempt + 1,
                 retries + 1,
                 delay,
