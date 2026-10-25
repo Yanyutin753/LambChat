@@ -5,12 +5,14 @@ import { filterSendableAttachments } from "./attachmentValidation";
 import {
   moveSubmittedDraftToOutbox,
   restoreRejectedDraft,
+  mergeComposerDrafts,
   type DraftStateBindings,
 } from "./acceptedDraftCleanup";
 import type {
   LongTextPastePayload,
   RichChatComposerHandle,
 } from "./richComposer/RichChatComposer";
+import { updateChatDraft } from "./chatDraftStore";
 
 interface PreparedSubmission {
   message: string;
@@ -20,6 +22,7 @@ interface PreparedSubmission {
 interface UseAcceptedDraftSubmissionOptions
   extends Omit<DraftStateBindings, "composer" | "longTextResources"> {
   enabled: boolean;
+  draftKey?: string;
   input: string;
   enabledSkillNames: string[] | null;
   runModes?: Array<"auto" | "goal">;
@@ -37,6 +40,7 @@ interface UseAcceptedDraftSubmissionOptions
 }
 
 export function useAcceptedDraftSubmission({
+  draftKey,
   enabled,
   input,
   enabledSkillNames,
@@ -96,7 +100,26 @@ export function useAcceptedDraftSubmission({
         Object.keys(runOptions).length > 0 ? runOptions : undefined,
         {
           onAccepted: () => undefined,
-          onRejected: () => restoreRejectedDraft(submittedDraft, draftState),
+          onRejected: () => {
+            if (draftKey && composerRef.current !== composer) {
+              updateChatDraft(draftKey, (draft) => ({
+                composer: draft.composer
+                  ? mergeComposerDrafts(submittedDraft.composer, draft.composer)
+                  : submittedDraft.composer,
+                attachments: [
+                  ...submittedDraft.attachments.filter(
+                    (item) =>
+                      !draft.attachments.some(
+                        (current) => current.id === item.id,
+                      ),
+                  ),
+                  ...draft.attachments,
+                ],
+              }));
+            } else {
+              restoreRejectedDraft(submittedDraft, draftState);
+            }
+          },
         },
       );
     },
@@ -104,6 +127,7 @@ export function useAcceptedDraftSubmission({
       activeReferenceIds,
       agentOptionValues,
       composerRef,
+      draftKey,
       enabled,
       enabledSkillNames,
       input,

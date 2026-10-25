@@ -15,6 +15,11 @@ const chatSource = readFileSync(
 );
 
 describe("CollapsiblePill alignment", () => {
+  test("centers suffix badges without an inline text baseline offset", () => {
+    expect(animationSource).toMatch(
+      /\.pill-btn__suffix\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/,
+    );
+  });
   test("uses the body text weight for disclosure labels and tool groups", () => {
     expect(animationSource).toMatch(/\.pill-btn\s*\{[^}]*font-normal/);
     expect(chatSource).toMatch(

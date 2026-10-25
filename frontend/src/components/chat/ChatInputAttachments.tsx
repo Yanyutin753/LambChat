@@ -72,7 +72,9 @@ export function ChatInputAttachments({
                 : undefined
             }
             onRetry={
-              attachment.uploadError && onRetryUpload
+              attachment.uploadError &&
+              attachment.composerReferenceId &&
+              onRetryUpload
                 ? () => onRetryUpload(attachment)
                 : undefined
             }

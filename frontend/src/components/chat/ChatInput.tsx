@@ -13,7 +13,10 @@ import { resolveAgentDisplayName } from "../agent/agentCatalog";
 import { ChatInputPlaceholder } from "./ChatInputPlaceholder";
 import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
-import { useLongTextConversion } from "../../hooks/useLongTextConversion";
+import {
+  useLongTextConversion,
+  useRetryFileReference,
+} from "../../hooks/useLongTextConversion";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useNotifyTodayUsageRefresh } from "../../hooks/useTodayUsageCost";
 import { useAuth } from "../../hooks/useAuth";
@@ -60,8 +63,11 @@ import {
   handleEnterSubmit,
 } from "./chatInputRunningSend";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
+import { useChatDraftAttachments } from "./chatDraftStore";
+import { useChatDraftComposer } from "./useChatDraftComposer";
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
+  draftKey,
   onSend,
   onStop,
   onSupplement,
@@ -143,13 +149,19 @@ export const ChatInput = memo(function ChatInput({
   onToggleGoalMode,
 }: ChatInputProps) {
   const { t, i18n } = useTranslation();
-  const [input, setInput] = useState("");
-  const inputValueRef = useRef("");
   const composerRef = useRef<RichChatComposerHandle>(null);
+  const { initialDraft, initialProjection, saveDraft } = useChatDraftComposer(
+    draftKey,
+    composerRef,
+  );
+  const [input, setInput] = useState(initialProjection?.message ?? "");
+  const inputValueRef = useRef(input);
   const focusComposerAtEnd = useCallback(() => {
     requestAnimationFrame(() => composerRef.current?.focus({ atEnd: true }));
   }, []);
-  const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>([]);
+  const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>(
+    initialProjection?.activeReferenceIds ?? [],
+  );
   const longTextResourcesRef = useRef(new Map<string, LongTextPastePayload>());
   useEffect(() => {
     if (pendingInput) {
@@ -163,10 +175,13 @@ export const ChatInput = memo(function ChatInput({
   const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [runEnabledSkillNames, setRunEnabledSkillNames] = useState<
     string[] | null
-  >(null);
-  const [internalAttachments, setInternalAttachments] = useState<
-    MessageAttachment[]
-  >([]);
+  >(
+    initialProjection?.enabledSkills.length
+      ? initialProjection.enabledSkills
+      : null,
+  );
+  const [internalAttachments, setInternalAttachments] =
+    useChatDraftAttachments(draftKey);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
@@ -366,16 +381,20 @@ export const ChatInput = memo(function ChatInput({
       setComposerPlainText,
     ],
   );
-  const handleComposerChange = useCallback((change: RichChatComposerChange) => {
-    const { projection } = change;
-    inputValueRef.current = projection.message;
-    setInput(projection.message);
-    setCursorPosition(projection.message.length);
-    setActiveReferenceIds(projection.activeReferenceIds);
-    setRunEnabledSkillNames(
-      projection.enabledSkills.length > 0 ? projection.enabledSkills : null,
-    );
-  }, []);
+  const handleComposerChange = useCallback(
+    (change: RichChatComposerChange) => {
+      saveDraft(change.snapshot);
+      const { projection } = change;
+      inputValueRef.current = projection.message;
+      setInput(projection.message);
+      setCursorPosition(projection.message.length);
+      setActiveReferenceIds(projection.activeReferenceIds);
+      setRunEnabledSkillNames(
+        projection.enabledSkills.length > 0 ? projection.enabledSkills : null,
+      );
+    },
+    [saveDraft],
+  );
   const handleLongTextCreate = useCallback(
     (payload: LongTextPastePayload) => {
       longTextResourcesRef.current.set(payload.referenceId, payload);
@@ -388,27 +407,13 @@ export const ChatInput = memo(function ChatInput({
     },
     [t, uploadFile],
   );
-  const handleRetryFileReference = useCallback(
-    (referenceId: string) => {
-      const resource = longTextResourcesRef.current.get(referenceId);
-      if (!resource) return;
-      setAttachments((previous) =>
-        previous.filter(
-          (attachment) => attachment.composerReferenceId !== referenceId,
-        ),
-      );
-      composerRef.current?.updateFileReference({
-        referenceId,
-        status: "uploading",
-      });
-      uploadFile(
-        resource.file,
-        "document",
-        buildLongTextClientMeta(resource.originalText, referenceId),
-      );
-    },
-    [setAttachments, uploadFile],
-  );
+  const handleRetryFileReference = useRetryFileReference({
+    attachments,
+    setAttachments,
+    composerRef,
+    longTextResourcesRef,
+    uploadFile,
+  });
   const handleRestoreLongTextAttachment = useCallback(
     (attachment: MessageAttachment) => {
       const referenceId = attachment.composerReferenceId;
@@ -586,6 +591,7 @@ export const ChatInput = memo(function ChatInput({
     !hasFailedAttachment &&
     !hasInvalidAttachment;
   const handleSubmit = useAcceptedDraftSubmission({
+    draftKey,
     enabled: canSubmit,
     input,
     enabledSkillNames: runEnabledSkillNames,
@@ -790,6 +796,7 @@ export const ChatInput = memo(function ChatInput({
                     ) : null}
                     <div className="relative min-h-0 flex-1">
                       <RichChatComposer
+                        initialSnapshot={initialDraft}
                         ref={composerRef}
                         focusRequest={focusRequest}
                         ariaLabel={t("chat.messageInput", "Message")}

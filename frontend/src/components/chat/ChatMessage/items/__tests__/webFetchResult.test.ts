@@ -73,3 +73,13 @@ test("web fetch item presents url, content reader and live panel", () => {
   expect(source).toMatch(/ToolInlineDetails/);
   expect(source).toMatch(/parseWebFetchResult/);
 });
+
+test("web fetch result card grows with its content inside the panel scroller", () => {
+  const source = readFileSync(
+    new URL("../WebFetchItem.tsx", import.meta.url),
+    "utf8",
+  );
+  const card = source.match(/className="(tool-result-card[^"]*)"/)?.[1];
+  expect(card).toContain("shrink-0");
+  expect(card).not.toMatch(/\b(?:min-h-0|flex-1)\b/);
+});

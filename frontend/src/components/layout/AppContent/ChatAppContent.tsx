@@ -70,8 +70,6 @@ export function ChatAppContent({
   const ensureResumeStreamRef = useRef<
     (runId?: string | null, sourceSessionId?: string | null) => void
   >(() => {});
-  const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
-    useDragAndDrop();
   const {
     approvals,
     refresh: refreshApprovals,
@@ -251,6 +249,12 @@ export function ChatAppContent({
     if (sourceSessionId && sourceSessionId !== sessionId) return;
     void reconnectSSE(runId);
   };
+  const {
+    draftKey,
+    isPageDragging,
+    pageDragAttachments,
+    setPageDragAttachments,
+  } = useDragAndDrop(user?.id, sessionId);
   useApprovalRefresh(sessionId, refreshApprovals);
   const switchToPersonaAgentMode = useCallback(() => {
     if (currentAgent !== "team") return;
@@ -302,8 +306,7 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 右侧会话文件面板：沙箱模式/选机/工作区绑定——任一切换都驱动
-  // 面板重新解析工作区（云端提示、reveal 菜单、树重置）
+  // 沙箱模式、选机或工作区绑定变化后，文件面板重新解析工作区。
   const workspaceModeForShell =
     typeof agentOptionValues?.sandbox === "string"
       ? agentOptionValues.sandbox
@@ -326,8 +329,7 @@ export function ChatAppContent({
   const [sessionModelSelection, setSessionModelSelection] =
     useState<ModelSelection | null>(null);
 
-  // 当前选中模型是否支持思考：undefined 表示未知（未加载/未选中），仅明确 false 时
-  // 隐藏思考强度控件（能力由后端按 provider+模型名门控计算下发）
+  // 仅后端能力明确为 false 时隐藏思考控件；undefined 表示未知。
   const modelSupportsThinking = useMemo(() => {
     return availableModels?.find(
       (m) =>
@@ -660,9 +662,7 @@ export function ChatAppContent({
           : {}),
       });
 
-      // Fetch latest persona snapshot by ID (API-first for normal views;
-      // shared page uses its own SharedPage component and is unaffected).
-      // The snapshot in metadata serves as a fallback until the API responds.
+      // Keep the metadata snapshot until the latest persona arrives from the API.
       if (config.persona_preset_id) {
         void applyLatestSessionLoadResult({
           load: personaPresetApi.use(config.persona_preset_id),
@@ -841,6 +841,7 @@ export function ChatAppContent({
         )}
 
         <ChatView
+          draftKey={draftKey}
           messages={messages}
           sessionId={sessionId}
           composerFocusRequest={sessionId ? undefined : composerFocusRequest}

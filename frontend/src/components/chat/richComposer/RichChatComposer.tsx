@@ -86,6 +86,7 @@ export interface RichChatComposerProps {
   focusRequest?: number;
   placeholder?: ReactNode;
   initialPlainText?: string;
+  initialSnapshot?: ComposerSnapshot;
   className?: string;
   onChange?: (change: RichChatComposerChange) => void;
   onError?: (error: Error) => void;
@@ -134,6 +135,7 @@ export const RichChatComposer = forwardRef<
     focusRequest,
     placeholder,
     initialPlainText = "",
+    initialSnapshot,
     className,
     onChange,
     onError,
@@ -188,7 +190,20 @@ export const RichChatComposer = forwardRef<
       onError?.(error);
     },
     editable: !disabled,
-    editorState: () => {
+    editorState: (editor) => {
+      if (initialSnapshot) {
+        try {
+          const restored = editor.parseEditorState(
+            JSON.stringify(initialSnapshot.editorState),
+          );
+          if (!restored.isEmpty()) {
+            editor.setEditorState(restored);
+            return;
+          }
+        } catch {
+          // Fall back to the draft's text if an old node cannot load.
+        }
+      }
       const root = $getRoot();
       root.clear();
       for (const line of initialPlainText.split("\n")) {

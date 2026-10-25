@@ -240,6 +240,11 @@
   line-height: inherit;
 }
 
+.pill-btn__suffix {
+  display: flex;
+  align-items: center;
+}
+
 .pill-btn__suffix * {
   font-size: inherit;
 }

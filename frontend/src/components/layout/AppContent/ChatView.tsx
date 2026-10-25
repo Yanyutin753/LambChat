@@ -74,6 +74,7 @@ const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
 const HISTORY_FIRST_ITEM_INDEX = 1_000_000;
 
 export function ChatView({
+  draftKey,
   messages,
   sessionId,
   composerFocusRequest,
@@ -694,6 +695,7 @@ export function ChatView({
 
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
+    draftKey,
     focusRequest: composerFocusRequest,
     onSend: handleStableSend,
     onStop: onStopGeneration,
@@ -780,7 +782,10 @@ export function ChatView({
   );
 
   return (
-    <WorkspaceMediaContext.Provider key={sessionId} value={mediaWorkspace}>
+    <WorkspaceMediaContext.Provider
+      key={draftKey ?? sessionId}
+      value={mediaWorkspace}
+    >
       <SessionImageGalleryProvider messages={messages}>
         <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
           <main

@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useFileUpload } from "../../../hooks/useFileUpload";
-import type { MessageAttachment } from "../../../types";
+import {
+  getChatDraftKey,
+  useChatDraftAttachments,
+} from "../../chat/chatDraftStore";
 import { shouldHandleGlobalFileDrop } from "./globalFileDropGuards";
 
-export function useDragAndDrop() {
+export function useDragAndDrop(
+  userId?: string,
+  sessionId: string | null = null,
+) {
+  const draftKey = getChatDraftKey(userId, sessionId);
   const [isPageDragging, setIsPageDragging] = useState(false);
-  const [pageDragAttachments, setPageDragAttachments] = useState<
-    MessageAttachment[]
-  >([]);
+  const [pageDragAttachments, setPageDragAttachments] =
+    useChatDraftAttachments(draftKey);
 
   const { uploadFiles, validateCount } = useFileUpload({
     attachments: pageDragAttachments,
@@ -91,6 +97,7 @@ export function useDragAndDrop() {
   }, [uploadFiles, validateCount]);
 
   return {
+    draftKey,
     isPageDragging,
     pageDragAttachments,
     setPageDragAttachments,

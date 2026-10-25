@@ -118,6 +118,7 @@ function resolveChatAssistantIdentity({
 // ---------------------------------------------------------------------------
 
 export interface ChatViewProps {
+  draftKey?: string;
   messages: Message[];
   sessionId: string | null;
   composerFocusRequest?: number;

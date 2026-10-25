@@ -1196,6 +1196,7 @@
     }
   },
   "chat": {
+    "draftSaveFailed": "현재 초안은 이 창에만 보관됩니다. 새로고침하거나 페이지를 닫기 전에 내용을 복사하세요.",
     "agentHandoff": "{{agent}}가 이어서 처리합니다",
     "addMoreFiles": "더 많은 파일 추가",
     "assistant": "어시스턴트",

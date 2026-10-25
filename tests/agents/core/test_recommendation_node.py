@@ -75,7 +75,17 @@ def _request_text(request) -> str:
     return str(request)
 
 
-class _FakeModel:
+class _StructuredFake:
+    def with_structured_output(self, schema, **kwargs):
+        from types import SimpleNamespace
+
+        async def invoke(prompt, **invoke_kwargs):
+            return {"raw": await self.ainvoke(prompt, **invoke_kwargs), "parsed": None}
+
+        return SimpleNamespace(ainvoke=invoke)
+
+
+class _FakeModel(_StructuredFake):
     def __init__(self) -> None:
         self.prompts = []
 
@@ -88,7 +98,7 @@ class _ProseWrappedJsonResponse:
     content = 'Here are the questions:\n["这个需要改哪些测试？", "能帮我直接修复吗？", "改完后怎么验证？"]'
 
 
-class _ProseWrappedJsonModel:
+class _ProseWrappedJsonModel(_StructuredFake):
     async def ainvoke(self, prompt: str):
         return _ProseWrappedJsonResponse()
 
@@ -98,7 +108,7 @@ class _InjectionSensitiveResponse:
         self.content = content
 
 
-class _InjectionSensitiveModel:
+class _InjectionSensitiveModel(_StructuredFake):
     def __init__(self) -> None:
         self.prompts = []
 
@@ -121,7 +131,7 @@ class _QuestionOnlyResponse:
     content = '["这个需要改哪些测试？", "能帮我直接修复吗？", "改完后怎么验证？"]'
 
 
-class _QuestionOnlyModel:
+class _QuestionOnlyModel(_StructuredFake):
     async def ainvoke(self, prompt: str):
         return _QuestionOnlyResponse()
 
@@ -130,7 +140,7 @@ class _MalformedJsonResponse:
     content = '["我该怎么开始？",\n"能帮我重新设计一下吗？",'
 
 
-class _MalformedJsonModel:
+class _MalformedJsonModel(_StructuredFake):
     async def ainvoke(self, prompt: str):
         return _MalformedJsonResponse()
 
@@ -916,6 +926,7 @@ async def test_rate_limited_recommendations_keep_local_fallback_and_redact_failu
         _llm_type="anthropic-chat",
         ainvoke=AsyncMock(side_effect=error),
     )
+    model.with_structured_output = lambda *_args, **_kwargs: model
     monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", AsyncMock(return_value=model))
     monkeypatch.setattr(
         "src.infra.llm.models_service.resolve_model_reference",
