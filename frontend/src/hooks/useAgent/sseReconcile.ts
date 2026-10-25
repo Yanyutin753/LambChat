@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
+import { applyRecommendQuestionsToMessages } from "./recommendQuestionsUpdate";
 import { sessionApi } from "../../services/api";
 import type { ConnectionStatus, Message } from "../../types";
 import {
@@ -76,7 +77,7 @@ function resolveStreamingMessageId(ctx: StreamReconcileContext): string | null {
  */
 export async function reconcileActiveStream(
   ctx: StreamReconcileContext,
-  opts: { connectionStatus?: ConnectionStatus } = {},
+  opts: { connectionStatus?: ConnectionStatus; signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const currentSessId = ctx.sessionIdRef.current;
   const currentRId = ctx.currentRunIdRef.current;
@@ -85,20 +86,24 @@ export async function reconcileActiveStream(
 
   const generation = ctx.sseGenerationRef.current;
   const isCurrentRun = () =>
+    !opts.signal?.aborted &&
     ctx.sseGenerationRef.current === generation &&
     ctx.sessionIdRef.current === currentSessId &&
     ctx.currentRunIdRef.current === currentRId;
   let remoteTerminal = false;
   try {
-    const statusData = await sessionApi.getStatus(currentSessId, currentRId);
+    const statusData = await sessionApi.getStatus(currentSessId, currentRId, {
+      signal: opts.signal,
+    });
     if (isTerminalRunStatus(statusData.status)) {
       remoteTerminal = true;
     }
   } catch (err) {
+    if (opts.signal?.aborted) return true;
     console.error("[SSE Reconcile] Failed to check task status:", err);
     // 状态探测失败（网络刚恢复等）：交给原指数退避重连路径
     if (!isCurrentRun()) return true;
-    await reconnectSSE(ctx);
+    await reconnectSSE(ctx, undefined, opts.signal);
     return true;
   }
 
@@ -144,6 +149,7 @@ export async function reconcileActiveStream(
 }
 
 export interface ReconcileOpenSessionOptions {
+  signal?: AbortSignal;
   loadHistory: (targetSessionId: string) => Promise<unknown>;
   targetRunId?: string | null;
   isSending: boolean;
@@ -168,8 +174,9 @@ export async function reconcileOpenSession(
 
   let sessionData: Awaited<ReturnType<typeof sessionApi.get>> | null;
   try {
-    sessionData = await sessionApi.get(currentSessId);
+    sessionData = await sessionApi.get(currentSessId, { signal: opts.signal });
   } catch (err) {
+    if (opts.signal?.aborted) return;
     console.warn(
       "[SSE Reconcile] Failed to fetch session for staleness check:",
       err,
@@ -177,6 +184,7 @@ export async function reconcileOpenSession(
     return;
   }
   if (
+    opts.signal?.aborted ||
     !sessionData ||
     ctx.sessionIdRef.current !== currentSessId ||
     ctx.currentRunIdRef.current !== localRunId ||
@@ -194,7 +202,13 @@ export async function reconcileOpenSession(
       (message) =>
         message.role === "assistant" && message.runId === serverRunId,
     );
-  if (opts.targetRunId && taskStatus === "completed" && !missingReply) return;
+  if (
+    opts.targetRunId &&
+    opts.targetRunId !== serverRunId &&
+    taskStatus === "completed" &&
+    !missingReply
+  )
+    return;
   if (
     shouldReloadOpenSession({
       serverRunId,
@@ -208,6 +222,49 @@ export async function reconcileOpenSession(
       `[SSE Reconcile] Server moved on (server run=${serverRunId}); reloading history`,
     );
     await opts.loadHistory(currentSessId);
+    return;
+  }
+
+  // Recommendations finish independently; a missed WebSocket notification is not replayed.
+  const reply = [...ctx.messagesRef.current]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" && message.runId === serverRunId,
+    );
+  if (
+    taskStatus !== "completed" ||
+    !serverRunId ||
+    !reply ||
+    reply.isStreaming ||
+    reply.parts?.some(
+      (part) =>
+        part.type === "recommend_questions" && part.questions.length > 0,
+    )
+  )
+    return;
+  try {
+    const { runs } = await sessionApi.getRuns(currentSessId, {
+      limit: 1,
+      signal: opts.signal,
+    });
+    const questions = runs.find((run) => run.run_id === serverRunId)
+      ?.recommend_questions;
+    if (
+      !questions?.length ||
+      opts.signal?.aborted ||
+      opts.isBusy?.() ||
+      ctx.sessionIdRef.current !== currentSessId ||
+      ctx.currentRunIdRef.current !== localRunId ||
+      ctx.sseGenerationRef.current !== generation
+    )
+      return;
+    ctx.setMessages((previous) =>
+      applyRecommendQuestionsToMessages(previous, serverRunId, questions),
+    );
+  } catch (error) {
+    if (opts.signal?.aborted) return;
+    console.warn("[SSE Reconcile] Failed to catch up recommendations:", error);
   }
 }
 
@@ -251,7 +308,7 @@ export function useStreamReconcile(
   const connectionStatusRef = useRef(opts.connectionStatus);
   connectionStatusRef.current = opts.connectionStatus;
   const lastReconcileAtRef = useRef(0);
-  const isReconcilingRef = useRef(false);
+  const reconcileControllerRef = useRef<AbortController | null>(null);
 
   const reconcile = useCallback(
     async (runId?: string | null): Promise<void> => {
@@ -265,11 +322,16 @@ export function useStreamReconcile(
         await reconnectSSE(ctx, runId);
         return;
       }
-      if (isReconcilingRef.current) return;
       const now = Date.now();
+      if (reconcileControllerRef.current) {
+        if (now - lastReconcileAtRef.current < STREAM_STALE_THRESHOLD_MS)
+          return;
+        reconcileControllerRef.current.abort();
+      }
       if (now - lastReconcileAtRef.current < RECONCILE_MIN_INTERVAL_MS) return;
       lastReconcileAtRef.current = now;
-      isReconcilingRef.current = true;
+      const controller = new AbortController();
+      reconcileControllerRef.current = controller;
       try {
         const streaming =
           Boolean(sessionIdRef.current) &&
@@ -279,10 +341,12 @@ export function useStreamReconcile(
         if (streaming) {
           runStillActive = await reconcileActiveStream(ctx, {
             connectionStatus: connectionStatusRef.current,
+            signal: controller.signal,
           });
         }
-        if (!runStillActive) {
+        if (!runStillActive && !controller.signal.aborted) {
           await reconcileOpenSession(ctx, {
+            signal: controller.signal,
             loadHistory: async (targetSessionId) => {
               const targetRunId = historyTargetRunIdRef?.current;
               await loadHistoryRef.current?.(targetSessionId);
@@ -302,7 +366,8 @@ export function useStreamReconcile(
           });
         }
       } finally {
-        isReconcilingRef.current = false;
+        if (reconcileControllerRef.current === controller)
+          reconcileControllerRef.current = null;
       }
     },
     [
@@ -339,6 +404,8 @@ export function useStreamReconcile(
     };
     const handleNativeResume = () => {
       // Capacitor emits resume before WebView visibility settles; its old socket may be dead.
+      reconcileControllerRef.current?.abort();
+      reconcileControllerRef.current = null;
       connectionStatusRef.current = "disconnected";
       lastReconcileAtRef.current = 0;
       void reconcileRef.current();
@@ -351,6 +418,8 @@ export function useStreamReconcile(
     window.addEventListener("pageshow", maybeReconcile);
     window.addEventListener("offline", handleOffline);
     return () => {
+      reconcileControllerRef.current?.abort();
+      reconcileControllerRef.current = null;
       document.removeEventListener("resume", handleNativeResume);
       document.removeEventListener("visibilitychange", maybeReconcile);
       window.removeEventListener("focus", handleFocus);

@@ -414,6 +414,7 @@ export interface ConnectionState {
 // ============================================
 
 export interface RunSummary {
+  recommend_questions?: string[];
   run_id: string;
   trace_id: string;
   agent_id?: string;

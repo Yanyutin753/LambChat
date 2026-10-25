@@ -195,6 +195,17 @@ export async function connectToSSE(
 
   let receivedTerminalEvent = false;
 
+  const finishStream = () => {
+    setConnectionStatus("disconnected");
+    isConnectingRef.current = false;
+    streamingMessageIdRef.current = null;
+    clearReconnectTimeout(ctx.reconnectTimeoutRef);
+    ctx.setIsInitializingSandbox(false);
+    ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
+    // A suspended WebView may never deliver EOF after the terminal event.
+    connectionAbortController.abort();
+  };
+
   setConnectionStatus("connecting");
   retryCountRef.current = 0;
 
@@ -245,7 +256,7 @@ export async function connectToSSE(
           retryCountRef.current = 0;
         },
         onmessage: (event) => {
-          if (!isCurrentConnection()) return;
+          if (!isCurrentConnection() || receivedTerminalEvent) return;
           lastStreamActivityAtRef.current = Date.now();
           if (event.event === "ping") return;
           const eventId = event.id || uuid();
@@ -272,6 +283,7 @@ export async function connectToSSE(
             data: event.data,
           };
           handleStreamEvent(streamEvent, messageId, eventId, timestamp, ctx);
+          if (receivedTerminalEvent && isCurrentConnection()) finishStream();
         },
         onerror: (err) => {
           if (!isCurrentConnection()) return;
@@ -286,13 +298,7 @@ export async function connectToSSE(
             setConnectionStatus("reconnecting");
             throw new Error("SSE closed before terminal event");
           }
-          setConnectionStatus("disconnected");
-          isConnectingRef.current = false;
-          streamingMessageIdRef.current = null;
-          clearReconnectTimeout(ctx.reconnectTimeoutRef);
-          ctx.setIsInitializingSandbox(false);
-          // 落定并移除从未收到正文的空壳气泡
-          ctx.setMessages((prev) => settleAssistantMessage(prev, messageId));
+          finishStream();
         },
       },
     );
@@ -321,6 +327,7 @@ export async function reconnectSSE(
     isReconnectFromHistoryRef: React.MutableRefObject<boolean>;
   },
   runIdOverride?: string | null,
+  signal?: AbortSignal,
 ): Promise<void> {
   const {
     sessionIdRef,
@@ -362,6 +369,7 @@ export async function reconnectSSE(
   clearReconnectTimeout(reconnectTimeoutRef);
   const generation = ++ctx.sseGenerationRef.current;
   const isCurrentRun = () =>
+    !signal?.aborted &&
     ctx.sseGenerationRef.current === generation &&
     sessionIdRef.current === currentSessId &&
     currentRunIdRef.current === currentRId;
@@ -374,7 +382,9 @@ export async function reconnectSSE(
   isConnectingRef.current = false;
 
   try {
-    const statusData = await sessionApi.getStatus(currentSessId, currentRId);
+    const statusData = await sessionApi.getStatus(currentSessId, currentRId, {
+      signal,
+    });
     if (!isCurrentRun()) return;
     if (isTerminalRunStatus(statusData.status)) {
       console.log("[SSE] Task already completed");
