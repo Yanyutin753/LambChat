@@ -132,11 +132,28 @@ test("done releases the composer without waiting for a suspended transport to cl
 });
 test("after reconnect, missed recommendations arrive without refreshing the conversation", async () => {
   const { result } = await start();
+  mocks.get.mockResolvedValue({
+    ...completed,
+    metadata: { current_run_id: "run", task_status: "running" },
+  });
+  mocks.events.mockResolvedValue({
+    stream_run_id: "run",
+    events: [
+      {
+        id: "stored-user",
+        event_type: "user:message",
+        run_id: "run",
+        data: { content: "hello" },
+      },
+    ],
+  });
   await act(async () => {
     document.dispatchEvent(new Event("resume"));
   });
   expect(connections).toHaveLength(2);
+  mocks.get.mockResolvedValue(completed);
   await act(async () => {
+    emit(1, "message:chunk", { content: "Full answer" });
     emit(1, "done", {});
   });
   await act(async () => {
@@ -149,7 +166,7 @@ test("after reconnect, missed recommendations arrive without refreshing the conv
       questions: [{ content: "Next question?" }],
     }),
   );
-  expect(mocks.events).not.toHaveBeenCalled();
+  expect(mocks.events).toHaveBeenCalledTimes(1);
 });
 test("resume supersedes a status request stranded before suspension", async () => {
   const { result } = await start();
@@ -167,7 +184,8 @@ test("resume supersedes a status request stranded before suspension", async () =
   await act(async () => {
     document.dispatchEvent(new Event("resume"));
   });
-  expect(mocks.status).toHaveBeenCalledTimes(2);
+  expect(mocks.status).toHaveBeenCalledTimes(1);
+  expect(mocks.status.mock.calls[0][2].signal.aborted).toBe(true);
   expect(result.current.isLoading).toBe(false);
   expect(result.current.messages.at(-1)?.content).toBe("Full answer");
   await act(async () => {
@@ -281,4 +299,79 @@ test("opening the current run explicitly still catches up recommendations", asyn
       questions: [{ content: "Next question?" }],
     }),
   );
+});
+
+test("returning from background reloads the same completed run even if both transports missed its final content", async () => {
+  const { result } = await start();
+  await act(async () => emit(0, "done", {}));
+  await act(async () => document.dispatchEvent(new Event("pause")));
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+  expect(result.current.isLoading).toBe(false);
+  expect(mocks.events).toHaveBeenCalled();
+});
+
+test("foreground recovery replaces history loading stranded in the background", async () => {
+  const { result } = await start();
+  mocks.events.mockReturnValueOnce(new Promise(() => {}));
+  await act(async () => {
+    void result.current.loadHistory("session");
+  });
+  expect(result.current.isLoadingHistory).toBe(true);
+  const oldSignal = mocks.events.mock.calls[0][1].signal;
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  expect(oldSignal.aborted).toBe(true);
+  expect(result.current.isLoadingHistory).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+});
+
+test("visibility alone recovers missed updates and ignores a late old SSE frame", async () => {
+  const { result } = await start();
+  const visibility = vi.spyOn(document, "visibilityState", "get");
+  try {
+    visibility.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    visibility.mockReturnValue("visible");
+    await act(async () =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+    await act(async () =>
+      emit(0, "message:chunk", { content: "Stale" }, "stale"),
+    );
+    expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
+test("a hung foreground history refresh is replaced by the watchdog", async () => {
+  const { result } = await start();
+  mocks.events.mockReturnValueOnce(new Promise(() => {}));
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  const oldSignal = mocks.events.mock.calls[0][1].signal;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(oldSignal.aborted).toBe(true);
+  expect(result.current.isLoadingHistory).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+});
+
+test("native resume retries recovery even while WebView visibility remains hidden", async () => {
+  const { result } = await start();
+  const visibility = vi
+    .spyOn(document, "visibilityState", "get")
+    .mockReturnValue("hidden");
+  try {
+    mocks.events.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => document.dispatchEvent(new Event("resume")));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(result.current.isLoadingHistory).toBe(false);
+    expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+  } finally {
+    visibility.mockRestore();
+  }
 });
