@@ -1196,6 +1196,7 @@
     }
   },
   "chat": {
+    "draftSaveFailed": "草稿暂时只能保存在当前窗口，刷新或关闭页面前请复制内容。",
     "agentHandoff": "已由{{agent}}接手处理",
     "addMoreFiles": "添加更多文件",
     "assistant": "助手",

@@ -37,11 +37,17 @@ test("ready sandbox shows its ID in the pill and keeps it in expanded details", 
     />,
   );
 
-  expect(screen.getByText("ID: SBX-AbC123")).toBeInTheDocument();
+  const toggle = screen.getByRole("button", {
+    name: "Sandbox ready ID: SBX-AbC123",
+  });
+  expect(toggle.querySelector(".pill-btn__label")).toHaveTextContent(
+    "Sandbox ready ID: SBX-AbC123",
+  );
+  expect(toggle.querySelector(".pill-btn__suffix")).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: /sandbox ready/i }));
 
-  expect(screen.getAllByText("ID: SBX-AbC123")).toHaveLength(2);
+  expect(screen.getByText("ID: SBX-AbC123")).toBeInTheDocument();
   expect(screen.getByText("Elapsed 1s")).toBeInTheDocument();
 });
 

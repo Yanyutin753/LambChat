@@ -1196,6 +1196,7 @@
     }
   },
   "chat": {
+    "draftSaveFailed": "Your draft can only be kept in this window right now. Copy it before refreshing or closing the page.",
     "agentHandoff": "{{agent}} has taken over",
     "addMoreFiles": "Add more files",
     "assistant": "Assistant",

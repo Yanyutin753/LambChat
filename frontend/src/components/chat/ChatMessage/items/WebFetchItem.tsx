@@ -89,7 +89,7 @@ function WebFetchDetail({ args, result }: ToolDetailProps) {
       {summary && <FetchSummaryChips summary={summary} />}
 
       {summary && (
-        <div className="tool-result-card group/content relative min-h-0 flex-1 border border-theme-border">
+        <div className="tool-result-card group/content relative shrink-0 border border-theme-border">
           <ToolHoverCopyButton
             text={summary.content}
             position="resultCompact"

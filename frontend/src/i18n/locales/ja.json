@@ -1196,6 +1196,7 @@
     }
   },
   "chat": {
+    "draftSaveFailed": "下書きは現在のウィンドウにのみ保持されています。再読み込みやページを閉じる前に内容をコピーしてください。",
     "agentHandoff": "{{agent}}が引き継ぎました",
     "addMoreFiles": "さらにファイルを追加",
     "assistant": "アシスタント",

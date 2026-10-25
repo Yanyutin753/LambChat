@@ -101,12 +101,26 @@ export function useFileUpload({
     const abortMap = abortMapRef.current;
     return () => {
       isMountedRef.current = false;
+      const interruptedIds = new Set(abortMap.keys());
       for (const abort of abortMap.values()) {
         abort();
       }
       abortMap.clear();
+      if (interruptedIds.size) {
+        onAttachmentsChange((current) =>
+          current.map((attachment) =>
+            interruptedIds.has(attachment.id) && attachment.isUploading
+              ? {
+                  ...attachment,
+                  isUploading: false,
+                  uploadError: "interrupted",
+                }
+              : attachment,
+          ),
+        );
+      }
     };
-  }, []);
+  }, [onAttachmentsChange]);
 
   // Fetch upload limits once
   useEffect(() => {
