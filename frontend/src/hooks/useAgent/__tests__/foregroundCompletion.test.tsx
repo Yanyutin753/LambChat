@@ -1,0 +1,284 @@
+/** @vitest-environment jsdom */
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { FetchEventSourceInit } from "@microsoft/fetch-event-source";
+
+const mocks = vi.hoisted(() => ({
+  stream: vi.fn(),
+  get: vi.fn(),
+  status: vi.fn(),
+  runs: vi.fn(),
+  events: vi.fn(),
+}));
+vi.mock("@microsoft/fetch-event-source", () => ({
+  fetchEventSource: mocks.stream,
+}));
+vi.mock("../../useAuth", () => ({
+  useAuth: () => ({ hasAnyPermission: () => false, user: { id: "owner" } }),
+}));
+vi.mock("../../../services/api", () => ({
+  sessionApi: {
+    generateTitle: vi.fn().mockResolvedValue({}),
+    get: mocks.get,
+    getStatus: mocks.status,
+    getRuns: mocks.runs,
+    getEvents: mocks.events,
+    submitChat: vi.fn().mockResolvedValue({
+      session_id: "session",
+      run_id: "run",
+      status: "submitted",
+    }),
+    markRead: vi.fn().mockResolvedValue(undefined),
+    getPendingSteers: vi.fn().mockResolvedValue({ items: [] }),
+    getPersistentGoal: vi.fn().mockResolvedValue({ goal: null }),
+  },
+}));
+vi.mock("../../../services/api/session", () => ({
+  sessionApi: {
+    markRead: vi.fn().mockResolvedValue(undefined),
+    getEvents: vi.fn().mockResolvedValue({ events: [] }),
+    getScheduledProgress: vi.fn().mockResolvedValue({ progress: [] }),
+  },
+}));
+vi.mock("../../../services/api/authenticatedRequest", () => ({
+  authenticatedRequest: vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      agents: [{ id: "fast", name: "Fast" }],
+      default_agent: "fast",
+      allowed_model_ids: null,
+    }),
+  }),
+}));
+vi.mock("../../../services/api/feedback", () => ({
+  feedbackApi: { listBySession: vi.fn() },
+}));
+vi.mock("../../../services/api/tokenManager", () => ({
+  getValidAccessToken: vi.fn().mockResolvedValue("token"),
+}));
+import { useAgent } from "../../useAgent";
+
+let connections: FetchEventSourceInit[];
+const completed = {
+  id: "session",
+  metadata: { current_run_id: "run", task_status: "completed" },
+};
+function emit(index: number, event: string, data: object, id = event) {
+  connections[index].onmessage?.({
+    event,
+    data: JSON.stringify({ run_id: "run", ...data }),
+    id,
+  });
+}
+beforeEach(() => {
+  vi.useFakeTimers();
+  connections = [];
+  mocks.stream
+    .mockReset()
+    .mockImplementation(async (_url, config: FetchEventSourceInit) => {
+      connections.push(config);
+      await config.onopen?.(new Response(null, { status: 200 }));
+      await new Promise<void>(
+        (resolve) => config.signal?.addEventListener("abort", () => resolve()),
+      );
+    });
+  mocks.get.mockReset().mockResolvedValue(completed);
+  mocks.status.mockReset().mockResolvedValue({ status: "running" });
+  mocks.runs.mockReset().mockResolvedValue({
+    runs: [{ run_id: "run", recommend_questions: ["Next question?"] }],
+  });
+  mocks.events.mockReset().mockResolvedValue({
+    events: [
+      {
+        id: "stored-user",
+        event_type: "user:message",
+        run_id: "run",
+        data: { content: "hello" },
+      },
+      {
+        id: "stored-answer",
+        event_type: "message:chunk",
+        run_id: "run",
+        data: { content: "Full answer" },
+      },
+      { id: "stored-done", event_type: "done", run_id: "run", data: {} },
+    ],
+  });
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+async function start() {
+  const hook = renderHook(() => useAgent());
+  await act(async () => {});
+  await act(async () => {
+    void hook.result.current.sendMessage("hello");
+  });
+  expect(connections).toHaveLength(1);
+  await act(async () => {
+    emit(0, "message:chunk", { content: "Answer" });
+  });
+  return hook;
+}
+test("done releases the composer without waiting for a suspended transport to close", async () => {
+  const { result } = await start();
+  expect(result.current.isLoading).toBe(true);
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
+});
+test("after reconnect, missed recommendations arrive without refreshing the conversation", async () => {
+  const { result } = await start();
+  await act(async () => {
+    document.dispatchEvent(new Event("resume"));
+  });
+  expect(connections).toHaveLength(2);
+  await act(async () => {
+    emit(1, "done", {});
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
+  expect(result.current.messages.at(-1)?.parts).toContainEqual(
+    expect.objectContaining({
+      type: "recommend_questions",
+      questions: [{ content: "Next question?" }],
+    }),
+  );
+  expect(mocks.events).not.toHaveBeenCalled();
+});
+test("resume supersedes a status request stranded before suspension", async () => {
+  const { result } = await start();
+  let finishOld!: (value: { status: string }) => void;
+  mocks.status
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+    )
+    .mockResolvedValue({ status: "completed" });
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  await act(async () => {
+    document.dispatchEvent(new Event("resume"));
+  });
+  expect(mocks.status).toHaveBeenCalledTimes(2);
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+  await act(async () => {
+    finishOld({ status: "running" });
+  });
+  expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
+  expect(connections).toHaveLength(1);
+});
+
+test("watchdog replaces a hung probe even when no resume event is delivered", async () => {
+  const { result } = await start();
+  mocks.status
+    .mockReturnValueOnce(new Promise(() => {}))
+    .mockResolvedValue({ status: "completed" });
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
+});
+
+test("recommendation catch-up retries until saved, then stops fetching", async () => {
+  const { result } = await start();
+  mocks.runs.mockResolvedValueOnce({
+    runs: [{ run_id: "run", recommend_questions: [] }],
+  });
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(
+    result.current.messages
+      .at(-1)
+      ?.parts?.some((part) => part.type === "recommend_questions"),
+  ).toBe(false);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(
+    result.current.messages
+      .at(-1)
+      ?.parts?.some((part) => part.type === "recommend_questions"),
+  ).toBe(true);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  expect(mocks.runs).toHaveBeenCalledTimes(2);
+});
+
+test("a delayed recommendation response cannot modify a different conversation", async () => {
+  const { result } = await start();
+  let finish!: (value: unknown) => void;
+  mocks.runs.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  await act(async () => {
+    result.current.clearMessages();
+  });
+  await act(async () => {
+    finish({
+      runs: [{ run_id: "run", recommend_questions: ["Old question"] }],
+    });
+  });
+  expect(result.current.messages).toEqual([]);
+});
+
+test("late events after done cannot reopen the completed assistant bubble", async () => {
+  const { result } = await start();
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  await act(async () => {
+    emit(0, "user:message", { content: "hello" }, "late-user");
+  });
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Answer");
+});
+
+test("opening the current run explicitly still catches up recommendations", async () => {
+  const { result } = await start();
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  await act(async () => {
+    await result.current.loadHistory("session", "run");
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(
+    result.current.messages.find(
+      (message) => message.role === "assistant" && message.runId === "run",
+    )?.parts,
+  ).toContainEqual(
+    expect.objectContaining({
+      type: "recommend_questions",
+      questions: [{ content: "Next question?" }],
+    }),
+  );
+});
