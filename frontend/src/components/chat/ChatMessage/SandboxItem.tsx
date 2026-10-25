@@ -56,19 +56,14 @@ export function SandboxItem({
         status === "starting"
           ? t("chat.sandbox.initializing")
           : status === "ready"
-            ? t("chat.sandbox.ready")
+            ? `${t("chat.sandbox.ready")}${
+                sandboxId ? ` ${t("chat.sandboxId", { id: sandboxId })}` : ""
+              }`
             : status === "error"
               ? t("chat.sandboxInitFailed")
               : `${t("chat.sandbox.name")} · ${t("chat.cancelled")}`
       }
       formatLabel={false}
-      suffix={
-        status === "ready" && sandboxId ? (
-          <span className="min-w-0 truncate">
-            {t("chat.sandboxId", { id: sandboxId })}
-          </span>
-        ) : undefined
-      }
       expandable={!!hasDetails}
       animatedDots={status === "starting"}
     >
