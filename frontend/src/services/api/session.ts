@@ -400,9 +400,11 @@ export const sessionApi = {
    */
   async getRuns(
     sessionId: string,
-    options?: SessionRunsQuery,
+    options?: SessionRunsQuery & { signal?: AbortSignal },
   ): Promise<{ session_id: string; runs: RunSummary[]; count: number }> {
-    return authFetch(buildSessionRunsUrl(sessionId, options));
+    return authFetch(buildSessionRunsUrl(sessionId, options), {
+      signal: options?.signal,
+    });
   },
 
   /**
@@ -454,6 +456,7 @@ export const sessionApi = {
   async getStatus(
     sessionId: string,
     runId?: string,
+    options?: { signal?: AbortSignal },
   ): Promise<{
     session_id: string;
     run_id?: string;
@@ -463,6 +466,7 @@ export const sessionApi = {
     const params = runId ? `?run_id=${runId}` : "";
     return authFetch(
       `${API_BASE}/api/chat/sessions/${sessionId}/status${params}`,
+      { signal: options?.signal },
     );
   },
 
