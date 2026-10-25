@@ -12,6 +12,68 @@ import {
   shouldSkipLongTextConversion,
 } from "../components/chat/longTextConversion";
 import type { FileCategory, MessageAttachment } from "../types";
+import type {
+  LongTextPastePayload,
+  RichChatComposerHandle,
+} from "../components/chat/richComposer/RichChatComposer";
+import type { UploadClientMeta } from "./useFileUpload";
+
+export function useRetryFileReference({
+  attachments,
+  setAttachments,
+  composerRef,
+  longTextResourcesRef,
+  uploadFile,
+}: {
+  attachments: MessageAttachment[];
+  setAttachments: UseLongTextConversionOptions["setAttachments"];
+  composerRef: { current: RichChatComposerHandle | null };
+  longTextResourcesRef: { current: Map<string, LongTextPastePayload> };
+  uploadFile: (
+    file: File,
+    category?: FileCategory,
+    meta?: UploadClientMeta,
+  ) => void;
+}) {
+  return useCallback(
+    (referenceId: string) => {
+      const attachment = attachments.find(
+        (item) => item.composerReferenceId === referenceId,
+      );
+      const resource =
+        longTextResourcesRef.current.get(referenceId) ??
+        (attachment?.localOriginalText
+          ? {
+              originalText: attachment.localOriginalText,
+              file: createLongTextFile(
+                attachment.localOriginalText,
+                attachment.name,
+              ),
+            }
+          : undefined);
+      if (!resource) return;
+      setAttachments((previous) =>
+        previous.filter((item) => item.composerReferenceId !== referenceId),
+      );
+      composerRef.current?.updateFileReference({
+        referenceId,
+        status: "uploading",
+      });
+      uploadFile(
+        resource.file,
+        "document",
+        buildLongTextClientMeta(resource.originalText, referenceId),
+      );
+    },
+    [
+      attachments,
+      setAttachments,
+      composerRef,
+      longTextResourcesRef,
+      uploadFile,
+    ],
+  );
+}
 
 export interface UseLongTextConversionOptions {
   setInput: (value: string) => void;

@@ -268,3 +268,43 @@ test("shows preparing immediately and terminates image work when cancelled", asy
   expect(PendingImageWorker.terminations).toBe(1);
   expect(apiMocks.uploadFile).not.toHaveBeenCalled();
 });
+
+test("leaving a composer marks only its unfinished uploads as failed", async () => {
+  class PendingHashWorker extends HashWorker {
+    postMessage() {}
+  }
+  vi.stubGlobal("Worker", PendingHashWorker);
+  let attachments: MessageAttachment[] = [
+    {
+      id: "complete",
+      key: "done.txt",
+      name: "done.txt",
+      type: "document",
+      mimeType: "text/plain",
+      size: 1,
+    },
+  ];
+  const onAttachmentsChange = (
+    update:
+      | MessageAttachment[]
+      | ((current: MessageAttachment[]) => MessageAttachment[]),
+  ) => {
+    attachments = typeof update === "function" ? update(attachments) : update;
+  };
+  const { result, unmount } = renderHook(() =>
+    useFileUpload({ attachments, onAttachmentsChange }),
+  );
+  act(() =>
+    result.current.uploadFile(
+      new File(["unfinished"], "pending.txt", { type: "text/plain" }),
+    ),
+  );
+  expect(attachments[1].isUploading).toBe(true);
+  unmount();
+  expect(attachments[0].uploadError).toBeUndefined();
+  expect(attachments[1]).toMatchObject({
+    name: "pending.txt",
+    isUploading: false,
+    uploadError: "interrupted",
+  });
+});
