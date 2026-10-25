@@ -277,6 +277,7 @@ export interface StreamReconcileOptions {
   connectionStatus: ConnectionStatus;
   setConnectionStatus: (status: ConnectionStatus) => void;
   isSendingRef: React.MutableRefObject<boolean>;
+  submitInFlightRef?: React.MutableRefObject<boolean>;
   isLoadingHistoryRef: React.MutableRefObject<boolean>;
   loadHistoryRef: React.MutableRefObject<
     ((targetSessionId: string, targetRunId?: string) => Promise<unknown>) | null
@@ -300,6 +301,7 @@ export function useStreamReconcile(
     streamingMessageIdRef,
     setConnectionStatus,
     isSendingRef,
+    submitInFlightRef,
     isLoadingHistoryRef,
     loadHistoryRef,
     historyTargetRunIdRef,
@@ -309,6 +311,11 @@ export function useStreamReconcile(
   connectionStatusRef.current = opts.connectionStatus;
   const lastReconcileAtRef = useRef(0);
   const reconcileControllerRef = useRef<AbortController | null>(null);
+  const resumedRef = useRef<boolean | null>(null);
+  const foregroundRefreshRef = useRef<{
+    sessionId: string;
+    runId: string | null;
+  } | null>(null);
 
   const reconcile = useCallback(
     async (runId?: string | null): Promise<void> => {
@@ -333,6 +340,34 @@ export function useStreamReconcile(
       const controller = new AbortController();
       reconcileControllerRef.current = controller;
       try {
+        const refresh = foregroundRefreshRef.current;
+        if (refresh) {
+          if (
+            sessionIdRef.current !== refresh.sessionId ||
+            (currentRunIdRef.current !== refresh.runId &&
+              !isLoadingHistoryRef.current)
+          ) {
+            foregroundRefreshRef.current = null;
+          } else if (!submitInFlightRef?.current) {
+            const targetRunId = historyTargetRunIdRef?.current;
+            const loaded = await loadHistoryRef.current?.(refresh.sessionId);
+            if (controller.signal.aborted) return;
+            if (loaded && foregroundRefreshRef.current === refresh) {
+              foregroundRefreshRef.current = null;
+              if (
+                targetRunId &&
+                sessionIdRef.current === refresh.sessionId &&
+                historyTargetRunIdRef?.current === targetRunId &&
+                !submitInFlightRef?.current
+              ) {
+                await loadHistoryRef.current?.(refresh.sessionId, targetRunId);
+              }
+            }
+            return;
+          } else {
+            return;
+          }
+        }
         const streaming =
           Boolean(sessionIdRef.current) &&
           Boolean(currentRunIdRef.current) &&
@@ -377,6 +412,7 @@ export function useStreamReconcile(
       isReconnectFromHistoryRef,
       streamingMessageIdRef,
       isSendingRef,
+      submitInFlightRef,
       isLoadingHistoryRef,
       loadHistoryRef,
       historyTargetRunIdRef,
@@ -388,13 +424,21 @@ export function useStreamReconcile(
 
   // visibilitychange/focus/online 触发对账；offline 只标记断开
   useEffect(() => {
+    let wasHidden = document.visibilityState === "hidden";
+    let lastResumeAt = -Infinity;
+    const handlePause = () => {
+      resumedRef.current = false;
+      wasHidden = true;
+      lastResumeAt = -Infinity;
+    };
     const maybeReconcile = () => {
-      if (document.visibilityState === "visible") {
-        void reconcileRef.current();
-      }
+      if (document.visibilityState === "hidden") handlePause();
+      else if (wasHidden) handleNativeResume();
+      else void reconcileRef.current();
     };
     const handleFocus = () => {
-      void reconcileRef.current();
+      if (wasHidden) handleNativeResume();
+      else void reconcileRef.current();
     };
     const handleOnline = () => {
       void reconcileRef.current();
@@ -403,15 +447,25 @@ export function useStreamReconcile(
       setConnectionStatus("disconnected");
     };
     const handleNativeResume = () => {
-      // Capacitor emits resume before WebView visibility settles; its old socket may be dead.
+      resumedRef.current = true;
+      wasHidden = false;
+      if (Date.now() - lastResumeAt < RECONCILE_MIN_INTERVAL_MS) return;
+      lastResumeAt = Date.now();
+      // Both transports may have missed updates, even for the same completed run.
+      const sessionId = sessionIdRef.current;
+      foregroundRefreshRef.current = sessionId
+        ? { sessionId, runId: currentRunIdRef.current }
+        : null;
       reconcileControllerRef.current?.abort();
       reconcileControllerRef.current = null;
       connectionStatusRef.current = "disconnected";
+      setConnectionStatus("disconnected");
       lastReconcileAtRef.current = 0;
       void reconcileRef.current();
     };
 
     document.addEventListener("resume", handleNativeResume);
+    document.addEventListener("pause", handlePause);
     document.addEventListener("visibilitychange", maybeReconcile);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("online", handleOnline);
@@ -421,18 +475,23 @@ export function useStreamReconcile(
       reconcileControllerRef.current?.abort();
       reconcileControllerRef.current = null;
       document.removeEventListener("resume", handleNativeResume);
+      document.removeEventListener("pause", handlePause);
       document.removeEventListener("visibilitychange", maybeReconcile);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("pageshow", maybeReconcile);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [setConnectionStatus]);
+  }, [setConnectionStatus, sessionIdRef, currentRunIdRef]);
 
   // 空闲的可见会话也要对账，发现定时任务或其他端新启动的 run 后接上流。
   useEffect(() => {
     const timer = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
+      if (
+        resumedRef.current === false ||
+        (document.visibilityState !== "visible" && resumedRef.current !== true)
+      )
+        return;
       if (!sessionIdRef.current) return;
       void reconcileRef.current();
     }, WATCHDOG_INTERVAL_MS);

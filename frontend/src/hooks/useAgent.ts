@@ -1402,6 +1402,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     connectionStatus,
     setConnectionStatus,
     isSendingRef,
+    submitInFlightRef,
     isLoadingHistoryRef,
     loadHistoryRef,
     historyTargetRunIdRef,
