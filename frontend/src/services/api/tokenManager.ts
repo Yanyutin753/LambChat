@@ -82,6 +82,9 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
     };
   }
 
+  // A suspended WebView must not pin every authenticated request to a dead refresh.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   refreshPromise = (async () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
@@ -89,6 +92,7 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
     }
 
     const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      signal: controller.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -98,18 +102,22 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
     });
 
     if (!response.ok) {
-      const error = new Error("Token refresh failed") as Error & { status?: number };
+      const error = new Error("Token refresh failed") as Error & {
+        status?: number;
+      };
       error.status = response.status;
       throw error;
     }
 
     const tokenResponse = (await response.json()) as RefreshedTokens;
+    if (controller.signal.aborted)
+      throw new DOMException("Aborted", "AbortError");
     if (getRefreshToken() !== refreshToken) {
       throw new Error("Authentication changed while refreshing tokens");
     }
     setTokens(tokenResponse.access_token, tokenResponse.refresh_token);
     return tokenResponse.access_token;
-  })();
+  })().finally(() => clearTimeout(timeout));
 
   try {
     const access_token = await refreshPromise;

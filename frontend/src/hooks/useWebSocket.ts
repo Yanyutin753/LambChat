@@ -268,6 +268,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       enabled &&
       scopeRef.current === scope &&
       connectionVersionRef.current === generation;
+    const scheduleReconnect = () => {
+      if (!isCurrent() || reconnectTimeoutRef.current !== null) return;
+      const delay = Math.min(
+        INITIAL_RECONNECT_DELAY *
+          Math.pow(RECONNECT_DELAY_MULTIPLIER, reconnectAttemptRef.current),
+        MAX_RECONNECT_DELAY,
+      );
+      reconnectAttemptRef.current++;
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (!isCurrent()) return;
+        reconnectTimeoutRef.current = null;
+        void connect();
+      }, delay);
+    };
     // Prevent multiple simultaneous connection attempts
     if (!isCurrent() || isConnectingRef.current || isDisconnectingRef.current) {
       console.log(
@@ -320,6 +334,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       }
       if (!token) {
         console.warn("[WebSocket] No auth token, skipping connection");
+        isConnectingRef.current = false;
         return;
       }
 
@@ -406,6 +421,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                   "[WebSocket] Token refresh failed, will retry later",
                 );
                 authFailureCountRef.current++;
+                scheduleReconnect();
               }
             })();
             return;
@@ -443,24 +459,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           reconnectTimeoutRef.current === null &&
           !wasManualDisconnect
         ) {
-          // Calculate delay with exponential backoff
-          const delay = Math.min(
-            INITIAL_RECONNECT_DELAY *
-              Math.pow(RECONNECT_DELAY_MULTIPLIER, reconnectAttemptRef.current),
-            MAX_RECONNECT_DELAY,
-          );
-          reconnectAttemptRef.current++;
-
-          console.log(
-            `[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current})...`,
-          );
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (!isCurrent()) return;
-            console.log("[WebSocket] Reconnecting...");
-            reconnectTimeoutRef.current = null;
-            connect();
-          }, delay);
+          scheduleReconnect();
         }
       };
 
@@ -475,6 +474,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       if (!isCurrent()) return;
       console.error("[WebSocket] Connection failed:", e);
       isConnectingRef.current = false;
+      scheduleReconnect();
     }
   }, [enabled, scope]);
 
@@ -519,6 +519,48 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     return () => {
       isMountedRef.current = false;
       disconnectRef.current();
+    };
+  }, [enabled, scope]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let wasHidden = document.visibilityState === "hidden";
+    let lastResumeAt = -Infinity;
+    const pause = () => {
+      wasHidden = true;
+      lastResumeAt = -Infinity;
+    };
+    const resume = () => {
+      if (!isMountedRef.current || scopeRef.current !== scope) return;
+      wasHidden = false;
+      if (Date.now() - lastResumeAt < 1000) return;
+      lastResumeAt = Date.now();
+      // OPEN/CONNECTING can survive a dead native socket without any close event.
+      disconnectRef.current();
+      onWsCloseRef.current?.();
+      void connectRef.current();
+    };
+    const visibility = () => {
+      if (document.visibilityState === "hidden") pause();
+      else if (wasHidden) resume();
+    };
+    const focus = () => {
+      if (wasHidden) resume();
+    };
+    const online = () => {
+      if (document.visibilityState === "visible") resume();
+    };
+    document.addEventListener("pause", pause);
+    document.addEventListener("resume", resume);
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("focus", focus);
+    window.addEventListener("online", online);
+    return () => {
+      document.removeEventListener("pause", pause);
+      document.removeEventListener("resume", resume);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("focus", focus);
+      window.removeEventListener("online", online);
     };
   }, [enabled, scope]);
 

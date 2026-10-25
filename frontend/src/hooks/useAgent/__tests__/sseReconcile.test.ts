@@ -385,6 +385,8 @@ test("a delayed terminal probe cannot settle a replacement stream", async () => 
 function mountReconcile(
   ctx: StreamReconcileContext,
   connectionStatus: "connected" | "reconnecting" | "disconnected",
+  loadHistory = vi.fn().mockResolvedValue(null),
+  isLoadingHistoryRef = { current: false },
 ) {
   return renderHook(() =>
     useStreamReconcile({
@@ -396,8 +398,8 @@ function mountReconcile(
       connectionStatus,
       setConnectionStatus: ctx.setConnectionStatus,
       isSendingRef: { current: false },
-      isLoadingHistoryRef: { current: false },
-      loadHistoryRef: { current: vi.fn().mockResolvedValue(null) },
+      isLoadingHistoryRef,
+      loadHistoryRef: { current: loadHistory },
     }),
   );
 }
@@ -471,16 +473,15 @@ test("native resume refreshes a completed reply before WebView visibility update
     .mockReturnValue("hidden");
   try {
     mocks.getStatus.mockResolvedValue({ status: "completed" });
-    const { ctx, onStaleRunStateDetected } =
-      createReconcileContext(streamingBubble());
-    mountReconcile(ctx, "connected");
+    const { ctx } = createReconcileContext(streamingBubble());
+    const loadHistory = vi.fn().mockResolvedValue({});
+    mountReconcile(ctx, "connected", loadHistory);
 
     await act(async () => {
       document.dispatchEvent(new Event("resume"));
     });
 
-    expect(onStaleRunStateDetected).toHaveBeenCalledWith("run-a");
-    expect(ctx.streamingMessageIdRef.current).toBeNull();
+    expect(loadHistory).toHaveBeenCalledWith("session-a");
   } finally {
     visibility.mockRestore();
   }
@@ -492,7 +493,8 @@ test("native resume rechecks immediately and replaces a seemingly healthy pre-ba
   const { ctx } = createReconcileContext(streamingBubble(), {
     lastStreamActivityAtRef: { current: Date.now() },
   });
-  const { result } = mountReconcile(ctx, "connected");
+  const loadHistory = vi.fn().mockResolvedValue({});
+  const { result } = mountReconcile(ctx, "connected", loadHistory);
   await act(async () => {
     await result.current();
   });
@@ -504,8 +506,8 @@ test("native resume rechecks immediately and replaces a seemingly healthy pre-ba
     document.dispatchEvent(new Event("resume"));
   });
 
-  expect(mocks.getStatus).toHaveBeenCalledTimes(2);
-  expect(mocks.fetchEventSource).toHaveBeenCalledTimes(1);
+  expect(loadHistory).toHaveBeenCalledWith("session-a");
+  expect(mocks.fetchEventSource).not.toHaveBeenCalled();
 });
 
 test("unmount removes the native resume listener", async () => {
@@ -699,4 +701,54 @@ test("a completed reply already displayed is not reloaded on each idle probe", a
   });
 
   expect(loadHistory).not.toHaveBeenCalled();
+});
+
+test("foreground refresh does not supersede a new submission or its accepted run", async () => {
+  vi.useFakeTimers();
+  const { ctx } = createReconcileContext(streamingBubble());
+  const loadHistory = vi.fn().mockResolvedValue({});
+  const submitting = { current: true };
+  renderHook(() =>
+    useStreamReconcile({
+      createSSEContext: () => ctx,
+      sessionIdRef: ctx.sessionIdRef,
+      currentRunIdRef: ctx.currentRunIdRef,
+      isReconnectFromHistoryRef: ctx.isReconnectFromHistoryRef,
+      streamingMessageIdRef: ctx.streamingMessageIdRef,
+      connectionStatus: "connected",
+      setConnectionStatus: ctx.setConnectionStatus,
+      isSendingRef: { current: true },
+      submitInFlightRef: submitting,
+      isLoadingHistoryRef: { current: false },
+      loadHistoryRef: { current: loadHistory },
+    }),
+  );
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  expect(loadHistory).not.toHaveBeenCalled();
+  submitting.current = false;
+  ctx.currentRunIdRef.current = "new-run";
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(loadHistory).not.toHaveBeenCalled();
+});
+
+test("a refreshed server run does not strand history hydration started by resume", async () => {
+  vi.useFakeTimers();
+  const { ctx } = createReconcileContext(streamingBubble());
+  const loading = { current: false };
+  const loadHistory = vi
+    .fn()
+    .mockImplementationOnce(() => {
+      loading.current = true;
+      ctx.currentRunIdRef.current = "run-from-another-device";
+      return new Promise(() => {});
+    })
+    .mockResolvedValue({});
+  mountReconcile(ctx, "connected", loadHistory, loading);
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(loadHistory).toHaveBeenCalledTimes(2);
 });
