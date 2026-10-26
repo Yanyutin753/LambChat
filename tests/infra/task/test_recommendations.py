@@ -201,3 +201,24 @@ async def test_saved_generated_result_survives_publication_failure_without_regen
         "b?",
         "c?",
     ]
+
+
+async def test_durable_snapshot_preserves_existing_prompt_normalization_and_bounds(dependencies):
+    from src.agents.core.recommendations import build_recommend_prompt
+
+    module, collection, _, _, _ = dependencies
+    presenter = SimpleNamespace(
+        config=SimpleNamespace(user_id="owner", session_id="session"),
+        run_id="run",
+        trace_id="trace",
+    )
+    inputs = {
+        "user_input": "question\n\n" * 800,
+        "output_text": "answer\n\n" * 1200,
+        "history_context": "history\n\n" * 5000,
+    }
+    await module.enqueue_recommendation(presenter, **inputs, response_language="zh")
+    saved = collection.update_one.await_args.args[1]["$set"]["recommendation_request"]
+    assert build_recommend_prompt(**inputs) == build_recommend_prompt(
+        **{key: saved[key] for key in inputs}
+    )

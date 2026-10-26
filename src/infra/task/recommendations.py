@@ -13,7 +13,12 @@ from langsmith import tracing_context
 from pymongo import ReturnDocument
 
 from src.agents.core.recommendations import (
+    _CURRENT_OUTPUT_MAX_CHARS,
+    _CURRENT_USER_MAX_CHARS,
+    _HISTORY_MAX_CHARS,
+    _clip_text,
     _get_recommend_background_task_limit,
+    _normalize_text,
     generate_recommend_questions,
 )
 from src.infra.logging import get_logger
@@ -54,9 +59,13 @@ async def enqueue_recommendation(
         {
             "$set": {
                 "recommendation_request": {
-                    "user_input": user_input[:2000],
-                    "output_text": output_text[:4000],
-                    "history_context": history_context[:32000],
+                    "user_input": _clip_text(_normalize_text(user_input), _CURRENT_USER_MAX_CHARS),
+                    "output_text": _clip_text(
+                        _normalize_text(output_text), _CURRENT_OUTPUT_MAX_CHARS
+                    ),
+                    "history_context": _clip_text(
+                        _normalize_text(history_context), _HISTORY_MAX_CHARS
+                    ),
                     "response_language": response_language,
                 },
                 "recommendation_due_at": utc_now(),
