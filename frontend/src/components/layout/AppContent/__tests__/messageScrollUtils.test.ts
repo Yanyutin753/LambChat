@@ -1417,3 +1417,39 @@ test("does not preload while loading or when no more history exists", () => {
     }),
   ).toBe(false);
 });
+
+test.each(["observer", "timer"])(
+  "keeps the physical bottom when the viewport shrinks after settling (%s)",
+  async (trigger) => {
+    let resize = () => {};
+    const complete = vi.fn();
+    const scroller = { scrollTop: 400, clientHeight: 100, scrollHeight: 500 };
+    const stop = startVirtuosoScrollToBottom({
+      virtuoso: {
+        scrollTo: () => {
+          scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+        },
+      },
+      scroller,
+      intervalMs: 5,
+      settleWindowMs: 10,
+      observeLayoutChanges: true,
+      observeAfterSettleMs: 200,
+      resizeObserverFactory: (callback) => {
+        resize = callback;
+        return { observe: () => {}, disconnect: () => {} };
+      },
+      onComplete: complete,
+    });
+    await vi.advanceTimersByTimeAsync(45);
+    // Growing the composer reduces the viewport without changing message height.
+    scroller.clientHeight = 76;
+    if (trigger === "observer") resize();
+    else await vi.advanceTimersByTimeAsync(5);
+    expect(
+      scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+    ).toBe(0);
+    expect(complete).not.toHaveBeenCalled();
+    stop();
+  },
+);

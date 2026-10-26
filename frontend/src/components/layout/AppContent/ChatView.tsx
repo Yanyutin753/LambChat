@@ -782,10 +782,7 @@ export function ChatView({
   );
 
   return (
-    <WorkspaceMediaContext.Provider
-      key={draftKey ?? sessionId}
-      value={mediaWorkspace}
-    >
+    <WorkspaceMediaContext.Provider value={mediaWorkspace}>
       <SessionImageGalleryProvider messages={messages}>
         <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
           <main
@@ -972,6 +969,7 @@ export function ChatView({
                 </div>
               ) : (
                 <ChatInput
+                  key={draftKey ?? sessionId}
                   {...chatInputProps}
                   activeGoal={composerGoal}
                   persistentGoal={persistentGoal}
