@@ -57,6 +57,7 @@ vi.mock("../../../services/api/tokenManager", () => ({
   getValidAccessToken: vi.fn().mockResolvedValue("token"),
 }));
 import { useAgent } from "../../useAgent";
+import { isSessionRunning } from "../../../components/layout/AppContent/sessionState";
 
 let connections: FetchEventSourceInit[];
 const completed = {
@@ -129,6 +130,36 @@ test("done releases the composer without waiting for a suspended transport to cl
   });
   expect(result.current.isLoading).toBe(false);
   expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
+});
+test("a completed conversation stays idle while foreground history synchronization is pending", async () => {
+  const { result } = await start();
+  await act(async () => {
+    emit(0, "done", {});
+  });
+  expect(
+    isSessionRunning(result.current.messages, result.current.isLoading),
+  ).toBe(false);
+  let finishSync!: (value: typeof completed) => void;
+  mocks.get.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishSync = resolve;
+    }),
+  );
+  await act(async () => {
+    document.dispatchEvent(new Event("resume"));
+  });
+  expect(result.current.isLoadingHistory).toBe(true);
+  expect(result.current.messages.at(-1)?.content).toBe("Answer");
+  expect(
+    isSessionRunning(result.current.messages, result.current.isLoading),
+  ).toBe(false);
+  await act(async () => {
+    finishSync(completed);
+  });
+  expect(
+    isSessionRunning(result.current.messages, result.current.isLoading),
+  ).toBe(false);
+  expect(result.current.messages.at(-1)?.content).toBe("Full answer");
 });
 test("after reconnect, missed recommendations arrive without refreshing the conversation", async () => {
   const { result } = await start();
