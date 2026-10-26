@@ -11,6 +11,17 @@ import yaml
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/lint.yml"
 
 
+def test_dev_update_can_wait_for_post_build_regression():
+    jobs = yaml.safe_load((WORKFLOW.parent / "app-release.yml").read_text())["jobs"]
+    step = next(
+        s for s in jobs["release"]["steps"] if s.get("name") == "Publish ready dev update channel"
+    )
+    assert "vars.DEV_UPDATER_AUTO_PUBLISH != 'false'" in step["if"]
+    for job in ("desktop", "android", "ios"):
+        assert f"needs.{job}.result == 'success'" in step["if"]
+    assert "contains(env.RELEASE_TAG, '-dev.')" in step["if"]
+
+
 def test_updater_verifier_builds_only_the_real_updater_with_shared_lock():
     root = WORKFLOW.parents[2] / "frontend/src-tauri"
     app = tomllib.loads((root / "Cargo.toml").read_text())
