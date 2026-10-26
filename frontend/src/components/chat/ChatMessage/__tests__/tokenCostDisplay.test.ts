@@ -359,3 +359,44 @@ test("settled component amounts remain visible when aggregate cache counters are
     { key: "cache_read", tokens: null, usd: 0.0001, ratePerMillion: 1.25 },
   ]);
 });
+
+test("settled components remain visible as lower bounds when another call has unknown cost", () => {
+  const value = usage({
+    cost_source: "provider_settlement",
+    cost_units: 3_000_000,
+    cost_complete: false,
+    cost_usd: undefined,
+    cost_breakdown: undefined,
+    cost_rates: undefined,
+    partial_cost_usd: 0.003,
+    partial_cost_breakdown: { input: 0.001, output: 0.002 },
+    usage_incomplete: true,
+    unknown_usage_fields: ["input_tokens", "output_tokens"],
+  });
+  const rows = buildCostDetailRows(value);
+  expect(rows).toEqual([
+    {
+      key: "input",
+      tokens: null,
+      usd: 0.001,
+      ratePerMillion: null,
+      partial: true,
+    },
+    {
+      key: "output",
+      tokens: null,
+      usd: 0.002,
+      ratePerMillion: null,
+      partial: true,
+    },
+  ]);
+  expect(formatCostDetailRow(rows[0], { language: "en" })).toEqual({
+    cost: "$0.001+",
+    rate: null,
+  });
+  expect(
+    buildCostDetailRows({ ...value, partial_cost_breakdown: undefined }).every(
+      (row) => row.usd === null,
+    ),
+  ).toBe(true);
+});

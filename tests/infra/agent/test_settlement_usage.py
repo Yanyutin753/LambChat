@@ -318,6 +318,14 @@ async def test_mixed_tariffs_sum_saved_components_without_inventing_a_shared_rat
     await processor.record_usage_receipt(receipt("pending", 0, unknown=True))
     usage = processor.presenter.emit.call_args.args[0]["data"]
     assert usage["partial_cost_usd"] == 0.000003
+    assert usage["partial_cost_breakdown"]["input"] == 0.000003
+    resumed = make_processor()
+    resumed.seed_usage(processor.usage_totals())
+    await resumed.emit_token_usage()
+    assert (
+        resumed.presenter.emit.call_args.args[0]["data"]["partial_cost_breakdown"]
+        == usage["partial_cost_breakdown"]
+    )
     assert "cost_breakdown" not in usage
     assert "cost_rates" not in usage
 

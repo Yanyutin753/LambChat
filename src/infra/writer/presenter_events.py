@@ -636,6 +636,7 @@ class EventPresenterMixin:
             # Recovery needs call identities to replace partial receipts rather than add twice.
             for key in (
                 "cost_breakdown",
+                "partial_cost_breakdown",
                 "cost_rates",
                 "cost_receipts",
                 "legacy_cost_units",
