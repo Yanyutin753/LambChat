@@ -63,3 +63,18 @@ def test_word_preview_reads_actual_document_text():
             '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Actual word report</w:t></w:r></w:p></w:body></w:document>',
         )
     assert "Actual word report" in preview_text(data.getvalue(), "docx")
+
+
+def test_presentation_cover_changes_with_content_instead_of_template_thumbnail():
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    covers = []
+    for text in ("Actual sales result", "Different engineering result"):
+        document = Presentation()
+        slide = document.slides.add_slide(document.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = text
+        data = io.BytesIO()
+        document.save(data)
+        covers.append(render_content_cover(data.getvalue(), "pptx"))
+    assert covers[0] != covers[1]

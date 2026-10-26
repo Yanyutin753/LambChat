@@ -88,7 +88,9 @@ def preview_text(data: bytes, ext: str) -> str:
 def render_content_cover(data: bytes, ext: str) -> bytes:
     from src.api.routes.upload_cover import _cached_sheet_font
 
-    if ext in OFFICE_EXTENSIONS:
+    text = preview_text(data, ext)
+    # Office generators often retain a template thumbnail after editing the document.
+    if not text.strip() and ext in OFFICE_EXTENSIONS:
         with _checked_archive(data) as archive:
             for name in (
                 "docProps/thumbnail.jpeg",
@@ -102,7 +104,6 @@ def render_content_cover(data: bytes, ext: str) -> bytes:
                         output = io.BytesIO()
                         image.save(output, "JPEG", quality=85)
                         return output.getvalue()
-    text = preview_text(data, ext)
     if not text.strip():
         raise ValueError("No preview content")
     image = Image.new("RGB", (560, 315), "#fafaf9")
