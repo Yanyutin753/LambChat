@@ -343,3 +343,19 @@ test("financial certification must be literal and requires valid billable input 
     ).toBe(false);
   }
 });
+
+test("settled component amounts remain visible when aggregate cache counters are unknown", () => {
+  const value = usage({
+    cost_source: "provider_settlement",
+    cost_units: 37_100_000,
+    cost_complete: true,
+    usage_incomplete: true,
+    unknown_usage_fields: ["cache_creation_tokens"],
+    cache_creation_tokens: undefined,
+  });
+  expect(buildCostDetailRows(value)).toEqual([
+    { key: "input", tokens: null, usd: 0.007, ratePerMillion: 2.5 },
+    { key: "output", tokens: null, usd: 0.03, ratePerMillion: 10 },
+    { key: "cache_read", tokens: null, usd: 0.0001, ratePerMillion: 1.25 },
+  ]);
+});

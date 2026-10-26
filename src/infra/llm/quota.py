@@ -8,6 +8,7 @@ import sys
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from dataclasses import asdict
 from functools import wraps
 from typing import Any, TypeGuard
 
@@ -15,8 +16,8 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables.config import var_child_runnable_config
 from pydantic import Field
 
-from src.infra.pricing.calculator import PriceRates, compute_cost
-from src.infra.usage.quota import UsageQuota, user_budgets
+from src.infra.pricing.calculator import CostBreakdown, PriceRates, compute_cost
+from src.infra.usage.quota import UsageQuota, usd_units, user_budgets
 from src.kernel.errors import AppError, ErrorCode
 
 _owner: ContextVar[str | None] = ContextVar("usage_quota_owner", default=None)
@@ -375,7 +376,7 @@ def usage_price_supported(model, messages, kwargs) -> bool:
     return True
 
 
-def message_cost(message, rates: PriceRates) -> float | None:
+def message_cost_breakdown(message, rates: PriceRates) -> CostBreakdown | None:
     usage = getattr(message, "usage_metadata", None) or {}
     details = usage.get("input_token_details") or {}
     creation = details.get("cache_creation")
@@ -402,15 +403,19 @@ def message_cost(message, rates: PriceRates) -> float | None:
             creation,
         )
     ):
-        return 0.0
+        return CostBreakdown()
     # Provider-omitted counters count as zero; malformed supplied counters stay invalid.
-    result = compute_cost(
+    return compute_cost(
         input_tokens=0 if usage.get("input_tokens") is None else usage["input_tokens"],
         output_tokens=0 if usage.get("output_tokens") is None else usage["output_tokens"],
         cache_read_tokens=0 if details.get("cache_read") is None else details["cache_read"],
         cache_creation_tokens=0 if creation is None else creation,
         rates=rates,
     )
+
+
+def message_cost(message, rates: PriceRates) -> float | None:
+    result = message_cost_breakdown(message, rates)
     return result.total_usd if result else None
 
 
@@ -521,11 +526,23 @@ class QuotaChatMixin:
             owner = ticket[3] if len(ticket) > 3 else _usage_owner()
 
             async def settle_and_publish():
+                cost = message_cost_breakdown(message, rates) if usage_valid else None
                 settlement = await quota.settle(
                     reservation,
-                    message_cost(message, rates) if usage_valid else None,
+                    cost.total_usd if cost is not None else None,
                     **({"partial": True} if partial else {}),
                 )
+                if (
+                    isinstance(settlement, dict)
+                    and not settlement["unknown"]
+                    and cost is not None
+                    and settlement["charged_units"] == usd_units(cost.total_usd)
+                ):
+                    settlement = {
+                        **settlement,
+                        "cost_breakdown": cost.to_event_data(),
+                        "cost_rates": asdict(rates),
+                    }
                 # Native model-end callbacks may never arrive after cancellation.
                 if owner is not None and isinstance(settlement, dict):
                     await owner.record_usage_receipt(_receipt(reservation, settlement))

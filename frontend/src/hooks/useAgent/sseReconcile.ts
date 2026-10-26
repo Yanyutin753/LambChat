@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { applyRecommendQuestionsToMessages } from "./recommendQuestionsUpdate";
 import { sessionApi } from "../../services/api";
+import { hasVisibleModalDialog } from "../../utils/modalDialog";
 import type { ConnectionStatus, Message } from "../../types";
 import {
   clearReconnectTimeout,
@@ -329,6 +330,8 @@ export function useStreamReconcile(
         await reconnectSSE(ctx, runId);
         return;
       }
+      // History replacement unmounts message dialogs, including an open image picker.
+      if (hasVisibleModalDialog()) return;
       const now = Date.now();
       if (reconcileControllerRef.current) {
         if (now - lastReconcileAtRef.current < STREAM_STALE_THRESHOLD_MS)
@@ -397,7 +400,10 @@ export function useStreamReconcile(
             targetRunId: historyTargetRunIdRef?.current,
             isSending: isSendingRef.current,
             isLoadingHistory: isLoadingHistoryRef.current,
-            isBusy: () => isSendingRef.current || isLoadingHistoryRef.current,
+            isBusy: () =>
+              isSendingRef.current ||
+              isLoadingHistoryRef.current ||
+              hasVisibleModalDialog(),
           });
         }
       } finally {
