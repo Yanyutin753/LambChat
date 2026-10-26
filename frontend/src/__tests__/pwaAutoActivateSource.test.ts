@@ -1,18 +1,47 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { expect, test } from "vitest";
+/** @vitest-environment jsdom */
+import { expect, test, vi } from "vitest";
 
-test("pwa.ts activates a waiting worker at page load", () => {
-  const source = readFileSync(
-    resolve(import.meta.dirname, "../pwa.ts"),
-    "utf8",
-  );
+vi.mock("../pwaGuards", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../pwaGuards")>()),
+  shouldRegisterPwa: () => true,
+}));
 
-  // 页面加载时若存在 waiting 的新版本 worker，直接激活并重载一次，
-  // 避免用户浏览器长期停留在旧缓存 bundle（旧版本的性能/行为修复不生效）
-  expect(source).toMatch(/activateWaitingLambChatPwaUpdate\(registration\)/);
-  // 仅在存在旧 controller（即确实在跑旧版本）且成功触发激活时重载
-  expect(source).toMatch(
-    /navigator\.serviceWorker\.controller\s*&&\s*registration\.waiting/,
+test("a waiting update is announced and activates only after the user requests it", async () => {
+  const registration = {
+    waiting: { postMessage: vi.fn() },
+    addEventListener: vi.fn(),
+    update: vi.fn().mockResolvedValue(undefined),
+  };
+  vi.stubGlobal("navigator", {
+    serviceWorker: {
+      controller: {},
+      register: vi.fn().mockResolvedValue(registration),
+      addEventListener: vi.fn(),
+    },
+  });
+  const { PWA_UPDATE_AVAILABLE_EVENT, PWA_SKIP_WAITING_MESSAGE } = await import(
+    "../pwaGuards"
   );
+  const available = vi.fn();
+  window.addEventListener(PWA_UPDATE_AVAILABLE_EVENT, available);
+  try {
+    const { registerLambChatPwa, activateWaitingLambChatPwaUpdate } =
+      await import("../pwa");
+    registerLambChatPwa();
+    window.dispatchEvent(new Event("load"));
+    await vi.waitFor(() => expect(available).toHaveBeenCalled());
+    expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+    expect(registration.update).toHaveBeenCalled();
+    expect(
+      activateWaitingLambChatPwaUpdate(
+        registration as unknown as ServiceWorkerRegistration,
+      ),
+    ).toBe(true);
+    expect(registration.waiting.postMessage).toHaveBeenCalledWith({
+      type: PWA_SKIP_WAITING_MESSAGE,
+    });
+  } finally {
+    window.removeEventListener(PWA_UPDATE_AVAILABLE_EVENT, available);
+    vi.unstubAllGlobals();
+  }
 });

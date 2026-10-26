@@ -123,7 +123,7 @@ class FeedbackManager:
         items, total, stats = await asyncio.gather(
             self.storage.list(skip, limit, rating, user_id, session_id),
             self.storage.count(rating, user_id, session_id),
-            self.storage.get_stats(session_id),
+            self.storage.get_stats(session_id, None, user_id),
         )
         return FeedbackListResponse(items=items, total=total, stats=stats)
 

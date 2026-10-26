@@ -271,6 +271,7 @@ class FeedbackStorage:
         self,
         session_id: Optional[str] = None,
         run_id: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> FeedbackStats:
         """
         获取反馈统计信息
@@ -287,6 +288,9 @@ class FeedbackStorage:
             query["session_id"] = session_id
         if run_id is not None:
             query["run_id"] = run_id
+
+        if user_id is not None:
+            query["user_id"] = user_id
 
         # Use aggregation to get all counts in a single query
         pipeline = [

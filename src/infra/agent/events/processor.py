@@ -320,18 +320,23 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             if any(identity.values()) and identity not in models:
                 models.append(identity)
         details = {}
-        if (
-            receipts
-            and not snapshot.get("legacy_cost_unknown", False)
-            and not snapshot.get("legacy_cost_units", 0)
-            and all(not item["unknown"] and item.get("cost_breakdown") for item in receipts)
-        ):
-            details["cost_breakdown"] = {
-                key: round(sum(item["cost_breakdown"][key] for item in receipts), 12)
+        priced = [item for item in receipts if not item["unknown"] and item.get("cost_breakdown")]
+        if priced:
+            complete_details = (
+                len(priced) == len(receipts)
+                and not snapshot.get("legacy_cost_unknown", False)
+                and not snapshot.get("legacy_cost_units", 0)
+            )
+            details["cost_breakdown" if complete_details else "partial_cost_breakdown"] = {
+                key: round(sum(item["cost_breakdown"][key] for item in priced), 12)
                 for key in ("input", "output", "cache_read", "cache_write", "total")
             }
-            rates = receipts[0].get("cost_rates")
-            if rates is not None and all(item.get("cost_rates") == rates for item in receipts):
+            rates = priced[0].get("cost_rates")
+            if (
+                complete_details
+                and rates is not None
+                and all(item.get("cost_rates") == rates for item in priced)
+            ):
                 details["cost_rates"] = dict(rates)
         return {
             **details,
