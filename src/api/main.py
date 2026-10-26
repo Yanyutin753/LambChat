@@ -616,7 +616,6 @@ async def lifespan(app: FastAPI):
         from src.infra.async_utils import loop_bridge
         from src.infra.sandbox import SandboxFactory
 
-        loop_bridge.clear_main_loop()
         # 第一时间置进程关闭标志：此后周期扫描/孤儿接管不再发起新的恢复，
         # 否则依赖逐个断开期间，垂死实例会把恢复任务塞给自己并随即被杀掉。
         from src.infra.task.lifecycle import mark_shutting_down
@@ -641,6 +640,11 @@ async def lifespan(app: FastAPI):
         # 再统一取消 lifespan 后台任务，让各任务自己的 finally 在依赖关闭前完成。
         await _cancel_lifespan_background_tasks_for_shutdown(app)
 
+        # Drain tasks before closing tool clients, persistence, or the coroutine bridge.
+        await stop_runtime_services()
+        loop_bridge.clear_main_loop()
+        logger.info("Background tasks drained and runtime services stopped")
+
         # 等待会话配置后台写落库，避免退出丢数据
         from src.api.routes.chat import drain_session_config_tasks
 
@@ -664,26 +668,15 @@ async def lifespan(app: FastAPI):
         # 停止事件合并器
         from src.infra.session.event_merger import close_event_merger
         from src.infra.session.trace_storage import close_trace_storage
-        from src.infra.task.manager import get_task_manager
 
         await close_event_merger()
         await close_trace_storage()
         logger.info("EventMerger stopped")
 
-        # 标记所有运行中的任务为失败
-        task_manager = get_task_manager()
-
-        # 先停止分布式运行时监听器，再关闭任务
-        await stop_runtime_services()
-        logger.info("Runtime distributed listeners stopped")
-
         from src.infra.monitoring import close_memory_monitor
 
         await close_memory_monitor()
         logger.info("Memory monitor stopped")
-
-        await task_manager.shutdown()
-        logger.info("Background tasks marked as failed")
 
         # 清理 executor 注册表
         from src.infra.task.concurrency import unregister_executor

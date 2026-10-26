@@ -26,6 +26,9 @@ class _FakeTaskManager(_FakeAsyncService):
     async def stop_pubsub_listener(self) -> None:
         self.stop_calls += 1
 
+    async def shutdown(self) -> None:
+        pass
+
 
 class _FakeWebSocketManager(_FakeAsyncService):
     async def start_pubsub_listener(self) -> None:
@@ -958,3 +961,37 @@ async def test_boot_with_memory_disabled_registers_dormant_memory_jobs(monkeypat
         "start_memory_evolution_scheduler",
         "start_memory_cleanup_agent",
     ]
+
+
+def test_shutdown_drains_worker_before_closing_runtime_dependencies():
+    import inspect
+
+    source = inspect.getsource(runtime_services.stop_runtime_services)
+    assert source.index("await stop_arq_runtime()") < source.index(
+        "await websocket_manager.stop_pubsub_listener()"
+    )
+    assert source.index("await stop_arq_runtime()") < source.index(
+        "await close_mcp_pool_connections()"
+    )
+    assert source.index("await task_manager.shutdown()") < source.index(
+        "await close_mcp_pool_connections()"
+    )
+
+
+def test_api_shutdown_preserves_bridge_and_clients_until_tasks_stop():
+    from pathlib import Path
+
+    source = (
+        Path("src/api/main.py")
+        .read_text()
+        .split('logger.info("Application lifespan cancelled, continuing graceful shutdown")')[1]
+    )
+    assert source.index("await stop_runtime_services()") < source.index(
+        "loop_bridge.clear_main_loop()"
+    )
+    assert source.index("await stop_runtime_services()") < source.index(
+        "await close_image_clients()"
+    )
+    assert source.index("await stop_runtime_services()") < source.index(
+        "await close_trace_storage()"
+    )

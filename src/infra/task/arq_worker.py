@@ -638,6 +638,12 @@ async def run_scheduled_agent_task(ctx: dict[str, Any], dispatch_id: str) -> Non
         await asyncio.gather(renewal, return_exceptions=True)
 
 
+async def scan_recommendations(ctx: dict[str, Any]) -> None:
+    from .recommendations import scan_recommendations as scan
+
+    await scan(ctx)
+
+
 class WorkerSettings:
     functions: list[WorkerCoroutine] = [
         run_scheduled_agent_task,
@@ -646,6 +652,7 @@ class WorkerSettings:
         continue_persistent_goal,
     ]
     cron_jobs = [
+        cron(scan_recommendations, second=set(range(0, 60, 5)), run_at_startup=True),
         cron(scan_persistent_goals, second={0, 10, 20, 30, 40, 50}, run_at_startup=True),
         cron(scan_background_tasks, second={5, 15, 25, 35, 45, 55}, run_at_startup=True),
     ]
