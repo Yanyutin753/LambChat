@@ -1,3 +1,4 @@
+import { VideoWithPoster } from "./VideoWithPoster";
 import { useUploadFileUrl } from "../../hooks/useUploadFileUrl";
 import { mediaProxyFallbackSrc } from "../documents/documentFetchCache";
 import {
@@ -119,7 +120,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
         className="viewer-stage safe-area-bottom min-h-0 flex-1 overflow-hidden flex items-center justify-center"
         onClick={handleBackgroundClick}
       >
-        <video
+        <VideoWithPoster
           key={`${src}:${retryAttempt}`}
           controls
           tabIndex={0}
@@ -129,6 +130,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           hidden={hasError || mediaSource.failed}
           preload="metadata"
           className="max-w-full max-h-full"
+          posterSource={src}
           src={mediaSource.src}
           onError={(event) => {
             const fallback = mediaProxyFallbackSrc(event.currentTarget);
@@ -143,7 +145,7 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
           onClick={(e) => e.stopPropagation()}
         >
           {t("documents.videoNotSupported")}
-        </video>
+        </VideoWithPoster>
         {(hasError || mediaSource.failed) && (
           <div className="flex flex-col items-center gap-3 px-6 text-center text-white/80">
             <SceneIllustration scene="files" />

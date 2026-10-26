@@ -75,7 +75,11 @@ async def test_download_share_and_generated_registration_initialize_indexes_once
         content_type="image/png",
     )
     monkeypatch.setattr(
-        service, "_get_backend", lambda: SimpleNamespace(upload=AsyncMock(return_value=result))
+        service,
+        "_get_backend",
+        lambda: SimpleNamespace(
+            upload=AsyncMock(return_value=result), exists=AsyncMock(return_value=False)
+        ),
     )
     TraceContext.set_request_context(user_id="owner", session_id="session")
     for _ in range(2):

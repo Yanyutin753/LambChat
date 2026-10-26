@@ -4,9 +4,8 @@ File-library cards must never download the original file just to show a
 cover: Aliyun OSS processes the crop/snapshot server-side behind a
 long-lived signed URL, local storage resizes with Pillow, and every other
 S3 provider renders once server-side (Pillow) and caches the small JPEG
-beside the original. Video snapshots stay Aliyun-only (no server-side
-ffmpeg) and unsupported types 404 so clients fall back to a generated
-cover without any traffic.
+beside the original. Video posters are prepared at upload and cached for all providers; legacy
+videos are filled lazily. Explicit Aliyun snapshot timestamps remain supported.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ import shutil
 import sys
 import threading
 import time
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -342,7 +342,7 @@ async def _serve_cached_cover(storage: Any, thumb_key: str, expires: int) -> Res
     small cached JPEG through the app (their presigned URLs rotate per
     request and self-hosted endpoints are often not browser-reachable)."""
     provider = getattr(getattr(storage, "_config", None), "provider", None)
-    if provider == S3Provider.ALIYUN:
+    if provider == S3Provider.ALIYUN and "/skills/" not in thumb_key:
         url = await storage.get_cover_presigned_url(thumb_key, expires)
         return Response(
             status_code=302,
@@ -364,32 +364,6 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
     from then on."""
     thumb_key = f"{_COVER_CACHE_PREFIX}/{key}.jpg"
     expires = cover_signature_expiry()
-
-    if storage.is_local:
-        file_path = storage.get_file_path(key)
-        if not await run_long_blocking_io(_path_exists, file_path):
-            raise AppError(ErrorCode.FILE_NOT_FOUND)
-        try:
-            stat = await run_long_blocking_io(file_path.stat)
-        except OSError:
-            raise AppError(ErrorCode.FILE_NOT_FOUND)
-        if stat.st_size > _RENDER_MAX_SOURCE_BYTES:
-            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
-
-        def _read_and_render() -> bytes:
-            with open(file_path, "rb") as fh:
-                return render(fh.read())
-
-        try:
-            body = await run_long_blocking_io(_read_and_render)
-        except Exception as e:
-            logger.error(f"Failed to render local {kind} cover for {key}: {e}")
-            raise AppError(ErrorCode.COVER_RENDER_FAILED)
-        return Response(
-            content=body,
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=86400"},
-        )
 
     try:
         if await storage.file_exists(thumb_key):
@@ -471,7 +445,7 @@ async def _do_render_and_cache(
             skip_size_limit=True,
         )
         provider = getattr(getattr(storage, "_config", None), "provider", None)
-        if provider == S3Provider.ALIYUN:
+        if provider == S3Provider.ALIYUN and "/skills/" not in thumb_key:
             url = await storage.get_cover_presigned_url(thumb_key, expires)
             return Response(
                 status_code=302,
@@ -511,7 +485,17 @@ def _path_exists(file_path) -> bool:
 
 
 async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Response:
+    from src.api.routes.upload_content_cover import CONTENT_COVER_EXTENSIONS, render_content_cover
+    from src.infra.storage.s3.media_cover import media_cover_key, prepare_media_cover
+
     ext = _key_ext(key)
+    if ext in CONTENT_COVER_EXTENSIONS:
+        return await _get_rendered_cover_response(
+            storage, key, ext, partial(render_content_cover, ext=ext)
+        )
+    cached_media = media_cover_key(key)
+    if cached_media and t is None and await prepare_media_cover(storage, key):
+        return await _serve_cached_cover(storage, cached_media, cover_signature_expiry())
     if ext in _COVER_PDF_EXTS:
         return await _get_rendered_cover_response(storage, key, "PDF", render_pdf_cover)
     if ext in _COVER_SHEET_EXTS:

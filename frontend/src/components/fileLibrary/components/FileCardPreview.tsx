@@ -1,3 +1,4 @@
+import { isChatCoverableFile } from "../../../utils/chatThumbs";
 import { FileIcon } from "../../common/FileIcon";
 import { useEffect, useState } from "react";
 import { usePrivateImage } from "../../../hooks/usePrivateImage";
@@ -457,6 +458,10 @@ function CompactCover({
     sources = buildImageSources(raw);
   } else if (raw && preview.kind === "video") {
     sources = buildVideoSources(raw);
+  } else if (raw && isChatCoverableFile(raw.split("?")[0].split(".").pop())) {
+    sources = [buildProxyCoverUrl(raw)].filter((source): source is string =>
+      Boolean(source),
+    );
   }
 
   return (
@@ -490,10 +495,7 @@ function buildImageSources(raw: string): string[] {
 /** Video covers try the 1s keyframe then 0s; never the raw video. */
 function buildVideoSources(raw: string): string[] {
   if (!raw) return [];
-  const proxy = [
-    buildProxyCoverUrl(raw, { t: 1000 }),
-    buildProxyCoverUrl(raw, { t: 0 }),
-  ];
+  const proxy = [buildProxyCoverUrl(raw), buildProxyCoverUrl(raw, { t: 0 })];
   const oss = buildVideoThumbChain(raw) ?? [];
   return [...proxy, ...oss].filter((s): s is string => Boolean(s));
 }
@@ -555,6 +557,13 @@ export function FileCardPreview({
 
   if (preview.kind === "sheet" && imageUrl) {
     return <RenderedCover p={preview} fallback={<SheetCover p={preview} />} />;
+  }
+
+  if (
+    imageUrl &&
+    isChatCoverableFile(imageUrl.split("?")[0].split(".").pop())
+  ) {
+    return <RenderedCover p={preview} fallback={<DocCover p={preview} />} />;
   }
 
   switch (preview.kind) {

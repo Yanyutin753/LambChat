@@ -1,3 +1,4 @@
+import { VideoWithPoster } from "../../../common/VideoWithPoster";
 import { WorkspaceMediaContext } from "../../../../hooks/workspaceMediaContext";
 import { useUploadFileUrl } from "../../../../hooks/useUploadFileUrl";
 // video_analyze 内置工具专属 Item（对齐 ImageAnalyzeItem：CollapsiblePill +
@@ -77,7 +78,7 @@ function VideoPreview({
         </p>
       )}
       {mediaSource.src && (
-        <video
+        <VideoWithPoster
           src={mediaSource.src}
           controls
           preload="metadata"

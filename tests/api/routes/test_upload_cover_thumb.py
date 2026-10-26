@@ -94,7 +94,7 @@ async def test_cover_redirects_to_processed_presigned_url_for_images(
 
 
 @pytest.mark.asyncio
-async def test_cover_video_uses_requested_timestamp_defaulting_to_1s(
+async def test_cover_video_prefers_cached_poster_and_preserves_explicit_timestamp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeS3Storage()
@@ -114,9 +114,8 @@ async def test_cover_video_uses_requested_timestamp_defaulting_to_1s(
         current_user=SimpleNamespace(sub="owner-a", permissions=["file:read"]),
     )
 
-    assert (
-        "video/snapshot,t_1000,f_jpg,w_560,h_315,m_fast" == (storage.presigned_calls[0]["process"])
-    )
+    assert storage.presigned_calls[0]["key"] == "covers/560x315/revealed_files/clip.mp4.jpg"
+    assert storage.presigned_calls[0]["process"] is None
     assert "video/snapshot,t_0,f_jpg,w_560,h_315,m_fast" == (storage.presigned_calls[1]["process"])
 
 
@@ -127,7 +126,7 @@ async def test_cover_returns_404_for_unsupported_types(
     storage = _FakeS3Storage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    for key in ("a/b/archive.zip", "a/b/anim.gif", "a/b/icon.svg"):
+    for key in ("a/b/archive.rar", "a/b/anim.gif", "a/b/icon.svg"):
         with pytest.raises(AppError) as exc:
             await upload.get_file_proxy(
                 key,
@@ -199,21 +198,14 @@ async def test_cover_serves_local_files_resized_by_pillow(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
 
-    src = tmp_path / "hero.jpg"
+    from src.infra.storage.s3.service import S3StorageService
+    from src.infra.storage.s3.types import S3Config, S3Provider
+
+    src = tmp_path / "revealed_files" / "hero.jpg"
+    src.parent.mkdir()
     Image.new("RGB", (640, 400), (200, 120, 60)).save(src, format="JPEG")
-
-    class _FakeLocalStorage:
-        is_local = True
-        _config = SimpleNamespace(public_bucket=False)
-
-        def get_file_path(self, key: str):
-            assert key == "revealed_files/hero.jpg"
-            return src
-
-        async def file_exists(self, key: str) -> bool:  # pragma: no cover
-            return True
-
-    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage()))
+    storage = S3StorageService(S3Config(provider=S3Provider.LOCAL, storage_path=str(tmp_path)))
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     resp = await upload.get_file_proxy(
         "revealed_files/hero.jpg",
@@ -438,17 +430,14 @@ async def test_cover_pdf_skips_oversized_sources(
 async def test_cover_pdf_local_storage_renders_real_jpeg(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    src = tmp_path / "report.pdf"
+    from src.infra.storage.s3.service import S3StorageService
+    from src.infra.storage.s3.types import S3Config, S3Provider
+
+    src = tmp_path / "revealed_files" / "report.pdf"
+    src.parent.mkdir()
     src.write_bytes(_make_pdf_bytes())
-
-    class _FakeLocalStorage:
-        is_local = True
-        _config = SimpleNamespace(public_bucket=False)
-
-        def get_file_path(self, key: str):
-            return src
-
-    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage()))
+    storage = S3StorageService(S3Config(provider=S3Provider.LOCAL, storage_path=str(tmp_path)))
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     resp = await upload.get_file_proxy(
         "revealed_files/report.pdf",

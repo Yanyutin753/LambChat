@@ -276,3 +276,18 @@ test("xlsx files get the spreadsheet cover kind", () => {
   expect(preview.kind).toBe("sheet");
   expect(preview.badge).toBe("XLSX");
 });
+
+test.each([
+  "report.csv",
+  "script.py",
+  "config.json",
+  "notes.md",
+  "slides.pptx",
+])("%s uses its own content cover and never invents data", (file_name) => {
+  const url = `/api/upload/file/owner/${file_name}`;
+  const preview = buildFileCardPreview(createFile({ file_name, url }));
+  expect(preview.imageUrl).toBe(url);
+  expect(preview.lines.join("\n")).not.toMatch(
+    /item_a|item_b|__init__|interface Props|function config|"type":/,
+  );
+});

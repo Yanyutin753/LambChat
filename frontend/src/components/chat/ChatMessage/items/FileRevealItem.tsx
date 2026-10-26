@@ -1,3 +1,5 @@
+import { AudioWithCover } from "../../../common/AudioWithCover";
+import { VideoWithPoster } from "../../../common/VideoWithPoster";
 import { useUploadFileUrl } from "../../../../hooks/useUploadFileUrl";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -359,7 +361,7 @@ export function FileRevealItem({
             </p>
           ) : isAudio ? (
             <div className="px-4 py-4">
-              <audio
+              <AudioWithCover
                 controls
                 className="w-full"
                 src={mediaSource.src}
@@ -386,7 +388,7 @@ export function FileRevealItem({
                     }
               }
             >
-              {!mediaLoaded && !isImage && !isExcalidraw && (
+              {!mediaLoaded && !isVideo && !isImage && !isExcalidraw && (
                 <div className="absolute inset-0">
                   <MediaSkeleton />
                 </div>
@@ -406,7 +408,8 @@ export function FileRevealItem({
                 <ExcalidrawCardPreview url={parsed.s3Url} />
               ) : (
                 parsed.s3Url && (
-                  <video
+                  <VideoWithPoster
+                    posterSource={parsed.s3Url}
                     ref={inlineVideoRef}
                     src={mediaSource.src}
                     controls

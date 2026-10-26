@@ -8,6 +8,7 @@ Includes retry mechanism for transient upload failures.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import random
 import re
@@ -206,6 +207,48 @@ class S3StorageService:
         key = f"{folder}/{timestamp}_{unique_suffix}_{safe_filename}"
 
         backend = self._get_backend()
+        # Project bundles retain version-local keys because pruning deletes whole versions.
+        dedupe_scope = None
+        if generated_context is not None and not folder.startswith("revealed_projects/"):
+            dedupe_scope = generated_context.user_id
+            if folder == "tool_binaries":
+                dedupe_scope = f"{dedupe_scope}:{generated_context.session_id}"
+        elif folder.startswith(("avatars/", "parsed-documents/")):
+            dedupe_scope = folder
+        if dedupe_scope:
+
+            def digest_file() -> tuple[str, int]:
+                digest = hashlib.sha256()
+                size = 0
+                try:
+                    while chunk := file.read(1024 * 1024):
+                        digest.update(chunk)
+                        size += len(chunk)
+                    return digest.hexdigest(), size
+                finally:
+                    file.seek(start_pos)
+
+            digest, size = await run_long_blocking_io(digest_file)
+            owner = hashlib.sha256(dedupe_scope.encode()).hexdigest()[:32]
+            ext = safe_filename.rsplit(".", 1)[-1].lower() if "." in safe_filename else "bin"
+            media = hashlib.sha256((content_type or "").encode()).hexdigest()[:12]
+            key = f"{folder}/{owner}/{digest}-{media}.{ext}"
+            if await backend.exists(key):
+                result = UploadResult(
+                    key=key,
+                    size=size,
+                    content_type=content_type or "application/octet-stream",
+                    url=await self.get_presigned_url(key),
+                )
+                if generated_context is not None:
+                    assert generated_context.user_id is not None
+                    from src.infra.upload.file_record import get_file_record_storage
+
+                    await get_file_record_storage().register_generated(
+                        result, generated_context.user_id, generated_context.session_id
+                    )
+                await self._prepare_media_cover(file, key, start_pos)
+                return result
 
         async def _upload_attempt() -> UploadResult:
             await run_long_blocking_io(file.seek, start_pos)
@@ -215,6 +258,7 @@ class S3StorageService:
             _upload_attempt,
             label=f"file://{key}",
         )
+        await self._prepare_media_cover(file, key, start_pos)
         if generated_context is not None:
             from src.infra.upload.file_record import get_file_record_storage
 
@@ -242,14 +286,10 @@ class S3StorageService:
                 f"internal upload limit ({max_mb:.0f}MB)"
             )
 
-        timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = self._sanitize_filename(filename)
-        unique_suffix = uuid.uuid4().hex[:8]
-        key = f"{folder}/{timestamp}_{unique_suffix}_{safe_filename}"
-
-        return await self.upload_stream_to_key(
+        return await self.upload_file(
             io.BytesIO(data),
-            key,
+            folder,
+            filename,
             content_type,
             metadata,
             skip_size_limit=True,
@@ -308,11 +348,13 @@ class S3StorageService:
             await run_long_blocking_io(file.seek, start_pos)
             return await backend.upload(file, key, content_type, metadata)
 
+        if not key.startswith(("covers/", "thumbs/")) and await backend.exists(key):
+            await self._delete_derived_previews(key)
         result = await self._retry_async(
             _upload_attempt,
             label=f"stream://{key}",
         )
-
+        await self._prepare_media_cover(file, key, start_pos)
         if not self._config.public_bucket and "?" not in result.url:
             max_expires = 7 * 24 * 3600
             expires = min(self._config.presigned_url_expires, max_expires)
@@ -322,6 +364,19 @@ class S3StorageService:
             )
 
         return result
+
+    async def _prepare_media_cover(self, file, key: str, start_pos: int) -> None:
+        from src.infra.storage.s3.media_cover import media_cover_key, prepare_media_cover
+
+        cover = media_cover_key(key)
+        if cover:
+            try:
+                await run_long_blocking_io(file.seek, start_pos)
+                await prepare_media_cover(self, key, file)
+            except Exception:
+                logger.warning(
+                    "Media uploaded but cover preparation failed for %s", key, exc_info=True
+                )
 
     async def upload_avatar(self, user_id: str, data: bytes, filename: str) -> UploadResult:
         """Upload user avatar"""
@@ -380,8 +435,17 @@ class S3StorageService:
 
         return deleted_count
 
+    async def _delete_derived_previews(self, key: str) -> None:
+        if key.startswith(("covers/", "thumbs/")):
+            return
+        backend = self._get_backend()
+        for preview in (f"covers/560x315/{key}.jpg", f"thumbs/560/{key}.jpg"):
+            if await backend.exists(preview):
+                await backend.delete(preview)
+
     async def delete_file(self, key: str) -> bool:
-        """Delete a file"""
+        """Delete derived previews before the original so failed cleanup can retry."""
+        await self._delete_derived_previews(key)
         return await self._get_backend().delete(key)
 
     async def download_file(self, key: str) -> bytes:

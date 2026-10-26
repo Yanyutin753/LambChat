@@ -61,9 +61,9 @@ test("upload attachment fallback URLs use the configured backend base", () => {
   const source = readSource("../../../hooks/useFileUpload.ts");
 
   expect(source).toMatch(/import \{ buildApiUrl \}/);
-  expect(source).toMatch(
-    /url:\s*buildApiUrl\(\s*check\.url\s*\|\|\s*`\/api\/upload\/file/,
-  );
+  const api = readSource("../upload.ts");
+  expect(api).toMatch(/const url = existing\.url \|\| `\/api\/upload\/file/);
+  expect(api).toMatch(/url: getFullUrl\(url\) \|\| url/);
   expect(source).toMatch(/url:\s*buildApiUrl\(result\.url\)/);
   expect(source).not.toMatch(/url:\s*check\.url\s*\|\|/);
 });
@@ -118,7 +118,9 @@ test("backend-provided avatar URLs are resolved before image rendering", () => {
   const avatar = readSource("../../../components/common/AgentAvatar.tsx");
   expect(avatar).toMatch(/<ImageWithSkeleton/);
   expect(avatar).toMatch(/skipUrlResolve=\{isBrandIcon\}/);
-  const image = readSource("../../../components/chat/ChatMessage/ImageWithSkeleton.tsx");
+  const image = readSource(
+    "../../../components/chat/ChatMessage/ImageWithSkeleton.tsx",
+  );
   expect(image).toMatch(/skipUrlResolve = false/);
   expect(image).toMatch(/skipUrlResolve \? src : getFullUrl\(src\)/);
 });
