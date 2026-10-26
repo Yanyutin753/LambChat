@@ -650,6 +650,31 @@ def schedule_recommend_questions(
     return _schedule_recommend_background_task(run, presenter=presenter)
 
 
+async def _recommendation_history(
+    user_input: str, output_text: str, inner_graph: Any, inner_config: Any
+) -> str:
+    history_messages: list[Any] = []
+    try:
+        current_state = (
+            inner_config.get("_recommendation_state_snapshot")
+            if isinstance(inner_config, dict)
+            else None
+        )
+        if current_state is None:
+            current_state = await inner_graph.aget_state(inner_config)
+        values = getattr(current_state, "values", {}) or {}
+        history_messages = values.get("messages") or []
+    except Exception as exc:
+        logger.debug("Failed to read recommendation state messages: %s", exc)
+
+    return await run_long_blocking_io(
+        format_history_from_messages,
+        history_messages,
+        current_user_input=user_input,
+        current_output=output_text,
+    )
+
+
 def schedule_recommend_questions_from_state(
     presenter: Any,
     user_input: str,
@@ -663,25 +688,8 @@ def schedule_recommend_questions_from_state(
     async def run() -> None:
         if not user_input or getattr(presenter, "recommend_questions_recorded", False):
             return
-        history_messages: list[Any] = []
-        try:
-            current_state = (
-                inner_config.get("_recommendation_state_snapshot")
-                if isinstance(inner_config, dict)
-                else None
-            )
-            if current_state is None:
-                current_state = await inner_graph.aget_state(inner_config)
-            values = getattr(current_state, "values", {}) or {}
-            history_messages = values.get("messages") or []
-        except Exception as exc:
-            logger.debug("Failed to read recommendation state messages: %s", exc)
-
-        history_context = await run_long_blocking_io(
-            format_history_from_messages,
-            history_messages,
-            current_user_input=user_input,
-            current_output=output_text,
+        history_context = await _recommendation_history(
+            user_input, output_text, inner_graph, inner_config
         )
         questions = await generate_recommend_questions(
             user_input,
@@ -695,7 +703,7 @@ def schedule_recommend_questions_from_state(
     return _schedule_recommend_background_task(run, failure_level="debug", presenter=presenter)
 
 
-def schedule_recommendations_best_effort(
+async def schedule_recommendations_best_effort(
     presenter: Any,
     user_input: str,
     output_text: str,
@@ -704,7 +712,25 @@ def schedule_recommendations_best_effort(
     agent_options: dict[str, Any] | None = None,
 ) -> None:
     """三个 agent 节点共用的尽力而为推荐调度入口（失败只记 debug 日志）。"""
+    if not user_input or getattr(presenter, "recommend_questions_recorded", False):
+        return
+    if _get_recommend_background_task_limit() <= 0:
+        return
     try:
+        if settings.TASK_BACKEND == "arq":
+            from src.infra.task.recommendations import enqueue_recommendation
+
+            history_context = await _recommendation_history(
+                user_input, output_text, inner_graph, inner_config
+            )
+            await enqueue_recommendation(
+                presenter,
+                user_input,
+                output_text,
+                history_context,
+                (agent_options or {}).get("response_language"),
+            )
+            return
         schedule_recommend_questions_from_state(
             presenter,
             user_input,

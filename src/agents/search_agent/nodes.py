@@ -754,7 +754,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     ):
         from src.agents.core.recommendations import schedule_recommendations_best_effort
 
-        schedule_recommendations_best_effort(
+        await schedule_recommendations_best_effort(
             presenter, recommendation_input, output_text, inner_graph, inner_config, agent_options
         )
 

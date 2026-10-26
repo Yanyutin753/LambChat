@@ -385,6 +385,7 @@ async def test_agent_node_schedules_recommendations_with_final_output(
         search_without_sandbox_nodes, "create_persistent_backend", lambda **_kwargs: object()
     )
     monkeypatch.setattr(search_without_sandbox_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
+    monkeypatch.setattr(search_without_sandbox_nodes.settings, "TASK_BACKEND", "local")
     _FakeEventProcessor.next_output_text = "assistant answer"
     calls = []
 

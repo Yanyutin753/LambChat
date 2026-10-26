@@ -394,6 +394,7 @@ def test_actual_worker_factory_registers_goal_continuations_and_recovery_scans(m
     assert {job.coroutine.__name__ for job in worker.kwargs["cron_jobs"]} == {
         "scan_persistent_goals",
         "scan_background_tasks",
+        "scan_recommendations",
     }
 
 

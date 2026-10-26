@@ -294,7 +294,10 @@ async def start_runtime_services() -> None:
 
 
 async def stop_runtime_services() -> None:
-    """Stop distributed runtime listeners in reverse dependency order."""
+    """Drain work while its clients and listeners are still available."""
+    task_manager = get_task_manager()
+    await stop_arq_runtime()
+    await task_manager.shutdown()
     await stop_event_loop_lag_monitor()
 
     # Close debug log file handle to prevent FD leak
@@ -332,8 +335,6 @@ async def stop_runtime_services() -> None:
     settings_pubsub = get_settings_pubsub()
     await settings_pubsub.stop_listener()
 
-    task_manager = get_task_manager()
-    await stop_arq_runtime()
     await task_manager.stop_pubsub_listener()
     await close_pubsub_hub()
     await drain_upload_delete_tasks()
