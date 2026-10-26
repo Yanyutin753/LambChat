@@ -929,7 +929,7 @@ test("sending during a same-session refresh retains its previous history and ign
   act(() => {
     refresh = result.current.loadHistory("C");
   });
-  await waitFor(() => expect(result.current.messages).toEqual([]));
+  await waitFor(() => expect(result.current.isLoadingHistory).toBe(true));
   await act(async () => {
     await result.current.sendMessage("next question");
   });
@@ -989,7 +989,7 @@ test.each(["next question", "/goal clear"])(
     act(() => {
       first = result.current.loadHistory("C");
     });
-    await waitFor(() => expect(result.current.messages).toEqual([]));
+    await waitFor(() => expect(result.current.isLoadingHistory).toBe(true));
     act(() => {
       second = result.current.loadHistory("C");
     });
@@ -2016,4 +2016,139 @@ test("a covered steer keeps the original SSE target attached to the newest turn 
   expect(
     result.current.messages.filter((message) => message.id === call[2]),
   ).toHaveLength(1);
+});
+
+test("same-session synchronization keeps the visible history and scroll generation", async () => {
+  let resolveRefresh!: (value: { events: ReturnType<typeof events> }) => void;
+  const initial = events("C-run", "2026-10-13T10:00:00Z");
+  mocks.events
+    .mockResolvedValueOnce({ events: initial })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+  const { result } = renderHook(() => useAgent());
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  const before = result.current.messages;
+  const generation = result.current.historyLoadGeneration;
+  let refresh!: Promise<unknown>;
+  act(() => {
+    refresh = result.current.loadHistory("C");
+  });
+  await waitFor(() => expect(mocks.events).toHaveBeenCalledTimes(2));
+  expect(result.current.messages).toEqual(before);
+  expect(result.current.historyLoadGeneration).toBe(generation);
+  await act(async () => {
+    resolveRefresh({ events: structuredClone(initial) });
+    await refresh;
+  });
+  expect(result.current.messages.map((message) => message.id)).toEqual(
+    before.map((message) => message.id),
+  );
+  expect(result.current.historyLoadGeneration).toBe(generation);
+});
+
+test("a failed same-session synchronization keeps the readable answer", async () => {
+  mocks.events.mockResolvedValueOnce({
+    events: events("C-run", "2026-10-13T10:00:00Z"),
+  });
+  const { result } = renderHook(() => useAgent());
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  const before = result.current.messages;
+  mocks.events.mockRejectedValueOnce(new Error("Network unavailable"));
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  expect(result.current.messages).toEqual(before);
+  expect(result.current.isLoadingHistory).toBe(false);
+});
+
+test("same-session synchronization retains older pages and their exhausted cursor", async () => {
+  const traced = (run: string, timestamp: string) =>
+    events(run, timestamp).map((event) => ({ ...event, trace_id: run }));
+  mocks.events.mockResolvedValueOnce({
+    events: traced("latest", "2026-10-13T10:00:00Z"),
+    has_more_traces: true,
+    trace_window: {
+      oldest_trace_started_at: "2026-10-13T10:00:00Z",
+      oldest_trace_id: "latest",
+    },
+  });
+  const { result } = renderHook(() => useAgent());
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  mocks.events.mockResolvedValueOnce({
+    events: traced("older", "2026-10-12T10:00:00Z"),
+    has_more_traces: false,
+    trace_window: {
+      oldest_trace_started_at: "2026-10-12T10:00:00Z",
+      oldest_trace_id: "older",
+    },
+  });
+  await act(async () => {
+    await result.current.loadOlderHistory();
+  });
+  expect(result.current.hasMoreHistoryTraces).toBe(false);
+  const latest = traced("latest", "2026-10-13T10:00:00Z");
+  latest[1].data.content = "updated answer";
+  mocks.events.mockResolvedValueOnce({
+    events: latest,
+    has_more_traces: true,
+    trace_window: {
+      oldest_trace_started_at: "2026-10-13T10:00:00Z",
+      oldest_trace_id: "latest",
+    },
+  });
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  expect(result.current.messages.map((message) => message.content)).toEqual([
+    "question-older",
+    "answer-older",
+    "question-latest",
+    "updated answer",
+  ]);
+  expect(result.current.hasMoreHistoryTraces).toBe(false);
+});
+
+test.each([401, 403, 404])(
+  "history synchronization clears cached content after access is lost (%s)",
+  async (status) => {
+    mocks.events.mockResolvedValueOnce({
+      events: events("C-run", "2026-10-13T10:00:00Z"),
+    });
+    const { result } = renderHook(() => useAgent());
+    await act(async () => {
+      await result.current.loadHistory("C");
+    });
+    mocks.get.mockRejectedValueOnce(
+      Object.assign(new Error("Access lost"), { status }),
+    );
+    await act(async () => {
+      await result.current.loadHistory("C");
+    });
+    expect(result.current.messages).toEqual([]);
+  },
+);
+
+test("same-session synchronization preserves the selected Goal mode", async () => {
+  mocks.events.mockResolvedValue({
+    events: events("C-run", "2026-10-13T10:00:00Z"),
+  });
+  const { result } = renderHook(() => useAgent());
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  act(() => result.current.setGoalModeEnabled(true));
+  await act(async () => {
+    await result.current.loadHistory("C");
+  });
+  expect(result.current.goalModeEnabled).toBe(true);
 });

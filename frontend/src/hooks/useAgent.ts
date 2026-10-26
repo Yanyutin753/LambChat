@@ -15,7 +15,6 @@ import { Permission } from "../types/auth";
 import {
   type UseAgentOptions,
   type SubagentStackItem,
-  type HistoryEvent,
   type UseAgentReturn,
   type ChatSubmissionCallbacks,
 } from "./useAgent/types";
@@ -420,13 +419,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               messagesRef.current,
             )
           : messagesRef.current;
+      const preserveHistory =
+        sourceSessionId === targetSessionId && snapshotMessages.length > 0;
       sendSeqRef.current += 1;
       submitInFlightRef.current = false;
       isSendingRef.current = false;
       if (sessionIdRef.current !== targetSessionId) setPersistentGoal(null);
       loadHistoryRequestIdRef.current += 1;
       const requestId = loadHistoryRequestIdRef.current;
-      setHistoryLoadGeneration(requestId);
+      if (!preserveHistory) setHistoryLoadGeneration(requestId);
       const isStaleHistoryLoad = () =>
         requestId !== loadHistoryRequestIdRef.current ||
         signal.aborted ||
@@ -463,16 +464,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         accountId,
         messages: snapshotMessages,
       };
-      setMessages([]);
-      // Clear the previous view; restore this session's local follow-ups after access is verified.
-      clearSteerMessages();
-      followUpSteerIdsRef.current.clear();
-      cancelledSteerIdsRef.current.clear();
+      if (!preserveHistory) setMessages([]);
+      if (!preserveHistory) {
+        clearSteerMessages();
+        followUpSteerIdsRef.current.clear();
+        cancelledSteerIdsRef.current.clear();
+      }
       setError(null);
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
-      resetHistoryPagination();
+      resetHistoryPagination(preserveHistory);
       void sessionApi.markRead(targetSessionId).catch(() => {});
       const feedbackPromise = canReadFeedback
         ? feedbackApi
@@ -542,7 +544,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           : targetRunId;
 
         if (sessionData) {
-          restoreSteerMessages(targetSessionId);
+          if (!preserveHistory) restoreSteerMessages(targetSessionId);
           if (sessionData.name) {
             dispatchSessionTitleUpdated({
               sessionId: targetSessionId,
@@ -562,10 +564,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             null;
 
           const sessionConfig = extractSessionConfig(sessionData);
-          setGoalModeEnabled(false);
+          if (!preserveHistory) setGoalModeEnabled(false);
 
-          const historyEvents = (eventsData.events || []) as HistoryEvent[];
-          recordFirstWindow(eventsData);
+          const historyEvents = recordFirstWindow(eventsData, preserveHistory);
           let reconstructedMessages = reconstructMessagesFromEvents(
             historyEvents,
             processedEventIdsRef.current,
@@ -673,6 +674,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         // A deleted or inaccessible session must not look like an empty,
         // successfully loaded conversation.
         if (!isStaleHistoryLoad()) {
+          setMessages([]);
           setError(i18n.t("chat.sessionUnavailable", "会话不存在或已被删除"));
         }
       } catch (err) {
@@ -683,6 +685,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           return null;
         }
         console.error("Failed to load session:", err);
+        if (
+          err instanceof Error &&
+          "status" in err &&
+          [401, 403, 404].includes(Number(err.status))
+        ) {
+          setMessages([]);
+        }
         setError(i18n.t("chat.requestFailed"));
       } finally {
         if (historyMessagesSnapshotRef.current?.requestId === requestId) {

@@ -87,14 +87,18 @@ async def list_feedback(
     rating: Optional[RatingValue] = Query(None, description="评分过滤：up 或 down"),
     user_id: Optional[str] = Query(None, description="用户ID过滤"),
     session_id: Optional[str] = Query(None, description="会话ID过滤"),
-    _: None = Depends(require_permissions("feedback:read")),
+    user: TokenPayload = Depends(get_current_user_required),
     manager: FeedbackManager = Depends(get_feedback_manager),
 ) -> FeedbackListResponse:
     """
     获取反馈列表
 
-    需要 feedback:read 权限
+    管理员可读取全部反馈；feedback:write 用户只能读取自己的反馈。
     """
+    if "feedback:read" not in user.permissions:
+        if "feedback:write" not in user.permissions:
+            raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "feedback:write"})
+        user_id = user.sub
     async with timed_server_phase("feedback"):
         return await manager.list_feedback(
             skip=skip,

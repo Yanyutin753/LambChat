@@ -752,3 +752,29 @@ test("a refreshed server run does not strand history hydration started by resume
   });
   expect(loadHistory).toHaveBeenCalledTimes(2);
 });
+
+test("returning from an image picker defers history replacement until feedback closes", async () => {
+  vi.useFakeTimers();
+  const { ctx } = createReconcileContext([], {
+    streamingMessageIdRef: { current: null },
+  });
+  const loadHistory = vi.fn().mockResolvedValue({});
+  mountReconcile(ctx, "connected", loadHistory);
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  document.body.append(dialog);
+  try {
+    await act(async () => {
+      document.dispatchEvent(new Event("pause"));
+      document.dispatchEvent(new Event("resume"));
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(loadHistory).not.toHaveBeenCalled();
+    dialog.remove();
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadHistory).toHaveBeenCalledExactlyOnceWith("session-a");
+  } finally {
+    dialog.remove();
+  }
+});

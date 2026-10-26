@@ -37,8 +37,9 @@ export function formatUsageTokenCount(
 
 export interface CostDetailRow {
   key: CostRowKey;
-  /** 该档计费 token 数 */
-  tokens: number;
+  /** 该档计费 token 数；逐调用结算不使用汇总计数反推 */
+  tokens: number | null;
+  partial?: boolean;
   /** 该档 USD 成本 */
   usd: number | null;
   /** 该档单价（USD / 每百万 token）；未知为 null */
@@ -143,6 +144,33 @@ export function formatTokenUsageCost(
 export function buildCostDetailRows(
   usage: TokenUsagePart | undefined,
 ): CostDetailRow[] {
+  const settledBreakdown =
+    usage?.partial_cost_breakdown ?? usage?.cost_breakdown;
+  const partial = Boolean(usage?.partial_cost_breakdown);
+  if (
+    usage?.cost_source === "provider_settlement" &&
+    settledBreakdown &&
+    (hasPricedCost(usage) ||
+      (usage.cost_complete === false &&
+        Number.isSafeInteger(usage.cost_units) &&
+        usage.cost_units! >= 0 &&
+        usage.partial_cost_usd === usage.cost_units! / 1_000_000_000))
+  ) {
+    const keys: CostRowKey[] = ["input", "output", "cache_read", "cache_write"];
+    return keys
+      .filter(
+        (key) =>
+          isCostAmount(settledBreakdown[key]) &&
+          (key === "input" || key === "output" || settledBreakdown[key] > 0),
+      )
+      .map((key) => ({
+        key,
+        tokens: null,
+        usd: settledBreakdown[key]!,
+        ratePerMillion: partial ? null : usage.cost_rates?.[key] ?? null,
+        ...(partial ? { partial: true } : {}),
+      }));
+  }
   if (
     !usage ||
     (usage.usage_incomplete === true &&
@@ -225,7 +253,10 @@ export function formatCostDetailRow(
   opts: FormatCostRowOpts,
 ): { cost: string; rate: string | null } {
   return {
-    cost: row.usd === null ? "—" : formatCostUsd(row.usd, opts),
+    cost:
+      row.usd === null
+        ? "—"
+        : `${formatCostUsd(row.usd, opts)}${row.partial ? "+" : ""}`,
     rate:
       row.ratePerMillion === null
         ? null

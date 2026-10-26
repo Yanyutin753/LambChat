@@ -280,3 +280,35 @@ async def test_session_history_projects_costs_only_after_session_ownership_check
         with pytest.raises(AppError):
             await routes.get_session_events(**kwargs)
         projection.assert_not_awaited()
+
+
+async def test_saved_settlement_details_are_not_replaced_by_legacy_price_projection():
+    event = _event(
+        cost_source="provider_settlement",
+        cost_units=100_000,
+        cost_complete=True,
+        cost_usd=0.0001,
+        cost_breakdown={
+            "input": 0.00008,
+            "output": 0.00002,
+            "cache_read": 0,
+            "cache_write": 0,
+            "total": 0.0001,
+        },
+        cost_rates={"input": 1, "output": 2, "cache_read": 0, "cache_write": 0},
+    )
+    original = deepcopy(event)
+    result, _ = await _project(
+        [event],
+        [
+            _row(
+                cost_source="provider_settlement",
+                cost_units=100_000,
+                cost_available=True,
+                cost_complete=True,
+                cost_usd=0.0001,
+                partial_cost_usd=None,
+            )
+        ],
+    )
+    assert result == [original]
