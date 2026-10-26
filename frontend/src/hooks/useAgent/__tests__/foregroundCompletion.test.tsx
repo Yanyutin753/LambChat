@@ -131,6 +131,49 @@ test("done releases the composer without waiting for a suspended transport to cl
   expect(result.current.isLoading).toBe(false);
   expect(result.current.messages.at(-1)?.isStreaming).toBe(false);
 });
+test("a delayed task completion notification cannot reopen a completed conversation", async () => {
+  const { result } = await start();
+  await act(async () => emit(0, "done", {}));
+  const onCurrentSessionTaskComplete: (data: {
+    session_id: string;
+    run_id?: string;
+    status: string;
+  }) => void = result.current.reconcileActiveRun;
+  await act(async () => {
+    onCurrentSessionTaskComplete({
+      session_id: "session",
+      run_id: "run",
+      status: "completed",
+    });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2_000);
+  });
+  expect(
+    isSessionRunning(result.current.messages, result.current.isLoading),
+  ).toBe(false);
+  expect(result.current.currentRunId).toBe("run");
+  expect(connections).toHaveLength(1);
+  expect(mocks.status).not.toHaveBeenCalled();
+});
+
+test("explicit approval recovery still reconnects to the new run", async () => {
+  const { result } = await start();
+  await act(async () => emit(0, "done", {}));
+  await act(async () => result.current.reconnectSSE("resumed-run"));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2_000);
+  });
+  expect(result.current.currentRunId).toBe("resumed-run");
+  expect(mocks.status).toHaveBeenCalledWith(
+    "session",
+    "resumed-run",
+    expect.any(Object),
+  );
+  expect(connections).toHaveLength(2);
+  expect(result.current.messages.at(-1)?.isStreaming).toBe(true);
+});
+
 test("a completed conversation stays idle while foreground history synchronization is pending", async () => {
   const { result } = await start();
   await act(async () => {
