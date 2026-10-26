@@ -1,3 +1,4 @@
+import { downloadUrl } from "../../common/viewerDownload";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
@@ -44,14 +45,6 @@ function formatSize(bytes?: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function downloadFile(name: string, url?: string) {
-  if (!url) return;
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
 }
 
 function getDownloadFailureMessage(
@@ -198,7 +191,12 @@ function TreeFileRow({
             variant="muted"
             disabled={!node.artifact.preview.signedUrl}
             onClick={() => {
-              downloadFile(node.artifact.name, node.artifact.preview.signedUrl);
+              if (node.artifact.preview.signedUrl) {
+                downloadUrl(
+                  node.artifact.preview.signedUrl,
+                  node.artifact.name,
+                );
+              }
             }}
             aria-label={`${t("documents.downloadFile")}: ${node.artifact.name}`}
             icon={<Download size={18} />}
