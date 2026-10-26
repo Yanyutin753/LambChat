@@ -1141,7 +1141,7 @@ jobs:
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file body.md
 
       - name: Publish ready dev update channel
-        if: contains(env.RELEASE_TAG, '-dev.') && needs.desktop.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success'
+        if: contains(env.RELEASE_TAG, '-dev.') && needs.desktop.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' && vars.DEV_UPDATER_AUTO_PUBLISH != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_DIR: release-assets

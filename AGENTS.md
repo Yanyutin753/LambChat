@@ -180,7 +180,7 @@ Conventional Commits + 中文描述：`类型(范围): 摘要`。
 - 更新通道为设备级主动选择：默认 stable，dev 通道可获取已完成发布门禁的测试版及正式版。下载/安装期间禁止切换，切换后丢弃旧检查结果和待安装目标；所有下载绑定具体 tag。
 - Android `versionCode` = `(major × 10000 + minor × 100 + patch) × 1000 + 构建序号`（minor、patch 均须小于 100，结果不超过 Android 的 2100000000 上限）：dev 使用 N，正式版使用 999。例如 `2.15.2-dev.1` 为 21502001，正式版为 21502999；iOS `MARKETING_VERSION` 使用核心版本，`CURRENT_PROJECT_VERSION` 使用对应构建序号。每次替换同核心包都须增加平台构建号。
 - dev 包仍须通过完整 CI、各端打包、产物冒烟及签名校验，失败的预发布不得宣传为可用版本。正式版和测试版均不阻塞于真机检查，Release 如实说明尚未验证项和已知问题。标签遵守下文 main 合并提交规则；Web/服务端经 staging 验证后可独立部署生产，客户端 dev 发布不自动晋升稳定通道。
-- dev 版无论 `DESKTOP_UPDATER_AUTO_PUBLISH` 配置如何，都禁止上传稳定 `latest.json`；手动 Desktop Updater Publish 继续拒绝 dev tag。App Release 仅在源提交 CI 与全部原生构建成功、资产签名上传完成后，最后发布独立 `dev-latest.json` 作为测试通道就绪标记。测试版查询不得选择缺少该标记的 dev；稳定缓存与测试缓存隔离。
+- dev 版无论 `DESKTOP_UPDATER_AUTO_PUBLISH` 配置如何，都禁止上传稳定 `latest.json`；手动 Desktop Updater Publish 继续拒绝 dev tag。App Release 仅在源提交 CI 与全部原生构建成功、资产签名上传完成后，最后发布独立 `dev-latest.json` 作为测试通道就绪标记。测试版查询不得选择缺少该标记的 dev；稳定缓存与测试缓存隔离。 仓库变量 `DEV_UPDATER_AUTO_PUBLISH=false` 可保留测试版烘焙态；出包后的 `release-regression` 通过后，使用同一 `generate_updater_manifest.py`、Release 正文与发布时间生成并最后上传 `dev-latest.json`，上传前确认源 CI、全部原生构建与签名校验通过。
 - 验证完成后以新 `vX.Y.Z` tag 重新构建正式版，并重新签名、核验版本与升级路径；不得直接编辑 dev Release 将其改成正式版。正式发布仍遵守每天一个正式版与自动化验证要求，dev 预发布不占当天正式版名额。
 - 版本优先级遵守 [SemVer](https://semver.org/)，GitHub 通道标记遵守 [Managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)。
 
