@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { uploadApi } from "../services/api";
 import { buildApiUrl } from "../services/api/config";
-import type { FileCheckResult } from "../types";
 import { compressImageFile } from "../utils/imageCompression";
 import { uuid } from "../utils/uuid";
 import type { MessageAttachment, FileCategory } from "../types";
@@ -40,43 +39,6 @@ function getFileCategory(file: File): FileCategory {
   if (type.startsWith("video/")) return "video";
   if (type.startsWith("audio/")) return "audio";
   return "document";
-}
-
-function computeFileHash(file: File, signal?: AbortSignal): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let worker: Worker;
-    try {
-      worker = new Worker(
-        new URL("../workers/hashWorker.ts", import.meta.url),
-        { type: "module" },
-      );
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    const cleanup = () => {
-      signal?.removeEventListener("abort", handleAbort);
-      worker.terminate();
-    };
-    const handleAbort = () => {
-      cleanup();
-      reject(new DOMException("Upload was aborted", "AbortError"));
-    };
-    worker.onmessage = (e) => {
-      cleanup();
-      if (e.data.error) {
-        reject(new Error(e.data.error));
-      } else {
-        resolve(e.data.hash);
-      }
-    };
-    worker.onerror = (e) => {
-      cleanup();
-      reject(new Error(e.message));
-    };
-    signal?.addEventListener("abort", handleAbort, { once: true });
-    worker.postMessage({ file });
-  });
 }
 
 function isAbortError(error: unknown): boolean {
@@ -282,43 +244,6 @@ export function useFileUpload({
                 : attachment,
             ),
           );
-
-          let check: FileCheckResult = { exists: false };
-          try {
-            const hash = await computeFileHash(
-              processedFile,
-              controller.signal,
-            );
-            if (controller.signal.aborted)
-              throw new DOMException("Aborted", "AbortError");
-            check = await uploadApi.checkFile(
-              hash,
-              processedFile.size,
-              processedFile.name,
-              processedFile.type,
-            );
-          } catch (error) {
-            if (isAbortError(error)) throw error;
-          }
-
-          if (check.exists && check.key) {
-            const finalAttachment: MessageAttachment = {
-              id: uuid(),
-              key: check.key,
-              name: check.name || processedFile.name,
-              type: (check.type as FileCategory) || fileCategory,
-              mimeType: check.mimeType ?? processedFile.type,
-              size: check.size ?? processedFile.size,
-              url: buildApiUrl(check.url || `/api/upload/file/${check.key}`),
-              ...clientMeta,
-            };
-            onAttachmentsChange((prev) =>
-              prev.map((attachment) =>
-                attachment.id === tempId ? finalAttachment : attachment,
-              ),
-            );
-            return;
-          }
 
           const progressController = createUploadProgressController(
             ({ progress, stage, processingProgress }) => {

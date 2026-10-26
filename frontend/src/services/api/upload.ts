@@ -1,3 +1,6 @@
+import { computeFileHash } from "../../utils/fileHash";
+import { getAccessToken } from "./token";
+import { isCurrentFileAccount } from "./uploadFileUrl";
 /**
  * Upload API - 文件上传
  */
@@ -165,7 +168,55 @@ export const uploadApi = {
       typeof folderOrOptions === "string"
         ? { folder: folderOrOptions }
         : folderOrOptions;
-    return uploadDirect(file, options, () => uploadViaBackend(file, options));
+    const controller = new AbortController();
+    const account = getAccessToken();
+    let upload: UploadHandle | undefined;
+    const assertActive = () => {
+      if (controller.signal.aborted || !isCurrentFileAccount(account))
+        throw new DOMException("Upload was aborted", "AbortError");
+    };
+    const promise = (async (): Promise<UploadResult> => {
+      let hash: string | undefined;
+      try {
+        hash = await computeFileHash(file, controller.signal);
+      } catch {
+        // Unsupported workers still use the server's verified content hash.
+      }
+      assertActive();
+      if (hash) {
+        const existing = await uploadApi.checkFile(
+          hash,
+          file.size,
+          file.name,
+          file.type,
+          controller.signal,
+        );
+        assertActive();
+        if (existing.exists && existing.key) {
+          options.onProgress?.(100, file.size, file.size);
+          const url = existing.url || `/api/upload/file/${existing.key}`;
+          return {
+            key: existing.key,
+            url: getFullUrl(url) || url,
+            name: file.name,
+            type: existing.type!,
+            mimeType: existing.mimeType || file.type,
+            size: existing.size ?? file.size,
+          };
+        }
+      }
+      upload = uploadDirect(file, options, () =>
+        uploadViaBackend(file, options),
+      );
+      return upload.promise;
+    })();
+    return {
+      promise,
+      abort: () => {
+        controller.abort();
+        upload?.abort();
+      },
+    };
   },
 
   /**
@@ -176,8 +227,10 @@ export const uploadApi = {
     size: number,
     name: string,
     mimeType: string,
+    signal?: AbortSignal,
   ): Promise<FileCheckResult> {
     const res = await authenticatedRequest(`${API_BASE}/api/upload/check`, {
+      signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

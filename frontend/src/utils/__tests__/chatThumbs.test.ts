@@ -67,12 +67,17 @@ describe("buildFileCoverUrl", () => {
 });
 
 describe("isChatCoverableFile", () => {
-  test("covers documents and videos, not plain code/text", () => {
+  test("covers supported documents, media, code and archive listings", () => {
     expect(isChatCoverableFile("pdf")).toBe(true);
     expect(isChatCoverableFile("xlsx")).toBe(true);
     expect(isChatCoverableFile("mp4")).toBe(true);
     expect(isChatCoverableFile("webm")).toBe(true);
-    expect(isChatCoverableFile("txt")).toBe(false);
-    expect(isChatCoverableFile("zip")).toBe(false);
+    expect(isChatCoverableFile("txt")).toBe(true);
+    expect(isChatCoverableFile("zip")).toBe(true);
+    expect(isChatCoverableFile("sas")).toBe(true);
+    expect(isChatCoverableFile("docx")).toBe(true);
+    expect(isChatCoverableFile("mp3")).toBe(true);
+    expect(isChatCoverableFile("rar")).toBe(false);
+    expect(isChatCoverableFile("doc")).toBe(false);
   });
 });

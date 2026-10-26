@@ -124,7 +124,11 @@ async def test_generated_upload_registers_owner_before_return(monkeypatch, folde
         content_type="image/png",
     )
     monkeypatch.setattr(
-        service, "_get_backend", lambda: SimpleNamespace(upload=AsyncMock(return_value=result))
+        service,
+        "_get_backend",
+        lambda: SimpleNamespace(
+            upload=AsyncMock(return_value=result), exists=AsyncMock(return_value=False)
+        ),
     )
     register = AsyncMock()
     monkeypatch.setattr(FileRecordStorage, "register_generated", register, raising=False)

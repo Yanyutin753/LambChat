@@ -250,7 +250,7 @@ test("video analyze previews play inline instead of dumping URLs", () => {
     "utf8",
   );
 
-  expect(source).toMatch(/<video/);
+  expect(source).toMatch(/<VideoWithPoster/);
   expect(source).toMatch(/mediaProxyFallbackSrc/);
   expect(source).not.toMatch(/break-all">\{truncate\(url/);
 });

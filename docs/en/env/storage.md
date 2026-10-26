@@ -105,3 +105,20 @@ The bucket endpoint must be reachable from the browser over HTTPS. Configure buc
 OSS uses its equivalent bucket CORS settings. The backend retrieves authoritative ETags through the provider's ListParts API. After exhausted network or timeout retries, the client cleans up multipart state and uses the existing authenticated backend upload path, preserving progress and cancellation. Older servers without direct-upload endpoints also use that path. Permission, signature, and service errors remain visible.
 
 The storage identity (provider, endpoint, region, bucket) is bound to each ticket; configuration changes require a new upload. Configure an **AbortIncompleteMultipartUpload** bucket lifecycle rule (OSS: its multipart-upload expiration rule), preferably after one day. This covers a process crash between creating a provider upload and saving its ID, and long backend outages. Periodic cleanup must run against the original bucket before retiring a storage configuration. Existing metadata, object read/delete, and multipart create/list/complete/abort permissions must remain available to the backend.
+
+## File reuse and previews
+
+Regular attachments reuse server-verified content hashes within the current account. Generated files reuse objects within the same owner and storage folder. Private session files retain session isolation; project version folders retain independent lifecycles. The client uses hash-wasm to hash chunks without buffering an entire large file.
+
+FFmpeg generates representative frames for MP4, MOV, M4V, WebM, MKV, AVI, WMV and FLV, and waveforms from the first 60 seconds of MP3, WAV, OGG, AAC, FLAC, M4A and WMA. Docker includes FFmpeg; other deployments need `ffmpeg` and `ffprobe`. Covers are at most 560×315 and stored under `covers/560x315/` on the original storage provider.
+
+PDF, XLSX/XLSM, DOCX/PPTX, OpenDocument, EPUB, text/code and ZIP previews use pages, tables, embedded thumbnails, actual text or file listings. Local open-source libraries perform conversion without executing content or calling an LLM. Legacy binary Office formats, encrypted files, unsupported codecs and corrupt files retain downloads and fall back to file information rather than fabricated previews. Cover source limits are 30MB for documents and 512MB for media; upload permissions and quotas are unchanged.
+
+Existing covers are generated on demand. A sequential backfill can run against the configured storage and database:
+
+```bash
+uv run python -m scripts.backfill_file_covers --limit 100
+uv run python -m scripts.backfill_file_covers --apply
+```
+
+The default is read-only inventory. `--apply` only creates missing small covers, without changing originals or database records. Existing covers are skipped, so interrupted runs can resume; decoding failures count as `unavailable`.

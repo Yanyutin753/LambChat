@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import tempfile
 import uuid
 from datetime import timedelta
 from time import monotonic
@@ -201,6 +202,7 @@ async def complete_upload(
     )
     if not ticket:
         raise AppError(ErrorCode.DIRECT_UPLOAD_INACTIVE)
+    media_source = tempfile.TemporaryFile() if category.value in {"video", "audio"} else None
     try:
         async with timed_server_phase("upload_storage"):
             parts = await storage.direct_upload.list_parts(ticket["key"], ticket["upload_id"])
@@ -242,6 +244,8 @@ async def complete_upload(
                 if size > ticket["size"]:
                     raise AppError(ErrorCode.DIRECT_UPLOAD_INVALID)
                 await run_long_blocking_io(digest.update, chunk)
+                if media_source is not None:
+                    await run_long_blocking_io(media_source.write, chunk)
                 if monotonic() - last_checkpoint >= VERIFY_PROGRESS_INTERVAL_SECONDS:
                     await checkpoint()
                     last_checkpoint = monotonic()
@@ -275,6 +279,12 @@ async def complete_upload(
                     raise
         if existing["key"] != ticket["key"]:
             await storage.delete_file(ticket["key"])
+        if category.value in {"video", "audio"}:
+            from src.infra.storage.s3.media_cover import prepare_media_cover
+
+            assert media_source is not None
+            await run_long_blocking_io(media_source.seek, 0)
+            await prepare_media_cover(storage, existing["key"], media_source)
         result = _build_upload_response(
             request,
             key=existing["key"],
@@ -303,6 +313,9 @@ async def complete_upload(
         except Exception:
             logger.exception("Direct upload cleanup failed for %s", ticket_id)
         raise
+    finally:
+        if media_source is not None:
+            media_source.close()
 
 
 @router.delete("/{ticket_id}")
