@@ -179,7 +179,7 @@ async def test_native_video_preview_reuses_analysis_bytes_and_registers_owner(
         uploaded = SimpleNamespace(key=key, content_type=content_type, size=len(content))
         return uploaded
 
-    storage._backend = SimpleNamespace(upload=upload)
+    storage._backend = SimpleNamespace(upload=upload, exists=AsyncMock(return_value=False))
     monkeypatch.setattr(
         "src.infra.storage.s3.service.get_or_init_storage", AsyncMock(return_value=storage)
     )

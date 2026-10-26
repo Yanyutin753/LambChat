@@ -260,81 +260,6 @@ const CODE_LANG_MAP: Record<string, string> = {
   PDF: "PDF",
 };
 
-function codeLines(ext: string, name: string, desc: string): string[] {
-  const stubName = stripExtension(name);
-  switch (ext) {
-    case "PY":
-      return [
-        desc ? `"""${desc}"""` : `# ${stubName}`,
-        `class ${camelCase(stubName)}:`,
-        `    def __init__(self):`,
-        `        self.name = "${stubName}"`,
-      ];
-    case "TS":
-    case "TSX":
-      return [
-        desc ? `// ${desc}` : `// ${stubName}`,
-        `interface Props {`,
-        `  name: string;`,
-        `}`,
-        `export const ${camelCase(stubName)} = () => {};`,
-      ];
-    case "GO":
-      return [
-        `package ${camelCase(stubName)}`,
-        desc ? `// ${desc}` : "",
-        `func main() {`,
-        `  fmt.Println("${stubName}")`,
-      ];
-    case "RS":
-      return [
-        desc ? `// ${desc}` : "",
-        `fn main() {`,
-        `    println!("${stubName}");`,
-        `}`,
-      ];
-    case "JAVA":
-      return [
-        `public class ${pascalCase(stubName)} {`,
-        desc ? `  // ${desc}` : `  public static void main(String[] args) {`,
-        `  }`,
-        `}`,
-      ];
-    case "SQL":
-      return [
-        `-- ${desc || stubName}`,
-        `SELECT * FROM table`,
-        `WHERE status = 'active'`,
-        `LIMIT 10;`,
-      ];
-    case "CSS":
-      return [
-        desc ? `/* ${desc} */` : `/* ${stubName} */`,
-        `.container {`,
-        `  display: flex;`,
-        `  gap: 1rem;`,
-      ];
-    default:
-      return [
-        desc ? `// ${desc}` : `// ${stubName}`,
-        `function ${camelCase(stubName)}() {`,
-        `  return "${stubName}";`,
-        `}`,
-      ];
-  }
-}
-
-function camelCase(s: string): string {
-  return s
-    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
-    .replace(/^(.)/, (c) => c.toLowerCase());
-}
-
-function pascalCase(s: string): string {
-  const cc = camelCase(s);
-  return cc.charAt(0).toUpperCase() + cc.slice(1);
-}
-
 export function buildFileCardPreview(
   file: RevealedFileItem,
   t?: TFunction,
@@ -436,6 +361,7 @@ export function buildFileCardPreview(
         description ? `· ${description}` : "",
       ]),
       colorName,
+      imageUrl: file.url || undefined,
     };
   }
 
@@ -456,6 +382,7 @@ export function buildFileCardPreview(
         description ? t?.("documents.readMore") ?? "Read more →" : "",
       ]),
       colorName,
+      imageUrl: file.url || undefined,
     };
   }
 
@@ -465,8 +392,9 @@ export function buildFileCardPreview(
       title,
       subtitle: CODE_LANG_MAP[ext] || ext,
       badge: CODE_LANG_MAP[ext] || ext,
-      lines: normalizeLines(codeLines(ext, file.file_name, description)),
+      lines: normalizeLines([description, formatFileSize(file.file_size)]),
       colorName,
+      imageUrl: file.url || undefined,
     };
   }
 
@@ -478,12 +406,9 @@ export function buildFileCardPreview(
         subtitle:
           description || (t?.("documents.csvDataFile") ?? "CSV data file"),
         badge: t?.("documents.csv") ?? "CSV",
-        lines: normalizeLines([
-          "id, name, value",
-          "1, item_a, 42",
-          "2, item_b, 87",
-        ]),
+        lines: normalizeLines([description, formatFileSize(file.file_size)]),
         colorName,
+        imageUrl: file.url || undefined,
       };
     }
     return {
@@ -491,13 +416,9 @@ export function buildFileCardPreview(
       title,
       subtitle: description || `${ext} data file`,
       badge: ext,
-      lines: normalizeLines([
-        "{",
-        `  "name": "${stripExtension(file.file_name)}",`,
-        `  "type": "${ext.toLowerCase()}"`,
-        "}",
-      ]),
+      lines: normalizeLines([description, formatFileSize(file.file_size)]),
       colorName,
+      imageUrl: file.url || undefined,
     };
   }
 
@@ -512,5 +433,6 @@ export function buildFileCardPreview(
       file.mime_type || label,
     ]),
     colorName,
+    imageUrl: file.url || undefined,
   };
 }

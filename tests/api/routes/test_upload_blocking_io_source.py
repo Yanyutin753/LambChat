@@ -34,7 +34,11 @@ def test_transcoded_image_hash_runs_in_blocking_pool() -> None:
 
 def test_local_thumb_and_cover_render_stay_off_event_loop() -> None:
     assert "run_long_blocking_io(_read_and_render)" in _source("upload_thumb.py")
-    assert "run_long_blocking_io(_read_and_render)" in _source("upload_cover.py")
+    cover = _source("upload_cover.py")
+    assert "await storage.download_file(key)" in cover
+    assert "run_long_blocking_io(render, data)" in cover
+    local = (UPLOAD_DIR.parents[1] / "infra/storage/s3/backends/local.py").read_text()
+    assert "await run_long_blocking_io(_read)" in local
     assert "run_long_blocking_io(_read_and_transcode)" in _source("upload_model_safe.py")
 
 

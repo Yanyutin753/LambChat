@@ -1,3 +1,5 @@
+import { AudioWithCover } from "../common/AudioWithCover";
+import { VideoWithPoster } from "../common/VideoWithPoster";
 import { useUploadFileUrl } from "../../hooks/useUploadFileUrl";
 import { SceneIllustration } from "../common/SceneIllustration";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
@@ -186,7 +188,7 @@ export function BinaryFilePreview({
             {/* Video preview */}
             {isVideo(mime_type) && (
               <div className="relative flex items-center justify-center bg-[var(--theme-bg-subtle)] p-4 sm:p-6 min-h-full">
-                <video
+                <VideoWithPoster
                   key={`${fullUrl}:${retryAttempt}`}
                   src={mediaSource.src}
                   controls
@@ -198,7 +200,7 @@ export function BinaryFilePreview({
                   className="w-full max-w-4xl max-h-[60dvh] rounded-lg"
                 >
                   <track kind="captions" />
-                </video>
+                </VideoWithPoster>
               </div>
             )}
 
@@ -209,7 +211,7 @@ export function BinaryFilePreview({
                   <SceneIllustration scene="files" />
                   <Music size={18} className={iconColor} />
                 </div>
-                <audio
+                <AudioWithCover
                   key={`${fullUrl}:${retryAttempt}`}
                   src={mediaSource.src}
                   controls

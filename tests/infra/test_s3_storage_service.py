@@ -56,6 +56,9 @@ async def test_get_s3_config_from_settings_preserves_internal_limits(
 
 
 class _FlakyStreamBackend:
+    async def exists(self, key: str) -> bool:
+        return False
+
     def __init__(self) -> None:
         self.calls = 0
         self.payloads: list[bytes] = []
@@ -147,6 +150,9 @@ class _PagedDeleteClient:
 
 
 class _StuckDeleteBackend:
+    async def exists(self, key: str) -> bool:
+        return key == "avatars/user-1/stuck.png"
+
     def __init__(self) -> None:
         self.list_calls: list[str] = []
         self.delete_calls: list[str] = []
@@ -434,6 +440,9 @@ async def test_storage_service_upload_stream_to_key_offloads_file_positioning(
             return super().read(size)
 
     class _GuardedUploadBackend:
+        async def exists(self, key: str) -> bool:
+            return False
+
         def __init__(self) -> None:
             self.payloads: list[bytes] = []
 

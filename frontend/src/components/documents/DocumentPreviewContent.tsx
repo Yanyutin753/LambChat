@@ -1,3 +1,5 @@
+import { AudioWithCover } from "../common/AudioWithCover";
+import { VideoWithPoster } from "../common/VideoWithPoster";
 import { SceneIllustration } from "../common/SceneIllustration";
 import { Suspense, lazy } from "react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
@@ -215,12 +217,13 @@ export default function DocumentPreviewContent({
     return (
       <div className="flex h-full min-h-0 items-center justify-center overflow-hidden bg-theme-bg-subtle p-4 sm:p-8">
         <div className="relative flex h-full min-h-0 w-full max-w-4xl items-center justify-center mx-auto">
-          <video
+          <VideoWithPoster
             controls
             playsInline
             aria-label={fileName}
             autoPlay={false}
             className="h-full w-full max-h-full object-contain"
+            posterSource={resolvedUrl || signedUrl || undefined}
             src={videoUrl}
             style={{ margin: "0 auto", display: "block" }}
             onError={(e) => {
@@ -230,7 +233,7 @@ export default function DocumentPreviewContent({
           >
             <track kind="captions" />
             {t("documents.videoNotSupported")}
-          </video>
+          </VideoWithPoster>
         </div>
       </div>
     );
@@ -240,7 +243,7 @@ export default function DocumentPreviewContent({
     return (
       <div className="h-full min-h-0 overflow-auto bg-theme-bg-subtle">
         <div className="flex min-h-full items-center justify-center p-4 sm:p-8">
-          <audio
+          <AudioWithCover
             controls
             aria-label={fileName}
             className="w-full max-w-lg"
@@ -251,7 +254,7 @@ export default function DocumentPreviewContent({
             }}
           >
             {t("documents.audioNotSupported", "您的浏览器不支持音频播放")}
-          </audio>
+          </AudioWithCover>
         </div>
       </div>
     );

@@ -1,3 +1,4 @@
+import { buildFileCoverUrl } from "../../utils/chatThumbs";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { memo } from "react";
 import { X, FileText, Image, Video, Music, File } from "lucide-react";
@@ -40,6 +41,10 @@ export const AttachmentPreview = memo(function AttachmentPreview({
         const previewUrl = attachment.url
           ? getFullUrl(attachment.url) ?? attachment.url
           : "";
+        const videoCover =
+          attachment.type === "video"
+            ? buildFileCoverUrl(previewUrl)
+            : undefined;
 
         return (
           <div
@@ -57,13 +62,13 @@ export const AttachmentPreview = memo(function AttachmentPreview({
             )}
 
             {/* Preview or icon */}
-            {attachment.type === "image" &&
-            attachment.mimeType.startsWith("image/") ? (
+            {(attachment.type === "image" &&
+              attachment.mimeType.startsWith("image/")) ||
+            videoCover ? (
               <div className="w-10 h-10 rounded overflow-hidden bg-stone-200 dark:bg-stone-600 flex-shrink-0 relative z-[1]">
                 <ImageWithSkeleton
-                  src={previewUrl}
+                  src={videoCover || previewUrl}
                   alt={attachment.name}
-                  skipUrlResolve
                   inline
                   className="w-full h-full object-cover"
                 />

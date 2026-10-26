@@ -74,8 +74,12 @@ export function buildFileCoverUrl(
   return out;
 }
 
-/** 聊天附件卡片可展示服务端封面的文件类型（视频封面仅 Aliyun 生效，失败回退图标）。 */
+/** 聊天附件卡片可展示服务端封面的文件类型（视频使用持久封面，失败回退图标）。 */
 export const CHAT_FILE_COVER_EXTS = new Set([
+  ..."txt md markdown csv json xml html htm log yaml yml toml ini cfg tex diff patch py js ts jsx tsx vue svelte go rs rb php java c cpp h cs swift kt scala dart lua r pl sql sh bash zsh fish ps1 bat cmd properties gradle cmake env graphql proto css scss sas docx pptx odt ods odp epub zip".split(
+    " ",
+  ),
+  ..."mp3 wav ogg aac flac m4a wma".split(" "),
   "pdf",
   "xlsx",
   "xlsm",
@@ -83,6 +87,10 @@ export const CHAT_FILE_COVER_EXTS = new Set([
   "webm",
   "mov",
   "m4v",
+  "avi",
+  "mkv",
+  "wmv",
+  "flv",
 ]);
 
 export function isChatCoverableFile(ext: string | undefined | null): boolean {

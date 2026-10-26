@@ -28,7 +28,17 @@ const apiMocks = vi.hoisted(() => ({
       size,
     }),
   ),
-  uploadFile: vi.fn(),
+  uploadFile: vi.fn((file: File) => ({
+    promise: Promise.resolve({
+      key: `documents/test/${file.name}`,
+      url: `/api/upload/file/documents/test/${file.name}`,
+      name: file.name,
+      type: file.type.startsWith("image/") ? "image" : "document",
+      mimeType: file.type,
+      size: file.size,
+    }),
+    abort: vi.fn(),
+  })),
 }));
 
 const toastMocks = vi.hoisted(() => ({ error: vi.fn() }));
@@ -115,8 +125,7 @@ test("mixed batches skip empty files and keep uploading valid files", async () =
   expect(toastMocks.error).toHaveBeenCalledWith(
     "This file is empty and cannot be uploaded.",
   );
-  expect(HashWorker.starts).toBe(1);
-  expect(apiMocks.checkFile).toHaveBeenCalledOnce();
+  expect(apiMocks.uploadFile).toHaveBeenCalledOnce();
 });
 
 test("file-count validation ignores empty files in a mixed batch", async () => {
@@ -151,8 +160,7 @@ test("file-count validation ignores empty files in a mixed batch", async () => {
   expect(toastMocks.error).toHaveBeenCalledWith(
     "This file is empty and cannot be uploaded.",
   );
-  expect(HashWorker.starts).toBe(1);
-  expect(apiMocks.checkFile).toHaveBeenCalledOnce();
+  expect(apiMocks.uploadFile).toHaveBeenCalledOnce();
 });
 
 test("moves an upload from preparing through throttled uploading and server processing", async () => {
@@ -270,10 +278,10 @@ test("shows preparing immediately and terminates image work when cancelled", asy
 });
 
 test("leaving a composer marks only its unfinished uploads as failed", async () => {
-  class PendingHashWorker extends HashWorker {
-    postMessage() {}
-  }
-  vi.stubGlobal("Worker", PendingHashWorker);
+  apiMocks.uploadFile.mockReturnValueOnce({
+    promise: new Promise(() => {}),
+    abort: vi.fn(),
+  });
   let attachments: MessageAttachment[] = [
     {
       id: "complete",

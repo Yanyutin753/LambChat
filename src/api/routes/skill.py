@@ -15,7 +15,7 @@ from src.api.routes import skill_uploads
 from src.api.routes.upload import _read_upload_file_limited
 from src.infra.async_utils import run_blocking_io, run_long_blocking_io
 from src.infra.onboarding.starter_pack import initialize_user_starter_pack, localize_starter_skill
-from src.infra.skill.binary import guess_mime_type, parse_binary_ref_async
+from src.infra.skill.binary import build_storage_key, guess_mime_type, parse_binary_ref_async
 from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage, normalize_skill_name_list
 from src.infra.skill.types import (
@@ -29,6 +29,7 @@ from src.infra.skill.types import (
     UserSkillPreferenceResponse,
     UserSkillPreferenceUpdate,
 )
+from src.infra.upload.access import file_access_url
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings  # noqa: F401 - compatibility for route tests/patching
 from src.kernel.errors import AppError, ErrorCode
@@ -439,7 +440,11 @@ async def get_skill_file(
     # 检查是否为二进制文件引用
     binary_ref = await parse_binary_ref_async(content)
     if binary_ref:
-        file_url = f"/api/upload/file/{binary_ref.storage_key}"
+        if binary_ref.storage_key != build_storage_key(user.sub, name, safe_path):
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
+        file_url = file_access_url(
+            f"/api/upload/file/{binary_ref.storage_key}", binary_ref.storage_key
+        )
         return {
             "content": content,
             "is_binary": True,
@@ -529,7 +534,9 @@ async def upload_skill_binary_file(
     return {
         "message": "Binary file uploaded",
         "storage_key": binary_ref.storage_key,
-        "url": f"/api/upload/file/{binary_ref.storage_key}",
+        "url": file_access_url(
+            f"/api/upload/file/{binary_ref.storage_key}", binary_ref.storage_key
+        ),
         "mime_type": binary_ref.mime_type,
         "size": binary_ref.size,
     }
