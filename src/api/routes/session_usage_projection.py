@@ -157,6 +157,7 @@ async def project_session_usage_costs(
         matched_index = final_usage.get(row.get("trace_id"))
         if (
             matched_index is None
+            or events[matched_index]["data"].get("cost_source") == "provider_settlement"
             or row.get("user_id") != user_id
             or row.get("session_id") != session_id
             or row.get("status") == "running"

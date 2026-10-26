@@ -253,3 +253,81 @@ async def test_handoff_twice_preserves_final_receipt_and_unknown_old_identity():
             {"model": "fallback", "model_id": "fallback", "provider": "openai"}
         ]
         handoff = {"prior_usage": resumed.usage_totals()}
+
+
+async def test_call_prices_survive_settlement_emission_and_resume():
+    from langchain_core.messages import AIMessage
+
+    from src.infra.usage.quota import usd_units
+
+    processor = make_processor()
+    rates = PriceRates(input=1, output=2, cache_read=0.5)
+    ledger = SimpleNamespace(
+        settle=AsyncMock(
+            side_effect=lambda ticket, cost: {"charged_units": usd_units(cost), "unknown": False}
+        )
+    )
+    reservation = {"id": "priced", "context": {"model": "primary"}}
+    message = AIMessage(
+        content="done",
+        usage_metadata={
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "total_tokens": 110,
+            "input_token_details": {"cache_read": 20},
+        },
+    )
+    await QuotaChatMixin()._quota_finish((ledger, reservation, rates, processor), message)
+    usage = processor.presenter.emit.call_args.args[0]["data"]
+    expected = {
+        "input": 0.00008,
+        "output": 0.00002,
+        "cache_read": 0.00001,
+        "cache_write": 0,
+        "total": 0.00011,
+    }
+    assert usage["cost_breakdown"] == expected
+    assert usage["cost_rates"]["input"] == 1
+    resumed = make_processor()
+    resumed.seed_usage(processor.usage_totals())
+    await resumed.emit_token_usage()
+    restored = resumed.presenter.emit.call_args.args[0]["data"]
+    assert restored["cost_breakdown"] == expected
+    assert restored["cost_rates"] == usage["cost_rates"]
+
+
+async def test_mixed_tariffs_sum_saved_components_without_inventing_a_shared_rate():
+    processor = make_processor()
+    for call_id, rate in (("first", 1), ("second", 2)):
+        await processor.record_usage_receipt(
+            {
+                **receipt(call_id, rate * 1_000),
+                "cost_breakdown": {
+                    "input": rate / 1_000_000,
+                    "output": 0,
+                    "cache_read": 0,
+                    "cache_write": 0,
+                    "total": rate / 1_000_000,
+                },
+                "cost_rates": {"input": rate, "output": 2},
+            }
+        )
+    usage = processor.presenter.emit.call_args.args[0]["data"]
+    assert usage["cost_breakdown"]["input"] == 0.000003
+    assert "cost_rates" not in usage
+    await processor.record_usage_receipt(receipt("pending", 0, unknown=True))
+    usage = processor.presenter.emit.call_args.args[0]["data"]
+    assert usage["partial_cost_usd"] == 0.000003
+    assert "cost_breakdown" not in usage
+    assert "cost_rates" not in usage
+
+
+async def test_receipt_does_not_attach_breakdown_to_a_different_settled_amount():
+    processor = make_processor()
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 9, "unknown": False}))
+    reservation = {"id": "different", "context": {"model": "primary"}}
+    await QuotaChatMixin()._quota_finish((ledger, reservation, PriceRates(), processor), None)
+    usage = processor.presenter.emit.call_args.args[0]["data"]
+    assert usage["cost_units"] == 9
+    assert "cost_breakdown" not in usage
+    assert "cost_rates" not in usage

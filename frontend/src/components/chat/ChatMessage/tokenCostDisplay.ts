@@ -37,8 +37,8 @@ export function formatUsageTokenCount(
 
 export interface CostDetailRow {
   key: CostRowKey;
-  /** 该档计费 token 数 */
-  tokens: number;
+  /** 该档计费 token 数；逐调用结算不使用汇总计数反推 */
+  tokens: number | null;
   /** 该档 USD 成本 */
   usd: number | null;
   /** 该档单价（USD / 每百万 token）；未知为 null */
@@ -143,6 +143,27 @@ export function formatTokenUsageCost(
 export function buildCostDetailRows(
   usage: TokenUsagePart | undefined,
 ): CostDetailRow[] {
+  if (
+    usage?.cost_source === "provider_settlement" &&
+    hasPricedCost(usage) &&
+    usage.cost_breakdown
+  ) {
+    const keys: CostRowKey[] = ["input", "output", "cache_read", "cache_write"];
+    return keys
+      .filter(
+        (key) =>
+          isCostAmount(usage.cost_breakdown![key]) &&
+          (key === "input" ||
+            key === "output" ||
+            usage.cost_breakdown![key] > 0),
+      )
+      .map((key) => ({
+        key,
+        tokens: null,
+        usd: usage.cost_breakdown![key],
+        ratePerMillion: usage.cost_rates?.[key] ?? null,
+      }));
+  }
   if (
     !usage ||
     (usage.usage_incomplete === true &&

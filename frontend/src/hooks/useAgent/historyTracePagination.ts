@@ -106,14 +106,24 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
         SessionEventsResponse,
         "events" | "has_more_traces" | "trace_window" | "approval_statuses"
       >,
-    ) => {
-      historyEventsRef.current = (eventsData.events || []) as HistoryEvent[];
+      preserveWindow = false,
+    ): HistoryEvent[] => {
+      const keepCursor = preserveWindow && historyEventsRef.current.length > 0;
+      const incoming = (eventsData.events || []) as HistoryEvent[];
+      historyEventsRef.current = preserveWindow
+        ? mergeHistoryTraceViews(historyEventsRef.current, incoming)
+        : incoming;
       coveredSourcesRef.current = historyCoverage(historyEventsRef.current);
-      historyApprovalStatusesRef.current = eventsData.approval_statuses || {};
+      historyApprovalStatusesRef.current = {
+        ...(preserveWindow ? historyApprovalStatusesRef.current : {}),
+        ...eventsData.approval_statuses,
+      };
+      if (keepCursor) return historyEventsRef.current;
       const firstWindowState = resolveHistoryTraceWindow(eventsData);
       historyTraceWindowRef.current = firstWindowState.traceWindow;
       hasMoreHistoryTracesRef.current = firstWindowState.hasMore;
       setHasMoreHistoryTraces(firstWindowState.hasMore);
+      return historyEventsRef.current;
     },
     [],
   );
@@ -122,20 +132,22 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     historyFeedbackRef.current = items;
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback((preserveWindow = false) => {
     historyEpochRef.current += 1;
     olderAbortControllerRef.current?.abort();
     olderAbortControllerRef.current = null;
-    historyEventsRef.current = [];
     journalRef.current = [];
     optimisticUsersRef.current = new Map();
     coveredSourcesRef.current = new Set();
     acceptedSourcesRef.current = new Set();
-    historyTraceWindowRef.current = null;
-    historyFeedbackRef.current = [];
-    historyApprovalStatusesRef.current = {};
-    hasMoreHistoryTracesRef.current = false;
-    setHasMoreHistoryTraces(false);
+    if (!preserveWindow) {
+      historyEventsRef.current = [];
+      historyTraceWindowRef.current = null;
+      historyFeedbackRef.current = [];
+      historyApprovalStatusesRef.current = {};
+      hasMoreHistoryTracesRef.current = false;
+      setHasMoreHistoryTraces(false);
+    }
     isLoadingOlderHistoryRef.current = false;
     setIsLoadingOlderHistory(false);
   }, []);
