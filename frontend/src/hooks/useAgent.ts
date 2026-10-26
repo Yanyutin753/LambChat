@@ -455,7 +455,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       streamingMessageIdRef.current = null;
       clearReconnectTimeout(reconnectTimeoutRef);
 
-      setIsLoading(true);
+      if (!preserveHistory) setIsLoading(true);
       // Only a send taking over this same-session refresh may restore its snapshot.
       historyMessagesSnapshotRef.current = {
         requestId,
