@@ -1469,7 +1469,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     loadHistory,
     loadOlderHistory,
     reconnectSSE: reconcileActiveRun,
-    reconcileActiveRun,
+    reconcileActiveRun: () => reconcileActiveRun(),
     setPendingProjectId: (id: string | null) => {
       pendingProjectIdRef.current = id;
       autoExpandProjectIdRef.current = id;
