@@ -1,3 +1,4 @@
+import { downloadBlob, downloadUrl } from "../../../common/viewerDownload";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
 import { useCallback, useMemo, useState } from "react";
 import { Download, ChevronRight } from "lucide-react";
@@ -124,19 +125,10 @@ function downloadFile(
   url?: string,
 ) {
   if (isBinary && url) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
+    downloadUrl(url, name);
     return;
   }
-  const blob = new Blob([content], { type: "text/plain" });
-  const href = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = href;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(href);
+  downloadBlob(new Blob([content], { type: "text/plain" }), name);
 }
 
 function collectSubtreeFiles(
