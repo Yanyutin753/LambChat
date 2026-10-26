@@ -212,6 +212,12 @@ class TraceStorage(
                 name="conversation_backfill_idx",
                 background=True,
             )
+            await collection.create_index(
+                [("recommendation_due_at", 1)],
+                name="recommendation_due_idx",
+                sparse=True,
+                background=True,
+            )
             chunks_collection = self.chunks_collection
             await chunks_collection.create_index(
                 [("trace_id", 1), ("chunk_index", 1)],

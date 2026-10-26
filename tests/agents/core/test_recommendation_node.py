@@ -944,3 +944,29 @@ async def test_rate_limited_recommendations_keep_local_fallback_and_redact_failu
     assert "reason=rate_limit" in caplog.text
     for secret in ("private.invalid", "query-secret", "body-secret", "account-secret"):
         assert secret not in caplog.text
+
+
+async def test_distributed_recommendation_is_durable_before_node_returns(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.agents.core import recommendations
+    from src.infra.task import recommendations as durable
+
+    enqueue = AsyncMock()
+    monkeypatch.setattr(durable, "enqueue_recommendation", enqueue)
+    monkeypatch.setattr(recommendations.settings, "TASK_BACKEND", "arq")
+    generate = AsyncMock()
+    monkeypatch.setattr(recommendations, "generate_recommend_questions", generate)
+    graph = SimpleNamespace(
+        aget_state=AsyncMock(return_value=SimpleNamespace(values={"messages": []}))
+    )
+    presenter = _FakePresenter()
+    await recommendations.schedule_recommendations_best_effort(
+        presenter, "question", "answer", graph, {}, {"response_language": "zh"}
+    )
+    enqueue.assert_awaited_once()
+    assert enqueue.await_args.args[0] is presenter
+    assert enqueue.await_args.args[1:3] == ("question", "answer")
+    assert enqueue.await_args.args[-1] == "zh"
+    generate.assert_not_awaited()
