@@ -482,6 +482,7 @@ export const WelcomePage = memo(function WelcomePage({
       {/* ChatInput centered — the focal point */}
       <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         <ChatInput
+          key={chatInputProps.draftKey}
           {...chatInputProps}
           focusRequest={
             (chatInputProps.focusRequest ?? 0) + composerFocusRequest

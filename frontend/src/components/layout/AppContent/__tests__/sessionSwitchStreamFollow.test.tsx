@@ -148,7 +148,7 @@ describe("switching into a running session keeps manual scroll control", () => {
     lastScrollApi = null;
   });
 
-  test("wheel-up on the live scroller detaches stream follow after a mid-stream session switch", async () => {
+  test("manual gestures detach and returning to bottom resumes after a mid-stream session switch", async () => {
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -235,6 +235,15 @@ describe("switching into a running session keeps manual scroll control", () => {
     // The stream follow is armed (bottom lock active, no detach yet).
     expect(lastScrollApi!.manualDetachFromStreamRef.current).toBe(false);
 
+    // Merely touching the output must not suspend stream follow.
+    act(() => {
+      const event = new Event("touchstart", { bubbles: true });
+      Object.defineProperty(event, "touches", { value: [{ clientY: 300 }] });
+      liveScroller!.dispatchEvent(event);
+      liveScroller!.dispatchEvent(new Event("touchend", { bubbles: true }));
+    });
+    expect(lastScrollApi!.manualDetachFromStreamRef.current).toBe(false);
+
     // --- User wheels up on the live scroller. ---
     act(() => {
       liveScroller!.dispatchEvent(
@@ -252,6 +261,27 @@ describe("switching into a running session keeps manual scroll control", () => {
       message("b-assistant-1", "assistant", true),
     ];
     commit();
+    expect(lastScrollApi!.manualDetachFromStreamRef.current).toBe(true);
+
+    Object.defineProperties(liveScroller!, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+    });
+    act(() => {
+      liveScroller!.scrollTop = 600;
+      liveScroller!.dispatchEvent(new Event("scroll"));
+    });
+    expect(lastScrollApi!.manualDetachFromStreamRef.current).toBe(false);
+    act(() => {
+      for (const [type, clientY] of [
+        ["touchstart", 300],
+        ["touchmove", 320],
+      ] as const) {
+        const event = new Event(type, { bubbles: true });
+        Object.defineProperty(event, "touches", { value: [{ clientY }] });
+        liveScroller!.dispatchEvent(event);
+      }
+    });
     expect(lastScrollApi!.manualDetachFromStreamRef.current).toBe(true);
   });
 });

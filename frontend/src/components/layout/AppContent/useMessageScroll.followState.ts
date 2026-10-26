@@ -201,6 +201,7 @@ export function getNextMessageScrollFollowStateForUserScroll({
   isAwayFromBottom,
   deltaScrollPx,
   scrollTop,
+  reachedBottom = false,
 }: {
   state: MessageScrollFollowState;
   isMobileViewport: boolean;
@@ -210,7 +211,17 @@ export function getNextMessageScrollFollowStateForUserScroll({
   isAwayFromBottom: boolean;
   deltaScrollPx: number;
   scrollTop: number;
+  reachedBottom?: boolean;
 }): MessageScrollFollowState {
+  if (reachedBottom && !programmaticScroll && !movedUp) {
+    return {
+      ...state,
+      userScrolledUp: false,
+      manualDetachFromStream: false,
+      streamLockActive: streamingAssistantActive,
+    };
+  }
+
   const hasActiveStreamFollow =
     state.autoScrollActive ||
     (state.streamLockActive && streamingAssistantActive);

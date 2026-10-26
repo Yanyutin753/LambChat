@@ -1192,3 +1192,49 @@ test("local send clears the detach lock and starts a fresh follow cycle", () => 
   expect(restartedState.userScrolledUp).toBe(false);
   expect(restartedState.autoScrollActive).toBe(true);
 });
+
+test("resumes stream follow when the user scrolls down to the physical bottom", () => {
+  const state = createMessageScrollFollowState({
+    userScrolledUp: true,
+    manualDetachFromStream: true,
+  });
+  const next = getNextMessageScrollFollowStateForUserScroll({
+    state,
+    isMobileViewport: false,
+    streamingAssistantActive: true,
+    programmaticScroll: false,
+    movedUp: false,
+    isAwayFromBottom: false,
+    deltaScrollPx: 0,
+    scrollTop: 400,
+    reachedBottom: true,
+  });
+  expect(next.manualDetachFromStream).toBe(false);
+  expect(next.userScrolledUp).toBe(false);
+  expect(next.streamLockActive).toBe(true);
+});
+
+test.each([
+  { reachedBottom: false, programmaticScroll: false, movedUp: false },
+  { reachedBottom: true, programmaticScroll: true, movedUp: false },
+  { reachedBottom: true, programmaticScroll: false, movedUp: true },
+])(
+  "does not resume detached follow from a near-bottom or programmatic change: %j",
+  (change) => {
+    const state = createMessageScrollFollowState({
+      userScrolledUp: true,
+      manualDetachFromStream: true,
+    });
+    expect(
+      getNextMessageScrollFollowStateForUserScroll({
+        state,
+        isMobileViewport: false,
+        streamingAssistantActive: true,
+        isAwayFromBottom: false,
+        deltaScrollPx: 0,
+        scrollTop: 400,
+        ...change,
+      }),
+    ).toBe(state);
+  },
+);

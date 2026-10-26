@@ -62,3 +62,10 @@ test("anchors floating scroll buttons to the chat input", () => {
 test("renders eight chat skeleton groups while loading history", () => {
   expect(chatViewSource).toMatch(/<ChatSkeleton count=\{8\} \/>/);
 });
+
+test("changing draft scope remounts the composer without replacing the message subtree", () => {
+  expect(chatViewSource).not.toMatch(/<WorkspaceMediaContext.Provider\s+key=/);
+  expect(chatViewSource).toMatch(
+    /<ChatInput\s+key=\{draftKey \?\? sessionId\}/,
+  );
+});

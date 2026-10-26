@@ -406,6 +406,7 @@ export function startVirtuosoScrollToBottom({
 
   let attempts = 0;
   let lastKnownScrollHeight = scroller.scrollHeight;
+  let lastKnownClientHeight = scroller.clientHeight;
   let lastHeightChangeAt = Date.now();
   let startedAt = Date.now();
   let finished = false;
@@ -453,7 +454,10 @@ export function startVirtuosoScrollToBottom({
   const maxScrollWindowMs =
     maxDurationMs ?? Math.max(intervalMs * maxAttempts, stableHeightWindowMs);
   const isAtKnownBottom = () =>
-    scroller.scrollTop + scroller.clientHeight >= lastKnownScrollHeight - 1;
+    // Composer resizing changes the viewport, not the user's scroll intent.
+    scroller.scrollTop +
+      Math.max(scroller.clientHeight, lastKnownClientHeight) >=
+    lastKnownScrollHeight - 1;
   const isUnexpectedTopJump = () =>
     postSettleObserveUntil > 0 &&
     scroller.scrollTop <= 1 &&
@@ -461,6 +465,7 @@ export function startVirtuosoScrollToBottom({
   const resetSettleBudget = () => {
     attempts = 0;
     lastKnownScrollHeight = scroller.scrollHeight;
+    lastKnownClientHeight = scroller.clientHeight;
     lastHeightChangeAt = Date.now();
     startedAt = Date.now();
   };
@@ -471,6 +476,7 @@ export function startVirtuosoScrollToBottom({
     }
 
     lastKnownScrollHeight = scroller.scrollHeight;
+    lastKnownClientHeight = scroller.clientHeight;
     lastHeightChangeAt = Date.now();
   };
 
@@ -527,8 +533,12 @@ export function startVirtuosoScrollToBottom({
     if (shouldKeepAlive) {
       keepAliveActive = true;
 
-      if (scroller.scrollHeight !== lastKnownScrollHeight) {
+      if (
+        scroller.scrollHeight !== lastKnownScrollHeight ||
+        scroller.clientHeight !== lastKnownClientHeight
+      ) {
         lastKnownScrollHeight = scroller.scrollHeight;
+        lastKnownClientHeight = scroller.clientHeight;
         lastHeightChangeAt = Date.now();
         scroll();
         return;
@@ -549,7 +559,9 @@ export function startVirtuosoScrollToBottom({
 
     attempts += 1;
 
-    const heightChanged = scroller.scrollHeight !== lastKnownScrollHeight;
+    const heightChanged =
+      scroller.scrollHeight !== lastKnownScrollHeight ||
+      scroller.clientHeight !== lastKnownClientHeight;
 
     const isAtBottom =
       scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
