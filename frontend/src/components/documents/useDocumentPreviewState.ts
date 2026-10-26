@@ -1,3 +1,4 @@
+import { downloadBlob } from "../common/viewerDownload";
 import {
   useState,
   useEffect,
@@ -484,21 +485,15 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     const downloadUrl =
       getFullUrl(signedUrl) ||
       getFullUrl(resolvedUrl) ||
-      getFullUrl(externalImageUrl);
+      getFullUrl(externalImageUrl) ||
+      buildUploadProxyUrlFromKey(s3Key);
     if (downloadUrl) {
       try {
         const response = await fetchUploadFile(
-          buildUploadProxyUrl(downloadUrl) || downloadUrl,
+          buildUploadProxyUrl(downloadUrl, undefined, { force: true }) ||
+            downloadUrl,
         );
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
+        downloadBlob(await response.blob(), fileName);
       } catch {
         try {
           window.open(
@@ -513,16 +508,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       return;
     }
 
-    if (data?.content) {
-      const blob = new Blob([data.content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    if (data?.content !== undefined) {
+      downloadBlob(new Blob([data.content], { type: "text/plain" }), fileName);
     }
   };
 
