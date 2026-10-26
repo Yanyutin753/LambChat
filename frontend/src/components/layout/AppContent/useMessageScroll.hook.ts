@@ -432,8 +432,16 @@ export function useMessageScroll(
         isAwayFromBottom,
         deltaScrollPx: upwardScrollPx,
         scrollTop,
+        reachedBottom:
+          dScroll < 0 &&
+          scroller.scrollHeight - scrollTop - scroller.clientHeight <= 1,
       });
+      const resumed =
+        userScrolledUpRef.current && !nextFollowState.userScrolledUp;
       applyFollowState(nextFollowState);
+      if (resumed && streamingAssistantActiveRef.current) {
+        requestScrollToBottom();
+      }
 
       setIsNearTop(scrollTop < 200);
 
@@ -443,14 +451,13 @@ export function useMessageScroll(
 
     const handleTouchStart = (event: TouchEvent) => {
       touchStartY = event.touches[0]?.clientY ?? null;
-      detachFromUserGesture(getNextMessageScrollFollowStateForUserIntent);
     };
 
     // wheel 上滚意图累计器（触控板惯性微滑判定，见 nextWheelIntentState）
     let wheelIntentAccum = createWheelIntentAccumulator();
 
     const handleTouchMove = (event: TouchEvent) => {
-      if (!isMobileViewport || touchStartY === null) {
+      if (touchStartY === null) {
         return;
       }
 
@@ -459,7 +466,7 @@ export function useMessageScroll(
         return;
       }
 
-      const upwardGestureDeltaPx = touchStartY - currentTouchY;
+      const upwardGestureDeltaPx = currentTouchY - touchStartY;
       if (upwardGestureDeltaPx <= 6) {
         return;
       }
@@ -515,6 +522,7 @@ export function useMessageScroll(
     isMobileViewport,
     messages.length,
     virtuosoScrollerElement,
+    requestScrollToBottom,
   ]);
 
   useEffect(() => {
