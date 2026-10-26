@@ -74,10 +74,24 @@ async def _run_claim(record: dict[str, Any]) -> None:
     try:
         # Bound execution below the lease so a live old worker cannot overlap its successor.
         async with asyncio.timeout(90):
+            owned = {**claim, "recommendation_due_at": {"$gt": utc_now()}}
+            current = await collection.find_one(
+                owned, {"recommend_questions": 1, "recommendation_request": 1}
+            )
+            if current is None:
+                return
+            request = current["recommendation_request"]
+            questions = current.get("recommend_questions") or request.get("questions")
             with tracing_context(parent=False):
-                questions = record.get("recommend_questions") or await generate_recommend_questions(
-                    **record["recommendation_request"]
-                )
+                if not questions:
+                    questions = await generate_recommend_questions(**request)
+                    # Cache the paid result before a chunk-write lock or notification can fail.
+                    cached = await collection.update_one(
+                        {**claim, "recommendation_due_at": {"$gt": utc_now()}},
+                        {"$set": {"recommendation_request.questions": questions}},
+                    )
+                    if not cached.modified_count:
+                        return
             now = utc_now()
             saved = await collection.update_one(
                 {

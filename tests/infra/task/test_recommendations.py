@@ -28,6 +28,7 @@ def dependencies(monkeypatch):
         },
     }
     collection = SimpleNamespace(
+        find_one=AsyncMock(return_value=record),
         find_one_and_update=AsyncMock(side_effect=[record, None]),
         update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),
     )
@@ -69,6 +70,7 @@ async def test_recommendation_job_does_not_inherit_chat_context(dependencies):
         },
     )
     writes = collection.update_one.await_args_list
+    assert writes[0].args[1]["$set"]["recommendation_request.questions"] == ["a?", "b?", "c?"]
     assert all(call.args[0]["recommendation_lease"] == "lease" for call in writes)
     assert "recommendation_request" in writes[-1].args[1]["$unset"]
     assert all("status" not in call.args[1].get("$set", {}) for call in writes)
@@ -176,3 +178,26 @@ async def test_overlapping_scan_does_not_exceed_process_limit(dependencies):
     finally:
         release.set()
         await first
+
+
+async def test_expired_claim_does_not_spend_model_tokens(dependencies):
+    module, collection, websocket, generate, record = dependencies
+    collection.find_one = AsyncMock(return_value=None)
+    await module._run_claim(record)
+    generate.assert_not_awaited()
+    websocket.send_to_user_with_broadcast.assert_not_awaited()
+
+
+async def test_saved_generated_result_survives_publication_failure_without_regeneration(
+    dependencies,
+):
+    module, collection, websocket, generate, record = dependencies
+    record["recommendation_request"]["questions"] = ["cached?", "b?", "c?"]
+    collection.find_one = AsyncMock(return_value=record)
+    await module._run_claim(record)
+    generate.assert_not_awaited()
+    assert websocket.send_to_user_with_broadcast.await_args.args[1]["data"]["questions"] == [
+        "cached?",
+        "b?",
+        "c?",
+    ]
