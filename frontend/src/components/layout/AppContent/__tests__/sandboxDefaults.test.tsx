@@ -3,12 +3,16 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { useWorkspaceOptionActions } from "../sessionToggleCallbacks";
 import type { AgentInfo } from "../../../../types";
+import * as workspaceApi from "../../../../services/api/sessionWorkspace";
 import {
   useAgentOptions,
   SANDBOX_ONLINE_CHANGED_EVENT,
 } from "../useAgentOptions";
 
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 
 const onlineStatus = {
   online: true,
@@ -103,6 +107,29 @@ test("cloud preference stays cloud and choosing local then pins the client compu
   expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
 });
 
+test("switching an existing chat to local persists the same machine shown in the composer", () => {
+  localStorage.setItem("defaultSandboxMode", "cloud");
+  const save = vi
+    .spyOn(workspaceApi, "saveSessionWorkspaceOptions")
+    .mockResolvedValue(undefined);
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() => {
+    const options = useAgentOptions(agents, "search", onlineStatus);
+    const actions = useWorkspaceOptionActions(
+      "session",
+      options.handleToggleAgentOption,
+      vi.fn(),
+    );
+    return { ...options, ...actions };
+  });
+  act(() => result.current.changeOption("sandbox", "local"));
+  expect(save).toHaveBeenCalledWith("session", {
+    sandbox: "local",
+    sandbox_machine_id: "this-mac",
+  });
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
+});
+
 test("without an online client computer the draft keeps server automatic selection", () => {
   const agents = [{ id: "fast", options: {} }] as AgentInfo[];
   const { result } = renderHook(() =>
@@ -171,6 +198,76 @@ test("project selection inherits its machine and directory only into the new dra
     ["sandbox_machine_id", "mac"],
     ["sandbox_workspace", JSON.stringify(workspace)],
   ]);
+});
+
+test("changing agents preserves the workspace but resets agent-specific options", () => {
+  const agents = [
+    { id: "search", options: { depth: { default: 1 } } },
+    { id: "team", options: { depth: { default: 2 } } },
+  ] as unknown as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ agent }) => useAgentOptions(agents, agent, onlineStatus),
+    { initialProps: { agent: "search" } },
+  );
+  act(() => {
+    result.current.handleToggleAgentOption("sandbox_machine_id", "remote-pc");
+    result.current.handleToggleAgentOption(
+      "sandbox_workspace",
+      "selected-directory",
+    );
+    result.current.handleToggleAgentOption("depth", 9);
+  });
+  rerender({ agent: "team" });
+  expect(result.current.agentOptionValues).toMatchObject({
+    sandbox: "local",
+    sandbox_machine_id: "remote-pc",
+    sandbox_workspace: "selected-directory",
+    depth: 2,
+  });
+  act(() => result.current.resetAgentOptionDefaults());
+  expect(result.current.agentOptionValues.sandbox_workspace).toBeUndefined();
+});
+
+test("switching agents after restoring a chat keeps the latest workspace choice", () => {
+  const agents = ["search", "team"].map((id) => ({
+    id,
+    options: {},
+  })) as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ agent }) => useAgentOptions(agents, agent, onlineStatus),
+    { initialProps: { agent: "search" } },
+  );
+  act(() =>
+    result.current.restoreAgentOptions({
+      sandbox: "local",
+      sandbox_workspace: "old",
+    }),
+  );
+  act(() => result.current.handleToggleAgentOption("sandbox_workspace", "new"));
+  rerender({ agent: "team" });
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe("new");
+});
+
+test("selecting the current machine keeps its directory without another save", () => {
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "search", onlineStatus),
+  );
+  act(() =>
+    result.current.restoreAgentOptions({
+      sandbox: "local",
+      sandbox_machine_id: "mac",
+      sandbox_workspace: "selected-directory",
+    }),
+  );
+  act(() => {
+    expect(
+      result.current.handleToggleAgentOption("sandbox_machine_id", "mac"),
+    ).toEqual({});
+  });
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    "selected-directory",
+  );
 });
 
 test("bound project drafts select a sandbox-capable agent and restore the binding across that switch", () => {

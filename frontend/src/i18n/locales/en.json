@@ -1,5 +1,7 @@
 {
   "sessionWorkspace": {
+    "independent": "Separate chat folder",
+    "independentHint": "Each new chat has its own file folder. Bind a local folder in the project menu to keep working on the same files across chats.",
     "loading": "Choosing directory…",
     "reset": "Restore default session directory",
     "scope": "Use this directory for files and commands throughout this session",
@@ -465,6 +467,7 @@
     "requestNewResetLink": "Request a new reset link"
   },
   "backendErrors": {
+    "sandboxWorkspaceInvalid": "Workspace binding is invalid or belongs to another computer. Select the folder again.",
     "storageMigrationBlocked": "Storage migration verification failed. Current storage is unchanged. Copy and verify all files before retrying.",
     "storageMigrationBusy": "Uploads or storage settings changed during verification. Finish uploads and retry.",
     "storageConfigurationStale": "Storage configuration changed. Please retry the operation.",

@@ -2,6 +2,18 @@
 
 Code sandbox settings for secure remote code execution. Supports Daytona, E2B, and CubeSandbox platforms.
 
+## Chat folders and project workspaces
+
+Chats use separate file folders by default and keep the same folder across turns. Cloud sandboxes are reused per user; a new chat does not require a new cloud sandbox.
+
+To work on the same local files across chats, bind a local folder from the desktop project menu, then start a chat within that project. New chats inherit the computer and folder while keeping separate conversation histories. Existing chats retain their workspace when a project binding changes, a chat moves, or the assistant changes; files are not migrated automatically.
+
+A chat can select another folder or return to its separate folder. Explicit choices override project defaults; the folder cannot be changed while a task is running. API-created project chats also snapshot the project binding when workspace options are omitted. Later requests without workspace options reuse the chat snapshot rather than current project settings.
+
+Changing computers clears the previous computer's folder binding. Selecting a folder saves its computer and folder together. Message submission and file reads wait for pending workspace saves. Invalid, mismatched, or unavailable native bindings report an error instead of silently switching folders; select the folder again or return to the separate chat folder. Workspace updates share the message admission lock and are rejected during execution or an active Goal.
+
+Chats sharing a folder see each other's file changes and can conflict when editing the same file concurrently. Separate folders organize files; they are not process or virtual-machine security boundaries. Local file contents read by the agent may be sent to the selected model.
+
 ## General
 
 | Variable | Default | Description |

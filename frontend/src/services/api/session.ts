@@ -12,6 +12,7 @@ import { stripLocalAttachmentFields } from "../../components/chat/longTextConver
 import { filterSendableAttachments } from "../../components/chat/attachmentValidation";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { waitForSessionWorkspace } from "./sessionWorkspace";
 import { decodeToken, getAccessToken } from "./token";
 
 export const SESSIONS_READ_EVENT = "lambchat:sessions-read";
@@ -589,6 +590,7 @@ export const sessionApi = {
     trace_id: string;
     status: string;
   }> {
+    if (sessionId) await waitForSessionWorkspace(sessionId);
     const body = buildSubmitChatBody({
       message,
       sessionId,

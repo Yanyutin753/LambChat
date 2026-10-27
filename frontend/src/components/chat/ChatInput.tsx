@@ -275,7 +275,6 @@ export const ChatInput = memo(function ChatInput({
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
   useNotifyTodayUsageRefresh(isLoading);
-  // @人选定后把提及片段从草稿摘除并聚焦（人设/团队共用同一行为）
   useEffect(() => {
     const selectedId =
       mentionMode === "team" ? selectedTeamId : selectedPersonaPresetId;
@@ -710,11 +709,13 @@ export const ChatInput = memo(function ChatInput({
                   }}
                 >
                   {composerExpanded && goalBar}
-                  <SessionWorkspaceBar
-                    values={agentOptionValues}
-                    onChange={onToggleAgentOption}
-                    disabled={isLoading || !canSend}
-                  />
+                  {currentAgentInfo?.supports_sandbox && (
+                    <SessionWorkspaceBar
+                      values={agentOptionValues}
+                      onChange={onToggleAgentOption}
+                      disabled={isLoading || !canSend}
+                    />
+                  )}
                   {isDraggingOver && <ChatInputDragOverlay />}
                   {mention.isActive &&
                     !onMentionQueryChange &&

@@ -145,6 +145,11 @@ class ErrorCode(Enum):
         "Sandbox machine '{{machine}}' not found",
     )
     SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
+    SANDBOX_WORKSPACE_INVALID = (
+        "sandbox_workspace_invalid",
+        422,
+        "Workspace binding is invalid or belongs to another machine; select the folder again",
+    )
     SANDBOX_EXEC_FAILED = (
         "sandbox_exec_failed",
         500,

@@ -662,11 +662,7 @@ async def update_session(
     session_data: SessionUpdate,
     user: TokenPayload = Depends(require_permissions("session:write")),
 ):
-    """
-    更新会话信息（如名称）
-
-    只能更新自己拥有的会话。
-    """
+    """更新当前用户拥有的会话信息。"""
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
@@ -674,7 +670,13 @@ async def update_session(
 
     verify_session_ownership(session, user)
 
-    updated_session = await manager.update_session(session_id, session_data)
+    from src.api.routes.session_workspace import edits_workspace, update_workspace
+
+    updated_session = (
+        await update_workspace(manager, session_id, session_data, user)
+        if edits_workspace(session_data.metadata)
+        else await manager.update_session(session_id, session_data)
+    )
     if not updated_session:
         raise AppError(ErrorCode.UPDATE_FAILED)
     favorites_project_id = await _get_favorites_project_id(user.sub)
