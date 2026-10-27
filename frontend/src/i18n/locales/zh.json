@@ -465,6 +465,9 @@
     "requestNewResetLink": "重新获取重置链接"
   },
   "backendErrors": {
+    "storageMigrationBlocked": "存储迁移校验未通过，当前存储保持不变。请补齐文件并校验内容后重试。",
+    "storageMigrationBusy": "校验期间有上传或存储配置发生变化。请等待上传完成后重试。",
+    "storageConfigurationStale": "存储配置已变化，请重试当前操作。",
     "directUploadInvalid": "上传分块与授权文件不一致，请重新上传",
     "directUploadInactive": "上传任务已失效，请重新上传",
     "directUploadStorageChanged": "存储配置已变更，请重新上传",

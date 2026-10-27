@@ -148,3 +148,9 @@ class SettingResetResponse(BaseModel):
 
     message: str
     reset_count: int
+
+
+class StorageMigrationRequest(BaseModel):
+    """All connection fields are verified and switched as one unit."""
+
+    changes: dict[str, Any]

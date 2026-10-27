@@ -465,6 +465,9 @@
     "requestNewResetLink": "재설정 링크 다시 받기"
   },
   "backendErrors": {
+    "storageMigrationBlocked": "스토리지 이전 검증에 실패했습니다. 현재 스토리지는 유지됩니다. 모든 파일을 복사하고 내용을 확인한 후 다시 시도하세요.",
+    "storageMigrationBusy": "검증 중 업로드 또는 스토리지 설정이 변경되었습니다. 업로드 완료 후 다시 시도하세요.",
+    "storageConfigurationStale": "스토리지 설정이 변경되었습니다. 작업을 다시 시도하세요.",
     "directUploadInvalid": "업로드한 조각이 승인된 파일과 일치하지 않습니다. 다시 업로드하세요.",
     "directUploadInactive": "업로드가 만료되었습니다. 다시 업로드하세요.",
     "directUploadStorageChanged": "저장소 설정이 변경되었습니다. 다시 업로드하세요.",

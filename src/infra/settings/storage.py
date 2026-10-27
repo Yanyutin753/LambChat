@@ -7,6 +7,12 @@ from typing import Any, Optional
 from pymongo import ReturnDocument
 
 from src.infra.logging import get_logger
+from src.infra.settings.storage_migration import (
+    STORAGE_KEYS,
+    STORAGE_STATE_ID,
+    change_storage,
+    overlay_settings,
+)
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import (
     RESTART_REQUIRED_SETTINGS,
@@ -187,12 +193,13 @@ class SettingsStorage:
         """
         collection = self._get_collection()
         setting_keys = list(SETTING_DEFINITIONS.keys())
-        stored_keys = [*setting_keys, *_mongodb_pool_pair_keys()]
+        stored_keys = [*setting_keys, *_mongodb_pool_pair_keys(), STORAGE_STATE_ID]
         cursor = collection.find(
             {"_id": {"$in": stored_keys}},
             {
                 "_id": 1,
                 "value": 1,
+                "values": 1,
                 "business_min": 1,
                 "business_max": 1,
                 "checkpoint_min": 1,
@@ -202,6 +209,7 @@ class SettingsStorage:
             },
         )
         db_settings = {doc["_id"]: doc for doc in await cursor.to_list(length=len(stored_keys))}
+        overlay_settings(db_settings)
 
         result: dict[str, list[SettingItem]] = {}
 
@@ -277,6 +285,12 @@ class SettingsStorage:
 
         collection = self._get_collection()
         doc = await collection.find_one({"_id": key})
+        if key in STORAGE_KEYS:
+            state = await collection.find_one({"_id": STORAGE_STATE_ID})
+            if state is not None:
+                docs = {STORAGE_STATE_ID: state}
+                overlay_settings(docs)
+                doc = docs[key]
 
         pool_pair = (
             await self._read_mongodb_pool_pair(key) if key in _MONGODB_POOL_SIZE_SETTINGS else None
@@ -290,6 +304,8 @@ class SettingsStorage:
             return {}
         has_pool_settings = any(key in _MONGODB_POOL_SIZE_SETTINGS for key in keys)
         stored_keys = list(keys)
+        if STORAGE_KEYS.intersection(keys):
+            stored_keys.append(STORAGE_STATE_ID)
         if has_pool_settings:
             stored_keys = list(
                 dict.fromkeys(
@@ -300,6 +316,7 @@ class SettingsStorage:
             {"_id": {"$in": stored_keys}},
             {
                 "value": 1,
+                "values": 1,
                 "business_min": 1,
                 "business_max": 1,
                 "checkpoint_min": 1,
@@ -309,6 +326,7 @@ class SettingsStorage:
             },
         )
         docs = {doc["_id"]: doc for doc in await cursor.to_list(length=len(stored_keys))}
+        overlay_settings(docs)
         pool_pair = docs.get(_MONGODB_POOL_PAIR_DOC_ID)
         if has_pool_settings and pool_pair is None:
             pool_pair = _pool_pair_values_from_docs(docs)
@@ -403,6 +421,10 @@ class SettingsStorage:
         collection = self._get_collection()
         now = utc_now_iso()
 
+        if key in STORAGE_KEYS:
+            await change_storage({key: value}, user_id, collection)
+            return await self.get(key)
+
         # Get default from SETTING_DEFINITIONS (single source of truth)
         default_value = _get_default_from_settings(key)
 
@@ -445,6 +467,9 @@ class SettingsStorage:
         if key:
             if key not in SETTING_DEFINITIONS:
                 return 0
+            if key in STORAGE_KEYS:
+                await change_storage({key: _get_default_from_settings(key)}, "reset", collection)
+                return 1
             if key not in _MONGODB_POOL_SIZE_SETTINGS:
                 result = await collection.delete_one({"_id": key})
             else:
@@ -468,10 +493,16 @@ class SettingsStorage:
             return 1 if result.deleted_count > 0 else 0
         else:
             # Reset all
+            await change_storage(
+                {name: _get_default_from_settings(name) for name in STORAGE_KEYS},
+                "reset",
+                collection,
+            )
             non_pool_keys = [
                 setting_key
                 for setting_key in SETTING_DEFINITIONS
                 if setting_key not in _MONGODB_POOL_SIZE_SETTINGS
+                and setting_key not in STORAGE_KEYS
             ]
             result = await collection.delete_many({"_id": {"$in": non_pool_keys}})
             defaults = {

@@ -3,6 +3,7 @@
 from typing import Any
 
 from src.infra.async_utils import run_long_blocking_io
+from src.infra.storage.s3.cutover import storage_write
 from src.infra.storage.s3.types import S3Config, S3Provider
 
 PART_SIZE = 8 * 1024 * 1024
@@ -22,7 +23,8 @@ def validate_parts(parts: list[dict], size: int, part_size: int = PART_SIZE) -> 
 
 
 class DirectUploadStorage:
-    def __init__(self, config: S3Config):
+    def __init__(self, config: S3Config, *, managed: bool = False):
+        self._managed = managed
         self.config = config
         self._client: Any = None
 
@@ -70,6 +72,7 @@ class DirectUploadStorage:
                 )
         return self._client
 
+    @storage_write
     async def create(self, key: str, content_type: str) -> str:
         def operation():
             client = self._get_client()
@@ -130,6 +133,7 @@ class DirectUploadStorage:
 
         return await run_long_blocking_io(operation)
 
+    @storage_write
     async def complete(self, key: str, upload_id: str, parts: list[dict]) -> None:
         def operation():
             client = self._get_client()
@@ -157,6 +161,7 @@ class DirectUploadStorage:
                 await run_long_blocking_io(self._client.close)
             self._client = None
 
+    @storage_write
     async def abort(self, key: str, upload_id: str) -> None:
         def operation():
             client = self._get_client()

@@ -219,3 +219,17 @@ class LocalStorageBackend(S3StorageBackend):
 
     async def close(self) -> None:
         pass
+
+    async def iter_keys(self):
+        from src.infra.storage.s3.base import iter_blocking_keys
+
+        def keys():
+            def raise_error(error):
+                raise error
+
+            for root, _dirs, files in os.walk(self._base_path, onerror=raise_error):
+                for name in files:
+                    yield str((Path(root) / name).relative_to(self._base_path))
+
+        async for key in iter_blocking_keys(keys()):
+            yield key

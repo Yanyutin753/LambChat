@@ -104,19 +104,21 @@ async def test_get_all_bounds_settings_query() -> None:
 
     await storage.get_all(admin_mode=True)
 
-    assert collection.cursor.length == len(SETTING_DEFINITIONS) + 1
+    assert collection.cursor.length == len(SETTING_DEFINITIONS) + 2
     query, projection = collection.find_calls[0]
     assert query == {
         "_id": {
             "$in": [
                 *SETTING_DEFINITIONS.keys(),
                 "__settings_atomic__:mongodb_pools",
+                "__settings_atomic__:storage",
             ]
         }
     }
     assert projection == {
         "_id": 1,
         "value": 1,
+        "values": 1,
         "business_min": 1,
         "business_max": 1,
         "checkpoint_min": 1,

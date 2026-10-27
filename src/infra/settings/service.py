@@ -236,6 +236,18 @@ class SettingsService:
 
         return imported
 
+    async def migrate_storage(self, changes: dict, user_id: str) -> dict:
+        from src.infra.settings.storage_migration import change_storage
+        from src.kernel.config import refresh_settings
+
+        state = await change_storage(changes, user_id, self._storage._get_collection())
+        self.invalidate_get_all_cache()
+        for key in changes:
+            await refresh_settings(key)
+        # Runtime storage reads the authoritative bundle, even if this notification is lost.
+        await self._publish_change(None, None)
+        return state.get("verification", {})
+
     async def reset(self, key: Optional[str] = None) -> int:
         """
         Reset settings to default values.

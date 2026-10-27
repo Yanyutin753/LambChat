@@ -281,5 +281,15 @@ class MinioS3Backend(S3StorageBackend):
 
         return await run_long_blocking_io(_list_objects)
 
+    async def iter_keys(self) -> AsyncIterator[str]:
+        from src.infra.storage.s3.base import iter_blocking_keys
+
+        client = await run_long_blocking_io(self._get_client)
+        keys = (
+            obj.object_name for obj in client.list_objects(self.config.bucket_name, recursive=True)
+        )
+        async for key in iter_blocking_keys(keys):
+            yield key
+
     async def close(self) -> None:
         self._client = None

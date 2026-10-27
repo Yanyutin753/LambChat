@@ -6,12 +6,20 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from itertools import islice
 from typing import Optional, Protocol
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.storage.s3.types import UploadResult
 
 LIST_OBJECTS_LIMIT = 1000
+
+
+async def iter_blocking_keys(iterator) -> AsyncIterator[str]:
+    """Exhaust pagination off the event loop, without the UI listing limit."""
+    while batch := await run_long_blocking_io(lambda: list(islice(iterator, 500))):
+        for key in batch:
+            yield key
 
 
 class BinaryReadFile(Protocol):
@@ -67,6 +75,10 @@ class S3StorageBackend(ABC):
     async def get_size(self, key: str) -> int:
         """Get file size in bytes. Override for efficient stat."""
         raise NotImplementedError("S3 backends must implement get_size without downloading bytes")
+
+    async def iter_keys(self) -> AsyncIterator[str]:
+        raise NotImplementedError("Migration requires an exhaustive storage inventory")
+        yield ""
 
     async def download_range(self, key: str, start: int, end: int) -> bytes:
         """Download a byte range [start, end]. Override for efficient range reads."""

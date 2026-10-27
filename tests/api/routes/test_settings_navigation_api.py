@@ -86,3 +86,49 @@ async def test_list_returns_navigation_for_permission_filtered_settings(settings
         {"id": "intelligence", "categories": ["scheduled_task"]}
     ]
     service.get_all.assert_awaited_once_with(admin_mode=admin)
+
+
+async def test_storage_migration_requires_management_permission(settings_app):
+    app, service, user = settings_app
+    user.permissions = ["settings:read"]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/settings/storage/migrate", json={"changes": {"S3_BUCKET_NAME": "new"}}
+        )
+    assert response.status_code == 403
+    service.migrate_storage.assert_not_awaited()
+
+
+async def test_storage_migration_returns_only_verification_counts(settings_app):
+    app, service, _ = settings_app
+    service.migrate_storage.return_value = {"objects": 2, "bytes": 100}
+    changes = {"S3_BUCKET_NAME": "new", "S3_SECRET_KEY": "secret"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/settings/storage/migrate", json={"changes": changes})
+    assert response.status_code == 200
+    assert response.json() == {"verified": True, "objects": 2, "bytes": 100}
+    service.migrate_storage.assert_awaited_once_with(changes, "test")
+
+
+async def test_incomplete_storage_migration_reports_conflict(settings_app):
+    from src.kernel.errors import AppError, ErrorCode
+
+    app, service, _ = settings_app
+    service.migrate_storage.side_effect = AppError(ErrorCode.STORAGE_MIGRATION_BLOCKED)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/settings/storage/migrate", json={"changes": {"S3_BUCKET_NAME": "new"}}
+        )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "storage_migration_blocked"
+
+
+async def test_unchanged_unverified_storage_does_not_claim_successful_verification(settings_app):
+    app, service, _ = settings_app
+    service.migrate_storage.return_value = {}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/settings/storage/migrate", json={"changes": {"S3_BUCKET_NAME": "current"}}
+        )
+    assert response.status_code == 200
+    assert response.json() == {"verified": False}

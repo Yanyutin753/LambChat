@@ -24,6 +24,7 @@ from src.infra.storage.s3.backends import (
     MinioS3Backend,
 )
 from src.infra.storage.s3.base import BinaryReadFile, BinaryWriteFile, S3StorageBackend
+from src.infra.storage.s3.cutover import storage_write
 from src.infra.storage.s3.direct_upload import DirectUploadStorage
 from src.infra.storage.s3.types import S3Config, S3Provider, UploadResult
 from src.infra.utils.datetime import utc_now
@@ -48,7 +49,8 @@ class S3StorageService:
 
     _instance: Optional["S3StorageService"] = None
 
-    def __init__(self, config: Optional[S3Config] = None):
+    def __init__(self, config: Optional[S3Config] = None, *, managed: bool = False):
+        self._managed = managed
         self._backend: Optional[S3StorageBackend] = None
         self._direct_upload: DirectUploadStorage | None = None
         self.configure(config or S3Config())
@@ -57,7 +59,7 @@ class S3StorageService:
     def get_instance(cls) -> "S3StorageService":
         """Get singleton instance"""
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = cls(managed=True)
         return cls._instance
 
     def configure(self, config: S3Config) -> None:
@@ -76,7 +78,7 @@ class S3StorageService:
     @property
     def direct_upload(self) -> DirectUploadStorage:
         if self._direct_upload is None:
-            self._direct_upload = DirectUploadStorage(self._config)
+            self._direct_upload = DirectUploadStorage(self._config, managed=self._managed)
         return self._direct_upload
 
     @staticmethod
@@ -164,6 +166,7 @@ class S3StorageService:
 
         return self._backend
 
+    @storage_write
     async def upload_file(
         self,
         file: BinaryReadFile,
@@ -295,6 +298,7 @@ class S3StorageService:
             skip_size_limit=True,
         )
 
+    @storage_write
     async def upload_to_key(
         self,
         data: bytes,
@@ -320,6 +324,7 @@ class S3StorageService:
             skip_size_limit=True,
         )
 
+    @storage_write
     async def upload_stream_to_key(
         self,
         file: BinaryReadFile,
@@ -387,6 +392,7 @@ class S3StorageService:
             content_type=self._get_image_content_type(filename),
         )
 
+    @storage_write
     async def delete_user_files(self, user_id: str) -> int:
         """Delete all files for a user. Returns number of files deleted."""
         deleted_count = 0
@@ -443,6 +449,7 @@ class S3StorageService:
             if await backend.exists(preview):
                 await backend.delete(preview)
 
+    @storage_write
     async def delete_file(self, key: str) -> bool:
         """Delete derived previews before the original so failed cleanup can retry."""
         await self._delete_derived_previews(key)
@@ -595,7 +602,7 @@ def get_storage_service() -> S3StorageService:
 async def init_storage(config: S3Config) -> None:
     """Initialize storage service with configuration"""
     global _storage_service
-    _storage_service = S3StorageService(config)
+    _storage_service = S3StorageService(config, managed=True)
 
 
 async def close_storage() -> None:
@@ -674,16 +681,13 @@ async def get_or_init_storage() -> S3StorageService:
     This is the single entry-point that infra-layer code should use
     instead of importing from API routes.
     """
-    if get_s3_enabled():
-        config = await get_s3_config_from_settings()
-    else:
-        from src.kernel.config import settings
+    from src.infra.settings.storage_migration import ensure_state, make_config
 
-        storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
-        config = S3Config(provider=S3Provider.LOCAL, storage_path=storage_path)
+    global _storage_service
+    config = make_config((await ensure_state())["values"])
 
     svc = get_storage_service()
     if svc._config != config:
-        await svc.close()
-        svc.configure(config)
+        # Held references must keep their original backend; their write fence rejects stale writes.
+        _storage_service = S3StorageService(config, managed=True)
     return get_storage_service()

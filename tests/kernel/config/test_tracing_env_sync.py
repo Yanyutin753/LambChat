@@ -178,3 +178,15 @@ async def test_refresh_settings_tracing_key_resets_tracer(monkeypatch) -> None:
     assert getattr(config_service.settings, "LANGFUSE_ENABLED") is True
     assert env_enabled == "true"
     assert reset_calls == [True]
+
+
+@pytest.fixture(autouse=True)
+def verified_storage_state(monkeypatch):
+    from src.infra.settings import storage_migration as migration
+
+    async def state():
+        values = migration.runtime_values()
+        identity = migration.config_identity(migration.make_config(values))
+        return {"values": values, "identity": identity, "boot_identity": identity}
+
+    monkeypatch.setattr(migration, "ensure_state", state)
