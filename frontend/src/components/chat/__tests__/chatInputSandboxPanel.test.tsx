@@ -57,11 +57,15 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 vi.mock("../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: "sandbox-test", metadata: {} }, refreshUser: mocks.refreshUser }),
+  useAuth: () => ({
+    user: { id: "sandbox-test", metadata: {} },
+    refreshUser: mocks.refreshUser,
+  }),
 }));
 
 import { ChatInputSelectors } from "../ChatInputSelectors";
 import { ChatInputToolbar } from "../ChatInputToolbar";
+import { ComposerSandboxChip } from "../ComposerSandboxChip";
 import { RunModePopover } from "../RunModePopover";
 import { resolveSandboxPresentation } from "../sandboxOption";
 import type { SandboxMachine } from "../../../services/api/sandbox";
@@ -147,29 +151,36 @@ function renderToolbar(
   agentOptionValues: Record<string, boolean | string | number> = {},
 ) {
   return render(
-    <ChatInputToolbar
-      activePanel={null}
-      onActivePanelChange={onActivePanelChange}
-      canSend
-      isLoading={false}
-      canSubmit
-      hasUploadingAttachment={false}
-      enabledToolsCount={0}
-      totalToolsCount={0}
-      enabledSkillsCount={0}
-      totalSkillsCount={0}
-      hasPersonaSelector={false}
-      hasAgentSelector={false}
-      hasThinkingOption={false}
-      uploadCategories={[]}
-      uploadFiles={() => {}}
-      personaAvatar={null}
-      agentOptions={buildAgentOptions()}
-      agentOptionValues={agentOptionValues}
-      onToggleAgentOption={() => {}}
-      onStopClick={() => {}}
-      onNoPermissionClick={() => {}}
-    />,
+    <>
+      <ComposerSandboxChip
+        options={buildAgentOptions()}
+        values={agentOptionValues}
+        onClick={() => onActivePanelChange("sandbox")}
+      />
+      <ChatInputToolbar
+        activePanel={null}
+        onActivePanelChange={onActivePanelChange}
+        canSend
+        isLoading={false}
+        canSubmit
+        hasUploadingAttachment={false}
+        enabledToolsCount={0}
+        totalToolsCount={0}
+        enabledSkillsCount={0}
+        totalSkillsCount={0}
+        hasPersonaSelector={false}
+        hasAgentSelector={false}
+        hasThinkingOption={false}
+        uploadCategories={[]}
+        uploadFiles={() => {}}
+        personaAvatar={null}
+        agentOptions={buildAgentOptions()}
+        agentOptionValues={agentOptionValues}
+        onToggleAgentOption={() => {}}
+        onStopClick={() => {}}
+        onNoPermissionClick={() => {}}
+      />
+    </>,
   );
 }
 
@@ -288,14 +299,21 @@ test("cloud sandbox hides computer control targets even when machines are online
     default_machine_id: null,
   });
   const onToggleAgentOption = vi.fn();
-  renderSelectors("sandbox", { sandbox: "cloud", sandbox_machine_id: "mac1" }, onToggleAgentOption);
+  renderSelectors(
+    "sandbox",
+    { sandbox: "cloud", sandbox_machine_id: "mac1" },
+    onToggleAgentOption,
+  );
 
   await screen.findByText(SANDBOX_TITLE);
   await waitFor(() => expect(mocks.listMachines).toHaveBeenCalled());
   expect(screen.queryByText("MacBook")).not.toBeInTheDocument();
   expect(screen.queryByText("Auto (default)")).not.toBeInTheDocument();
   expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox", "local");
-  expect(onToggleAgentOption).not.toHaveBeenCalledWith("sandbox_machine_id", "mac1");
+  expect(onToggleAgentOption).not.toHaveBeenCalledWith(
+    "sandbox_machine_id",
+    "mac1",
+  );
 });
 
 test("sandbox panel hides the machine section when no machine is online", async () => {
@@ -435,16 +453,16 @@ test("sandbox chip reflects the stored local tier in the label", () => {
   );
 });
 
-test("sandbox chip shows the selected machine in the label on the local tier", async () => {
+test("sandbox chip keeps a short tier label when a machine is selected", async () => {
   mocks.listMachines.mockResolvedValue({
     machines: MACHINES,
     default_machine_id: null,
   });
   renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "mac1" });
 
-  // chip：直接显示设备名，省略本地电脑前缀
-  const chip = await screen.findByTitle("Sandbox · MacBook");
-  expect(chip).toHaveTextContent("MacBook");
+  const chip = await screen.findByTitle("Sandbox · Local computer");
+  expect(chip).toHaveTextContent("Local computer");
+  expect(chip).not.toHaveTextContent("MacBook");
 });
 
 test("sandbox chip keeps the tier-only label on auto machine resolution", async () => {
@@ -487,11 +505,11 @@ test("sandbox chip shows a green dot on the local tier when the daemon is online
   });
   await waitFor(() => {
     // jsdom 会把 #22c55e 规范化为 rgb(34, 197, 94)
-    expect(dot.style.background).toMatch(/#22c55e|rgb\(34, 197, 94\)/);
+    expect(dot.style.background).toBe("var(--theme-success)");
   });
   expect(dot.parentElement?.querySelector("svg.lucide-monitor")).not.toBeNull();
   expect(dot.classList.contains("absolute")).toBe(true);
-  expect(dot.classList.contains("-top-0.5")).toBe(true);
+  expect(dot.classList.contains("-bottom-0.5")).toBe(true);
   expect(dot.classList.contains("-right-0.5")).toBe(true);
   expect(dot.classList.contains("ring-2")).toBe(true);
   expect(dot.parentElement?.classList.contains("overflow-visible")).toBe(true);
@@ -507,7 +525,7 @@ test("sandbox chip shows a gray dot on the local tier when the daemon is offline
     return el as HTMLElement;
   });
   await waitFor(() => {
-    expect(dot.style.background).toMatch(/#a8a29e|rgb\(168, 162, 158\)/);
+    expect(dot.style.background).toBe("var(--theme-text-muted)");
   });
 });
 

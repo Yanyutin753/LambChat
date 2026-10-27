@@ -24,8 +24,12 @@ import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { getGoalControlScope } from "../../hooks/useAgent/goalControlScope";
+import { ComposerSandboxChip } from "./ComposerSandboxChip";
 import { ChatInputToolbar } from "./ChatInputToolbar";
-import { SessionWorkspaceBar } from "./SessionWorkspaceBar";
+import {
+  SessionWorkspaceBar,
+  type SessionWorkspaceBarHandle,
+} from "./SessionWorkspaceBar";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
@@ -66,88 +70,68 @@ import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 import { useChatDraftAttachments } from "./chatDraftStore";
 import { useChatDraftComposer } from "./useChatDraftComposer";
 export type { ChatInputProps } from "./chatInputTypes";
-export const ChatInput = memo(function ChatInput({
-  draftKey,
-  onSend,
-  onStop,
-  onSupplement,
-  onQueueFollowUp,
-  steerMessages = [],
-  onCancelSteer,
-  isLoading,
-  disabled,
-  sendBlocked = false,
-  canSend = true,
-  tools = [],
-  onToggleTool,
-  onToggleCategory,
-  onToggleAll,
-  toolsLoading: _toolsLoading,
-  enabledToolsCount = 0,
-  totalToolsCount = 0,
-  skills = [],
-  onToggleSkill,
-  onToggleSkillCategory,
-  onToggleAllSkills,
-  skillsLoading: _skillsLoading,
-  pendingSkillNames = [],
-  skillsMutating = false,
-  enabledSkillsCount = 0,
-  totalSkillsCount = 0,
-  enableSkills = true,
-  personaPresets = [],
-  personaPresetsTotal,
-  personaPresetsPage,
-  onPersonaPresetsPageChange,
-  onPersonaPresetsSearchChange,
-  onPersonaPresetsTagChange,
-  selectedPersonaPresetId,
-  selectedPersonaName,
-  personaSkillsControlled = false,
-  personaPresetsLoading = false,
-  personaPresetsError,
-  onRetryPersonaPresets,
-  personaPresetsMutating = false,
-  onUsePersonaPreset,
-  onCopyPersonaPreset,
-  onClearPersonaPreset,
-  canManagePersonaPresets = false,
-  agentOptions,
-  agentOptionValues = {},
-  onToggleAgentOption,
-  modelSupportsThinking,
-  agents = [],
-  agentsLoading = false,
-  agentsError = false,
-  onRetryAgents,
-  currentAgent,
-  onSelectAgent,
-  selectedTeamId,
-  onSelectTeam,
-  onOpenTeamBuilder,
-  attachments: externalAttachments,
-  onAttachmentsChange: externalOnAttachmentsChange,
-  onMentionQueryChange,
-  pendingInput,
-  focusRequest,
-  onPendingInputConsumed,
-  className,
-  activeGoal,
-  persistentGoal,
-  persistentGoalBusy = false,
-  onControlPersistentGoal,
-  onUpdatePersistentGoal,
-  onClearActiveGoal,
-  goalLabel,
-  goalDurationLabel,
-  goalClearLabel,
-  showHelpMenu,
-  helpMenuClassName,
-  autoModeEnabled = false,
-  goalModeEnabled = false,
-  onToggleAutoMode,
-  onToggleGoalMode,
-}: ChatInputProps) {
+export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
+  const {
+    draftKey,
+    sessionId,
+    onSend,
+    onStop,
+    onSupplement,
+    onQueueFollowUp,
+    steerMessages = [],
+    onCancelSteer,
+    isLoading,
+    disabled,
+    sendBlocked = false,
+    canSend = true,
+    toolsLoading: _toolsLoading,
+    enabledToolsCount = 0,
+    totalToolsCount = 0,
+    skills = [],
+    skillsLoading: _skillsLoading,
+    enabledSkillsCount = 0,
+    totalSkillsCount = 0,
+    enableSkills = true,
+    personaPresets = [],
+    personaPresetsTotal,
+    selectedPersonaPresetId,
+    selectedPersonaName,
+    onUsePersonaPreset,
+    onClearPersonaPreset,
+    agentOptions,
+    agentOptionValues = {},
+    onToggleAgentOption,
+    modelSupportsThinking,
+    agents = [],
+    agentsLoading = false,
+    agentsError = false,
+    currentAgent,
+    onSelectAgent,
+    selectedTeamId,
+    onSelectTeam,
+    attachments: externalAttachments,
+    onAttachmentsChange: externalOnAttachmentsChange,
+    onMentionQueryChange,
+    pendingInput,
+    focusRequest,
+    onPendingInputConsumed,
+    className,
+    activeGoal,
+    persistentGoal,
+    persistentGoalBusy = false,
+    onControlPersistentGoal,
+    onUpdatePersistentGoal,
+    onClearActiveGoal,
+    goalLabel,
+    goalDurationLabel,
+    goalClearLabel,
+    showHelpMenu,
+    helpMenuClassName,
+    autoModeEnabled = false,
+    goalModeEnabled = false,
+    onToggleAutoMode,
+    onToggleGoalMode,
+  } = props;
   const { t, i18n } = useTranslation();
   const composerRef = useRef<RichChatComposerHandle>(null);
   const { initialDraft, initialProjection, saveDraft } = useChatDraftComposer(
@@ -192,7 +176,7 @@ export const ChatInput = memo(function ChatInput({
   const formRef = useRef<HTMLFormElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const uploadCategories = (
     Object.keys(FILE_CATEGORY_PERMISSIONS) as Array<
       keyof typeof FILE_CATEGORY_PERMISSIONS
@@ -580,6 +564,10 @@ export const ChatInput = memo(function ChatInput({
       setComposerPlainText,
     ],
   );
+  const [workspaceHost, setWorkspaceHost] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const workspaceRef = useRef<SessionWorkspaceBarHandle>(null);
   const canSubmit =
     (!!input.trim() || visibleAttachments.length > 0) &&
     !disabled &&
@@ -691,294 +679,296 @@ export const ChatInput = memo(function ChatInput({
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&
             createPortal(
-              <form ref={formRef} onSubmit={handleSubmit}>
+              <form
+                ref={formRef}
+                onSubmit={(event) => {
+                  if (
+                    canSubmit &&
+                    (!goalCommand ||
+                      goalCommand.action === "run" ||
+                      goalCommand.action === "persist") &&
+                    workspaceRef.current?.prepareSubmit() === false
+                  ) {
+                    event.preventDefault();
+                    return;
+                  }
+                  handleSubmit(event);
+                }}
+              >
                 {!composerExpanded && goalBar}
-                <div
-                  ref={containerRef}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`chat-input-container font-sans flex flex-col relative w-full rounded-2xl px-1 border ${
-                    isDraggingOver ? "data-drag-over" : ""
-                  }`}
-                  data-mention-active={mention.isActive || undefined}
-                  data-drag-over={isDraggingOver || undefined}
-                  data-composer-expanded={composerExpanded || undefined}
-                  style={{
-                    backgroundColor: "var(--theme-bg-card)",
-                  }}
-                >
-                  {composerExpanded && goalBar}
-                  {currentAgentInfo?.supports_sandbox && (
-                    <SessionWorkspaceBar
-                      values={agentOptionValues}
-                      onChange={onToggleAgentOption}
-                      disabled={isLoading || !canSend}
-                    />
-                  )}
-                  {isDraggingOver && <ChatInputDragOverlay />}
-                  {mention.isActive &&
-                    !onMentionQueryChange &&
-                    mentionMode === "persona" && (
-                      <MentionPopup
-                        presets={mentionSearch.presets}
-                        highlightedIndex={mention.highlightedIndex}
-                        selectedPresetId={selectedPersonaPresetId}
-                        isLoading={mentionSearch.isLoading}
-                        isLoadingMore={mentionSearch.isLoadingMore}
-                        hasMore={mentionSearch.hasMore}
-                        onSelect={applyMentionSelection}
-                        onHover={setMentionHighlight}
-                        onClose={dismissMention}
-                        onLoadMore={mentionSearch.loadMore}
-                        placement={mentionPopupPlacement ?? undefined}
-                      />
-                    )}
-                  {mention.isActive &&
-                    !onMentionQueryChange &&
-                    mentionMode === "team" && (
-                      <TeamMentionPopup
-                        teams={teamMentionSearch.teams}
-                        highlightedIndex={mention.highlightedIndex}
-                        selectedTeamId={selectedTeamId}
-                        isLoading={teamMentionSearch.isLoading}
-                        onSelect={applyTeamMentionSelection}
-                        onHover={setMentionHighlight}
-                        onClose={dismissMention}
-                        placement={mentionPopupPlacement ?? undefined}
-                      />
-                    )}
-                  <ChatInputAttachments
-                    attachments={visibleAttachments}
-                    onAttachmentsChange={setAttachments}
-                    onCancelUpload={cancelUpload}
-                    onImageViewerOpen={(url) => setImageViewerSrc(url)}
-                    maxFiles={uploadLimits?.maxFiles}
-                    onRestoreLongText={handleRestoreLongTextAttachment}
-                    onRemoveReference={(referenceId) => {
-                      longTextResourcesRef.current.delete(referenceId);
-                      composerRef.current?.removeFileReference(referenceId);
-                    }}
-                    onRetryUpload={(attachment) => {
-                      if (attachment.composerReferenceId) {
-                        handleRetryFileReference(
-                          attachment.composerReferenceId,
-                        );
-                      }
-                    }}
-                  />
-                  <div className="chat-composer-editor-wrap px-2.5 pt-1">
-                    {composerExpanded ? (
-                      <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">
-                        <div>
-                          <div className="text-14 font-medium text-[var(--theme-text)]">
-                            {t("chat.expandedComposerTitle", "展开编辑")}
-                          </div>
-                          <div className="mt-0.5 text-12 text-[var(--theme-text-secondary)]">
-                            {t(
-                              "chat.expandedComposerHint",
-                              "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setComposerExpanded(false)}
-                          className="inline-flex size-8 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--theme-text)_8%,transparent)]"
-                          style={{ color: "var(--theme-text-secondary)" }}
-                          title={t("chat.collapseComposer", "收起")}
-                          aria-label={t("chat.collapseComposer", "收起")}
-                        >
-                          <InteractiveIcon>
-                            <Minimize2 size={16} />
-                          </InteractiveIcon>
-                        </button>
-                      </div>
-                    ) : null}
-                    <div className="relative min-h-0 flex-1">
-                      <RichChatComposer
-                        initialSnapshot={initialDraft}
-                        ref={composerRef}
-                        focusRequest={focusRequest}
-                        ariaLabel={t("chat.messageInput", "Message")}
-                        initialPlainText={input}
-                        placeholder={
-                          <ChatInputPlaceholder
-                            {...{
-                              canSend,
-                              disabled,
-                              sendBlocked,
-                              isLoading,
-                              mentionMode,
-                            }}
-                            mentionEnabled={
-                              mentionEnabled && !onMentionQueryChange
-                            }
-                            selectedId={
-                              mentionMode === "team"
-                                ? selectedTeamId
-                                : selectedPersonaPresetId
-                            }
-                            sandbox={
-                              agentOptions?.sandbox &&
-                              (agentOptionValues.sandbox ??
-                                agentOptions.sandbox.default)
-                            }
-                          />
+                <div className="composer-workspace-shell">
+                  <div
+                    data-static-icons
+                    className="composer-workspace-strip flex min-w-0 flex-nowrap items-center font-sans"
+                  >
+                    {onToggleAgentOption && (
+                      <ComposerSandboxChip
+                        options={agentOptions}
+                        values={agentOptionValues}
+                        expanded={activePanel === "sandbox"}
+                        onClick={() =>
+                          setActivePanel(
+                            activePanel === "sandbox" ? null : "sandbox",
+                          )
                         }
-                        availableSkills={availableRunSkills}
-                        onApplySlashCommand={applySlashCommand}
-                        onChange={handleComposerChange}
-                        filePaste={{
-                          validateCount,
-                          onFiles: uploadFiles,
-                          onInvalidImage: () =>
-                            toast.error(
-                              t(
-                                "fileUpload.clipboardImageUnavailable",
-                                "无法读取剪贴板图片，请重新复制或保存后上传",
-                              ),
-                            ),
-                        }}
-                        longTextPaste={{
-                          enabled: !composerExpanded,
-                          validateCount,
-                          onCreate: handleLongTextCreate,
-                        }}
-                        onRetryFileReference={handleRetryFileReference}
-                        onKeyDown={handleComposerKeyDown}
-                        onArrowKey={handleComposerArrowKey}
-                        disabled={disabled || !canSend}
                       />
-                      {!composerExpanded && showExpandButton ? (
-                        <button
-                          type="button"
-                          onClick={() => setComposerExpanded(true)}
-                          className="absolute right-1 top-2 inline-flex size-6 items-center justify-center rounded-md opacity-60 transition hover:opacity-100"
-                          style={{ color: "var(--theme-text-secondary)" }}
-                          title={t("chat.expandComposer", "展开编辑")}
-                          aria-label={t("chat.expandComposer", "展开编辑")}
-                          disabled={disabled || !canSend}
-                        >
-                          <InteractiveIcon>
-                            <Maximize2 size={14} />
-                          </InteractiveIcon>
-                        </button>
-                      ) : null}
-                    </div>
+                    )}
+                    {currentAgentInfo?.supports_sandbox &&
+                      agentOptionValues.sandbox === "local" && (
+                        <div
+                          ref={setWorkspaceHost}
+                          className="min-w-0 empty:hidden"
+                        />
+                      )}
                   </div>
-                  <ChatInputToolbar
-                    activePanel={activePanel}
-                    onActivePanelChange={setActivePanel}
-                    canSend={canSend}
-                    sendBlocked={sendBlocked}
-                    isLoading={isLoading}
-                    hasDraft={!!input.trim() || visibleAttachments.length > 0}
-                    onQueueFollowUp={sendRunningDraft(onQueueFollowUp)}
-                    canSubmit={canSubmit}
-                    hasUploadingAttachment={hasUploadingAttachment}
-                    hasFailedAttachment={hasFailedAttachment}
-                    hasInvalidAttachment={hasInvalidAttachment}
-                    enabledToolsCount={enabledToolsCount}
-                    totalToolsCount={totalToolsCount}
-                    enabledSkillsCount={enabledSkillsCount}
-                    totalSkillsCount={totalSkillsCount}
-                    hasPersonaSelector={!!onUsePersonaPreset}
-                    personaName={selectedPersonaName}
-                    totalPersonaCount={personaPresetsTotal}
-                    hasAgentSelector={!!onSelectAgent}
-                    agentsLoading={agentsLoading}
-                    agentsError={agentsError}
-                    agentName={agentName}
-                    agentIcon={currentAgentInfo?.icon}
-                    hasThinkingOption={
-                      !!(
-                        agentOptions &&
-                        onToggleAgentOption &&
-                        Object.keys(agentOptions).length > 0 &&
-                        modelSupportsThinking !== false
-                      )
-                    }
-                    thinkingLabel={thinkingLabel}
-                    uploadCategories={uploadCategories}
-                    uploadFiles={uploadFiles}
-                    selectedPersonaName={selectedPersonaName}
-                    personaAvatar={personaAvatar}
-                    onClearPersonaPreset={onClearPersonaPreset}
-                    currentAgent={currentAgent}
-                    selectedTeamId={selectedTeamId}
-                    onSelectTeam={onSelectTeam}
-                    agentOptions={agentOptions}
-                    agentOptionValues={agentOptionValues}
-                    onToggleAgentOption={onToggleAgentOption}
-                    onStopClick={() => setStopConfirmOpen(true)}
-                    onNoPermissionClick={() => setContactAdminOpen(true)}
-                    autoModeEnabled={autoModeEnabled}
-                    goalModeEnabled={goalModeEnabled}
-                    persistentGoalStatus={
-                      persistentGoal?.status === "cleared"
-                        ? undefined
-                        : persistentGoal?.status
-                    }
-                    onToggleAutoMode={onToggleAutoMode}
-                    onToggleGoalMode={onToggleGoalMode}
-                  />
+                  <div
+                    ref={containerRef}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`chat-input-container font-sans flex flex-col relative w-full rounded-2xl px-1 border ${
+                      isDraggingOver ? "data-drag-over" : ""
+                    }`}
+                    data-mention-active={mention.isActive || undefined}
+                    data-drag-over={isDraggingOver || undefined}
+                    data-composer-expanded={composerExpanded || undefined}
+                    style={{
+                      backgroundColor: "var(--theme-bg-elevated)",
+                    }}
+                  >
+                    {composerExpanded && goalBar}
+                    {isDraggingOver && <ChatInputDragOverlay />}
+                    {mention.isActive &&
+                      !onMentionQueryChange &&
+                      mentionMode === "persona" && (
+                        <MentionPopup
+                          presets={mentionSearch.presets}
+                          highlightedIndex={mention.highlightedIndex}
+                          selectedPresetId={selectedPersonaPresetId}
+                          isLoading={mentionSearch.isLoading}
+                          isLoadingMore={mentionSearch.isLoadingMore}
+                          hasMore={mentionSearch.hasMore}
+                          onSelect={applyMentionSelection}
+                          onHover={setMentionHighlight}
+                          onClose={dismissMention}
+                          onLoadMore={mentionSearch.loadMore}
+                          placement={mentionPopupPlacement ?? undefined}
+                        />
+                      )}
+                    {mention.isActive &&
+                      !onMentionQueryChange &&
+                      mentionMode === "team" && (
+                        <TeamMentionPopup
+                          teams={teamMentionSearch.teams}
+                          highlightedIndex={mention.highlightedIndex}
+                          selectedTeamId={selectedTeamId}
+                          isLoading={teamMentionSearch.isLoading}
+                          onSelect={applyTeamMentionSelection}
+                          onHover={setMentionHighlight}
+                          onClose={dismissMention}
+                          placement={mentionPopupPlacement ?? undefined}
+                        />
+                      )}
+                    <ChatInputAttachments
+                      attachments={visibleAttachments}
+                      onAttachmentsChange={setAttachments}
+                      onCancelUpload={cancelUpload}
+                      onImageViewerOpen={(url) => setImageViewerSrc(url)}
+                      maxFiles={uploadLimits?.maxFiles}
+                      onRestoreLongText={handleRestoreLongTextAttachment}
+                      onRemoveReference={(referenceId) => {
+                        longTextResourcesRef.current.delete(referenceId);
+                        composerRef.current?.removeFileReference(referenceId);
+                      }}
+                      onRetryUpload={(attachment) => {
+                        if (attachment.composerReferenceId) {
+                          handleRetryFileReference(
+                            attachment.composerReferenceId,
+                          );
+                        }
+                      }}
+                    />
+                    <div className="chat-composer-editor-wrap px-2.5 pt-1">
+                      {composerExpanded ? (
+                        <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">
+                          <div>
+                            <div className="text-14 font-medium text-[var(--theme-text)]">
+                              {t("chat.expandedComposerTitle", "展开编辑")}
+                            </div>
+                            <div className="mt-0.5 text-12 text-[var(--theme-text-secondary)]">
+                              {t(
+                                "chat.expandedComposerHint",
+                                "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setComposerExpanded(false)}
+                            className="inline-flex size-8 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--theme-text)_8%,transparent)]"
+                            style={{ color: "var(--theme-text-secondary)" }}
+                            title={t("chat.collapseComposer", "收起")}
+                            aria-label={t("chat.collapseComposer", "收起")}
+                          >
+                            <InteractiveIcon>
+                              <Minimize2 size={16} />
+                            </InteractiveIcon>
+                          </button>
+                        </div>
+                      ) : null}
+                      <div className="relative min-h-0 flex-1">
+                        <RichChatComposer
+                          initialSnapshot={initialDraft}
+                          ref={composerRef}
+                          focusRequest={focusRequest}
+                          ariaLabel={t("chat.messageInput", "Message")}
+                          initialPlainText={input}
+                          placeholder={
+                            <ChatInputPlaceholder
+                              {...{
+                                canSend,
+                                disabled,
+                                sendBlocked,
+                                isLoading,
+                                mentionMode,
+                              }}
+                              mentionEnabled={
+                                mentionEnabled && !onMentionQueryChange
+                              }
+                              selectedId={
+                                mentionMode === "team"
+                                  ? selectedTeamId
+                                  : selectedPersonaPresetId
+                              }
+                              sandbox={
+                                agentOptions?.sandbox &&
+                                (agentOptionValues.sandbox ??
+                                  agentOptions.sandbox.default)
+                              }
+                            />
+                          }
+                          availableSkills={availableRunSkills}
+                          onApplySlashCommand={applySlashCommand}
+                          onChange={handleComposerChange}
+                          filePaste={{
+                            validateCount,
+                            onFiles: uploadFiles,
+                            onInvalidImage: () =>
+                              toast.error(
+                                t(
+                                  "fileUpload.clipboardImageUnavailable",
+                                  "无法读取剪贴板图片，请重新复制或保存后上传",
+                                ),
+                              ),
+                          }}
+                          longTextPaste={{
+                            enabled: !composerExpanded,
+                            validateCount,
+                            onCreate: handleLongTextCreate,
+                          }}
+                          onRetryFileReference={handleRetryFileReference}
+                          onKeyDown={handleComposerKeyDown}
+                          onArrowKey={handleComposerArrowKey}
+                          disabled={disabled || !canSend}
+                        />
+                        {!composerExpanded && showExpandButton ? (
+                          <button
+                            type="button"
+                            onClick={() => setComposerExpanded(true)}
+                            className="absolute right-1 top-2 inline-flex size-6 items-center justify-center rounded-md opacity-60 transition hover:opacity-100"
+                            style={{ color: "var(--theme-text-secondary)" }}
+                            title={t("chat.expandComposer", "展开编辑")}
+                            aria-label={t("chat.expandComposer", "展开编辑")}
+                            disabled={disabled || !canSend}
+                          >
+                            <InteractiveIcon>
+                              <Maximize2 size={14} />
+                            </InteractiveIcon>
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <ChatInputToolbar
+                      userId={user?.id}
+                      activePanel={activePanel}
+                      onActivePanelChange={setActivePanel}
+                      canSend={canSend}
+                      sendBlocked={sendBlocked}
+                      isLoading={isLoading}
+                      hasDraft={!!input.trim() || visibleAttachments.length > 0}
+                      onQueueFollowUp={sendRunningDraft(onQueueFollowUp)}
+                      canSubmit={canSubmit}
+                      hasUploadingAttachment={hasUploadingAttachment}
+                      hasFailedAttachment={hasFailedAttachment}
+                      hasInvalidAttachment={hasInvalidAttachment}
+                      enabledToolsCount={enabledToolsCount}
+                      totalToolsCount={totalToolsCount}
+                      enabledSkillsCount={enabledSkillsCount}
+                      totalSkillsCount={totalSkillsCount}
+                      hasPersonaSelector={!!onUsePersonaPreset}
+                      personaName={selectedPersonaName}
+                      totalPersonaCount={personaPresetsTotal}
+                      hasAgentSelector={!!onSelectAgent}
+                      agentsLoading={agentsLoading}
+                      agentsError={agentsError}
+                      agentName={agentName}
+                      agentIcon={currentAgentInfo?.icon}
+                      hasThinkingOption={
+                        !!(
+                          agentOptions &&
+                          onToggleAgentOption &&
+                          Object.keys(agentOptions).length > 0 &&
+                          modelSupportsThinking !== false
+                        )
+                      }
+                      thinkingLabel={thinkingLabel}
+                      uploadCategories={uploadCategories}
+                      uploadFiles={uploadFiles}
+                      selectedPersonaName={selectedPersonaName}
+                      personaAvatar={personaAvatar}
+                      onClearPersonaPreset={onClearPersonaPreset}
+                      currentAgent={currentAgent}
+                      selectedTeamId={selectedTeamId}
+                      onSelectTeam={onSelectTeam}
+                      agentOptions={agentOptions}
+                      agentOptionValues={agentOptionValues}
+                      onToggleAgentOption={onToggleAgentOption}
+                      onStopClick={() => setStopConfirmOpen(true)}
+                      onNoPermissionClick={() => setContactAdminOpen(true)}
+                      autoModeEnabled={autoModeEnabled}
+                      goalModeEnabled={goalModeEnabled}
+                      persistentGoalStatus={
+                        persistentGoal?.status === "cleared"
+                          ? undefined
+                          : persistentGoal?.status
+                      }
+                      onToggleAutoMode={onToggleAutoMode}
+                      onToggleGoalMode={onToggleGoalMode}
+                    />
+                  </div>
                 </div>
               </form>,
               composerHost,
             )}
         </div>
       </div>
+      {currentAgentInfo?.supports_sandbox && (
+        <SessionWorkspaceBar
+          host={workspaceHost}
+          compact
+          sessionId={sessionId}
+          ref={workspaceRef}
+          values={agentOptionValues}
+          onChange={onToggleAgentOption}
+          disabled={isLoading || !canSend}
+        />
+      )}
       <ChatInputSelectors
+        {...props}
+        activePanel={activePanel}
         canCopyPersonaPresets={hasPermission(Permission.PERSONA_PRESET_WRITE)}
         canManageSandbox={hasPermission(Permission.SANDBOX_MANAGE)}
-        activePanel={activePanel}
         onActivePanelChange={setActivePanel}
-        tools={tools}
-        onToggleTool={onToggleTool}
-        onToggleCategory={onToggleCategory}
-        onToggleAll={onToggleAll}
-        enabledToolsCount={enabledToolsCount}
-        totalToolsCount={totalToolsCount}
-        skills={skills}
-        onToggleSkill={onToggleSkill}
-        onToggleSkillCategory={onToggleSkillCategory}
-        onToggleAllSkills={onToggleAllSkills}
-        pendingSkillNames={pendingSkillNames}
-        skillsMutating={skillsMutating}
-        enabledSkillsCount={enabledSkillsCount}
-        totalSkillsCount={totalSkillsCount}
-        enableSkills={enableSkills}
-        personaSkillsControlled={personaSkillsControlled}
-        selectedPersonaName={selectedPersonaName}
-        personaPresets={personaPresets}
-        personaPresetsTotal={personaPresetsTotal}
-        personaPresetsPage={personaPresetsPage}
-        onPersonaPresetsPageChange={onPersonaPresetsPageChange}
-        onPersonaPresetsSearchChange={onPersonaPresetsSearchChange}
-        onPersonaPresetsTagChange={onPersonaPresetsTagChange}
-        selectedPersonaPresetId={selectedPersonaPresetId}
-        personaPresetsLoading={personaPresetsLoading}
-        personaPresetsError={personaPresetsError}
-        onRetryPersonaPresets={onRetryPersonaPresets}
-        personaPresetsMutating={personaPresetsMutating}
-        onUsePersonaPreset={onUsePersonaPreset}
-        onCopyPersonaPreset={onCopyPersonaPreset}
-        onClearPersonaPreset={onClearPersonaPreset}
-        canManagePersonaPresets={canManagePersonaPresets}
-        agents={agents}
-        agentsLoading={agentsLoading}
-        agentsError={agentsError}
-        onRetryAgents={onRetryAgents}
-        currentAgent={currentAgent}
-        onSelectAgent={onSelectAgent}
-        selectedTeamId={selectedTeamId}
-        onSelectTeam={onSelectTeam}
-        onOpenTeamBuilder={onOpenTeamBuilder}
-        agentOptions={agentOptions}
-        agentOptionValues={agentOptionValues}
-        onToggleAgentOption={onToggleAgentOption}
-        modelSupportsThinking={modelSupportsThinking}
       />
       {showHelpMenu && <ChatInputHelpMenu className={helpMenuClassName} />}
       <ChatInputDialogLayer

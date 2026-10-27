@@ -40,14 +40,17 @@ import os
 import re
 import shutil
 import stat as stat_module
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from lambchat_sandbox.executor import map_workspace
+from lambchat_sandbox.file_commit import FileCommitError, commit_file, file_version
 
 FS_OPS = frozenset(
     {
+        "fs_capabilities",
         "fs_read",
         "fs_ls",
         "fs_write",
@@ -89,7 +92,7 @@ FS_TRANSFER_MAX_BYTES = 2 * 1024 * 1024
 _DEFAULT_READ_LIMIT = 2000
 
 
-class FsOpError(Exception):
+class FsOpError(FileCommitError):
     """fs op 的可恢复错误（路径逃逸、坏载荷）：映射为结果级 error dict。"""
 
 
@@ -312,6 +315,33 @@ def _fs_ls(payload: dict, workspace: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _replace_file(path: Path, content: bytes, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        prefix=".lambchat-write-", dir=path.parent, delete=False
+    ) as output:
+        temporary = Path(output.name)
+        try:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        except BaseException:
+            output.close()
+            temporary.unlink(missing_ok=True)
+            raise
+    try:
+        commit_file(
+            temporary,
+            path,
+            payload["_expected_version"],
+            payload["_state_root"],
+            actor=payload.get("actor"),
+        )
+    finally:
+        if temporary.parent.resolve() == temporary.parent:
+            temporary.unlink(missing_ok=True)
+
+
 def _fs_write(payload: dict, workspace: Path) -> dict:
     path = _resolve(payload.get("path"), workspace)
     content = _decode_b64(payload.get("content_b64"), "content_b64")
@@ -324,8 +354,7 @@ def _fs_write(payload: dict, workspace: Path) -> dict:
         }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(content)
+        _replace_file(path, content, payload)
         return {}
     except FsOpError:
         raise
@@ -373,8 +402,7 @@ def _fs_edit(payload: dict, workspace: Path) -> dict:
             if replace_all
             else text.replace(matched_old, matched_new, 1)
         )
-        with open(path, "wb") as f:
-            f.write(result_text.encode("utf-8"))
+        _replace_file(path, result_text.encode("utf-8"), payload)
         return {"count": count}
     except FsOpError:
         raise
@@ -390,7 +418,13 @@ def _fs_delete(payload: dict, workspace: Path) -> dict:
         if path.is_dir() and not path.is_symlink():
             shutil.rmtree(path)  # 目录递归删除（rm -rf 语义）
         else:
-            path.unlink()
+            commit_file(
+                None,
+                path,
+                payload["_expected_version"],
+                payload["_state_root"],
+                actor=payload.get("actor"),
+            )
         return {}
     except FsOpError:
         raise
@@ -816,14 +850,43 @@ def handle_fs_op(op: str, payload: dict[str, Any], data_root: Path) -> dict:
       重试，不应炸通道；
     - 其余异常上抛，由 daemon 收敛为 ``status=error``。
     """
+    if op == "fs_capabilities":
+        return {"file_versions": 1}
     handler = _HANDLERS.get(op)
     if handler is None:
         raise ValueError(f"unknown fs op: {op}")
     workspace = map_workspace(str(payload.get("cwd", "")), Path(data_root))
     workspace.mkdir(parents=True, exist_ok=True)  # 对齐 executor：工作区按需创建
     try:
-        return handler(payload, workspace)
-    except FsOpError as exc:
+        guarded = op in {"fs_write", "fs_edit", "fs_delete"}
+        versioned = payload.get("versioned") is True
+        path = (
+            _resolve(payload.get("path"), workspace)
+            if guarded or (versioned and op == "fs_read")
+            else None
+        )
+        version = None
+        if path is not None and not path.is_dir():
+            version = file_version(path)
+            if guarded:
+                expected = payload.get("expected_version") if versioned else version
+                if not isinstance(expected, str) or expected != version:
+                    raise FsOpError("file_conflict: reread the current file before writing")
+                payload = {
+                    **payload,
+                    "_expected_version": expected,
+                    "_state_root": Path(data_root) / ".file-history",
+                }
+        elif guarded and versioned:
+            raise FsOpError("file_conflict: directory mutations require a verified archive")
+        result = handler(payload, workspace)
+        if versioned and path is not None and not result.get("error"):
+            latest = file_version(path)
+            if op == "fs_read" and latest != version:
+                raise FsOpError("file_conflict: file changed while reading")
+            result["version"] = latest
+        return result
+    except FileCommitError as exc:
         return {"error": str(exc)}
 
 
@@ -831,41 +894,53 @@ def handle_fs_op(op: str, payload: dict[str, Any], data_root: Path) -> dict:
 
 
 class StreamUploadWriter:
-    """流式上传的落盘端：首个数据帧截断创建（建父目录），累计字节超限即拒。
+    """Stage a complete upload beside its destination; close aborts unless committed."""
 
-    与分块 fs_upload 的 truncate/offset 语义对齐到「整文件单流」形态：一次
-    open 贯穿整个 GET 流，无需 per-chunk 定位。空文件（零 DATA 帧）在
-    close 时创建 0 字节文件——对齐分块路径「空文件也发首块」的契约，否则
-    上传报成功但文件从不落盘、后续读取 file_not_found。
-    """
-
-    def __init__(self, path: Path, max_bytes: int) -> None:
-        self._path = path
+    def __init__(self, path: Path, max_bytes: int, state_root: Path) -> None:
+        self._path = path.resolve()
+        self._expected_version = file_version(self._path)
+        self._state_root = state_root
         self._max_bytes = max_bytes
-        self._fh = None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._fh = tempfile.NamedTemporaryFile(
+            prefix=".lambchat-upload-", dir=path.parent, delete=False
+        )
+        self._temporary = Path(self._fh.name)
+        self._closed = False
         self.written = 0
 
     def write(self, chunk: bytes) -> None:
-        if self._fh is None:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._fh = open(self._path, "wb")
-        self.written += len(chunk)
-        if self._max_bytes > 0 and self.written > self._max_bytes:
+        if self._closed:
+            raise FsOpError("upload_closed")
+        if self._max_bytes > 0 and self.written + len(chunk) > self._max_bytes:
             self.close()
             raise FsOpError(
-                f"file_too_large: {self.written} bytes exceeds {self._max_bytes} limit "
-                "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
+                f"file_too_large: {self.written + len(chunk)} bytes exceeds "
+                f"{self._max_bytes} limit (S3_INTERNAL_UPLOAD_MAX_SIZE)"
             )
         self._fh.write(chunk)
+        self.written += len(chunk)
+
+    def commit(self) -> None:
+        if self._closed:
+            raise FsOpError("upload_closed")
+        try:
+            self._fh.flush()
+            os.fsync(self._fh.fileno())
+            self._fh.close()
+            commit_file(self._temporary, self._path, self._expected_version, self._state_root)
+        except FileCommitError as exc:
+            raise FsOpError(str(exc)) from exc
+        finally:
+            self.close()
 
     def close(self) -> None:
-        if self._fh is not None:
-            fh, self._fh = self._fh, None
-            fh.close()
-        elif self.written == 0:
-            # 零 DATA 帧（空文件）：truncate 创建，与分块路径首块语义对齐
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.touch()
+        self._closed = True
+        try:
+            self._fh.close()
+        finally:
+            if self._temporary.parent.resolve() == self._temporary.parent:
+                self._temporary.unlink(missing_ok=True)
 
 
 def make_stream_upload_writer(payload: dict, data_root: Path) -> StreamUploadWriter:
@@ -873,4 +948,6 @@ def make_stream_upload_writer(payload: dict, data_root: Path) -> StreamUploadWri
     workspace = map_workspace(str(payload.get("cwd", "")), Path(data_root))
     workspace.mkdir(parents=True, exist_ok=True)
     path = _resolve(payload.get("path"), workspace)
-    return StreamUploadWriter(path, int(payload.get("max_bytes") or 0))
+    return StreamUploadWriter(
+        path, int(payload.get("max_bytes") or 0), Path(data_root) / ".file-history"
+    )

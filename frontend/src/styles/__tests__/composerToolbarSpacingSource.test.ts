@@ -18,14 +18,22 @@ test("composer action groups share spacing and desktop hover uses a softer radiu
   );
 });
 
-test("desktop toolbar uses symmetric insets and square icon actions", () => {
+test("desktop toolbar inherits shared vertical spacing and keeps square icon actions", () => {
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),
     "utf8",
   ).replace(/\s+/g, " ");
   expect(desktop).toMatch(
-    /\.chat-input-toolbar\s*\{[^}]*padding:\s*var\(--composer-vertical-inset\) 0\.75rem;[^}]*margin:\s*0;/,
+    /\.chat-input-toolbar\s*\{[^}]*padding-inline:\s*0\.75rem;[^}]*margin:\s*0;/,
   );
+  const toolbarRules = [
+    ...desktop.matchAll(/\.chat-input-toolbar\s*\{([^}]+)\}/g),
+  ];
+  for (const [, rule] of toolbarRules) {
+    expect(rule).not.toMatch(
+      /padding(?:-block(?:-start|-end)?|-top|-bottom)?\s*:/,
+    );
+  }
   expect(desktop).toMatch(
     /\.chat-input-toolbar > div > button\s*\{[^}]*height:\s*2\.5rem;[^}]*min-width:\s*2\.5rem;/,
   );
@@ -34,14 +42,11 @@ test("desktop toolbar uses symmetric insets and square icon actions", () => {
   );
 });
 
-test("desktop composer gives the bottom actions more breathing room and height", () => {
+test("desktop composer preserves action height and shared skeleton styling", () => {
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),
     "utf8",
   ).replace(/\s+/g, " ");
-  expect(desktop).toMatch(
-    /@media \(min-width: 640px\)\s*\{[^]*?\.chat-input-toolbar\s*\{[^}]*padding:\s*var\(--composer-vertical-inset\)/,
-  );
   expect(desktop).toMatch(
     /\.chat-input-toolbar :is\(\.chat-tool-btn, \.skeleton-line\.h-9\),[^]*?\.chat-input-toolbar > div > button\s*\{[^}]*height:\s*2\.5rem/,
   );
@@ -66,7 +71,7 @@ test("toolbar retains left and right action groups", () => {
   expect(toolbar).toMatch(/min-h-9 min-w-0 flex-1/);
 });
 
-test("conversation toolbar keeps equal top and bottom spacing with fixed side insets", () => {
+test("conversation toolbar offsets control padding with fixed side insets", () => {
   const chat = readFileSync(new URL("../chat.css", import.meta.url), "utf8");
   const rules = [
     ...chat.matchAll(
@@ -77,7 +82,7 @@ test("conversation toolbar keeps equal top and bottom spacing with fixed side in
   expect(rules[0]).toMatch(/padding-inline:\s*0\.75rem;/);
   expect(rules[1]).toMatch(/padding-inline:\s*0\.5rem;/);
   expect(chat).toMatch(
-    /\.chat-input-toolbar\s*\{[^}]*padding-block:\s*var\(--composer-vertical-inset\);/,
+    /\.chat-input-toolbar\s*\{[^}]*padding-block:\s*var\(--composer-vertical-inset\)\s+calc\(var\(--composer-vertical-inset\) - 0\.5rem\);/,
   );
   const desktop = readFileSync(
     new URL("../desktop.css", import.meta.url),

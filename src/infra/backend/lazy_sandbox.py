@@ -667,6 +667,12 @@ class LazySandboxBackend(BaseSandbox):
             ):
                 raise ValueError("sandbox manager returned an invalid work directory")
 
+            from src.infra.backend.guarded_sandbox import guard_cloud_backend
+
+            delegate = guard_cloud_backend(
+                delegate, user_id=self._user_id, session_id=self._session_id
+            )
+
             from src.infra.envvar.sync import apply_sandbox_env_overrides
 
             apply_sandbox_env_overrides(delegate, self._run_env_overrides)

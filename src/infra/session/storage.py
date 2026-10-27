@@ -308,6 +308,23 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
             for key, value in session_data.metadata.items():
                 update_dict[f"metadata.{key}"] = value
 
+        metadata = session_data.metadata or {}
+        workspace_keys = {"sandbox", "sandbox_machine_id", "sandbox_workspace"}
+        if "agent_options" in metadata or any(
+            f"agent_options.{key}" in metadata for key in workspace_keys
+        ):
+            from src.infra.session.workspace_locations import (
+                update_workspace_binding,
+            )
+
+            original = await self._find_doc(session_id)
+            if original is None:
+                return None
+            result = await update_workspace_binding(
+                self.collection, original, session_id, metadata, update_dict
+            )
+            return self._build_session(result)
+
         # 优先使用自定义 session_id 查询
         result = await self.collection.find_one_and_update(
             {"session_id": session_id},

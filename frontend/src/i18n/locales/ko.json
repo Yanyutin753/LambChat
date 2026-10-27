@@ -1,5 +1,8 @@
 {
   "sessionWorkspace": {
+    "location": "파일 위치",
+    "previous": "이전 디렉터리",
+    "chooseHint": "로컬 작업 디렉터리를 선택하세요. 파일 작업과 명령은 이 디렉터리에서 직접 실행됩니다.",
     "independent": "대화별 폴더",
     "independentHint": "새 대화마다 별도의 파일 폴더를 사용합니다. 여러 대화에서 같은 파일로 작업하려면 프로젝트 메뉴에서 로컬 폴더를 연결하세요.",
     "loading": "폴더 선택 중…",
@@ -542,7 +545,7 @@
     "roleNotFound": "역할을 찾을 수 없습니다.",
     "sandboxSessionNotLocal": "이 세션은 클라우드 샌드박스에서 실행 중입니다. 워크스페이스 파일 탐색에는 로컬 샌드박스 세션이 필요합니다",
     "sandboxCloudNotCreated": "클라우드 컴퓨터가 아직 없습니다. 클라우드 세션에서 메시지를 보내면 자동 생성됩니다",
-    "sandboxCloudRecycled": "클라우드 컴퓨터가 회수되어 파일이 보존되지 않았습니다. 메시지를 보내면 다시 생성됩니다",
+    "sandboxCloudRecycled": "이전 클라우드 작업 공간을 사용할 수 없습니다. 기존 위치는 유지됩니다. 복구 후 계속하세요.",
     "sessionAccessDenied": "이 세션에 접근할 권한이 없습니다.",
     "sessionNotFound": "세션을 찾을 수 없습니다.",
     "settingNotFound": "설정을 찾을 수 없습니다.",

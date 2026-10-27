@@ -190,7 +190,10 @@ export const AgentOptionButton = memo(function AgentOptionButton({
           className="modal-size-md"
         >
           <div
-            className="w-full rounded-xl bg-theme-bg-card px-5 pt-4 pb-5 font-serif"
+            data-static-icons={optionKey === "sandbox" ? "" : undefined}
+            className={`w-full rounded-xl bg-theme-bg-card px-5 pt-4 pb-5 font-sans ${
+              optionKey === "sandbox" ? "composer-environment-panel" : ""
+            }`}
             style={{
               maxHeight: "60dvh",
               overflowY: "auto",

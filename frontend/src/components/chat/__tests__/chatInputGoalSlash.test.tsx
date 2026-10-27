@@ -5,6 +5,10 @@ import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ChatInput } from "../ChatInput";
 
+vi.mock("../ComposerUsageChip", () => ({
+  ComposerUsageChip: () => null,
+}));
+
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));

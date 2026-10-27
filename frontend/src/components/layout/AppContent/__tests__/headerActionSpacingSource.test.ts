@@ -7,7 +7,7 @@ test("chat header does not display a project badge", () => {
   expect(source).not.toContain("{project.name}");
 });
 
-test("header orders more, workspace, usage and avatar with responsive spacing", () => {
+test("header orders more, workspace and avatar with responsive spacing", () => {
   const right = source.slice(source.indexOf("/* Right */"));
   expect(right).toContain(
     'className="chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0"',
@@ -16,11 +16,9 @@ test("header orders more, workspace, usage and avatar with responsive spacing", 
     right.indexOf("{headerActions}"),
   );
   expect(right.indexOf("{headerActions}")).toBeLessThan(
-    right.indexOf("<ComposerUsageChip"),
-  );
-  expect(right.indexOf("<ComposerUsageChip")).toBeLessThan(
     right.indexOf("<UserMenu"),
   );
+  expect(source).not.toContain("<ComposerUsageChip");
 });
 
 test("header title can yield width to touch controls on narrow phones", () => {

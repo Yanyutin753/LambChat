@@ -1,11 +1,26 @@
+import { createPortal } from "react-dom";
+import type { ReactNode } from "react";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { useEffect, useRef, useState } from "react";
-import { Folder, X } from "lucide-react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import { Select } from "../common/ui";
+import { sessionApi } from "../../services/api/session";
+import { Folder, History } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { useSandboxStatus } from "../../hooks/useSandboxStatus";
-import { invokeInShell } from "../../services/tauri/sandboxShell";
+import { useAuth } from "../../hooks/useAuth";
+import { rememberLocalWorkspace } from "./localWorkspacePreference";
+import {
+  invokeInShell,
+  isShellAvailable,
+} from "../../services/tauri/sandboxShell";
 import {
   isCurrentWorkspaceMachine,
   parseWorkspaceSelection,
@@ -14,16 +29,34 @@ import {
 } from "./workspaceSelection";
 
 interface Props {
+  host?: HTMLElement | null;
+  ref?: Ref<SessionWorkspaceBarHandle>;
   values: Record<string, boolean | string | number>;
   onChange?: (key: string, value: string) => void;
   disabled: boolean;
+  compact?: boolean;
+  sessionId?: string | null;
+}
+
+export interface SessionWorkspaceBarHandle {
+  prepareSubmit: () => boolean;
 }
 
 /** A session-level directory entry; the native picker creates a local binding. */
-export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
+export function SessionWorkspaceBar({
+  host,
+  ref,
+  values,
+  onChange,
+  disabled,
+  compact = false,
+  sessionId,
+}: Props) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { machines, currentMachineId, defaultMachineId } = useSandboxStatus();
   const [busy, setBusy] = useState(false);
+  const picking = useRef(false);
   const onlineMachines = machines.filter((item) => item.online);
   const selectedId = String(
     values.sandbox_machine_id ||
@@ -46,10 +79,14 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
     values[WORKSPACE_OPTION] !== undefined &&
     values[WORKSPACE_OPTION] !== "" &&
     !active;
+  const nativeIdentityPending =
+    values.sandbox === "local" && isShellAvailable() && !currentMachineId;
   const fallbackLabel = t(
     invalid
       ? "backendErrors.sandboxWorkspaceInvalid"
-      : "sessionWorkspace.independent",
+      : nativeIdentityPending
+        ? "sessionWorkspace.choose"
+        : "sessionWorkspace.independent",
   );
   // A dialog result belongs only to the options/session that opened it.
   const latest = useRef<{ values: Props["values"]; disabled: boolean } | null>(
@@ -67,30 +104,54 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
     selectedId,
     currentMachineId,
   );
+  const [previousLocations, setPreviousLocations] = useState<
+    WorkspaceSelection[]
+  >([]);
+  const [historyFailed, setHistoryFailed] = useState(false);
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const workspaceValue = values[WORKSPACE_OPTION];
+  useEffect(() => {
+    setPreviousLocations([]);
+    setHistoryFailed(false);
+    if (!sessionId || !visible) return;
+    let cancelled = false;
+    sessionApi
+      .getWorkspaceLocations(sessionId)
+      .then(({ locations }) => {
+        if (cancelled) return;
+        const selections = locations.map(({ options }) => {
+          const item = parseWorkspaceSelection(options[WORKSPACE_OPTION]);
+          return options.sandbox === "local" &&
+            options.sandbox_machine_id === item?.machineId
+            ? item
+            : null;
+        });
+        setPreviousLocations(
+          selections.filter(
+            (item): item is WorkspaceSelection =>
+              !!item &&
+              item.machineId === currentMachineId &&
+              item.id !== parseWorkspaceSelection(workspaceValue)?.id,
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, visible, currentMachineId, workspaceValue, historyRetry]);
   const name =
     active?.path
       .replace(/[\\/]+$/, "")
       .split(/[\\/]/)
       .pop() || active?.path;
-  if (!visible || !onChange) {
-    if (values.sandbox !== "local" && values.sandbox !== "cloud") return null;
-    return (
-      <div
-        className="session-workspace-bar flex min-w-0 items-center gap-2 px-1 py-1 text-14 text-theme-text-secondary"
-        title={t(
-          active
-            ? "sessionWorkspace.scope"
-            : "sessionWorkspace.independentHint",
-        )}
-      >
-        <Folder size={16} className="shrink-0" aria-hidden="true" />
-        <span className="truncate">{name || fallbackLabel}</span>
-      </div>
-    );
-  }
-
   const choose = async () => {
+    if (!onChange || disabled || picking.current || machine?.online !== true)
+      return;
     const initial = values;
+    picking.current = true;
     setBusy(true);
     try {
       const picked = await invokeInShell<WorkspaceSelection | null>(
@@ -105,27 +166,61 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
       )
         return;
       onChange(WORKSPACE_OPTION, JSON.stringify(picked));
+      rememberLocalWorkspace(user?.id, picked);
     } catch {
       toast.error(t("sessionWorkspace.failed"));
     } finally {
+      picking.current = false;
       setBusy(false);
     }
   };
 
-  return (
+  useImperativeHandle(ref, () => ({
+    prepareSubmit: () => {
+      if (nativeIdentityPending || picking.current) return false;
+      if (!visible || active) return true;
+      void choose();
+      return false;
+    },
+  }));
+
+  const present = (content: ReactNode) =>
+    host === undefined ? content : host ? createPortal(content, host) : null;
+
+  if (!visible || !onChange) {
+    if (compact && !active && !invalid && !nativeIdentityPending) return null;
+    if (values.sandbox !== "local" && values.sandbox !== "cloud") return null;
+    return present(
+      <div
+        className="session-workspace-bar flex min-w-0 items-center gap-2 px-1 py-1 text-14 text-theme-text-secondary"
+        title={t(
+          nativeIdentityPending
+            ? "sessionWorkspace.chooseHint"
+            : active
+              ? "sessionWorkspace.scope"
+              : "sessionWorkspace.independentHint",
+        )}
+      >
+        <Folder size={16} className="shrink-0" aria-hidden="true" />
+        <span className="min-w-0 break-all">{name || fallbackLabel}</span>
+      </div>,
+    );
+  }
+
+  return present(
     <div
-      className="session-workspace-bar flex min-w-0 shrink-0 items-center gap-2 text-14"
+      className="session-workspace-bar flex min-w-0 shrink items-center gap-2 text-14"
       style={{ color: "var(--theme-text-secondary)" }}
     >
       <button
         type="button"
         onClick={() => void choose()}
         disabled={disabled || busy || machine?.online !== true}
-        className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+        className="flex min-h-9 min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
         title={
           active
             ? `${active.path}\n${t("sessionWorkspace.scope")}`
-            : t("sessionWorkspace.independentHint")
+            : t("sessionWorkspace.chooseHint")
         }
         aria-label={
           active
@@ -140,24 +235,46 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
             <Folder size={16} className="shrink-0" />
           </InteractiveIcon>
         )}
-        <span className="truncate">
-          {busy ? t("sessionWorkspace.loading") : name || fallbackLabel}
+        <span className={compact ? "truncate" : "min-w-0 break-all"}>
+          {busy
+            ? t("sessionWorkspace.loading")
+            : name || (invalid ? fallbackLabel : t("sessionWorkspace.choose"))}
         </span>
       </button>
-      {(active || invalid) && (
+      {historyFailed ? (
         <button
           type="button"
-          onClick={() => onChange(WORKSPACE_OPTION, "")}
-          disabled={disabled || busy}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
-          title={t("sessionWorkspace.reset")}
-          aria-label={t("sessionWorkspace.reset")}
+          className="chat-tool-btn shrink-0"
+          disabled={disabled}
+          title={t("common.loadFailed")}
+          aria-label={t("sessionWorkspace.previous")}
+          onClick={() => setHistoryRetry((value) => value + 1)}
         >
-          <InteractiveIcon>
-            <X size={14} />
-          </InteractiveIcon>
+          {t("common.retry")}
         </button>
+      ) : (
+        previousLocations.length > 0 && (
+          <Select
+            value=""
+            ariaLabel={t("sessionWorkspace.previous")}
+            placeholder={<History size={16} aria-hidden="true" />}
+            triggerClassName="chat-tool-btn"
+            className="shrink-0"
+            disabled={disabled || busy || machine?.online !== true}
+            options={previousLocations.map((item) => ({
+              value: item.id,
+              label: item.path,
+            }))}
+            onChange={(id) => {
+              const selected = previousLocations.find((item) => item.id === id);
+              if (!selected || disabled || busy || machine?.online !== true)
+                return;
+              onChange(WORKSPACE_OPTION, JSON.stringify(selected));
+              rememberLocalWorkspace(user?.id, selected);
+            }}
+          />
+        )
       )}
-    </div>
+    </div>,
   );
 }

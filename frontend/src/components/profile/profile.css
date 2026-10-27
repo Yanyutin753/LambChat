@@ -501,7 +501,35 @@
 .local-sandbox-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
+  padding-top: 16px;
+}
+.local-sandbox-section .profile-setting-row {
+  min-height: 60px;
+  padding-block: 16px;
+}
+.profile-data-location {
+  padding-bottom: 16px;
+}
+@container local-sandbox (min-width: 640px) {
+  .profile-data-location {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 20px;
+  }
+  .profile-data-location > * {
+    grid-column: 1 / -1;
+  }
+  .profile-data-location:has(> .profile-data-location-actions)
+    > :is(div:first-child, p) {
+    grid-column: 1;
+  }
+  .profile-data-location > .profile-data-location-actions {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    margin-top: 0;
+  }
 }
 @container local-sandbox (max-width: 639px) {
   .local-sandbox-section .ui-button,

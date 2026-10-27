@@ -23,6 +23,19 @@ from src.kernel.errors import AppError, ErrorCode
 
 
 @pytest.fixture(autouse=True)
+def _legacy_file_protocol(monkeypatch):
+    """Existing transport fixtures model daemons without file-version support."""
+    original = local_module.WorkspaceAliasBackend._supports_file_versions
+
+    async def legacy(self):
+        self._file_versions_supported = False
+        return False
+
+    monkeypatch.setattr(local_module.WorkspaceAliasBackend, "_supports_file_versions", legacy)
+    return original
+
+
+@pytest.fixture(autouse=True)
 def _default_daemon_platform(monkeypatch):
     """既有用例默认「无平台信息」（空串 → posix 现状），平台查询不触真实 redis。
 
@@ -1973,3 +1986,62 @@ async def test_chunk_transfer_timeout_is_not_replayed_by_backend(monkeypatch):
         await backend._afs_transfer_call_with_retry("fs_download", {"path": "a.txt"})
     assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
     assert calls == ["fs_download"]
+
+
+async def test_guarded_local_sessions_cannot_overwrite_each_others_observed_file(
+    monkeypatch, tmp_path, _legacy_file_protocol
+):
+    monkeypatch.setattr(
+        local_module.WorkspaceAliasBackend, "_supports_file_versions", _legacy_file_protocol
+    )
+    from lambchat_sandbox import fsops
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        if op == "fs_capabilities":
+            return {"result": {"file_versions": 1}}
+        if op == "exec":
+            return await _real_exec_dispatch(tmp_path / "s1")(user_id, op, payload, **kwargs)
+        return {"result": fsops.handle_fs_op(op, payload, tmp_path)}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    target = tmp_path / "s1" / "report.txt"
+    target.parent.mkdir()
+    target.write_text("original report")
+    first = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    second = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    assert (await first.aread("report.txt")).error is None
+    assert (await second.aread("report.txt")).error is None
+    assert (await first.awrite("report.txt", "first report")).error is None
+    result = await second.awrite("report.txt", "second report")
+    assert "file_conflict" in result.error
+    assert target.read_text() == "first report"
+
+
+async def test_execute_invalidates_file_observations_even_when_execution_fails(monkeypatch):
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    backend._file_versions["report.txt"] = "old-version"
+
+    async def failure(*args, **kwargs):
+        raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": 1})
+
+    monkeypatch.setattr(backend, "_aexecute_dispatch", failure)
+    await backend.aexecute("touch report.txt")
+    assert backend._file_versions == {}
+
+
+async def test_selected_workspace_mutation_carries_actual_conversation_identity(monkeypatch):
+    captured = []
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        captured.append(payload)
+        return {"result": {"version": "new-version"}}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    backend = local_module.WorkspaceAliasBackend(
+        user_id="owner",
+        session_id=".selected/local-" + "a" * 32,
+        conversation_id="chat-a",
+    )
+    backend._file_versions_supported = True
+    await backend._afs_call("fs_write", {"path": "report.txt"})
+    assert captured[0]["actor"] == {"session_id": "chat-a"}

@@ -6,6 +6,7 @@ import { applyThemeToDocument, isTheme } from "../src/utils/themeDom";
 import { SandboxDataLocationCard } from "../src/components/profile/SandboxDataLocationCard";
 import { LocalSandboxSection } from "../src/components/profile/LocalSandboxSection";
 import { MemoryRouter } from "react-router-dom";
+import { AuthProvider } from "../src/hooks/useAuth";
 import { Button } from "../src/components/common/ui/Button";
 import "../src/fonts.css";
 import "../src/styles/tailwind.css";
@@ -24,7 +25,9 @@ export function Preview() {
   const [open, setOpen] = useState(true);
   return (
     <main
-      className={`mx-auto w-full overflow-y-auto p-4 sm:p-6 ${params.has("shell") ? "max-w-3xl" : "max-w-xl"}`}
+      className={`mx-auto w-full overflow-y-auto p-4 sm:p-6 ${
+        params.has("shell") ? "max-w-3xl" : "max-w-xl"
+      }`}
       style={{ height: "100dvh" }}
     >
       <h1 className="profile-section-heading font-serif">
@@ -47,7 +50,9 @@ export function Preview() {
       {open &&
         (params.has("shell") ? (
           <MemoryRouter>
-            <LocalSandboxSection embedded />
+            <AuthProvider>
+              <LocalSandboxSection embedded />
+            </AuthProvider>
           </MemoryRouter>
         ) : (
           <SandboxDataLocationCard />

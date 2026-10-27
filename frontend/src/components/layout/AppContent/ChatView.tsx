@@ -696,6 +696,7 @@ export function ChatView({
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
     draftKey,
+    sessionId,
     focusRequest: composerFocusRequest,
     onSend: handleStableSend,
     onStop: onStopGeneration,

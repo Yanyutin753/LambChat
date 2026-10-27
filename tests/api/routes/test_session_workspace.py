@@ -114,3 +114,36 @@ async def test_renaming_running_chat_does_not_take_workspace_lock(setup):
     await update_session("s1", SessionUpdate(name="renamed"), user)
     manager.update_session.assert_awaited_once()
     assert locked == []
+
+
+async def test_workspace_history_checks_ownership_before_reading_locations(setup, monkeypatch):
+    from src.api.routes import session_workspace
+    from src.api.routes.session import get_workspace_locations
+
+    monkeypatch.setattr(session_workspace, "SessionManager", lambda: setup[1])
+    from src.infra.session import workspace_locations
+
+    session, _, _, user = setup
+    session.user_id = "other-owner"
+    lookup = AsyncMock()
+    monkeypatch.setattr(workspace_locations, "list_workspace_locations", lookup)
+    with pytest.raises(AppError):
+        await get_workspace_locations("s1", user)
+    lookup.assert_not_awaited()
+
+
+async def test_workspace_history_does_not_start_or_move_sandbox(setup, monkeypatch):
+    from src.api.routes import session_workspace
+    from src.api.routes.session import get_workspace_locations
+
+    monkeypatch.setattr(session_workspace, "SessionManager", lambda: setup[1])
+    from src.infra.session import workspace_locations
+
+    _, manager, locked, user = setup
+    locations = [{"id": "old", "options": OPTIONS}]
+    lookup = AsyncMock(return_value=locations)
+    monkeypatch.setattr(workspace_locations, "list_workspace_locations", lookup)
+    assert await get_workspace_locations("s1", user) == {"locations": locations}
+    lookup.assert_awaited_once_with("u1", "s1")
+    manager.update_session.assert_not_awaited()
+    assert locked == []

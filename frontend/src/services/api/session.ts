@@ -269,6 +269,19 @@ export function buildSessionEventsUrl(
 }
 
 export const sessionApi = {
+  async getWorkspaceLocations(sessionId: string): Promise<{
+    locations: Array<{
+      id: string;
+      options: Record<string, string | boolean | number>;
+      saved_at?: string;
+    }>;
+  }> {
+    await waitForSessionWorkspace(sessionId);
+    return authFetch(
+      `${API_BASE}/api/sessions/${sessionId}/workspace-locations`,
+    );
+  },
+
   async create(data: {
     name?: string;
     metadata?: Record<string, unknown>;

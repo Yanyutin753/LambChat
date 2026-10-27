@@ -141,7 +141,16 @@ function ChatInputSkeleton({
   return (
     <div className={shellClassName}>
       <div className="chat-input-shell pb-3 sm:pb-2">
-        <div className={formClassName}>
+        <div className={`composer-workspace-shell ${formClassName}`}>
+          <div
+            className="composer-workspace-strip flex min-w-0 flex-nowrap items-center"
+            aria-hidden="true"
+          >
+            <div className="flex h-9 items-center gap-2 px-2">
+              <div className="skeleton-line size-4 rounded-sm" />
+              <div className="skeleton-line h-3.5 w-20 rounded-md" />
+            </div>
+          </div>
           <ChatInputShellSkeleton />
         </div>
       </div>
@@ -155,7 +164,7 @@ function ChatInputShellSkeleton() {
     <div
       className="chat-input-container flex flex-col relative w-full rounded-2xl px-1 border"
       style={{
-        backgroundColor: "var(--theme-bg-card)",
+        backgroundColor: "var(--theme-bg-elevated)",
       }}
     >
       {/* Textarea area — 1:1 with real: div.px-2.5.pt-1 > div.relative > textarea */}
@@ -164,14 +173,13 @@ function ChatInputShellSkeleton() {
           <div
             data-composer-editor-skeleton=""
             className="bg-transparent w-full pt-[10px] text-15 leading-relaxed min-h-[40px] sm:min-h-[44px]"
-            style={{ paddingLeft: 4 }}
           >
             <div className="skeleton-line h-[15px] w-3/5 rounded-full mt-[3px]" />
           </div>
         </div>
       </div>
       {/* Toolbar — 1:1 with real ChatInputToolbar default idle state */}
-      <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-2.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
+      <div className="chat-input-toolbar font-sans flex max-w-full flex-nowrap justify-between gap-2.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
         <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5">
           {/* FeatureMenu button (chat-tool-btn: fixed 2.25rem height, rounded-lg) */}
           <div className="skeleton-line h-9 w-9 rounded-lg shrink-0" />
@@ -313,7 +321,7 @@ export function WelcomeSkeleton() {
       </div>
 
       {/* ChatInput skeleton — same component as conversation input skeleton */}
-      <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
+      <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[48rem] md:max-w-[52rem] lg:max-w-[56rem] xl:max-w-[58rem] 2xl:max-w-[60rem]">
         <ChatInputSkeleton
           shellClassName="w-full"
           formClassName="mx-auto w-full px-2"

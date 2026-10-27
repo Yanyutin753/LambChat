@@ -870,11 +870,12 @@ async def test_fs_upload_stream_dispatches_to_stream_handler_and_writes_file(tmp
     条件 ``call.op in STREAM_OPS`` 永不命中，上传快路径整条从未生效（回
     unsupported op，生产端粘滞降级到分块 base64）。本用例钉住路由：ack →
     单 GET 拉帧 → 写盘 → done(written)。"""
-    from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, encode_frame
+    from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, FRAME_META, encode_frame
 
     (tmp_path / "s1").mkdir()
     frames = b"".join(
         [
+            encode_frame(FRAME_META, b'{"size": 11}'),
             encode_frame(FRAME_DATA, b"hello "),
             encode_frame(FRAME_DATA, b"world"),
             encode_frame(FRAME_EOF),
@@ -2071,3 +2072,39 @@ async def test_rejected_duplicate_ack_does_not_cancel_other_active_calls(monkeyp
             dedupe=daemon_module._CallDedupe(),
         )
     assert set(completed) == {"slow", "next"}
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    ["missing_eof", "missing_meta", "wrong_size", "trailing_data", "invalid_meta", "unknown_frame"],
+)
+async def test_incomplete_upload_never_replaces_existing_file(tmp_path, invalid):
+    from lambchat_sandbox.frames import FRAME_DATA, FRAME_EOF, FRAME_META, encode_frame
+
+    target = tmp_path / "s1" / "report.txt"
+    target.parent.mkdir()
+    target.write_bytes(b"original report")
+    meta = encode_frame(FRAME_META, b'{"size": 3}')
+    data = encode_frame(FRAME_DATA, b"new")
+    eof = encode_frame(FRAME_EOF)
+    streams = {
+        "missing_eof": meta + data,
+        "missing_meta": data + eof,
+        "wrong_size": encode_frame(FRAME_META, b'{"size": 9}') + data + eof,
+        "trailing_data": meta + data + eof + data,
+        "invalid_meta": encode_frame(FRAME_META, b"[]") + data + eof,
+        "unknown_frame": meta + encode_frame(99) + data + eof,
+    }
+    client = _UploadStreamClient([streams[invalid]])
+    await daemon_module._process_upload_stream_call(
+        client,
+        _fs_call(op="fs_upload_stream", payload={"path": "report.txt", "cwd": "/workspace/s1"}),
+        session_id="s1",
+        path="report.txt",
+        started=time.monotonic(),
+        cfg=_cfg("none", data_root=tmp_path),
+        auditor=MemoryAuditor(),
+    )
+    assert client.posted[-1][1]["status"] == "error"
+    assert target.read_bytes() == b"original report"
+    assert list(target.parent.iterdir()) == [target]

@@ -200,21 +200,19 @@ test("usage chip uses a borderless neutral serif label and 16px icon", () => {
   );
 });
 
-test("header renders today's usage next to the user menu, outside the composer", () => {
+test("composer renders today's usage immediately before settings, keyed by account", () => {
   const chatDir = dirname(fileURLToPath(import.meta.url));
-  const header = readFileSync(
-    resolve(chatDir, "../../layout/AppContent/Header.tsx"),
-    "utf8",
-  );
   const toolbar = readFileSync(
     resolve(chatDir, "../ChatInputToolbar.tsx"),
     "utf8",
   );
-  expect(toolbar).not.toContain("ComposerUsageChip");
-  const actions = header.slice(header.indexOf("chat-header__actions"));
-  expect(actions).toContain("<ComposerUsageChip ");
-  expect(actions.indexOf("<ComposerUsageChip ")).toBeLessThan(
-    actions.indexOf("<UserMenu"),
+  const header = readFileSync(
+    resolve(chatDir, "../../layout/AppContent/Header.tsx"),
+    "utf8",
+  );
+  expect(header).not.toContain("ComposerUsageChip");
+  expect(toolbar).toMatch(
+    /<ComposerUsageChip key=\{userId\} \/>\s*\{\/\* Settings \/ Run Mode button \*\/\}\s*<button/,
   );
 });
 

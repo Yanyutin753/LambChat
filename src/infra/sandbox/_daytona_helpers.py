@@ -49,6 +49,7 @@ class _DaytonaMixin:
             sandbox_id: str,
             state: str,
             is_new: bool = False,
+            previous_sandbox_id: str | None = None,
         ) -> None: ...
 
         def _evict_if_needed(self) -> None: ...
@@ -61,6 +62,12 @@ class _DaytonaMixin:
             user_id: str,
             work_dir: str,
         ) -> CompositeBackend: ...
+
+        async def _verify_cloud_storage(
+            self, backend: CompositeBackend, storage: dict | None
+        ) -> None: ...
+
+        async def _prepare_cloud_storage(self, user_id: str) -> dict | None: ...
 
         async def _ensure_work_dir(self, backend: CompositeBackend, work_dir: str) -> None: ...
 
@@ -80,6 +87,7 @@ class _DaytonaMixin:
 
     async def _get_sandbox_state(self, sandbox_id: str) -> str:
         """查询沙箱状态: running / stopped / archived / destroyed"""
+        from daytona import DaytonaNotFoundError
 
         def _sync_get_state():
             client = self._get_daytona_client()
@@ -99,10 +107,8 @@ class _DaytonaMixin:
         except asyncio.TimeoutError:
             logger.error(f"[SessionSandboxManager] Timeout getting sandbox {sandbox_id} state")
             return "unknown"
-        except Exception as e:
-            if "not found" in str(e).lower():
-                return "destroyed"
-            raise
+        except DaytonaNotFoundError:
+            return "destroyed"
 
     async def _wait_for_final_state(self, sandbox_id: str, initial_state: str) -> str:
         """等待沙箱从中间状态过渡到最终状态"""
@@ -182,6 +188,8 @@ class _DaytonaMixin:
         self,
         session_id: str,
         user_id: str,
+        *,
+        previous_sandbox_id: str | None = None,
     ) -> tuple[CompositeBackend, str]:
         """创建新沙箱并绑定到用户（替换旧的绑定）
 
@@ -192,12 +200,13 @@ class _DaytonaMixin:
         Returns:
             tuple[CompositeBackend, str]: (composite_backend, work_dir)
         """
-        from daytona import CreateSandboxFromSnapshotParams
+        from daytona import CreateSandboxFromSnapshotParams, VolumeMount
 
         from src.kernel.config import settings
 
         # 加载用户环境变量
         user_envs = await self._get_user_env_vars(user_id)
+        storage = await self._prepare_cloud_storage(user_id)
 
         def _sync_create():
             client = self._get_daytona_client()
@@ -206,11 +215,17 @@ class _DaytonaMixin:
                 auto_stop_interval=settings.DAYTONA_AUTO_STOP_INTERVAL,
                 auto_archive_interval=settings.DAYTONA_AUTO_ARCHIVE_INTERVAL,
                 language="python",
+                volumes=[
+                    VolumeMount(volume_id=storage["volume_id"], mount_path=storage["mount_path"])
+                ]
+                if storage
+                else None,
                 snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
                 env_vars=user_envs if user_envs else None,
             )
             sandbox = client.create(params)
-            daytona_backend = DaytonaBackend(sandbox=sandbox)
+            work_dir = storage["mount_path"] if storage else sandbox.get_work_dir()
+            daytona_backend = DaytonaBackend(sandbox=sandbox, work_dir=work_dir)
             skills_backend = create_skills_backend(user_id=user_id)
             composite_backend = AuthorizedCompositeBackend(
                 user_id=user_id,
@@ -219,7 +234,7 @@ class _DaytonaMixin:
                     "/skills/": skills_backend,
                 },
             )
-            return composite_backend, sandbox.get_work_dir(), daytona_backend.id
+            return composite_backend, work_dir, daytona_backend.id
 
         backend, work_dir, sandbox_id = await run_blocking_io(
             _sync_create,
@@ -227,8 +242,18 @@ class _DaytonaMixin:
         )
 
         try:
-            # 保存绑定到 MongoDB
-            await self._save_binding(user_id, sandbox_id, "running", is_new=True)
+            await self._verify_cloud_storage(backend, storage)
+            scoped_work_dir = self._session_work_dir(work_dir, session_id)
+            scoped_backend = self._scope_daytona_backend(backend, user_id, scoped_work_dir)
+            await self._ensure_work_dir(scoped_backend, scoped_work_dir)
+            await sync_sandbox_env_vars(scoped_backend, user_id)
+            await self._save_binding(
+                user_id,
+                sandbox_id,
+                "running",
+                is_new=True,
+                previous_sandbox_id=previous_sandbox_id,
+            )
         except Exception as e:
             logger.error(
                 f"[SessionSandboxManager] Created sandbox {sandbox_id} but failed to save binding: {e}. "
@@ -251,10 +276,6 @@ class _DaytonaMixin:
             f"[SessionSandboxManager] Created sandbox {sandbox_id} for user {user_id} (session={session_id})"
         )
 
-        scoped_work_dir = self._session_work_dir(work_dir, session_id)
-        scoped_backend = self._scope_daytona_backend(backend, user_id, scoped_work_dir)
-        await self._ensure_work_dir(scoped_backend, scoped_work_dir)
-        await sync_sandbox_env_vars(scoped_backend, user_id)
         return scoped_backend, scoped_work_dir
 
     async def _get_user_env_vars(self, user_id: str) -> dict[str, str]:

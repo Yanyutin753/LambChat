@@ -331,7 +331,12 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
         assert local_calls == []
     else:
         assert local_calls == [
-            {"user_id": "user-1", "session_id": "session-1", "machine_id": "machine-1"}
+            {
+                "user_id": "user-1",
+                "session_id": "session-1",
+                "machine_id": "machine-1",
+                "conversation_id": "session-1",
+            }
         ]
 
 

@@ -4,8 +4,6 @@ import { Fragment, useRef, useCallback, useState, useEffect } from "react";
 import {
   AlertCircle,
   ArrowUp,
-  Cloud,
-  Monitor,
   Settings2,
   Square,
   Lock,
@@ -25,6 +23,7 @@ import {
   getTeamFallbackTag,
 } from "../team/teamAvatarUtils";
 import { ToolbarChip } from "./ToolbarChip";
+import { ComposerUsageChip } from "./ComposerUsageChip";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
@@ -40,6 +39,7 @@ import {
 } from "./sandboxOption";
 
 export interface ChatInputToolbarProps {
+  userId?: string;
   activePanel: FeaturePanel;
   onActivePanelChange: (panel: FeaturePanel) => void;
   canSend: boolean;
@@ -89,6 +89,7 @@ export interface ChatInputToolbarProps {
 }
 
 export function ChatInputToolbar({
+  userId,
   activePanel,
   onActivePanelChange,
   canSend,
@@ -209,11 +210,9 @@ export function ChatInputToolbar({
     agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ??
     agentOptions?.[SANDBOX_AGENT_OPTION_KEY]?.default;
   const sandboxChipLocal = sandboxTier === SANDBOX_LOCAL_VALUE;
-  const { online: sandboxOnline, machines: sandboxMachines } = useSandboxStatus(
-    {
-      enabled: showSandboxEntry && sandboxChipLocal,
-    },
-  );
+  const { machines: sandboxMachines } = useSandboxStatus({
+    enabled: showSandboxEntry && sandboxChipLocal,
+  });
   // 统一面板入口标签：本地档 + 已选设备 → 设备名（chip 与 popover 徽标共用；
   // 云端档或自动解析时退回纯档位名）
   const sandboxLabel = sandboxTierLabel
@@ -228,10 +227,6 @@ export function ChatInputToolbar({
         machines: sandboxMachines,
       })
     : undefined;
-  const sandboxChipTitle = sandboxLabel
-    ? `${t("agentOptions.sandbox.label")} · ${sandboxLabel}`
-    : t("agentOptions.sandbox.label");
-
   const handleUploadFiles = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.accept = getFileAccept(uploadCategories);
@@ -253,7 +248,7 @@ export function ChatInputToolbar({
   const activeModes = collectActiveRunModes(autoModeEnabled, goalModeEnabled);
 
   return (
-    <div className="chat-input-toolbar font-serif flex max-w-full flex-nowrap justify-between gap-2.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
+    <div className="chat-input-toolbar font-sans flex max-w-full flex-nowrap justify-between gap-2.5 px-1 py-2.5 sm:px-2 sm:py-3 mx-0.5">
       {/* 左行不设横向滚动：滚动容器会在手机端裁切 chip（视觉上与右簇重叠），
           超宽时由 chip 的 shrink + truncate 优雅降级 */}
       <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5">
@@ -384,39 +379,9 @@ export function ChatInputToolbar({
       </div>
 
       {/* 右簇与左行同轴居中：避免贴底对齐造成发送键相对左行图标错位。
-          簇内间距整体收紧（沙箱/用量/模式/发送四枚图标）。 */}
+          簇内用量、设置和发送入口保持统一间距。 */}
       <div className="flex shrink-0 items-center gap-2.5 self-center">
-        {showSandboxEntry && (
-          <ToolbarChip
-            icon={
-              // 手机端档位文字隐藏，档位靠图标区分：云端=云图标，本地=显示器图标
-              sandboxChipLocal ? <Monitor size={16} /> : <Cloud size={16} />
-            }
-            iconBadge={
-              sandboxChipLocal ? (
-                <span
-                  data-sandbox-status-dot
-                  title={
-                    sandboxOnline
-                      ? t("profile.localSandbox.statusOnline")
-                      : t("profile.localSandbox.statusOffline")
-                  }
-                  className="absolute -top-0.5 -right-0.5 block h-[5px] w-[5px] rounded-full ring-2 ring-[var(--theme-bg)]"
-                  style={{
-                    background: sandboxOnline ? "#22c55e" : "#a8a29e",
-                  }}
-                />
-              ) : undefined
-            }
-            label={sandboxLabel || ""}
-            title={sandboxChipTitle}
-            labelClassName="composer-sandbox-label hidden sm:inline max-w-40"
-            onClick={() => onActivePanelChange("sandbox")}
-          />
-        )}
-
-        {/* Today's usage — amount chip with usage card */}
-
+        <ComposerUsageChip key={userId} />
         {/* Settings / Run Mode button */}
         <button
           type="button"
