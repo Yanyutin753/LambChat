@@ -144,6 +144,95 @@ test("collects generated image tool results for correct preview navigation", () 
   ]);
 });
 
+test("collects image_analysis and image_generate input images so vision cards can page", () => {
+  const messages: Message[] = [
+    createMessage({
+      id: "assistant-vision",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool",
+          name: "image_analysis",
+          success: true,
+          args: {
+            image_urls: [
+              "/workspace/s1/xhs_media/img_1.jpg",
+              "/workspace/s1/xhs_media/img_2.jpg",
+            ],
+            prompt: "describe",
+          },
+          result: JSON.stringify({ success: true, analysis: "two shots" }),
+        },
+        {
+          type: "tool",
+          name: "image_generate",
+          success: true,
+          args: {
+            prompt: "remix",
+            input_images: ["/api/upload/file/image/u/ref.png"],
+          },
+          result: JSON.stringify({
+            success: true,
+            images: [
+              {
+                url: "/api/upload/file/generated-images/out.png",
+                content_type: "image/png",
+              },
+            ],
+          }),
+        },
+        // 参数仍在流式生成、结果未到：缩略图已经渲染，画廊也要能翻到
+        {
+          type: "tool",
+          name: "image_analysis",
+          isPending: true,
+          args: { image_urls: "/workspace/s1/single.png" },
+        },
+      ],
+    }),
+  ];
+
+  expect(
+    collectSessionImageGalleryItems(messages).map((item) => [
+      item.id,
+      item.src,
+      item.alt,
+      item.group,
+    ]),
+  ).toEqual([
+    [
+      "assistant-vision:part:0:input-image:0",
+      "/workspace/s1/xhs_media/img_1.jpg",
+      "img_1.jpg",
+      "conversation",
+    ],
+    [
+      "assistant-vision:part:0:input-image:1",
+      "/workspace/s1/xhs_media/img_2.jpg",
+      "img_2.jpg",
+      "conversation",
+    ],
+    [
+      "assistant-vision:part:1:input-image:0",
+      "/api/upload/file/image/u/ref.png",
+      "ref.png",
+      "conversation",
+    ],
+    [
+      "assistant-vision:part:1:generated-image:0",
+      "/api/upload/file/generated-images/out.png",
+      "out.png",
+      "conversation",
+    ],
+    [
+      "assistant-vision:part:2:input-image:0",
+      "/workspace/s1/single.png",
+      "single.png",
+      "conversation",
+    ],
+  ]);
+});
+
 test("deduplicates images collected from markdown, attachments, and generated image results", () => {
   const messages: Message[] = [
     createMessage({

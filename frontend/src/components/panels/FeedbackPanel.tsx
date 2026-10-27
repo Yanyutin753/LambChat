@@ -31,8 +31,9 @@ import {
   FeedbackFiltersSkeleton,
 } from "../skeletons";
 import { Pagination } from "../common/Pagination";
-import { Button, ImageViewer } from "../common";
+import { Button } from "../common";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
+import { useImagePreviewFallback } from "../chat/ChatMessage/items/imagePreviewFallback";
 import { feedbackApi } from "../../services/api/feedback";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -43,6 +44,13 @@ import type {
 } from "../../types/feedback";
 import { formatDateTimeShort, formatDateTime } from "../../utils/datetime";
 import { copyToClipboard } from "../../utils/clipboard";
+
+/** 一条反馈的附件按原顺序交给灯箱翻页 */
+function attachmentPreviewImages(attachments: Feedback["attachments"]) {
+  return (attachments ?? []).flatMap((att) =>
+    att.url ? [{ src: att.url, alt: att.name }] : [],
+  );
+}
 
 // ─── Rating summary header ───
 
@@ -226,7 +234,7 @@ function ReviewImageGrid({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onImageClick(0);
+            onImageClick(shown.length);
           }}
           className="h-16 w-16 overflow-hidden rounded-lg bg-stone-100 dark:bg-stone-800
             flex items-center justify-center flex-shrink-0
@@ -358,8 +366,12 @@ function FeedbackDetailModal({
   copiedField: string | null;
 }) {
   const { t } = useTranslation();
-  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   const attachments = feedback.attachments;
+  const previewImages = useMemo(
+    () => attachmentPreviewImages(attachments),
+    [attachments],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewImages);
   const isUp = feedback.rating === "up";
 
   return (
@@ -411,7 +423,7 @@ function FeedbackDetailModal({
                 {attachments.map((att) => (
                   <button
                     key={att.id}
-                    onClick={() => setViewerSrc(att.url || null)}
+                    onClick={() => att.url && openImage(att.url, att.name)}
                     className="aspect-square overflow-hidden rounded-xl bg-stone-100 dark:bg-stone-800
                       hover:opacity-90 transition-opacity active:scale-[0.97]"
                   >
@@ -484,13 +496,7 @@ function FeedbackDetailModal({
           </div>
         </div>
       </ModalSurface>
-      {viewerSrc && (
-        <ImageViewer
-          src={viewerSrc}
-          isOpen
-          onClose={() => setViewerSrc(null)}
-        />
-      )}
+      {viewer}
     </>
   );
 }
@@ -513,7 +519,7 @@ export function FeedbackPanel() {
     null,
   );
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
+  const { openImage, viewer } = useImagePreviewFallback();
 
   const canDelete = hasPermission(Permission.FEEDBACK_ADMIN);
 
@@ -573,11 +579,14 @@ export function FeedbackPanel() {
 
   const handleCardImageClick = useCallback(
     (feedback: Feedback, index: number) => {
-      if (feedback.attachments && feedback.attachments[index]) {
-        setViewerSrc(feedback.attachments[index].url || null);
+      const attachment = feedback.attachments?.[index];
+      if (attachment?.url) {
+        openImage(attachment.url, attachment.name, {
+          siblings: attachmentPreviewImages(feedback.attachments),
+        });
       }
     },
-    [],
+    [openImage],
   );
 
   return (
@@ -674,13 +683,7 @@ export function FeedbackPanel() {
         />
       )}
 
-      {viewerSrc && (
-        <ImageViewer
-          src={viewerSrc}
-          isOpen={!!viewerSrc}
-          onClose={() => setViewerSrc(null)}
-        />
-      )}
+      {viewer}
     </div>
   );
 }

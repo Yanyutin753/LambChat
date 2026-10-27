@@ -1,10 +1,10 @@
 import { TagBadge } from "../../../common/TagBadge";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Globe, ImageIcon, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
-import { CollapsiblePill, ImageViewer } from "../../../common";
+import { CollapsiblePill } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import {
   hostFromUrl,
@@ -24,7 +24,7 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolResultContent } from "./McpBlockPreview";
-import { useSessionImageGallery } from "../sessionImageGallery";
+import { useImagePreviewFallback } from "./imagePreviewFallback";
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -152,21 +152,20 @@ function WebSearchSummaryChips({ summary }: { summary: WebSearchSummary }) {
 /** 面板详情：实时跟随 toolCallPanelStore 数据重建（结果到达即刷新） */
 function WebSearchDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const sessionImageGallery = useSessionImageGallery();
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const query = (args.query as string) || "";
   const summary = useMemo(() => parseWebSearchResult(result), [result]);
   const hasRawFallback = !!result && summary === null;
 
-  const openImagePreview = useCallback(
-    (src: string) => {
-      sessionImageGallery?.openImage(src);
-      if (!sessionImageGallery) {
-        setImageViewerSrc(src);
-      }
-    },
-    [sessionImageGallery],
+  // 搜索结果图不进会话画廊，灯箱在本次搜索的图片间翻页
+  const previewSiblings = useMemo(
+    () =>
+      (summary?.images ?? []).map((image) => ({
+        src: image.url,
+        alt: image.description || undefined,
+      })),
+    [summary],
   );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
 
   return (
     <div className="tool-panel-content flex h-full min-h-0 flex-col space-y-3.5 overflow-y-auto p-2 sm:p-4 [&_pre]:!max-h-none">
@@ -252,11 +251,13 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
             })}
           </div>
           <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-3">
-            {summary.images.slice(0, 9).map((image, index) => (
+            {summary.images.map((image, index) => (
               <button
                 key={`${image.url}-${index}`}
                 type="button"
-                onClick={() => openImagePreview(image.url)}
+                onClick={() =>
+                  openImage(image.url, image.description || undefined)
+                }
                 className="group/img relative rounded-xl overflow-hidden border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_36%,var(--theme-border))] hover:shadow-[0_12px_28px_-22px_color-mix(in_srgb,var(--theme-primary)_45%,transparent)] transition-all duration-200 cursor-zoom-in"
               >
                 <ImageWithSkeleton
@@ -288,13 +289,7 @@ function WebSearchDetail({ args, result }: ToolDetailProps) {
         </div>
       )}
 
-      {imageViewerSrc && (
-        <ImageViewer
-          src={imageViewerSrc}
-          isOpen={!!imageViewerSrc}
-          onClose={() => setImageViewerSrc(null)}
-        />
-      )}
+      {viewer}
     </div>
   );
 }
@@ -319,8 +314,6 @@ const WebSearchItem = memo(function WebSearchItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const sessionImageGallery = useSessionImageGallery();
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
@@ -329,6 +322,18 @@ const WebSearchItem = memo(function WebSearchItem({
   const hasResult = result !== undefined;
   // 参数生成中（无 result）也允许打开面板：实时等待搜索结果
   const canExpand = !!query || hasResult || isPending;
+
+  // 收起态缩略图点击 → 图片查看器（会话相册优先，无 Context 时本地兜底），
+  // 都在本次搜索的图片间翻页
+  const previewSiblings = useMemo(
+    () =>
+      (summary?.images ?? []).map((image) => ({
+        src: image.url,
+        alt: image.description || undefined,
+      })),
+    [summary],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
 
   const status = isPending
     ? "loading"
@@ -385,17 +390,6 @@ const WebSearchItem = memo(function WebSearchItem({
   // 收起态预览条：把面板里的信息露出一点，制造点击欲望
   const showSourceStrip =
     !isPending && summary !== null && summary.results.length > 0;
-
-  // 收起态缩略图点击 → 图片查看器（会话相册优先，无 Context 时本地兜底）
-  const openCollapsedImagePreview = useCallback(
-    (src: string) => {
-      sessionImageGallery?.openImage(src);
-      if (!sessionImageGallery) {
-        setImageViewerSrc(src);
-      }
-    },
-    [sessionImageGallery],
-  );
 
   return (
     <>
@@ -493,7 +487,9 @@ const WebSearchItem = memo(function WebSearchItem({
                 <button
                   key={`${image.url}-${index}`}
                   type="button"
-                  onClick={() => openCollapsedImagePreview(image.url)}
+                  onClick={() =>
+                    openImage(image.url, image.description || undefined)
+                  }
                   title={image.description || undefined}
                   className="group/thumb cursor-zoom-in transition-transform duration-200 hover:-translate-y-0.5"
                 >
@@ -521,14 +517,8 @@ const WebSearchItem = memo(function WebSearchItem({
         </div>
       )}
 
-      {/* 收起态本地图片查看器兜底（无会话相册 Context 时） */}
-      {imageViewerSrc && (
-        <ImageViewer
-          src={imageViewerSrc}
-          isOpen={!!imageViewerSrc}
-          onClose={() => setImageViewerSrc(null)}
-        />
-      )}
+      {/* 图片查看器：无会话相册 Context 时本地兜底，同样支持翻页 */}
+      {viewer}
     </>
   );
 });
