@@ -175,3 +175,15 @@ async def test_refresh_keeps_panel_override_semantics(
 
     await config_service.refresh_settings("REDIS_URL")
     assert config_service.settings.REDIS_URL == "redis://panel-set:6379/5"
+
+
+@pytest.fixture(autouse=True)
+def verified_storage_state(monkeypatch):
+    from src.infra.settings import storage_migration as migration
+
+    async def state():
+        values = migration.runtime_values()
+        identity = migration.config_identity(migration.make_config(values))
+        return {"values": values, "identity": identity, "boot_identity": identity}
+
+    monkeypatch.setattr(migration, "ensure_state", state)

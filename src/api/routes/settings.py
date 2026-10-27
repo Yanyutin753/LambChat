@@ -18,6 +18,7 @@ from src.kernel.schemas.setting import (
     SettingsResponse,
     SettingUpdate,
     SettingUpdateResponse,
+    StorageMigrationRequest,
 )
 from src.kernel.schemas.user import TokenPayload
 from src.kernel.settings_navigation import build_settings_navigation
@@ -74,6 +75,23 @@ async def get_setting(
     if not setting:
         raise AppError(ErrorCode.SETTING_NOT_FOUND)
     return setting
+
+
+@router.post("/storage/migrate")
+async def migrate_storage(
+    data: StorageMigrationRequest,
+    user: TokenPayload = Depends(get_current_user_required),
+    service: SettingsService = Depends(get_settings_service),
+):
+    require_capability(user, "settings:manage")
+    for key, value in data.changes.items():
+        await authorize_setting_write(user, key, value)
+    try:
+        report = await service.migrate_storage(data.changes, user.sub)
+    except ValueError as exc:
+        raise AppError(ErrorCode.BAD_REQUEST, message=str(exc)) from exc
+    logger.info("Verified storage migration actor=%s fields=%s", user.sub, sorted(data.changes))
+    return {"verified": bool(report), **report}
 
 
 @router.put("/{key}", response_model=SettingUpdateResponse)

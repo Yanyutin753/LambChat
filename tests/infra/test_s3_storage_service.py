@@ -993,3 +993,23 @@ async def test_minio_list_objects_limits_large_prefix() -> None:
 
     assert len(objects) == 1000
     assert objects[-1] == "bulk/0999.txt"
+
+
+@pytest.fixture(autouse=True)
+def isolate_storage_control_plane(monkeypatch):
+    # Backend unit tests do not use Mongo; cutover tests exercise the real fence.
+    from contextlib import asynccontextmanager
+
+    from src.infra.settings import storage_migration as migration
+    from src.infra.storage.s3.cutover import StorageGate
+
+    async def state():
+        return {"values": migration.runtime_values()}
+
+    @asynccontextmanager
+    async def write(self, identity):
+        yield
+
+    monkeypatch.setattr(migration, "ensure_state", state)
+    monkeypatch.setattr(migration, "collection", lambda: None)
+    monkeypatch.setattr(StorageGate, "write", write)
