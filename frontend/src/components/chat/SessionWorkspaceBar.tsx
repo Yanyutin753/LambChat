@@ -1,6 +1,6 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Folder, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
@@ -36,10 +36,32 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
   );
   const machine = machines.find((item) => item.machine_id === selectedId);
   const selection = parseWorkspaceSelection(values[WORKSPACE_OPTION]);
-  const active = selection?.machineId === selectedId ? selection : null;
+  const active =
+    values.sandbox === "local" &&
+    selection?.machineId === values.sandbox_machine_id
+      ? selection
+      : null;
+  const invalid =
+    values.sandbox === "local" &&
+    values[WORKSPACE_OPTION] !== undefined &&
+    values[WORKSPACE_OPTION] !== "" &&
+    !active;
+  const fallbackLabel = t(
+    invalid
+      ? "backendErrors.sandboxWorkspaceInvalid"
+      : "sessionWorkspace.independent",
+  );
   // A dialog result belongs only to the options/session that opened it.
-  const latest = useRef(values);
-  latest.current = values;
+  const latest = useRef<{ values: Props["values"]; disabled: boolean } | null>(
+    null,
+  );
+  latest.current = { values, disabled };
+  useEffect(
+    () => () => {
+      latest.current = null;
+    },
+    [],
+  );
   const visible = isCurrentWorkspaceMachine(
     values.sandbox,
     selectedId,
@@ -51,14 +73,18 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
       .split(/[\\/]/)
       .pop() || active?.path;
   if (!visible || !onChange) {
-    if (values.sandbox !== "local" || !active) return null;
+    if (values.sandbox !== "local" && values.sandbox !== "cloud") return null;
     return (
       <div
         className="session-workspace-bar flex min-w-0 items-center gap-2 px-1 py-1 text-14 text-theme-text-secondary"
-        title={t("sessionWorkspace.scope")}
+        title={t(
+          active
+            ? "sessionWorkspace.scope"
+            : "sessionWorkspace.independentHint",
+        )}
       >
         <Folder size={16} className="shrink-0" aria-hidden="true" />
-        <span className="truncate">{name}</span>
+        <span className="truncate">{name || fallbackLabel}</span>
       </div>
     );
   }
@@ -73,11 +99,11 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
       );
       if (
         !picked ||
-        latest.current !== initial ||
+        latest.current?.values !== initial ||
+        latest.current?.disabled ||
         picked.machineId !== selectedId
       )
         return;
-      onChange("sandbox_machine_id", selectedId);
       onChange(WORKSPACE_OPTION, JSON.stringify(picked));
     } catch {
       toast.error(t("sessionWorkspace.failed"));
@@ -99,7 +125,7 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
         title={
           active
             ? `${active.path}\n${t("sessionWorkspace.scope")}`
-            : t("sessionWorkspace.scope")
+            : t("sessionWorkspace.independentHint")
         }
         aria-label={
           active
@@ -115,12 +141,10 @@ export function SessionWorkspaceBar({ values, onChange, disabled }: Props) {
           </InteractiveIcon>
         )}
         <span className="truncate">
-          {busy
-            ? t("sessionWorkspace.loading")
-            : name || t("sessionWorkspace.choose")}
+          {busy ? t("sessionWorkspace.loading") : name || fallbackLabel}
         </span>
       </button>
-      {active && (
+      {(active || invalid) && (
         <button
           type="button"
           onClick={() => onChange(WORKSPACE_OPTION, "")}

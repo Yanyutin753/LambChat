@@ -1,6 +1,4 @@
-"""
-会话管理器
-"""
+"""会话管理器。"""
 
 import asyncio
 import uuid
@@ -54,11 +52,7 @@ class SessionForkCloneResult:
 
 
 class SessionManager:
-    """
-    会话管理器
-
-    提供会话的 CRUD 功能。
-    """
+    """提供会话的 CRUD 功能。"""
 
     def __init__(self):
         self.storage = SessionStorage()
@@ -78,6 +72,14 @@ class SessionManager:
         user_id: Optional[str] = None,
     ) -> Session:
         """创建会话"""
+        if user_id and session_data.metadata.get("project_id"):
+            from src.infra.backend.workspace_selection import resolve_workspace_options
+
+            metadata = dict(session_data.metadata)
+            metadata["agent_options"] = await resolve_workspace_options(
+                metadata.get("agent_options"), user_id, project_id=metadata["project_id"]
+            )
+            session_data = session_data.model_copy(update={"metadata": metadata})
         return await self.storage.create(session_data, user_id)
 
     async def get_session(self, session_id: str) -> Optional[Session]:

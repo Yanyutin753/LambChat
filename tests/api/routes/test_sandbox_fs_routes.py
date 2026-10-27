@@ -232,9 +232,8 @@ async def test_fs_list_rejects_oversized_path(monkeypatch):
 
 
 @pytest.mark.parametrize("missing", ["machine", "id_format", "json_shape"])
-async def test_fs_list_falls_back_on_invalid_binding(monkeypatch, missing):
-    """坏绑定（机器不一致/id 形态非法/非 JSON）：selected_workspace_id 判 None，
-    回落默认工作区——与 search_agent 的分支语义一致，不因脏数据 500。"""
+async def test_fs_list_rejects_invalid_binding_without_dispatch(monkeypatch, missing):
+    """坏绑定不能静默改为另一目录。"""
     options: dict = {}
     workspace_id = "local-" + "a1b2c3d4" * 4
     if missing == "machine":  # machineId 与 sandbox_machine_id 不一致
@@ -255,8 +254,9 @@ async def test_fs_list_falls_back_on_invalid_binding(monkeypatch, missing):
     dispatched: list = []
     async with _fs_app(monkeypatch, _fake_session(agent_options=options), dispatched) as client:
         resp = await client.get("/api/sandbox/fs/list", params={"session_id": "sess-1"})
-    assert resp.status_code == 200
-    assert dispatched[0]["payload"]["cwd"] == "/workspace/sess-1"
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["code"] == "sandbox_workspace_invalid"
+    assert dispatched == []
 
 
 async def test_fs_list_rejects_cloud_session(monkeypatch):

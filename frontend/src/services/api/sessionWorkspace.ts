@@ -1,5 +1,9 @@
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import {
+  WORKSPACE_OPTION_KEYS,
+  workspaceOptionPatch,
+} from "../../components/chat/workspaceSelection";
 
 type WorkspaceValues = Record<string, string | boolean | number>;
 interface PendingWorkspace {
@@ -8,11 +12,7 @@ interface PendingWorkspace {
   failed: boolean;
 }
 const pending = new Map<string, PendingWorkspace>();
-export const WORKSPACE_OPTION_KEYS = new Set([
-  "sandbox",
-  "sandbox_machine_id",
-  "sandbox_workspace",
-]);
+export { WORKSPACE_OPTION_KEYS } from "../../components/chat/workspaceSelection";
 
 function persist(sessionId: string, values: WorkspaceValues): Promise<unknown> {
   const previous = pending.get(sessionId);
@@ -51,9 +51,23 @@ export function saveSessionWorkspaceOption(
   value: string | boolean | number,
 ): Promise<unknown> {
   if (!WORKSPACE_OPTION_KEYS.has(key)) return Promise.resolve();
+  return saveSessionWorkspaceOptions(
+    sessionId,
+    workspaceOptionPatch(key, value),
+  );
+}
+
+export function saveSessionWorkspaceOptions(
+  sessionId: string,
+  values: WorkspaceValues,
+): Promise<unknown> {
+  const workspace = Object.fromEntries(
+    Object.entries(values).filter(([key]) => WORKSPACE_OPTION_KEYS.has(key)),
+  );
+  if (!Object.keys(workspace).length) return Promise.resolve();
   return persist(sessionId, {
     ...pending.get(sessionId)?.values,
-    [key]: value,
+    ...workspace,
   });
 }
 

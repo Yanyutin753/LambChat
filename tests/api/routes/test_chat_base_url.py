@@ -298,7 +298,7 @@ async def test_existing_session_uses_persisted_project_scope_for_memory(
 
     class _SessionManager:
         async def get_session(self, _session_id: str):
-            return SimpleNamespace(metadata={})
+            return SimpleNamespace(user_id="owner-1", metadata={})
 
     monkeypatch.setattr(chat, "SessionManager", lambda: _SessionManager())
     monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _SessionManager())

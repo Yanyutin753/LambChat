@@ -65,6 +65,16 @@ test("directory header shares the composer boundary and follows expand and colla
       onStop={vi.fn()}
       isLoading={false}
       pendingInput={longDraft}
+      currentAgent="search"
+      agents={[
+        {
+          id: "search",
+          name: "Search",
+          description: "",
+          version: "1",
+          supports_sandbox: true,
+        },
+      ]}
     />,
   );
   const editor = await screen.findByRole("textbox");

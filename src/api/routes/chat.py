@@ -22,6 +22,7 @@ from src.api.routes.chat_language import apply_response_language
 from src.api.routes.chat_request_config import (  # noqa: F401 - 转发导入保持 from chat import 兼容
     build_assistant_identity,
     build_conversation_config,
+    fetch_workspace_metadata,
     resolve_persona_request,
 )
 from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测试导入
@@ -277,20 +278,10 @@ async def _submit_chat(
     if request.agent_options is None:
         request.agent_options = {}
 
-    async def _fetch_session() -> dict:
-        if not request.session_id:
-            return {}
-        session_manager = SessionManager()
-        existing_session = await session_manager.get_session(session_id)
-        if not existing_session:
-            return {}
-        verify_session_ownership(existing_session, user)
-        return existing_session.metadata or {}
-
     try:
         async with timed_server_phase("chat_prepare"):
             existing_metadata, _, _ = await asyncio.gather(
-                _fetch_session(),
+                fetch_workspace_metadata(request, user),
                 resolve_persona_request(request, user),
                 validate_agent_model_access(request.agent_options, user),
             )
@@ -298,6 +289,16 @@ async def _submit_chat(
         raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND) from None
     except AppError:
         raise
+
+    from src.infra.backend.workspace_selection import resolve_workspace_options
+
+    request.agent_options = await resolve_workspace_options(
+        request.agent_options,
+        user.sub,
+        project_id=request.project_id,
+        existing_metadata=existing_metadata,
+    )
+    existing_metadata = existing_metadata or {}
 
     from src.infra.task.background_tasks import (
         BACKGROUND_EXECUTOR_KEY,

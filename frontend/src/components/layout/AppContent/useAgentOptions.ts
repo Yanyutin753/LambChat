@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentInfo } from "../../../types";
 import type { SandboxMachine } from "../../../services/api/sandbox";
 import { isMachineOnline } from "../../chat/sandboxOption";
+import {
+  WORKSPACE_OPTION_KEYS,
+  workspaceOptionPatch,
+} from "../../chat/workspaceSelection";
 export const SANDBOX_ONLINE_CHANGED_EVENT = "sandbox-online-changed";
 
 import {
@@ -312,12 +316,18 @@ export function useAgentOptions(
     }
 
     if (syncMode === "reset" || !prevJson) {
-      setAgentOptionValues(
-        buildAgentOptionValues(options, undefined, undefined, {
+      setAgentOptionValues((prev) => ({
+        ...buildAgentOptionValues(options, undefined, undefined, {
           sandboxOnline,
           sandboxMachineId,
         }),
-      );
+        // 工作区属于会话，切换助手不能改变执行位置。
+        ...Object.fromEntries(
+          Object.entries(prev).filter(([key]) =>
+            WORKSPACE_OPTION_KEYS.has(key),
+          ),
+        ),
+      }));
       return;
     }
 
@@ -415,15 +425,36 @@ export function useAgentOptions(
 
   const handleToggleAgentOption = useCallback(
     (key: string, value: boolean | string | number) => {
-      if (key === "sandbox") {
+      if (
+        key === "sandbox_machine_id" &&
+        value === agentOptionValues.sandbox_machine_id
+      )
+        return {};
+      const patch = workspaceOptionPatch(key, value);
+      if (
+        key === "sandbox" &&
+        value === "local" &&
+        !agentOptionValues.sandbox_machine_id &&
+        sandboxMachineId
+      ) {
+        patch.sandbox_machine_id = sandboxMachineId;
+      }
+      if ("sandbox" in patch) {
         sandboxTouchedRef.current = true;
       }
-      if (key === "sandbox_machine_id") {
+      if ("sandbox_machine_id" in patch) {
         machineTouchedRef.current = true;
       }
-      setAgentOptionValues((prev) => ({ ...prev, [key]: value }));
+      if (pendingRestoredOptionsRef.current) {
+        pendingRestoredOptionsRef.current = {
+          ...pendingRestoredOptionsRef.current,
+          ...patch,
+        };
+      }
+      setAgentOptionValues((prev) => ({ ...prev, ...patch }));
+      return patch;
     },
-    [],
+    [sandboxMachineId, agentOptionValues.sandbox_machine_id],
   );
 
   // Reset to agent defaults (for new session)
