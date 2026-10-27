@@ -196,3 +196,13 @@ async def test_verified_active_storage_overrides_old_boot_environment(monkeypatc
     await config.initialize_settings()
     assert config.settings.LOCAL_STORAGE_PATH == "/verified/active"
     assert config._settings_cache["LOCAL_STORAGE_PATH"] == "/verified/active"
+
+
+async def test_missing_local_source_directory_cannot_be_treated_as_empty_storage(tmp_path):
+    source, target = tmp_path / "missing-source", tmp_path / "target"
+    store = Store(source)
+    with pytest.raises(AppError) as error:
+        await migration.change_storage({"LOCAL_STORAGE_PATH": str(target)}, "admin", store)
+    assert error.value.error_code == ErrorCode.STORAGE_MIGRATION_BLOCKED
+    assert not source.exists()
+    assert store.doc["values"]["LOCAL_STORAGE_PATH"] == str(source)

@@ -4,7 +4,9 @@ import hashlib
 import json
 import re
 import uuid
+from pathlib import Path
 
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3.cutover import STORAGE_STATE_ID, StorageGate
 from src.infra.storage.s3.migration import verify_contents
@@ -59,8 +61,6 @@ def make_config(values: dict) -> S3Config:
 
 def config_identity(config: S3Config) -> str:
     if config.provider == S3Provider.LOCAL:
-        from pathlib import Path
-
         identity = {"provider": "local", "path": str(Path(config.storage_path).resolve())}
     else:
         identity = config.model_dump(
@@ -185,6 +185,10 @@ async def change_storage(changes: dict, user_id: str, store=None) -> dict:
             report = snapshot.get("verification", {})
         else:
             try:
+                if source.is_local and not await run_long_blocking_io(
+                    Path(source._config.storage_path).is_dir
+                ):
+                    raise ValueError("Storage migration source directory is unavailable")
                 backend = candidate._get_backend()
                 probe_key = f"storage-migration-probe/{uuid.uuid4().hex}"
                 probe = uuid.uuid4().bytes
