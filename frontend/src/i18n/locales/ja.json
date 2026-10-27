@@ -465,6 +465,9 @@
     "requestNewResetLink": "再設定リンクを再取得"
   },
   "backendErrors": {
+    "storageMigrationBlocked": "ストレージ移行の検証に失敗しました。現在のストレージは変更されません。すべてのファイルをコピーして内容を確認し、再試行してください。",
+    "storageMigrationBusy": "検証中にアップロードまたはストレージ設定が変更されました。アップロード完了後に再試行してください。",
+    "storageConfigurationStale": "ストレージ設定が変更されました。操作を再試行してください。",
     "directUploadInvalid": "アップロードしたパートが許可されたファイルと一致しません。再アップロードしてください。",
     "directUploadInactive": "アップロードが無効になりました。再アップロードしてください。",
     "directUploadStorageChanged": "ストレージ設定が変更されました。再アップロードしてください。",

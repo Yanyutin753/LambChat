@@ -103,6 +103,19 @@ async def initialize_settings() -> None:
     env/default-authoritative on startup — see `_skip_db_override`.
     """
     global _settings_service, _settings_cache
+    from src.infra.settings.storage_migration import (
+        config_identity,
+        ensure_state,
+        make_config,
+        runtime_values,
+    )
+
+    boot_storage_identity = config_identity(make_config(runtime_values()))
+    storage_state = await ensure_state()
+    if boot_storage_identity not in {storage_state["boot_identity"], storage_state["identity"]}:
+        raise ValueError(
+            "Unverified storage environment change; restore the previous configuration and use verified migration"
+        )
 
     from src.infra.settings.service import SettingsService
 
@@ -113,7 +126,6 @@ async def initialize_settings() -> None:
     # Load all settings from database and update the global settings object
     all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
     logger.info(f"[Settings] Loaded {len(all_settings)} categories from database")
-
     # Flatten the settings dict and cache them
     loaded_count = 0
     for category, items in all_settings.items():
@@ -146,6 +158,11 @@ async def initialize_settings() -> None:
                     setattr(settings, item.key, normalized_value)
                     _mark_runtime_secret_as_explicit(item.key)
                     loaded_count += 1
+
+    # Only the verified bundle may override storage connection settings (including empty values).
+    for key, value in storage_state["values"].items():
+        setattr(settings, key, value)
+        _settings_cache[key] = value
 
     logger.info(f"[Settings] Loaded {loaded_count} settings into cache")
 

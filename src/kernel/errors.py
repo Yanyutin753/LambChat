@@ -23,6 +23,21 @@ class ErrorCode(Enum):
     METHOD_NOT_ALLOWED = ("method_not_allowed", 405, "Method not allowed")
     BAD_REQUEST = ("bad_request", 400, "Bad request")
     CONFLICT = ("conflict", 409, "Request conflict")
+    STORAGE_MIGRATION_BLOCKED = (
+        "storage_migration_blocked",
+        409,
+        "Storage migration verification failed. The current storage remains active.",
+    )
+    STORAGE_MIGRATION_BUSY = (
+        "storage_migration_busy",
+        409,
+        "Uploads or storage settings changed during verification. Finish uploads and retry.",
+    )
+    STORAGE_CONFIGURATION_STALE = (
+        "storage_configuration_stale",
+        409,
+        "Storage configuration changed. Please retry the operation.",
+    )
     GOAL_CONFLICT = ("goal_conflict", 409, "Goal changed; refresh and retry")
     ADMIN_PERMISSION_REQUIRED = ("admin_permission_required", 403, "Admin permission required")
     BACKFILL_IN_PROGRESS = ("backfill_in_progress", 409, "Another replica is running the backfill")

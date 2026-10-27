@@ -277,5 +277,13 @@ class AliyunOssBackend(S3StorageBackend):
 
         return await run_long_blocking_io(_list_objects)
 
+    async def iter_keys(self) -> AsyncIterator[str]:
+        from src.infra.storage.s3.base import iter_blocking_keys
+
+        bucket = await run_long_blocking_io(self._get_bucket)
+        keys = (obj.key for obj in oss2.ObjectIteratorV2(bucket, max_keys=1000))
+        async for key in iter_blocking_keys(keys):
+            yield key
+
     async def close(self) -> None:
         self._bucket = None
