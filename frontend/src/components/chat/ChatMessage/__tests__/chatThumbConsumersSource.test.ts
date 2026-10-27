@@ -28,8 +28,8 @@ test("reveal_file 画廊与文件卡片渲染缩略图", () => {
 test("image_generate 参考图与结果图渲染缩略图", () => {
   const source = read("../items/ImageGenerateItem.tsx");
   expect(source.match(/buildChatThumbUrl/g)?.length).toBeGreaterThanOrEqual(4);
-  expect(source).toMatch(/openImagePreview\(resolvedUrl\)/);
-  expect(source).toMatch(/openImagePreview\(img\.url\)/);
+  expect(source).toMatch(/openImage\(imgUrl\)/);
+  expect(source).toMatch(/openImage\(img\.url/);
 });
 
 test("附件卡片：图片缩略图 + 文件封面 + 图标兜底", () => {

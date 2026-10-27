@@ -161,7 +161,7 @@ test("image generation prompt can be copied from the detail panel", () => {
   expect(source).toMatch(/<CopyButton[\s\S]*?\btext=\{prompt\}/);
 });
 
-test("image generation panel uses the same bounded reference thumbnails as chat", () => {
+test("image generation panel uses the same bounded reference thumbnails as chat but shows every reference", () => {
   const source = readFileSync(
     new URL("../ImageGenerateItem.tsx", import.meta.url),
     "utf8",
@@ -169,12 +169,14 @@ test("image generation panel uses the same bounded reference thumbnails as chat"
   const detail = source.split("const ImageGenerateItem = memo")[0];
 
   expect(detail).toContain('className="p-2 flex gap-1.5 overflow-x-auto"');
-  expect(detail).toContain("inputImages.slice(0, 4).map");
   expect(detail).toContain(
     "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
   );
-  expect(detail).toContain("+{inputImages.length - 4}");
-  expect(detail).toContain("onClick={() => openImagePreview(resolvedUrl)}");
+  // 面板是看全部参考图的地方：不截断、没有「+N」占位，点击仍取原图
+  expect(detail).toContain("inputImages.map((imgUrl, i)");
+  expect(detail).not.toContain("inputImages.slice(0, 4)");
+  expect(detail).not.toContain("+{inputImages.length - 4}");
+  expect(detail).toContain("onClick={() => openImage(imgUrl)}");
 });
 
 test("tool image previews share the chat gallery width limit", () => {

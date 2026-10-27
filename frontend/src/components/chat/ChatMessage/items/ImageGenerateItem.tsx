@@ -1,14 +1,9 @@
 import { TagBadge } from "../../../common/TagBadge";
-import { memo, useMemo, useState, useCallback } from "react";
+import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { Sparkles, ImageIcon, Tag, Layers, ImagePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  CollapsiblePill,
-  CopyButton,
-  ImageViewer,
-  formatFileSize,
-} from "../../../common";
+import { CollapsiblePill, CopyButton, formatFileSize } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { extractText } from "./toolUtils";
@@ -25,9 +20,16 @@ import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
-import { useSessionImageGallery } from "../sessionImageGallery";
+import { useImagePreviewFallback } from "./imagePreviewFallback";
 import { getFullUrl } from "../../../../services/api/config";
 import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
+
+function resolveInputImages(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((value): value is string => typeof value === "string")
+    .map((url) => getFullUrl(url) || url);
+}
 
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function ImageGenerateDetail({
@@ -38,18 +40,6 @@ function ImageGenerateDetail({
   cancelled,
 }: ToolDetailProps) {
   const { t } = useTranslation();
-  const sessionImageGallery = useSessionImageGallery();
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-
-  const openImagePreview = useCallback(
-    (src: string) => {
-      sessionImageGallery?.openImage(src);
-      if (!sessionImageGallery) {
-        setImageViewerSrc(src);
-      }
-    },
-    [sessionImageGallery],
-  );
 
   const prompt = (args.prompt as string) || "";
   const size = (args.size as string) || "";
@@ -58,13 +48,10 @@ function ImageGenerateDetail({
   const model = getGeneratedImageModel(result, args.model);
   const style = (args.style as string) || "";
 
-  const inputImages: string[] = useMemo(() => {
-    const raw = args.input_images;
-    if (!raw) return [];
-    if (Array.isArray(raw))
-      return raw.filter((v): v is string => typeof v === "string");
-    return [];
-  }, [args.input_images]);
+  const inputImages = useMemo(
+    () => resolveInputImages(args.input_images),
+    [args.input_images],
+  );
 
   const images = useMemo(() => {
     let parsed: unknown = result;
@@ -77,6 +64,16 @@ function ImageGenerateDetail({
     }
     return extractGeneratedImageResults(parsed);
   }, [result]);
+
+  // 参考图 + 生成图按卡片内顺序翻页
+  const previewSiblings = useMemo(
+    () => [
+      ...inputImages.map((src) => ({ src })),
+      ...images.map((img) => ({ src: img.url, alt: img.name })),
+    ],
+    [inputImages, images],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
 
   const fallbackText = useMemo(() => {
     if (images.length > 0) return "";
@@ -204,42 +201,34 @@ function ImageGenerateDetail({
               </span>
             </div>
             <div className="p-2 flex gap-1.5 overflow-x-auto">
-              {inputImages.slice(0, 4).map((imgUrl, i) => {
-                const resolvedUrl = getFullUrl(imgUrl) || imgUrl;
-                return (
-                  <button
-                    type="button"
-                    key={i}
-                    aria-label={t("chat.message.toolImageRefAlt", {
-                      index: i + 1,
-                    })}
-                    className={clsx(
-                      "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
-                      "border border-theme-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary",
-                      "hover:border-theme-text-tertiary",
-                      "transition-colors cursor-pointer",
-                    )}
-                    onClick={() => openImagePreview(resolvedUrl)}
-                  >
-                    <ImageWithSkeleton
-                      src={resolvedUrl}
-                      thumbSrc={buildChatThumbUrl(resolvedUrl)}
-                      alt={t("chat.message.toolImageRefAlt", { index: i + 1 })}
-                      skipUrlResolve
-                      inline
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
-                      {i + 1}
-                    </div>
-                  </button>
-                );
-              })}
-              {inputImages.length > 4 && (
-                <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-10 font-medium">
-                  +{inputImages.length - 4}
-                </div>
-              )}
+              {inputImages.map((imgUrl, i) => (
+                <button
+                  type="button"
+                  key={`${imgUrl}-${i}`}
+                  aria-label={t("chat.message.toolImageRefAlt", {
+                    index: i + 1,
+                  })}
+                  className={clsx(
+                    "relative shrink-0 w-12 h-12 rounded-md overflow-hidden",
+                    "border border-theme-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary",
+                    "hover:border-theme-text-tertiary",
+                    "transition-colors cursor-pointer",
+                  )}
+                  onClick={() => openImage(imgUrl)}
+                >
+                  <ImageWithSkeleton
+                    src={imgUrl}
+                    thumbSrc={buildChatThumbUrl(imgUrl)}
+                    alt={t("chat.message.toolImageRefAlt", { index: i + 1 })}
+                    skipUrlResolve
+                    inline
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
+                    {i + 1}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -269,7 +258,7 @@ function ImageGenerateDetail({
                   skipUrlResolve
                   inline
                   className="w-full h-auto object-contain bg-theme-bg-subtle"
-                  onClick={() => openImagePreview(img.url)}
+                  onClick={() => openImage(img.url, img.name)}
                 />
                 <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
                   <span className="min-w-0 flex-1 truncate" title={img.name}>
@@ -295,14 +284,7 @@ function ImageGenerateDetail({
         )}
       </div>
 
-      {/* Fallback ImageViewer when session gallery context is unavailable */}
-      {imageViewerSrc && (
-        <ImageViewer
-          src={imageViewerSrc}
-          isOpen={!!imageViewerSrc}
-          onClose={() => setImageViewerSrc(null)}
-        />
-      )}
+      {viewer}
     </>
   );
 }
@@ -327,20 +309,8 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const sessionImageGallery = useSessionImageGallery();
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-
-  const openImagePreview = useCallback(
-    (src: string) => {
-      sessionImageGallery?.openImage(src);
-      if (!sessionImageGallery) {
-        setImageViewerSrc(src);
-      }
-    },
-    [sessionImageGallery],
   );
 
   const prompt = (args.prompt as string) || "";
@@ -348,13 +318,10 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   const quality = (args.quality as string) || "";
   const model = getGeneratedImageModel(result, args.model);
 
-  const inputImages: string[] = useMemo(() => {
-    const raw = args.input_images;
-    if (!raw) return [];
-    if (Array.isArray(raw))
-      return raw.filter((v): v is string => typeof v === "string");
-    return [];
-  }, [args.input_images]);
+  const inputImages = useMemo(
+    () => resolveInputImages(args.input_images),
+    [args.input_images],
+  );
 
   const images = useMemo(() => {
     let parsed: unknown = result;
@@ -367,6 +334,15 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
     }
     return extractGeneratedImageResults(parsed);
   }, [result]);
+
+  const previewSiblings = useMemo(
+    () => [
+      ...inputImages.map((src) => ({ src })),
+      ...images.map((img) => ({ src: img.url, alt: img.name })),
+    ],
+    [inputImages, images],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
 
   const fallbackText = useMemo(() => {
     if (images.length > 0) return "";
@@ -416,6 +392,24 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       completedAt={completedAt}
     />
   );
+
+  // pill 与收起态「+N」角标共用：面板里展示全部参考图与生成图
+  const openPanel = () => {
+    if (!canExpand) return;
+    openToolLivePanel({
+      id,
+      title: t("chat.message.toolImageGenerate"),
+      icon: <Sparkles size={16} />,
+      status,
+      subtitle:
+        prompt.length > 80 ? prompt.slice(0, 77) + "…" : prompt || undefined,
+      fallback: detailContent || undefined,
+      buildDetail: (data) => (
+        <ImageGenerateDetail {...toolDetailPropsFromPanelData(data)} />
+      ),
+      footer: durationFooter,
+    });
+  };
 
   // ── compact (inline) content ────────────────────────────────────────
 
@@ -492,32 +486,43 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {/* Compact reference image thumbnails */}
       {inputImages.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto">
-          {inputImages.slice(0, 4).map((imgUrl, i) => {
-            const resolvedUrl = getFullUrl(imgUrl) || imgUrl;
-            return (
-              <div
-                key={i}
-                className="relative shrink-0 w-12 h-12 rounded-md overflow-hidden border border-dashed border-theme-border cursor-pointer"
-                onClick={() => openImagePreview(resolvedUrl)}
-              >
-                <ImageWithSkeleton
-                  src={resolvedUrl}
-                  thumbSrc={buildChatThumbUrl(resolvedUrl)}
-                  alt={t("chat.message.toolImageRefAltShort", { index: i + 1 })}
-                  skipUrlResolve
-                  inline
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
-                  {i + 1}
-                </div>
+          {inputImages.slice(0, 4).map((imgUrl, i) => (
+            <button
+              type="button"
+              key={`${imgUrl}-${i}`}
+              aria-label={t("chat.message.toolImageRefAltShort", {
+                index: i + 1,
+              })}
+              className="relative shrink-0 w-12 h-12 rounded-md overflow-hidden border border-dashed border-theme-border cursor-pointer transition-colors hover:border-theme-text-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+              onClick={() => openImage(imgUrl)}
+            >
+              <ImageWithSkeleton
+                src={imgUrl}
+                thumbSrc={buildChatThumbUrl(imgUrl)}
+                alt={t("chat.message.toolImageRefAltShort", { index: i + 1 })}
+                skipUrlResolve
+                inline
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
+                {i + 1}
               </div>
-            );
-          })}
+            </button>
+          ))}
           {inputImages.length > 4 && (
-            <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-10 font-medium">
+            <button
+              type="button"
+              onClick={openPanel}
+              aria-label={t("chat.message.toolMoreImages", {
+                count: inputImages.length - 4,
+              })}
+              title={t("chat.message.toolMoreImages", {
+                count: inputImages.length - 4,
+              })}
+              className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-10 font-medium tabular-nums cursor-pointer transition-colors hover:border-theme-text-tertiary hover:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+            >
               +{inputImages.length - 4}
-            </div>
+            </button>
           )}
         </div>
       )}
@@ -537,7 +542,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                 skipUrlResolve
                 inline
                 className="w-full h-auto object-contain"
-                onClick={() => openImagePreview(img.url)}
+                onClick={() => openImage(img.url, img.name)}
               />
               <figcaption className="flex items-center gap-2 border-t border-theme-border bg-theme-bg px-2 py-1.5 text-12 text-theme-text-secondary">
                 <span className="min-w-0 flex-1 truncate" title={img.name}>
@@ -549,13 +554,24 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                   </span>
                 )}
               </figcaption>
+              {/* 最后一格盖「+N」：收起态只放 4 张，其余在面板里看全 */}
+              {i === 3 && images.length > 4 && (
+                <button
+                  type="button"
+                  onClick={openPanel}
+                  aria-label={t("chat.message.toolMoreImages", {
+                    count: images.length - 4,
+                  })}
+                  title={t("chat.message.toolMoreImages", {
+                    count: images.length - 4,
+                  })}
+                  className="absolute inset-0 flex items-center justify-center bg-black/55 text-white text-16 font-semibold tabular-nums cursor-pointer transition-colors hover:bg-black/65 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+                >
+                  +{images.length - 4}
+                </button>
+              )}
             </figure>
           ))}
-          {images.length > 4 && (
-            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9">
-              +{images.length - 4}
-            </div>
-          )}
         </div>
       )}
 
@@ -581,36 +597,12 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
         animatedDots={isStreamingLabel}
         variant="tool"
         expandable={canExpand}
-        onPanelOpen={() => {
-          if (!canExpand) return;
-          openToolLivePanel({
-            id,
-            title: t("chat.message.toolImageGenerate"),
-            icon: <Sparkles size={16} />,
-            status,
-            subtitle:
-              prompt.length > 80
-                ? prompt.slice(0, 77) + "…"
-                : prompt || undefined,
-            fallback: detailContent || undefined,
-            buildDetail: (data) => (
-              <ImageGenerateDetail {...toolDetailPropsFromPanelData(data)} />
-            ),
-            footer: durationFooter,
-          });
-        }}
+        onPanelOpen={openPanel}
       >
         {compactContent}
       </CollapsiblePill>
 
-      {/* Fallback ImageViewer when session gallery context is unavailable */}
-      {imageViewerSrc && (
-        <ImageViewer
-          src={imageViewerSrc}
-          isOpen={!!imageViewerSrc}
-          onClose={() => setImageViewerSrc(null)}
-        />
-      )}
+      {viewer}
     </>
   );
 });
