@@ -11,14 +11,67 @@ pub struct SelectedWorkspace {
     path: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn invalid_workspace_never_falls_back_to_a_different_folder() {
+        let root = std::env::temp_dir().join(format!("workspace-test-{}", uuid::Uuid::new_v4()));
+        let config = json!({"data_root": root, "machine_id": "m1"});
+        for raw in [
+            "not-json".to_string(),
+            json!({
+                "id": format!("local-{}", "a".repeat(32)),
+                "machineId": "m2", "path": "/repo"
+            })
+            .to_string(),
+        ] {
+            assert!(resolve_workspace_base(&root, &config, "session", &Some(raw)).is_err());
+        }
+        assert_eq!(
+            resolve_workspace_base(&root, &config, "session", &None).unwrap(),
+            root.join("session")
+        );
+        assert_eq!(
+            resolve_workspace_base(&root, &config, "session", &Some(String::new())).unwrap(),
+            root.join("session")
+        );
+    }
+
+    #[test]
+    fn selected_workspace_requires_existing_matching_native_receipt() {
+        let root = std::env::temp_dir().join(format!("workspace-test-{}", uuid::Uuid::new_v4()));
+        let selected = root.join("project");
+        std::fs::create_dir_all(&selected).unwrap();
+        std::fs::create_dir_all(root.join(".selected")).unwrap();
+        let id = format!("local-{}", "a".repeat(32));
+        let config = json!({"data_root": root, "machine_id": "m1"});
+        let selection = Some(json!({"id": id, "machineId": "m1", "path": selected}).to_string());
+        assert!(resolve_workspace_base(&root, &config, "session", &selection).is_err());
+        std::fs::write(
+            root.join(".selected").join(format!("{id}.json")),
+            serde_json::to_vec(&selected).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_workspace_base(&root, &config, "session", &selection).unwrap(),
+            selected
+        );
+        std::fs::remove_dir(&selected).unwrap();
+        assert!(resolve_workspace_base(&root, &config, "session", &selection).is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+}
+
 /// 解析会话工作区为本地基目录（reveal 用）。
 ///
 /// 绑定目录可以是用户自选的任意文件夹（不在 open_local_path 的
 /// ~/.lambchat 白名单内），因此校验依据是**绑定文件本身**：前端传来的
 /// `workspace_selection`（agent_options 里的原样 JSON）必须与本机
 /// `.selected/<id>.json` 里落盘的真实路径逐字一致，且机器匹配本机——
-/// 伪造任意目录在比对处即被拒。未绑定/坏绑定时回落 `data_root/{session_id}`
-/// （服务端 fs 端点同一解析规则）。
+/// 伪造或失效绑定直接报错；只有未绑定时使用 `data_root/{session_id}`。
 fn resolve_workspace_base(
     home: &std::path::Path,
     config: &serde_json::Value,
@@ -30,13 +83,13 @@ fn resolve_workspace_base(
         .map(PathBuf::from)
         .unwrap_or_else(|| home.join("workspaces"));
 
-    if let Some(raw) = workspace_selection {
+    if let Some(raw) = workspace_selection.as_ref().filter(|raw| !raw.is_empty()) {
         if let Ok(sel) = serde_json::from_str::<serde_json::Value>(raw) {
             let id = sel["id"].as_str().unwrap_or("");
             let machine = sel["machineId"].as_str().unwrap_or("");
             let claimed_path = sel["path"].as_str().unwrap_or("");
             let local_machine = config["machine_id"].as_str().unwrap_or("");
-            let id_ok = id.len() == 39
+            let id_ok = id.len() == 38
                 && id.starts_with("local-")
                 && id["local-".len()..]
                     .chars()
@@ -45,13 +98,15 @@ fn resolve_workspace_base(
                 let binding = root.join(".selected").join(format!("{id}.json"));
                 if let Ok(bytes) = std::fs::read(&binding) {
                     if let Ok(persisted) = serde_json::from_slice::<String>(&bytes) {
-                        if persisted == claimed_path && !claimed_path.is_empty() {
-                            return Ok(PathBuf::from(claimed_path));
+                        let path = PathBuf::from(claimed_path);
+                        if persisted == claimed_path && path.is_absolute() && path.is_dir() {
+                            return Ok(path);
                         }
                     }
                 }
             }
         }
+        return Err("sandbox_workspace_invalid".into());
     }
 
     // 默认工作区：data_root/{session_id}（与服务端 cwd 解析同形态；形态门
@@ -144,7 +199,9 @@ pub async fn reveal_workspace_path(
         let local_machine = config["machine_id"].as_str().unwrap_or("");
         if let Some(target) = machine_id.as_deref() {
             if !target.is_empty() && target != local_machine {
-                return Err("workspace is on another machine; only local files can be revealed".into());
+                return Err(
+                    "workspace is on another machine; only local files can be revealed".into(),
+                );
             }
         }
         let base = resolve_workspace_base(&home, &config, &session_id, &workspace_selection)?;

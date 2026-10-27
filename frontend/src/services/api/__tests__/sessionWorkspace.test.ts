@@ -3,6 +3,7 @@ const fetchMock = vi.hoisted(() => vi.fn());
 vi.mock("../fetch", () => ({ authFetch: fetchMock }));
 import { saveSessionWorkspaceOption } from "../sessionWorkspace";
 import { sandboxFsApi } from "../sandboxFs";
+import { sessionApi } from "../session";
 
 test("file listing waits for the selected workspace to be persisted", async () => {
   let finish!: () => void;
@@ -64,7 +65,7 @@ test("refresh retries a failed workspace save before reading files", async () =>
   ]);
 });
 
-test("a later directory save also persists a machine change that failed", async () => {
+test("a directory selection persists its machine atomically after an earlier failed save", async () => {
   fetchMock.mockReset();
   fetchMock.mockRejectedValueOnce(new Error("offline"));
   const machine = saveSessionWorkspaceOption(
@@ -72,17 +73,45 @@ test("a later directory save also persists a machine change that failed", async 
     "sandbox_machine_id",
     "mac",
   );
+  const selection = JSON.stringify({
+    id: `local-${"a".repeat(32)}`,
+    machineId: "mac",
+    path: "/repo",
+  });
   const directory = saveSessionWorkspaceOption(
     "recover-machine",
     "sandbox_workspace",
-    "selection",
+    selection,
   );
   await expect(machine).rejects.toThrow("offline");
   await directory;
   expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
     metadata: {
       "agent_options.sandbox_machine_id": "mac",
-      "agent_options.sandbox_workspace": "selection",
+      "agent_options.sandbox_workspace": selection,
+      "agent_options.sandbox": "local",
     },
   });
+});
+
+test("submission waits until workspace changes are saved", async () => {
+  fetchMock.mockReset();
+  let finish!: () => void;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const saved = saveSessionWorkspaceOption(
+    "send-wait",
+    "sandbox_workspace",
+    "",
+  );
+  const submitted = sessionApi.submitChat("search", "hello", "send-wait");
+  await Promise.resolve();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  finish();
+  await Promise.all([saved, submitted]);
+  expect(fetchMock.mock.calls[1][0]).toContain("/api/chat/stream");
 });

@@ -16,6 +16,20 @@ from src.kernel.schemas.session import public_agent_options
 from src.kernel.schemas.user import TokenPayload
 
 
+async def fetch_workspace_metadata(request: AgentRequest, user: TokenPayload) -> dict | None:
+    from src.infra.session.manager import SessionManager
+    from src.kernel.errors import AppError, ErrorCode
+
+    if not request.session_id:
+        return None
+    session = await SessionManager().get_session(request.session_id)
+    if session is None:
+        return None
+    if session.user_id != user.sub:
+        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
+    return session.metadata or {}
+
+
 def _persona_enabled_mcp_servers_from_snapshot(
     snapshot: PersonaPresetSnapshot,
 ) -> list[str] | None:

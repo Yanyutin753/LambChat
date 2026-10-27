@@ -1,5 +1,7 @@
 {
   "sessionWorkspace": {
+    "independent": "会话独立目录",
+    "independentHint": "每个新对话使用独立文件目录。需要跨对话继续处理同一批文件时，可在项目菜单中绑定本地目录。",
     "loading": "正在选择目录…",
     "reset": "恢复默认会话目录",
     "scope": "此目录用于当前会话的文件操作和命令执行",
@@ -465,6 +467,7 @@
     "requestNewResetLink": "重新获取重置链接"
   },
   "backendErrors": {
+    "sandboxWorkspaceInvalid": "工作目录绑定无效或属于另一台电脑，请重新选择目录",
     "storageMigrationBlocked": "存储迁移校验未通过，当前存储保持不变。请补齐文件并校验内容后重试。",
     "storageMigrationBusy": "校验期间有上传或存储配置发生变化。请等待上传完成后重试。",
     "storageConfigurationStale": "存储配置已变化，请重试当前操作。",

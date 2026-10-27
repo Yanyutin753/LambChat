@@ -6,7 +6,8 @@
 import { useCallback } from "react";
 import toast from "react-hot-toast";
 import type { AgentInfo, Project } from "../../../types";
-import { saveSessionWorkspaceOption } from "../../../services/api/sessionWorkspace";
+import { saveSessionWorkspaceOptions } from "../../../services/api/sessionWorkspace";
+import { workspaceOptionPatch } from "../../chat/workspaceSelection";
 import type {
   SkillResponse,
   SkillSource,
@@ -132,7 +133,10 @@ export function useSessionToggleCallbacks({
 /** 工作区选项立即落库；项目只为新会话提供默认值。 */
 export function useWorkspaceOptionActions(
   sessionId: string | null,
-  change: (key: string, value: boolean | string | number) => void,
+  change: (
+    key: string,
+    value: boolean | string | number,
+  ) => Record<string, boolean | string | number> | void,
   setProject: (id: string | null) => void,
   agentContext?: {
     agents: AgentInfo[];
@@ -145,14 +149,14 @@ export function useWorkspaceOptionActions(
 ) {
   const changeOption = useCallback(
     (key: string, value: boolean | string | number) => {
+      const patch = change(key, value) || workspaceOptionPatch(key, value);
       if (sessionId) {
-        void saveSessionWorkspaceOption(sessionId, key, value).catch(
+        void saveSessionWorkspaceOptions(sessionId, patch).catch(
           (error: unknown) => {
             if (error instanceof Error) toast.error(error.message);
           },
         );
       }
-      change(key, value);
     },
     [sessionId, change],
   );
