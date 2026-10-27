@@ -982,6 +982,8 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
         onCloseContactAdmin={() => setContactAdminOpen(false)}
         imageViewerSrc={imageViewerSrc}
         onCloseImageViewer={() => setImageViewerSrc(null)}
+        imageViewerAttachments={visibleAttachments}
+        onImageViewerChange={setImageViewerSrc}
       />
     </div>
   );

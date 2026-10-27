@@ -10,7 +10,14 @@ import type { Message, MessagePart, ToolPart } from "../../../types";
 import { getFullUrl } from "../../../services/api/config";
 import { isImageFile } from "../../documents/utils";
 import { ImageViewer } from "../../common/ImageViewer";
-import { extractGeneratedImageResults } from "./items/toolImageResults";
+import {
+  resolveImageListNavigation,
+  type ImageListEntry,
+} from "../../common/imageListNavigation";
+import {
+  extractGeneratedImageResults,
+  fileNameFromUrl,
+} from "./items/toolImageResults";
 
 export interface SessionImageGalleryItem {
   id: string;
@@ -21,11 +28,20 @@ export interface SessionImageGalleryItem {
 
 export type SessionImageGalleryGroup = "conversation" | "reveal-file";
 
+export interface SessionImageGalleryOpenOptions {
+  group?: SessionImageGalleryGroup;
+  /**
+   * 当前卡片内的图片列表：被点击的图片没有被会话画廊收录时（如搜索结果图），
+   * 灯箱退而在这组图片里翻页，而不是退化成单图。
+   */
+  siblings?: readonly ImageListEntry[];
+}
+
 interface SessionImageGalleryContextValue {
   openImage: (
     src: string,
     alt?: string,
-    options?: { group?: SessionImageGalleryGroup },
+    options?: SessionImageGalleryOpenOptions,
   ) => void;
 }
 
@@ -151,6 +167,41 @@ function collectGeneratedImageResults(
   }));
 }
 
+// 工具参数里的图片（识图输入、生图参考图）：缩略图在结果到达前就已渲染，
+// 所以不看 success，否则进行中/失败的卡片点开只能看单图
+const TOOL_INPUT_IMAGE_ARGS: Record<string, string> = {
+  image_analysis: "image_urls",
+  image_generate: "input_images",
+};
+
+function collectToolInputImages(
+  part: ToolPart,
+  idPrefix: string,
+): SessionImageGalleryItem[] {
+  const argKey = TOOL_INPUT_IMAGE_ARGS[part.name];
+  if (!argKey) return [];
+
+  const raw = part.args?.[argKey];
+  const urls = Array.isArray(raw)
+    ? raw.filter((url): url is string => typeof url === "string")
+    : typeof raw === "string"
+      ? [raw]
+      : [];
+
+  return urls.flatMap((url, index) => {
+    const src = resolveImageSrc(url);
+    if (!src) return [];
+    return [
+      {
+        id: `${idPrefix}:input-image:${index}`,
+        src,
+        alt: fileNameFromUrl(url),
+        group: "conversation" as const,
+      },
+    ];
+  });
+}
+
 function collectPartImages(
   part: MessagePart,
   idPrefix: string,
@@ -162,6 +213,7 @@ function collectPartImages(
   if (part.type === "tool") {
     const revealImage = collectRevealFileImage(part, idPrefix);
     return [
+      ...collectToolInputImages(part, idPrefix),
       ...(revealImage ? [revealImage] : []),
       ...collectGeneratedImageResults(part, idPrefix),
     ];
@@ -251,6 +303,10 @@ export function useSessionImageGallery(): SessionImageGalleryContextValue | null
   return useContext(SessionImageGalleryContext);
 }
 
+interface ActiveGalleryImage extends SessionImageGalleryItem {
+  siblings?: SessionImageGalleryItem[];
+}
+
 export function SessionImageGalleryProvider({
   messages,
   children,
@@ -262,42 +318,44 @@ export function SessionImageGalleryProvider({
     () => collectSessionImageGalleryItems(messages),
     [messages],
   );
-  const [activeImage, setActiveImage] =
-    useState<SessionImageGalleryItem | null>(null);
-  const activeIndex = activeImage
-    ? items
-        .filter((item) => item.group === activeImage.group)
-        .findIndex((item) => item.src === activeImage.src)
-    : -1;
-  const activeGalleryItems = activeImage
+  const [activeImage, setActiveImage] = useState<ActiveGalleryImage | null>(
+    null,
+  );
+  const galleryItems = activeImage
     ? items.filter((item) => item.group === activeImage.group)
     : [];
-  const currentItem =
-    activeIndex >= 0 ? activeGalleryItems[activeIndex] : activeImage;
-  const previousItem =
-    activeIndex > 0 ? activeGalleryItems[activeIndex - 1] : null;
-  const nextItem =
-    activeIndex >= 0 && activeIndex < activeGalleryItems.length - 1
-      ? activeGalleryItems[activeIndex + 1]
-      : null;
-  const positionLabel =
-    activeIndex >= 0 && activeGalleryItems.length > 1
-      ? `${activeIndex + 1} / ${activeGalleryItems.length}`
-      : undefined;
+  // 优先在会话画廊里跨消息翻页；该图未被收录但卡片给了同组图片时，在卡片内翻页
+  const sessionNavigation = resolveImageListNavigation(
+    galleryItems,
+    activeImage?.src,
+  );
+  const navigation =
+    sessionNavigation.index < 0 && activeImage?.siblings?.length
+      ? resolveImageListNavigation(activeImage.siblings, activeImage.src)
+      : sessionNavigation;
+  const currentItem = navigation.current ?? activeImage;
+  const goTo = (item: SessionImageGalleryItem | null) => {
+    if (item) setActiveImage({ ...item, siblings: activeImage?.siblings });
+  };
 
   const openImage = useCallback(
-    (
-      src: string,
-      alt?: string,
-      options?: { group?: SessionImageGalleryGroup },
-    ) => {
+    (src: string, alt?: string, options?: SessionImageGalleryOpenOptions) => {
       const resolvedSrc = resolveImageSrc(src);
       if (!resolvedSrc) return;
+      const group = options?.group || "conversation";
+      const siblings = options?.siblings?.flatMap((sibling, index) => {
+        const siblingSrc = resolveImageSrc(sibling.src);
+        if (!siblingSrc) return [];
+        return [
+          { id: `sibling:${index}`, src: siblingSrc, alt: sibling.alt, group },
+        ];
+      });
       setActiveImage({
         id: `ad-hoc:${resolvedSrc}`,
         src: resolvedSrc,
         alt,
-        group: options?.group || "conversation",
+        group,
+        siblings,
       });
     },
     [],
@@ -314,11 +372,11 @@ export function SessionImageGalleryProvider({
           alt={currentItem.alt || ""}
           isOpen={!!currentItem}
           onClose={() => setActiveImage(null)}
-          onPrevious={() => previousItem && setActiveImage(previousItem)}
-          onNext={() => nextItem && setActiveImage(nextItem)}
-          hasPrevious={!!previousItem}
-          hasNext={!!nextItem}
-          positionLabel={positionLabel}
+          onPrevious={() => goTo(navigation.previous)}
+          onNext={() => goTo(navigation.next)}
+          hasPrevious={!!navigation.previous}
+          hasNext={!!navigation.next}
+          positionLabel={navigation.positionLabel}
         />
       )}
     </SessionImageGalleryContext.Provider>

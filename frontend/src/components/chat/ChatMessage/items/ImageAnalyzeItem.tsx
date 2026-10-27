@@ -58,8 +58,12 @@ function getAnalysisText(result: string | Record<string, unknown> | undefined) {
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const { openImage, viewer } = useImagePreviewFallback();
   const images = useMemo(() => resolveImages(getImageUrls(args)), [args]);
+  const previewSiblings = useMemo(
+    () => images.map((image) => ({ src: image.url, alt: image.name })),
+    [images],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
   const prompt = (args.prompt as string) || "";
   const analysis = useMemo(() => getAnalysisText(result), [result]);
 
@@ -76,7 +80,7 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
       )}
       {images.length > 0 && (
         <div className="grid w-full max-w-md gap-2 grid-cols-4">
-          {images.slice(0, 4).map((image, index) => (
+          {images.map((image, index) => (
             <button
               type="button"
               key={`${image.url}-${index}`}
@@ -104,16 +108,6 @@ function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
               </div>
             </button>
           ))}
-          {images.length > 4 && (
-            <div
-              className="rounded-md bg-theme-bg-subtle border border-theme-border flex items-center justify-center text-theme-text-secondary text-11 font-medium aspect-square"
-              title={t("chat.message.toolMoreImages", {
-                count: images.length - 4,
-              })}
-            >
-              +{images.length - 4}
-            </div>
-          )}
         </div>
       )}
       {analysis && (
@@ -153,12 +147,16 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
 }) {
   const { t } = useTranslation();
   const workspace = useContext(WorkspaceMediaContext);
-  const { openImage, viewer } = useImagePreviewFallback();
   const durationFooter = (
     <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
   );
   const imageUrls = useMemo(() => getImageUrls(args), [args]);
   const images = useMemo(() => resolveImages(imageUrls), [imageUrls]);
+  const previewSiblings = useMemo(
+    () => images.map((image) => ({ src: image.url, alt: image.name })),
+    [images],
+  );
+  const { openImage, viewer } = useImagePreviewFallback(previewSiblings);
   const prompt = (args.prompt as string) || "";
   const analysis = useMemo(() => getAnalysisText(result), [result]);
   // 参数生成中（无结果）也允许打开面板：实时等待分析结果
@@ -207,6 +205,29 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
     { isPending, result },
   );
 
+  // pill 与「+N」角标共用：面板里展示全部图片
+  const openPanel = () => {
+    if (!canExpand) return;
+    openToolLivePanel({
+      id,
+      title: t("chat.message.toolImageAnalyze"),
+      icon: <Eye size={16} />,
+      status,
+      subtitle: prompt || imageSummary || undefined,
+      fallback: (
+        <WorkspaceMediaContext.Provider value={workspace}>
+          {detailContent}
+        </WorkspaceMediaContext.Provider>
+      ),
+      buildDetail: (data) => (
+        <WorkspaceMediaContext.Provider value={workspace}>
+          <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+        </WorkspaceMediaContext.Provider>
+      ),
+      footer: durationFooter,
+    });
+  };
+
   return (
     <>
       <CollapsiblePill
@@ -217,27 +238,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
         variant="tool"
         formatLabel={false}
         expandable={canExpand}
-        onPanelOpen={() => {
-          if (!canExpand) return;
-          openToolLivePanel({
-            id,
-            title: t("chat.message.toolImageAnalyze"),
-            icon: <Eye size={16} />,
-            status,
-            subtitle: prompt || imageSummary || undefined,
-            fallback: (
-              <WorkspaceMediaContext.Provider value={workspace}>
-                {detailContent}
-              </WorkspaceMediaContext.Provider>
-            ),
-            buildDetail: (data) => (
-              <WorkspaceMediaContext.Provider value={workspace}>
-                <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
-              </WorkspaceMediaContext.Provider>
-            ),
-            footer: durationFooter,
-          });
-        }}
+        onPanelOpen={openPanel}
       >
         {canExpand && (
           <ToolInlineDetails>
@@ -276,14 +277,19 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
                   </button>
                 ))}
                 {images.length > 4 && (
-                  <div
-                    className="rounded-md bg-theme-bg-subtle border border-theme-border flex items-center justify-center text-theme-text-secondary text-11 font-medium aspect-square"
+                  <button
+                    type="button"
+                    onClick={openPanel}
                     title={t("chat.message.toolMoreImages", {
                       count: images.length - 4,
                     })}
+                    aria-label={t("chat.message.toolMoreImages", {
+                      count: images.length - 4,
+                    })}
+                    className="rounded-md bg-theme-bg-subtle border border-theme-border flex items-center justify-center text-theme-text-secondary text-11 font-medium tabular-nums aspect-square cursor-pointer transition-colors hover:border-theme-text-tertiary hover:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]"
                   >
                     +{images.length - 4}
-                  </div>
+                  </button>
                 )}
               </div>
             )}
