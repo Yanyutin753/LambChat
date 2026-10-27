@@ -41,7 +41,7 @@ def make_config(values: dict) -> S3Config:
     enabled = values["S3_ENABLED"]
     if isinstance(enabled, str):
         enabled = enabled.lower() in {"true", "1", "yes", "on"}
-    provider = S3Provider(values["S3_PROVIDER"]) if enabled else S3Provider.LOCAL
+    provider = S3Provider(values["S3_PROVIDER"].lower()) if enabled else S3Provider.LOCAL
     return S3Config(
         provider=provider,
         endpoint_url=values["S3_ENDPOINT_URL"] or None,

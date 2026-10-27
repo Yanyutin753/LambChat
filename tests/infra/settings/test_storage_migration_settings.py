@@ -206,3 +206,8 @@ async def test_missing_local_source_directory_cannot_be_treated_as_empty_storage
     assert error.value.error_code == ErrorCode.STORAGE_MIGRATION_BLOCKED
     assert not source.exists()
     assert store.doc["values"]["LOCAL_STORAGE_PATH"] == str(source)
+
+
+def test_environment_provider_name_remains_case_insensitive():
+    values = {**migration.runtime_values(), "S3_ENABLED": True, "S3_PROVIDER": "ALIYUN"}
+    assert migration.make_config(values).provider.value == "aliyun"
