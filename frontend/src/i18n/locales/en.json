@@ -1,5 +1,8 @@
 {
   "sessionWorkspace": {
+    "location": "File location",
+    "previous": "Previous directories",
+    "chooseHint": "Choose a local working directory. Files and commands will use this directory directly.",
     "independent": "Separate chat folder",
     "independentHint": "Each new chat has its own file folder. Bind a local folder in the project menu to keep working on the same files across chats.",
     "loading": "Choosing directory…",
@@ -542,7 +545,7 @@
     "roleNotFound": "Role not found.",
     "sandboxSessionNotLocal": "This session runs on the cloud sandbox; workspace file browsing requires a local sandbox session",
     "sandboxCloudNotCreated": "No cloud computer yet; it is created automatically when you send a message in a cloud session",
-    "sandboxCloudRecycled": "The cloud computer was recycled and its files were not kept; send a message to recreate it",
+    "sandboxCloudRecycled": "The previous cloud workspace is unavailable. Its location has been retained; recover it before continuing.",
     "sessionAccessDenied": "You do not have access to this session.",
     "sessionNotFound": "Session not found.",
     "settingNotFound": "Setting not found.",

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentInfo } from "../../../types";
 import type { SandboxMachine } from "../../../services/api/sandbox";
 import { isMachineOnline } from "../../chat/sandboxOption";
+import { readLastLocalWorkspace } from "../../chat/localWorkspacePreference";
 import {
   WORKSPACE_OPTION_KEYS,
   workspaceOptionPatch,
@@ -159,6 +160,7 @@ function applyStoredAgentOptionDefaults(
 }
 
 export interface SandboxDefaultHints {
+  userId?: string;
   /** daemon 是否在线（多机任一在线即在线）；缺省按离线处理（云端默认，向后兼容） */
   sandboxOnline?: boolean;
   /** 当前客户端的在线机器；网页、未配对或本机离线时为空。 */
@@ -212,6 +214,12 @@ export function buildAgentOptionValues(
   if (!restoredOptions) {
     if (defaultValues.sandbox === "local" && hints?.sandboxMachineId) {
       defaultValues.sandbox_machine_id = hints.sandboxMachineId;
+      const workspace = readLastLocalWorkspace(
+        hints.userId,
+        hints.sandboxMachineId,
+      );
+      if (workspace)
+        defaultValues.sandbox_workspace = JSON.stringify(workspace);
     }
     return defaultValues;
   }
@@ -260,6 +268,7 @@ export function useAgentOptions(
     machines: SandboxMachine[];
     currentMachineId: string | null;
   },
+  userId?: string,
 ) {
   const sandboxOnline = sandboxStatus?.online ?? false;
   const sandboxMachineId =
@@ -320,6 +329,7 @@ export function useAgentOptions(
         ...buildAgentOptionValues(options, undefined, undefined, {
           sandboxOnline,
           sandboxMachineId,
+          userId,
         }),
         // 工作区属于会话，切换助手不能改变执行位置。
         ...Object.fromEntries(
@@ -345,7 +355,7 @@ export function useAgentOptions(
       }
       return rebuilt;
     });
-  }, [currentAgent, agents, sandboxOnline, sandboxMachineId]);
+  }, [currentAgent, agents, sandboxOnline, sandboxMachineId, userId]);
 
   // 本机身份与在线状态异步到达，只补齐新草稿未指定的设备。
   useEffect(() => {
@@ -358,10 +368,18 @@ export function useAgentOptions(
       ) {
         return prev;
       }
-      return { ...prev, sandbox_machine_id: sandboxMachineId };
+      const workspace = readLastLocalWorkspace(userId, sandboxMachineId);
+      return {
+        ...prev,
+        sandbox_machine_id: sandboxMachineId,
+        ...(workspace && !prev.sandbox_workspace
+          ? { sandbox_workspace: JSON.stringify(workspace) }
+          : {}),
+      };
     });
   }, [
     sandboxMachineId,
+    userId,
     agentOptionValues.sandbox,
     agentOptionValues.sandbox_machine_id,
   ]);
@@ -469,9 +487,10 @@ export function useAgentOptions(
       buildAgentOptionValues(options, undefined, undefined, {
         sandboxOnline,
         sandboxMachineId,
+        userId,
       }),
     );
-  }, [agents, currentAgent, sandboxOnline, sandboxMachineId]);
+  }, [agents, currentAgent, sandboxOnline, sandboxMachineId, userId]);
 
   // 从外部恢复配置
   const restoreAgentOptions = useCallback(

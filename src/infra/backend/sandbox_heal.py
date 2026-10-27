@@ -54,8 +54,8 @@ _EXHAUSTED_THRESHOLD = 3
 
 UNAVAILABLE_GUIDANCE = (
     "The sandbox appears unavailable (paused beyond retention or recycled). "
-    "Retrying immediately is unlikely to help; a fresh sandbox will be created "
-    "on the next message."
+    "The existing workspace binding is retained. Recover that workspace before continuing; "
+    "do not assume that an interrupted write or command did not execute."
 )
 
 # 沙箱被平台回收、manager 重建新沙箱后挂载的一次性提示。由 backend 的
@@ -81,6 +81,19 @@ def is_retryable_sandbox_error(exc: BaseException) -> bool:
     if "timeout" in text or "timed out" in text:
         return False
     return any(token in text for token in _RETRYABLE_PATTERN_TOKENS)
+
+
+def _can_retry_operation(op: str, exc: BaseException) -> bool:
+    if not is_retryable_sandbox_error(exc):
+        return False
+    if op.startswith(("commands.", "files.")) and op not in {"files.read", "files.list"}:
+        # A reset after acceptance is an unknown outcome, not permission to repeat a mutation.
+        return (
+            not isinstance(exc, ConnectionError)
+            and getattr(exc, "exit_code", None) is None
+            and str(exc).lower().startswith("sandbox is paused")
+        )
+    return True
 
 
 class SandboxHeal:
@@ -116,7 +129,7 @@ class SandboxHeal:
         try:
             result = fn()
         except Exception as exc:
-            if not is_retryable_sandbox_error(exc):
+            if not _can_retry_operation(op, exc):
                 raise
             logger.warning(
                 "sandbox op %s hit sandbox-level error (%s); waking sandbox %s and retrying once",
@@ -153,7 +166,7 @@ class SandboxHeal:
         try:
             result = await fn()
         except Exception as exc:
-            if not is_retryable_sandbox_error(exc):
+            if not _can_retry_operation(op, exc):
                 raise
             logger.warning(
                 "sandbox op %s hit sandbox-level error (%s); waking sandbox %s and retrying once",

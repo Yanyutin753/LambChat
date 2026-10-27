@@ -105,3 +105,34 @@ def test_wake_failure_still_retries_once() -> None:
 
     assert heal.run("op", flaky) == "healed"
     assert calls["n"] == 2
+
+
+@pytest.mark.parametrize("operation", ["commands.run", "files.write"])
+def test_mutation_with_unknown_remote_outcome_is_not_replayed(operation):
+    calls = []
+
+    def mutation():
+        calls.append("side effect")
+        raise ConnectionError("connection reset after remote write")
+
+    heal = SandboxHeal(wake=lambda: None, sandbox_id="sandbox")
+    with pytest.raises(ConnectionError):
+        heal.run(operation, mutation)
+    assert calls == ["side effect"]
+
+
+@pytest.mark.parametrize("operation", ["commands.run", "files.write"])
+async def test_async_mutation_with_unknown_remote_outcome_is_not_replayed(operation):
+    calls = []
+
+    async def mutation():
+        calls.append("side effect")
+        raise ConnectionError("connection reset after remote write")
+
+    async def wake():
+        pass
+
+    heal = SandboxHeal(wake=lambda: None, sandbox_id="sandbox")
+    with pytest.raises(ConnectionError):
+        await heal.arun(operation, mutation, wake)
+    assert calls == ["side effect"]

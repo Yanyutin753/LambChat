@@ -49,7 +49,7 @@ const SEGMENT_STYLE: Record<
   },
 };
 
-/** 页头的当日用量入口：金额 chip + 点击弹出用量卡（Token 构成 / 缓存命中 / 详情入口）。 */
+/** 输入框设置旁的当日用量入口：金额 chip + 点击弹出用量卡（Token 构成 / 缓存命中 / 详情入口）。 */
 export function ComposerUsageChip({
   embedded = false,
 }: {

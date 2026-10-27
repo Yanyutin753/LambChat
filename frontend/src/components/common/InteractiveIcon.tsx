@@ -405,7 +405,7 @@ function AnimatedActionIcon({
     const control = host.current?.closest(
       "button, a, [role^='menuitem'], [role='button'], [role='tab'], [role='option'], [role='checkbox'], [role='radio']",
     );
-    if (!control) return;
+    if (!control || control.closest("[data-static-icons]")) return;
     const start = () => {
       if (
         control.matches(":disabled, [aria-disabled='true']") ||

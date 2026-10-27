@@ -84,6 +84,35 @@ test("keyboard focus opens the preview and active sessions have no unread count"
   expect(screen.queryByLabelText("sidebar.unreadMessages")).toBeNull();
 });
 
+test.each([undefined, "favorites"])(
+  "project conversations show their own project even in %s",
+  (currentProjectId) => {
+    render(
+      <SessionItem
+        {...props}
+        currentProjectId={currentProjectId}
+        session={{ ...session, metadata: { project_id: "project-1" } }}
+        projects={[
+          {
+            id: "project-1",
+            name: "展示",
+            user_id: "user",
+            type: "custom",
+            sort_order: 0,
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+          },
+        ]}
+      />,
+    );
+    fireEvent.keyDown(document, { key: "Tab" });
+    fireEvent.focus(screen.getByRole("button", { name: session.name }));
+    const preview = screen.getByRole("tooltip");
+    expect(within(preview).getByText("展示")).toBeVisible();
+    expect(within(preview).queryByText("nav.chat")).toBeNull();
+  },
+);
+
 test("touch drag and selection mode suppress the preview", () => {
   vi.useFakeTimers();
   const view = render(<SessionItem {...props} />);

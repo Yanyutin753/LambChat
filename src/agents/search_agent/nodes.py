@@ -830,6 +830,7 @@ async def _create_backend_and_prompt(
         local_backend = WorkspaceAliasBackend(
             user_id=user_id,
             session_id=f".selected/{workspace_id}" if workspace_id else session_id,
+            conversation_id=session_id,
             machine_id=(agent_options or {}).get("sandbox_machine_id") or None,
         )
         # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；

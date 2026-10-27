@@ -1,6 +1,6 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface ToolbarChipProps {
@@ -12,6 +12,7 @@ interface ToolbarChipProps {
   iconBadge?: ReactNode;
   /** 追加到标签上的类名（如手机端隐藏文字：hidden sm:inline）。 */
   labelClassName?: string;
+  expanded?: boolean;
   onClick: () => void;
   onClear?: () => void;
 }
@@ -22,6 +23,7 @@ export function ToolbarChip({
   title,
   iconBadge,
   labelClassName,
+  expanded,
   onClick,
   onClear,
 }: ToolbarChipProps) {
@@ -49,6 +51,7 @@ export function ToolbarChip({
         className="chat-tool-btn shrink min-w-0 overflow-hidden"
         onClick={onClick}
         aria-label={title ?? label}
+        aria-expanded={expanded}
         title={title ?? label}
       >
         <div className="flex flex-row items-center gap-2 min-w-0">
@@ -76,6 +79,12 @@ export function ToolbarChip({
           >
             {label}
           </span>
+          {expanded !== undefined &&
+            (expanded ? (
+              <ChevronUp size={14} className="shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronDown size={14} className="shrink-0" aria-hidden="true" />
+            ))}
         </div>
       </button>
       {onClear && (

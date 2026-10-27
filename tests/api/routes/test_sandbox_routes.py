@@ -1275,6 +1275,8 @@ async def test_stream_upload_seam_single_get_for_whole_file(monkeypatch, tmp_pat
                             error = json.loads(payload).get("error")
                         elif ftype == FRAME_EOF:
                             buffer = b""
+            if not error:
+                writer.commit()
             writer.close()
             if error:
                 await client.post(

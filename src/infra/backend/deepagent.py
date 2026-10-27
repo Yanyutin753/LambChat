@@ -321,6 +321,11 @@ def create_sandbox_backend(
 ) -> CompositeBackend:
     """创建基于沙箱的具体 Backend。"""
     evidence_session = session_id or getattr(sandbox_backend, "_session_id", None) or assistant_id
+    from src.infra.backend.guarded_sandbox import guard_cloud_backend
+
+    sandbox_backend = guard_cloud_backend(
+        sandbox_backend, user_id=user_id or "default", session_id=evidence_session
+    )
     routes = _create_routes(user_id or "default", evidence_session)
 
     backend = AuthorizedCompositeBackend(

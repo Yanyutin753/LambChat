@@ -163,7 +163,7 @@ export function useWorkspaceOptionActions(
   const selectProject = useCallback(
     (id: string | null, workspace?: Project["workspace"]) => {
       setProject(id);
-      if (workspace) {
+      if (!sessionId && workspace) {
         const values = {
           sandbox: "local",
           sandbox_machine_id: workspace.machineId,
@@ -183,7 +183,7 @@ export function useWorkspaceOptionActions(
         }
       }
     },
-    [setProject, change, agentContext],
+    [sessionId, setProject, change, agentContext],
   );
   return { changeOption, selectProject };
 }

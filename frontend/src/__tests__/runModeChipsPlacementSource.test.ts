@@ -84,14 +84,12 @@ test("身份 chip 自适应截断：空间足够完整显示，不足才出省�
   expect(chip).toMatch(/min-w-0 truncate text-14/);
 });
 
-test("右簇沙箱 chip 手机端显示图标和状态角标，隐藏档位文字", () => {
-  const toolbar = readRepoFile("src/components/chat/ChatInputToolbar.tsx");
+test("工作区条保留沙箱名称和状态角标", () => {
+  const toolbar = readRepoFile("src/components/chat/ComposerSandboxChip.tsx");
   // 手机端保留档位图标和 daemon 状态角标。
+  expect(toolbar).toMatch(/labelClassName="composer-sandbox-label"/);
   expect(toolbar).toMatch(
-    /labelClassName="composer-sandbox-label hidden sm:inline max-w-40"/,
-  );
-  expect(toolbar).toMatch(
-    /absolute -top-0\.5 -right-0\.5 block h-\[5px\] w-\[5px\] rounded-full ring-2/,
+    /absolute -bottom-0\.5 -right-0\.5 block size-1\.5 rounded-full ring-2/,
   );
 });
 
@@ -114,10 +112,10 @@ test("沙箱 chip 归入右簇，不混入左侧身份 chip 行", () => {
     "flex shrink-0 items-center gap-2.5 self-center",
   );
   const sandboxIdx = toolbar.indexOf("data-sandbox-status-dot");
-  // 沙箱保留在右簇，用量入口已移到页头。
+  // 沙箱移到工作区条，用量入口紧邻输入框设置。
   expect(clusterIdx).toBeGreaterThan(-1);
-  expect(sandboxIdx).toBeGreaterThan(clusterIdx);
-  expect(toolbar).not.toContain("ComposerUsageChip");
+  expect(sandboxIdx).toBe(-1);
+  expect(toolbar.indexOf("<ComposerUsageChip")).toBeGreaterThan(clusterIdx);
 });
 
 test("运行模式 chip 与相邻内容保留呼吸间距", () => {

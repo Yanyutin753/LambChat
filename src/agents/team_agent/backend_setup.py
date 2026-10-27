@@ -67,6 +67,7 @@ async def load_backend_bundle(
                 else state.get("session_id") or context.session_id
             ),
             machine_id=agent_options.get("sandbox_machine_id") or None,
+            conversation_id=state.get("session_id") or context.session_id,
         )
         await sync_sandbox_env_vars(loaded_sandbox_backend, context.user_id)
         apply_sandbox_env_overrides(loaded_sandbox_backend, env_overrides)

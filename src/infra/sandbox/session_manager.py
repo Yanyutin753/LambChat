@@ -12,6 +12,7 @@ _cubesandbox_helpers 模块中，通过 mixin 组合到本类。
 """
 
 import asyncio
+import hashlib
 import re
 import shlex
 import threading
@@ -73,8 +74,7 @@ class SandboxPeekError(Exception):
     reason:
     - ``not_created``：该用户从未创建过云端沙箱（无绑定）——浏览不应触发
       新建（烧钱且展示空工作区会误导「文件丢了」）。
-    - ``recycled``：绑定的沙箱已被平台回收，文件未保留——由调用方转成
-      用户可读的引导（发送消息将自动重建）。
+    - ``recycled``：绑定的沙箱不可用；保留绑定供恢复，禁止自动换成空工作区。
     """
 
     def __init__(self, reason: Literal["not_created", "recycled"]):
@@ -239,7 +239,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         platform = self._binding_platform()
         if platform not in ("e2b", "daytona", "cubesandbox"):
             return {"platform": platform, "state": "disabled"}
-        binding = await self._get_binding(user_id)
+        binding = await self._get_binding(user_id) or {}
         state = (binding or {}).get("sandbox_state") if binding else None
         return {"platform": platform, "state": state or "not_created"}
 
@@ -254,6 +254,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         if platform_binding:
             scoped_doc = dict(doc)
             scoped_doc.update(platform_binding)
+            scoped_doc["sandbox_work_dir"] = platform_binding.get("sandbox_work_dir")
             scoped_doc["sandbox_platform"] = platform
             return scoped_doc
 
@@ -282,6 +283,12 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     def _session_work_dir(self, base_work_dir: str, session_id: str) -> str:
         """Return a stable, shell-safe workspace directory for a session."""
         safe_session_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", session_id).strip(".-")
+        if base_work_dir.rstrip("/") == "/workspace" and (
+            safe_session_id != session_id
+            or len(session_id) > 80
+            or session_id.startswith("encoded-")
+        ):
+            safe_session_id = "encoded-" + hashlib.sha256(session_id.encode()).hexdigest()
         if not safe_session_id:
             safe_session_id = "session"
         return f"{base_work_dir.rstrip('/')}/sessions/{safe_session_id[:80]}"
@@ -374,14 +381,112 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
 
     # ── Binding persistence ─────────────────────────────────────────
 
+    def _provision_cloud_storage(self, user_id: str, existing: dict | None) -> dict:
+        """Use provider volumes, never replace a registered missing volume."""
+        platform = self._binding_platform()
+        if platform == "e2b":
+            raise RuntimeError("E2B beta volumes do not support reliable workspace file locking")
+        name = (
+            "lambchat-"
+            + hashlib.sha256(f"{settings.MONGODB_DB}:{user_id}".encode()).hexdigest()[:40]
+        )
+        volume: Any
+        if platform == "daytona":
+            volume = self._get_daytona_client().volume.get(
+                existing["name"] if existing else name, create=existing is None
+            )
+            volume_id = volume.id
+            if existing and volume_id != existing["volume_id"]:
+                raise RuntimeError("The workspace volume identity has changed")
+        else:
+            from cubesandbox import Volume
+
+            assert self._cube_adapter is not None
+            self._cube_adapter._sync_from_settings()
+            opts: dict[str, Any] = {"config": self._cube_adapter._get_config()}
+            volume_class: Any = Volume
+            if existing:
+                volume = volume_class.connect(existing["volume_id"], **opts)
+            else:
+                matches = [item for item in volume_class.list(**opts) if item.name == name]
+                if len(matches) > 1:
+                    raise RuntimeError("Multiple volumes match this workspace; recovery required")
+                volume = (
+                    volume_class.connect(matches[0].volume_id, **opts)
+                    if matches
+                    else volume_class.create(name, **opts)
+                )
+            volume_id = volume.volume_id
+            if existing and (volume_id != existing["volume_id"] or volume.name != existing["name"]):
+                raise RuntimeError("The workspace volume identity has changed")
+        return existing or {"volume_id": volume_id, "name": name, "mount_path": "/workspace"}
+
+    async def _prepare_cloud_storage(self, user_id: str) -> dict | None:
+        """Persist storage independently before creating its replaceable runtime."""
+        platform = self._binding_platform()
+        doc = await self._bindings.find_one({"user_id": user_id}) or {}
+        existing = (doc.get("cloud_storage") or {}).get(platform)
+        binding = (doc.get("sandboxes") or {}).get(platform)
+        if binding is None and doc.get("sandbox_platform") in (None, platform):
+            binding = doc
+        if not existing and (binding or {}).get("sandbox_id"):
+            raise RuntimeError("Cannot mount a new volume over an existing workspace")
+        enabled = {item.strip() for item in settings.SANDBOX_PERSISTENT_VOLUME_PLATFORMS.split(",")}
+        if not existing and platform not in enabled:
+            return None
+        # Binding CAS and storage registration require a confirmed unique owner index.
+        await self._bindings.create_index(
+            "user_id", unique=True, name="user_id_unique_idx", background=True
+        )
+        storage = await run_long_blocking_io(self._provision_cloud_storage, user_id, existing)
+        if not existing:
+            # A competing creator may win; never overwrite its storage descriptor.
+            from pymongo.errors import DuplicateKeyError
+
+            try:
+                await self._bindings.update_one(
+                    {"user_id": user_id, f"cloud_storage.{platform}": {"$exists": False}},
+                    {"$set": {f"cloud_storage.{platform}": storage}},
+                    upsert=True,
+                )
+            except DuplicateKeyError:
+                winner = await self._bindings.find_one({"user_id": user_id}) or {}
+                winner_storage = (winner.get("cloud_storage") or {}).get(platform)
+                if not winner_storage:
+                    raise
+                return await run_long_blocking_io(
+                    self._provision_cloud_storage, user_id, winner_storage
+                )
+        return storage
+
+    async def _verify_cloud_storage(self, backend: CompositeBackend, storage: dict | None) -> None:
+        if storage is None:
+            return
+        result = await cast(SandboxBackendProtocol, backend.default).aexecute(
+            "mountpoint -q -- " + shlex.quote(storage["mount_path"])
+        )
+        if getattr(result, "exit_code", None) != 0:
+            raise RuntimeError("Persistent workspace mount could not be verified")
+
+    async def _cloud_work_dir(self, user_id: str, fallback: str, backend: CompositeBackend) -> str:
+        binding = await self._get_binding(user_id) or {}
+        root = binding.get("sandbox_work_dir")
+        if root:
+            storage = (binding.get("cloud_storage") or {}).get(self._binding_platform())
+            if not storage or root != storage["mount_path"]:
+                raise RuntimeError("Workspace storage identity is unavailable")
+            await self._verify_cloud_storage(backend, storage)
+        return root or fallback
+
     async def _save_binding(
         self,
         user_id: str,
         sandbox_id: str,
         state: str,
         is_new: bool = False,
+        previous_sandbox_id: str | None = None,
     ) -> None:
-        """保存/更新用户的沙箱绑定"""
+        """保存/更新用户的沙箱绑定，保留恢复来源并拒绝覆盖并发绑定。"""
         now = utc_now_iso()
         platform = self._binding_platform()
         update = {
@@ -398,6 +503,11 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         }
         # 仅在首次创建时设置 sandbox_created_at
         if is_new:
+            doc = await self._bindings.find_one({"user_id": user_id}) or {}
+            storage = (doc.get("cloud_storage") or {}).get(platform)
+            if storage:
+                update["$set"]["sandbox_work_dir"] = storage["mount_path"]
+                update["$set"][f"sandboxes.{platform}.sandbox_work_dir"] = storage["mount_path"]
             update["$set"]["sandbox_created_at"] = now
             update["$set"][f"sandboxes.{platform}.sandbox_created_at"] = now
         else:
@@ -406,11 +516,27 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                 f"sandboxes.{platform}.sandbox_created_at": now,
             }
 
-        await self._bindings.update_one(
-            {"user_id": user_id},
-            update,
-            upsert=True,
-        )
+        doc = await self._bindings.find_one({"user_id": user_id}) or {}
+        scoped = (doc.get("sandboxes") or {}).get(platform) or {}
+        current_id = scoped.get("sandbox_id")
+        if not current_id and doc.get("sandbox_platform") in (None, platform):
+            current_id = doc.get("sandbox_id")
+        if current_id and current_id not in (sandbox_id, previous_sandbox_id):
+            raise RuntimeError("Workspace binding changed; refusing to replace it")
+        query: dict[str, Any] = {"user_id": user_id}
+        if scoped.get("sandbox_id"):
+            query[f"sandboxes.{platform}.sandbox_id"] = current_id
+        else:
+            query[f"sandboxes.{platform}.sandbox_id"] = {"$exists": False}
+            if current_id:
+                query["sandbox_id"] = current_id
+        if previous_sandbox_id:
+            update["$addToSet"] = {
+                f"sandboxes.{platform}.previous_sandbox_ids": previous_sandbox_id
+            }
+        result = await self._bindings.update_one(query, update, upsert=not bool(doc))
+        if result is not None and not result.matched_count and not result.upserted_id:
+            raise RuntimeError("Workspace binding changed during recovery")
 
     # ── Public API ──────────────────────────────────────────────────
 
@@ -434,7 +560,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
         2. 检查 MongoDB 中的 user_sandbox_bindings
         3. 如果存在，查询 Daytona 状态
         4. Stopped/Archived → start() 恢复
-        5. 不存在或恢复失败 → 创建新沙箱，覆盖绑定
+        5. 仅首次使用创建沙箱；旧绑定恢复失败时保留原绑定并报错
 
         Args:
             session_id: 当前会话 ID（仅用于日志追踪，不影响沙箱绑定）
@@ -472,6 +598,9 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                 )
                 try:
                     base_work_dir = await self._get_work_dir(sandbox_id)
+                    base_work_dir = await self._cloud_work_dir(
+                        user_id, base_work_dir, self._cache[user_id][1]
+                    )
                     work_dir = self._session_work_dir(base_work_dir, session_id)
                     scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                     await self._ensure_work_dir(scoped_backend, work_dir)
@@ -481,12 +610,12 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                 except Exception as e:
                     logger.warning(
                         f"[SessionSandboxManager] Failed to get work_dir from cached sandbox {sandbox_id}: {e}. "
-                        "Creating new sandbox."
+                        "Preserving the existing workspace binding."
                     )
                     del self._cache[user_id]
 
             # 2. 从 MongoDB 获取绑定
-            binding = await self._get_binding(user_id)
+            binding = await self._get_binding(user_id) or {}
             metadata_sandbox_id: str | None = binding.get("sandbox_id") if binding else None
 
             if metadata_sandbox_id:
@@ -513,6 +642,9 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
                         base_work_dir = await self._get_work_dir(sandbox_id)
+                        base_work_dir = await self._cloud_work_dir(
+                            user_id, base_work_dir, self._cache[user_id][1]
+                        )
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
@@ -521,7 +653,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                     except Exception as e:
                         logger.warning(
                             f"[SessionSandboxManager] Failed to resume sandbox {sandbox_id}: {e}. "
-                            "Creating new sandbox."
+                            "Preserving the existing workspace binding."
                         )
                         if user_id in self._cache:
                             del self._cache[user_id]
@@ -533,6 +665,9 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
                         base_work_dir = await self._get_work_dir(sandbox_id)
+                        base_work_dir = await self._cloud_work_dir(
+                            user_id, base_work_dir, self._cache[user_id][1]
+                        )
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
@@ -541,7 +676,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                     except Exception as e:
                         logger.warning(
                             f"[SessionSandboxManager] Failed to get work_dir from sandbox {sandbox_id}: {e}. "
-                            "Creating new sandbox."
+                            "Preserving the existing workspace binding."
                         )
                         if user_id in self._cache:
                             del self._cache[user_id]
@@ -553,8 +688,20 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
 
             # 5. 创建新沙箱并绑定（浏览路径只连不建：无绑定=未创建，
             #    有绑定但落到这里=沙箱不可用/被回收）
+            if metadata_sandbox_id:
+                storage = (binding.get("cloud_storage") or {}).get(self._binding_platform())
+                if (
+                    create
+                    and state in {"destroyed", "deleted"}
+                    and storage
+                    and binding.get("sandbox_work_dir") == storage["mount_path"]
+                ):
+                    return await self._create_and_bind(
+                        session_id, user_id, previous_sandbox_id=metadata_sandbox_id
+                    )
+                raise SandboxPeekError("recycled")
             if not create:
-                raise SandboxPeekError("recycled" if metadata_sandbox_id else "not_created")
+                raise SandboxPeekError("not_created")
             return await self._create_and_bind(session_id, user_id)
 
     async def stop(self, user_id: str) -> bool:
@@ -590,7 +737,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
             if user_id in self._cache:
                 sandbox_id, _, _ = self._cache[user_id]
             else:
-                binding = await self._get_binding(user_id)
+                binding = await self._get_binding(user_id) or {}
                 sandbox_id = binding.get("sandbox_id") if binding else None
 
             if not sandbox_id:

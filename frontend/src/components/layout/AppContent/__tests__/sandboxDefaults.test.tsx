@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { useWorkspaceOptionActions } from "../sessionToggleCallbacks";
 import type { AgentInfo } from "../../../../types";
 import * as workspaceApi from "../../../../services/api/sessionWorkspace";
+import { API_BASE } from "../../../../services/api/config";
 import {
   useAgentOptions,
   SANDBOX_ONLINE_CHANGED_EVENT,
@@ -27,6 +28,130 @@ const onlineStatus = {
     online: true,
   })),
 };
+
+const remembered = {
+  id: `local-${"a".repeat(32)}`,
+  machineId: "this-mac",
+  path: "/last-directory",
+};
+function seedWorkspace() {
+  localStorage.setItem(
+    `localWorkspace:${JSON.stringify([API_BASE, "user", "this-mac"])}`,
+    JSON.stringify(remembered),
+  );
+}
+
+test("new conversations restore the last local directory after remount and reset", () => {
+  seedWorkspace();
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "search", onlineStatus, "user"),
+  );
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    JSON.stringify(remembered),
+  );
+  act(() =>
+    result.current.restoreAgentOptions({
+      sandbox: "local",
+      sandbox_machine_id: "this-mac",
+      sandbox_workspace: "old-session",
+    }),
+  );
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    "old-session",
+  );
+  act(() => result.current.resetAgentOptionDefaults());
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    JSON.stringify(remembered),
+  );
+});
+
+test("late native identity restores the directory only for an untouched new draft", () => {
+  seedWorkspace();
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ machineId }) =>
+      useAgentOptions(
+        agents,
+        "search",
+        { ...onlineStatus, currentMachineId: machineId },
+        "user",
+      ),
+    { initialProps: { machineId: null as string | null } },
+  );
+  rerender({ machineId: "this-mac" });
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    JSON.stringify(remembered),
+  );
+});
+
+test("project binding overrides the remembered directory without replacing the preference", () => {
+  seedWorkspace();
+  const agents = [
+    { id: "search", options: {}, supports_sandbox: true },
+  ] as AgentInfo[];
+  const project = {
+    ...remembered,
+    id: `local-${"b".repeat(32)}`,
+    path: "/project",
+  };
+  const { result } = renderHook(() => {
+    const options = useAgentOptions(agents, "search", onlineStatus, "user");
+    const actions = useWorkspaceOptionActions(
+      null,
+      options.handleToggleAgentOption,
+      vi.fn(),
+    );
+    return { ...options, ...actions };
+  });
+  act(() => result.current.selectProject("project", project));
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    JSON.stringify(project),
+  );
+  act(() => result.current.resetAgentOptionDefaults());
+  expect(result.current.agentOptionValues.sandbox_workspace).toBe(
+    JSON.stringify(remembered),
+  );
+});
+
+test("remembered directories stay scoped to account and server", () => {
+  seedWorkspace();
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ user }) => useAgentOptions(agents, "search", onlineStatus, user),
+    { initialProps: { user: "other-user" } },
+  );
+  expect(result.current.agentOptionValues.sandbox_workspace).toBeUndefined();
+  localStorage.setItem("lambchat_server_url", "https://other.example.com");
+  rerender({ user: "user" });
+  act(() => result.current.resetAgentOptionDefaults());
+  expect(result.current.agentOptionValues.sandbox_workspace).toBeUndefined();
+});
+
+test.each([
+  "not-json",
+  JSON.stringify({ ...remembered, machineId: "other-machine" }),
+])("invalid or foreign-machine preference %s is ignored", (value) => {
+  localStorage.setItem(
+    `localWorkspace:${JSON.stringify([API_BASE, "user", "this-mac"])}`,
+    value,
+  );
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "search", onlineStatus, "user"),
+  );
+  expect(result.current.agentOptionValues.sandbox_workspace).toBeUndefined();
+});
+
+test("a cloud preference never adopts the remembered local directory", () => {
+  seedWorkspace();
+  localStorage.setItem("defaultSandboxMode", "cloud");
+  const agents = [{ id: "search", options: {} }] as AgentInfo[];
+  const { result } = renderHook(() =>
+    useAgentOptions(agents, "search", onlineStatus, "user"),
+  );
+  expect(result.current.agentOptionValues).toEqual({ sandbox: "cloud" });
+});
 
 test("new local conversations pin the client computer instead of the account default", () => {
   const agents = [{ id: "fast", options: {} }] as AgentInfo[];
@@ -297,4 +422,21 @@ test("bound project drafts select a sandbox-capable agent and restore the bindin
     sandbox_machine_id: "mac",
     sandbox_workspace: JSON.stringify(workspace),
   });
+});
+
+test("changing an existing chat project never changes its workspace", () => {
+  const change = vi.fn();
+  const setProject = vi.fn();
+  const { result } = renderHook(() =>
+    useWorkspaceOptionActions("existing", change, setProject),
+  );
+  act(() =>
+    result.current.selectProject("project", {
+      id: `local-${"a".repeat(32)}`,
+      machineId: "m1",
+      path: "/project",
+    }),
+  );
+  expect(setProject).toHaveBeenCalledWith("project");
+  expect(change).not.toHaveBeenCalled();
 });

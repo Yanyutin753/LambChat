@@ -9,6 +9,18 @@ vi.mock("react-i18next", () => ({
 }));
 afterEach(cleanup);
 
+test("panel chips expose their expanded state and update the disclosure arrow", () => {
+  const { rerender } = render(
+    <ToolbarChip label="Local computer" expanded={false} onClick={() => {}} />,
+  );
+  const button = screen.getByRole("button", { name: "Local computer" });
+  expect(button).toHaveAttribute("aria-expanded", "false");
+  expect(button.querySelector(".lucide-chevron-down")).not.toBeNull();
+  rerender(<ToolbarChip label="Local computer" expanded onClick={() => {}} />);
+  expect(button).toHaveAttribute("aria-expanded", "true");
+  expect(button.querySelector(".lucide-chevron-up")).not.toBeNull();
+});
+
 test("clearing an identity is a separate named button and does not open its selector", async () => {
   const open = vi.fn(),
     clear = vi.fn();

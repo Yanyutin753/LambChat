@@ -20,6 +20,7 @@ import type {
 export interface ChatInputProps {
   /** Account/server/conversation-scoped storage key. Remount when it changes. */
   draftKey?: string;
+  sessionId?: string | null;
   onSend: (
     message: string,
     options?: Record<string, boolean | string | number>,

@@ -284,7 +284,7 @@ export function ChatAppContent({
     handleToggleAgentOption,
     restoreAgentOptions,
     resetAgentOptionDefaults,
-  } = useAgentOptions(agents, currentAgent, sandboxStatus);
+  } = useAgentOptions(agents, currentAgent, sandboxStatus, user?.id);
 
   const { changeOption, selectProject } = useWorkspaceOptionActions(
     sessionId,
