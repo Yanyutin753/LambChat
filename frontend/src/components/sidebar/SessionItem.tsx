@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   Check,
+  Folder,
   MessageCircle,
   MoreHorizontal,
 } from "lucide-react";
@@ -73,6 +74,11 @@ function SessionItemComponent({
   onToggleSelected,
 }: SessionItemProps) {
   const { t } = useTranslation();
+  const project = projects.find(
+    (item) =>
+      item.type !== "favorites" &&
+      item.id === (session.metadata?.project_id ?? currentProjectId),
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -386,8 +392,22 @@ function SessionItemComponent({
                     )}
                   </span>
                   <span className="flex items-center gap-1.5 text-theme-text-secondary">
-                    <MessageCircle size={14} aria-hidden="true" />
-                    <span>{t("nav.chat")}</span>
+                    {project ? (
+                      <Folder
+                        size={14}
+                        className="shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <MessageCircle
+                        size={14}
+                        className="shrink-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="min-w-0 truncate">
+                      {project?.name || t("nav.chat")}
+                    </span>
                     {(taskStatusLabel || isWaitingForHuman) && (
                       <span className="ml-auto text-11">
                         {taskStatusLabel || attentionLabel}

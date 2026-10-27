@@ -92,7 +92,23 @@
 }
 
 .chat-input-toolbar {
-  padding-block: var(--composer-vertical-inset);
+  /* Account for the controls' inner padding when balancing visible whitespace. */
+  padding-block: var(--composer-vertical-inset)
+    calc(var(--composer-vertical-inset) - 0.5rem);
+}
+
+.chat-input-toolbar
+  :is(
+    .composer-toolbar-label,
+    .composer-run-mode-label,
+    .composer-usage-amount
+  ) {
+  font-family: var(--chat-font-family);
+  font-weight: 500;
+  top: 0;
+}
+.chat-input-toolbar .composer-toolbar-label {
+  color: var(--theme-text-secondary);
 }
 
 .chat-message-scroller {
@@ -185,14 +201,61 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   border-color: var(--theme-border-hover);
 }
 
-/* The directory is a normal header row inside the composer, sharing its
-   outer radius. Insets keep controls clear of the corner arc and focus ring;
-   no clipping/absolute positioning, so attachments and popovers stay usable. */
-.chat-input-container > .session-workspace-bar {
-  margin-inline: 0.75rem;
-  padding-block: 0.375rem;
-  padding-inline: 0.25rem;
-  border-bottom: 1px solid var(--theme-border);
+/* A recessed context strip sits behind the wider, elevated writing surface. */
+.composer-workspace-strip {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  gap: 0.5rem;
+  white-space: nowrap;
+  margin: 0 0.75rem -0.75rem;
+  padding: 0.375rem 0.5rem 1.125rem 0.25rem;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--theme-bg-subtle);
+}
+.composer-workspace-strip:empty {
+  display: none;
+}
+.composer-workspace-strip > * {
+  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 20rem;
+}
+.composer-workspace-strip .session-workspace-bar {
+  max-width: 24rem;
+}
+.composer-workspace-strip :is(.chat-tool-btn, .session-workspace-bar > button) {
+  min-height: 2.25rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-md);
+}
+/* Keep this compact context row quiet; focus-visible outlines remain intact. */
+html .composer-workspace-strip button:hover {
+  background: transparent !important;
+  color: var(--theme-text-secondary);
+  box-shadow: none;
+  transform: none;
+}
+.composer-workspace-strip .ui-select-trigger__label,
+.composer-workspace-strip .ui-select-trigger__placeholder,
+.composer-workspace-strip .composer-toolbar-label,
+.composer-workspace-strip .session-workspace-bar,
+.composer-workspace-strip .session-workspace-bar > button,
+.composer-environment-menu .ui-select-option {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--theme-text-secondary);
+}
+.composer-environment-menu,
+.composer-environment-panel .ui-select-trigger {
+  @apply font-sans;
+}
+.composer-workspace-strip .composer-toolbar-label {
+  max-width: 100%;
+  visibility: visible;
 }
 
 .chat-input-container:focus-within {
@@ -1499,6 +1562,32 @@ html[data-mobile-keyboard="true"]
   }
 }
 
+/* Align the folder, writing edge and add icon without moving either shell. */
+.composer-workspace-shell .chat-input-container:not([data-composer-expanded]) {
+  padding-left: 0;
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  .chat-composer-editor-wrap {
+  padding-left: calc(1.5rem - 1px);
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+  padding-left: 0;
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  .rich-chat-composer__placeholder {
+  left: 0;
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  .chat-input-toolbar {
+  margin-left: 0;
+  padding-left: calc(1.5rem - 1px - var(--composer-control-inset, 0.625rem));
+}
+
 /* Each message part owns its content; the shared stack owns the space between parts. */
 .chat-process-detail,
 .chat-message-answer {
@@ -1636,25 +1725,44 @@ html[data-mobile-keyboard="true"]
 }
 
 .ui-button.usage-quota-reset {
-  min-height: 1.25rem;
-  padding: 0 0.375rem;
+  position: relative;
+  isolation: isolate;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 0;
   border-radius: var(--radius-sm);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.125rem;
   color: var(--color-text-green);
+}
+.ui-button.usage-quota-reset,
+.ui-button.usage-quota-reset:hover {
+  background: transparent;
+}
+.ui-button.usage-quota-reset::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
   background: color-mix(
     in srgb,
     var(--color-background-green) 65%,
     transparent
   );
 }
-.ui-button.usage-quota-reset:hover {
+.ui-button.usage-quota-reset:not(:disabled):hover::before {
   background: var(--color-background-green);
 }
 @media (pointer: coarse) {
   .ui-button.usage-quota-reset {
     min-height: 2.75rem;
     min-width: 2.75rem;
+  }
+  /* Keep the touch target generous without stretching the visible button. */
+  .ui-button.usage-quota-reset::before {
+    inset-block: 0.5rem;
   }
 }
 
@@ -1694,6 +1802,30 @@ html[data-mobile-keyboard="true"]
 @media (max-width: 639px), (pointer: coarse) {
   .chat-tool-category .chat-tool-call-group__toggle,
   .chat-tool-call-group__rows .pill-btn {
+    min-height: 2.75rem;
+  }
+}
+
+/* Keep the context band separate; reveal long details in its menus. */
+.composer-workspace-shell {
+  container-type: inline-size;
+  container-name: workspace;
+}
+.composer-environment-panel button {
+  transition: none;
+}
+html .composer-environment-panel button:hover {
+  background: transparent !important;
+  box-shadow: none;
+  transform: none;
+}
+@container workspace (max-width: 40rem) {
+  .composer-workspace-strip {
+    gap: 0.5rem;
+    margin-inline: 0.5rem;
+    padding-left: 0.5rem;
+  }
+  .composer-workspace-strip :is(.chat-tool-btn, .ui-select-trigger) {
     min-height: 2.75rem;
   }
 }

@@ -260,6 +260,8 @@ class Settings(BaseSettings):
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "daytona"
+    # Opt in only after verifying the provider's mounted filesystem semantics.
+    SANDBOX_PERSISTENT_VOLUME_PLATFORMS: str = ""
     # 对话轮终态后无进行中对话需要沙箱时自动暂停云端沙箱（e2b/cubesandbox）
     SANDBOX_PAUSE_WHEN_IDLE: bool = True
     SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）

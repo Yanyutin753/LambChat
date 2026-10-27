@@ -3,6 +3,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
+vi.mock("../ComposerUsageChip", () => ({
+  ComposerUsageChip: () => null,
+}));
+
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));
@@ -22,12 +26,17 @@ vi.mock("../ChatInputSelectors", () => ({
 }));
 
 vi.mock("../SessionWorkspaceBar", () => ({
-  SessionWorkspaceBar: () => (
-    <div data-testid="workspace-header">Project directory</div>
-  ),
+  SessionWorkspaceBar: ({ host }: { host: HTMLElement | null }) =>
+    host
+      ? createPortal(
+          <div data-testid="workspace-header">Project directory</div>,
+          host,
+        )
+      : null,
 }));
 
 import { ChatInput } from "../ChatInput";
+import { createPortal } from "react-dom";
 import { ModalSurface } from "../../common/ModalSurface";
 
 beforeEach(() => {
@@ -58,7 +67,7 @@ test.each([{ isComposing: true }, { keyCode: 229 }])(
   },
 );
 
-test("directory header shares the composer boundary and follows expand and collapse", async () => {
+test("workspace strip sits above the composer and follows expand and collapse", async () => {
   render(
     <ChatInput
       onSend={vi.fn()}
@@ -66,6 +75,7 @@ test("directory header shares the composer boundary and follows expand and colla
       isLoading={false}
       pendingInput={longDraft}
       currentAgent="search"
+      agentOptionValues={{ sandbox: "local" }}
       agents={[
         {
           id: "search",
@@ -80,7 +90,10 @@ test("directory header shares the composer boundary and follows expand and colla
   const editor = await screen.findByRole("textbox");
   const header = screen.getByTestId("workspace-header");
   const container = editor.closest(".chat-input-container");
-  expect(header.parentElement).toBe(container);
+  expect(header.closest(".chat-input-container")).toBeNull();
+  expect(header.closest(".composer-workspace-shell")).toContainElement(
+    container,
+  );
   expect(
     header.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
@@ -89,8 +102,11 @@ test("directory header shares the composer boundary and follows expand and colla
       screen.getByRole("button", { name: /^(Expand editor|展开编辑)$/i }),
     );
   });
-  expect(header.parentElement).toBe(container);
-  expect(header.closest(".chat-input-shell")).toBeNull();
+  expect(header.closest(".chat-input-container")).toBeNull();
+  expect(header.closest(".composer-workspace-shell")).toContainElement(
+    container,
+  );
+  expect(header.closest(".composer-workspace-shell")).not.toBeNull();
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: /(collapse|收起)/i }));
   });

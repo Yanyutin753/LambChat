@@ -1,5 +1,8 @@
 {
   "sessionWorkspace": {
+    "location": "文件位置",
+    "previous": "之前使用的目录",
+    "chooseHint": "选择本地工作目录，文件操作和命令将直接在此目录中执行。",
     "independent": "会话独立目录",
     "independentHint": "每个新对话使用独立文件目录。需要跨对话继续处理同一批文件时，可在项目菜单中绑定本地目录。",
     "loading": "正在选择目录…",
@@ -542,7 +545,7 @@
     "roleNotFound": "角色不存在",
     "sandboxSessionNotLocal": "此会话运行在云端沙箱；浏览工作区文件需要本地沙箱会话",
     "sandboxCloudNotCreated": "云端电脑尚未创建；在云端会话中发送消息后会自动创建",
-    "sandboxCloudRecycled": "云端电脑已被回收，文件未保留；发送消息将自动重建",
+    "sandboxCloudRecycled": "原云端工作区暂不可用，原位置已保留；恢复后可继续使用。",
     "sessionAccessDenied": "无权访问此会话",
     "sessionNotFound": "会话不存在",
     "settingNotFound": "设置不存在",

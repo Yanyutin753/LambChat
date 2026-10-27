@@ -1,8 +1,13 @@
 """Workspace edits share chat admission's lease and validate the complete binding."""
 
+from fastapi import Depends
+
+from src.api.deps import require_permissions
 from src.infra.backend.workspace_selection import validate_workspace_options
+from src.infra.session.manager import SessionManager
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.session import SessionUpdate
+from src.kernel.schemas.user import TokenPayload
 
 
 def edits_workspace(metadata: dict | None) -> bool:
@@ -53,3 +58,18 @@ async def update_workspace(manager, session_id, data, user):
         return await manager.update_session(
             session_id, SessionUpdate(name=data.name, metadata=patch)
         )
+
+
+async def get_workspace_locations(
+    session_id: str,
+    user: TokenPayload = Depends(require_permissions("session:read")),
+):
+    """List retained source locations; this endpoint never starts or moves a workspace."""
+    session = await SessionManager().get_session(session_id)
+    if session is None:
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
+    if session.user_id != user.sub:
+        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
+    from src.infra.session.workspace_locations import list_workspace_locations
+
+    return {"locations": await list_workspace_locations(user.sub, session_id)}

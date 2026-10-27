@@ -29,7 +29,6 @@ import { ToolbarIconButton } from "../../common/ui/ToolbarIconButton";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { UserMenu } from "../UserMenu";
-import { ComposerUsageChip } from "../../chat/ComposerUsageChip";
 import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -308,7 +307,6 @@ export function Header({
       </div>
 
       {headerActions}
-      <ComposerUsageChip key={user?.id} />
       <UserMenu onShowProfile={onShowProfile} />
     </div>
   );

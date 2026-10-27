@@ -774,7 +774,7 @@ async def _process_upload_stream_call(
 
     try:
         writer = make_stream_upload_writer(call.payload, cfg.data_root)
-    except (ExecutorError, FsOpError) as exc:
+    except (ExecutorError, FsOpError, OSError) as exc:
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}
         )
@@ -791,25 +791,46 @@ async def _process_upload_stream_call(
 
     error: str | None = None
     buffer = b""
+    expected_size: int | None = None
+    ended = False
     try:
         async with client.get_stream(call.call_id, deadline_s=effective) as chunks:
             async for chunk in chunks:
                 buffer += chunk
                 while True:
+                    if ended and buffer:
+                        raise FsOpError("invalid_upload_stream: data after EOF")
                     parsed = frame_codec.try_parse_frame(buffer)
                     if parsed is None:
                         break
                     ftype, payload, buffer = parsed
-                    if ftype == frame_codec.FRAME_DATA:
+                    if ftype == frame_codec.FRAME_ERROR:
+                        details = json.loads(payload)
+                        raise FsOpError(
+                            str(details.get("error") or "upload stream failed")
+                            if isinstance(details, dict)
+                            else "invalid_upload_stream"
+                        )
+                    if ftype == frame_codec.FRAME_META:
+                        metadata = json.loads(payload)
+                        size = metadata.get("size") if isinstance(metadata, dict) else None
+                        if expected_size is not None or type(size) is not int or size < 0:
+                            raise FsOpError("invalid_upload_stream: invalid metadata")
+                        expected_size = size
+                    elif ftype == frame_codec.FRAME_DATA:
+                        if expected_size is None or writer.written + len(payload) > expected_size:
+                            raise FsOpError("invalid_upload_stream: unexpected data size")
                         writer.write(payload)
-                    elif ftype == frame_codec.FRAME_ERROR:
-                        error = str(json.loads(payload).get("error") or "upload stream failed")
-                        break
                     elif ftype == frame_codec.FRAME_EOF:
-                        break
-                if error is not None:
-                    break
-    except (ExecutorError, FsOpError) as exc:
+                        if payload or expected_size is None or writer.written != expected_size:
+                            raise FsOpError("invalid_upload_stream: incomplete content")
+                        ended = True
+                    else:
+                        raise FsOpError("invalid_upload_stream: unknown frame")
+        if not ended or buffer:
+            raise FsOpError("invalid_upload_stream: missing EOF or truncated frame")
+        writer.commit()
+    except (ExecutorError, FsOpError, OSError, ValueError) as exc:
         error = str(exc)
     except (TransportError, httpx.TransportError):
         # A failed GET must release the caller before the channel reconnects.

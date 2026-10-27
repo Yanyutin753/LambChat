@@ -299,7 +299,7 @@ export function ChatInputSelectors({
                     className="shrink-0 opacity-60"
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                  <span className="min-w-0 flex-1 break-all">{row.label}</span>
                   {row.isCurrent && (
                     <span
                       data-current-device-badge
@@ -361,7 +361,7 @@ export function ChatInputSelectors({
           }))}
           className="w-full"
           triggerClassName="!min-h-11 !px-3 !border-[var(--theme-border-faint)]"
-          dropdownClassName="!border-[var(--theme-border-faint)]"
+          dropdownClassName="composer-environment-menu !border-[var(--theme-border-faint)]"
         />
         <p className="mt-2 text-12 leading-relaxed text-theme-text-secondary">
           {t(

@@ -115,7 +115,11 @@ class E2BSandboxAdapter:
         return opts
 
     def create_sandbox(
-        self, user_id: str | None = None, envs: dict[str, str] | None = None
+        self,
+        user_id: str | None = None,
+        envs: dict[str, str] | None = None,
+        *,
+        storage: dict | None = None,
     ) -> tuple[object, str]:
         """创建沙箱，支持 lifecycle 配置和 metadata"""
         self._sync_from_settings()
@@ -151,11 +155,15 @@ class E2BSandboxAdapter:
             self._timeout,
             kwargs.get("request_timeout"),
         )
+        if storage:
+            kwargs["volume_mounts"] = {storage["mount_path"]: storage["name"]}
         sandbox = e2b_class.create(**kwargs)
-        return sandbox, "/home/user"
+        return sandbox, storage["mount_path"] if storage else "/home/user"
 
     def get_sandbox(self, sandbox_id: str) -> object | None:
         """连接到沙箱（自动恢复暂停状态）"""
+        from e2b import NotFoundException
+
         try:
             e2b_class = self._get_e2b_class()
             return e2b_class.connect(
@@ -164,7 +172,7 @@ class E2BSandboxAdapter:
                 api_key=self._api_key or None,
                 **self._get_e2b_opts(),
             )
-        except Exception:
+        except NotFoundException:
             return None
 
     def get_sandbox_id(self, sandbox) -> str:
@@ -181,14 +189,8 @@ class E2BSandboxAdapter:
             logger.warning(f"[E2B] Failed to pause sandbox: {e}")
 
     def stop_sandbox(self, sandbox) -> None:
-        """停止沙箱 — 优先 pause（保留状态），失败则 kill"""
-        try:
-            sandbox.pause()
-        except Exception:
-            try:
-                sandbox.kill()
-            except Exception:
-                pass
+        """Pause without destroying the workspace if the provider is unavailable."""
+        sandbox.pause()
 
     def kill_sandbox(self, sandbox) -> None:
         """永久销毁沙箱（数据丢失）"""
@@ -274,7 +276,11 @@ class CubeSandboxAdapter:
         return CubeSandbox
 
     def create_sandbox(
-        self, user_id: str | None = None, envs: dict[str, str] | None = None
+        self,
+        user_id: str | None = None,
+        envs: dict[str, str] | None = None,
+        *,
+        storage: dict | None = None,
     ) -> tuple[object, str]:
         self._sync_from_settings()
         cube_class = self._get_cube_class()
@@ -299,15 +305,18 @@ class CubeSandboxAdapter:
             metadata=metadata,
             lifecycle=lifecycle,
             config=self._get_config(),
+            volume_mounts={storage["mount_path"]: storage["volume_id"]} if storage else None,
         )
-        return sandbox, "/home/user"
+        return sandbox, storage["mount_path"] if storage else "/home/user"
 
     def get_sandbox(self, sandbox_id: str) -> object | None:
+        from cubesandbox import SandboxNotFoundError
+
         try:
             self._sync_from_settings()
             cube_class = self._get_cube_class()
             return cube_class.connect(sandbox_id, config=self._get_config())
-        except Exception:
+        except SandboxNotFoundError:
             return None
 
     def list_user_sandboxes(self, user_id: str) -> list[dict]:
@@ -339,13 +348,8 @@ class CubeSandboxAdapter:
             logger.warning(f"[CubeSandbox] Failed to pause sandbox: {e}")
 
     def stop_sandbox(self, sandbox) -> None:
-        try:
-            sandbox.pause()
-        except Exception:
-            try:
-                sandbox.kill()
-            except Exception:
-                pass
+        """Pause without destroying the workspace if the provider is unavailable."""
+        sandbox.pause()
 
     def kill_sandbox(self, sandbox) -> None:
         sandbox.kill()

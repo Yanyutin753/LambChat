@@ -59,6 +59,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy source code
 COPY src/ ./src/
+COPY client/lambchat_sandbox/file_commit.py ./client/lambchat_sandbox/file_commit.py
 COPY main.py ./
 
 # Copy frontend static files

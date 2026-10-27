@@ -279,7 +279,9 @@ export function SandboxDataLocationCard({
           <CatalogStatus
             label={t("profile.localSandbox.dataLocation.title")}
             error={states.location === "error"}
-            errorText={`${t("common.operationFailed")} · ${locationError.current}`}
+            errorText={`${t("common.operationFailed")} · ${
+              locationError.current
+            }`}
             disabled={disabled}
             onRetry={() => retry("location")}
             focusTargetRef={sectionRef}
@@ -313,7 +315,7 @@ export function SandboxDataLocationCard({
           </div>
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="profile-data-location-actions mt-3 space-y-2">
           <CatalogStatus
             label={t("profile.localSandbox.dataLocation.change")}
             error={states.pick === "error"}
@@ -325,7 +327,9 @@ export function SandboxDataLocationCard({
           <CatalogStatus
             label={t("profile.localSandbox.dataLocation.reset")}
             error={states.location === "error"}
-            errorText={`${t("common.operationFailed")} · ${locationError.current}`}
+            errorText={`${t("common.operationFailed")} · ${
+              locationError.current
+            }`}
             disabled={disabled}
             onRetry={() => retry("location")}
             focusTargetRef={sectionRef}

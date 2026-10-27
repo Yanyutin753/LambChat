@@ -14,13 +14,23 @@ from src.infra.sandbox import session_manager as sandbox_module
 
 @pytest.fixture(autouse=True)
 def sandbox_account_authority(monkeypatch):
+    from src.infra.envvar.storage import EnvVarStorage
     from src.infra.role.storage import RoleStorage
     from src.infra.user.storage import UserStorage
 
     account = SimpleNamespace(id="user-1", username="runner", roles=["runner"], is_active=True)
     role = SimpleNamespace(name="runner", permissions=["sandbox:execute", "sandbox:read"])
+    monkeypatch.setattr(EnvVarStorage, "get_decrypted_vars", AsyncMock(return_value={}))
     monkeypatch.setattr(UserStorage, "get_by_id", AsyncMock(return_value=account))
     monkeypatch.setattr(RoleStorage, "get_by_names", AsyncMock(return_value=[role]))
+    monkeypatch.setattr(sandbox_module.SessionSandboxManager, "_verify_cloud_storage", AsyncMock())
+    monkeypatch.setattr(
+        sandbox_module.SessionSandboxManager,
+        "_prepare_cloud_storage",
+        AsyncMock(
+            return_value={"volume_id": "test-volume", "name": "test", "mount_path": "/home/user"}
+        ),
+    )
 
 
 class _FakeE2BAdapter:
@@ -52,7 +62,7 @@ class _FakeE2BAdapter:
     def get_sandbox_id(self, _sandbox) -> str:
         return "created-e2b-sandbox"
 
-    def create_sandbox(self, user_id=None, envs=None):
+    def create_sandbox(self, user_id=None, envs=None, *, storage=None):
         self.method_calls.append("create_sandbox")
         return self.created, "/home/user"
 
@@ -72,7 +82,7 @@ class _FakeCubeAdapter(_FakeE2BAdapter):
     def get_sandbox_id(self, _sandbox) -> str:
         return "created-sandbox"
 
-    def create_sandbox(self, user_id=None, envs=None):
+    def create_sandbox(self, user_id=None, envs=None, *, storage=None):
         self.method_calls.append("create_sandbox")
         return self.created, "/home/user"
 
@@ -435,6 +445,7 @@ async def test_e2b_cache_hit_runs_sync_sdk_calls_in_blocking_executor(
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
+    monkeypatch.setattr(manager, "_get_binding", AsyncMock(return_value=None))
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
 
@@ -473,6 +484,7 @@ async def test_cubesandbox_cache_hit_uses_cube_adapter(
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(sandbox_module, "run_long_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
+    monkeypatch.setattr(manager, "_get_binding", AsyncMock(return_value=None))
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
     monkeypatch.setattr(sandbox_module.settings, "CUBE_TIMEOUT", 456, raising=False)
 
@@ -495,7 +507,7 @@ async def test_cubesandbox_cache_hit_uses_cube_adapter(
 
 
 @pytest.mark.asyncio
-async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
+async def test_cubesandbox_unbound_user_reuses_running_sandbox_found_by_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _FakeCubeAdapter()
@@ -508,7 +520,7 @@ async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
         return func(*args)
 
     async def fake_get_binding(_user_id: str):
-        return {"sandbox_id": "missing-binding-sandbox"}
+        return None
 
     async def fake_save_binding(*_args, **_kwargs) -> None:
         return None
@@ -544,7 +556,7 @@ async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
 
 
 @pytest.mark.asyncio
-async def test_cubesandbox_create_cleans_other_user_sandboxes(
+async def test_cubesandbox_create_retains_other_user_sandboxes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _FakeCubeAdapter()
@@ -586,11 +598,11 @@ async def test_cubesandbox_create_cleans_other_user_sandboxes(
 
     await manager._create_and_bind_cubesandbox("session-1", "user-1")
 
-    assert adapter.killed == ["old-1"]
+    assert adapter.killed == []
 
 
 @pytest.mark.asyncio
-async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
+async def test_cubesandbox_reconnect_retains_other_user_sandboxes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _FakeCubeAdapter()
@@ -633,7 +645,7 @@ async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
     await manager._get_or_create_cubesandbox("session-1", "user-1")
     await asyncio.sleep(0)
 
-    assert adapter.killed == ["old-1"]
+    assert adapter.killed == []
 
 
 @pytest.mark.asyncio
@@ -756,10 +768,10 @@ async def test_bindings_reuses_inflight_index_task_across_instances(
 
 
 @pytest.mark.asyncio
-async def test_e2b_dead_binding_replacement_sets_startup_notice(
+async def test_e2b_dead_binding_is_retained(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """绑定沙箱已被平台回收时：重建新沙箱并挂模型可见的重建提示。"""
+    """An unavailable bound sandbox must not be replaced with an empty workspace."""
     collection = _MemoryBindingCollection()
     collection.doc = {
         "user_id": "user-1",
@@ -793,11 +805,10 @@ async def test_e2b_dead_binding_replacement_sets_startup_notice(
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
 
-    backend, _work_dir = await manager._get_or_create_e2b("session-1", "user-1")
-
-    notice = getattr(backend.default, "sandbox_startup_notice", None)
-    assert notice is not None
-    assert "replaced" in notice.lower() or "recycled" in notice.lower()
+    with pytest.raises(sandbox_module.SandboxPeekError, match="recycled"):
+        await manager._get_or_create_e2b("session-1", "user-1")
+    assert collection.doc["sandbox_id"] == "expired-e2b-sandbox"
+    assert "create_sandbox" not in adapter.method_calls
 
 
 @pytest.mark.asyncio
@@ -837,7 +848,7 @@ async def test_e2b_fresh_user_create_has_no_startup_notice(
 
 
 @pytest.mark.asyncio
-async def test_cubesandbox_dead_binding_replacement_sets_startup_notice(
+async def test_cubesandbox_dead_binding_is_retained(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = _MemoryBindingCollection()
@@ -873,12 +884,10 @@ async def test_cubesandbox_dead_binding_replacement_sets_startup_notice(
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
     monkeypatch.setattr(sandbox_module.settings, "CUBE_TIMEOUT", 456, raising=False)
 
-    backend, _work_dir = await manager._get_or_create_cubesandbox("session-1", "user-1")
-    await asyncio.sleep(0)
-
-    notice = getattr(backend.default, "sandbox_startup_notice", None)
-    assert notice is not None
-    assert "replaced" in notice.lower() or "recycled" in notice.lower()
+    with pytest.raises(sandbox_module.SandboxPeekError, match="recycled"):
+        await manager._get_or_create_cubesandbox("session-1", "user-1")
+    assert collection.doc["sandbox_id"] == "expired-cube-sandbox"
+    assert "create_sandbox" not in adapter.method_calls
 
 
 @pytest.mark.asyncio

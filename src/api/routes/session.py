@@ -16,6 +16,7 @@ from src.api.routes.session_history_render import (
     render_history_response_offloaded,
 )
 from src.api.routes.session_usage_projection import project_session_usage_costs
+from src.api.routes.session_workspace import get_workspace_locations
 from src.api.server_timing import timed_server_phase
 from src.infra.folder.storage import get_project_storage
 from src.infra.llm.retry import ainvoke_with_retry
@@ -32,6 +33,7 @@ from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+router.get("/{session_id}/workspace-locations")(get_workspace_locations)
 logger = get_logger(__name__)
 
 # 支持的语言白名单（与前端 i18n 的 en/zh/ja/ko/ru 保持一致）

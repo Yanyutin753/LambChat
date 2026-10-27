@@ -13,7 +13,6 @@ from deepagents.backends import CompositeBackend
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.async_utils import run_long_blocking_io as _run_long_blocking_io
 from src.infra.backend.resource_authority import AuthorizedCompositeBackend
-from src.infra.backend.sandbox_heal import SANDBOX_REPLACED_NOTICE
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
@@ -56,6 +55,7 @@ class _E2BMixin:
             sandbox_id: str,
             state: str,
             is_new: bool = False,
+            previous_sandbox_id: str | None = None,
         ) -> None: ...
 
         def _evict_if_needed(self) -> None: ...
@@ -70,6 +70,16 @@ class _E2BMixin:
         ) -> CompositeBackend: ...
 
         async def _ensure_work_dir(self, backend: CompositeBackend, work_dir: str) -> None: ...
+
+        async def _verify_cloud_storage(
+            self, backend: CompositeBackend, storage: dict | None
+        ) -> None: ...
+
+        async def _prepare_cloud_storage(self, user_id: str) -> dict | None: ...
+
+        async def _cloud_work_dir(
+            self, user_id: str, fallback: str, backend: CompositeBackend
+        ) -> str: ...
 
         async def _get_user_env_vars(self, user_id: str) -> dict[str, str]: ...
 
@@ -101,6 +111,9 @@ class _E2BMixin:
                             self._e2b_adapter.get_work_dir,
                             provider_obj,
                         )
+                        base_work_dir = await self._cloud_work_dir(
+                            user_id, base_work_dir, self._cache[user_id][1]
+                        )
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
@@ -110,11 +123,8 @@ class _E2BMixin:
                     logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
                 del self._cache[user_id]
 
-            binding = await self._get_binding(user_id)
+            binding = await self._get_binding(user_id) or {}
             metadata_sandbox_id = binding.get("sandbox_id") if binding else None
-            # 只要绑定里有过沙箱却没能在上面返回，就走重建：旧沙箱已被平台
-            # 回收，文件不再保留，需要给模型挂一次性提示。
-            replaced_previous = bool(metadata_sandbox_id)
             if metadata_sandbox_id:
                 # Sandbox.connect() 会自动恢复暂停的沙箱
                 provider_obj = await run_long_blocking_io(
@@ -141,28 +151,34 @@ class _E2BMixin:
                             self._e2b_adapter.get_work_dir,
                             provider_obj,
                         )
+                        base_work_dir = await self._cloud_work_dir(
+                            user_id, base_work_dir, self._cache[user_id][1]
+                        )
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
                         await sync_sandbox_env_vars(scoped_backend, user_id)
                         return scoped_backend, work_dir
-                    except Exception as e:
-                        logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
+                    except Exception:
+                        self._cache.pop(user_id, None)
+                        raise
+                storage = (binding.get("cloud_storage") or {}).get("e2b")
+                if create and storage and binding.get("sandbox_work_dir") == storage["mount_path"]:
+                    return await self._create_and_bind_e2b(
+                        session_id, user_id, previous_sandbox_id=metadata_sandbox_id
+                    )
+                raise SandboxPeekError("recycled")
 
-            # 浏览路径（create=False）只连不建：无绑定=未创建；有绑定但
-            # 无法连接=沙箱已被平台回收（文件未保留），交调用方引导重建。
             if not create:
-                raise SandboxPeekError("recycled" if replaced_previous else "not_created")
-            return await self._create_and_bind_e2b(
-                session_id, user_id, replaced_previous=replaced_previous
-            )
+                raise SandboxPeekError("not_created")
+            return await self._create_and_bind_e2b(session_id, user_id)
 
     async def _create_and_bind_e2b(
         self,
         session_id: str,
         user_id: str,
         *,
-        replaced_previous: bool = False,
+        previous_sandbox_id: str | None = None,
     ) -> tuple[CompositeBackend, str]:
         assert self._e2b_adapter is not None
         adapter = self._e2b_adapter
@@ -170,10 +186,13 @@ class _E2BMixin:
 
         # 加载用户环境变量
         user_envs = await self._get_user_env_vars(user_id)
+        storage = await self._prepare_cloud_storage(user_id)
 
         def _sync_create():
             sandbox, work_dir = adapter.create_sandbox(
-                user_id=user_id, envs=user_envs if user_envs else None
+                user_id=user_id,
+                envs=user_envs if user_envs else None,
+                storage=storage,
             )
             e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", sandbox))
             skills_backend = create_skills_backend(user_id=user_id)
@@ -187,7 +206,18 @@ class _E2BMixin:
 
         backend, work_dir, sandbox_id, provider_obj = await run_long_blocking_io(_sync_create)
         try:
-            await self._save_binding(user_id, sandbox_id, "running", is_new=True)
+            await self._verify_cloud_storage(backend, storage)
+            scoped_work_dir = self._session_work_dir(work_dir, session_id)
+            scoped_backend = self._scope_e2b_backend(provider_obj, user_id, scoped_work_dir)
+            await self._ensure_work_dir(scoped_backend, scoped_work_dir)
+            await sync_sandbox_env_vars(scoped_backend, user_id)
+            await self._save_binding(
+                user_id,
+                sandbox_id,
+                "running",
+                is_new=True,
+                previous_sandbox_id=previous_sandbox_id,
+            )
         except Exception as e:
             logger.error(f"[E2B] Created {sandbox_id} but failed to save binding: {e}")
             try:
@@ -199,19 +229,6 @@ class _E2BMixin:
         self._evict_if_needed()
         logger.info(f"[E2B] Created sandbox {sandbox_id} for user {user_id} (session={session_id})")
 
-        scoped_work_dir = self._session_work_dir(work_dir, session_id)
-        scoped_backend = self._scope_e2b_backend(provider_obj, user_id, scoped_work_dir)
-        await self._ensure_work_dir(scoped_backend, scoped_work_dir)
-        await sync_sandbox_env_vars(scoped_backend, user_id)
-        if replaced_previous:
-            # 旧沙箱被平台回收：挂一次性提示，首个命令输出会前缀告知模型。
-            logger.warning(
-                f"[E2B] Previous sandbox for user {user_id} was recycled by provider; "
-                f"created replacement {sandbox_id} (files not carried over)"
-            )
-            cast(
-                E2BBackend, scoped_backend.default
-            ).sandbox_startup_notice = SANDBOX_REPLACED_NOTICE
         return scoped_backend, scoped_work_dir
 
     def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
@@ -236,7 +253,7 @@ class _E2BMixin:
             if user_id in self._cache:
                 sandbox_id, _, provider_obj = self._cache[user_id]
             else:
-                binding = await self._get_binding(user_id)
+                binding = await self._get_binding(user_id) or {}
                 sandbox_id = binding.get("sandbox_id") if binding else None
                 if sandbox_id:
                     provider_obj = await run_long_blocking_io(
@@ -245,7 +262,7 @@ class _E2BMixin:
             if not sandbox_id or provider_obj is None:
                 return False
             try:
-                # stop_sandbox 优先 pause（保留数据），失败则 kill
+                # Pause failure must never destroy the workspace.
                 await run_long_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
                 self._cache.pop(user_id, None)
                 await self._save_binding(user_id, sandbox_id, "paused")

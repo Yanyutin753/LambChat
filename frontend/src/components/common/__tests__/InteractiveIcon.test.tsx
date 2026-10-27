@@ -194,3 +194,23 @@ test("reduced motion disables both library and fallback animations", () => {
   expect(animation.start).not.toHaveBeenCalled();
   expect(animate).not.toHaveBeenCalled();
 });
+
+test("static icon groups keep actions and keyboard access without hover animation", () => {
+  const click = vi.fn();
+  render(
+    <div data-static-icons>
+      <button onClick={click}>
+        Workspace
+        <InteractiveIcon>
+          <Plus size={16} />
+        </InteractiveIcon>
+      </button>
+    </div>,
+  );
+  const button = screen.getByRole("button", { name: "Workspace" });
+  fireEvent.mouseEnter(button);
+  fireEvent.focusIn(button);
+  fireEvent.click(button);
+  expect(animation.start).not.toHaveBeenCalled();
+  expect(click).toHaveBeenCalledOnce();
+});

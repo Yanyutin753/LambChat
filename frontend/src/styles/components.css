@@ -62,7 +62,7 @@
 }
 
 .chat-header__identity > .relative > button > span,
-.chat-header__actions .composer-usage-amount,
+.chat-header .composer-usage-amount,
 .chat-header nav h1 {
   font-size: var(--header-content-size);
   line-height: 1.25rem;
@@ -97,7 +97,7 @@
   background-color: var(--theme-bg-hover);
 }
 
-.chat-header__actions .composer-usage-amount {
+.chat-header .composer-usage-amount {
   color: inherit;
 }
 
@@ -121,6 +121,7 @@
   flex-shrink: 0;
 }
 
+.chat-header__identity > button:has(.composer-usage-amount),
 .chat-header__actions > button:has(.composer-usage-amount) {
   width: auto;
   padding-inline: 0.5rem;

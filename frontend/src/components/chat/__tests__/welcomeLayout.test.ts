@@ -122,7 +122,7 @@ test("keeps the persona gallery wider than the composer without inner horizontal
   expect(personaClass).not.toContain("sm:px-10");
   for (const source of [welcomePageSource, chatSkeletonsSource]) {
     expect(source).toMatch(
-      /welcome-input[^"\n]*sm:max-w-\[44rem\] md:max-w-\[46rem\] lg:max-w-\[48rem\] xl:max-w-\[50rem\] 2xl:max-w-\[52rem\]/,
+      /welcome-input[^"\n]*sm:max-w-\[48rem\] md:max-w-\[52rem\] lg:max-w-\[56rem\] xl:max-w-\[58rem\] 2xl:max-w-\[60rem\]/,
     );
   }
 });

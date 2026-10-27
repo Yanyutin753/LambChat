@@ -27,13 +27,18 @@ export function getUsagePopoverPosition({
         ),
       );
   const top = triggerRect.bottom + gap;
+  const openAbove = triggerRect.top > viewportHeight - triggerRect.bottom;
 
   return {
     position: "fixed",
     zIndex: 9999,
     width,
     left,
-    top,
-    maxHeight: Math.max(0, viewportHeight - top - edgeInset),
+    ...(openAbove
+      ? {
+          bottom: viewportHeight - triggerRect.top + gap,
+          maxHeight: Math.max(0, triggerRect.top - gap - edgeInset),
+        }
+      : { top, maxHeight: Math.max(0, viewportHeight - top - edgeInset) }),
   };
 }

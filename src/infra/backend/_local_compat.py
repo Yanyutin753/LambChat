@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Coroutine, TypeVar, cast
 
 from src.infra.async_utils import loop_bridge
-from src.infra.backend.protocol_compat import ExtendedFileError, FileInfo
+from src.infra.backend.protocol_compat import ExtendedFileError, FileData, FileInfo, ReadResult
 
 T = TypeVar("T")
 
@@ -162,3 +162,24 @@ def _restore_file_info_path(info: FileInfo, workspace_path: str) -> FileInfo:
     restored: dict[str, object] = dict(info)
     restored["path"] = posixpath.normpath(f"{workspace_path}/{path}")
     return cast(FileInfo, restored)
+
+
+def _fs_read_result(data: dict, path: str) -> ReadResult:
+    """fs_read 结果 → ReadResult（构造与 deepagents ``_parse_read_output`` 同构：
+    error 直嵌；分页字段组合非法降级为错误而非裸异常）。"""
+    if "error" in data:
+        return ReadResult(error=f"File '{path}': {data['error']}")
+    try:
+        return ReadResult(
+            file_data=FileData(
+                content=str(data["content"]),
+                encoding=str(data.get("encoding", "utf-8")),
+            ),
+            total_lines=data.get("total_lines"),
+            start_line=data.get("start_line"),
+            end_line=data.get("end_line"),
+            next_offset=data.get("next_offset"),
+            no_lines_requested=bool(data.get("no_lines_requested")),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return ReadResult(error=f"File '{path}': unexpected server response: {exc}")

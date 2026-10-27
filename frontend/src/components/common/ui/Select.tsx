@@ -21,6 +21,7 @@ export interface SelectProps {
   options: SelectOption[];
   disabled?: boolean;
   placeholder?: ReactNode;
+  triggerLabel?: ReactNode;
   className?: string;
   triggerClassName?: string;
   dropdownClassName?: string;
@@ -39,6 +40,7 @@ export function Select({
   options,
   disabled = false,
   placeholder,
+  triggerLabel,
   className,
   triggerClassName,
   dropdownClassName,
@@ -199,7 +201,7 @@ export function Select({
               : "ui-select-trigger__placeholder"
           }
         >
-          {displayText ?? ""}
+          {triggerLabel ?? displayText ?? ""}
         </span>
         <InteractiveIcon>
           <ChevronDown

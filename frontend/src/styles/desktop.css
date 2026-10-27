@@ -169,7 +169,7 @@ html[data-right-panel-presentation="docked"]:has(
 
 html:has([data-titlebar], [data-workspace-ui])
   .chat-input-container:not([data-composer-expanded]) {
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
 }
 
@@ -191,7 +191,8 @@ html:has([data-titlebar], [data-workspace-ui])
 
 @media (min-width: 640px) {
   html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar {
-    padding: var(--composer-vertical-inset) 0.75rem;
+    --composer-control-inset: 0.75rem;
+    padding-inline: 0.75rem;
     margin: 0;
     gap: 0.625rem;
     flex-wrap: nowrap;

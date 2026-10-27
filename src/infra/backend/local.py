@@ -1,28 +1,8 @@
-"""本地沙箱后端：命令经中继落到用户本机 daemon 执行（spec §3.3）。
+"""Local sandbox execution and workspace aliases over the daemon relay.
 
-文件操作（ls/read/write/edit/glob/grep）由 deepagents BaseSandbox 基于
-execute()/aexecute() 自动继承，无需在本类重写；upload/download 是
-BaseSandbox 的抽象成员，这里以单条 python3 + base64 命令往返实现，
-仍走同一条中继链路（daemon 协议在 M1 仅有 exec 一个 op）。
-
-平台分支（M4 T3）：daemon 经 connect URL 上报平台（注册表 value 第三段），
-本后端每次 upload/download 操作前查一次活跃 daemon 的平台——win32 时命令
-生成改用 cmd.exe 引用（:func:`_cmd_quote`，与 client platform.py 同则互锁）、
-省略 ``mkdir -p`` 前缀（makedirs 并进脚本）、脚本单行化且无 ``%``；
-其余（含无平台信息）保持 posix 现状，命令串逐字节不变。
-
-结构化文件操作（M4 T3.5）：deepagents BaseSandbox 继承的 read/ls/write/
-edit/delete/glob/grep 命令是多行 POSIX 脚本（``2>/dev/null``、heredoc、
-``rm -rf``），cmd.exe 跑不了——WorkspaceAliasBackend 在 daemon 平台为
-win32 时这些方法不走命令生成，改发 ``fs_*`` 结构化 op 由 daemon 原生执行
-（client fsops.py），返回 dict 构造成 protocol_compat 的对应 Result 类型；
-macOS 的 grep 也走 fs_grep，避免 BSD grep 与 GNU -Z 输出协议不同；
-其余 posix（含无平台信息）保持 super() 现状。
-
-注意（与 E2BBackend 相反的方向）：本后端的原生原语是异步的
-（dispatch_local_call 轮询 Redis），因此 aexecute 是主路径，同步
-execute 通过 asyncio.run 桥接（照 _skills_path_utils._run_async 模式）；
-run_blocking_io 接收同步可调用对象，无法用于这里的异步→同步桥接。
+Version-capable daemons use structured file operations with optimistic writes.
+Legacy POSIX daemons retain command-based operations; Windows uses native fs ops.
+Sync callers bridge to the same asynchronous relay implementation.
 """
 
 import asyncio
@@ -44,6 +24,7 @@ from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend._local_compat import (
     _classify_file_error,
     _cmd_quote,
+    _fs_read_result,
     _platform_ctx,
     _restore_file_info_path,
     _run_coro_sync,
@@ -54,13 +35,13 @@ from src.infra.backend._local_transfer import (
     LocalFsTransferMixin,
     WorkspaceAliasTransferMixin,
     _download_max_bytes,
+    _is_windows_absolute_path,
 )
 from src.infra.backend.lazy_sandbox import PUBLIC_SHARED_DIR
 from src.infra.backend.protocol_compat import (
     DeleteResult,
     EditResult,
     ExecuteResponse,
-    FileData,
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
@@ -68,7 +49,6 @@ from src.infra.backend.protocol_compat import (
     GrepMatch,
     GrepResult,
     LsResult,
-    ReadResult,
     WriteResult,
     file_download_response,
     file_upload_response,
@@ -153,9 +133,11 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
         platform_hint: str | None = None,
         env_vars: dict[str, str] | None = None,
         machine_id: str | None = None,
+        conversation_id: str | None = None,
     ):
         self._user_id = user_id
         self._session_id = session_id
+        self._conversation_id = conversation_id or session_id
         # 沙箱工作目录（daemon 侧 cwd 契约，spec §3.3，与 aexecute 的 cwd 一致）；
         # create_sandbox_backend 以 getattr(backend, "work_dir") 锚定 artifacts 根。
         self.work_dir = f"/workspace/{session_id}"
@@ -177,6 +159,8 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
         # 结构化传输通道能力位：None = 未探测（首次尝试 fs_upload/fs_download），
         # False = 老 daemon 不支持（粘滞走 exec 旧链路）。见 FsTransferUnsupportedError。
         self._fs_transfer_supported: bool | None = None
+        self._file_versions_supported: bool | None = None
+        self._file_versions: dict[str, str] = {}
 
     async def _resolve_platform(self) -> str:
         """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。
@@ -221,6 +205,7 @@ class LocalSandboxBackend(LocalFsTransferMixin, BaseSandbox):
         模型可见结局并自行换策略；其余 AppError 照抛。plumbing 内部路径
         （上传/下载命令）走 `_aexecute_dispatch`，超时仍原样上抛。
         """
+        self._file_versions.clear()
         try:
             result = await self._aexecute_dispatch(command, timeout=timeout)
         except AppError as exc:
@@ -594,6 +579,32 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
         """异步版平台判定：win32 → 文件方法走结构化 fs op。"""
         return _platform_ctx(await self._resolve_platform()).is_windows
 
+    async def _supports_file_versions(self) -> bool:
+        if self._file_versions_supported is None:
+            try:
+                response = await dispatch_local_call(
+                    self._user_id,
+                    "fs_capabilities",
+                    {"cwd": self.work_dir},
+                    timeout=float(self._exec_timeout_now()),
+                    machine_id=self._machine_id,
+                )
+            except AppError as exc:
+                detail = str(exc.args_data.get("detail") or exc.message)
+                if "unsupported op: fs_capabilities" not in detail:
+                    raise
+                self._file_versions_supported = False
+            else:
+                result = response.get("result") or {}
+                self._file_versions_supported = result.get("file_versions") == 1
+        return self._file_versions_supported
+
+    async def _use_file_ops(self, path: str) -> bool:
+        # Preserve the existing explicit outside-workspace exec behavior.
+        if path.startswith("/") or _is_windows_absolute_path(path):
+            return False
+        return await self._supports_file_versions() or await self._adaemon_platform_is_win32()
+
     async def _afs_call(self, op: str, payload: dict[str, Any]) -> dict:
         """发一个结构化 fs op，取回结果体（cwd 一律附虚拟工作区，daemon 据此映射）。
 
@@ -604,6 +615,17 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
         """
         rebased = dict(payload)
         path = rebased.get("path")
+        versioned = self._file_versions_supported is True and op in {
+            "fs_read",
+            "fs_write",
+            "fs_edit",
+            "fs_delete",
+        }
+        if versioned:
+            rebased["versioned"] = True
+            rebased["actor"] = {"session_id": self._conversation_id}
+            if op != "fs_read":
+                rebased["expected_version"] = self._file_versions.get(str(path), "missing")
         if isinstance(path, str) and (path == "../.shared" or path.startswith("../.shared/")):
             rebased["cwd"] = PUBLIC_SHARED_DIR
             rebased["path"] = path[len("../.shared") :].lstrip("/") or "."
@@ -615,31 +637,20 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
             machine_id=self._machine_id,
         )
         result = resp.get("result")
-        return result if isinstance(result, dict) else {}
+        result = result if isinstance(result, dict) else {}
+        if versioned and not result.get("error"):
+            version = result.get("version")
+            if not isinstance(version, str) or not version:
+                return {"error": "file_conflict: daemon omitted the file version; reread required"}
+            self._file_versions[str(path)] = version
+        elif versioned:
+            self._file_versions.pop(str(path), None)
+        return result
 
     def _fs_call(self, op: str, payload: dict[str, Any]) -> dict:
         return _run_coro_sync(self._afs_call(op, payload))
 
-    @staticmethod
-    def _fs_read_result(data: dict, path: str) -> ReadResult:
-        """fs_read 结果 → ReadResult（构造与 deepagents ``_parse_read_output`` 同构：
-        error 直嵌；分页字段组合非法降级为错误而非裸异常）。"""
-        if "error" in data:
-            return ReadResult(error=f"File '{path}': {data['error']}")
-        try:
-            return ReadResult(
-                file_data=FileData(
-                    content=str(data["content"]),
-                    encoding=str(data.get("encoding", "utf-8")),
-                ),
-                total_lines=data.get("total_lines"),
-                start_line=data.get("start_line"),
-                end_line=data.get("end_line"),
-                next_offset=data.get("next_offset"),
-                no_lines_requested=bool(data.get("no_lines_requested")),
-            )
-        except (KeyError, TypeError, ValueError) as exc:
-            return ReadResult(error=f"File '{path}': unexpected server response: {exc}")
+    _fs_read_result = staticmethod(_fs_read_result)
 
     def _fs_write_result(self, data: dict, path: str, display: str) -> WriteResult:
         if "error" in data:
@@ -693,14 +704,14 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000):
         stripped = self._strip_required(file_path)
-        if self._daemon_platform_is_win32():
+        if _run_coro_sync(self._use_file_ops(stripped)):
             data = self._fs_call("fs_read", {"path": stripped, "offset": offset, "limit": limit})
             return self._fs_read_result(data, stripped)
         return super().read(stripped, offset, limit)
 
     async def aread(self, file_path: str, offset: int = 0, limit: int = 2000):
         stripped = self._strip_required(file_path)
-        if await self._adaemon_platform_is_win32():
+        if await self._use_file_ops(stripped):
             data = await self._afs_call(
                 "fs_read", {"path": stripped, "offset": offset, "limit": limit}
             )
@@ -879,7 +890,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     def write(self, file_path: str, content: str) -> WriteResult:
         stripped = self._strip_required(file_path)
-        if self._daemon_platform_is_win32():
+        if _run_coro_sync(self._use_file_ops(stripped)):
             return self._fs_write(stripped, content, file_path)
         result = super().write(stripped, content)
         if result.path is not None and result.error is None:
@@ -888,7 +899,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         stripped = self._strip_required(file_path)
-        if await self._adaemon_platform_is_win32():
+        if await self._use_file_ops(stripped):
             return await self._afs_write(stripped, content, file_path)
         result = await super().awrite(stripped, content)
         if result.path is not None and result.error is None:
@@ -926,7 +937,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False):
         stripped = self._strip_required(file_path)
-        if self._daemon_platform_is_win32():
+        if _run_coro_sync(self._use_file_ops(stripped)):
             payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
             return self._fs_edit_result(
                 self._fs_call("fs_edit", payload), stripped, old_string, file_path
@@ -940,7 +951,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
         self, file_path: str, old_string: str, new_string: str, replace_all: bool = False
     ):
         stripped = self._strip_required(file_path)
-        if await self._adaemon_platform_is_win32():
+        if await self._use_file_ops(stripped):
             payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
             data = await self._afs_call("fs_edit", payload)
             return self._fs_edit_result(data, stripped, old_string, file_path)
@@ -962,7 +973,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     def delete(self, file_path: str) -> DeleteResult:
         stripped = self._strip_required(file_path)
-        if self._daemon_platform_is_win32():
+        if _run_coro_sync(self._use_file_ops(stripped)):
             return self._fs_delete_result(
                 self._fs_call("fs_delete", {"path": stripped}), stripped, file_path
             )
@@ -973,7 +984,7 @@ class WorkspaceAliasBackend(WorkspaceAliasTransferMixin, LocalSandboxBackend):
 
     async def adelete(self, file_path: str) -> DeleteResult:
         stripped = self._strip_required(file_path)
-        if await self._adaemon_platform_is_win32():
+        if await self._use_file_ops(stripped):
             data = await self._afs_call("fs_delete", {"path": stripped})
             return self._fs_delete_result(data, stripped, file_path)
         result = await super().adelete(stripped)

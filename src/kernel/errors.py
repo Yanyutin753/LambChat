@@ -178,7 +178,7 @@ class ErrorCode(Enum):
     SANDBOX_CLOUD_RECYCLED = (
         "sandbox_cloud_recycled",
         410,
-        "The cloud computer was recycled and its files were not kept; send a message to recreate it",
+        "The previous cloud workspace is unavailable. Its location has been retained; recover it before continuing.",
     )
     DAEMON_VERSION_UNSUPPORTED = (
         "daemon_version_unsupported",

@@ -13,6 +13,7 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { Header } from "../Header";
+import { ComposerUsageChip } from "../../../chat/ComposerUsageChip";
 import userEvent from "@testing-library/user-event";
 import { OPEN_NOTIFICATIONS_EVENT } from "../../DesktopSidebarShell/desktopShellPlatform";
 const appearance = vi.hoisted(() => ({
@@ -89,15 +90,9 @@ afterEach(() => {
 
 test("switching accounts aborts the old quota request and reloads the new account", async () => {
   appearance.quotaRead.mockImplementation(() => new Promise(() => {}));
-  const props = {
-    activeTab: "files" as const,
-    setMobileSidebarOpen: vi.fn(),
-    onNewSession: vi.fn(),
-    onShowProfile: vi.fn(),
-  };
   const view = render(
     <MemoryRouter>
-      <Header {...props} />
+      <ComposerUsageChip key={appearance.userId} />
     </MemoryRouter>,
   );
   await waitFor(() => expect(appearance.quotaRead).toHaveBeenCalledTimes(1));
@@ -105,7 +100,7 @@ test("switching accounts aborts the old quota request and reloads the new accoun
   appearance.userId = "second";
   view.rerender(
     <MemoryRouter>
-      <Header {...props} />
+      <ComposerUsageChip key={appearance.userId} />
     </MemoryRouter>,
   );
   await waitFor(() => expect(appearance.quotaRead).toHaveBeenCalledTimes(2));

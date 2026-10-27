@@ -741,6 +741,7 @@ def test_fs_op_sets_constant_interlock_with_deepagents():
 
 def test_fs_op_registry_covers_all_documented_ops():
     assert fsops.FS_OPS == {
+        "fs_capabilities",
         "fs_read",
         "fs_ls",
         "fs_write",
@@ -849,7 +850,7 @@ def test_handle_fs_stream_unknown_op_raises():
 
 
 def test_stream_upload_writer_creates_empty_file_without_data_frames(tmp_path):
-    """零数据帧（空文件流式上传）close 后必须存在 0 字节文件。
+    """零数据帧（空文件流式上传）commit 后必须存在 0 字节文件。
 
     对齐分块 fs_upload 的「空文件也发首块（truncate 即创建）」语义——writer
     此前首个 DATA 帧才 open，空上传报成功但文件从不落盘，后续读取
@@ -860,8 +861,180 @@ def test_stream_upload_writer_creates_empty_file_without_data_frames(tmp_path):
     writer = make_stream_upload_writer(
         {"cwd": "/workspace/s1", "path": "empty.bin", "max_bytes": 1024}, tmp_path
     )
+    writer.commit()
     writer.close()
     target = tmp_path / "s1" / "empty.bin"
     assert target.exists()
     assert target.read_bytes() == b""
     assert writer.written == 0
+
+
+def test_interrupted_upload_preserves_existing_bytes(tmp_path):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    writer = fsops.make_stream_upload_writer(_payload("report.txt"), tmp_path)
+    writer.write(b"partial")
+    assert target.read_bytes() == b"original report"
+    writer.close()
+    assert target.read_bytes() == b"original report"
+    assert list(target.parent.iterdir()) == [target]
+
+
+def test_oversize_upload_preserves_existing_bytes(tmp_path):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    writer = fsops.make_stream_upload_writer(_payload("report.txt", max_bytes=3), tmp_path)
+    with pytest.raises(fsops.FsOpError, match="file_too_large"):
+        writer.write(b"too large")
+    writer.close()
+    assert target.read_bytes() == b"original report"
+
+
+def test_upload_refuses_to_overwrite_a_file_changed_during_transfer(tmp_path):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    first = fsops.make_stream_upload_writer(_payload("report.txt"), tmp_path)
+    second = fsops.make_stream_upload_writer(_payload("report.txt"), tmp_path)
+    first.write(b"first change")
+    second.write(b"second change")
+    first.commit()
+    with pytest.raises(fsops.FsOpError, match="file_conflict"):
+        second.commit()
+    second.close()
+    assert target.read_bytes() == b"first change"
+
+
+def test_upload_preserves_recoverable_previous_version(tmp_path):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    writer = fsops.make_stream_upload_writer(_payload("report.txt"), tmp_path)
+    writer.write(b"new report")
+    writer.commit()
+    backups = list((tmp_path / ".file-history").rglob("*.blob"))
+    assert any(path.read_bytes() == b"original report" for path in backups)
+    assert target.read_bytes() == b"new report"
+
+
+def test_upload_cannot_follow_a_parent_symlink_replaced_mid_transfer(tmp_path):
+    workspace = _ws(tmp_path)
+    folder = workspace / "folder"
+    folder.mkdir()
+    target = folder / "report.txt"
+    target.write_bytes(b"original report")
+    writer = fsops.make_stream_upload_writer(_payload("folder/report.txt"), tmp_path)
+    writer.write(b"new report")
+    moved = workspace / "moved"
+    folder.rename(moved)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "report.txt").write_bytes(b"outside")
+    folder.symlink_to(outside, target_is_directory=True)
+    try:
+        with pytest.raises(fsops.FsOpError, match="file_conflict"):
+            writer.commit()
+        assert (outside / "report.txt").read_bytes() == b"outside"
+        assert (moved / "report.txt").read_bytes() == b"original report"
+    finally:
+        writer.close()
+
+
+@pytest.mark.parametrize("operation", ["fs_write", "fs_edit", "fs_delete"])
+def test_structured_mutation_rejects_stale_observation(tmp_path, operation):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    observation = _op("fs_read", _payload("report.txt", versioned=True), tmp_path)
+    assert observation.get("version"), "versioned reads must return an execution-host version"
+    target.write_bytes(b"other session report")
+    payload = _payload(
+        "report.txt",
+        expected_version=observation["version"],
+        versioned=True,
+        content_b64=base64.b64encode(b"replacement").decode(),
+        old_str_b64=base64.b64encode(b"report").decode(),
+        new_str_b64=base64.b64encode(b"document").decode(),
+    )
+    result = _op(operation, payload, tmp_path)
+    assert "file_conflict" in result["error"]
+    assert target.read_bytes() == b"other session report"
+
+
+def test_creating_a_file_never_overwrites_an_unobserved_existing_file(tmp_path):
+    target = _ws(tmp_path) / "report.txt"
+    target.write_bytes(b"original report")
+    result = _op(
+        "fs_write",
+        _payload(
+            "report.txt",
+            versioned=True,
+            expected_version="missing",
+            content_b64=base64.b64encode(b"replacement").decode(),
+        ),
+        tmp_path,
+    )
+    assert "file_conflict" in result["error"]
+    assert target.read_bytes() == b"original report"
+
+
+def test_committed_receipt_identifies_recoverable_file_and_actor(tmp_path):
+    import json
+
+    from lambchat_sandbox.file_commit import commit_file, file_version
+
+    target = tmp_path / "report.txt"
+    target.write_text("original")
+    staged = tmp_path / "new.txt"
+    staged.write_text("replacement")
+    history = tmp_path / "history"
+    commit_file(staged, target, file_version(target), history, actor={"session_id": "chat-a"})
+    receipts = list((history / "snapshots").glob("*.json"))
+    receipt = json.loads(receipts[0].read_text())
+    assert receipt["state"] == "committed"
+    assert receipt["actor"]["session_id"] == "chat-a"
+    assert (history / "snapshots" / receipt["snapshot"]).read_text() == "original"
+    assert receipt["result_version"] == file_version(target)
+
+
+def test_structured_writes_record_the_conversation_identity(tmp_path):
+    import json
+
+    result = _op(
+        "fs_write",
+        _payload(
+            "report.txt",
+            versioned=True,
+            expected_version="missing",
+            content_b64=base64.b64encode(b"report").decode(),
+            actor={"session_id": "chat-a"},
+        ),
+        tmp_path,
+    )
+    assert not result.get("error")
+    receipts = list((tmp_path / ".file-history" / "snapshots").glob("*.json"))
+    assert json.loads(receipts[0].read_text())["actor"] == {"session_id": "chat-a"}
+
+
+@pytest.mark.skipif(__import__("os").name == "nt", reason="POSIX named pipes")
+def test_file_version_rejects_fifo_without_blocking(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+    script = """import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from lambchat_sandbox.file_commit import file_version, FileCommitError
+try:
+    file_version(Path(sys.argv[1]))
+except FileCommitError as error:
+    print(error)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(fifo), str(Path(fsops.__file__).parent.parent)],
+        capture_output=True,
+        text=True,
+        timeout=3,
+    )
+    assert result.returncode == 0
+    assert "not_a_file" in result.stdout
