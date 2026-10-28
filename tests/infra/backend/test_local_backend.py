@@ -2029,6 +2029,62 @@ async def test_execute_invalidates_file_observations_even_when_execution_fails(m
     assert backend._file_versions == {}
 
 
+@pytest.mark.parametrize("reset", ["new_backend", "execute"])
+async def test_local_summary_history_appends_after_file_observation_reset(
+    monkeypatch, tmp_path, _legacy_file_protocol, reset
+):
+    from deepagents.middleware.summarization import create_summarization_middleware
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from lambchat_sandbox import fsops
+    from src.infra.backend.resource_authority import (
+        AuthorizedCompositeBackend,
+        server_artifact_backend,
+    )
+
+    monkeypatch.setattr(
+        local_module.WorkspaceAliasBackend, "_supports_file_versions", _legacy_file_protocol
+    )
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        if op == "exec":
+            return await _real_exec_dispatch(tmp_path / "s1")(user_id, op, payload, **kwargs)
+        return {"result": fsops.handle_fs_op(op, payload, tmp_path)}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+
+    def backend():
+        local = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+        composite = AuthorizedCompositeBackend(
+            default=local, routes={}, user_id="u1", artifacts_root="/workspace/s1"
+        )
+        return local, server_artifact_backend(composite)
+
+    local, artifact = backend()
+    model = GenericFakeChatModel(messages=iter([AIMessage("unused")]))
+    summary = create_summarization_middleware(model, artifact)
+    path = await summary._aoffload_to_backend(
+        artifact, [HumanMessage("first history")], "session-a"
+    )
+    assert path == "/workspace/s1/conversation_history/session-a.md"
+    if reset == "new_backend":
+        local, artifact = backend()
+        summary = create_summarization_middleware(model, artifact)
+    else:
+        assert (await local.aexecute("true")).exit_code == 0
+    assert local._file_versions == {}
+
+    appended = await summary._aoffload_to_backend(
+        artifact, [HumanMessage("second history")], "session-a"
+    )
+
+    assert appended == path
+    content = (tmp_path / "s1/conversation_history/session-a.md").read_text()
+    assert content.count("first history") == 1
+    assert content.count("second history") == 1
+
+
 async def test_selected_workspace_mutation_carries_actual_conversation_identity(monkeypatch):
     captured = []
 

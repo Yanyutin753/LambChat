@@ -51,7 +51,148 @@ class FilesystemBackend:
         return DeleteResult(path=path)
 
     async def adownload_files(self, paths):
-        return [file_download_response(path=p, content=Path(p).read_bytes()) for p in paths]
+        results = []
+        for path in paths:
+            try:
+                content = Path(path).read_bytes()
+            except FileNotFoundError:
+                results.append(file_download_response(path=path, error="file_not_found"))
+            else:
+                results.append(file_download_response(path=path, content=content))
+        return results
+
+
+@pytest.mark.parametrize("reset", ["new_backend", "execute", "pre_read_failure"])
+@pytest.mark.parametrize("sync", [False, True])
+async def test_summary_history_appends_after_file_observation_reset(
+    tmp_path, monkeypatch, reset, sync
+):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from deepagents.middleware.summarization import create_summarization_middleware
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.infra.backend.guarded_sandbox import GuardedSandboxBackend
+    from src.infra.backend.resource_authority import (
+        AuthorizedCompositeBackend,
+        server_artifact_backend,
+    )
+
+    def backend():
+        guarded = GuardedSandboxBackend(FilesystemBackend(tmp_path), user_id="u1", session_id="a")
+        composite = AuthorizedCompositeBackend(
+            default=guarded, routes={}, user_id="u1", artifacts_root=str(tmp_path)
+        )
+        return guarded, server_artifact_backend(composite)
+
+    guard, artifact = backend()
+    model = GenericFakeChatModel(messages=iter([AIMessage("unused")]))
+    summary = create_summarization_middleware(model, artifact)
+
+    async def offload(text):
+        messages = [HumanMessage(text)]
+        if sync:
+            return await asyncio.to_thread(
+                summary._offload_to_backend, artifact, messages, "session-a"
+            )
+        return await summary._aoffload_to_backend(artifact, messages, "session-a")
+
+    path = await offload("first history")
+    assert path is not None
+    if reset == "new_backend":
+        guard, artifact = backend()
+        summary = create_summarization_middleware(model, artifact)
+    elif reset == "execute":
+        assert (await guard.aexecute("true")).exit_code == 0
+    else:
+        monkeypatch.setattr(
+            artifact._backend, "aread", AsyncMock(side_effect=RuntimeError("read unavailable"))
+        )
+    if reset != "pre_read_failure":
+        assert guard._versions == {}
+
+    appended = await offload("second history")
+
+    assert appended == path
+    content = Path(path).read_text()
+    assert content.count("first history") == 1
+    assert content.count("second history") == 1
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "before_download",
+        "after_download",
+        "read_failure",
+        "download_exception",
+        "download_error",
+        "decode_error",
+    ],
+)
+async def test_summary_history_refuses_concurrent_write_after_observation(
+    tmp_path, monkeypatch, mutation
+):
+    from deepagents.middleware.summarization import create_summarization_middleware
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.infra.backend.guarded_sandbox import GuardedSandboxBackend
+    from src.infra.backend.resource_authority import (
+        AuthorizedCompositeBackend,
+        server_artifact_backend,
+    )
+
+    target = tmp_path / "conversation_history/session-a.md"
+    target.parent.mkdir()
+    target.write_text("original history")
+    raw = FilesystemBackend(tmp_path)
+    guard = GuardedSandboxBackend(raw, user_id="u1", session_id="a")
+    download_failure = mutation in {"download_exception", "download_error", "decode_error"}
+    if not download_failure:
+        await guard.aread(str(target))
+    artifact = server_artifact_backend(
+        AuthorizedCompositeBackend(
+            default=guard, routes={}, user_id="u1", artifacts_root=str(tmp_path)
+        )
+    )
+    original_download = raw.adownload_files
+    changed = False
+
+    async def download(paths):
+        nonlocal changed
+        if mutation == "download_exception":
+            raise RuntimeError("download unavailable")
+        if mutation == "download_error":
+            return [file_download_response(path=path, error="io_error") for path in paths]
+        if mutation == "decode_error":
+            return [file_download_response(path=path, content=b"\xff") for path in paths]
+        if changed:
+            return await original_download(paths)
+        changed = True
+        if mutation != "after_download":
+            target.write_text("concurrent writer")
+        result = await original_download(paths)
+        if mutation == "after_download":
+            target.write_text("concurrent writer")
+        return result
+
+    async def failed_read(*_args):
+        return ReadResult(error="read failed")
+
+    monkeypatch.setattr(raw, "adownload_files", download)
+    if mutation == "read_failure":
+        monkeypatch.setattr(raw, "aread", failed_read)
+    summary = create_summarization_middleware(
+        GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
+    )
+    appended = await summary._aoffload_to_backend(
+        artifact, [HumanMessage("new history")], "session-a"
+    )
+    assert appended is None
+    assert target.read_text() == ("original history" if download_failure else "concurrent writer")
 
 
 async def test_cloud_guard_preserves_old_bytes_and_rejects_stale_write(tmp_path):
