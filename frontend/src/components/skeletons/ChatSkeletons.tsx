@@ -285,7 +285,7 @@ export function WelcomePersonaCardSkeleton({
               <span className="welcome-skeleton-line welcome-skeleton-tag shrink-0" />
             )}
           </span>
-          <span className="welcome-persona-description block mt-1 text-12 leading-[1.5]">
+          <span className="welcome-persona-description mt-1 text-12 leading-[1.5]">
             <span className="welcome-skeleton-line w-full !h-2.5 mt-1" />
             <span className="welcome-skeleton-line welcome-skeleton-desc !h-2.5 mt-1.5" />
           </span>
