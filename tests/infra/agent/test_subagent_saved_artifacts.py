@@ -158,3 +158,59 @@ def test_execute_snapshot_does_not_publish_internal_parent_context():
         run, {}, {"/workspace/subagent_context/main_agent_messages_private.md": (20, "new")}
     )
     assert staged == []
+
+
+async def test_real_graph_hook_keeps_backend_and_presenter_for_saved_activity(monkeypatch):
+    from langchain.agents import create_agent
+    from langchain_core.messages import HumanMessage
+
+    from tests.agents.core.test_fork_subagent_contract import _ScriptedChatModel
+
+    monkeypatch.setattr(settings, "ENABLE_ARTIFACT_DELIVERY", True)
+    backend = SimpleNamespace(work_dir="/workspace")
+
+    async def write(path, content):
+        return SimpleNamespace(error=None)
+
+    backend.awrite = write
+    context = SimpleNamespace(user_id="owner", session_id="session")
+    events = []
+    reveals = []
+
+    class Presenter:
+        def present_artifact_result(self, artifact, **kwargs):
+            return {"artifact": artifact, **kwargs}
+
+        async def emit(self, event):
+            events.append(event)
+
+    presenter = Presenter()
+
+    async def reveal_file(**kwargs):
+        config = kwargs["runtime"].config["configurable"]
+        assert config["backend"] is backend
+        assert config["context"] is context
+        assert config["presenter"] is presenter
+        reveals.append(kwargs["file_path"])
+        return json.dumps({"key": "private/activity.md"})
+
+    graph = create_agent(
+        _ScriptedChatModel(script=[AIMessage(content="Verified report")]),
+        middleware=[
+            ArtifactDeliveryMiddleware(reveal_file=reveal_file),
+            SubagentActivityMiddleware(backend=backend, run_id_factory=lambda: "graph"),
+        ],
+    )
+    await graph.ainvoke(
+        {
+            "messages": [
+                HumanMessage("Review"),
+                AIMessage(content="", tool_calls=[{"name": "read_file", "args": {}, "id": "read"}]),
+                ToolMessage("Actual evidence", tool_call_id="read"),
+            ]
+        },
+        config={"configurable": {"backend": backend, "context": context, "presenter": presenter}},
+    )
+    assert reveals == ["/workspace/subagent_activity/activity_graph.md"]
+    assert len(events) == 1
+    assert events[0]["success"] is True
