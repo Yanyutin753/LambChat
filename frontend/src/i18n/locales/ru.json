@@ -1490,6 +1490,7 @@
       "toolSuccess": "Команда выполнена",
       "toolTaskName": "Имя",
       "toolTaskPrompt": "Промпт задачи",
+      "toolCreateSubagent": "Создать субагента",
       "toolSendSubagentMessage": "Сообщение субагенту",
       "toolWaitSubagent": "Ожидание субагента",
       "toolSendParentMessage": "Сообщение родительскому агенту",

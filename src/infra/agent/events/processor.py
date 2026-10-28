@@ -71,6 +71,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "presenter",
         "checkpoint_to_agent",
         "_task_agent_calls",
+        "_task_model_calls",
+        "_created_task_calls",
         "thinking_ids",
         "_output_buffer",
         "total_input_tokens",
@@ -139,7 +141,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         if self._usage_owner is None:
             presenter._usage_accounting_owner = self
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
-        self._task_agent_calls: dict[str, tuple[str, int]] = {}
+        self._task_agent_calls: dict[str, tuple[str, int, str]] = {}
+        self._task_model_calls: dict[tuple[str | None, str], list[str]] = {}
+        self._created_task_calls: set[str] = set()
         if not base_url:
             base_url = settings.APP_BASE_URL.rstrip("/")
         self._base_url = base_url
@@ -500,6 +504,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._output_buffer_chars = 0
         self.checkpoint_to_agent.clear()
         self._task_agent_calls.clear()
+        self._task_model_calls.clear()
+        self._created_task_calls.clear()
         self.thinking_ids.clear()
         self._agent_context_cache.clear()
         self._chunk_buffer.reset()
@@ -606,6 +612,36 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         if tool_name == TOOL_TASK:
             if event.get("metadata", {}).get("lambchat_managed_task"):
+                if evt_type == "on_tool_error":
+                    data = event.get("data", {})
+                    call_id = data.get("tool_call_id")
+                    if call_id and call_id not in self._created_task_calls:
+                        await self.flush()
+                        await self._presenter_emit(
+                            self.presenter.present_tool_result(
+                                "task",
+                                {"status": "error", "error": str(data.get("error"))},
+                                tool_call_id=call_id,
+                                success=False,
+                            )
+                        )
+                if evt_type == "on_tool_end":
+                    output = event.get("data", {}).get("output")
+                    update = getattr(output, "update", None)
+                    messages = update.get("messages", []) if isinstance(update, dict) else []
+                    for message in messages:
+                        if getattr(message, "status", None) == "error" and not getattr(
+                            message, "additional_kwargs", {}
+                        ).get("lambchat_subagent_id"):
+                            await self.flush()
+                            await self._presenter_emit(
+                                self.presenter.present_tool_result(
+                                    "task",
+                                    message.content,
+                                    tool_call_id=message.tool_call_id,
+                                    success=False,
+                                )
+                            )
                 return
             match evt_type:
                 case "on_tool_start":
@@ -626,6 +662,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             for kind in ("body", "thinking", "summary"):
                 await self._finish_activity_reference((agent_id, event.get("run_id"), kind))
             await self.flush()
+            self._remember_task_model_calls(event, agent_id)
             self._reset_tool_args_buffers(agent_id)
             return
 

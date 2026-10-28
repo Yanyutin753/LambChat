@@ -109,10 +109,18 @@ class SubagentSessions:
 
     def restore(self, records: dict[str, dict[str, Any]]) -> None:
         for subagent_id, record in records.items():
+            timeout = record.get("execution_timeout_seconds", SUBAGENT_EXECUTION_TIMEOUT_SECONDS)
+            if (
+                isinstance(timeout, bool)
+                or not isinstance(timeout, int)
+                or not 10 <= timeout <= SUBAGENT_EXECUTION_TIMEOUT_SECONDS
+            ):
+                timeout = SUBAGENT_EXECUTION_TIMEOUT_SECONDS
             self.records.setdefault(
                 subagent_id,
                 {
                     **record,
+                    "execution_timeout_seconds": timeout,
                     "pending": list(record.get("pending", [])),
                     "parent_messages": list(record.get("parent_messages", [])),
                 },
@@ -244,7 +252,14 @@ class SubagentSessions:
         config: RunnableConfig,
         background: bool = False,
         initial_state: dict[str, Any] | None = None,
+        execution_timeout_seconds: int | None = None,
     ) -> dict:
+        if execution_timeout_seconds is not None and (
+            isinstance(execution_timeout_seconds, bool)
+            or not isinstance(execution_timeout_seconds, int)
+            or not 10 <= execution_timeout_seconds <= SUBAGENT_EXECUTION_TIMEOUT_SECONDS
+        ):
+            raise ValueError("execution_timeout_seconds must be an integer from 10 to 7200")
         subagent_id = "subagent-" + hashlib.sha256(call_id.encode()).hexdigest()[:24]
         async with self.locks.setdefault(subagent_id, asyncio.Lock()):
             if subagent_id not in self.records:
@@ -260,6 +275,9 @@ class SubagentSessions:
                     "pending": [],
                     "description": description,
                     "collected": False,
+                    "execution_timeout_seconds": SUBAGENT_EXECUTION_TIMEOUT_SECONDS
+                    if execution_timeout_seconds is None
+                    else execution_timeout_seconds,
                 }
                 try:
                     await self._prepare(subagent_id, config)
@@ -325,6 +343,7 @@ class SubagentSessions:
                     "error_args",
                     "verification_required",
                     "partial_result",
+                    "execution_timeout_seconds",
                 )
                 if key in record
             },
@@ -449,9 +468,9 @@ class SubagentSessions:
         try:
             async with self.execution_slots:
                 async with self._runner_ownership(subagent_id):
-                    remaining = SUBAGENT_EXECUTION_TIMEOUT_SECONDS - record.get(
-                        "execution_seconds", 0
-                    )
+                    remaining = record.get(
+                        "execution_timeout_seconds", SUBAGENT_EXECUTION_TIMEOUT_SECONDS
+                    ) - record.get("execution_seconds", 0)
                     started = time.monotonic()
                     try:
                         async with asyncio.timeout(max(remaining, 0)):

@@ -1478,6 +1478,7 @@
       "toolSuccess": "命令执行成功",
       "toolTaskName": "名称",
       "toolTaskPrompt": "任务提示词",
+      "toolCreateSubagent": "创建子代理",
       "toolSendSubagentMessage": "向子代理发消息",
       "toolWaitSubagent": "等待子代理",
       "toolSendParentMessage": "向父代理发消息",

@@ -8,12 +8,69 @@ import pytest
 from src.infra.agent import AgentEventProcessor
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("created_child", [False, True])
+async def test_managed_task_callback_error_settles_only_uncreated_draft(created_child):
+    from uuid import uuid4
+
+    from langchain_core.tracers.event_stream import _AstreamEventsCallbackHandler
+
+    from src.infra.writer.present import Presenter
+
+    presenter = Presenter()
+    emitted = []
+
+    async def emit(event):
+        emitted.append(event)
+
+    presenter.emit = emit
+    processor = AgentEventProcessor(presenter)
+    if created_child:
+        await processor.process_event(
+            {
+                "event": "on_custom_event",
+                "name": "lambchat_subagent",
+                "data": {
+                    "subagent_id": "child",
+                    "agent_call_id": "create-child",
+                    "phase": "queued",
+                    "status": "queued",
+                },
+            }
+        )
+        emitted.clear()
+    # Use the installed callback serializer: IDs passed as kwargs on start must
+    # survive in the error event's data rather than being guessed from run_id.
+    callback = _AstreamEventsCallbackHandler()
+    run_id = uuid4()
+    await callback.on_tool_start(
+        {"name": "task"},
+        "{}",
+        run_id=run_id,
+        inputs={"execution_timeout_seconds": 9},
+        metadata={"lambchat_managed_task": True},
+        tool_call_id="create-child",
+    )
+    await callback.on_tool_error(ValueError("Invalid execution_timeout_seconds"), run_id=run_id)
+    await callback.send_stream.aclose()
+    async for event in callback:
+        await processor.process_event(event)
+    assert len(emitted) == (0 if created_child else 1)
+    if not created_child:
+        assert emitted[0]["event"] == "tool:result"
+        assert emitted[0]["data"]["tool_call_id"] == "create-child"
+        assert emitted[0]["data"]["success"] is False
+
+
 class FakePresenter:
     def __init__(self) -> None:
         self.emitted: list[dict[str, Any]] = []
 
     async def emit(self, event: dict[str, Any]) -> None:
         self.emitted.append(event)
+
+    def present_tool_result(self, tool_name, result, **kwargs):
+        return {"event": "tool:result", "data": {"tool": tool_name, "result": result, **kwargs}}
 
     def present_agent_call(
         self,
@@ -173,7 +230,7 @@ async def test_special_tools_do_not_stream_args() -> None:
     presenter = FakePresenter()
     processor = AgentEventProcessor(presenter)
 
-    for tool in ("ask_human", "task", "write_todos"):
+    for tool in ("ask_human", "write_todos"):
         await processor.process_event(
             args_stream([{"name": tool, "id": f"call_{tool}", "index": 0, "args": ""}])
         )
@@ -183,6 +240,62 @@ async def test_special_tools_do_not_stream_args() -> None:
     await processor.process_event(model_end())
 
     assert presenter.emitted == []
+
+
+async def test_task_description_streams_before_child_creation() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        args_stream(
+            [{"name": "task", "id": "create-child", "index": 0, "args": '{"description":"Review'}]
+        )
+    )
+    assert presenter.emitted[0]["event"] == "tool:args:chunk"
+    assert presenter.emitted[0]["data"] == {
+        "tool": "task",
+        "tool_call_id": "create-child",
+        "content": '{"description":"Review',
+        "depth": 0,
+        "agent_id": None,
+    }
+
+
+@pytest.mark.parametrize("created_child", [False, True])
+async def test_failed_creation_settles_its_streamed_task_draft(created_child) -> None:
+    from langchain_core.messages import ToolMessage
+    from langgraph.types import Command
+
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "task",
+            "run_id": "callback-id",
+            "metadata": {"lambchat_managed_task": True},
+            "data": {
+                "output": Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                content='{"status":"error","error":"Role unavailable"}',
+                                tool_call_id="create-child",
+                                status="error",
+                                additional_kwargs={"lambchat_subagent_id": "child"}
+                                if created_child
+                                else {},
+                            )
+                        ]
+                    }
+                )
+            },
+        }
+    )
+    if created_child:
+        assert presenter.emitted == []
+        return
+    assert presenter.emitted[0]["data"]["tool_call_id"] == "create-child"
+    assert presenter.emitted[0]["data"]["success"] is False
 
 
 @pytest.mark.asyncio

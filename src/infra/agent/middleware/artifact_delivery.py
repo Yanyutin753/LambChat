@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 
 from src.infra.agent.middleware._artifact_delivery_support import (
     _ARTIFACT_DELIVERY_CONCURRENCY as _ARTIFACT_DELIVERY_CONCURRENCY,
@@ -146,6 +147,11 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         except Exception:
             self._resume_auto_delivery(run, explicit_path, request.runtime)
             raise
+        # Preserve server write receipts before a later model step summarizes them away.
+        if isinstance(result, ToolMessage):
+            self._auto_stage_from_state(run, {"messages": [result]})
+        elif isinstance(result, Command) and isinstance(result.update, dict):
+            self._auto_stage_from_state(run, result.update)
         if not isinstance(result, ToolMessage):
             self._resume_auto_delivery(run, explicit_path, request.runtime)
             return result
@@ -183,7 +189,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return None
         key, run = self._run_state(runtime)
         try:
-            self._auto_stage_external_urls_from_state(run, state)
+            self._auto_stage_from_state(run, state)
             artifact_count_before_drain = len(run.artifacts)
             had_pending_artifacts = False
             for artifact in run.artifacts.values():
@@ -204,7 +210,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             if self._runs.get(key) is run:
                 self._runs.pop(key, None)
 
-    def _auto_stage_external_urls_from_state(
+    def _auto_stage_from_state(
         self,
         run: _ArtifactRunState,
         state: Any,
@@ -214,12 +220,24 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return
 
         for message in messages:
-            if getattr(message, "type", None) not in {"ai", "assistant"}:
+            if getattr(message, "type", None) not in {"ai", "assistant", "tool"}:
                 continue
             # 只扫本轮新增消息：checkpointer 让历史消息跨轮累积，全量重扫
             # 会对旧 URL 每轮重发 artifact:result（重复卡 + 归属错误）。
             message_id = getattr(message, "id", None)
             if isinstance(message_id, str) and message_id in run.seen_message_ids:
+                continue
+            # Only successful server writes attach this receipt; never parse model path text.
+            saved_path = getattr(message, "additional_kwargs", {}).get(
+                "lambchat_saved_artifact_path"
+            )
+            if (
+                isinstance(saved_path, str)
+                and saved_path
+                and _normalize_path(saved_path) not in run.artifacts
+            ):
+                self._stage_path(run, saved_path, kind="file")
+            if getattr(message, "type", None) == "tool":
                 continue
             content = _content_to_text(getattr(message, "content", ""))
             if not content:

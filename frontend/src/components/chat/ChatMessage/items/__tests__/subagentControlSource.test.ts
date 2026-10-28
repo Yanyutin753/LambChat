@@ -19,6 +19,7 @@ test("subagent messages and waits use their dedicated item", () => {
 
 test("subagent control wording covers both actions and all result states in every locale", () => {
   const keys = [
+    "toolCreateSubagent",
     "toolSendSubagentMessage",
     "toolWaitSubagent",
     "toolSendParentMessage",

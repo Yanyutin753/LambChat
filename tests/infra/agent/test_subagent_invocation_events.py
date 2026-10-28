@@ -46,6 +46,66 @@ async def test_parallel_legacy_tasks_keep_distinct_invocations_on_the_same_check
     assert all(event["data"]["agent_id"] == events[0]["data"]["agent_id"] for event in events)
 
 
+async def test_legacy_tasks_promote_provider_ids_after_model_end_in_parallel():
+    from langchain_core.messages import AIMessage
+
+    presenter = Presenter()
+    presenter.emit = AsyncMock()
+    processor = AgentEventProcessor(presenter)
+    calls = [
+        {
+            "name": "task",
+            "id": f"provider-{name}",
+            "args": {"subagent_type": "worker", "description": name},
+        }
+        for name in ("one", "two")
+    ]
+    await processor.process_event(
+        {
+            "event": "on_chat_model_end",
+            "name": "model",
+            "run_id": "model-run",
+            "data": {"output": AIMessage(content="", tool_calls=calls)},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_chat_model_end",
+            "name": "context-summary",
+            "run_id": "summary-run",
+            "data": {"output": AIMessage(content="Parent context summary")},
+        }
+    )
+    for phase, name in (("start", "two"), ("start", "one"), ("error", "two"), ("end", "one")):
+        await processor.process_event(
+            {
+                "event": f"on_tool_{phase}",
+                "name": "task",
+                "run_id": f"callback-{name}",
+                "metadata": {"checkpoint_ns": "tools:shared"},
+                "data": {
+                    "input": {
+                        "description": name + "\n\n## Main-Agent Context Snapshot\ncontext-path",
+                        "subagent_type": "worker",
+                    },
+                    "output": "done",
+                    "error": RuntimeError("failed"),
+                },
+            }
+        )
+    events = [
+        call.args[0]
+        for call in presenter.emit.call_args_list
+        if call.args[0]["event"] in {"agent:call", "agent:result"}
+    ]
+    assert [event["data"].get("agent_call_id") for event in events] == [
+        "provider-two",
+        "provider-one",
+        "provider-two",
+        "provider-one",
+    ]
+
+
 async def test_session_continuation_renews_invocation_but_resume_keeps_it(monkeypatch):
     from langchain.agents import create_agent
     from langchain_core.messages import AIMessage

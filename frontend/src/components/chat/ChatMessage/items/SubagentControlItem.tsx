@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react";
-import { Ban, Hourglass, List, MessageCircle } from "lucide-react";
+import { Ban, Bot, Hourglass, List, MessageCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { openSubagentPanelByAgentId } from "../SubagentBlock";
@@ -122,29 +122,34 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const { t } = useTranslation();
   const parsed = useMemo(() => parseSubagentControlResult(result), [result]);
   const isWait = toolName === "wait_subagent";
+  const isTask = toolName === "task";
   const isParentMessage = toolName === "send_parent_message";
   const isCancel = toolName === "cancel_subagent";
   const isList = toolName === "list_subagents";
   const title = t(
-    isCancel
-      ? "chat.message.toolCancelSubagent"
-      : isList
-        ? "chat.message.toolListSubagents"
-        : isParentMessage
-          ? args.direction === "received"
-            ? "chat.message.toolReceiveSubagentMessage"
-            : "chat.message.toolSendParentMessage"
-          : isWait
-            ? "chat.message.toolWaitSubagent"
-            : "chat.message.toolSendSubagentMessage",
+    isTask
+      ? "chat.message.toolCreateSubagent"
+      : isCancel
+        ? "chat.message.toolCancelSubagent"
+        : isList
+          ? "chat.message.toolListSubagents"
+          : isParentMessage
+            ? args.direction === "received"
+              ? "chat.message.toolReceiveSubagentMessage"
+              : "chat.message.toolSendParentMessage"
+            : isWait
+              ? "chat.message.toolWaitSubagent"
+              : "chat.message.toolSendSubagentMessage",
   );
-  const Icon = isCancel
-    ? Ban
-    : isList
-      ? List
-      : isWait
-        ? Hourglass
-        : MessageCircle;
+  const Icon = isTask
+    ? Bot
+    : isCancel
+      ? Ban
+      : isList
+        ? List
+        : isWait
+          ? Hourglass
+          : MessageCircle;
   const subagentId = String(parsed?.subagent_id || args.subagent_id || "");
   const subscribe = useCallback(
     (listener: () => void) =>
@@ -211,12 +216,8 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const reply =
     !isPending && !cancelled && (state === "error" || state === "failed")
       ? parsed?.error
-      : !isPending && !cancelled && success !== false
-        ? isParentMessage
-          ? args.message
-          : state === "completed"
-            ? parsed?.result
-            : undefined
+      : !isPending && !cancelled && success !== false && isParentMessage
+        ? args.message
         : undefined;
 
   return (
@@ -225,12 +226,17 @@ export const SubagentControlItem = memo(function SubagentControlItem({
         status={status}
         icon={<Icon size={12} className="shrink-0 opacity-50" />}
         label={label}
+        description={
+          isTask && typeof args.description === "string"
+            ? args.description
+            : undefined
+        }
         animatedDots={isPending}
         variant="tool"
         formatLabel={false}
-        expandable={canExpand}
+        expandable={!isTask && canExpand}
         onPanelOpen={() => {
-          if (!canExpand) return;
+          if (isTask || !canExpand) return;
           if (openSubagentPanelByAgentId(subagentId)) return;
           openToolLivePanel({
             id,
