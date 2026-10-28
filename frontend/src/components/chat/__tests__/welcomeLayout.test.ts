@@ -30,6 +30,24 @@ test("loads welcome layout styles with the startup skeleton before lazy routes r
   expect(chatSkeletonsSource).toContain('import "../../styles/welcome.css"');
 });
 
+test("persona description cards never carry a display utility that disables the CSS clamp", () => {
+  // 截断规则在手写 CSS（display:-webkit-box + line-clamp:2）里；生产构建中
+  // Tailwind 的 display 工具类（.block 等）排序在后，同 specificity 会覆盖
+  // -webkit-box，line-clamp 随之失效，描述不再限两行（2026-10-28 用户反馈）。
+  const classNames = [
+    ...welcomePageSource.matchAll(
+      /className="(welcome-persona-description[^"]*)"/g,
+    ),
+  ].map((match) => match[1]);
+
+  expect(classNames.length).toBeGreaterThan(0);
+  for (const className of classNames) {
+    expect(className).not.toMatch(
+      /(?:^| )(?:block|flex|inline|grid|hidden|table)(?: |$)/,
+    );
+  }
+});
+
 test("keeps every welcome persona card reachable on mobile", () => {
   const className = getWelcomePersonaCardClass(3);
 
