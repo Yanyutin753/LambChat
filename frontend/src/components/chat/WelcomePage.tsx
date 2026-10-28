@@ -699,7 +699,7 @@ export const WelcomePage = memo(function WelcomePage({
                           </span>
                         </div>
                         <span
-                          className="welcome-persona-description block mt-1 text-12 leading-[1.5]"
+                          className="welcome-persona-description mt-1 text-12 leading-[1.5]"
                           style={{
                             color:
                               "var(--theme-text-tertiary, var(--theme-text-secondary))",
@@ -755,7 +755,7 @@ export const WelcomePage = memo(function WelcomePage({
                         </span>
                         {preset.description && (
                           <span
-                            className="welcome-persona-description block mt-1 text-12 leading-[1.5]"
+                            className="welcome-persona-description mt-1 text-12 leading-[1.5]"
                             style={{
                               color:
                                 "var(--theme-text-tertiary, var(--theme-text-secondary))",
