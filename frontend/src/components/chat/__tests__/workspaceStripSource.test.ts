@@ -31,6 +31,14 @@ test("workspace controls remain one horizontally scrollable row in the composer 
   );
 });
 
+test("workspace strip keeps a compact vertical rhythm", () => {
+  // 本地电脑/工作区上下文条只留极小上下留白（2026-10-28 用户反馈"上下间距小一点点"）
+  const css = read("../../../styles/chat.css");
+  expect(css).toMatch(
+    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem 0\.5rem 1rem 0\.25rem;/,
+  );
+});
+
 test("local directory selection lives in the workspace strip while the submit guard stays mounted", () => {
   const input = read("../ChatInput.tsx");
   const strip = input.slice(

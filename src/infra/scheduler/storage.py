@@ -49,6 +49,7 @@ _TASK_EXECUTION_PROJECTION = {
     "last_run_at": 1,
     "total_runs": 1,
     "created_at": 1,
+    "updated_at": 1,
 }
 
 
@@ -235,6 +236,22 @@ class ScheduledTaskStorage:
                 "trigger_type": "date",
                 "trigger_config": trigger_config,
                 "timezone": timezone,
+                "status": "active",
+                "enabled": True,
+            },
+            {"$set": {"status": "paused", "enabled": False, "updated_at": utc_now()}},
+        )
+        if result.modified_count:
+            await self._bump_scheduler_definition_revision()
+        return bool(result.modified_count)
+
+    async def pause_invalid_model_task(self, task_id, input_payload, updated_at):
+        # A delayed finalizer must not pause a task the user edited or resumed.
+        result = await self._get_collection(_COLL_TASKS).update_one(
+            {
+                "_id": task_id,
+                "input_payload": input_payload,
+                "updated_at": updated_at,
                 "status": "active",
                 "enabled": True,
             },

@@ -20,6 +20,7 @@ from collections.abc import Awaitable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from src.infra.agent.events.buffers import ActivityReferenceFilter
@@ -41,6 +42,12 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_MARKER = "_lambchat_summary_fallback"
 _PREFIX_MARKER = "_lambchat_summary_prefix"
+_SUMMARY_BUILD_CONTEXT: ContextVar[tuple[str | None, dict | None, dict[int, Any]] | None] = (
+    ContextVar("summary_build_context", default=None)
+)
+_SUMMARY_PATCH_LOCK = Lock()
+_summary_patch_users = 0
+_summary_patch_originals: tuple[Any, Any] | None = None
 
 # 图片的真实上下文成本估算（对齐 codex RESIZED_IMAGE_BYTES_ESTIMATE=7373 字节 ÷ 4
 # 字节/token ≈ 1844）。langchain 默认按 85 token/张计，图片再多也推不动压缩触发器。
@@ -315,35 +322,57 @@ def summarization_fallback_patch(
     否则带图会话永远达不到压缩触发线）；配置了兜底模型时额外给摘要调用加
     "换模型重做"保护。
 
-    ``create_deep_agent`` 是同步函数且在事件循环线程上执行，窗口内不存在
-    await 点，因此临时替换模块属性不会与其他协程交错。
+    并行构图共享工厂包装，但配置按 contextvars 隔离；无构图上下文的调用保持原逻辑。
+    最后一个构图窗口退出才恢复工厂，锁只保护安装和恢复，不串行化图编译。
     """
     import deepagents.graph as deepagents_graph
 
-    original = deepagents_graph.create_summarization_middleware
-    original_merge = deepagents_graph._apply_custom_middleware
-    summaries: dict[int, Any] = {}
+    global _summary_patch_users, _summary_patch_originals
+    with _SUMMARY_PATCH_LOCK:
+        if _summary_patch_users == 0:
+            original = deepagents_graph.create_summarization_middleware
+            original_merge = deepagents_graph._apply_custom_middleware
+            _summary_patch_originals = (original, original_merge)
 
-    def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
-        kwargs.setdefault("token_counter", _image_aware_counter_for(model))
-        middleware = original(model, server_artifact_backend(backend), **kwargs)
-        middleware = _reuse_summary_prefix(
-            middleware, fallback_model=fallback_model, thinking=thinking
-        )
-        summaries[id(middleware)] = middleware
-        return middleware
+            def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
+                context = _SUMMARY_BUILD_CONTEXT.get()
+                if context is None:
+                    return original(model, backend, **kwargs)
+                fallback, reasoning, summaries = context
+                kwargs.setdefault("token_counter", _image_aware_counter_for(model))
+                middleware = original(model, server_artifact_backend(backend), **kwargs)
+                middleware = _reuse_summary_prefix(
+                    middleware, fallback_model=fallback, thinking=reasoning
+                )
+                summaries[id(middleware)] = middleware
+                return middleware
 
-    def merge(*args: Any, **kwargs: Any) -> Any:
-        middleware = [protect_server_artifact_eviction(m) for m in original_merge(*args, **kwargs)]
-        # Count and summarize the actual system/tools after all prompt-producing hooks.
-        return [m for m in middleware if id(m) not in summaries] + [
-            m for m in middleware if id(m) in summaries
-        ]
+            def merge(*args: Any, **kwargs: Any) -> Any:
+                middleware = original_merge(*args, **kwargs)
+                context = _SUMMARY_BUILD_CONTEXT.get()
+                if context is None:
+                    return middleware
+                summaries = context[2]
+                middleware = [protect_server_artifact_eviction(m) for m in middleware]
+                # Count and summarize after all prompt-producing hooks.
+                return [m for m in middleware if id(m) not in summaries] + [
+                    m for m in middleware if id(m) in summaries
+                ]
 
-    deepagents_graph.create_summarization_middleware = patched
-    deepagents_graph._apply_custom_middleware = merge
+            deepagents_graph.create_summarization_middleware = patched
+            deepagents_graph._apply_custom_middleware = merge
+        _summary_patch_users += 1
+    token = _SUMMARY_BUILD_CONTEXT.set((fallback_model, thinking, {}))
     try:
         yield
     finally:
-        deepagents_graph.create_summarization_middleware = original
-        deepagents_graph._apply_custom_middleware = original_merge
+        _SUMMARY_BUILD_CONTEXT.reset(token)
+        with _SUMMARY_PATCH_LOCK:
+            _summary_patch_users -= 1
+            if _summary_patch_users == 0:
+                assert _summary_patch_originals is not None
+                (
+                    deepagents_graph.create_summarization_middleware,
+                    deepagents_graph._apply_custom_middleware,
+                ) = _summary_patch_originals
+                _summary_patch_originals = None

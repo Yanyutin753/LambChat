@@ -758,17 +758,8 @@ class TaskExecutor(TaskSessionStatusMixin):
         message: str | None = None,
         *,
         prepared_completion: dict[str, Any] | None = None,
-    ) -> None:
-        """
-        发送任务完成通知
-
-        Args:
-            session_id: 会话 ID
-            run_id: 运行 ID
-            status: 任务状态
-            user_id: 用户 ID
-            message: 可选的消息
-        """
+    ) -> bool:
+        """Return whether notification finalization can be acknowledged."""
         try:
             from src.infra.websocket import get_connection_manager
 
@@ -824,7 +815,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                     session_metadata.get("scheduled_target_session_id")
                     and status == TaskStatus.COMPLETED
                 ):
-                    return
+                    return True
                 if scheduled_task_id:
                     notification["data"]["scheduled_task_id"] = scheduled_task_id
 
@@ -836,7 +827,7 @@ class TaskExecutor(TaskSessionStatusMixin):
                 else prepare_completion(notification["data"], session_metadata)
             )
             if completion is None:
-                return
+                return True
             from src.infra.task.completion_recovery import TaskCompletionOutbox
 
             notification["data"] = completion
@@ -851,13 +842,13 @@ class TaskExecutor(TaskSessionStatusMixin):
                 )
             except Exception as error:
                 logger.warning("Failed to persist task completion: %s", error)
-                return
+                return False
             try:
                 await outbox.clear(session_id, user_id, completion["dedupe_key"])
             except Exception as error:
                 logger.warning("Failed to clear delivered completion marker: %s", error)
             if not fresh:
-                return
+                return True
             manager = get_connection_manager()
             delivered_count = await manager.send_to_user_with_broadcast(user_id, notification)
             if delivered_count <= 0:
@@ -879,7 +870,13 @@ class TaskExecutor(TaskSessionStatusMixin):
                         "title": "LambChat",
                         "body": notification["data"].get("message")
                         or f"Task {notification['data']['status']}",
-                        "url": f"/chat/{session_id}",
+                        "url": (
+                            f"/scheduled-tasks/{completion['scheduled_task_id']}"
+                            if completion.get("notification_kind")
+                            in {"scheduled_failure", "scheduled_model_unavailable"}
+                            and completion.get("scheduled_task_id")
+                            else f"/chat/{session_id}"
+                        ),
                     }
                     push_delivered = await push_mgr.send_push_to_user(user_id, push_payload)
                     if push_delivered > 0:
@@ -917,6 +914,8 @@ class TaskExecutor(TaskSessionStatusMixin):
                 )
         except Exception as e:
             logger.warning(f"Failed to send task notification: {e}")
+            return False
+        return True
 
     def _schedule_idle_pause_check(self, session_id: str) -> None:
         """终态后解析 user 并调度空闲暂停检查（含宽限期）。

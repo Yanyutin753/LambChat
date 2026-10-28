@@ -22,7 +22,7 @@ ATTACHMENT_CLEAR_TERMINAL_STATUSES = ("completed", "error", "cancelled")
 # reach a terminal status on its own and would block session deletion forever.
 STALE_RUNNING_TRACE_TTL = timedelta(minutes=10)
 
-# 全局兜底扫描的单批上限：防止一次扫掉过多文档长时间占用库，下一轮继续。
+# 全局兜底终结的单批上限；存活候选不消耗名额，避免饿死后续僵尸。
 GLOBAL_STALE_TRACE_EXPIRY_BATCH_LIMIT = 200
 
 logger = get_logger("src.infra.session.trace_storage")
@@ -60,19 +60,16 @@ class TraceAttachmentCleanupMixin:
         try:
             from src.infra.task.heartbeat import TaskHeartbeat
 
-            cursor = (
-                self.collection.find(base_query, {"_id": 1, "run_id": 1})
-                .sort("updated_at", 1)
-                .limit(limit)
-            )
-            docs = await cursor.to_list(length=limit)
+            cursor = self.collection.find(base_query, {"_id": 1, "run_id": 1}).sort("updated_at", 1)
             expired_ids = []
             heartbeat = TaskHeartbeat()
-            for doc in docs:
+            async for doc in cursor:
                 run_id = doc.get("run_id")
                 if run_id and not await heartbeat.is_stale(run_id):
                     continue
                 expired_ids.append(doc["_id"])
+                if len(expired_ids) >= limit:
+                    break
             if not expired_ids:
                 return 0
             result = await self.collection.update_many(

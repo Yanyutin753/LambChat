@@ -120,6 +120,81 @@ def _reset_fake_event_processor() -> None:
     _FakeEventProcessor.next_output_text = ""
 
 
+@pytest.mark.parametrize("agent", ["search", "team"])
+async def test_graph_compilation_yields_loop_and_preserves_request_isolation(monkeypatch, agent):
+    import importlib
+    import threading
+
+    from src.infra.backend.context import current_user_id
+
+    module = importlib.import_module(f"src.agents.{agent}_agent.nodes")
+    _patch_common(monkeypatch, module, _FakeDeepAgent())
+    loop = asyncio.get_running_loop()
+    loop_thread = threading.get_ident()
+    builds = {}
+    executions = {}
+
+    async def get_model(**_kwargs):
+        assert asyncio.get_running_loop() is loop
+        return SimpleNamespace(owner=current_user_id.get())
+
+    async def backend(**_kwargs):
+        assert asyncio.get_running_loop() is loop
+        values = (object(), object(), None, None)
+        return (values[0], "system prompt", *values[1:]) if agent == "search" else values
+
+    class Graph(_FakeDeepAgent):
+        async def astream_events(self, _initial_state, config, version="v2"):
+            assert asyncio.get_running_loop() is loop
+            owner = config["configurable"]["context"].user_id
+            executions[owner] = self
+            if False:
+                yield version
+
+    def compile_graph(**kwargs):
+        released = threading.Event()
+        loop.call_soon_threadsafe(released.set)
+        assert released.wait(1), "graph compilation blocked the event loop"
+        assert threading.get_ident() != loop_thread
+        owner = current_user_id.get()
+        assert kwargs["model"].owner == owner
+        graph = Graph()
+        builds[owner] = graph
+        return graph
+
+    monkeypatch.setattr(module.LLMClient, "get_model", get_model)
+    if agent == "search":
+        monkeypatch.setattr(module, "_create_backend_and_prompt", backend)
+    else:
+        monkeypatch.setattr(module.backend_setup, "load_backend_bundle", backend)
+    monkeypatch.setattr(module, "create_deep_agent", compile_graph)
+    node = getattr(module, "agent_node" if agent == "search" else "team_router_node")
+
+    async def invoke(owner):
+        token = current_user_id.set(owner)
+        try:
+            await node(
+                {"input": "hello", "session_id": owner, "attachments": []},
+                {
+                    "configurable": {
+                        "context": SimpleNamespace(user_id=owner, skills=[], deferred_manager=None),
+                        "presenter": object(),
+                        "agent_options": {
+                            "_resolved_supports_vision": False,
+                            "_resolved_image_url_mode": "url",
+                        },
+                    }
+                },
+            )
+        finally:
+            current_user_id.reset(token)
+
+    await asyncio.gather(invoke("user-a"), invoke("user-b"))
+    assert set(builds) == {"user-a", "user-b"}
+    assert builds == executions
+    assert builds["user-a"] is not builds["user-b"]
+
+
 def _patch_tool_search_middleware(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     from src.infra.agent import middleware as middleware_pkg
 
