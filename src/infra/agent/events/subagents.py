@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -24,9 +25,20 @@ def _strip_internal_main_context_snapshot(description: str) -> str:
     return visible.rstrip()
 
 
+def _task_call_signature(args: Any) -> str:
+    if isinstance(args, dict) and isinstance(args.get("description"), str):
+        args = {
+            **args,
+            "description": _strip_internal_main_context_snapshot(args["description"]).rstrip(),
+        }
+    return json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+
+
 class SubagentEventMixin:
     checkpoint_to_agent: dict[str, tuple[str, str]]
-    _task_agent_calls: dict[str, tuple[str, int]]
+    _task_agent_calls: dict[str, tuple[str, int, str]]
+    _task_model_calls: dict[tuple[str | None, str], list[str]]
+    _created_task_calls: set[str]
     _agent_context_cache: dict[str, tuple[str | None, int]]
     _subagent_display_names: dict[str, str]
     _subagent_avatars: dict[str, str]
@@ -64,6 +76,8 @@ class SubagentEventMixin:
         data = cast(dict[str, Any], event.get("data", {}))
         subagent_id = data["subagent_id"]
         role_type = data.get("subagent_type", "unknown")
+        if call_id := data.get("agent_call_id"):
+            self._created_task_calls.add(call_id)
         await self.flush()
         if data.get("phase") in {"started", "queued"}:
             await self._presenter_emit(
@@ -131,6 +145,23 @@ class SubagentEventMixin:
         self._agent_context_cache[checkpoint_ns] = result
         return result
 
+    def _remember_task_model_calls(self, event: StreamEvent, agent_id: str | None) -> None:
+        output = event.get("data", {}).get("output")
+        calls = [
+            call
+            for call in getattr(output, "tool_calls", [])
+            if call.get("name") == "task" and call.get("id")
+        ]
+        # Context summarization can finish between assignment and tool dispatch.
+        if not calls:
+            return
+        for key in list(self._task_model_calls):
+            if key[0] == agent_id:
+                del self._task_model_calls[key]
+        for call in calls:
+            signature = _task_call_signature(call.get("args", {}))
+            self._task_model_calls.setdefault((agent_id, signature), []).append(call["id"])
+
     async def _handle_task_start(self, event: StreamEvent) -> None:
         data = event.get("data", {})
         inp: dict[str, Any] = data.get("input", {})
@@ -144,6 +175,12 @@ class SubagentEventMixin:
 
         metadata = event.get("metadata", {})
         checkpoint_ns = self._get_checkpoint_ns(metadata)
+        parent_id = (
+            metadata.get("lambchat_subagent_id") or self._get_agent_context(checkpoint_ns)[0]
+        )
+        signature = _task_call_signature(inp)
+        model_calls = self._task_model_calls.get((parent_id, signature), [])
+        agent_call_id = model_calls.pop(0) if model_calls else run_id
         checkpoint_uuid = checkpoint_ns.rpartition(":")[2] if checkpoint_ns else run_id
         instance_id = f"{subagent_type}_{checkpoint_uuid}"
 
@@ -159,7 +196,7 @@ class SubagentEventMixin:
             logger.debug("Overwriting existing checkpoint_to_agent entry: %s", checkpoint_ns[:60])
 
         self.checkpoint_to_agent[checkpoint_ns] = (instance_id, subagent_type)
-        self._task_agent_calls[run_id] = (instance_id, current_depth)
+        self._task_agent_calls[run_id] = (instance_id, current_depth, agent_call_id)
         self._agent_context_cache.clear()
 
         logger.info(
@@ -170,10 +207,11 @@ class SubagentEventMixin:
             len(self.checkpoint_to_agent),
         )
 
+        await self.flush()
         await self._presenter_emit(
             self.presenter.present_agent_call(
                 agent_id=instance_id,
-                agent_call_id=run_id,
+                agent_call_id=agent_call_id,
                 agent_name=subagent_display_name,
                 input_message=description,
                 depth=current_depth,
@@ -191,7 +229,7 @@ class SubagentEventMixin:
             self.checkpoint_to_agent.pop(checkpoint_ns, None)
         self._agent_context_cache.clear()
         if invocation:
-            return invocation
+            return invocation[0], invocation[1]
         if agent_info:
             return agent_info[0], checkpoint_ns.count("|") + 1 if checkpoint_ns else 1
         return "unknown", 1
@@ -225,6 +263,8 @@ class SubagentEventMixin:
         elif isinstance(out, dict) and (out.get("error") or out.get("status") == "error"):
             error_message = out.get("error") or out.get("message") or str(out)
 
+        invocation = self._task_agent_calls.get(event.get("run_id", ""))
+        agent_call_id = invocation[2] if invocation else event.get("run_id")
         current_instance_id, current_depth = self._resolve_agent_info(event)
 
         logger.debug(
@@ -237,7 +277,7 @@ class SubagentEventMixin:
         await self._presenter_emit(
             self.presenter.present_agent_result(
                 agent_id=current_instance_id,
-                agent_call_id=event.get("run_id"),
+                agent_call_id=agent_call_id,
                 result=result_text,
                 success=error_message is None,
                 depth=current_depth,
@@ -248,6 +288,8 @@ class SubagentEventMixin:
     async def _handle_task_error(self, event: StreamEvent) -> None:
         error = event.get("data", {}).get("error")
         error_message = str(error) if error is not None else "Unknown error"
+        invocation = self._task_agent_calls.get(event.get("run_id", ""))
+        agent_call_id = invocation[2] if invocation else event.get("run_id")
         current_instance_id, current_depth = self._resolve_agent_info(event)
 
         logger.warning(
@@ -260,7 +302,7 @@ class SubagentEventMixin:
         await self._presenter_emit(
             self.presenter.present_agent_result(
                 agent_id=current_instance_id,
-                agent_call_id=event.get("run_id"),
+                agent_call_id=agent_call_id,
                 result="",
                 success=False,
                 depth=current_depth,

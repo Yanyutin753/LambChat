@@ -410,7 +410,7 @@ export class HistoryPartReplay {
     }
     if (eventType === "agent:call" || eventType === "agent:result") {
       const agent = data.agent_id || "unknown";
-      const ref = index.local(
+      let ref = index.local(
         index.root,
         data.agent_call_id
           ? ["agent-call", data.agent_call_id]
@@ -421,6 +421,15 @@ export class HistoryPartReplay {
             ],
         true,
       );
+      if (!ref && eventType === "agent:call" && data.agent_call_id) {
+        const draft = index.result(data.agent_call_id, depth - 1);
+        if (
+          draft?.slot.part.type === "tool" &&
+          draft.slot.part.name === "task" &&
+          draft.slot.part.argsPartial
+        )
+          ref = draft;
+      }
       let next: MessagePart;
       if (eventType === "agent:call") {
         const fresh = createSubagentPart(
@@ -433,9 +442,10 @@ export class HistoryPartReplay {
           data.status,
           data.agent_call_id,
         );
-        next = ref
-          ? addPartToDepth([ref.slot.part], fresh, depth, [], agent)[0]
-          : fresh;
+        next =
+          ref?.slot.part.type === "subagent"
+            ? addPartToDepth([ref.slot.part], fresh, depth, [], agent)[0]
+            : fresh;
       } else {
         const previous =
           ref?.slot.part ||

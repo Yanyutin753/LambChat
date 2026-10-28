@@ -87,9 +87,12 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
         return str(content)
 
     @staticmethod
-    def _copy_tool_message_with_content(message: ToolMessage, content: str) -> ToolMessage:
+    def _copy_tool_message_with_content(
+        message: ToolMessage, content: str, *, saved_path: str
+    ) -> ToolMessage:
         additional_kwargs = dict(message.additional_kwargs)
         additional_kwargs.setdefault("lambchat_original_content", message.content)
+        additional_kwargs["lambchat_saved_artifact_path"] = saved_path
         return ToolMessage(
             content=content,
             tool_call_id=message.tool_call_id,
@@ -224,6 +227,7 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
                 self._copy_tool_message_with_content(
                     message,
                     await self._session_reference(message, path),
+                    saved_path=path,
                 ),
             )
 
@@ -234,6 +238,7 @@ class SubagentResultHandoffMiddleware(AgentMiddleware):
             return self._copy_tool_message_with_content(
                 result,
                 await self._session_reference(result, path),
+                saved_path=path,
             )
 
         return result

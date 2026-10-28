@@ -56,6 +56,10 @@ class ActivityReferenceMiddleware(AgentMiddleware):
     @staticmethod
     def _strip_model_references(message: AIMessage) -> AIMessage:
         # This footer is a write receipt owned by the middleware, never by the model.
+        if "lambchat_saved_artifact_path" in message.additional_kwargs:
+            additional_kwargs = dict(message.additional_kwargs)
+            additional_kwargs.pop("lambchat_saved_artifact_path")
+            message = message.model_copy(update={"additional_kwargs": additional_kwargs})
         stream_filter = ActivityReferenceFilter()
         if isinstance(message.content, str):
             content: str | list[Any] = stream_filter.feed(message.content) + stream_filter.finish()
@@ -218,7 +222,15 @@ class SubagentActivityMiddleware(ActivityReferenceMiddleware):
             content: str | list[Any] = [*message.content, {"type": "text", "text": reference}]
         else:
             content = f"{message.content or ''}{reference}"
-        return SubagentActivityMiddleware._copy_ai_message_with_content(message, content)
+        return message.model_copy(
+            update={
+                "content": content,
+                "additional_kwargs": {
+                    **message.additional_kwargs,
+                    "lambchat_saved_artifact_path": path,
+                },
+            }
+        )
 
     async def awrap_model_call(
         self,

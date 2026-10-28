@@ -8,6 +8,7 @@ import os
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -66,6 +67,7 @@ _IGNORED_PATH_PARTS = frozenset(
         "build",
         "dist",
         "node_modules",
+        "subagent_context",
     }
 )
 _SENSITIVE_FILENAMES = frozenset(
@@ -268,3 +270,16 @@ def _reveal_error(parsed: dict[str, Any] | None) -> str | None:
         if isinstance(file_error, str) and file_error:
             return file_error
     return None
+
+
+def _runtime_with_graph_config(runtime: Any) -> Any:
+    if isinstance(getattr(runtime, "config", None), dict):
+        return runtime
+    # Graph hooks receive Runtime, while tool hooks receive ToolRuntime with config.
+    from langgraph.config import get_config
+
+    try:
+        config = get_config()
+    except RuntimeError:
+        return runtime
+    return SimpleNamespace(config=config, stream_writer=getattr(runtime, "stream_writer", None))

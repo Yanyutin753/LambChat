@@ -15,7 +15,7 @@ from src.infra.agent.events.buffers import (
 from src.infra.agent.events.types import StreamEvent, get_value
 
 # 工具生命周期不走标准 tool:start 通道（由专用事件渲染），参数流式会悬空
-TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "task", "write_todos", "handoff_to_search"))
+TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "write_todos", "handoff_to_search"))
 
 
 def _first_int(*values: Any) -> int | None:

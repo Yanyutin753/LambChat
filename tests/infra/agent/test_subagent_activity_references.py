@@ -55,7 +55,10 @@ async def test_model_cannot_claim_an_activity_log_that_the_middleware_did_not_wr
         assert writes[0] in message.text
     assert message.usage_metadata == original.usage_metadata
     assert message.response_metadata == original.response_metadata
-    assert message.additional_kwargs == original.additional_kwargs
+    expected_kwargs = dict(original.additional_kwargs)
+    if write_mode == "success":
+        expected_kwargs["lambchat_saved_artifact_path"] = writes[0]
+    assert message.additional_kwargs == expected_kwargs
     assert original.content == content
     if wrapped:
         assert result.structured_response == {"ok": True}

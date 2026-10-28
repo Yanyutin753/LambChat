@@ -1482,6 +1482,7 @@
       "toolSuccess": "Command succeeded",
       "toolTaskName": "Name",
       "toolTaskPrompt": "Task prompt",
+      "toolCreateSubagent": "Create subagent",
       "toolSendSubagentMessage": "Message subagent",
       "toolWaitSubagent": "Wait for subagent",
       "toolSendParentMessage": "Message parent agent",
