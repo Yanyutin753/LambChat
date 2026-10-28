@@ -36,6 +36,7 @@ from src.infra.agent.middleware._artifact_delivery_support import (
     _parse_jsonish,
     _path_from_reveal_result,
     _reveal_error,
+    _runtime_with_graph_config,
     _should_skip_auto_artifact,
 )
 from src.infra.agent.middleware._artifact_delivery_support import (
@@ -73,19 +74,6 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         self._workspace_path = workspace_path.rstrip("/") if workspace_path else None
         self._runs: dict[object, _ArtifactRunState] = {}
         self._fallback_run_key = object()
-
-    @staticmethod
-    def _runtime_with_graph_config(runtime: Any) -> Any:
-        if isinstance(getattr(runtime, "config", None), dict):
-            return runtime
-        # Graph hooks receive Runtime, while tool hooks receive ToolRuntime with config.
-        from langgraph.config import get_config
-
-        try:
-            config = get_config()
-        except RuntimeError:
-            return runtime
-        return SimpleNamespace(config=config, stream_writer=getattr(runtime, "stream_writer", None))
 
     def _run_key(self, runtime: Any) -> object:
         stream_writer = getattr(runtime, "stream_writer", None)
@@ -210,7 +198,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
     async def aafter_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
         if not settings.ENABLE_ARTIFACT_DELIVERY:
             return None
-        runtime = self._runtime_with_graph_config(runtime)
+        runtime = _runtime_with_graph_config(runtime)
         key, run = self._run_state(runtime)
         try:
             self._auto_stage_from_state(run, state)
