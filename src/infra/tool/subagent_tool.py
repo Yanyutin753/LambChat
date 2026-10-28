@@ -71,12 +71,19 @@ def create_subagent_tools(sessions):
 
     @tool
     async def task(
-        description: str, subagent_type: str, runtime: ToolRuntime, background: bool = False
+        description: str,
+        subagent_type: str,
+        runtime: ToolRuntime,
+        background: bool = False,
+        execution_timeout_seconds: Annotated[int, Field(ge=10, le=7200, strict=True)] = 7200,
     ) -> Command:
         """Delegate a NEW task to a role. background=true returns a stable subagent_id
         immediately so you can work and send instructions while it runs. Otherwise
         wait for completion. Use send_subagent_message to continue an existing ID,
-        never task again for continuation. Wait for background results before synthesis."""
+        never task again for continuation. Choose execution_timeout_seconds (10–7200,
+        default 7200) for the work's expected duration; this is the child's execution
+        budget, separate from wait_subagent's wait timeout. Continuations inherit it.
+        Wait for background results before synthesis."""
         sessions.restore(runtime.state.get("subagent_sessions", {}))
         try:
             value = await sessions.start(
@@ -85,6 +92,7 @@ def create_subagent_tools(sessions):
                 call_id=runtime.tool_call_id,
                 config=runtime.config,
                 background=background,
+                execution_timeout_seconds=execution_timeout_seconds,
                 initial_state={
                     "files": runtime.state.get("files", {}),
                     "messages": runtime.state.get("messages", []),
@@ -105,7 +113,9 @@ def create_subagent_tools(sessions):
     async def send_subagent_message(
         subagent_id: str, message: str, runtime: ToolRuntime, background: bool = False
     ) -> Command:
-        """Send instructions to an existing subagent in this conversation. While it
+        """Send instructions, progress questions, clarifications or corrections to an
+        existing subagent in this conversation. Use this proactively when coordination
+        will help, and to answer questions sent through send_parent_message. While it
         runs, queue the message for its next model call; do not restart it. After it
         finishes, continue the SAME conversation, role and history. background=true
         returns immediately; otherwise wait for the resumed execution. A running

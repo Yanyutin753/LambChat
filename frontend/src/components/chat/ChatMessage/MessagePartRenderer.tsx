@@ -537,6 +537,7 @@ export function MessagePartRenderer({
       );
     }
     if (
+      part.name === "task" ||
       part.name === "send_subagent_message" ||
       part.name === "send_parent_message" ||
       part.name === "wait_subagent"

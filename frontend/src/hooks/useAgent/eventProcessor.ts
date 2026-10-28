@@ -158,6 +158,20 @@ export function processMessageEvent(
         data.status,
         data.agent_call_id,
       );
+      const draftIndex = data.agent_call_id
+        ? parts.findIndex(
+            (part) =>
+              part.type === "tool" &&
+              part.name === "task" &&
+              part.argsPartial &&
+              part.id === data.agent_call_id,
+          )
+        : -1;
+      if (draftIndex >= 0) {
+        result.parts = [...parts];
+        result.parts[draftIndex] = subagentPart;
+        break;
+      }
       result.parts = addPartToDepth(
         parts,
         subagentPart,

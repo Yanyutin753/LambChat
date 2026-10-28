@@ -1478,6 +1478,7 @@
       "toolSuccess": "コマンド成功",
       "toolTaskName": "名前",
       "toolTaskPrompt": "タスクのプロンプト",
+      "toolCreateSubagent": "サブエージェントを作成",
       "toolSendSubagentMessage": "サブエージェントにメッセージ",
       "toolWaitSubagent": "サブエージェントを待つ",
       "toolSendParentMessage": "親エージェントにメッセージ",

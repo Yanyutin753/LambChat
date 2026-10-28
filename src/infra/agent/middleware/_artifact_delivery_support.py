@@ -66,6 +66,7 @@ _IGNORED_PATH_PARTS = frozenset(
         "build",
         "dist",
         "node_modules",
+        "subagent_context",
     }
 )
 _SENSITIVE_FILENAMES = frozenset(

@@ -379,6 +379,12 @@ def tool_cases():
         ),
         (
             "09 Todo 与子代理",
+            "task",
+            {"description": "审查移动端布局", "subagent_type": "mock-reviewer"},
+            {"status": "error", "error": "Mock: role unavailable"},
+        ),
+        (
+            "09 Todo 与子代理",
             "send_parent_message",
             {"message": "权限审查已完成，等待父代理汇总"},
             {
