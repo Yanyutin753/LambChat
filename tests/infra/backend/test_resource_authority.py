@@ -141,6 +141,60 @@ async def test_server_artifact_sidecar_does_not_grant_model_file_write(monkeypat
     assert not skills.calls
 
 
+@pytest.mark.parametrize("sync", [False, True])
+@pytest.mark.parametrize(
+    "download_result,allowed",
+    [
+        ("nonempty", False),
+        ("binary", False),
+        ("error", False),
+        ("exception", False),
+        ("no_response", False),
+        ("no_content", False),
+        ("empty", True),
+        ("missing", True),
+    ],
+)
+async def test_server_history_download_only_allows_whole_write_for_known_empty_or_missing_file(
+    monkeypatch, sync, download_result, allowed
+):
+    import asyncio
+
+    from src.infra.backend.resource_authority import server_artifact_backend
+
+    backend, default, *_ = _backend(monkeypatch, [])
+    sidecar = server_artifact_backend(backend)
+    path = "/conversation_history/server.md"
+    result = FileDownloadResponse(
+        path=path,
+        content={"nonempty": b"existing history", "binary": b"\xff", "empty": b""}.get(
+            download_result
+        ),
+        error={"error": "io_error", "missing": "file_not_found"}.get(download_result),
+    )
+    default.adownload_files = AsyncMock(
+        return_value=[] if download_result == "no_response" else [result],
+        side_effect=RuntimeError("download unavailable")
+        if download_result == "exception"
+        else None,
+    )
+    try:
+        if sync:
+            await asyncio.to_thread(sidecar.download_files, [path])
+        else:
+            await sidecar.adownload_files([path])
+    except RuntimeError:
+        assert download_result == "exception"
+
+    written = (
+        await asyncio.to_thread(sidecar.write, path, "new history")
+        if sync
+        else await sidecar.awrite(path, "new history")
+    )
+    assert bool(written.error) is not allowed
+    assert (("write", path) in default.calls) is allowed
+
+
 async def test_internal_eviction_uses_sidecar_without_changing_tool_backend(monkeypatch):
     from src.infra.backend.resource_authority import protect_server_artifact_eviction
 
