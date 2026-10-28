@@ -39,7 +39,7 @@ test("collapsible section cards and the subagent conversation keep their panel s
   );
 
   expect(panelSource).toMatch(
-    /className="relative flex h-full min-h-0 flex-col(?: [^"]*)?"/,
+    /className="(?:[^"\n]* )?relative flex h-full min-h-0 flex-col(?: [^"]*)?"/,
   );
   expect(panelSource).toMatch(
     /ref=\{scrollRef\}[\s\S]*?min-h-0 flex-1 overflow-y-auto/,
