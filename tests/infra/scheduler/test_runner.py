@@ -47,6 +47,7 @@ def _make_task(**overrides: Any) -> ScheduledTask:
 def mock_storage():
     with patch("src.infra.scheduler.runner.get_scheduled_task_storage") as mock:
         storage = AsyncMock()
+        storage.get_task.return_value = None
         mock.return_value = storage
         yield storage
 
@@ -1230,3 +1231,68 @@ def test_legacy_interval_without_creation_time_remains_runnable():
     task = _make_task(created_at=None, trigger_config={"seconds": 60})
     slot = ScheduledTaskRunner._build_schedule_slot(task, "interval", now)
     assert slot[2] is None
+
+
+@pytest.mark.parametrize("reason", ["model_not_found", "model_disabled"])
+async def test_unavailable_model_stops_retries_pauses_and_notifies(reason, mock_storage):
+    from src.kernel.exceptions import AuthorizationError
+
+    task = _make_task(input_payload={"agent_options": {"model_id": "removed"}})
+    mock_storage.get_task.return_value = task
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(side_effect=AuthorizationError(reason))
+    send = AsyncMock(return_value=True)
+    manager = SimpleNamespace(
+        _ensure_executor=lambda: SimpleNamespace(_send_task_notification=send)
+    )
+    with (
+        patch("src.infra.scheduler.runner.release_task_lock", AsyncMock()),
+        patch("src.infra.scheduler.runner.get_runtime_scheduler"),
+        patch("src.infra.task.manager.get_task_manager", return_value=manager),
+    ):
+        await runner._monitor_and_finalize(
+            task=task,
+            run_id="run",
+            base_session_id="missing-session",
+            lock_token="token",
+            max_attempts=3,
+            trigger_type="interval",
+            started_at=task.created_at,
+        )
+    runner._execute_agent.assert_awaited_once()
+    mock_storage.pause_invalid_model_task.assert_awaited_once_with(
+        task.id, task.input_payload, task.updated_at
+    )
+    prepared = send.call_args.kwargs["prepared_completion"]
+    assert prepared["notification_kind"] == "scheduled_model_unavailable"
+    assert prepared["scheduled_task_id"] == task.id
+    assert prepared["dedupe_key"] == "task:run:failed"
+    assert "model_id" not in str(prepared)
+    final = mock_storage.update_run.call_args_list[-1].args[1]
+    assert final["status"] == RunStatus.FAILED
+    assert final["error_code"] == reason
+
+
+async def test_transient_schedule_failure_notifies_without_pausing(mock_storage):
+    task = _make_task()
+    mock_storage.get_task.return_value = task
+    send = AsyncMock(return_value=False)
+    manager = SimpleNamespace(
+        _ensure_executor=lambda: SimpleNamespace(_send_task_notification=send)
+    )
+    record = {
+        "_id": "run",
+        "task_id": task.id,
+        "session_id": "missing",
+        "status": "failed",
+        "trigger_type": "interval",
+        "error_message": "private provider credential",
+    }
+    with patch("src.infra.task.manager.get_task_manager", return_value=manager):
+        with pytest.raises(RuntimeError, match="notification"):
+            await ScheduledTaskRunner().finalize_standalone_run(record)
+    mock_storage.pause_invalid_model_task.assert_not_awaited()
+    mock_storage.complete_run_finalization.assert_not_awaited()
+    prepared = send.call_args.kwargs["prepared_completion"]
+    assert prepared["notification_kind"] == "scheduled_failure"
+    assert "private" not in str(prepared)

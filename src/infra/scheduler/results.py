@@ -130,6 +130,42 @@ async def publish_result_notification(task, target_session_id, run_id, *, fresh)
     )
 
 
+async def publish_failure_notification(task, record, storage):
+    from src.infra.scheduler.runtime import get_runtime_scheduler
+    from src.infra.task.manager import get_task_manager
+    from src.infra.task.status import TaskStatus
+
+    unavailable = record.get("error_code") in {"model_not_found", "model_disabled"}
+    if unavailable and "scheduled_task_updated_at" in record:
+        if await storage.pause_invalid_model_task(
+            task.id, record["scheduled_input_payload"], record["scheduled_task_updated_at"]
+        ):
+            get_runtime_scheduler().unregister_job(task.id)
+    session_id = record.get("session_id") or f"sch_{task.id}_{record['_id'][:8]}"
+    persisted = await (
+        get_task_manager()
+        ._ensure_executor()
+        ._send_task_notification(
+            session_id,
+            record["_id"],
+            TaskStatus.FAILED,
+            task.owner_id,
+            prepared_completion={
+                "session_id": session_id,
+                "run_id": record["_id"],
+                "status": "failed",
+                "notification_kind": (
+                    "scheduled_model_unavailable" if unavailable else "scheduled_failure"
+                ),
+                "scheduled_task_id": task.id,
+                "dedupe_key": f"task:{record['_id']}:failed",
+            },
+        )
+    )
+    if persisted is False:
+        raise RuntimeError("Scheduled failure notification was not persisted")
+
+
 async def append_result_context(message, session_id, user_id):
     """Expose completed results on the next human turn without editing its checkpoint."""
     if not session_id:

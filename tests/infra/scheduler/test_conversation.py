@@ -438,3 +438,65 @@ def test_each_conversation_wakeup_injects_fresh_real_time():
     assert "2026-10-17 01:46:41 +08:00 Asia/Shanghai" in first.message
     assert "2026-10-17 01:47:41 +08:00 Asia/Shanghai" in second.message
     assert "Do not guess" in second.message
+
+
+async def test_missing_model_conversation_admission_is_finished_and_paused(monkeypatch):
+    from src.infra.scheduler import conversation
+    from src.kernel.exceptions import AuthorizationError
+
+    record = {
+        "_id": "r",
+        "task_id": "t",
+        "session_id": "child",
+        "target_session_id": "parent",
+        "conversation_state": "submitting",
+    }
+    task = SimpleNamespace(
+        id="t",
+        owner_id="u",
+        agent_id="search",
+        enabled=True,
+        status="active",
+        target_session_id="parent",
+        input_payload={},
+        updated_at=None,
+    )
+    storage = SimpleNamespace(
+        pending_conversation_runs=AsyncMock(
+            return_value=[{**record, "conversation_state": "pending"}]
+        ),
+        get_task=AsyncMock(return_value=task),
+        claim_conversation_run=AsyncMock(return_value=record),
+        update_run=AsyncMock(),
+        pause_invalid_model_task=AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr("src.infra.scheduler.storage.get_scheduled_task_storage", lambda: storage)
+    monkeypatch.setattr(
+        "src.infra.scheduler.runner.reconcile_standalone_finalizations", AsyncMock()
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager.get_session",
+        AsyncMock(return_value=SimpleNamespace(id="parent", user_id="u")),
+    )
+    monkeypatch.setattr(
+        conversation,
+        "ensure_execution_session",
+        AsyncMock(return_value=SimpleNamespace(id="child", metadata={})),
+    )
+    monkeypatch.setattr(conversation, "ensure_idle", AsyncMock())
+    monkeypatch.setattr(
+        "src.api.deps._load_user_payload",
+        AsyncMock(return_value=SimpleNamespace(permissions=["chat:write"])),
+    )
+    monkeypatch.setattr(conversation, "build_request", lambda *args: object())
+    monkeypatch.setattr(
+        "src.api.routes.chat.chat_stream",
+        AsyncMock(side_effect=AuthorizationError("model_not_found")),
+    )
+    finish = AsyncMock()
+    monkeypatch.setattr(conversation, "_finish", finish)
+    await conversation.dispatch_pending()
+    finish.assert_awaited_once()
+    assert finish.call_args.args[2] == "failed"
+    assert finish.call_args.args[1]["error_code"] == "model_not_found"
+    assert finish.call_args.args[1]["scheduled_task_updated_at"] is None

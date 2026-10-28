@@ -27,6 +27,7 @@ from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.trace_storage import get_trace_storage
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
+from src.kernel.errors import AppError
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
@@ -85,6 +86,15 @@ class _AttemptResult:
     status: RunStatus
     result: dict[str, Any]
     error_message: str | None = None
+    error_code: str | None = None
+
+
+def unavailable_model_error(error: Exception) -> str | None:
+    if isinstance(error, AppError):
+        for code in (error.error_code.code, error.message):
+            if code in {"model_not_found", "model_disabled"}:
+                return code
+    return None
 
 
 async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
@@ -291,8 +301,11 @@ class ScheduledTaskRunner:
                         status=RunStatus.FAILED,
                         result={},
                         error_message=str(exc),
+                        error_code=unavailable_model_error(exc),
                     )
 
+                if final_attempt.error_code:
+                    break
                 if final_attempt.status == RunStatus.SUCCESS:
                     break
                 if final_attempt.status != RunStatus.FAILED:
@@ -322,6 +335,9 @@ class ScheduledTaskRunner:
                 "session_id": final_attempt.result.get("session_id", base_session_id),
                 "trace_id": final_attempt.result.get("trace_id"),
                 "error_message": final_attempt.error_message,
+                "error_code": final_attempt.error_code,
+                "scheduled_input_payload": task.input_payload,
+                "scheduled_task_updated_at": task.updated_at,
                 "finished_at": finished,
                 "duration_ms": duration,
                 "finalization_pending": True,
@@ -394,6 +410,12 @@ class ScheduledTaskRunner:
 
     async def finalize_standalone_run(self, record):
         storage = get_scheduled_task_storage()
+        if record["status"] in {RunStatus.FAILED, RunStatus.TIMEOUT}:
+            from src.infra.scheduler.results import publish_failure_notification
+
+            task = await storage.get_task(record["task_id"])
+            if task:
+                await publish_failure_notification(task, record, storage)
         await storage.update_task_run_stats(
             record["task_id"], record["_id"], RunStatus(record["status"])
         )
