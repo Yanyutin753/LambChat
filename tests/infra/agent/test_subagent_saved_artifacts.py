@@ -214,3 +214,60 @@ async def test_real_graph_hook_keeps_backend_and_presenter_for_saved_activity(mo
     assert reveals == ["/workspace/subagent_activity/activity_graph.md"]
     assert len(events) == 1
     assert events[0]["success"] is True
+
+
+@pytest.mark.parametrize("tool_name", ["write_file", "edit_file"])
+@pytest.mark.parametrize("success", [False, True])
+async def test_evidence_wrapped_file_results_deliver_without_losing_state(
+    monkeypatch, tool_name, success
+):
+    monkeypatch.setattr(settings, "ENABLE_ARTIFACT_DELIVERY", True)
+    reveals = []
+    events = []
+
+    class Presenter:
+        def present_artifact_result(self, artifact, **kwargs):
+            return {"artifact": artifact, **kwargs}
+
+        async def emit(self, event):
+            events.append(event)
+
+    runtime = SimpleNamespace(
+        stream_writer=object(), config={"configurable": {"presenter": Presenter()}}
+    )
+    request = SimpleNamespace(
+        runtime=runtime,
+        tool_call={
+            "id": "write",
+            "name": tool_name,
+            "args": {"file_path": "/workspace/output.txt"},
+        },
+    )
+    result = Command(
+        update={
+            "evidence": [{"source_ref": "evidence-source"}],
+            "messages": [
+                ToolMessage("Unrelated result", tool_call_id="other"),
+                ToolMessage(
+                    "Written" if success else "Write failed",
+                    tool_call_id="write",
+                    name=tool_name,
+                    status="success" if success else "error",
+                ),
+            ],
+        }
+    )
+
+    async def handler(_):
+        return result
+
+    async def reveal_file(**kwargs):
+        reveals.append(kwargs["file_path"])
+        return json.dumps({"key": "private/output.txt"})
+
+    delivery = ArtifactDeliveryMiddleware(reveal_file=reveal_file)
+    assert await delivery.awrap_tool_call(request, handler) is result
+    await delivery.aafter_agent({"messages": []}, runtime)
+    assert reveals == (["/workspace/output.txt"] if success else [])
+    assert len(events) == int(success)
+    assert result.update["evidence"] == [{"source_ref": "evidence-source"}]
