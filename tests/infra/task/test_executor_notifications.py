@@ -405,3 +405,33 @@ async def test_same_run_submission_preserves_recovery_budget() -> None:
     await executor._update_session_status("session-1", TaskStatus.PENDING, run_id="run-old")
 
     assert "resume_attempts" not in storage.updates[0][1].metadata
+
+
+async def test_scheduled_failure_push_opens_task_without_a_session(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    ws = _FakeWebSocketManager(delivered_count=0)
+    push = AsyncMock(return_value=1)
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", _FakeSessionManager)
+    monkeypatch.setattr("src.infra.websocket.get_connection_manager", lambda: ws)
+    monkeypatch.setattr(
+        "src.infra.push.manager.PushManager", lambda: SimpleNamespace(send_push_to_user=push)
+    )
+    executor = TaskExecutor(None, {}, None)
+    persisted = await executor._send_task_notification(
+        "missing",
+        "run",
+        TaskStatus.FAILED,
+        "user",
+        prepared_completion={
+            "session_id": "missing",
+            "run_id": "run",
+            "status": "failed",
+            "notification_kind": "scheduled_model_unavailable",
+            "scheduled_task_id": "task",
+            "dedupe_key": "task:run:failed",
+        },
+    )
+    assert persisted is True
+    assert push.call_args.args[1]["url"] == "/scheduled-tasks/task"

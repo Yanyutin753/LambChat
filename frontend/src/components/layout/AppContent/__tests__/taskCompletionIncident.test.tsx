@@ -2,6 +2,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { TaskCompletionEvent } from "../../../../services/api/taskCompletions";
+import en from "../../../../i18n/locales/en.json";
 
 const mocks = vi.hoisted(() => ({
   user: { id: "incident-catchup" },
@@ -259,4 +260,35 @@ test("a new completion whose session genuinely returns 404 advances the cursor w
   expect(mocks.get).toHaveBeenCalledOnce();
   expect(mocks.events).toHaveBeenCalledOnce();
   expect(mocks.toast).not.toHaveBeenCalled();
+});
+
+test("missing-model schedule failure catches up without an execution session and opens its task", async () => {
+  mocks.get.mockRejectedValue({ status: 404 });
+  mocks.journal.mockImplementation(async (_cursor, since: string) => ({
+    items: [
+      {
+        ...completion(
+          "missing-model",
+          new Date(Date.parse(since) + 1000).toISOString(),
+        ),
+        status: "failed",
+        notification_kind: "scheduled_model_unavailable",
+        scheduled_task_id: "schedule-1",
+      },
+    ],
+    cursor: "missing-model",
+    next_cursor: null,
+  }));
+  renderHook(() => useWebSocketNotifications({ sessionId: "current" }));
+  await act(async () => {});
+  expect(mocks.toast).toHaveBeenCalled();
+  const renderToast = mocks.toast.mock.calls.at(-1)![0];
+  const element = renderToast({ visible: true, id: "toast" });
+  expect(element.props.body).toBe(en.notification.scheduledModelUnavailable);
+  act(() => element.props.onOpen());
+  expect(mocks.navigate).toHaveBeenCalledWith(
+    "/scheduled-tasks/schedule-1",
+    expect.anything(),
+  );
+  expect(mocks.events).not.toHaveBeenCalled();
 });

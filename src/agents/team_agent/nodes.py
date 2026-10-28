@@ -89,6 +89,7 @@ from src.infra.agent.middleware.persona_subagent import (
     add_persona_discovery,
 )
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
@@ -156,14 +157,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     configurable = config.get("configurable", {})
     context: TeamAgentContext = configurable.get("context", TeamAgentContext())
 
-    # 获取 agent_options
     agent_options = configurable.get("agent_options") or {}
     selected_model = agent_options.get("model")
     model_id = agent_options.get("model_id")
     resolved_model_config = agent_options.get("_resolved_model_config")
     thinking_config = build_thinking_config(agent_options, default_level="medium")
 
-    # 获取附件
     attachments = state.get("attachments", [])
 
     # 多租户隔离
@@ -798,18 +797,21 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     user_middleware.append(session_middleware)
 
-    with summarization_fallback_patch(fallback_model_value, thinking_config):
-        inner_graph = create_deep_agent(
-            model=llm,
-            system_prompt=system_prompt,
-            backend=backend,
-            tools=filtered_tools,
-            checkpointer=inner_checkpointer,
-            store=store,
-            skills=None,
-            subagents=custom_subagents,
-            middleware=user_middleware,
-        )
+    def compile_graph():
+        with summarization_fallback_patch(fallback_model_value, thinking_config):
+            return create_deep_agent(
+                model=llm,
+                system_prompt=system_prompt,
+                backend=backend,
+                tools=filtered_tools,
+                checkpointer=inner_checkpointer,
+                store=store,
+                skills=None,
+                subagents=custom_subagents,
+                middleware=user_middleware,
+            )
+
+    inner_graph = await run_long_blocking_io(compile_graph, urgent=True)
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[TeamAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 

@@ -154,6 +154,134 @@ def test_patch_window_wraps_deepagents_summarization_factory(monkeypatch) -> Non
     assert getattr(built_after._acreate_summary, "_lambchat_summary_fallback", False) is False
 
 
+async def test_summary_build_context_isolated_across_workers_and_unscoped_calls(monkeypatch):
+    import asyncio
+    import threading
+
+    import deepagents.graph as graph
+
+    from src.infra.agent.middleware import summary_fallback
+
+    entered = threading.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+    first_ready = asyncio.Event()
+
+    def factory(model, backend, **kwargs):
+        return SimpleNamespace(model=model, settings=[], kwargs=kwargs)
+
+    def protect(middleware, *, fallback_model, thinking):
+        middleware.settings.append((fallback_model, thinking))
+        return middleware
+
+    monkeypatch.setattr(graph, "create_summarization_middleware", factory)
+    monkeypatch.setattr(summary_fallback, "_reuse_summary_prefix", protect)
+
+    def build_first():
+        with summarization_fallback_patch("fallback-a", {"level": "low"}):
+            loop.call_soon_threadsafe(first_ready.set)
+            assert entered.wait(2)
+            try:
+                return graph.create_summarization_middleware("model-a", object())
+            finally:
+                release.set()
+
+    def build_second():
+        with summarization_fallback_patch("fallback-b", {"level": "high"}):
+            entered.set()
+            assert release.wait(2)
+            return graph.create_summarization_middleware("model-b", object())
+
+    first = asyncio.create_task(asyncio.to_thread(build_first))
+    await asyncio.wait_for(first_ready.wait(), timeout=2)
+    unscoped = graph.create_summarization_middleware("unscoped", object())
+    second = asyncio.create_task(asyncio.to_thread(build_second))
+    a, b = await asyncio.gather(first, second)
+    assert unscoped.settings == []
+    assert unscoped.kwargs == {}
+    assert a.model == "model-a"
+    assert a.settings == [("fallback-a", {"level": "low"})]
+    assert b.model == "model-b"
+    assert b.settings == [("fallback-b", {"level": "high"})]
+    assert graph.create_summarization_middleware is factory
+
+
+def test_summary_build_nested_failure_restores_outer_configuration(monkeypatch):
+    import deepagents.graph as graph
+
+    from src.infra.agent.middleware import summary_fallback
+
+    def factory(model, backend, **kwargs):
+        return SimpleNamespace(settings=[])
+
+    def protect(middleware, *, fallback_model, thinking):
+        middleware.settings.append((fallback_model, thinking))
+        return middleware
+
+    monkeypatch.setattr(graph, "create_summarization_middleware", factory)
+    monkeypatch.setattr(graph, "_apply_custom_middleware", lambda middleware: middleware)
+    monkeypatch.setattr(summary_fallback, "_reuse_summary_prefix", protect)
+    original_merge = graph._apply_custom_middleware
+    ordinary = object()
+    with summarization_fallback_patch("outer", {"level": "low"}):
+        outer = graph.create_summarization_middleware("model", object())
+        with pytest.raises(ValueError, match="compile failed"):
+            with summarization_fallback_patch("inner", {"level": "high"}):
+                inner = graph.create_summarization_middleware("model", object())
+                assert inner.settings == [("inner", {"level": "high"})]
+                assert graph._apply_custom_middleware([inner, ordinary]) == [ordinary, inner]
+                raise ValueError("compile failed")
+        after = graph.create_summarization_middleware("model", object())
+        assert after.settings == [("outer", {"level": "low"})]
+        assert graph._apply_custom_middleware([outer, ordinary]) == [ordinary, outer]
+    assert graph.create_summarization_middleware is factory
+    assert graph._apply_custom_middleware is original_merge
+
+
+async def test_cancelled_compilation_keeps_patch_until_worker_exits():
+    import asyncio
+    import threading
+
+    import deepagents.graph as graph
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+    from src.infra.async_utils import run_long_blocking_io
+
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
+    finished = asyncio.Event()
+    release = threading.Event()
+    original = graph.create_summarization_middleware
+    original_merge = graph._apply_custom_middleware
+    model = GenericFakeChatModel(messages=iter([AIMessage("ok")]))
+    built = []
+
+    def compile_graph():
+        try:
+            with summarization_fallback_patch("fallback"):
+                loop.call_soon_threadsafe(entered.set)
+                assert release.wait(2)
+                built.append(graph.create_summarization_middleware(model, object()))
+        finally:
+            loop.call_soon_threadsafe(finished.set)
+
+    task = asyncio.create_task(run_long_blocking_io(compile_graph, urgent=True))
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert graph.create_summarization_middleware is not original
+        unscoped = graph.create_summarization_middleware(model, object())
+        assert not getattr(unscoped._acreate_summary, "_lambchat_summary_fallback", False)
+    finally:
+        release.set()
+        await asyncio.wait_for(finished.wait(), timeout=2)
+    assert getattr(built[0]._acreate_summary, "_lambchat_summary_fallback", False)
+    assert graph.create_summarization_middleware is original
+    assert graph._apply_custom_middleware is original_merge
+
+
 def test_patch_window_without_fallback_model_injects_counter_only() -> None:
     """无兜底模型：工厂仍被替换（注入计数器），但不加摘要兜底保护。"""
     import deepagents.graph as deepagents_graph

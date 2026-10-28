@@ -780,3 +780,198 @@ async def test_submit_arq_persists_scheduled_task_message_with_enabled_skills(
     assert fake_executor.ensure_calls[0][1]["session_metadata"] == session_metadata
     assert payload_store.saved[0][1]["enabled_skills"] == ["planning"]
     assert payload_store.saved[0][1]["auto_mode"] is True
+
+
+@pytest.mark.parametrize("executor_key", ["agent_stream", "scheduled_agent_stream"])
+async def test_rejected_arq_dispatch_fails_unstarted_run(monkeypatch, executor_key):
+    from arq.jobs import JobStatus
+
+    from src.kernel.errors import AppError
+
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    manager._storage = SimpleNamespace(update_metadata_for_run=AsyncMock(return_value=True))
+    manager._heartbeat = SimpleNamespace(is_stale=AsyncMock(return_value=True))
+    writer = SimpleNamespace(write_event=AsyncMock(), flush_mongo_buffer=AsyncMock())
+    traces = SimpleNamespace(complete_trace=AsyncMock(return_value=True))
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    monkeypatch.setattr("src.infra.session.trace_storage.get_trace_storage", lambda: traces)
+    monkeypatch.setattr("arq.jobs.Job.status", AsyncMock(return_value=JobStatus.not_found))
+    monkeypatch.setattr(
+        "src.infra.task.manager.arq_payloads.enqueue_scheduled_job", AsyncMock(return_value=False)
+    )
+    pool = _FakeArqPool()
+    pool.enqueue_job = AsyncMock(return_value=None)
+
+    with pytest.raises(AppError, match="dispatch"):
+        await manager.submit_arq(
+            session_id="session-1",
+            agent_id="search",
+            message="hello",
+            user_id="user-1",
+            executor_key=executor_key,
+            payload_store=_FakePayloadStore(),
+            arq_pool=pool,
+            run_id="run-1",
+            trace_id="trace-1",
+        )
+
+    update = manager._storage.update_metadata_for_run.call_args
+    assert update.args[:2] == ("session-1", "run-1")
+    assert update.args[2]["task_status"] == "failed"
+    assert update.args[2]["task_recoverable"] is False
+    assert "running" not in update.kwargs["expected_statuses"]
+    assert writer.write_event.call_args.kwargs["event_type"] == "error"
+    assert writer.write_event.call_args.kwargs["run_id"] == "run-1"
+    assert traces.complete_trace.call_args.kwargs["status"] == "error"
+    assert traces.complete_trace.call_args.kwargs["expected_run_id"] == "run-1"
+
+
+@pytest.mark.parametrize("job_status", ["queued", "deferred", "in_progress", "complete"])
+async def test_duplicate_arq_dispatch_keeps_existing_execution(monkeypatch, job_status):
+    from arq.jobs import JobStatus
+
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    manager._storage = SimpleNamespace(update_metadata_for_run=AsyncMock())
+    manager._heartbeat = SimpleNamespace(is_stale=AsyncMock(return_value=True))
+    monkeypatch.setattr("arq.jobs.Job.status", AsyncMock(return_value=JobStatus(job_status)))
+    pool = _FakeArqPool()
+    pool.enqueue_job = AsyncMock(return_value=None)
+    result = await manager.submit_arq(
+        session_id="session-1",
+        agent_id="search",
+        message="hello",
+        user_id="user-1",
+        executor_key="agent_stream",
+        payload_store=_FakePayloadStore(),
+        arq_pool=pool,
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+    assert result == ("run-1", "trace-1")
+    manager._storage.update_metadata_for_run.assert_not_awaited()
+
+
+@pytest.mark.parametrize("live_heartbeat,owns_run", [(True, True), (False, False)])
+async def test_rejected_dispatch_does_not_finalize_live_or_superseded_run(
+    monkeypatch, live_heartbeat, owns_run
+):
+    from arq.jobs import JobStatus
+
+    from src.kernel.errors import AppError
+
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    manager._storage = SimpleNamespace(update_metadata_for_run=AsyncMock(return_value=owns_run))
+    manager._heartbeat = SimpleNamespace(is_stale=AsyncMock(return_value=not live_heartbeat))
+    writer = SimpleNamespace(write_event=AsyncMock())
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    monkeypatch.setattr("arq.jobs.Job.status", AsyncMock(return_value=JobStatus.not_found))
+    pool = _FakeArqPool()
+    pool.enqueue_job = AsyncMock(return_value=None)
+    kwargs = dict(
+        session_id="session-1",
+        agent_id="search",
+        message="hello",
+        user_id="user-1",
+        executor_key="agent_stream",
+        payload_store=_FakePayloadStore(),
+        arq_pool=pool,
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+    if live_heartbeat:
+        assert await manager.submit_arq(**kwargs) == ("run-1", "trace-1")
+        manager._storage.update_metadata_for_run.assert_not_awaited()
+    else:
+        with pytest.raises(AppError):
+            await manager.submit_arq(**kwargs)
+    writer.write_event.assert_not_awaited()
+
+
+@pytest.mark.parametrize("job_status", ["queued", "complete", "not_found", "unavailable"])
+async def test_enqueue_transport_error_checks_whether_dispatch_was_accepted(
+    monkeypatch, job_status
+):
+    from arq.jobs import JobStatus
+
+    from src.kernel.errors import AppError
+
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    manager._storage = SimpleNamespace(
+        update_metadata_for_run=AsyncMock(return_value=job_status != "complete")
+    )
+    manager._heartbeat = SimpleNamespace(is_stale=AsyncMock(return_value=True))
+    writer = SimpleNamespace(write_event=AsyncMock(), flush_mongo_buffer=AsyncMock())
+    traces = SimpleNamespace(complete_trace=AsyncMock(return_value=True))
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    monkeypatch.setattr("src.infra.session.trace_storage.get_trace_storage", lambda: traces)
+    probe = (
+        AsyncMock(side_effect=ConnectionError("redis unavailable"))
+        if job_status == "unavailable"
+        else AsyncMock(return_value=JobStatus(job_status))
+    )
+    monkeypatch.setattr("arq.jobs.Job.status", probe)
+    pool = _FakeArqPool()
+    pool.enqueue_job = AsyncMock(side_effect=TimeoutError("enqueue reply lost"))
+    kwargs = dict(
+        session_id="session-1",
+        agent_id="search",
+        message="hello",
+        user_id="user-1",
+        executor_key="agent_stream",
+        payload_store=_FakePayloadStore(),
+        arq_pool=pool,
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+    if job_status in {"queued", "complete"}:
+        assert await manager.submit_arq(**kwargs) == ("run-1", "trace-1")
+        manager._storage.update_metadata_for_run.assert_not_awaited()
+    elif job_status == "unavailable":
+        with pytest.raises(TimeoutError, match="enqueue reply lost"):
+            await manager.submit_arq(**kwargs)
+        manager._storage.update_metadata_for_run.assert_not_awaited()
+    else:
+        with pytest.raises(AppError):
+            await manager.submit_arq(**kwargs)
+        assert manager._storage.update_metadata_for_run.await_count == 1
+
+
+@pytest.mark.parametrize(
+    "resume",
+    [
+        {"recovery_claim": {"token": "owner-token"}},
+        {"hitl_resume": {"approval_id": "approval-1"}},
+        {"interrupted_resume": True},
+    ],
+)
+async def test_rejected_resume_dispatch_leaves_terminal_state_to_claim_owner(monkeypatch, resume):
+    from arq.jobs import JobStatus
+
+    from src.kernel.errors import AppError
+
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()
+    manager._storage = SimpleNamespace(update_metadata_for_run=AsyncMock())
+    manager._heartbeat = SimpleNamespace(is_stale=AsyncMock(return_value=True))
+    monkeypatch.setattr("arq.jobs.Job.status", AsyncMock(return_value=JobStatus.not_found))
+    pool = _FakeArqPool()
+    pool.enqueue_job = AsyncMock(return_value=None)
+    with pytest.raises(AppError):
+        await manager.submit_arq(
+            session_id="session-1",
+            agent_id="search",
+            message="",
+            user_id="user-1",
+            executor_key="agent_stream",
+            payload_store=_FakePayloadStore(),
+            arq_pool=pool,
+            run_id="run-1",
+            trace_id="trace-1",
+            initial_status=None,
+            **resume,
+        )
+    manager._storage.update_metadata_for_run.assert_not_awaited()

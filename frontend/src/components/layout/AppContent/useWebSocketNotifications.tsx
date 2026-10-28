@@ -56,6 +56,7 @@ interface CatchUpToastEntry extends ReadableTask {
   createdAt: number;
   copy: ReturnType<typeof buildTaskNotificationCopy>;
   onOpen: () => void;
+  openLabel?: string;
 }
 
 interface ReadableTask extends SessionReadScope {
@@ -179,11 +180,14 @@ export function useWebSocketNotifications({
               ? `${latest.copy.title}: ${latest.copy.body}`
               : latest.copy.body
           }
-          openLabel={t(
-            entries.length > 1
-              ? "notification.openLatestConversation"
-              : "notification.openConversation",
-          )}
+          openLabel={
+            latest.openLabel ??
+            t(
+              entries.length > 1
+                ? "notification.openLatestConversation"
+                : "notification.openConversation",
+            )
+          }
           dismissLabel={t("common.dismiss", "关闭")}
           onOpen={() => {
             if (!isCurrent()) return;
@@ -320,6 +324,13 @@ export function useWebSocketNotifications({
         is_favorite,
       } = notification.data;
 
+      const scheduledFailure = Boolean(
+        scheduled_task_id &&
+          ["scheduled_failure", "scheduled_model_unavailable"].includes(
+            notification.data.notification_kind ?? "",
+          ),
+      );
+
       // 跨通道去重：websocket 即时通知与回前台补发共用同一 key 空间
       const dedupeKey =
         notification.data.dedupe_key ??
@@ -331,7 +342,7 @@ export function useWebSocketNotifications({
       // 触发对流对账——落定气泡、必要时重载历史/接上新 run
       if (notification.data.notification_kind === "scheduled_result") {
         window.dispatchEvent(new Event(SCHEDULED_RESULTS_REFRESH_EVENT));
-      } else if (session_id === sessionId) {
+      } else if (!scheduledFailure && session_id === sessionId) {
         onCurrentSessionTaskCompleteRef.current?.({
           session_id,
           run_id,
@@ -377,19 +388,25 @@ export function useWebSocketNotifications({
       };
       pendingNotifications.current.add(pending);
       const [sessionResult, eventsResult] = await Promise.all([
-        sessionApi.get(session_id).catch((err) => {
-          console.warn(
-            "[AppContent] Failed to fetch session name for notification:",
-            err,
-          );
-          const statusCode =
-            err && typeof err === "object" && "status" in err
-              ? err.status
-              : undefined;
-          if (notification.catchUp && statusCode !== 404 && statusCode !== 403)
-            throw err;
-          return null;
-        }),
+        scheduledFailure
+          ? Promise.resolve(null)
+          : sessionApi.get(session_id).catch((err) => {
+              console.warn(
+                "[AppContent] Failed to fetch session name for notification:",
+                err,
+              );
+              const statusCode =
+                err && typeof err === "object" && "status" in err
+                  ? err.status
+                  : undefined;
+              if (
+                notification.catchUp &&
+                statusCode !== 404 &&
+                statusCode !== 403
+              )
+                throw err;
+              return null;
+            }),
         status === "completed"
           ? sessionApi.getEvents(session_id, { run_id }).catch((err) => {
               console.warn(
@@ -407,7 +424,7 @@ export function useWebSocketNotifications({
         pending.read ||
         completedAt <= readAt ||
         (status !== "waiting_human" && sessionResult?.unread_count === 0) ||
-        (notification.catchUp && !sessionResult)
+        (notification.catchUp && !sessionResult && !scheduledFailure)
       ) {
         if (dedupeKey) markTaskNotified(dedupeKey);
         return;
@@ -436,14 +453,28 @@ export function useWebSocketNotifications({
             : status === "completed"
               ? "completed"
               : "failed",
-        fallbackMessage: message,
+        fallbackMessage: scheduledFailure
+          ? t(
+              notification.data.notification_kind ===
+                "scheduled_model_unavailable"
+                ? "notification.scheduledModelUnavailable"
+                : "notification.scheduledTaskFailed",
+            )
+          : message,
         events: eventsResult?.events,
         successLabel: t("notification.taskCompleted"),
         failureLabel: t("notification.taskFailed"),
         attentionLabel: t("notification.taskNeedsAttention"),
       });
 
-      const notificationRoute = buildTaskNotificationRoute(session_id, run_id);
+      const notificationRoute = scheduledFailure
+        ? `/scheduled-tasks/${encodeURIComponent(scheduled_task_id!)}`
+        : buildTaskNotificationRoute(session_id, run_id);
+      const openLabel = t(
+        scheduledFailure
+          ? "notification.openScheduledTask"
+          : "notification.openConversation",
+      );
       const navigateToSession = () => {
         if (!isCurrent()) return;
         navigate(notificationRoute, {
@@ -521,6 +552,7 @@ export function useWebSocketNotifications({
             status,
             copy: notificationCopy,
             onOpen: navigateToSession,
+            openLabel: scheduledFailure ? openLabel : undefined,
           }),
         );
         showCatchUpToast();
@@ -533,7 +565,7 @@ export function useWebSocketNotifications({
             visible={currentToast.visible}
             title={notificationCopy.title}
             body={notificationCopy.body}
-            openLabel={t("notification.openConversation")}
+            openLabel={openLabel}
             dismissLabel={t("common.dismiss", "关闭")}
             onOpen={() => {
               if (!isCurrent()) return;

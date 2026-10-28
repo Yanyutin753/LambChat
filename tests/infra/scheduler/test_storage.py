@@ -468,7 +468,7 @@ async def test_get_task_for_execution_uses_projection() -> None:
     assert collection.find_one_projection["input_payload"] == 1
     assert collection.find_one_projection["timeout_seconds"] == 1
     assert "description" not in collection.find_one_projection
-    assert "updated_at" not in collection.find_one_projection
+    assert collection.find_one_projection["updated_at"] == 1
 
 
 @pytest.mark.asyncio
@@ -587,3 +587,34 @@ async def test_task_search_uses_literal_text_for_rows_and_total() -> None:
         ],
     }
     collection.count_documents.assert_awaited_once_with(query)
+
+
+@pytest.mark.parametrize("changed", [False, True])
+async def test_invalid_model_pause_respects_user_configuration_revision(changed):
+    from unittest.mock import AsyncMock
+
+    original = datetime(2026, 10, 28, tzinfo=timezone.utc)
+    current = {
+        "_id": "task",
+        "input_payload": {"agent_options": {"model_id": "removed"}},
+        "updated_at": datetime(2026, 10, 29, tzinfo=timezone.utc) if changed else original,
+        "status": "active",
+        "enabled": True,
+    }
+
+    class Tasks:
+        async def update_one(self, query, update):
+            if not all(current.get(key) == value for key, value in query.items()):
+                return _UpdateResult(0)
+            current.update(update["$set"])
+            return _UpdateResult(1)
+
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = Tasks()
+    storage._bump_scheduler_definition_revision = AsyncMock()
+    assert (
+        await storage.pause_invalid_model_task("task", current["input_payload"], original)
+        is not changed
+    )
+    assert current["enabled"] is changed
+    assert storage._bump_scheduler_definition_revision.await_count == int(not changed)

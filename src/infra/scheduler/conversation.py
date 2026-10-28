@@ -224,8 +224,12 @@ async def _finish(storage, record, status, error=None):
     elif not record.get("finalization_pending"):
         return
     status = record["status"]
-    await storage.update_task_run_stats(record["task_id"], record["_id"], RunStatus(status))
     task = await storage.get_task(record["task_id"])
+    if status in {"failed", "timeout"} and task:
+        from src.infra.scheduler.results import publish_failure_notification
+
+        await publish_failure_notification(task, record, storage)
+    await storage.update_task_run_stats(record["task_id"], record["_id"], RunStatus(status))
     if status == "success" and task:
         if record.get("target_session_id") and record["session_id"] != record["target_session_id"]:
             from src.infra.scheduler.results import deliver_result
@@ -255,20 +259,6 @@ async def _finish(storage, record, status, error=None):
                         record["_id"],
                     )
                     await storage.update_run(record["_id"], {"output_result.delivery": delivery})
-    if status in {"failed", "timeout"}:
-        from src.infra.task.manager import get_task_manager
-        from src.infra.task.status import TaskStatus
-
-        await (
-            get_task_manager()
-            ._ensure_executor()
-            ._send_task_notification(
-                record["session_id"],
-                record["_id"],
-                TaskStatus.FAILED,
-                record["owner_id"],
-            )
-        )
     if task and record.get("trigger_type") == "date":
         await storage.pause_completed_date_task(
             task.id,
@@ -399,6 +389,20 @@ async def dispatch_pending():
                 )
             except ConversationBusyError:
                 await storage.update_run(record["_id"], {"conversation_state": "pending"})
+                continue
+            except AppError as error:
+                from src.infra.scheduler.runner import unavailable_model_error
+
+                code = unavailable_model_error(error)
+                if not code:
+                    raise
+                failure = {
+                    "error_code": code,
+                    "scheduled_input_payload": task.input_payload,
+                    "scheduled_task_updated_at": task.updated_at,
+                }
+                await storage.update_run(record["_id"], failure)
+                await _finish(storage, {**record, **failure}, "failed", str(error))
                 continue
             finally:
                 SCHEDULED_SUBMISSION.reset(token)

@@ -60,6 +60,13 @@ class _GlobalExpiryCollection:
     async def to_list(self, length: int | None = None) -> list[dict]:
         return self._matched
 
+    def __aiter__(self):
+        async def iterate():
+            for doc in self._matched:
+                yield doc
+
+        return iterate()
+
     async def update_many(self, query: dict, update: dict) -> SimpleNamespace:
         self.update_queries.append(query)
         ids = set(query["_id"]["$in"])
@@ -244,3 +251,39 @@ async def test_session_deletion_expiry_still_expires_waiting_human() -> None:
 
     assert count == 1
     assert docs[0]["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_live_old_traces_do_not_starve_dispatch_lost_trace(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.is_stale",
+        AsyncMock(side_effect=lambda run_id: run_id == "run-lost-dispatch"),
+    )
+    docs = [
+        _trace("live-1", "running", 180),
+        _trace("live-2", "running", 120),
+        _trace("lost-dispatch", "running", 90),
+    ]
+    storage, collection = _storage_with(docs)
+    assert await storage.expire_stale_running_traces_globally(now=CUTOFF, limit=2) == 1
+    assert collection.docs[0]["status"] == "running"
+    assert collection.docs[1]["status"] == "running"
+    assert collection.docs[2]["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_expiry_rechecks_trace_watermark_after_heartbeat_lookup(monkeypatch) -> None:
+    doc = _trace("resumed", "running", 90)
+    storage, _collection = _storage_with([doc])
+
+    async def heartbeat_recheck(_self, run_id):
+        assert run_id == "run-resumed"
+        doc["updated_at"] = CUTOFF
+        return True
+
+    monkeypatch.setattr("src.infra.task.heartbeat.TaskHeartbeat.is_stale", heartbeat_recheck)
+    assert await storage.expire_stale_running_traces_globally(now=CUTOFF) == 0
+    assert doc["status"] == "running"
+    assert doc["updated_at"] == CUTOFF

@@ -585,19 +585,19 @@ class BackgroundTaskManager:
                     _job_id=f"user-message-search-index:{run_id}",
                 )
             )
-        enqueue_results = await asyncio.gather(*enqueue_operations, return_exceptions=True)
-        main_enqueue_result = enqueue_results[0]
-        if isinstance(main_enqueue_result, BaseException):
-            raise main_enqueue_result
-        if len(enqueue_results) > 1 and isinstance(enqueue_results[1], BaseException):
-            logger.warning(
-                "Failed to enqueue distributed user-message search-index job: run_id=%s",
-                run_id,
-            )
-
-        logger.info(
-            "Task submitted to arq: session=%s, run_id=%s, agent=%s", session_id, run_id, agent_id
+        await arq_payloads.dispatch_jobs(
+            enqueue_operations,
+            pool=arq_pool,
+            dispatch_id=dispatch_id,
+            session_id=session_id,
+            agent_id=agent_id,
+            run_id=run_id,
+            trace_id=trace_id,
+            storage=self.storage,
+            heartbeat=self._heartbeat,
+            is_resume=bool(recovery_claim or hitl_resume or interrupted_resume),
         )
+
         return run_id, trace_id
 
     async def wait_for_task_completion(self, run_id: str) -> None:

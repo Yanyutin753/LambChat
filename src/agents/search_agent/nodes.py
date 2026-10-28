@@ -72,6 +72,7 @@ from src.infra.agent.middleware import (
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import add_persona_discovery
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
+from src.infra.async_utils import run_long_blocking_io
 from src.infra.backend import (
     LazySandboxBackend,
     create_persistent_backend,
@@ -553,18 +554,21 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     filtered_tools = filtered_tool_list or None
     user_middleware.append(session_middleware)
 
-    with summarization_fallback_patch(fallback_model_value, thinking_config):
-        inner_graph = create_deep_agent(
-            model=llm,
-            system_prompt=system_prompt,
-            backend=backend,
-            tools=filtered_tools,
-            checkpointer=inner_checkpointer,
-            store=store,  # 传递 PostgresStore
-            skills=None,  # 技能清单由 SkillSearchTool 描述携带，不在 system prompt 注入
-            subagents=custom_subagents,
-            middleware=user_middleware,
-        )
+    def compile_graph():
+        with summarization_fallback_patch(fallback_model_value, thinking_config):
+            return create_deep_agent(
+                model=llm,
+                system_prompt=system_prompt,
+                backend=backend,
+                tools=filtered_tools,
+                checkpointer=inner_checkpointer,
+                store=store,  # 传递 PostgresStore
+                skills=None,  # 技能清单由 SkillSearchTool 描述携带，不在 system prompt 注入
+                subagents=custom_subagents,
+                middleware=user_middleware,
+            )
+
+    inner_graph = await run_long_blocking_io(compile_graph, urgent=True)
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
