@@ -502,6 +502,26 @@
   font-size: 0.875rem;
 }
 
+.subagent-conversation {
+  --chat-font-size: var(--tool-font-size);
+}
+
+.subagent-conversation .markdown-prose h1 {
+  font-size: 1rem;
+}
+
+.subagent-conversation .markdown-prose h2 {
+  font-size: 0.9375rem;
+}
+
+.subagent-conversation .markdown-prose h3 {
+  font-size: 0.875rem;
+}
+
+.subagent-conversation .markdown-prose :is(h4, h5, h6) {
+  font-size: 1em;
+}
+
 .markdown-prose :where(strong) {
   color: inherit;
   font-weight: 600;

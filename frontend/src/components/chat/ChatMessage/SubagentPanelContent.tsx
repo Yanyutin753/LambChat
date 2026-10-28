@@ -154,7 +154,7 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
 
   if (!data) return null;
   return (
-    <div className="relative flex h-full min-h-0 flex-col font-sans">
+    <div className="subagent-conversation relative flex h-full min-h-0 flex-col font-sans">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
