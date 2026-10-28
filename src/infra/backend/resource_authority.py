@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import mimetypes
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from typing import Any
 
@@ -220,6 +220,7 @@ class _ServerArtifactBackend(CompositeBackend):
         self._backend = backend
         root = self.artifacts_root.rstrip("/")
         self._prefixes = (root + "/conversation_history/", root + "/large_tool_results/")
+        self._blocked_writes: set[str] = set()
 
     @contextmanager
     def _scope(self, paths):
@@ -229,11 +230,12 @@ class _ServerArtifactBackend(CompositeBackend):
             yield
 
     def write(self, file_path, content):
-        with self._scope([file_path]):
-            return self._backend.write(file_path, content)
+        return run_coro_sync(self.awrite(file_path, content))
 
     async def awrite(self, file_path, content):
         with self._scope([file_path]):
+            if file_path in self._blocked_writes:
+                return WriteResult(error="History is not confirmed empty; use edit to preserve it")
             return await self._backend.awrite(file_path, content)
 
     def edit(self, file_path, old_string, new_string, replace_all=False):
@@ -253,12 +255,24 @@ class _ServerArtifactBackend(CompositeBackend):
             return await self._backend.aupload_files(files)
 
     def download_files(self, paths):
-        with self._scope(paths):
-            return self._backend.download_files(paths)
+        return run_coro_sync(self.adownload_files(paths))
 
     async def adownload_files(self, paths):
         with self._scope(paths):
-            return await self._backend.adownload_files(paths)
+            # Deepagents treats failed downloads as new files; never overwrite unknown history.
+            self._blocked_writes.update(paths)
+            for path in paths:
+                # Register the guard's version before raw download; final CAS still rejects races.
+                with suppress(Exception):
+                    await self._backend.aread(path, limit=0)
+            results = await self._backend.adownload_files(paths)
+            for result in results:
+                if result.path in paths and (
+                    result.error == "file_not_found"
+                    or (result.error is None and result.content == b"")
+                ):
+                    self._blocked_writes.discard(result.path)
+            return results
 
 
 def server_artifact_backend(backend):
