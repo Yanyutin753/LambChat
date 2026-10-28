@@ -94,6 +94,42 @@ async def test_unsearched_role_is_rejected(search_result):
     handler.assert_not_awaited()
 
 
+@pytest.mark.parametrize("agent_id", [None, "parent-child"])
+@pytest.mark.parametrize("authorized", [False, True])
+async def test_role_guard_emits_only_early_rejection_with_provider_id_and_owner(
+    agent_id, authorized
+):
+    from src.infra.writer.present import Presenter
+
+    presenter = Presenter()
+    presenter.emit = AsyncMock()
+    req = request(
+        "general-purpose", result={"success": True, "presets": []} if authorized else None
+    )
+    req.runtime.config = {
+        "configurable": {"presenter": presenter, "checkpoint_ns": "tools:callback"},
+        "metadata": {"lambchat_subagent_id": agent_id},
+    }
+    handler = AsyncMock(return_value="delegated")
+    result = await PersonaSubagentMiddleware(build_task_tool=AsyncMock()).awrap_tool_call(
+        req, handler
+    )
+    if authorized:
+        assert result == "delegated"
+        presenter.emit.assert_not_awaited()
+        return
+    assert result.status == "error"
+    handler.assert_not_awaited()
+    presenter.emit.assert_awaited_once()
+    event = presenter.emit.await_args.args[0]
+    assert event["event"] == "tool:result"
+    assert event["data"]["tool_call_id"] == "task-1"
+    assert event["data"].get("depth", 0) == (1 if agent_id else 0)
+    assert event["data"]["agent_id"] == (agent_id or presenter.config.agent_id)
+    assert event["data"]["success"] is False
+    assert event["data"]["result"] == {"status": "error", "error": result.content}
+
+
 @pytest.mark.asyncio
 async def test_search_failure_does_not_enable_generic_fallback():
     handler = AsyncMock()

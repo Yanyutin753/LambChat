@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.infra.agent.middleware.prompt_injection import SectionPromptMiddleware
+from src.infra.agent.middleware.tool_interception import _resolve_tool_event_context
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,21 @@ class PersonaSubagentMiddleware(SectionPromptMiddleware):
         elif results[0].get("presets"):
             error = "Search found roles. Select a suitable discovered role or refine the search to confirm no matching role before generic fallback."
         if error:
+            presenter, depth, _, agent_id = _resolve_tool_event_context(request.runtime)
+            if presenter is not None:
+                try:
+                    await presenter.emit(
+                        presenter.present_tool_result(
+                            "task",
+                            {"status": "error", "error": error},
+                            tool_call_id=call["id"],
+                            success=False,
+                            depth=depth,
+                            agent_id=agent_id,
+                        )
+                    )
+                except Exception:
+                    logger.warning("Failed to emit rejected task result", exc_info=True)
             return ToolMessage(content=error, name="task", tool_call_id=call["id"], status="error")
         return await handler(request)
 
