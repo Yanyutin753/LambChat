@@ -109,7 +109,6 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
     async def abefore_agent(self, state: Any, runtime: Any) -> None:
         if not settings.ENABLE_ARTIFACT_DELIVERY:
             return
-        runtime = self._runtime_with_graph_config(runtime)
         messages = state.get("messages") if isinstance(state, dict) else None
         if isinstance(messages, list):
             for message in messages:
