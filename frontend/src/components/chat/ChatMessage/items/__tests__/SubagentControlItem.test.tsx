@@ -285,7 +285,7 @@ test.each([
   ["received", "Message from subagent"],
   ["sent", "Message parent agent"],
 ])(
-  "parent communication shows %s with the readable original message",
+  "parent communication keeps %s in its own conversation",
   (direction, label) => {
     subagentPanelStore.set({
       agentId: "agent-1",
@@ -300,12 +300,37 @@ test.each([
       success: true,
     });
     expect(view.getByRole("button").textContent).toContain(label);
-    expect(view.getByText("Need scope")).toBeTruthy();
+    if (direction === "received")
+      expect(view.queryByText("Need scope")).toBeNull();
+    else expect(view.getByText("Need scope")).toBeTruthy();
     fireEvent.click(view.getByRole("button"));
     expect(getPersistentToolPanelState()?.panelKey).toBe("subagent-agent-1");
     expect(view.container.textContent).not.toContain('"subagent_id"');
   },
 );
+
+test("received child messages remain available in details without a loaded child", () => {
+  const view = show({
+    toolName: "send_parent_message",
+    args: {
+      subagent_id: "child",
+      direction: "received",
+      message: "Child report with findings",
+    },
+    result: JSON.stringify({ status: "queued" }),
+    success: true,
+  });
+  expect(view.queryByText("Child report with findings")).toBeNull();
+  fireEvent.click(view.getByRole("button"));
+  const panel = render(
+    <I18nextProvider i18n={i18n}>
+      {getPersistentToolPanelState()!.children}
+    </I18nextProvider>,
+  );
+  expect(
+    within(panel.container).getByText("Child report with findings"),
+  ).toBeTruthy();
+});
 
 test.each([
   ["cancel_subagent", "chat.message.toolCancelSubagent"],

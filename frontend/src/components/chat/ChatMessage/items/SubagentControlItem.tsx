@@ -216,7 +216,11 @@ export const SubagentControlItem = memo(function SubagentControlItem({
   const reply =
     !isPending && !cancelled && (state === "error" || state === "failed")
       ? parsed?.error
-      : !isPending && !cancelled && success !== false && isParentMessage
+      : !isPending &&
+          !cancelled &&
+          success !== false &&
+          isParentMessage &&
+          args.direction !== "received"
         ? args.message
         : undefined;
 
