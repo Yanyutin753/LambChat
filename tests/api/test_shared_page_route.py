@@ -2,9 +2,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from src.api import main as api_main
+from src.kernel.errors import AppError, ErrorCode
 
 
 class _FakeOwner:
@@ -386,3 +388,47 @@ async def test_offline_page_is_served_without_auth(
     assert response.headers["cache-control"] == "no-cache"
     assert response.headers["content-type"].startswith("text/html")
     assert response.text == "<!doctype html><title>Offline</title>\n"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        AppError(ErrorCode.SHARE_EXPIRED_OR_MISSING, message="PRIVATE_SHARE_DETAILS"),
+        AppError(ErrorCode.SHARE_LOGIN_REQUIRED, message="PRIVATE_SHARE_DETAILS"),
+        HTTPException(status_code=404, detail="PRIVATE_SHARE_DETAILS"),
+        HTTPException(status_code=401, detail="PRIVATE_SHARE_DETAILS"),
+        AppError(ErrorCode.INTERNAL_ERROR),
+    ],
+)
+async def test_shared_page_renders_safe_business_errors_without_masking_server_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: AppError | HTTPException
+) -> None:
+    static_dir = tmp_path / "dist"
+    static_dir.mkdir()
+    (static_dir / "index.html").write_text(
+        "<!doctype html><html><head><title>LambChat</title></head>"
+        '<body><div id="root"></div></body></html>',
+        encoding="utf-8",
+    )
+
+    async def unavailable_share(share_id: str, user=None):
+        raise error
+
+    monkeypatch.setattr(api_main, "resolve_frontend_target", lambda *args: ("static", static_dir))
+    monkeypatch.setattr(api_main.share, "get_shared_content", unavailable_share)
+    app = api_main.create_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://lambchat.com"
+    ) as client:
+        response = await client.get("/shared/unavailable")
+
+    status = error.http_status if isinstance(error, AppError) else error.status_code
+    assert response.status_code == status
+    if status == 500:
+        assert response.json()["detail"]["code"] == "internal_error"
+        return
+    assert response.headers["content-type"].startswith("text/html")
+    assert 'data-server-preview="shared"' in response.text
+    assert 'content="noindex, follow, max-image-preview:large"' in response.text
+    assert "PRIVATE_SHARE_DETAILS" not in response.text
+    assert '<div id="root"></div>' in response.text
