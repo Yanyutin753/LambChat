@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**'
+      - 'client/**'
       - 'tests/**'
       - 'scripts/test_windows_installer_hooks.ps1'
       - 'scripts/pytest_shard.py'
@@ -25,6 +26,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**'
+      - 'client/**'
       - 'tests/**'
       - 'scripts/test_windows_installer_hooks.ps1'
       - 'scripts/pytest_shard.py'
@@ -273,6 +275,11 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Install daemon dependencies
+        run: python scripts/run_validation.py uv sync --frozen --python 3.12 --only-group daemon-build
+      - name: Verify Windows daemon versioned file operations over HTTP and SSE
+        run: python scripts/run_validation.py uv run --no-sync python client/scripts/smoke-daemon-network.py
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
         with:

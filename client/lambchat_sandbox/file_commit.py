@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import stat
+import sys
 import tempfile
 import uuid
 from contextlib import contextmanager
@@ -30,7 +31,14 @@ def file_version(path: Path) -> str:
         def identity(st):
             return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
 
-        if identity(before) != identity(after) or identity(after) != identity(path.stat()):
+        # Windows stat().ctime is creation time, but fstat().ctime is change time.
+        # Reopen the path to detect replacement using the same metadata API.
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+        try:
+            current = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        if identity(before) != identity(after) or identity(after) != identity(current):
             raise FileCommitError("file_conflict: file changed while reading")
         return hashlib.sha256(f"{identity(after)}:{digest}".encode()).hexdigest()
     except FileNotFoundError:
@@ -47,7 +55,7 @@ def file_lock(path: Path, state_root: Path):
     acquired = False
     try:
         try:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 if os.fstat(descriptor).st_size == 0:
@@ -64,7 +72,7 @@ def file_lock(path: Path, state_root: Path):
         yield
     finally:
         if acquired:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 os.lseek(descriptor, 0, os.SEEK_SET)
