@@ -2,9 +2,8 @@
 
 import hashlib
 import uuid
-from dataclasses import dataclass
 from tempfile import SpooledTemporaryFile
-from typing import Any, Protocol
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from fastapi import (
@@ -29,6 +28,12 @@ from src.api.routes.file_type import (
 )
 from src.api.routes.upload_cover import _path_exists
 from src.api.routes.upload_direct import router as direct_upload_router
+from src.api.routes.upload_image import (
+    UPLOAD_SPOOL_MEMORY_LIMIT,
+    SpooledUpload,
+    _prepare_spooled_image,
+    drain_upload_image_tasks,
+)
 from src.api.routes.upload_model_safe import get_model_safe_file_response
 from src.api.routes.upload_signed_urls import (
     SignedUrlItem,
@@ -45,15 +50,16 @@ from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
-from src.infra.image_utils import needs_model_safe_transcode, transcode_image_bytes
+from src.infra.image_utils import (
+    image_upload_input_limit,
+    needs_upload_image_processing,
+)
 from src.infra.logging import get_logger
 from src.infra.storage.s3 import (
     S3Config,
     S3Provider,
 )
-from src.infra.storage.s3.base import BinaryReadFile
 from src.infra.upload.file_record import get_file_record_storage
-from src.infra.utils.hashing import sha256_hexdigest
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
@@ -72,7 +78,6 @@ _file_record_storage = get_file_record_storage()
 _upload_delete_tasks = BestEffortTaskLimiter("upload delete", max_tasks=8)
 
 UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
-UPLOAD_SPOOL_MEMORY_LIMIT = 2 * 1024 * 1024
 
 
 async def drain_upload_delete_tasks() -> None:
@@ -80,6 +85,7 @@ async def drain_upload_delete_tasks() -> None:
 
 
 async def close_upload_route_dependencies() -> None:
+    await drain_upload_image_tasks()
     await drain_upload_delete_tasks()
     await _file_record_storage.close()
 
@@ -102,9 +108,16 @@ async def _get_live_record_by_hash(
     file_hash: str,
     uploaded_by: str,
     storage=None,
+    *,
+    source_hash_only: bool = False,
 ) -> dict | None:
     """Return a dedupe record only if both metadata and the backing file still exist."""
-    record = await _file_record_storage.find_by_hash(file_hash, uploaded_by)
+    if source_hash_only:
+        record = await _file_record_storage.find_by_hash(
+            file_hash, uploaded_by, source_hash_only=True
+        )
+    else:
+        record = await _file_record_storage.find_by_hash(file_hash, uploaded_by)
     if record is None:
         return None
 
@@ -119,7 +132,7 @@ async def _get_live_record_by_hash(
         file_hash,
         record["key"],
     )
-    await _file_record_storage.delete_by_hash(file_hash, uploaded_by)
+    await _file_record_storage.delete_by_hash(record["hash"], uploaded_by)
     return None
 
 
@@ -235,20 +248,6 @@ async def _read_upload_file_limited(
     return bytes(data)
 
 
-class UploadSpool(BinaryReadFile, Protocol):
-    def close(self) -> None: ...
-
-
-@dataclass
-class SpooledUpload:
-    file: UploadSpool
-    sha256_hex: str
-    size: int
-
-    def close(self) -> None:
-        self.file.close()
-
-
 async def _spool_upload_file_limited(
     file: Any,
     *,
@@ -285,49 +284,6 @@ async def _spool_upload_file_limited(
     except Exception:
         spooled.close()
         raise
-
-
-def _read_all(file: Any) -> bytes:
-    return file.read()
-
-
-async def _transcode_spooled_image(
-    spooled_upload: SpooledUpload,
-    *,
-    max_size_bytes: int,
-    max_size_mb: int,
-    source_ext: str,
-) -> SpooledUpload:
-    """Transcode a spooled model-unsafe image (TIFF/BMP/ICO…) to JPEG in place.
-
-    The replacement spool hashes the JPEG bytes so dedupe and the stored
-    record describe what is actually uploaded.
-    """
-    await run_long_blocking_io(spooled_upload.file.seek, 0)
-    content = await run_long_blocking_io(_read_all, spooled_upload.file)
-    try:
-        transcoded, _mime_type = await run_long_blocking_io(transcode_image_bytes, content)
-    except ValueError:
-        raise AppError(ErrorCode.IMAGE_TRANSCODE_FAILED, args={"ext": source_ext})
-    if len(transcoded) > max_size_bytes:
-        raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
-
-    sha256_hex = await run_long_blocking_io(sha256_hexdigest, transcoded)
-    replacement = SpooledTemporaryFile(max_size=UPLOAD_SPOOL_MEMORY_LIMIT, mode="w+b")
-    try:
-        await run_long_blocking_io(replacement.write, transcoded)
-        await run_long_blocking_io(replacement.seek, 0)
-        new_upload = SpooledUpload(
-            file=replacement,
-            sha256_hex=sha256_hex,
-            size=len(transcoded),
-        )
-    except Exception:
-        replacement.close()
-        raise
-    finally:
-        spooled_upload.close()
-    return new_upload
 
 
 def get_s3_enabled() -> bool:
@@ -440,9 +396,19 @@ async def check_file_exists(
     current_user: TokenPayload = Depends(require_permissions("file:read")),
 ) -> dict:
     storage = await get_or_init_storage()
-    record = await _get_live_record_by_hash(body.hash, current_user.sub, storage)
+    ext = body.name.rsplit(".", 1)[-1] if "." in body.name else ""
+    needs_processing = get_file_category(body.name, body.mime_type) == FileCategory.IMAGE and (
+        needs_upload_image_processing(ext, body.mime_type, body.size)
+    )
+    record = await _get_live_record_by_hash(
+        body.hash, current_user.sub, storage, source_hash_only=needs_processing
+    )
     if record is None:
         return {"exists": False}
+    if needs_processing:
+        limits = await resolve_upload_limits(current_user.roles)
+        if record["size"] > limits["image"] * 1024 * 1024:
+            return {"exists": False}
     base_url = _get_base_url(request)
     return {
         "exists": True,
@@ -515,45 +481,72 @@ async def upload_file(
     )
     max_size_mb = max_size_bytes // (1024 * 1024)
     ext = (file.filename or "").lower().split(".")[-1]
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            if int(content_length) > max_size_bytes:
-                raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
-        except ValueError:
-            pass
+    input_size_limit = max_size_bytes
+    if category == FileCategory.IMAGE:
+        preparation_limit = image_upload_input_limit(max_size_bytes)
+        if needs_upload_image_processing(ext, file.content_type, preparation_limit):
+            input_size_limit = preparation_limit
 
     spooled_upload: SpooledUpload | None = None
     storage_key = ""
     file_hash = ""
+    source_hash = ""
     effective_content_type = file.content_type
     did_transcode = False
     try:
         async with timed_server_phase("upload_verify"):
             spooled_upload = await _spool_upload_file_limited(
                 file,
-                max_size_bytes=max_size_bytes,
-                max_size_mb=max_size_mb,
+                max_size_bytes=input_size_limit,
+                max_size_mb=input_size_limit // (1024 * 1024),
             )
 
-        # Vision providers reject TIFF/BMP/ICO (GLM: 1210) and browsers cannot
-        # decode TIFF in canvas, so the frontend passes them through untouched —
-        # transcode to JPEG here so every stored image is model-safe.
-        if category == FileCategory.IMAGE and needs_model_safe_transcode(ext, file.content_type):
-            spooled_upload = await _transcode_spooled_image(
-                spooled_upload,
-                max_size_bytes=max_size_bytes,
-                max_size_mb=max_size_mb,
-                source_ext=ext,
+        source_hash = spooled_upload.sha256_hex
+
+        if category == FileCategory.IMAGE and needs_upload_image_processing(
+            ext, file.content_type, spooled_upload.size
+        ):
+            existing = await _get_live_record_by_hash(
+                source_hash, current_user.sub, storage, source_hash_only=True
             )
-            effective_content_type = "image/jpeg"
+            if (
+                existing
+                and source_hash in existing.get("source_hashes", [])
+                and existing["mime_type"] in {"image/jpeg", "image/png", "image/webp"}
+                and existing["size"] <= max_size_bytes
+            ):
+                return _build_upload_response(
+                    request,
+                    key=existing["key"],
+                    name=existing["name"],
+                    file_type=existing["category"],
+                    mime_type=existing["mime_type"],
+                    size=existing["size"],
+                    exists=True,
+                )
+            async with timed_server_phase("upload_process"):
+                processing_upload = spooled_upload
+                spooled_upload = None
+                spooled_upload, effective_content_type = await _prepare_spooled_image(
+                    processing_upload,
+                    max_size_bytes=max_size_bytes,
+                    max_size_mb=max_size_mb,
+                    source_ext=ext,
+                    source_mime_type=file.content_type,
+                )
             did_transcode = True
 
+        if spooled_upload.size > max_size_bytes:
+            raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
         file_hash = spooled_upload.sha256_hex
 
         # Check if hash already exists (race condition guard)
         existing = await _get_live_record_by_hash(file_hash, current_user.sub, storage)
         if existing:
+            if did_transcode:
+                await _file_record_storage.add_source_hash(
+                    existing["key"], current_user.sub, source_hash
+                )
             return _build_upload_response(
                 request,
                 key=existing["key"],
@@ -568,7 +561,9 @@ async def upload_file(
         short_id = uuid.uuid4().hex[:16]
         ext = (file.filename or "").rsplit(".", 1)[-1] if "." in (file.filename or "") else ""
         if did_transcode:
-            ext = "jpg"
+            ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(
+                effective_content_type or "", ext
+            )
         storage_key = (
             f"{category.value}/{current_user.sub}/{short_id}.{ext}"
             if ext
@@ -592,6 +587,7 @@ async def upload_file(
             size=spooled_upload.size,
             category=category.value,
             uploaded_by=current_user.sub,
+            source_hash=source_hash if did_transcode else None,
         )
 
         return _build_upload_response(
@@ -619,6 +615,10 @@ async def upload_file(
             )
 
         if existing:
+            if did_transcode:
+                await _file_record_storage.add_source_hash(
+                    existing["key"], current_user.sub, source_hash
+                )
             return _build_upload_response(
                 request,
                 key=existing["key"],

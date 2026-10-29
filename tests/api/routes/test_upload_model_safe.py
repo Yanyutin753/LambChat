@@ -70,7 +70,9 @@ class _RecordingRecords:
     def __init__(self) -> None:
         self.created: list[dict] = []
 
-    async def find_by_hash(self, _file_hash: str, _uploaded_by: str):
+    async def find_by_hash(
+        self, _file_hash: str, _uploaded_by: str, *, source_hash_only: bool = False
+    ):
         return None
 
     async def create(self, **kwargs):

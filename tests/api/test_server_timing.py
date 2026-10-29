@@ -35,6 +35,7 @@ def test_server_timing_rejects_dynamic_or_secret_metric_names() -> None:
 @pytest.mark.parametrize(
     "name",
     [
+        "upload_process",
         "upload_storage",
         "upload_verify",
         "cloud_connect",

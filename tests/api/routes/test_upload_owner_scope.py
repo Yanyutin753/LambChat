@@ -19,7 +19,7 @@ async def test_live_hash_lookup_and_stale_cleanup_are_limited_to_the_current_own
 
         async def find_by_hash(self, file_hash: str, uploaded_by: str):
             self.find_calls.append((file_hash, uploaded_by))
-            return {"key": "docs/owner-a/missing.txt"}
+            return {"key": "docs/owner-a/missing.txt", "hash": file_hash}
 
         async def delete_by_hash(self, file_hash: str, uploaded_by: str):
             self.delete_calls.append((file_hash, uploaded_by))
@@ -91,7 +91,7 @@ async def test_duplicate_upload_conflict_removes_new_object_when_conflicting_rec
             self.find_attempts += 1
             if self.find_attempts == 1:
                 return None
-            return {"key": "documents/owner-a/stale.txt"}
+            return {"key": "documents/owner-a/stale.txt", "hash": file_hash}
 
         async def create(self, **_kwargs):
             from pymongo.errors import DuplicateKeyError
