@@ -4399,6 +4399,20 @@
     "tokensInputReported": "输入（报告值）",
     "historicalEstimate": "历史估算",
     "partialCostHint": "仅含已知金额，其余费用未知。",
+    "modelOrService": "模型 / 服务",
+    "identityNotRecorded": "未记录",
+    "operations": {
+      "embedding": "向量嵌入",
+      "rerank": "重排序",
+      "decision": "决策",
+      "web_search": "网页搜索",
+      "web_fetch": "网页抓取",
+      "document_parse": "文档解析",
+      "image_generation": "图像生成",
+      "audio_transcription": "音频转写",
+      "llm": "模型调用",
+      "external_request": "外部请求"
+    },
     "sources": {
       "auxiliary": "辅助调用",
       "chat": "对话",

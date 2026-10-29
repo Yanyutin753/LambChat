@@ -6,6 +6,7 @@ import { formatUsageTokenCount } from "../../chat/ChatMessage/tokenCostDisplay";
 import { EmptyState } from "../../common/EmptyState";
 import { Activity, Bot, FileText, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import type { UsageLog } from "../../../types/usage";
 import { useFxRates } from "../../../hooks/useFxRates";
@@ -19,6 +20,29 @@ import {
 import { usageModelNames, type ModelLabelMap } from "./modelDisplay";
 
 const _EMPTY_MODEL_LABELS: ModelLabelMap = new Map();
+
+const _AUXILIARY_OPERATIONS = new Set([
+  "embedding",
+  "rerank",
+  "decision",
+  "web_search",
+  "web_fetch",
+  "document_parse",
+  "image_generation",
+  "audio_transcription",
+  "llm",
+  "external_request",
+]);
+
+function usageAgentName(log: UsageLog, t: TFunction): string {
+  if (log.agent_name) return log.agent_name;
+  if (log.source !== "auxiliary") return "-";
+  return t(
+    log.operation && _AUXILIARY_OPERATIONS.has(log.operation)
+      ? `usage.operations.${log.operation}`
+      : "usage.sources.auxiliary",
+  );
+}
 
 const _STATUS_PILL_STYLES: Record<
   ReturnType<typeof usageStatusKind>,
@@ -163,7 +187,7 @@ function DesktopTable({
               </div>
             )}
             <div className={`${headerCellClass} text-left`}>
-              {t("usage.model")}
+              {t("usage.modelOrService")}
             </div>
             <div className={`${headerCellClass} text-left`}>
               {t("usage.agent")}
@@ -224,17 +248,21 @@ function DesktopTable({
                   <div className={textCellClass}>
                     <span
                       className="block truncate tabular-nums"
-                      title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
+                      title={
+                        usageModelNames(log, _EMPTY_MODEL_LABELS) ||
+                        log.provider
+                      }
                     >
-                      {usageModelNames(log, modelLabels) || "-"}
+                      {usageModelNames(log, modelLabels) ||
+                        log.provider ||
+                        (log.source === "auxiliary"
+                          ? t("usage.identityNotRecorded")
+                          : "-")}
                     </span>
                   </div>
                   <div className={textCellClass}>
                     <span className="block truncate font-medium">
-                      {log.agent_name ||
-                        (log.source === "auxiliary"
-                          ? t("usage.sources.auxiliary")
-                          : "-")}
+                      {usageAgentName(log, t)}
                     </span>
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-12 text-theme-text-tertiary">
@@ -304,15 +332,18 @@ function TabletRow({
           <div className="flex min-w-0 items-center gap-2">
             <code
               className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums"
-              title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
+              title={usageModelNames(log, _EMPTY_MODEL_LABELS) || log.provider}
             >
-              {usageModelNames(log, modelLabels) || "-"}
+              {usageModelNames(log, modelLabels) ||
+                log.provider ||
+                (log.source === "auxiliary"
+                  ? t("usage.identityNotRecorded")
+                  : "-")}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
           </div>
           <p className="mt-1 truncate text-11 font-medium text-theme-text-secondary">
-            {log.agent_name ||
-              (log.source === "auxiliary" ? t("usage.sources.auxiliary") : "-")}
+            {usageAgentName(log, t)}
           </p>
           <p className="mt-0.5 truncate text-10 text-theme-text-tertiary">
             {personaOrTeam || "-"}
@@ -427,16 +458,19 @@ function MobileCard({
             <div className="min-w-0 flex-1">
               <code
                 className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums"
-                title={usageModelNames(log, _EMPTY_MODEL_LABELS)}
+                title={
+                  usageModelNames(log, _EMPTY_MODEL_LABELS) || log.provider
+                }
               >
-                {usageModelNames(log, modelLabels) || "-"}
+                {usageModelNames(log, modelLabels) ||
+                  log.provider ||
+                  (log.source === "auxiliary"
+                    ? t("usage.identityNotRecorded")
+                    : "-")}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">
-                  {log.agent_name ||
-                    (log.source === "auxiliary"
-                      ? t("usage.sources.auxiliary")
-                      : "-")}
+                  {usageAgentName(log, t)}
                 </span>
                 {personaOrTeam && (
                   <span className="usage-soft-pill text-10 text-theme-text-tertiary">

@@ -1088,3 +1088,19 @@ def test_cache_rates_use_available_counts_despite_missing_calls() -> None:
     assert result["summary"]["cache_read_share"] == 0.6
     assert result["daily"][0]["cache_read_share"] == 0.6
     assert result["top_models"][0]["cache_read_share"] == 0.6
+
+
+async def test_auxiliary_identity_survives_storage_and_api_schema():
+    from src.kernel.schemas.usage import UsageLog
+
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+    await storage.upsert_usage_log_from_trace_metadata(
+        {"trace_id": "aux", "user_id": "u", "metadata": {"source": "auxiliary"}},
+        {"operation": "embedding", "provider": "openai", "duration": 1.5},
+    )
+    log = UsageLog.model_validate(collection.update_calls[0][1]["$set"])
+    assert log.operation == "embedding"
+    assert log.provider == "openai"
+    assert log.duration == 1.5

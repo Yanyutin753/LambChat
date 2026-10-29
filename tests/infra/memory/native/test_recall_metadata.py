@@ -332,7 +332,7 @@ async def test_local_mongo_overview_recall_delivers_recent_context(
         import httpx
 
         @asynccontextmanager
-        async def simulated_unpriced_usage():
+        async def simulated_unpriced_usage(**kwargs):
             yield
 
         monkeypatch.setattr(search, "unpriced_usage", simulated_unpriced_usage)

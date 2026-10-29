@@ -606,3 +606,29 @@ def test_quota_preflight_skip_reason_classifies_quota_and_inactive_user():
     )
     assert quota_preflight_skip_reason(AppError(ErrorCode.UNAUTHORIZED)) == "user_inactive"
     assert quota_preflight_skip_reason(RuntimeError("boom")) is None
+
+
+@pytest.mark.parametrize("include_usage", [False, True])
+async def test_empty_stream_does_not_certify_zero_usage(monkeypatch, include_usage):
+    class Source:
+        async def _astream(self, *args, **kwargs):
+            if include_usage:
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(
+                        content="",
+                        usage_metadata={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    )
+                )
+
+    class Model(QuotaChatMixin, Source):
+        pass
+
+    model = Model()
+    finish = AsyncMock()
+    monkeypatch.setattr(model, "_quota_begin", AsyncMock(return_value="ticket"))
+    monkeypatch.setattr(model, "_quota_finish", finish)
+    _ = [chunk async for chunk in model._astream([])]
+    assert finish.await_args.kwargs["usage_valid"] is include_usage
+    assert finish.await_args.kwargs["status"] == ("completed" if include_usage else "error")
+    if not include_usage:
+        assert str(finish.await_args.kwargs["error"]) == "No generations found in stream."

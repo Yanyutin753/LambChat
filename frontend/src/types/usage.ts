@@ -14,6 +14,8 @@ export interface UsageLog {
   persona_preset_id: string;
   persona_preset_name: string;
   source: string;
+  operation?: string;
+  provider?: string;
   scheduled_task_id: string;
   scheduled_task_run_id: string;
   scheduled_task_trigger_type: string;

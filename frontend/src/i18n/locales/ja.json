@@ -4399,6 +4399,20 @@
     "tokensInputReported": "入力（報告値）",
     "historicalEstimate": "過去の概算",
     "partialCostHint": "判明している金額のみです。残りの費用は不明です。",
+    "modelOrService": "モデル / サービス",
+    "identityNotRecorded": "未記録",
+    "operations": {
+      "embedding": "埋め込み",
+      "rerank": "再ランキング",
+      "decision": "判断",
+      "web_search": "ウェブ検索",
+      "web_fetch": "ウェブ取得",
+      "document_parse": "文書解析",
+      "image_generation": "画像生成",
+      "audio_transcription": "音声文字起こし",
+      "llm": "モデル呼び出し",
+      "external_request": "外部リクエスト"
+    },
     "sources": {
       "auxiliary": "補助呼び出し",
       "chat": "チャット",

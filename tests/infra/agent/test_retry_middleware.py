@@ -41,6 +41,59 @@ async def test_agent_retry_stack_recovers_current_sdk_disconnect(monkeypatch):
     assert calls == 2
 
 
+@pytest.mark.parametrize("empty_attempts", [1, 2])
+async def test_agent_event_stream_retries_empty_provider_stream(monkeypatch, empty_attempts):
+    """The real stream aggregation error must remain inside the retry stack."""
+    from unittest.mock import AsyncMock
+
+    from langchain.agents import create_agent
+    from langchain_core.messages import AIMessageChunk, HumanMessage
+    from langchain_core.outputs import ChatGenerationChunk
+    from langchain_openai import ChatOpenAI
+    from langsmith import tracing_context
+
+    from src.infra.llm.openai_chat import LambChatOpenAIChatModel
+    from src.infra.llm.quota import QuotaChatMixin
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "LLM_MAX_RETRIES", 1)
+    monkeypatch.setattr(settings, "LLM_RETRY_DELAY", 0)
+    monkeypatch.setattr(QuotaChatMixin, "_quota_begin", AsyncMock(return_value=None))
+    calls = 0
+
+    async def provider_stream(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > empty_attempts:
+            yield ChatGenerationChunk(message=AIMessageChunk(content="Recovered answer"))
+
+    monkeypatch.setattr(ChatOpenAI, "_astream", provider_stream)
+    graph = create_agent(
+        model=LambChatOpenAIChatModel(model="gpt-test", api_key="test-only"),
+        middleware=create_retry_middleware(),
+    )
+    events = []
+
+    async def consume():
+        async for event in graph.astream_events(
+            {"messages": [HumanMessage(content="Hello")]}, version="v2"
+        ):
+            events.append(event)
+
+    with tracing_context(enabled=False):
+        if empty_attempts == 2:
+            with pytest.raises(ValueError, match="No generations found in stream"):
+                await consume()
+        else:
+            await consume()
+            assert any(
+                event["event"] == "on_chat_model_stream"
+                and event["data"]["chunk"].content == "Recovered answer"
+                for event in events
+            )
+    assert calls == 2
+
+
 async def test_fallback_runs_when_primary_raises_non_retryable_error() -> None:
     primary_model = object()
     fallback_model = object()

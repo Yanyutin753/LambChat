@@ -183,13 +183,13 @@ async def mistral_parse(
         image_limit=image_limit or None,
         pages=pages,
     )
-    async with unpriced_usage():
+    async with unpriced_usage(operation="document_parse", provider="mistral", model=model):
         response = await client.post(
             f"{base_url}/v1/ocr",
             headers={"Authorization": f"Bearer {api_key}"},
             json=body,
         )
-    _raise_for_status(response, "mistral")
+        _raise_for_status(response, "mistral")
     payload = response.json()
 
     page_list = payload.get("pages") or []
@@ -301,13 +301,13 @@ async def _mineru_parse_cloud(
     base = (_setting("DOCUMENT_PARSE_MINERU_API_URL") or _MINERU_DEFAULT_CLOUD_URL).rstrip("/")
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    async with unpriced_usage():
+    async with unpriced_usage(operation="document_parse", provider="mineru"):
         response = await client.post(
             f"{base}/file-urls/batch",
             headers={**headers, "Content-Type": "application/json"},
             json={"files": [{"name": filename, "is_ocr": False}]},
         )
-    _raise_for_status(response, "mineru")
+        _raise_for_status(response, "mineru")
     batch_payload = response.json()
     if batch_payload.get("code") != 0:
         raise DocumentParseError(f"mineru cloud error: {batch_payload.get('msg')}")
@@ -394,14 +394,14 @@ async def azure_parse(
     headers = {"Ocp-Apim-Subscription-Key": api_key}
 
     analyze_url = f"{endpoint.rstrip('/')}/documentintelligence/documentModels/{model}:analyze"
-    async with unpriced_usage():
+    async with unpriced_usage(operation="document_parse", provider="azure", model=model):
         response = await client.post(
             analyze_url,
             params={"api-version": _AZURE_API_VERSION, "outputContentFormat": "markdown"},
             headers=headers,
             json={"base64Source": await run_long_blocking_io(_b64_ascii, data)},
         )
-    _raise_for_status(response, "azure")
+        _raise_for_status(response, "azure")
     operation_url = response.headers.get("operation-location") or response.headers.get(
         "Operation-Location"
     )
@@ -522,13 +522,13 @@ async def paddleocr_parse(
         "useDocUnwarping": False,
         "useChartRecognition": False,
     }
-    async with unpriced_usage():
+    async with unpriced_usage(operation="document_parse", provider="paddleocr_vl"):
         response = await client.post(
             f"{api_url.rstrip('/')}/layout-parsing",
             headers={"Authorization": f"token {token}", "Content-Type": "application/json"},
             json=payload,
         )
-    _raise_for_status(response, "paddleocr_vl")
+        _raise_for_status(response, "paddleocr_vl")
 
     layout_results = ((response.json().get("result") or {}).get("layoutParsingResults")) or []
     if not layout_results:
