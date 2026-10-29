@@ -49,180 +49,136 @@
     </script>
 
     <style>
+      @font-face {
+        font-family: 'Source Sans 3'; font-style: normal; font-weight: 400; font-display: swap;
+        src: url('/fonts/source-sans-3-400-latin.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Source Sans 3'; font-style: normal; font-weight: 600; font-display: swap;
+        src: url('/fonts/source-sans-3-600-latin.woff2') format('woff2');
+      }
+      /* Palette and public-page rhythm match frontend/src/styles/tokens.css and landing.css. */
       :root {
-        --bg: #f5f5f4;
-        --card: #ffffff;
-        --text: #1c1917;
-        --muted: #57534e;
-        --accent: #78716c;
-        --accent-strong: #44403c;
-        --border: #e7e5e4;
-        --code-bg: #edeceb;
+        color-scheme: light dark;
+        --theme-bg: #f5f5f4;
+        --theme-text: #1c1917;
+        --theme-text-secondary: #57534e;
+        --theme-primary: #78716c;
+        --theme-border: #e7e5e4;
+        --theme-bg-card: #ffffff;
+        --radius-lg: .75rem;
+        --radius-page: 1rem;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #151210;
-          --card: #1e1a17;
-          --text: #f5f5f4;
-          --muted: #a8a29e;
-          --accent: #a8a29e;
-          --accent-strong: #d6d3d1;
-          --border: #3b3733;
-          --code-bg: #2a2521;
+          --theme-bg: #171819;
+          --theme-text: #f0eeeb;
+          --theme-text-secondary: #d0ceca;
+          --theme-primary: #d0ceca;
+          --theme-border: #353639;
+          --theme-bg-card: #212224;
         }
       }
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family:
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          Roboto,
-          "Helvetica Neue",
-          Arial,
-          "PingFang SC",
-          "Microsoft YaHei",
-          sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        line-height: 1.65;
+        font-family: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: var(--theme-bg);
+        color: var(--theme-text);
+        line-height: 1.75;
+        overflow-wrap: anywhere;
       }
-      a {
-        color: var(--accent-strong);
-      }
-      .container {
-        max-width: 1040px;
-        margin: 0 auto;
-        padding: 0 24px;
-      }
-      header {
-        border-bottom: 1px solid var(--border);
-      }
+      a { color: inherit; text-underline-offset: .2em; }
+      a:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 4px; }
+      .container { max-width: 1264px; margin: 0 auto; padding-inline: 2rem; }
+      header { border-bottom: 1px solid var(--theme-border); }
       .nav {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 18px 0;
+        max-width: 1400px; min-height: 4.5rem;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; padding: .75rem clamp(20px, 3vw, 48px);
       }
       .brand {
-        font-weight: 700;
-        font-size: 1.15rem;
-        text-decoration: none;
-        color: var(--text);
+        display: inline-flex; align-items: center; gap: .375rem;
+        flex-shrink: 0; min-height: 2.75rem; text-decoration: none;
+        font: 800 1.5rem Georgia, 'Times New Roman', serif; letter-spacing: -.05em;
       }
-      .nav-links {
-        display: flex;
-        gap: 22px;
-        font-size: 0.95rem;
+      .brand img { width: 2rem; height: 2rem; border-radius: 50%; }
+      .nav-links { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }
+      .nav-links a {
+        display: inline-flex; align-items: center; min-height: 2.75rem;
+        font-size: .8125rem; text-decoration: none; color: var(--theme-text-secondary);
+      }
+      .nav-links a:hover, .nav-links a[aria-current] {
+        color: var(--theme-text); text-decoration: underline;
       }
       .hero {
-        padding: 64px 0 40px;
-        text-align: center;
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: center; gap: clamp(40px, 6vw, 96px); padding-block: 4rem;
       }
       .hero h1 {
-        font-size: clamp(1.9rem, 4.5vw, 3rem);
-        line-height: 1.2;
-        margin: 0 0 16px;
-        letter-spacing: -0.02em;
+        margin: 0 0 1.75rem; font-family: Georgia, 'Noto Serif SC', serif;
+        font-size: clamp(2.25rem, 4vw, 3.5rem); font-weight: 500;
+        line-height: 1.2; letter-spacing: -.025em; text-wrap: balance;
       }
       .hero p.sub {
-        font-size: clamp(1.05rem, 2.2vw, 1.3rem);
-        color: var(--muted);
-        max-width: 720px;
-        margin: 0 auto 32px;
+        margin: 0 0 2rem; font-size: 1.125rem; line-height: 1.85;
+        color: var(--theme-text-secondary);
       }
-      .cta-row {
-        display: flex;
-        gap: 14px;
-        justify-content: center;
-        flex-wrap: wrap;
-        margin-bottom: 44px;
-      }
+      .cta-row { display: flex; flex-wrap: wrap; gap: .75rem; }
       .btn {
-        display: inline-block;
-        padding: 12px 26px;
-        border-radius: 10px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 1rem;
-        border: 1px solid var(--border);
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 3.25rem; padding: .875rem 1.5rem;
+        border: 1px solid var(--theme-border); border-radius: var(--radius-lg);
+        text-decoration: none; font-weight: 600; font-size: .875rem;
       }
-      .btn-primary {
-        background: var(--accent-strong);
-        color: var(--bg);
-        border-color: var(--accent-strong);
+      .btn-primary { background: var(--theme-text); color: var(--theme-bg); border-color: var(--theme-text); }
+      .hero picture { display: block; min-width: 0; }
+      .hero-art {
+        display: block; width: 100%; height: clamp(440px, 48vw, 640px);
+        object-fit: cover; object-position: center 42%; border-radius: var(--radius-page);
       }
-      .btn-ghost {
-        color: var(--text);
+      .interface-preview { padding-bottom: 2rem; }
+      .interface-preview img {
+        display: block; width: 100%; height: auto;
+        border: 1px solid var(--theme-border); border-radius: var(--radius-page);
       }
-      .hero img {
-        max-width: 100%;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-      }
-      section {
-        padding: 48px 0;
-      }
+      section { padding-block: clamp(3rem, 6vw, 6rem); }
       h2 {
-        font-size: 1.6rem;
-        margin: 0 0 24px;
-        letter-spacing: -0.01em;
+        margin: 0 0 2rem; font-family: Georgia, 'Noto Serif SC', serif;
+        font-size: clamp(1.875rem, 3.2vw, 2.75rem); font-weight: 500;
+        line-height: 1.3; letter-spacing: -.025em;
       }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 18px;
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 4rem; }
+      .card { padding: 1.75rem 0; border-top: 1px solid var(--theme-border); }
+      .card h3 { margin: 0 0 .5rem; font-size: 1.125rem; font-weight: 600; }
+      .card p { margin: 0; color: var(--theme-text-secondary); font-size: .9375rem; }
+      .why, .stack { max-width: 52rem; color: var(--theme-text-secondary); font-size: 1rem; }
+      .stack code { background: var(--theme-bg-card); border-radius: .375rem; padding: .125rem .375rem; font-size: .9em; }
+      footer { border-top: 1px solid var(--theme-border); padding-block: 1.75rem 3rem; color: var(--theme-text-secondary); font-size: .875rem; }
+      footer .container { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+      @media (max-width: 767px) {
+        .container { padding-inline: 1.5rem; }
+        .nav { flex-wrap: wrap; }
+        .hero { grid-template-columns: minmax(0, 1fr); padding-block: 3rem; gap: 2rem; }
+        .hero p.sub { font-size: 1rem; }
+        .hero-art { height: 280px; }
+        .grid { grid-template-columns: minmax(0, 1fr); }
       }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 22px;
-      }
-      .card h3 {
-        margin: 0 0 8px;
-        font-size: 1.05rem;
-      }
-      .card p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.95rem;
-      }
-      .why {
-        max-width: 780px;
-        color: var(--muted);
-        font-size: 1.05rem;
-      }
-      .stack {
-        color: var(--muted);
-      }
-      .stack code {
-        background: var(--code-bg);
-        border-radius: 6px;
-        padding: 2px 8px;
-        font-size: 0.9em;
-      }
-      footer {
-        border-top: 1px solid var(--border);
-        padding: 28px 0 48px;
-        color: var(--muted);
-        font-size: 0.9rem;
-        display: flex;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px;
+      @media (max-width: 479px) {
+        .cta-row { flex-direction: column; }
+        .btn { width: 100%; }
       }
     </style>
   </head>
   <body>
     <header>
       <div class="container nav">
-        <a class="brand" href="/">🐑 LambChat</a>
+        <a class="brand" href="/" aria-label="LambChat">
+          <img src="/images/lamb.webp" alt="" width="32" height="32" />
+          <span>LambChat</span>
+        </a>
         <nav class="nav-links">
-          <a href="/features">Features</a>
+          <a href="/features" aria-current="page">Features</a>
           <a href="/docs/en/">Docs</a>
           <a href="/zh/features">中文</a>
           <a href="https://github.com/Yanyutin753/LambChat">GitHub</a>
@@ -231,18 +187,26 @@
     </header>
 
     <main>
-      <div class="container hero">
-        <h1>Build, run, and share AI agents that actually finish work</h1>
-        <p class="sub">
-          LambChat is an open-source AI Agent platform: multi-model chat,
-          MCP tools, a skills engine, persistent memory, and
-          production-ready deployment — in one self-hostable stack.
-        </p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="/">Open LambChat</a>
-          <a class="btn btn-ghost" href="/docs/en/getting-started">Get Started</a>
-          <a class="btn btn-ghost" href="https://github.com/Yanyutin753/LambChat">Star on GitHub</a>
+      <section class="container hero">
+        <div class="hero-copy">
+          <h1>Build, run, and share AI agents that actually finish work</h1>
+          <p class="sub">
+            LambChat is an open-source AI Agent platform: multi-model chat,
+            MCP tools, a skills engine, persistent memory, and
+            production-ready deployment — in one self-hostable stack.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/">Open LambChat</a>
+            <a class="btn btn-ghost" href="/docs/en/getting-started">Get Started</a>
+            <a class="btn btn-ghost" href="https://github.com/Yanyutin753/LambChat">Star on GitHub</a>
+          </div>
         </div>
+        <picture aria-hidden="true">
+          <source media="(prefers-color-scheme: dark)" srcset="/images/illustrations/auth-brand-workspace.webp" />
+          <img class="hero-art" src="/images/illustrations/auth-brand-workspace-light.webp" alt="" />
+        </picture>
+      </section>
+      <div class="container interface-preview">
         <img
           src="/features/hero.webp"
           width="920"
@@ -255,42 +219,42 @@
           <h2>What LambChat can do</h2>
           <div class="grid">
             <div class="card">
-              <h3>🤖 Agent Runtime</h3>
+              <h3>Agent Runtime</h3>
               <p>
                 Deep agent graphs with sub-agents, thinking mode, streaming
                 output, and human approval for risky actions.
               </p>
             </div>
             <div class="card">
-              <h3>🔧 MCP &amp; Tools</h3>
+              <h3>MCP &amp; Tools</h3>
               <p>
                 System-level and per-user MCP servers, encrypted secrets, and
                 sandboxed code execution on Daytona, E2B, or CubeSandbox.
               </p>
             </div>
             <div class="card">
-              <h3>🧠 Memory &amp; Skills</h3>
+              <h3>Memory &amp; Skills</h3>
               <p>
                 Cross-session memory, a skill marketplace, GitHub-synced
                 skills, and reusable persona presets.
               </p>
             </div>
             <div class="card">
-              <h3>💬 Multi-Model Chat</h3>
+              <h3>Multi-Model Chat</h3>
               <p>
                 Bring your own keys for Claude, GPT, Gemini, and more — with
                 SSE streaming, multimodal input, and document processing.
               </p>
             </div>
             <div class="card">
-              <h3>📱 Full-Stack Client</h3>
+              <h3>Full-Stack Client</h3>
               <p>
                 React 19 web app, Capacitor mobile apps, Tauri desktop app,
                 and installable PWA — one backend for all of them.
               </p>
             </div>
             <div class="card">
-              <h3>🚀 Production Ready</h3>
+              <h3>Production Ready</h3>
               <p>
                 JWT auth with RBAC, realtime sync, scheduled tasks, usage
                 tracking, and Docker / Kubernetes deployment recipes.
@@ -327,8 +291,8 @@
     </main>
 
     <footer>
-      <div class="container" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px">
-        <span>🐑 LambChat — open-source AI Agent platform (MIT)</span>
+      <div class="container">
+        <span>LambChat — open-source AI Agent platform (MIT)</span>
         <span>
           <a href="/docs/en/">Docs</a> ·
           <a href="/docs/zh/">中文文档</a> ·
