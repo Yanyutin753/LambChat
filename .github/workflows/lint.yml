@@ -274,10 +274,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatin/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          workspaces: frontend/src-tauri -> target
-          shared-key: windows-file-transfers
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: windows-file-transfers-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
       - name: Prepare unit-test web assets
         shell: pwsh
         run: |
