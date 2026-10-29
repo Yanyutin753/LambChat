@@ -15,7 +15,7 @@ from pymongo.errors import DuplicateKeyError
 from src.api.deps import get_current_user_required
 from src.api.server_timing import timed_server_phase
 from src.infra.async_utils import run_long_blocking_io
-from src.infra.image_utils import needs_model_safe_transcode
+from src.infra.image_utils import image_upload_input_limit, needs_upload_image_processing
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.storage.s3.direct_upload import MAX_PARTS, PART_SIZE, URL_EXPIRES, validate_parts
@@ -76,13 +76,15 @@ async def start_upload(body: StartUpload, user: TokenPayload = Depends(get_curre
     category, limit = await validate_upload_metadata(body.name, body.mime_type, user)
     if not body.size:
         raise AppError(ErrorCode.EMPTY_FILE)
-    if body.size > limit:
-        raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": limit // (1024 * 1024)})
-    storage = await get_or_init_storage()
     ext = body.name.rsplit(".", 1)[-1] if "." in body.name else ""
-    if storage.is_local or (
-        category.value == "image" and needs_model_safe_transcode(ext, body.mime_type)
-    ):
+    needs_processing = category.value == "image" and needs_upload_image_processing(
+        ext, body.mime_type, body.size
+    )
+    input_limit = image_upload_input_limit(limit) if needs_processing else limit
+    if body.size > input_limit:
+        raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": input_limit // (1024 * 1024)})
+    storage = await get_or_init_storage()
+    if storage.is_local or needs_processing:
         return {"mode": "proxy"}
 
     ticket_id = uuid.uuid4().hex

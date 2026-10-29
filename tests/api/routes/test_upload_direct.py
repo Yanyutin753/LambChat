@@ -513,3 +513,68 @@ async def test_upload_phase_headers_are_bounded_and_never_include_ticket_or_file
         assert private not in timing
     if route == "redirect":
         env.storage.file_exists.assert_awaited_once_with("document/user/private-name.txt")
+
+
+@pytest.mark.parametrize(
+    "mime,ext,size", [("image/jpeg", "jpg", 200 * 1024), ("image/png", "png", 2 * 1024 * 1024)]
+)
+async def test_images_requiring_cloud_compression_use_proxy_without_direct_ticket(
+    env, monkeypatch, mime, ext, size
+):
+    monkeypatch.setattr(
+        upload,
+        "validate_upload_metadata",
+        AsyncMock(return_value=(FileCategory.IMAGE, 1024 * 1024)),
+    )
+    result = await direct.start_upload(
+        direct.StartUpload(name=f"large.{ext}", mime_type=mime, size=size), env.user
+    )
+    assert result == {"mode": "proxy"}
+    env.collection.insert_one.assert_not_awaited()
+    env.adapter.create.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "mime,ext,size",
+    [
+        ("image/jpeg", "jpg", 199 * 1024),
+        ("image/gif", "gif", 201 * 1024),
+        ("image/svg+xml", "svg", 201 * 1024),
+    ],
+)
+async def test_small_raster_animation_and_vectors_keep_direct_upload(
+    env, monkeypatch, mime, ext, size
+):
+    monkeypatch.setattr(
+        upload,
+        "validate_upload_metadata",
+        AsyncMock(return_value=(FileCategory.IMAGE, 1024 * 1024)),
+    )
+    result = await direct.start_upload(
+        direct.StartUpload(name=f"image.{ext}", mime_type=mime, size=size), env.user
+    )
+    assert result["mode"] == "direct"
+
+
+@pytest.mark.parametrize(
+    "mime,ext,size",
+    [
+        ("image/jpeg", "jpg", 2 * 1024 * 1024 + 1),
+        ("image/gif", "gif", 1024 * 1024 + 1),
+        ("image/svg+xml", "svg", 1024 * 1024 + 1),
+    ],
+)
+async def test_cloud_input_allowance_is_bounded_and_does_not_expand_animation_or_vector_limits(
+    env, monkeypatch, mime, ext, size
+):
+    monkeypatch.setattr(
+        upload,
+        "validate_upload_metadata",
+        AsyncMock(return_value=(FileCategory.IMAGE, 1024 * 1024)),
+    )
+    with pytest.raises(AppError) as error:
+        await direct.start_upload(
+            direct.StartUpload(name=f"large.{ext}", mime_type=mime, size=size), env.user
+        )
+    assert error.value.error_code == ErrorCode.FILE_TOO_LARGE
+    env.adapter.create.assert_not_awaited()

@@ -438,3 +438,106 @@ async def test_startup_registers_and_awaits_strict_file_record_index_migration(
     await initializers["file_record_storage"]()
 
     assert calls == ["initialized"]
+
+
+async def test_source_hash_lookup_is_owned_and_excludes_deleting_records() -> None:
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    await storage.find_by_hash("source-digest", "owner-a", source_hash_only=True)
+
+    assert collection.find_queries == [
+        {
+            "source_hashes": "source-digest",
+            "uploaded_by": "owner-a",
+            "deleting_at": {"$exists": False},
+        }
+    ]
+
+
+async def test_source_hash_index_is_owner_scoped_without_replacing_canonical_uniqueness() -> None:
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    await storage.initialize_indexes()
+
+    assert (
+        [("uploaded_by", 1), ("source_hashes", 1)],
+        {"background": True},
+    ) in collection.created_indexes
+    assert collection.created_indexes[0][1]["unique"] is True
+
+
+async def test_verified_source_alias_write_is_bounded_atomic_owned_and_never_revives_private_files():
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    await storage.add_source_hash("image/owner-a/a.jpg", "owner-a", "a" * 64)
+
+    query, update = collection.update_one_calls[0]
+    assert query == {
+        "key": "image/owner-a/a.jpg",
+        "uploaded_by": "owner-a",
+        "deleting_at": {"$exists": False},
+        "private_session_id": {"$exists": False},
+        "source_hashes": {"$ne": "a" * 64},
+    }
+    assert update["$push"]["source_hashes"]["$each"] == ["a" * 64]
+    assert -100 <= update["$push"]["source_hashes"]["$slice"] < 0
+    assert "hash" not in update.get("$set", {})
+
+
+@pytest.mark.parametrize("private_session_id", [None, "private-session"])
+async def test_source_hash_creation_preserves_canonical_hash_and_never_aliases_private_records(
+    private_session_id,
+):
+    from unittest.mock import AsyncMock
+
+    collection = SimpleNamespace(
+        insert_one=AsyncMock(return_value=SimpleNamespace(inserted_id="id"))
+    )
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+    row = await storage.create(
+        "b" * 64,
+        "image/owner-a/a.jpg",
+        "a.tiff",
+        "image/jpeg",
+        100,
+        "image",
+        "owner-a",
+        source_hash="a" * 64,
+        private_session_id=private_session_id,
+    )
+    assert row["hash"] == "b" * 64
+    if private_session_id is None:
+        assert row["source_hashes"] == ["a" * 64]
+    else:
+        assert "source_hashes" not in row
+
+
+async def test_unchanged_prepared_bytes_can_record_their_verified_source_hash():
+    from unittest.mock import AsyncMock
+
+    collection = SimpleNamespace(
+        insert_one=AsyncMock(return_value=SimpleNamespace(inserted_id="id"))
+    )
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+    row = await storage.create(
+        "a" * 64,
+        "image/owner-a/a.jpg",
+        "a.jpg",
+        "image/jpeg",
+        100,
+        "image",
+        "owner-a",
+        source_hash="a" * 64,
+    )
+    assert row.get("source_hashes") == ["a" * 64]

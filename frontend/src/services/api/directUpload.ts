@@ -2,6 +2,8 @@ import i18n from "i18next";
 import { parseErrorDetail, translateApiError } from "../../utils/backendErrors";
 import { authenticatedRequest } from "./authenticatedRequest";
 import { getFullUrl } from "./config";
+import { getAccessToken } from "./token";
+import { isCurrentFileAccount } from "./uploadFileUrl";
 import type { UploadHandle, UploadOptions } from "./upload";
 import type { UploadResult } from "../../types";
 
@@ -60,6 +62,11 @@ export function uploadDirect(
   fallback: () => UploadHandle,
 ): UploadHandle {
   const controller = new AbortController();
+  const account = typeof localStorage === "undefined" ? null : getAccessToken();
+  const assertActive = () => {
+    if (controller.signal.aborted || !isCurrentFileAccount(account))
+      throw aborted();
+  };
   const partsController = new AbortController();
   const activeParts = new Set<XMLHttpRequest>();
   const loadedParts = new Map<number, number>();
@@ -91,7 +98,7 @@ export function uploadDirect(
 
   const putPart = (url: string, blob: Blob, offset: number): Promise<void> =>
     new Promise((resolve, reject) => {
-      if (partsController.signal.aborted) {
+      if (partsController.signal.aborted || !isCurrentFileAccount(account)) {
         reject(aborted());
         return;
       }
@@ -183,11 +190,11 @@ export function uploadDirect(
         initialized = { mode: "proxy" };
       }
       if (initialized.mode === "direct") ticket = initialized;
-      if (controller.signal.aborted) throw aborted();
+      assertActive();
       if (initialized.mode === "proxy") {
         proxy = fallback();
         const result = await proxy.promise;
-        if (controller.signal.aborted) throw aborted();
+        assertActive();
         return result;
       }
       const uploadPart = async (number: number) => {
@@ -248,7 +255,7 @@ export function uploadDirect(
       await Promise.all(
         Array.from({ length: initialized.part_count >= 3 ? 3 : 1 }, worker),
       );
-      if (controller.signal.aborted) throw aborted();
+      assertActive();
       if (partError) throw partError;
       options.onProgress?.(100, file.size, file.size);
       const monitoring = new AbortController();
@@ -285,7 +292,7 @@ export function uploadDirect(
         monitoring.abort();
         clearTimeout(progressTimer);
       }
-      if (controller.signal.aborted) throw aborted();
+      assertActive();
       return {
         key: result.key,
         url: result.url,
@@ -296,7 +303,7 @@ export function uploadDirect(
       };
     } catch (error) {
       await cleanup();
-      if (controller.signal.aborted) throw aborted();
+      assertActive();
       if (
         (error as { directNetworkFailure?: boolean }).directNetworkFailure &&
         !proxy
@@ -305,10 +312,10 @@ export function uploadDirect(
         proxy = fallback();
         try {
           const result = await proxy.promise;
-          if (controller.signal.aborted) throw aborted();
+          assertActive();
           return result;
         } catch (proxyError) {
-          if (controller.signal.aborted) throw aborted();
+          assertActive();
           throw proxyError;
         }
       }

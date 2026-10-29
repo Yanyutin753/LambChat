@@ -23,6 +23,65 @@ MODEL_UNTRANSCODABLE_EXTS = frozenset({"svg"})
 
 TRANSCODE_JPEG_QUALITY = 90
 SVG_TEXT_MAX_CHARS = 20_000
+UPLOAD_IMAGE_COMPRESSION_THRESHOLD = 200 * 1024
+
+
+def image_upload_input_limit(final_limit: int) -> int:
+    """Allow bounded original bytes while enforcing the role limit after compression."""
+    return max(final_limit, min(final_limit * 2, 50 * 1024 * 1024))
+
+
+def needs_upload_image_processing(ext: str | None, mime_type: str | None, size: int) -> bool:
+    normalized_ext = (ext or "").lower().lstrip(".")
+    normalized_mime = (mime_type or "").split(";", 1)[0].strip().lower()
+    if normalized_ext in {"gif", "svg"} or normalized_mime in {"image/gif", "image/svg+xml"}:
+        return False
+    return needs_model_safe_transcode(ext, mime_type) or size >= UPLOAD_IMAGE_COMPRESSION_THRESHOLD
+
+
+def prepare_upload_image_bytes(
+    content: bytes, mime_type: str | None, *, source_ext: str
+) -> tuple[bytes, str]:
+    """Apply the composer image policy in the cloud; decoding failures are upload errors."""
+    from PIL import Image, ImageOps
+
+    if not needs_upload_image_processing(source_ext, mime_type, len(content)):
+        return content, mime_type or "application/octet-stream"
+    try:
+        with Image.open(BytesIO(content)) as opened:
+            if opened.width * opened.height > IMAGE_COMPRESSION_MAX_PIXELS:
+                raise ValueError("Image exceeds pixel limit")
+            image = ImageOps.exif_transpose(opened)
+            image.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
+            is_png = opened.format == "PNG"
+            if not is_png:
+                if "A" in image.getbands() or "transparency" in image.info:
+                    rgba = image.convert("RGBA")
+                    image = Image.new("RGB", rgba.size, "white")
+                    image.paste(rgba, mask=rgba.getchannel("A"))
+                elif image.mode != "RGB":
+                    image = image.convert("RGB")
+            output = BytesIO()
+            if is_png:
+                image.save(output, format="PNG")
+            else:
+                for quality in (85, 75, 65, 55, 45, 35, 25, 20):
+                    output.seek(0)
+                    output.truncate()
+                    image.save(output, format="JPEG", quality=quality)
+                    if output.tell() <= 1024 * 1024:
+                        break
+            compressed = output.getvalue()
+            output_mime = "image/png" if is_png else "image/jpeg"
+            if (
+                len(compressed) >= len(content)
+                and not needs_model_safe_transcode(source_ext, mime_type)
+                and max(opened.size) <= 1920
+            ):
+                return content, Image.MIME.get(opened.format or "", mime_type or output_mime)
+            return compressed, output_mime
+    except Exception as exc:
+        raise ValueError(f"Image preparation failed: {exc}") from exc
 
 
 def inspect_image_content(content: bytes) -> tuple[str, str | None]:
