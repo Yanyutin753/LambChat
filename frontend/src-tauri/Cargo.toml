@@ -65,5 +65,7 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 block2 = "0.6.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# Reuse Wry's locked WebView2 bindings for native File object receipts.
+webview2-com = "0.39.1"
 # WinRT bindings for real toast activation callbacks.
 windows = { version = "0.62.2", features = ["Foundation", "UI_Notifications", "Data_Xml_Dom"] }

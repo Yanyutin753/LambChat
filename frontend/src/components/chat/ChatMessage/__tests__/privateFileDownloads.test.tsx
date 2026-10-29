@@ -11,8 +11,11 @@ import { FileTreeView } from "../items/FileTreeView";
 import { RevealArtifactsSummary } from "../RevealArtifactsSummary";
 import { useDocumentPreviewState } from "../../../documents/useDocumentPreviewState";
 import { authenticatedRequest } from "../../../../services/api/authenticatedRequest";
+import { invoke } from "@tauri-apps/api/core";
+import toast from "react-hot-toast";
 import type { MessagePart } from "../../../../types";
 
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("../../../../services/api/authenticatedRequest", () => ({
   authenticatedRequest: vi.fn(),
 }));
@@ -158,4 +161,46 @@ test("a denied private download never navigates to the unsigned URL", async () =
   await waitFor(() => expect(authenticatedRequest).toHaveBeenCalledOnce());
   expect(saved).toEqual([]);
   expect(fetchFile).not.toHaveBeenCalled();
+});
+
+test("desktop preview sends the complete authenticated file to the native save dialog", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", {});
+  vi.mocked(invoke).mockResolvedValue(true);
+  render(<Preview />);
+  fireEvent.click(screen.getByRole("button", { name: "Download preview" }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+  const [command, bytes, options] = vi.mocked(invoke).mock.calls[0];
+  expect(command).toBe("desktop_save_file");
+  expect(new TextDecoder().decode(bytes as ArrayBuffer)).toBe(
+    "complete original file",
+  );
+  expect(
+    JSON.parse((options?.headers as Record<string, string>)["x-file-name"]),
+  ).toBe(name);
+  expect(authenticatedRequest).toHaveBeenCalledOnce();
+  const fetched = new URL(
+    String(fetchFile.mock.calls[0][0]),
+    window.location.origin,
+  );
+  expect(fetched.searchParams.get("file_token")).toBe("capability");
+  expect(fetched.searchParams.get("proxy")).toBe("true");
+  expect(saved).toEqual([]);
+});
+
+test("desktop preview reports fetch failure without opening an unsigned external page", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", {});
+  vi.mocked(authenticatedRequest).mockResolvedValue(
+    new Response("denied", { status: 404 }),
+  );
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(invoke).mockClear();
+  const open = vi.spyOn(window, "open").mockImplementation(() => null);
+  render(<Preview />);
+  fireEvent.click(screen.getByRole("button", { name: "Download preview" }));
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith("chat.message.downloadFailed"),
+  );
+  expect(invoke).not.toHaveBeenCalled();
+  expect(open).not.toHaveBeenCalled();
+  expect(saved).toEqual([]);
 });

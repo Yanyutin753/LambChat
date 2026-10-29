@@ -6,6 +6,7 @@
   "permissions": [
     "allow-existing-desktop-commands",
     "allow-preview-html",
+    "allow-desktop-save-file",
     "allow-desktop-file-references",
     "allow-sandbox-pick-workspace",
     "allow-reveal-workspace-path",

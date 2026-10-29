@@ -2239,6 +2239,7 @@
   },
   "fileUpload": {
     "localFile": "本地原文件",
+    "dropUnavailable": "无法读取拖入的文件或图片，请保存到本机后选择文件上传。",
     "localFileUnavailable": "无法访问原文件，请确认文件仍在这台电脑上，或重新选择。",
     "selectFiles": "选择文件",
     "cancelUpload": "取消上传",
