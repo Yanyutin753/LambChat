@@ -30,6 +30,116 @@ _SHARED_PREVIEW_RE = re.compile(
     r'(<div id="shared-server-preview">.*?</div>\s*)?<div id="root"></div>', re.S
 )
 
+# Keep the fallback palette aligned with frontend/src/styles/tokens.css before CSS loads.
+_PREVIEW_STYLES = """<style>
+[data-server-preview] {
+  --preview-bg: var(--theme-bg, var(--boot-theme-bg, #f5f5f4));
+  --preview-text: var(--theme-text, #1c1917);
+  --preview-secondary: var(--theme-text-secondary, #57534e);
+  --preview-border: var(--theme-border, #e7e5e4);
+  box-sizing: border-box; height: 100vh; height: 100dvh; overflow-y: auto;
+  background: var(--preview-bg); color: var(--preview-text);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  line-height: 1.7; overflow-wrap: anywhere;
+}
+[data-server-preview] *, [data-server-preview] *::before { box-sizing: border-box; }
+[data-server-preview] a { color: inherit; text-decoration: none; }
+[data-server-preview] a:focus-visible {
+  outline: 2px solid var(--theme-primary, currentColor); outline-offset: 4px;
+}
+[data-server-preview] .server-preview-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  max-width: 1400px; min-height: 4.5rem; margin: auto; padding: .75rem clamp(20px, 3vw, 48px);
+  border-bottom: 1px solid var(--preview-border);
+}
+[data-server-preview] .server-preview-brand {
+  display: inline-flex; align-items: center; gap: .375rem; min-height: 2.75rem;
+  font: 800 1.5rem Georgia, 'Times New Roman', serif; letter-spacing: -.05em;
+}
+[data-server-preview] .server-preview-brand img { width: 2rem; height: 2rem; border-radius: 50%; }
+[data-server-preview] nav ul {
+  display: flex; flex-wrap: wrap; gap: .25rem .75rem; margin: 0; padding: 0; list-style: none;
+}
+[data-server-preview] nav a {
+  display: inline-flex; align-items: center; min-height: 2.75rem;
+  font-size: .8125rem; color: var(--preview-secondary);
+}
+[data-server-preview] nav a:hover { color: var(--preview-text); text-decoration: underline; }
+[data-server-preview] .server-preview-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center; gap: clamp(40px, 6vw, 96px);
+  max-width: 1264px; margin: auto; padding: 4rem 2rem;
+}
+[data-server-preview] .server-preview-eyebrow {
+  margin: 0 0 1.5rem; font-size: .6875rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--preview-secondary);
+}
+[data-server-preview] h1 {
+  margin: 0 0 1.75rem; font-family: Georgia, 'Noto Serif SC', serif;
+  font-size: clamp(2.25rem, 4vw, 3.5rem); font-weight: 500; line-height: 1.2;
+  letter-spacing: -.025em; text-wrap: balance;
+}
+[data-server-preview] .server-preview-description {
+  margin: 0; font-size: 1.125rem; line-height: 1.85; color: var(--preview-secondary);
+}
+[data-server-preview] .server-preview-features {
+  margin: 2rem 0 0; padding: 0; list-style: none; color: var(--preview-secondary);
+}
+[data-server-preview] .server-preview-features li {
+  padding: 1rem 0; border-top: 1px solid var(--preview-border); font-size: .9375rem;
+}
+[data-server-preview] .server-preview-art {
+  width: 100%; height: clamp(440px, 48vw, 640px); object-fit: cover;
+  object-position: center 42%; border-radius: var(--radius-page, 1rem);
+}
+[data-server-preview] .server-preview-art-dark { display: none; }
+[data-server-preview] .server-preview-article {
+  max-width: 52rem; margin: auto; padding: clamp(4rem, 8vw, 8rem) 1.5rem 4rem;
+}
+[data-server-preview] .server-preview-article header { text-align: center; }
+[data-server-preview] .server-preview-article h1 { font-size: clamp(1.75rem, 4vw, 2.75rem); }
+[data-server-preview] .server-preview-byline {
+  margin: 1.5rem 0 0; font-size: .875rem; color: var(--preview-secondary);
+}
+[data-server-preview] .server-preview-summary {
+  margin: 2.5rem 0 0; padding-top: 2rem; border-top: 1px solid var(--preview-border);
+  color: var(--preview-secondary); font-size: 1rem; line-height: 1.75;
+}
+html.dark [data-server-preview] {
+  --preview-bg: var(--theme-bg, #171819);
+  --preview-text: var(--theme-text, #f0eeeb);
+  --preview-secondary: var(--theme-text-secondary, #d0ceca);
+  --preview-border: var(--theme-border, #353639);
+}
+html.dark [data-server-preview] .server-preview-art-light { display: none; }
+html.dark [data-server-preview] .server-preview-art-dark { display: block; }
+html.theme-sepia [data-server-preview] {
+  --preview-bg: var(--theme-bg, #f3edde);
+  --preview-text: var(--theme-text, #453f33);
+  --preview-secondary: var(--theme-text-secondary, #6d634e);
+  --preview-border: var(--theme-border, #ddd2b8);
+}
+@media (prefers-color-scheme: dark) {
+  html:not([style]):not(.theme-sepia) [data-server-preview] {
+    --preview-bg: #171819; --preview-text: #f0eeeb;
+    --preview-secondary: #d0ceca; --preview-border: #353639;
+  }
+  html:not([style]):not(.theme-sepia) [data-server-preview] .server-preview-art-light { display: none; }
+  html:not([style]):not(.theme-sepia) [data-server-preview] .server-preview-art-dark { display: block; }
+}
+@media (max-width: 767px) {
+  [data-server-preview] .server-preview-header { flex-wrap: wrap; padding-inline: 1.5rem; }
+  [data-server-preview] .server-preview-hero { grid-template-columns: minmax(0, 1fr); padding: 3rem 1.5rem; gap: 2rem; }
+  [data-server-preview] .server-preview-description { font-size: 1rem; }
+  [data-server-preview] .server-preview-art { height: 280px; }
+}
+</style>"""
+
+_PREVIEW_BRAND = """<a href="/" aria-label="LambChat" class="server-preview-brand">
+      <img src="/images/lamb.webp" alt="" width="32" height="32" />
+      <span>LambChat</span>
+    </a>"""
+
 
 @dataclass(frozen=True)
 class SharedPageSeo:
@@ -354,18 +464,30 @@ def _build_public_preview_html(route: PublicLandingRoute) -> str:
         f'      <li><a href="{path}">{html.escape(label)}</a></li>'
         for label, path in PUBLIC_NAVIGATION_ITEMS
     )
-    return f"""<main data-public-preview="server" style="max-width: 920px; margin: 0 auto; padding: 48px 24px; font-family: 'Source Sans 3', Arial, sans-serif; color: #1c1917; background: #faf9f7;">
-    <p style="margin: 0 0 12px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #78716c;">{html.escape(route.eyebrow)}</p>
-    <h1>{html.escape(route.heading)}</h1>
-    <p style="font-size: 18px; line-height: 1.7; color: #44403c;">{html.escape(route.description)}</p>
-    <ul style="font-size: 16px; line-height: 1.8; color: #44403c;">
-{feature_items}
-    </ul>
-    <nav aria-label="LambChat public sections">
-      <ul style="font-size: 15px; line-height: 1.8; color: #44403c;">
+    return f"""<main data-public-preview="server" data-server-preview="public">
+    {_PREVIEW_STYLES}
+    <header class="server-preview-header">
+      {_PREVIEW_BRAND}
+      <nav aria-label="LambChat public sections">
+        <ul>
 {nav_items}
-      </ul>
-    </nav>
+        </ul>
+      </nav>
+    </header>
+    <section class="server-preview-hero">
+      <div>
+        <p class="server-preview-eyebrow">{html.escape(route.eyebrow)}</p>
+        <h1>{html.escape(route.heading)}</h1>
+        <p class="server-preview-description">{html.escape(route.description)}</p>
+        <ul class="server-preview-features">
+{feature_items}
+        </ul>
+      </div>
+      <div aria-hidden="true">
+        <img class="server-preview-art server-preview-art-light" src="/images/illustrations/auth-brand-workspace-light.webp" alt="" />
+        <img class="server-preview-art server-preview-art-dark" src="/images/illustrations/auth-brand-workspace.webp" alt="" />
+      </div>
+    </section>
   </main>"""
 
 
@@ -499,13 +621,20 @@ def inject_share_seo_into_html(html_doc: str, seo: SharedPageSeo) -> str:
     byline = " · ".join(byline_parts)
     summary_html = html.escape(seo.preview_summary, quote=True)
     byline_html = html.escape(byline, quote=True)
+    byline_markup = f'<p class="server-preview-byline">{byline_html}</p>' if byline else ""
 
     preview_markup = f"""<div id="shared-server-preview">
-  <main data-shared-preview="server" style="max-width: 760px; margin: 0 auto; padding: 48px 24px; font-family: 'Source Sans 3', sans-serif; color: #1c1917; background: #faf9f7; min-height: 100vh;">
-    <p style="margin: 0 0 12px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #78716c;">{html.escape(seo.preview_label, quote=True)}</p>
-    <h1 style="margin: 0 0 16px; font-size: 40px; line-height: 1.15; color: #1c1917;">{html.escape(seo.preview_title, quote=True)}</h1>
-    <p style="margin: 0 0 16px; font-size: 18px; line-height: 1.7; color: #44403c;">{summary_html}</p>
-    <p style="margin: 0; font-size: 14px; color: #78716c;">{byline_html}</p>
+  <main data-shared-preview="server" data-server-preview="shared">
+    {_PREVIEW_STYLES}
+    <header class="server-preview-header">{_PREVIEW_BRAND}</header>
+    <article class="server-preview-article">
+      <header>
+        <p class="server-preview-eyebrow">{html.escape(seo.preview_label, quote=True)}</p>
+        <h1>{html.escape(seo.preview_title, quote=True)}</h1>
+        {byline_markup}
+      </header>
+      <p class="server-preview-summary">{summary_html}</p>
+    </article>
   </main>
 </div>"""
 

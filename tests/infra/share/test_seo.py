@@ -1,4 +1,9 @@
+import re
+
+import pytest
+
 from src.infra.share.seo import (
+    PUBLIC_LANDING_ROUTES,
     build_public_route_seo,
     build_shared_page_error_seo,
     build_shared_page_seo,
@@ -6,6 +11,93 @@ from src.infra.share.seo import (
     inject_public_route_seo_into_html,
     inject_share_seo_into_html,
 )
+
+
+@pytest.mark.parametrize("path", PUBLIC_LANDING_ROUTES)
+def test_public_preview_has_brand_navigation_and_responsive_art_without_javascript(
+    path: str,
+) -> None:
+    seo = build_public_route_seo(base_url="https://lambchat.com", path=path)
+    rendered = inject_public_route_seo_into_html(
+        '<html><head><title>LambChat</title></head><body><div id="root"></div></body></html>',
+        seo,
+    )
+
+    assert 'data-server-preview="public"' in rendered
+    assert '<a href="/" aria-label="LambChat"' in rendered
+    assert 'src="/images/lamb.webp"' in rendered
+    assert 'src="/images/illustrations/auth-brand-workspace-light.webp"' in rendered
+    assert "/images/illustrations/auth-brand-workspace.webp" in rendered
+    assert 'href="/features"' in rendered
+    assert 'href="/github"' in rendered
+    assert rendered.count("<h1>") == 1
+    assert f"<h1>{PUBLIC_LANDING_ROUTES[path].heading}</h1>" in rendered
+    assert 'name="robots" content="index, follow, max-image-preview:large"' in rendered
+
+
+def test_preview_styles_are_scoped_and_support_theme_scroll_and_long_text() -> None:
+    seo = build_public_route_seo(base_url="https://lambchat.com", path="/")
+    styles = re.search(r"<style>(.*?)</style>", seo.preview_html, re.S)
+
+    assert styles is not None
+    css = styles.group(1)
+    assert "[data-server-preview]" in css
+    assert "var(--theme-bg" in css
+    assert "var(--theme-text" in css
+    assert "prefers-color-scheme: dark" in css
+    assert "overflow-y: auto" in css
+    assert "overflow-wrap: anywhere" in css
+    assert ":focus-visible" in css
+    assert "@media (max-width: 767px)" in css
+    assert not re.search(r"(?:^|})\s*(?:html|body|#root)\s*\{", css)
+
+
+def test_shared_preview_preserves_escaped_content_and_single_replacement_container() -> None:
+    seo = build_shared_page_seo(
+        base_url="https://lambchat.com",
+        share_id="preview",
+        session={"name": '<img src=x onerror="alert(1)">', "created_at": "2026-10-29"},
+        owner={"username": "<script>owner</script>"},
+        events=[
+            {"event_type": "user:message", "data": {"content": "<script>question</script>"}},
+            {"event_type": "thinking", "data": {"content": "PRIVATE_REASONING"}},
+            {"event_type": "tool:result", "data": {"content": "PRIVATE_TOOL_RESULT"}},
+        ],
+    )
+    shell = '<html><head><title>LambChat</title></head><body><div id="root"></div></body></html>'
+    rendered = inject_share_seo_into_html(inject_share_seo_into_html(shell, seo), seo)
+
+    assert 'data-server-preview="shared"' in rendered
+    assert 'src="/images/lamb.webp"' in rendered
+    assert rendered.count('id="shared-server-preview"') == 1
+    assert rendered.count('<div id="root"></div>') == 1
+    assert "&lt;script&gt;owner&lt;/script&gt;" in rendered
+    assert "&lt;script&gt;question&lt;/script&gt;" in rendered
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in rendered
+    assert "<script>" not in rendered
+    assert "PRIVATE_REASONING" not in rendered
+    assert "PRIVATE_TOOL_RESULT" not in rendered
+    assert 'content="noindex, follow, max-image-preview:large"' in rendered
+    assert 'rel="canonical" href="https://lambchat.com/shared/preview"' in rendered
+
+
+@pytest.mark.parametrize("reason", ["not_found", "auth_required"])
+def test_shared_error_preview_uses_same_brand_without_author_or_private_content(
+    reason: str,
+) -> None:
+    seo = build_shared_page_error_seo(
+        base_url="https://lambchat.com", share_id="unavailable", reason=reason
+    )
+    rendered = inject_share_seo_into_html(
+        '<html><head><title>LambChat</title></head><body><div id="root"></div></body></html>',
+        seo,
+    )
+
+    assert 'data-server-preview="shared"' in rendered
+    assert 'src="/images/lamb.webp"' in rendered
+    assert seo.preview_summary in rendered
+    assert 'class="server-preview-byline"' not in rendered
+    assert 'content="noindex, follow, max-image-preview:large"' in rendered
 
 
 def test_build_shared_project_seo_uses_project_name_and_session_count() -> None:
