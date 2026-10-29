@@ -78,6 +78,7 @@ from src.infra.share.seo import (
 )
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
 from src.kernel.config import initialize_settings, settings
+from src.kernel.errors import AppError
 
 # Suppress SyntaxWarning from oss2 SDK (invalid escape sequence in their source)
 warnings.filterwarnings("ignore", message=".*invalid escape sequence.*", category=SyntaxWarning)
@@ -886,8 +887,11 @@ def create_app() -> FastAPI:
 
             try:
                 shared_content = await share.get_shared_content(share_id, user=None)
-            except HTTPException as exc:
-                reason = "auth_required" if exc.status_code == 401 else "not_found"
+            except (AppError, HTTPException) as exc:
+                status = exc.http_status if isinstance(exc, AppError) else exc.status_code
+                if status not in (401, 404):
+                    raise
+                reason = "auth_required" if status == 401 else "not_found"
                 seo = build_shared_page_error_seo(
                     base_url=base_url,
                     share_id=share_id,
@@ -895,7 +899,7 @@ def create_app() -> FastAPI:
                     reason=reason,
                 )
                 rendered = inject_share_seo_into_html(html_doc, seo)
-                return HTMLResponse(content=rendered, status_code=exc.status_code)
+                return HTMLResponse(content=rendered, status_code=status)
 
             if hasattr(shared_content, "sessions"):
                 # 项目维度分享：渲染项目卡（项目名 + 会话数）
