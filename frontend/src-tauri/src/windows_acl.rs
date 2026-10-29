@@ -194,23 +194,46 @@ mod tests {
                 ),
                 0
             );
-            let mut text = ptr::null_mut();
+            descriptor_sddl(buffer.as_mut_ptr().cast())
+        }
+    }
+
+    unsafe fn descriptor_sddl(descriptor: *mut c_void) -> String {
+        let mut text = ptr::null_mut();
+        assert_ne!(
+            ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor,
+                1,
+                5,
+                &mut text,
+                ptr::null_mut()
+            ),
+            0
+        );
+        let _text = LocalMemory(text.cast());
+        let mut length = 0;
+        while *text.add(length) != 0 {
+            length += 1;
+        }
+        String::from_utf16_lossy(std::slice::from_raw_parts(text, length))
+    }
+
+    fn canonical_sddl(value: &str) -> String {
+        let text: Vec<u16> = value.encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            let mut descriptor = ptr::null_mut();
             assert_ne!(
-                ConvertSecurityDescriptorToStringSecurityDescriptorW(
-                    buffer.as_mut_ptr().cast(),
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    text.as_ptr(),
                     1,
-                    5,
-                    &mut text,
+                    &mut descriptor,
                     ptr::null_mut()
                 ),
                 0
             );
-            let _text = LocalMemory(text.cast());
-            let mut length = 0;
-            while *text.add(length) != 0 {
-                length += 1;
-            }
-            String::from_utf16_lossy(std::slice::from_raw_parts(text, length))
+            let descriptor = LocalMemory(descriptor);
+            // Windows may serialize a well-known account SID as an alias (e.g. LA).
+            descriptor_sddl(descriptor.0)
         }
     }
 
@@ -224,7 +247,7 @@ mod tests {
         let sid = current_user_sid().unwrap();
         assert_eq!(
             read_sddl(&file).replace("D:PAI", "D:P"),
-            format!("O:{sid}D:P(A;;FA;;;{sid})")
+            canonical_sddl(&format!("O:{sid}D:P(A;;FA;;;{sid})"))
         );
         drop(handle);
         let existing = root.join("existing");
@@ -232,10 +255,13 @@ mod tests {
         restrict_to_owner(&root).unwrap();
         assert_eq!(
             read_sddl(&root).replace("D:PAI", "D:P"),
-            format!("O:{sid}D:P(A;OICI;FA;;;{sid})")
+            canonical_sddl(&format!("O:{sid}D:P(A;OICI;FA;;;{sid})"))
         );
         assert_eq!(read_sddl(&existing).matches("(A;").count(), 1);
-        assert!(read_sddl(&existing).contains(&format!(";FA;;;{sid})")));
+        assert_eq!(
+            read_sddl(&existing).replace("D:AI", "D:"),
+            canonical_sddl(&format!("O:{sid}D:(A;ID;FA;;;{sid})"))
+        );
         assert!(restrict_to_owner(&root.join("missing")).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
