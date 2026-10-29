@@ -175,7 +175,16 @@ with tempfile.TemporaryDirectory(prefix="lambchat-network-smoke-") as temp:
             print((root / "daemon.log").read_text(encoding="utf-8"), file=sys.stderr)
             raise
         finally:
-            proc.terminate()
+            if os.name == "nt" and proc.poll() is None:
+                # PyInstaller onefile runs the daemon in a child process.
+                subprocess.run(
+                    ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                )
+            else:
+                proc.terminate()
             try:
                 proc.wait(timeout=12)
             except subprocess.TimeoutExpired:
