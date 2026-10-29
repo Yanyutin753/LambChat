@@ -11,6 +11,7 @@ from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
 REFERENCE_KEYS_MAX = 100
+SOURCE_HASHES_MAX = 32
 CLEANUP_GRACE_PERIOD = timedelta(minutes=15)
 CLEANUP_BATCH_SIZE = 100
 
@@ -103,25 +104,28 @@ class FileRecordStorage:
         await collection.create_index("key", unique=True, background=True)
         await collection.create_index("uploaded_by", background=True)
         await collection.create_index("private_session_id", sparse=True, background=True)
+        await collection.create_index([("uploaded_by", 1), ("source_hashes", 1)], background=True)
 
-    async def find_by_hash(self, file_hash: str, uploaded_by: str) -> Optional[dict]:
+    async def find_by_hash(
+        self, file_hash: str, uploaded_by: str, *, source_hash_only: bool = False
+    ) -> Optional[dict]:
         """Look up a file record by content hash.
 
         Args:
             file_hash: SHA-256 hex digest.
             uploaded_by: User ID that owns the content hash.
+            source_hash_only: Match only verified pre-processing upload digests.
 
         Returns:
             Document dict with ``id`` (instead of ``_id``), or None.
         """
         await self.ensure_indexes_if_needed()
-        doc = await self.collection.find_one(
-            {
-                "hash": file_hash,
-                "uploaded_by": uploaded_by,
-                "deleting_at": {"$exists": False},
-            }
-        )
+        query: dict[str, Any] = {
+            "uploaded_by": uploaded_by,
+            "deleting_at": {"$exists": False},
+        }
+        query["source_hashes" if source_hash_only else "hash"] = file_hash
+        doc = await self.collection.find_one(query)
         if doc:
             doc["id"] = str(doc.pop("_id"))
         return doc
@@ -157,6 +161,7 @@ class FileRecordStorage:
         *,
         private_session_id: str | None = None,
         private_capture_epoch: int = 0,
+        source_hash: str | None = None,
     ) -> dict:
         """Insert a new file record.
 
@@ -187,6 +192,8 @@ class FileRecordStorage:
             "created_at": now,
             "updated_at": now,
         }
+        if source_hash and private_session_id is None:
+            doc["source_hashes"] = [source_hash]
         if private_session_id is not None:
             doc["private_session_id"] = private_session_id
             doc["private_capture_epoch"] = private_capture_epoch
@@ -194,6 +201,23 @@ class FileRecordStorage:
         result = await self.collection.insert_one(doc)
         doc["id"] = str(result.inserted_id)
         return doc
+
+    async def add_source_hash(self, key: str, uploaded_by: str, source_hash: str) -> None:
+        """Remember a server-verified original digest on its canonical upload record."""
+        await self.ensure_indexes_if_needed()
+        await self.collection.update_one(
+            {
+                "key": key,
+                "uploaded_by": uploaded_by,
+                "deleting_at": {"$exists": False},
+                "private_session_id": {"$exists": False},
+                "source_hashes": {"$ne": source_hash},
+            },
+            {
+                "$push": {"source_hashes": {"$each": [source_hash], "$slice": -SOURCE_HASHES_MAX}},
+                "$set": {"updated_at": utc_now()},
+            },
+        )
 
     async def is_private_key(self, key: str) -> bool:
         if key.startswith("cua_screenshots/"):

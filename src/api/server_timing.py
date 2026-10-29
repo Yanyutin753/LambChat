@@ -21,6 +21,7 @@ ServerTimingMetric = Literal[
     "session_mark_read",
     "settings",
     "teams",
+    "upload_process",
     "upload_storage",
     "upload_verify",
 ]
@@ -39,6 +40,7 @@ _ALLOWED_METRICS = frozenset(
         "session_mark_read",
         "settings",
         "teams",
+        "upload_process",
         "upload_storage",
         "upload_verify",
     }

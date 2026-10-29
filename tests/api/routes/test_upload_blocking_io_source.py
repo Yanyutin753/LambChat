@@ -26,7 +26,7 @@ def test_spool_hash_updates_run_in_blocking_pool() -> None:
 
 
 def test_transcoded_image_hash_runs_in_blocking_pool() -> None:
-    source = _source("upload.py")
+    source = _source("upload_image.py")
     assert "run_long_blocking_io(sha256_hexdigest, transcoded)" in source
     # One-shot hash of the full transcoded buffer must not run inline
     assert "digest = hashlib.sha256(transcoded)" not in source

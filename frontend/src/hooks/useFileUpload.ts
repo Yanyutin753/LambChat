@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { uploadApi } from "../services/api";
 import { buildApiUrl } from "../services/api/config";
-import { compressImageFile } from "../utils/imageCompression";
+import {
+  getFileExtension,
+  isImageFile,
+} from "../components/documents/utils/fileTypeChecks";
 import { uuid } from "../utils/uuid";
 import type { MessageAttachment, FileCategory } from "../types";
 import { createUploadProgressController } from "./uploadProgress";
@@ -35,7 +38,8 @@ export type UploadClientMeta = Pick<
 
 function getFileCategory(file: File): FileCategory {
   const type = file.type.toLowerCase();
-  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("image/") || isImageFile(getFileExtension(file.name)))
+    return "image";
   if (type.startsWith("video/")) return "video";
   if (type.startsWith("audio/")) return "audio";
   return "document";
@@ -212,39 +216,6 @@ export function useFileUpload({
 
       void (async () => {
         try {
-          const maxBytes = uploadLimits
-            ? uploadLimits[fileCategory] * MEBIBYTE
-            : null;
-          const processedFile =
-            fileCategory === "image"
-              ? await compressImageFile(file, {
-                  signal: controller.signal,
-                  fallback:
-                    maxBytes !== null && file.size > maxBytes
-                      ? "main-thread"
-                      : "original",
-                })
-              : file;
-          if (controller.signal.aborted)
-            throw new DOMException("Aborted", "AbortError");
-          if (!validateSize(processedFile, fileCategory)) {
-            onAttachmentsChange((prev) => prev.filter((a) => a.id !== tempId));
-            return;
-          }
-
-          onAttachmentsChange((prev) =>
-            prev.map((attachment) =>
-              attachment.id === tempId
-                ? {
-                    ...attachment,
-                    name: processedFile.name,
-                    mimeType: processedFile.type,
-                    size: processedFile.size,
-                  }
-                : attachment,
-            ),
-          );
-
           const progressController = createUploadProgressController(
             ({ progress, stage, processingProgress }) => {
               if (!isMountedRef.current || controller.signal.aborted) return;
@@ -265,7 +236,7 @@ export function useFileUpload({
             250,
           );
           disposeProgress = progressController.dispose;
-          const handle = uploadApi.uploadFile(processedFile, {
+          const handle = uploadApi.uploadFile(file, {
             onProgress: progressController.report,
             onProcessingProgress: progressController.reportProcessing,
           });
@@ -281,7 +252,7 @@ export function useFileUpload({
           const finalAttachment: MessageAttachment = {
             id: uuid(),
             key: result.key,
-            name: result.name || processedFile.name,
+            name: result.name || file.name,
             type: result.type as FileCategory,
             mimeType: result.mimeType,
             size: result.size,
@@ -323,7 +294,7 @@ export function useFileUpload({
         }
       })();
     },
-    [onAttachmentsChange, t, uploadLimits, validateInputSize, validateSize],
+    [onAttachmentsChange, t, validateInputSize],
   );
 
   /** Validate and upload multiple files */

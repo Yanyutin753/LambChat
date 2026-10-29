@@ -90,7 +90,7 @@ async def test_download_share_and_generated_registration_initialize_indexes_once
         await service.upload_file(BytesIO(b"abc"), "revealed_files", "owned.png")
     await drain_indexes(database)
     assert len(database.instances) == 1
-    assert database.collection.create_index.await_count == 4
+    assert database.collection.create_index.await_count == 5
     assert database.collection.update_one.await_count == 2
 
     database.record["deleting_at"] = "revoked"
@@ -105,4 +105,4 @@ async def test_startup_initialized_storage_is_reused_by_later_access(database):
     await access.require_file_access(database.record["key"], "owner")
     await drain_indexes(database)
     assert len(database.instances) == 1
-    assert database.collection.create_index.await_count == 4
+    assert database.collection.create_index.await_count == 5

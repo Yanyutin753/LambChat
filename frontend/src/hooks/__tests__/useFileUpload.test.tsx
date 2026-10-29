@@ -247,34 +247,37 @@ test("moves an upload from preparing through throttled uploading and server proc
   );
 });
 
-test("shows preparing immediately and terminates image work when cancelled", async () => {
-  class PendingImageWorker {
-    static terminations = 0;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: ErrorEvent) => void) | null = null;
-    postMessage() {}
-    terminate() {
-      PendingImageWorker.terminations += 1;
-    }
-  }
-  vi.stubGlobal("Worker", PendingImageWorker);
+test("image uploads send original bytes for cloud compression and remain cancellable", async () => {
+  const abort = vi.fn();
+  apiMocks.uploadFile.mockReturnValueOnce({
+    promise: new Promise(() => {}),
+    abort,
+  });
   const { result } = renderHook(() => useUploadHarness());
   const file = new File([new Uint8Array(300 * 1024)], "capture.png", {
     type: "image/png",
   });
-
   act(() => result.current.uploadFile(file));
-
+  expect(HashWorker.starts).toBe(0);
+  expect(apiMocks.uploadFile).toHaveBeenCalledWith(file, expect.any(Object));
   expect(result.current.attachments[0]).toMatchObject({
     name: "capture.png",
     uploadStage: "preparing",
   });
-  const tempId = result.current.attachments[0].id;
-  act(() => result.current.cancelUpload(tempId));
-
+  act(() => result.current.cancelUpload(result.current.attachments[0].id));
   expect(result.current.attachments).toEqual([]);
-  expect(PendingImageWorker.terminations).toBe(1);
-  expect(apiMocks.uploadFile).not.toHaveBeenCalled();
+  expect(abort).toHaveBeenCalledOnce();
+});
+
+test("original image above final size limit is sent within the bounded cloud preparation allowance", async () => {
+  const { result } = renderHook(() => useUploadHarness());
+  await waitFor(() => expect(result.current.uploadLimits?.image).toBe(10));
+  const file = new File([new Uint8Array(11 * 1024 * 1024)], "scan.tiff", {
+    type: "image/tiff",
+  });
+  act(() => result.current.uploadFile(file));
+  expect(apiMocks.uploadFile).toHaveBeenCalledWith(file, expect.any(Object));
+  expect(HashWorker.starts).toBe(0);
 });
 
 test("leaving a composer marks only its unfinished uploads as failed", async () => {
@@ -316,3 +319,28 @@ test("leaving a composer marks only its unfinished uploads as failed", async () 
     uploadError: "interrupted",
   });
 });
+
+test.each(["scan.TIFF", "scan.tif", "scan.PNG"])(
+  "%s uses image intake limits when MIME type is absent",
+  async (name) => {
+    apiMocks.getConfig.mockResolvedValueOnce({
+      uploadLimits: {
+        image: 1,
+        video: 10,
+        audio: 10,
+        document: 1,
+        maxFiles: 10,
+      },
+    });
+    apiMocks.uploadFile.mockReturnValueOnce({
+      promise: new Promise(() => {}),
+      abort: vi.fn(),
+    });
+    const { result } = renderHook(() => useUploadHarness());
+    await waitFor(() => expect(result.current.uploadLimits?.image).toBe(1));
+    const file = new File([new Uint8Array(1.5 * 1024 * 1024)], name);
+    act(() => result.current.uploadFile(file));
+    expect(apiMocks.uploadFile).toHaveBeenCalledWith(file, expect.any(Object));
+    expect(result.current.attachments[0].type).toBe("image");
+  },
+);

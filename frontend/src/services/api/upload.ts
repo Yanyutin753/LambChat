@@ -1,6 +1,10 @@
 import { computeFileHash } from "../../utils/fileHash";
 import { getAccessToken } from "./token";
 import { isCurrentFileAccount } from "./uploadFileUrl";
+import {
+  getFileExtension,
+  isImageFile,
+} from "../../components/documents/utils/fileTypeChecks";
 /**
  * Upload API - 文件上传
  */
@@ -38,6 +42,44 @@ export interface UploadHandle {
 
 let _configPromise: Promise<UploadConfig> | null = null;
 
+async function findExistingUpload(
+  file: File,
+  signal: AbortSignal,
+): Promise<FileCheckResult> {
+  const preparation = new AbortController();
+  let abort!: () => void;
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    abort = () => {
+      preparation.abort();
+      reject(new DOMException("Upload preparation was aborted", "AbortError"));
+    };
+  });
+  // Hashing and dedup are optional; share one budget before sending the file.
+  const timer = setTimeout(abort, 3000);
+  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) abort();
+  try {
+    return await Promise.race([
+      (async () => {
+        const hash = await computeFileHash(file, preparation.signal);
+        if (preparation.signal.aborted)
+          throw new DOMException("Aborted", "AbortError");
+        return uploadApi.checkFile(
+          hash,
+          file.size,
+          file.name,
+          file.type,
+          preparation.signal,
+        );
+      })(),
+      cancelled,
+    ]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+  }
+}
+
 function uploadViaBackend(
   file: File,
   folderOrOptions: string | UploadOptions = "uploads",
@@ -50,6 +92,7 @@ function uploadViaBackend(
 
   const folder = options.folder || "uploads";
   const { onProgress } = options;
+  const account = getAccessToken();
 
   let xhr = new XMLHttpRequest();
   let aborted = false;
@@ -60,8 +103,8 @@ function uploadViaBackend(
       formData.append("file", file);
 
       const token = await getValidAccessToken();
-      if (aborted) {
-        reject(new Error("Upload was aborted"));
+      if (aborted || !isCurrentFileAccount(account)) {
+        reject(new DOMException("Upload was aborted", "AbortError"));
         return;
       }
 
@@ -133,7 +176,7 @@ function uploadViaBackend(
 
       xhr.addEventListener("abort", () => {
         aborted = true;
-        reject(new Error("Upload was aborted"));
+        reject(new DOMException("Upload was aborted", "AbortError"));
       });
 
       const path = `/api/upload/file?folder=${encodeURIComponent(folder)}`;
@@ -176,39 +219,40 @@ export const uploadApi = {
         throw new DOMException("Upload was aborted", "AbortError");
     };
     const promise = (async (): Promise<UploadResult> => {
-      let hash: string | undefined;
+      let existing: FileCheckResult | undefined;
       try {
-        hash = await computeFileHash(file, controller.signal);
-      } catch {
-        // Unsupported workers still use the server's verified content hash.
+        existing = await findExistingUpload(file, controller.signal);
+      } catch (error) {
+        if ([401, 403].includes((error as { status?: number })?.status ?? 0))
+          throw error;
+        // Failed optional preparation falls back to server-verified upload.
       }
       assertActive();
-      if (hash) {
-        const existing = await uploadApi.checkFile(
-          hash,
-          file.size,
-          file.name,
-          file.type,
-          controller.signal,
-        );
-        assertActive();
-        if (existing.exists && existing.key) {
-          options.onProgress?.(100, file.size, file.size);
-          const url = existing.url || `/api/upload/file/${existing.key}`;
-          return {
-            key: existing.key,
-            url: getFullUrl(url) || url,
-            name: file.name,
-            type: existing.type!,
-            mimeType: existing.mimeType || file.type,
-            size: existing.size ?? file.size,
-          };
-        }
+      if (existing?.exists && existing.key) {
+        options.onProgress?.(100, file.size, file.size);
+        const url = existing.url || `/api/upload/file/${existing.key}`;
+        return {
+          key: existing.key,
+          url: getFullUrl(url) || url,
+          name: file.name,
+          type: existing.type!,
+          mimeType: existing.mimeType || file.type,
+          size: existing.size ?? file.size,
+        };
       }
-      upload = uploadDirect(file, options, () =>
-        uploadViaBackend(file, options),
-      );
-      return upload.promise;
+      const extension = getFileExtension(file.name);
+      const mime = file.type.split(";", 1)[0].trim().toLowerCase();
+      const cloudImage =
+        (mime.startsWith("image/") || isImageFile(extension)) &&
+        !["gif", "svg"].includes(extension) &&
+        !["image/gif", "image/svg+xml"].includes(mime);
+      // Raster images use cloud preparation; avoid a redundant direct-upload handshake.
+      upload = cloudImage
+        ? uploadViaBackend(file, options)
+        : uploadDirect(file, options, () => uploadViaBackend(file, options));
+      const result = await upload.promise;
+      assertActive();
+      return result;
     })();
     return {
       promise,
@@ -229,7 +273,8 @@ export const uploadApi = {
     mimeType: string,
     signal?: AbortSignal,
   ): Promise<FileCheckResult> {
-    const res = await authenticatedRequest(`${API_BASE}/api/upload/check`, {
+    const path = "/api/upload/check";
+    const res = await authenticatedRequest(getFullUrl(path) || path, {
       signal,
       method: "POST",
       headers: {
@@ -239,7 +284,19 @@ export const uploadApi = {
       body: JSON.stringify({ hash, size, name, mime_type: mimeType }),
     });
     if (!res.ok) {
-      throw new Error(`Check failed: ${res.status}`);
+      const detail = await res.json().catch(() => ({}));
+      const { code, message, args } = parseErrorDetail(detail);
+      throw Object.assign(
+        new Error(
+          translateApiError(
+            code,
+            message || `Check failed: ${res.status}`,
+            args,
+            i18n.t.bind(i18n),
+          ),
+        ),
+        { status: res.status, code },
+      );
     }
     const data = await res.json();
     if (!data.exists) {
