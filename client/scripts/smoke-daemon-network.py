@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -49,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def call_file(op, path, **payload):
-    call_id = f"file-{time.monotonic_ns()}"
+    call_id = f"file-{uuid.uuid4().hex}"
     calls.put(
         {
             "call_id": call_id,
