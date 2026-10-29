@@ -2238,6 +2238,9 @@
     "text": "Текст"
   },
   "fileUpload": {
+    "localFile": "Локальный оригинал",
+    "localFileUnavailable": "Исходный файл недоступен на этом компьютере. Проверьте его расположение или выберите заново.",
+    "selectFiles": "Выбрать файлы",
     "cancelUpload": "Отменить загрузку",
     "categories": {
       "${category}": "{{category}}",

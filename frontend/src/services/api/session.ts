@@ -570,6 +570,11 @@ export const sessionApi = {
         Omit<MessageAttachment, "mimeType"> & {
           mimeType?: string;
           mime_type?: string;
+          local_file?: {
+            path: string;
+            machine_id: string;
+            token: string;
+          } | null;
         }
       >;
     }>;

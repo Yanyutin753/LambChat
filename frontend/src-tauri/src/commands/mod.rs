@@ -1,5 +1,5 @@
-pub mod workspace;
 pub mod preview;
+pub mod workspace;
 
 pub mod notification;
 
@@ -7,3 +7,5 @@ pub mod notification;
 mod notification_macos_api;
 #[cfg(any(target_os = "windows", test))]
 pub mod windows_notification;
+
+pub mod attachments;

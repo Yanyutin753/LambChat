@@ -67,6 +67,7 @@ export interface ChatInputToolbarProps {
   agentIcon?: string;
   hasThinkingOption: boolean;
   thinkingLabel?: string;
+  onPickFiles?: () => void;
   uploadCategories: FileCategory[];
   uploadFiles: (files: FileList | File[], category?: FileCategory) => void;
   selectedPersonaName?: string | null;
@@ -116,6 +117,7 @@ export function ChatInputToolbar({
   hasThinkingOption,
   thinkingLabel,
   uploadCategories,
+  onPickFiles,
   uploadFiles,
   selectedPersonaName,
   personaAvatar,
@@ -228,11 +230,15 @@ export function ChatInputToolbar({
       })
     : undefined;
   const handleUploadFiles = useCallback(() => {
+    if (onPickFiles) {
+      onPickFiles();
+      return;
+    }
     if (fileInputRef.current) {
       fileInputRef.current.accept = getFileAccept(uploadCategories);
       fileInputRef.current.click();
     }
-  }, [uploadCategories]);
+  }, [uploadCategories, onPickFiles]);
 
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

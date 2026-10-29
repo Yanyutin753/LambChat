@@ -34,3 +34,22 @@ describe("attachmentValidation", () => {
     expect(filterSendableAttachments([valid, invalid])).toEqual([valid]);
   });
 });
+
+test("local paths are sendable without pretending to be cloud keys", () => {
+  const a = {
+    id: "l1",
+    key: "",
+    name: "a.txt",
+    mimeType: "text/plain",
+    type: "document" as const,
+    size: 3,
+    localFile: { path: "/tmp/a.txt", machineId: "m1", token: "a".repeat(32) },
+  };
+  expect(isAttachmentSendable(a)).toBe(true);
+  expect(
+    isAttachmentSendable({
+      ...a,
+      localFile: { ...a.localFile, machineId: "" },
+    }),
+  ).toBe(false);
+});

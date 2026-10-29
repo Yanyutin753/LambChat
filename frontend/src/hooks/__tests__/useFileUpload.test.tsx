@@ -72,8 +72,8 @@ class HashWorker {
   terminate() {}
 }
 
-function useUploadHarness() {
-  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+function useUploadHarness(initial: MessageAttachment[] = []) {
+  const [attachments, setAttachments] = useState<MessageAttachment[]>(initial);
   const upload = useFileUpload({
     attachments,
     onAttachmentsChange: setAttachments,
@@ -344,3 +344,54 @@ test.each(["scan.TIFF", "scan.tif", "scan.PNG"])(
     expect(result.current.attachments[0].type).toBe("image");
   },
 );
+
+const localOriginal: MessageAttachment = {
+  id: "local-original",
+  key: "",
+  name: "original.txt",
+  size: 3,
+  type: "document",
+  mimeType: "text/plain",
+  localFile: {
+    path: "/tmp/original.txt",
+    machineId: "m1",
+    token: "a".repeat(32),
+  },
+};
+test("cloud promotion replaces the local card and removes its path only after success", async () => {
+  const { result } = renderHook(() => useUploadHarness([localOriginal]));
+  await act(async () => {
+    await result.current.uploadFile(
+      new File(["abc"], "original.txt", { type: "text/plain" }),
+      "document",
+      undefined,
+      localOriginal.id,
+    );
+  });
+  expect(result.current.attachments).toHaveLength(1);
+  expect(result.current.attachments[0].url).toContain("/api/upload/file/");
+  expect(result.current.attachments[0].localFile).toBeUndefined();
+});
+test("failed cloud promotion keeps the original path and a visible retryable error", async () => {
+  apiMocks.uploadFile.mockReturnValueOnce({
+    promise: Promise.reject(new Error("offline")),
+    abort: vi.fn(),
+  });
+  const { result } = renderHook(() => useUploadHarness([localOriginal]));
+  await act(async () => {
+    await result.current.uploadFile(
+      new File(["abc"], "original.txt", { type: "text/plain" }),
+      "document",
+      undefined,
+      localOriginal.id,
+    );
+  });
+  expect(result.current.attachments).toEqual([
+    expect.objectContaining({
+      id: localOriginal.id,
+      localFile: localOriginal.localFile,
+      isUploading: false,
+      uploadError: "offline",
+    }),
+  ]);
+});

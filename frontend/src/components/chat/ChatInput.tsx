@@ -1,3 +1,4 @@
+import { useComposerDesktopAttachments } from "../../hooks/useComposerDesktopAttachments";
 import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { parseFrontendGoalCommand } from "../../hooks/useAgent/goalCommands";
@@ -167,7 +168,6 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
   const [internalAttachments, setInternalAttachments] =
     useChatDraftAttachments(draftKey);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
@@ -218,6 +218,23 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
   });
   const mentionMode = currentAgent === "team" ? "team" : "persona";
   const currentAgentInfo = agents.find((agent) => agent.id === currentAgent);
+  const desktopAttachments = useComposerDesktopAttachments({
+    attachments,
+    onAttachmentsChange: setAttachments,
+    agent: currentAgentInfo,
+    mode: agentOptionValues.sandbox ?? agentOptions?.sandbox?.default,
+    selectedMachine: agentOptionValues.sandbox_machine_id,
+    onToggleAgentOption,
+    uploadFiles,
+    accountId: user?.id,
+    draftKey,
+    disabled: disabled || !canSend,
+    dropTarget: containerRef,
+    allowedCategories: uploadCategories,
+    validateCount,
+    uploadFile,
+    uploadLimits,
+  });
   const agentName = currentAgentInfo
     ? resolveAgentDisplayName(currentAgentInfo, i18n.language, t)
     : t("agent.selectMode");
@@ -446,7 +463,8 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
   const hasFailedAttachment = visibleAttachments.some(
     (attachment) => attachment.uploadError,
   );
-  const hasInvalidAttachment = !areAttachmentsSendable(visibleAttachments);
+  const hasInvalidAttachment =
+    desktopAttachments.blocked || !areAttachmentsSendable(visibleAttachments);
   const { sendRunningDraft, editQueuedMessage } = createRunningSendToolkit({
     input,
     visibleAttachments,
@@ -598,22 +616,8 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
     setAttachments,
     setComposerExpanded,
   });
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(true);
-  };
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-    const files = e.dataTransfer?.files;
-    if (!files || files.length === 0) return;
-    if (!validateCount(files.length)) return;
-    uploadFiles(files);
-  };
+  const { isDraggingOver, handleDragOver, handleDragLeave, handleDrop } =
+    desktopAttachments;
   const { label: thinkingLabel } = resolveThinkingPresentation(
     agentOptions,
     agentOptionValues,
@@ -924,6 +928,7 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
                       thinkingLabel={thinkingLabel}
                       uploadCategories={uploadCategories}
                       uploadFiles={uploadFiles}
+                      onPickFiles={desktopAttachments.pickFiles}
                       selectedPersonaName={selectedPersonaName}
                       personaAvatar={personaAvatar}
                       onClearPersonaPreset={onClearPersonaPreset}

@@ -2238,6 +2238,9 @@
     "text": "テキスト"
   },
   "fileUpload": {
+    "localFile": "ローカルの元ファイル",
+    "localFileUnavailable": "このコンピューターで元のファイルにアクセスできません。場所を確認するか、選択し直してください。",
+    "selectFiles": "ファイルを選択",
     "cancelUpload": "アップロードをキャンセル",
     "categories": {
       "${category}": "{{category}}",
