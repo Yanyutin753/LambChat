@@ -258,9 +258,13 @@ mod tests {
             canonical_sddl(&format!("O:{sid}D:P(A;OICI;FA;;;{sid})"))
         );
         assert_eq!(read_sddl(&existing).matches("(A;").count(), 1);
+        // Directory inheritance updates the child's DACL, not its existing owner.
+        let child = read_sddl(&existing);
+        let child_dacl = child.split_once("D:").unwrap().1;
+        let expected = canonical_sddl(&format!("D:(A;ID;FA;;;{sid})"));
         assert_eq!(
-            read_sddl(&existing).replace("D:AI", "D:"),
-            canonical_sddl(&format!("O:{sid}D:(A;ID;FA;;;{sid})"))
+            child_dacl.strip_prefix("AI").unwrap_or(child_dacl),
+            expected.strip_prefix("D:").unwrap()
         );
         assert!(restrict_to_owner(&root.join("missing")).is_err());
         std::fs::remove_dir_all(root).unwrap();
