@@ -58,12 +58,14 @@ async def system_one(
             timeout=httpx.Timeout(cfg["timeout"]),
             transport=transport,
         ) as client:
-            async with unpriced_usage():
+            async with unpriced_usage(
+                operation="decision", provider="systemone", model=cfg["model"]
+            ):
                 response = await client.post(
                     "/v1/systemone",
                     json={"state": state, "model": cfg["model"], "questions": questions},
                 )
-            response.raise_for_status()
+                response.raise_for_status()
             payload = response.json()
     except Exception as exc:
         if is_quota_error(exc):

@@ -252,14 +252,20 @@ async def _reserve_call(ledger, user_id, budgets, amount, **kwargs):
 
 
 @asynccontextmanager
-async def unpriced_usage():
+async def unpriced_usage(*, operation="external_request", model=None, provider=None):
     """Paid APIs without a reliable USD tariff cannot bypass a configured budget."""
     user_id = quota_user_id()
     if not user_id:
         raise AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE)
     budgets = await user_budgets(user_id)
     ledger = UsageQuota()
-    reservation = await _reserve_call(ledger, user_id, budgets, None, context=_usage_context())
+    reservation = await _reserve_call(
+        ledger,
+        user_id,
+        budgets,
+        None,
+        context={**_usage_context(), "operation": operation, "model": model, "provider": provider},
+    )
     owner = _usage_owner()
     if owner is not None:
         owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
@@ -274,7 +280,7 @@ async def unpriced_usage():
             elif isinstance(settlement, dict):
                 from src.infra.usage.auxiliary import write_auxiliary_usage
 
-                await write_auxiliary_usage(reservation, settlement, status=status)
+                await write_auxiliary_usage(reservation, settlement, status=status, error=error)
 
         error = sys.exception()
         status = (
@@ -508,6 +514,7 @@ class QuotaChatMixin:
                 "model": getattr(self, "model_name", None) or getattr(self, "model", None),
                 "model_config_id": self.quota_model_config_id,
                 "provider": self.quota_provider,
+                "operation": "llm",
             },
         )
         owner = _usage_owner()
@@ -519,7 +526,7 @@ class QuotaChatMixin:
         return quota, reservation, rates, owner
 
     async def _quota_finish(
-        self, ticket, message, *, usage_valid=True, partial=False, status="completed"
+        self, ticket, message, *, usage_valid=True, partial=False, status="completed", error=None
     ):
         if ticket is not None:
             quota, reservation, rates = ticket[:3]
@@ -550,7 +557,11 @@ class QuotaChatMixin:
                     from src.infra.usage.auxiliary import write_auxiliary_usage
 
                     await write_auxiliary_usage(
-                        reservation, settlement, message if usage_valid else None, status=status
+                        reservation,
+                        settlement,
+                        message if usage_valid else None,
+                        status=status,
+                        error=error,
                     )
 
             _, cancelled = await _complete_storage(settle_and_publish())
@@ -582,6 +593,7 @@ class QuotaChatMixin:
                 ticket,
                 message,
                 usage_valid=message is not None and observation[0] is not False,
+                error=sys.exception(),
                 status="completed"
                 if completed
                 else "cancelled"
@@ -605,10 +617,12 @@ class QuotaChatMixin:
         anthropic_token = _anthropic_stream_usage.set(anthropic_usage)
         message = None
         completed = False
+        received_chunk = False
         try:
             async for chunk in super()._astream(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
             ):
+                received_chunk = True
                 if ticket is not None and chunk.message.usage_metadata:
                     usage = AIMessageChunk(content="", usage_metadata=chunk.message.usage_metadata)
                     message = usage if message is None else message + usage
@@ -621,14 +635,19 @@ class QuotaChatMixin:
             message = anthropic_usage.get(
                 "message", message or anthropic_usage.get("partial_message")
             )
+            error = sys.exception()
+            if completed and not received_chunk:
+                # LangChain raises this after our iterator closes; retain it in detached logs.
+                error = ValueError("No generations found in stream.")
             await self._quota_finish(
                 ticket,
                 message,
-                usage_valid=(completed or message is not None) and observation[0] is not False,
+                usage_valid=message is not None and observation[0] is not False,
+                error=error,
                 **({"partial": True} if not completed and message is not None else {}),
                 status="completed"
-                if completed
+                if completed and error is None
                 else "cancelled"
-                if isinstance(sys.exception(), (asyncio.CancelledError, GeneratorExit))
+                if isinstance(error, (asyncio.CancelledError, GeneratorExit))
                 else "error",
             )

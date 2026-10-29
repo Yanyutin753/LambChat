@@ -86,6 +86,33 @@ async def test_http_error_returns_none(monkeypatch):
     assert await systemone.judge_noul("state", "q?", transport=transport) is None
 
 
+async def test_rate_limit_reaches_usage_context_with_service_identity(monkeypatch):
+    from contextlib import asynccontextmanager
+
+    _configure(monkeypatch)
+    recorded = {}
+
+    @asynccontextmanager
+    async def usage_context(**identity):
+        recorded.update(identity)
+        try:
+            yield
+        except httpx.HTTPStatusError as exc:
+            recorded["status_code"] = exc.response.status_code
+            raise
+
+    monkeypatch.setattr(systemone, "unpriced_usage", usage_context)
+    transport = httpx.MockTransport(lambda request: httpx.Response(429, json={}))
+
+    assert await systemone.judge_noul("state", "q?", transport=transport) is None
+    assert recorded == {
+        "operation": "decision",
+        "provider": "systemone",
+        "model": "von-1.1.0",
+        "status_code": 429,
+    }
+
+
 @pytest.mark.asyncio
 async def test_malformed_answers_return_none(monkeypatch):
     _configure(monkeypatch)

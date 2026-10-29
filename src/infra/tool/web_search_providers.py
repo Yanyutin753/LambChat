@@ -176,19 +176,19 @@ async def anysearch_search(
     max_results: int,
     time_range: str | None,
 ) -> dict[str, Any]:
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_search", provider="anysearch"):
         response = await client.post(
             ANYSEARCH_SEARCH_URL,
             json={"query": query, "max_results": max(1, min(int(max_results), 10))},
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-    try:
-        _raise_for_status(response)
-    except ProviderRequestError as exc:
-        # AnySearch error bodies can contain credentials; retain only status and retry timing.
-        raise ProviderRequestError(
-            exc.status_code, "AnySearch request failed", exc.retry_after
-        ) from None
+        try:
+            _raise_for_status(response)
+        except ProviderRequestError as exc:
+            # AnySearch error bodies can contain credentials; retain only status and retry timing.
+            raise ProviderRequestError(
+                exc.status_code, "AnySearch request failed", exc.retry_after
+            ) from None
     try:
         body = response.json()
     except ValueError:
@@ -235,7 +235,7 @@ async def deepseek_search(
         search_query = f"{query} after:{after}"
     if not search_query.strip() or len(search_query) > 128:
         raise ProviderRequestError(400, "DeepSeek query must contain 1 to 128 characters")
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_search", provider="deepseek"):
         response = await client.post(
             DEEPSEEK_SEARCH_URL,
             json={
@@ -245,12 +245,12 @@ async def deepseek_search(
             },
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-    try:
-        _raise_for_status(response)
-    except ProviderRequestError as exc:
-        raise ProviderRequestError(
-            exc.status_code, "DeepSeek request failed", exc.retry_after
-        ) from None
+        try:
+            _raise_for_status(response)
+        except ProviderRequestError as exc:
+            raise ProviderRequestError(
+                exc.status_code, "DeepSeek request failed", exc.retry_after
+            ) from None
     try:
         body = response.json()
     except ValueError:
@@ -305,13 +305,13 @@ async def tavily_search(
     if time_range:
         body["time_range"] = time_range
 
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_search", provider="tavily"):
         response = await client.post(
             TAVILY_SEARCH_URL,
             json=body,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     data = response.json()
 
     results = [
@@ -363,13 +363,13 @@ async def brave_search(
     if time_range:
         params["freshness"] = _BRAVE_FRESHNESS[time_range]
 
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_search", provider="brave"):
         response = await client.get(
             BRAVE_SEARCH_URL,
             params=params,
             headers={"Accept": "application/json", "X-Subscription-Token": api_key},
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     data = response.json()
 
     web = data.get("web") or {}

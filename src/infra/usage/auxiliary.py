@@ -5,18 +5,38 @@ import asyncio
 from src.infra.logging import get_logger
 from src.infra.usage.storage import get_usage_storage
 from src.infra.user.storage import UserStorage
-from src.infra.utils.datetime import utc_now
+from src.infra.utils.datetime import ensure_utc, utc_now
 from src.infra.websocket import get_connection_manager
 
 logger = get_logger(__name__)
 
 
 async def write_auxiliary_usage(
-    reservation: dict, settlement: dict, message=None, *, status: str = "completed"
+    reservation: dict,
+    settlement: dict,
+    message=None,
+    *,
+    status: str = "completed",
+    error: BaseException | None = None,
 ) -> None:
     """A projection failure must never replay the paid provider request."""
     try:
         context = reservation.get("context") or {}
+        completed_at = utc_now()
+        started_at = reservation.get("created_at")
+        error_data = None
+        if error is not None:
+            error_type = type(error).__name__
+            status_code = getattr(error, "status_code", None)
+            if status_code is None:
+                status_code = getattr(getattr(error, "response", None), "status_code", None)
+            # Upstream exception strings can contain credentials, URLs and response bodies.
+            suffix = (
+                f" (HTTP {status_code})"
+                if type(status_code) is int and 100 <= status_code <= 599
+                else ""
+            )
+            error_data = {"type": error_type, "error": error_type + suffix}
         trace_id = f"usage_call_{reservation['id']}"
         units = settlement["charged_units"]
         complete = not settlement["unknown"]
@@ -50,6 +70,11 @@ async def write_auxiliary_usage(
             "cost_usd" if complete else "partial_cost_usd": units / 1_000_000_000,
             "model": identity["model"],
             "model_id": identity["model_id"],
+            "operation": context.get("operation") or "",
+            "provider": identity["provider"],
+            "duration": max(0.0, (completed_at - ensure_utc(started_at)).total_seconds())
+            if started_at
+            else 0.0,
             "actual_models": [identity] if any(identity.values()) else [],
         }
         username = ""
@@ -67,11 +92,12 @@ async def write_auxiliary_usage(
                 "run_id": context.get("run_id") or "",
                 "user_id": reservation["user_id"],
                 "started_at": reservation.get("created_at"),
-                "completed_at": utc_now(),
+                "completed_at": completed_at,
                 "status": status,
                 "metadata": {"source": "auxiliary", "username": username},
             },
             data,
+            error_data=error_data,
         )
         if saved:
             async with asyncio.timeout(2):

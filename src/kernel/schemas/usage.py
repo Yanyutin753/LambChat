@@ -29,6 +29,8 @@ class UsageLog(BaseModel):
     scheduled_task_trigger_type: str = ""
     model: str = ""
     model_id: str = ""
+    operation: str = ""
+    provider: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0

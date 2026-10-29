@@ -189,7 +189,7 @@ async def audio_transcribe(
                 if prompt:
                     request["prompt"] = prompt
 
-                async with unpriced_usage():
+                async with unpriced_usage(operation="audio_transcription", model=resolved_model):
                     result = await client.audio.transcriptions.create(**request)
         except Exception as exc:
             if is_quota_error(exc):

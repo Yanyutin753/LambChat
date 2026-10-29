@@ -307,6 +307,8 @@ class UsageStorage:
             or _merge_metadata_value(metadata, session_metadata, "trigger_type"),
             "model": usage_data.get("model") or metadata.get("model") or "",
             "model_id": usage_data.get("model_id") or metadata.get("model_id") or "",
+            "operation": _as_str(usage_data.get("operation")),
+            "provider": _as_str(usage_data.get("provider")),
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
