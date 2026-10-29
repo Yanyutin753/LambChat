@@ -1,3 +1,9 @@
+import { toast } from "react-hot-toast";
+import {
+  isShellAvailable,
+  readMachineId,
+} from "../../services/tauri/sandboxShell";
+import { revealDesktopFile } from "../../services/tauri/desktopFiles";
 import { InteractiveIcon } from "./InteractiveIcon";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { memo, useMemo } from "react";
@@ -81,7 +87,9 @@ export const AttachmentCard = memo(function AttachmentCard({
     iconColor,
     label,
   } = getAttachmentIconInfo(attachment.mimeType, attachment.name);
-  const displayLabel = t(label, label);
+  const displayLabel = attachment.localFile
+    ? t("fileUpload.localFile")
+    : t(label, label);
   const attachmentUrl = attachment.url
     ? getFullUrl(attachment.url) ?? attachment.url
     : "";
@@ -116,6 +124,22 @@ export const AttachmentCard = memo(function AttachmentCard({
         : `${Math.min(99, attachment.uploadProgress ?? 0)}%`;
 
   const handleClick = () => {
+    if (attachment.localFile) {
+      const local = attachment.localFile;
+      void (async () => {
+        try {
+          if (
+            !isShellAvailable() ||
+            (await readMachineId()) !== local.machineId
+          )
+            throw new Error("different_machine");
+          await revealDesktopFile(local.token);
+        } catch {
+          toast.error(t("fileUpload.localFileUnavailable"));
+        }
+      })();
+      return;
+    }
     onClick?.();
   };
 
@@ -138,9 +162,13 @@ export const AttachmentCard = memo(function AttachmentCard({
           type="button"
           className="attachment-card__preview absolute inset-0 rounded-[inherit]"
           aria-label={attachment.name}
-          title={attachment.name}
+          title={
+            attachment.localFile
+              ? `${attachment.name} — ${attachment.localFile.path}`
+              : attachment.name
+          }
           onClick={handleClick}
-          disabled={isUploading || !onClick}
+          disabled={isUploading || (!onClick && !attachment.localFile)}
         />
         {/* 图标/图片 */}
         <div
@@ -302,8 +330,12 @@ export const AttachmentCard = memo(function AttachmentCard({
         isUploading && "pointer-events-none",
       )}
       type="button"
-      title={attachment.name}
-      disabled={isUploading || !onClick}
+      title={
+        attachment.localFile
+          ? `${attachment.name} — ${attachment.localFile.path}`
+          : attachment.name
+      }
+      disabled={isUploading || (!onClick && !attachment.localFile)}
     >
       {/* 左侧图标/图片区域 */}
       <div

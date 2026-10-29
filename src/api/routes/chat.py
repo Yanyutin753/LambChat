@@ -11,7 +11,6 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
 from src.agents.core.base import normalize_agent_id
@@ -29,6 +28,7 @@ from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测
     CHAT_SSE_DATA_MAX_BYTES,
     _format_sse_event,
 )
+from src.api.routes.chat_steer import validate_steer_attachments
 from src.api.routes.chat_stream_terminal import (
     resolve_terminal_stream_status,
     synthesize_terminal_stream_event,
@@ -57,12 +57,13 @@ from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.infra.upload.file_record import AttachmentClaimError, FileRecordStorage
+from src.infra.upload.local_attachments import validate_local_attachments
 from src.infra.writer.presenter_config import _extract_attachment_keys
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError, NotFoundError
-from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
+from src.kernel.schemas.agent import AgentRequest, SteerRequest
 from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 from src.kernel.schemas.session import Session
 from src.kernel.schemas.user import TokenPayload
@@ -298,6 +299,7 @@ async def _submit_chat(
         project_id=request.project_id,
         existing_metadata=existing_metadata,
     )
+    await validate_local_attachments(request.attachments, request.agent_options, user.sub, agent_id)
     existing_metadata = existing_metadata or {}
 
     from src.infra.task.background_tasks import (
@@ -884,14 +886,6 @@ async def resume_session(
     return result
 
 
-class SteerRequest(BaseModel):
-    """运行中插话请求体。"""
-
-    message: str = Field(..., min_length=1, max_length=32000)
-    message_id: str | None = Field(default=None, min_length=1, max_length=128)
-    attachments: list[AttachmentSchema] | None = Field(default=None, max_length=20)
-
-
 @router.post("/sessions/{session_id}/steer")
 async def steer_running_agent(
     session_id: str,
@@ -931,6 +925,7 @@ async def steer_running_agent(
 
     from src.infra.task.steer import SteerItem, get_steer_queue
 
+    await validate_steer_attachments(request, session, user)
     message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
     attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
     queued = await get_steer_queue().enqueue_item(

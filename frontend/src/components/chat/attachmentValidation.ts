@@ -7,7 +7,13 @@ import type { MessageAttachment } from "../../types";
 export function isAttachmentSendable(attachment: MessageAttachment): boolean {
   return Boolean(
     attachment.id.trim() &&
-      attachment.key.trim() &&
+      (attachment.localFile
+        ? attachment.localFile.path.trim() &&
+          attachment.localFile.machineId.trim() &&
+          /^[a-f0-9]{32}$/.test(attachment.localFile.token) &&
+          !attachment.key &&
+          !attachment.url
+        : attachment.key.trim()) &&
       attachment.name.trim() &&
       attachment.mimeType.trim() &&
       Number.isFinite(attachment.size) &&

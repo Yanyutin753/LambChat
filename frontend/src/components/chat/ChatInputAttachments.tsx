@@ -72,11 +72,20 @@ export function ChatInputAttachments({
                 : undefined
             }
             onRetry={
-              attachment.uploadError &&
-              attachment.composerReferenceId &&
-              onRetryUpload
-                ? () => onRetryUpload(attachment)
-                : undefined
+              attachment.uploadError && attachment.localFile
+                ? () =>
+                    onAttachmentsChange((previous) =>
+                      previous.map((item) =>
+                        item.id === attachment.id
+                          ? { ...item, uploadError: undefined }
+                          : item,
+                      ),
+                    )
+                : attachment.uploadError &&
+                    attachment.composerReferenceId &&
+                    onRetryUpload
+                  ? () => onRetryUpload(attachment)
+                  : undefined
             }
             onSendAsText={
               onRestoreLongText && canRestoreLongTextAttachment(attachment)

@@ -221,6 +221,10 @@ pub fn run() {
             commands::notification::desktop_notification_send,
             commands::notification::desktop_notification_focus,
             commands::preview::preview_html,
+            commands::attachments::desktop_pick_files,
+            commands::attachments::desktop_file_info,
+            commands::attachments::desktop_read_file_chunk,
+            commands::attachments::desktop_reveal_file,
             commands::workspace::sandbox_pick_workspace,
             commands::workspace::reveal_workspace_path,
             daemon::save_pairing,
@@ -242,6 +246,7 @@ pub fn run() {
         // Quit / cmd+Q / SIGTERM 才真正退出——两条路径都汇聚到 Exit 事件
         // 停 daemon，生命周期语义不变）。
         .on_window_event(|window, event| {
+            commands::attachments::handle_drop(window, event);
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     api.prevent_close();

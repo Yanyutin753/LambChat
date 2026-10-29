@@ -79,3 +79,16 @@ async def steer_interrupt_waiting_human(
         "message_id": message_id,
         "queued": False,
     }
+
+
+async def validate_steer_attachments(request, session: Session, user: TokenPayload) -> None:
+    """A running conversation keeps its bound machine when accepting local references."""
+    if any(item.local_file for item in request.attachments or []):
+        from src.infra.upload.local_attachments import validate_local_attachments
+
+        await validate_local_attachments(
+            request.attachments,
+            (session.metadata or {}).get("agent_options") or {},
+            user.sub,
+            session.agent_id,
+        )

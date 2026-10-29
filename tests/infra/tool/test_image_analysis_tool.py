@@ -403,7 +403,8 @@ async def test_image_analyze_compresses_oversized_backend_file_before_data_url(m
         async def adownload_files(self, paths: list[str]):
             return [SimpleNamespace(path=paths[0], content=original, error=None)]
 
-    def fake_compress(content: bytes, mime_type: str):
+    def fake_compress(content: bytes, mime_type: str, *, source_ext: str):
+        assert source_ext == ".png"
         captured["compress_input"] = (content, mime_type)
         return compressed, "image/jpeg"
 
@@ -412,7 +413,7 @@ async def test_image_analyze_compresses_oversized_backend_file_before_data_url(m
     )
     monkeypatch.setattr(
         image_analysis_tool,
-        "compress_image_bytes_if_needed",
+        "prepare_upload_image_bytes",
         fake_compress,
         raising=False,
     )

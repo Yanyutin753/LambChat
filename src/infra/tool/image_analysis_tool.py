@@ -22,7 +22,7 @@ from src.agents.core.node_utils import (
 )
 from src.infra.agent.middleware.image_url import prepare_image_messages
 from src.infra.async_utils import run_long_blocking_io
-from src.infra.image_utils import compress_image_bytes_if_needed
+from src.infra.image_utils import prepare_upload_image_bytes
 from src.infra.llm.client import LLMClient
 from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import is_retryable_model_error
@@ -261,9 +261,10 @@ async def _inline_backend_image_paths(
             continue
 
         compressed_content, compressed_mime_type = await run_long_blocking_io(
-            compress_image_bytes_if_needed,
+            prepare_upload_image_bytes,
             content,
             mime_type,
+            source_ext=os.path.splitext(backend_path)[1],
         )
         encoded = await run_long_blocking_io(base64.b64encode, compressed_content)
         data_url = f"data:{compressed_mime_type};base64,{encoded.decode('ascii')}"

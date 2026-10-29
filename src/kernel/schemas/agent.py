@@ -1,14 +1,32 @@
 """Agent-related schemas."""
 
 from datetime import datetime
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.infra.goal import GoalSpec
 from src.infra.utils.datetime import utc_now
 from src.kernel.schemas.message import ToolCall
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
+
+
+class LocalFileReference(BaseModel):
+    """A user-selected original on a specific desktop; not a download capability."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    path: str = Field(min_length=1, max_length=16384)
+    machine_id: str = Field(alias="machineId", min_length=1, max_length=256)
+    token: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+    @model_validator(mode="after")
+    def absolute_path(self):
+        if any(ord(char) < 32 for char in self.path) or not (
+            PurePosixPath(self.path).is_absolute() or PureWindowsPath(self.path).is_absolute()
+        ):
+            raise ValueError("Local attachment requires an absolute filesystem path")
+        return self
 
 
 class AttachmentSchema(BaseModel):
@@ -17,12 +35,32 @@ class AttachmentSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
 
     id: str = Field(..., min_length=1, description="Unique attachment ID")
-    key: str = Field(..., min_length=1, description="Storage key")
+    key: str = Field(default="", description="Storage key for cloud attachments")
     name: str = Field(..., min_length=1, description="Original filename")
     type: str = Field(..., description="File category: image, video, audio, document")
     mime_type: str = Field(..., min_length=1, description="MIME type", alias="mimeType")
     size: int = Field(..., gt=0, description="File size in bytes")
-    url: str = Field(..., min_length=1, description="Accessible URL")
+    url: str = Field(default="", description="Accessible URL for cloud attachments")
+    local_file: LocalFileReference | None = Field(
+        default=None, alias="localFile", exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def attachment_source(self):
+        if self.local_file:
+            if self.key or self.url:
+                raise ValueError("Local attachments cannot carry cloud keys or URLs")
+        elif not self.key or not self.url:
+            raise ValueError("Cloud attachments require a key and URL")
+        return self
+
+
+class SteerRequest(BaseModel):
+    """运行中插话请求体。"""
+
+    message: str = Field(..., min_length=1, max_length=32000)
+    message_id: str | None = Field(default=None, min_length=1, max_length=128)
+    attachments: list[AttachmentSchema] | None = Field(default=None, max_length=20)
 
 
 class AgentRequest(BaseModel):

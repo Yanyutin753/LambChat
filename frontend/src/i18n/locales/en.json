@@ -2238,6 +2238,9 @@
     "text": "Text"
   },
   "fileUpload": {
+    "localFile": "Local original",
+    "localFileUnavailable": "The original file is unavailable on this computer. Check its location or select it again.",
+    "selectFiles": "Select files",
     "cancelUpload": "Cancel upload",
     "categories": {
       "${category}": "{{category}}",
