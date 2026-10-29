@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react";
+import { useDroppedFiles } from "./useDroppedFiles";
 import { useSandboxStatus } from "./useSandboxStatus";
 import {
   useDesktopAttachments,
@@ -15,7 +15,7 @@ type Options = Omit<
   mode: unknown;
   selectedMachine: unknown;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
-  uploadFiles: (files: FileList) => void;
+  uploadFiles: (files: FileList | File[]) => void;
 };
 
 export function useComposerDesktopAttachments(options: Options) {
@@ -33,25 +33,13 @@ export function useComposerDesktopAttachments(options: Options) {
         options.onToggleAgentOption?.("sandbox_machine_id", machine);
     },
   });
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const drop = useDroppedFiles({
+    ...options,
+    ...environment,
+    receiveFiles: result.receiveFiles,
+  });
   return {
     ...result,
-    isDraggingOver,
-    handleDragOver: (event: DragEvent) => {
-      event.preventDefault();
-      setIsDraggingOver(true);
-    },
-    handleDragLeave: (event: DragEvent) => {
-      event.preventDefault();
-      setIsDraggingOver(false);
-    },
-    handleDrop: (event: DragEvent) => {
-      event.preventDefault();
-      setIsDraggingOver(false);
-      if (isShellAvailable()) return;
-      const files = event.dataTransfer?.files;
-      if (files?.length && options.validateCount(files.length))
-        options.uploadFiles(files);
-    },
+    ...drop,
   };
 }

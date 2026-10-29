@@ -156,3 +156,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 `commands/attachments.rs` 的 `desktop_pick_files(title)` 返回原生选中文件的路径元数据与 opaque receipt；原生 drop 通过 `desktop-files-dropped` 的开始/完成批次事件传递同样信息。`desktop_file_info(token)` 读取最新元数据，`desktop_read_file_chunk(token, offset, length, size, modified)` 每次最多读 1 MiB 并拒绝读取期间发生变化的原文件，`desktop_reveal_file(token)` 在文件管理器定位原文件。四个命令仅授予主窗口 `allow-desktop-file-references` capability，不能传任意路径读取；receipt 保存在应用数据目录 `file-references/`，只记录元数据，不复制文件内容。
 
 本地附件协议向后兼容旧云端附件；`localFile` 携带原路径、所属 machine ID 和客户端 receipt。服务端要求本地环境、支持沙箱的 Agent 和当前用户拥有的匹配在线机器。复用既有绝对路径沙箱执行与审批，不新增 daemon 操作，不降低文件执行审批。路径文件需要模型看图时仍会传输必要内容并在服务端转换/压缩，但不要求存入对象存储。浏览器模拟不代表原生拖拽真机验收。
+
+Windows 主窗口使用 WebView2 的 HTML 拖拽，关闭仅识别普通路径的 Wry 拖拽拦截。主窗口通过 `postMessageWithAdditionalObjects` 提交真实 `File` 对象，原生 `windows_file_drop` 桥校验固定应用来源后读取 `ICoreWebView2File.Path` 并签发现有 receipt；不接受前端文本路径。没有原路径的图片字节使用现有上传、云端压缩流程，无法读取的占位内容明确提示。异步回传绑定账户、服务器、对话和环境；桥接等待最多 3 秒，超时可改用原生选择文件。
+
+桌面文件下载统一经 `desktop_save_file`：二进制 IPC 传入文件内容，`x-file-name` 为 ASCII 转义的 JSON 文件名；原生另存为对话框决定目标路径，主窗口 `allow-desktop-save-file` 权限不接受任意写入路径。取消正常结束，保存失败显示现有下载失败提示；同目录临时文件完整写入后替换目标，失败清理临时文件。Windows CI 编译原生桥并运行文件边界测试，仍须区分这些检查与微信拖拽/系统保存对话框的人工验收。

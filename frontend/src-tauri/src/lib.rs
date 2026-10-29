@@ -11,6 +11,8 @@ mod titlebar;
 mod tray;
 #[cfg(windows)]
 mod windows_acl;
+#[cfg(any(windows, test))]
+mod windows_file_drop;
 
 /// SIGTERM 停机旗标：信号处理器只做原子置位（async-signal-safe 的唯一动作），
 /// 专用线程轮询后经 `app.exit(0)` 走正常退出路径（M4 T8）。
@@ -186,6 +188,10 @@ pub fn run() {
         // 状态文件在 app data，版本升级时同样保留）
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                windows_file_drop::install(&window)?;
+            }
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
                 titlebar::install(&window)?;
@@ -221,6 +227,7 @@ pub fn run() {
             commands::notification::desktop_notification_send,
             commands::notification::desktop_notification_focus,
             commands::preview::preview_html,
+            commands::download::desktop_save_file,
             commands::attachments::desktop_pick_files,
             commands::attachments::desktop_file_info,
             commands::attachments::desktop_read_file_chunk,

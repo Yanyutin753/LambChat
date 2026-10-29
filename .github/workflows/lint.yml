@@ -267,6 +267,33 @@ jobs:
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test-shards.result }}
         run: test "$FRONTEND_TEST_RESULT" = success
 
+  windows-file-transfers:
+    name: Windows File Transfers
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: windows-file-transfers-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+      - name: Prepare unit-test web assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frontend/.ci-native-fixture | Out-Null
+          Set-Content frontend/.ci-native-fixture/index.html '<!doctype html><title>Native unit tests</title>'
+      - name: Compile Windows bridge and test native file boundaries
+        shell: pwsh
+        env:
+          TAURI_CONFIG: '{"build":{"frontendDist":"../.ci-native-fixture"},"bundle":{"externalBin":[],"resources":[],"icon":["../public/favicon.ico"]}}'
+        run: |
+          python scripts/run_validation.py cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml -j1 --lib -- --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   windows-installer-hooks:
     name: Windows Installer Hooks
     runs-on: windows-latest

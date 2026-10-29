@@ -14,7 +14,9 @@ export type EmbeddedImageMimeType =
   | "image/gif"
   | "image/webp";
 
-type ClipboardFileData = Pick<DataTransfer, "files" | "getData">;
+type ClipboardFileData = Pick<DataTransfer, "getData"> & {
+  files: FileList | readonly File[];
+};
 
 type ClipboardImageWorkerResponse =
   | { ok: true; blob: Blob }

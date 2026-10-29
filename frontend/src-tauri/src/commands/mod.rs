@@ -9,3 +9,5 @@ mod notification_macos_api;
 pub mod windows_notification;
 
 pub mod attachments;
+
+pub mod download;
