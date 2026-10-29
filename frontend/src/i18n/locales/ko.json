@@ -4399,6 +4399,20 @@
     "tokensInputReported": "입력 (보고값)",
     "historicalEstimate": "과거 추정액",
     "partialCostHint": "확인된 금액만 포함하며 나머지 비용은 알 수 없습니다.",
+    "modelOrService": "모델 / 서비스",
+    "identityNotRecorded": "기록되지 않음",
+    "operations": {
+      "embedding": "임베딩",
+      "rerank": "재순위화",
+      "decision": "판단",
+      "web_search": "웹 검색",
+      "web_fetch": "웹 페이지 가져오기",
+      "document_parse": "문서 분석",
+      "image_generation": "이미지 생성",
+      "audio_transcription": "음성 전사",
+      "llm": "모델 호출",
+      "external_request": "외부 요청"
+    },
     "sources": {
       "auxiliary": "보조 호출",
       "chat": "대화",

@@ -976,12 +976,12 @@ class NativeMemoryBackend(MemoryBackend):
             )
 
             async def embed_fn(text: str) -> list[float]:
-                async with unpriced_usage():
+                async with unpriced_usage(operation="embedding", model=model):
                     resp = await client.post(
                         "/v1/embeddings",
                         json={"input": text, "model": model},
                     )
-                resp.raise_for_status()
+                    resp.raise_for_status()
                 return resp.json()["data"][0]["embedding"]
 
             self._embedding_fn = embed_fn

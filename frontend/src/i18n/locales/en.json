@@ -4399,6 +4399,20 @@
     "tokensInputReported": "Input (reported)",
     "historicalEstimate": "Historical estimate",
     "partialCostHint": "Known amount only; the remaining cost is unknown.",
+    "modelOrService": "Model / service",
+    "identityNotRecorded": "Not recorded",
+    "operations": {
+      "embedding": "Embedding",
+      "rerank": "Reranking",
+      "decision": "Decision",
+      "web_search": "Web search",
+      "web_fetch": "Web fetch",
+      "document_parse": "Document parsing",
+      "image_generation": "Image generation",
+      "audio_transcription": "Audio transcription",
+      "llm": "LLM call",
+      "external_request": "External request"
+    },
     "sources": {
       "auxiliary": "Auxiliary calls",
       "chat": "Chat",

@@ -73,7 +73,7 @@ async def test_uploaded_tool_input_requires_owner_and_authorizes_http(
 
     monkeypatch.setattr(image_generation_tool, "_get_download_client", lambda: Client())
     monkeypatch.setattr(audio_transcribe_tool.httpx, "AsyncClient", lambda **kwargs: Client())
-    monkeypatch.setattr(audio_transcribe_tool, "unpriced_usage", nullcontext)
+    monkeypatch.setattr(audio_transcribe_tool, "unpriced_usage", lambda **kwargs: nullcontext())
     transcribe = AsyncMock(return_value=SimpleNamespace(text="transcribed"))
     monkeypatch.setattr(
         audio_transcribe_tool,

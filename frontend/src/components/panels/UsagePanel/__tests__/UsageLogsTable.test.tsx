@@ -121,3 +121,49 @@ test("auxiliary calls remain identifiable across responsive layouts", () => {
   show({ source: "auxiliary", agent_name: "" });
   expect(screen.getAllByText("usage.sources.auxiliary")).toHaveLength(3);
 });
+
+test.each([
+  "embedding",
+  "rerank",
+  "decision",
+  "web_search",
+  "web_fetch",
+  "document_parse",
+  "image_generation",
+  "audio_transcription",
+  "llm",
+  "external_request",
+])("auxiliary %s calls show their operation in every layout", (operation) => {
+  show({ source: "auxiliary", agent_name: "", operation });
+  expect(screen.getAllByText(`usage.operations.${operation}`)).toHaveLength(3);
+});
+
+test("non-model services show the provider without inventing a model", () => {
+  show({ source: "auxiliary", agent_name: "", model: "", provider: "tavily" });
+  expect(screen.getAllByText("tavily")).toHaveLength(3);
+  expect(screen.getAllByTitle("tavily")).toHaveLength(3);
+  expect(screen.getByText("usage.modelOrService")).toBeTruthy();
+});
+
+test("historical auxiliary calls explicitly label missing model and service identity", () => {
+  show({ source: "auxiliary", agent_name: "", model: "" });
+  expect(screen.getAllByText("usage.identityNotRecorded")).toHaveLength(3);
+  expect(screen.getAllByText("usage.sources.auxiliary")).toHaveLength(3);
+});
+
+test("actual model and agent names take precedence over auxiliary metadata", () => {
+  show({ source: "auxiliary", operation: "embedding", provider: "systemone" });
+  expect(screen.getAllByText("model")).toHaveLength(3);
+  expect(screen.getAllByText("Search")).toHaveLength(3);
+  expect(screen.queryByText("systemone")).toBeNull();
+  expect(screen.queryByText("usage.operations.embedding")).toBeNull();
+});
+
+test("unknown auxiliary operations retain the generic label and ordinary logs retain their identity", () => {
+  show({ source: "auxiliary", agent_name: "", operation: "future_operation" });
+  expect(screen.getAllByText("usage.sources.auxiliary")).toHaveLength(3);
+  cleanup();
+  show({ source: "chat", agent_name: "", model: "", operation: "embedding" });
+  expect(screen.queryByText("usage.operations.embedding")).toBeNull();
+  expect(screen.queryByText("usage.identityNotRecorded")).toBeNull();
+});

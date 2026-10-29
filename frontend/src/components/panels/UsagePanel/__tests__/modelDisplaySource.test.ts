@@ -16,7 +16,7 @@ test("usage logs render model display names across desktop, tablet and mobile", 
   ).toBeGreaterThanOrEqual(3);
   // 原始模型 ID 仍可通过悬浮提示查看
   expect(source).toMatch(
-    /title=\{usageModelNames\(log, _EMPTY_MODEL_LABELS\)\}/,
+    /title=\{usageModelNames\(log, _EMPTY_MODEL_LABELS\) \|\| log.provider\}/,
   );
 });
 

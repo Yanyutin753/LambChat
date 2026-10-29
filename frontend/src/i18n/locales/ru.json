@@ -4399,6 +4399,20 @@
     "tokensInputReported": "Вход (сообщённое значение)",
     "historicalEstimate": "Историческая оценка",
     "partialCostHint": "Указана только известная сумма; остальная стоимость неизвестна.",
+    "modelOrService": "Модель / сервис",
+    "identityNotRecorded": "Не записано",
+    "operations": {
+      "embedding": "Эмбеддинг",
+      "rerank": "Переранжирование",
+      "decision": "Принятие решения",
+      "web_search": "Поиск в интернете",
+      "web_fetch": "Загрузка веб-страницы",
+      "document_parse": "Разбор документа",
+      "image_generation": "Генерация изображений",
+      "audio_transcription": "Расшифровка аудио",
+      "llm": "Вызов модели",
+      "external_request": "Внешний запрос"
+    },
     "sources": {
       "auxiliary": "Вспомогательные вызовы",
       "chat": "Чат",

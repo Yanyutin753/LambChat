@@ -233,3 +233,60 @@ async def test_auxiliary_username_uses_billing_owner_without_blocking_logs(
     trace = storage.upsert_usage_log_from_trace_metadata.await_args.args[0]
     assert trace["user_id"] == "owner"
     assert trace["metadata"]["username"] == ("billing-owner-name" if outcome == "found" else "")
+
+
+async def test_auxiliary_records_identity_duration_and_safe_http_failure(monkeypatch):
+    import httpx
+
+    storage = SimpleNamespace(upsert_usage_log_from_trace_metadata=AsyncMock(return_value=False))
+    monkeypatch.setattr(auxiliary, "get_usage_storage", lambda: storage)
+    monkeypatch.setattr(
+        auxiliary, "utc_now", lambda: datetime(2026, 10, 19, 0, 0, 3, tzinfo=timezone.utc)
+    )
+    ticket = reservation()
+    ticket["context"]["operation"] = "embedding"
+    response = httpx.Response(429, request=httpx.Request("POST", "https://example.test/secret"))
+    error = httpx.HTTPStatusError(
+        "private upstream body", request=response.request, response=response
+    )
+    await auxiliary.write_auxiliary_usage(
+        ticket, {"charged_units": 0, "unknown": True}, status="error", error=error
+    )
+    trace, usage = storage.upsert_usage_log_from_trace_metadata.await_args.args
+    assert usage["operation"] == "embedding"
+    assert usage["provider"] == "openai"
+    assert usage["duration"] == 3
+    failure = storage.upsert_usage_log_from_trace_metadata.await_args.kwargs["error_data"]
+    assert failure == {"type": "HTTPStatusError", "error": "HTTPStatusError (HTTP 429)"}
+    assert trace["status"] == "error"
+
+
+async def test_unpriced_identity_and_exception_reach_projection(monkeypatch):
+    project = AsyncMock()
+    reserve = AsyncMock(return_value=reservation())
+    monkeypatch.setattr(auxiliary, "write_auxiliary_usage", project)
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "owner")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(quota, "_usage_owner", lambda: None)
+    monkeypatch.setattr(quota, "_usage_context", lambda: {"session_id": "session"})
+    monkeypatch.setattr(
+        quota,
+        "UsageQuota",
+        lambda: SimpleNamespace(
+            settle=AsyncMock(return_value={"charged_units": 0, "unknown": True})
+        ),
+    )
+    monkeypatch.setattr(quota, "_reserve_call", reserve)
+    error = TimeoutError("private details")
+    with pytest.raises(TimeoutError):
+        async with quota.unpriced_usage(
+            operation="embedding", model="embed-model", provider="provider"
+        ):
+            raise error
+    assert reserve.await_args.kwargs["context"] == {
+        "session_id": "session",
+        "operation": "embedding",
+        "model": "embed-model",
+        "provider": "provider",
+    }
+    assert project.await_args.kwargs["error"] is error

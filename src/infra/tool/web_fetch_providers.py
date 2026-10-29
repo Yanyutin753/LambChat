@@ -425,7 +425,9 @@ async def firecrawl_fetch(
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    async with unpriced_usage() if api_key else nullcontext():
+    async with (
+        unpriced_usage(operation="web_fetch", provider="firecrawl") if api_key else nullcontext()
+    ):
         response = await _request_no_redirect(
             client,
             "POST",
@@ -433,7 +435,7 @@ async def firecrawl_fetch(
             json={"url": url, "formats": ["markdown"]},
             headers=headers,
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     try:
         data = response.json()
     except Exception as exc:  # noqa: BLE001
@@ -471,7 +473,7 @@ async def exa_fetch(
     if not ok:
         return {"success": False, "error": err}
 
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_fetch", provider="exa"):
         response = await _request_no_redirect(
             client,
             "POST",
@@ -479,7 +481,7 @@ async def exa_fetch(
             json={"urls": [url]},
             headers={"x-api-key": api_key, "Content-Type": "application/json"},
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     try:
         data = response.json()
     except Exception as exc:  # noqa: BLE001
@@ -515,7 +517,7 @@ async def deepseek_fetch(
     ok, err = await validate_public_http_url(url)
     if not ok:
         return {"success": False, "error": err}
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_fetch", provider="deepseek"):
         response = await _request_no_redirect(
             client,
             "POST",
@@ -523,12 +525,12 @@ async def deepseek_fetch(
             json={"url": url},
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-    try:
-        _raise_for_status(response)
-    except ProviderRequestError as exc:
-        raise ProviderRequestError(
-            exc.status_code, "DeepSeek request failed", exc.retry_after
-        ) from None
+        try:
+            _raise_for_status(response)
+        except ProviderRequestError as exc:
+            raise ProviderRequestError(
+                exc.status_code, "DeepSeek request failed", exc.retry_after
+            ) from None
     try:
         body = response.json()
     except ValueError:
@@ -562,7 +564,7 @@ async def tavily_extract(
     if not ok:
         return {"success": False, "error": err}
 
-    async with unpriced_usage():
+    async with unpriced_usage(operation="web_fetch", provider="tavily"):
         response = await _request_no_redirect(
             client,
             "POST",
@@ -570,7 +572,7 @@ async def tavily_extract(
             json={"urls": [url]},
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     try:
         data = response.json()
     except Exception as exc:  # noqa: BLE001 - 非 JSON 响应
@@ -622,11 +624,11 @@ async def jina_fetch(
     headers = {"Accept": "text/plain", "X-Return-Format": "markdown"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    async with unpriced_usage() if api_key else nullcontext():
+    async with unpriced_usage(operation="web_fetch", provider="jina") if api_key else nullcontext():
         response = await _request_no_redirect(
             client, "GET", f"{JINA_READER_PREFIX}{url}", headers=headers
         )
-    _raise_for_status(response)
+        _raise_for_status(response)
     title = (response.headers.get("title") or "").strip() or None
     # 响应首行常是 "Markdown Source:"，对 LLM 无信息量，剥掉
     text = response.text.strip()

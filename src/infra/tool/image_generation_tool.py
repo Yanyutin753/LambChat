@@ -362,9 +362,12 @@ async def _post_image_api_with_retries(
 ) -> dict[str, Any]:
     for attempt in range(1, IMAGE_API_MAX_ATTEMPTS + 1):
         try:
-            async with unpriced_usage():
+            async with unpriced_usage(
+                operation="image_generation",
+                model=(kwargs.get("json") or kwargs.get("data") or {}).get("model"),
+            ):
                 response = await client.post(url, **kwargs)
-            response.raise_for_status()
+                response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as exc:
             status_code = getattr(exc.response, "status_code", None)
