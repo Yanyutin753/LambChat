@@ -1153,12 +1153,32 @@ async def selected_workspace_battery(user_id: str, machine_id: str) -> None:
         "sandbox_machine_id": machine_id,
         "sandbox_workspace": json.dumps({"id": key, "machineId": machine_id}),
     }
+    # Existing user files have distinct creation/change timestamps on Windows.
+    for name in ("README.md", "pyproject.toml", "frontend/package.json", "中文 文件.txt"):
+        target = selected / name
+        target.parent.mkdir(exist_ok=True)
+        target.write_bytes(b"initial\n")
+        target.write_bytes(b"current\r\nsecond line\r\n")
     for turn in (1, 2):
         backend = WorkspaceAliasBackend(
             user_id=user_id,
             session_id=f".selected/{selected_workspace_id(options)}",
             machine_id=machine_id,
         )
+        for name in ("README.md", "pyproject.toml", "frontend/package.json", "中文 文件.txt"):
+            path = f"{backend.work_dir}/{name}"
+            first = await backend.aread(path, limit=1)
+            tail = await backend.aread(path, offset=1, limit=1)
+            check(
+                f"所选目录已有文件分页读取 turn={turn} {name}",
+                not first.error
+                and not tail.error
+                and first.file_data is not None
+                and first.file_data["content"] == "current"
+                and tail.file_data is not None
+                and tail.file_data["content"] == "second line",
+                f"errors={first.error!r}, {tail.error!r}",
+            )
         await backend.awrite(f"{backend.work_dir}/文件-{turn}.txt", f"第 {turn} 轮")
         result = await backend.aexecute(
             "python3 -c \"import json,os; print(json.dumps({'cwd':os.getcwd(),"
@@ -1186,6 +1206,31 @@ async def selected_workspace_battery(user_id: str, machine_id: str) -> None:
     )
     names = {Path(entry["path"]).name for entry in result.get("result", {}).get("entries", [])}
     check("中文所选目录文件列举", {"文件-1.txt", "文件-2.txt"} <= names)
+
+    path = f"{backend.work_dir}/README.md"
+    target = selected / "README.md"
+    target.write_bytes(b"external change\n")
+    stale = await backend.aedit(path, "current", "replacement")
+    check(
+        "已有文件过期读取不能覆盖外部修改",
+        bool(stale.error)
+        and "file_conflict" in stale.error
+        and target.read_bytes() == b"external change\n",
+        str(stale.error),
+    )
+    reread = await backend.aread(path)
+    edited = await backend.aedit(path, "external change", "replacement")
+    final = await backend.aread(path)
+    check(
+        "已有文件重读后可编辑并读回",
+        not reread.error
+        and not edited.error
+        and not final.error
+        and final.file_data is not None
+        and final.file_data["content"] == "replacement"
+        and target.read_bytes() == b"replacement\n",
+        f"errors={reread.error!r}, {edited.error!r}, {final.error!r}",
+    )
 
     from src.kernel.errors import AppError, ErrorCode
 
