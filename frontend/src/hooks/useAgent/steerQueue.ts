@@ -318,6 +318,7 @@ export interface PendingSteerSnapshot {
     Omit<MessageAttachment, "mimeType"> & {
       mimeType?: string;
       mime_type?: string;
+      local_file?: { path: string; machine_id: string; token: string } | null;
     }
   >;
 }
@@ -471,6 +472,15 @@ export function useSteerQueue({
               attachments: item.attachments?.map((attachment) => ({
                 ...attachment,
                 mimeType: attachment.mimeType ?? attachment.mime_type ?? "",
+                ...(attachment.local_file
+                  ? {
+                      localFile: {
+                        path: attachment.local_file.path,
+                        machineId: attachment.local_file.machine_id,
+                        token: attachment.local_file.token,
+                      },
+                    }
+                  : {}),
               })),
               queued: true,
               status: "pending",

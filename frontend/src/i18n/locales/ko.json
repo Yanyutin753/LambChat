@@ -2238,6 +2238,9 @@
     "text": "텍스트"
   },
   "fileUpload": {
+    "localFile": "로컬 원본 파일",
+    "localFileUnavailable": "이 컴퓨터에서 원본 파일에 접근할 수 없습니다. 위치를 확인하거나 다시 선택하세요.",
+    "selectFiles": "파일 선택",
     "cancelUpload": "업로드 취소",
     "categories": {
       "${category}": "{{category}}",

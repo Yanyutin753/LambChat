@@ -2238,6 +2238,9 @@
     "text": "文本"
   },
   "fileUpload": {
+    "localFile": "本地原文件",
+    "localFileUnavailable": "无法访问原文件，请确认文件仍在这台电脑上，或重新选择。",
+    "selectFiles": "选择文件",
     "cancelUpload": "取消上传",
     "categories": {
       "${category}": "{{category}}",

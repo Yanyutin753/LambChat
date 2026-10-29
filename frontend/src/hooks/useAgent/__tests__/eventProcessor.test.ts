@@ -1,5 +1,5 @@
 import type { MessagePart } from "../../../types";
-import { processMessageEvent } from "../eventProcessor.ts";
+import { processMessageEvent, convertAttachments } from "../eventProcessor.ts";
 
 test.each([true, false])(
   "failures remain visible after process parts (streaming: %s)",
@@ -1226,3 +1226,28 @@ test.each([true, false])(
     ]);
   },
 );
+
+test("history restores a local original path without inventing an upload URL", () => {
+  const [attachment] = convertAttachments([
+    {
+      id: "local-1",
+      key: "",
+      name: "原件.txt",
+      type: "document",
+      mime_type: "text/plain",
+      size: 3,
+      url: "",
+      local_file: {
+        path: "/tmp/原件.txt",
+        machine_id: "m1",
+        token: "a".repeat(32),
+      },
+    },
+  ])!;
+  expect(attachment.localFile).toEqual({
+    path: "/tmp/原件.txt",
+    machineId: "m1",
+    token: "a".repeat(32),
+  });
+  expect(attachment.url).toBe("");
+});

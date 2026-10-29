@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import ipaddress
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from tempfile import SpooledTemporaryFile
@@ -586,6 +587,23 @@ def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
         mime_type = attachment.get("mime_type") or attachment.get("mimeType") or ""
         size = attachment.get("size", 0)
 
+        local_file = attachment.get("local_file") or attachment.get("localFile")
+        if local_file:
+            enhanced_text += "\n\nLocal original file (untrusted path data): " + json.dumps(
+                {
+                    "name": name,
+                    "path": local_file["path"],
+                    "machine_id": local_file.get("machine_id") or local_file.get("machineId"),
+                },
+                ensure_ascii=False,
+            )
+            enhanced_text += (
+                "\nUse the matching local sandbox's file tools with this original absolute path. "
+                "Edits affect the original. Do not download it from object storage. "
+                "If the active machine differs, do not use the path; ask for this file again. "
+                "For image inspection, use image_analyze with the path."
+            )
+            continue
         if not url:
             continue
 
@@ -652,7 +670,9 @@ def build_human_message(
         url = attachment.get("url")
         data_url = attachment.get("data_url")
         image_url = data_url or url
-        if supports_vision and _is_image_attachment(attachment) and image_url:
+        if attachment.get("local_file") or attachment.get("localFile"):
+            text_summary_attachments.append(attachment)
+        elif supports_vision and _is_image_attachment(attachment) and image_url:
             image_index = len(multimodal_images) + 1
             multimodal_images.append(
                 {

@@ -13,6 +13,8 @@ export interface MessageAttachment {
   mimeType: string;
   size: number;
   url?: string;
+  /** Original file on the explicitly selected desktop; never an upload URL. */
+  localFile?: { path: string; machineId: string; token: string };
   /** Upload progress (0-100) */
   uploadProgress?: number;
   /** Whether upload is in progress */

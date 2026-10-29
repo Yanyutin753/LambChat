@@ -148,3 +148,11 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 | P1 | `lint.yml` 增加 `cargo test` | §10 |
 | P2 | CSP 收紧方案 | §7 |
 | P2 | iOS 签名链路 | §8 |
+
+### 桌面原文件附件
+
+桌面本机沙箱中的原生文件选择、拖拽只添加原文件路径，不复制、不上传；修改直接作用于原文件。云端、其他机器环境和 Web/移动端仍使用上传附件，云端图片压缩规则保持一致。切换环境只转换待发送附件，不批量上传历史本地文件。剪贴板中没有原路径的 Blob 仍走上传。
+
+`commands/attachments.rs` 的 `desktop_pick_files(title)` 返回原生选中文件的路径元数据与 opaque receipt；原生 drop 通过 `desktop-files-dropped` 的开始/完成批次事件传递同样信息。`desktop_file_info(token)` 读取最新元数据，`desktop_read_file_chunk(token, offset, length, size, modified)` 每次最多读 1 MiB 并拒绝读取期间发生变化的原文件，`desktop_reveal_file(token)` 在文件管理器定位原文件。四个命令仅授予主窗口 `allow-desktop-file-references` capability，不能传任意路径读取；receipt 保存在应用数据目录 `file-references/`，只记录元数据，不复制文件内容。
+
+本地附件协议向后兼容旧云端附件；`localFile` 携带原路径、所属 machine ID 和客户端 receipt。服务端要求本地环境、支持沙箱的 Agent 和当前用户拥有的匹配在线机器。复用既有绝对路径沙箱执行与审批，不新增 daemon 操作，不降低文件执行审批。路径文件需要模型看图时仍会传输必要内容并在服务端转换/压缩，但不要求存入对象存储。浏览器模拟不代表原生拖拽真机验收。

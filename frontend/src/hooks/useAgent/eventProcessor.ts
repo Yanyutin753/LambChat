@@ -60,6 +60,7 @@ export function convertAttachments(
     mime_type: string;
     size: number;
     url: string;
+    local_file?: { path: string; machine_id: string; token: string } | null;
   }>,
 ): MessageAttachment[] | undefined {
   return attachments?.map((a) => ({
@@ -70,6 +71,15 @@ export function convertAttachments(
     mimeType: a.mime_type,
     size: a.size,
     url: a.url,
+    ...(a.local_file
+      ? {
+          localFile: {
+            path: a.local_file.path,
+            machineId: a.local_file.machine_id,
+            token: a.local_file.token,
+          },
+        }
+      : {}),
   }));
 }
 

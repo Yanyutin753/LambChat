@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-desktop-file-references"
+description = "Select/drop original files, read receipt-bound chunks for upload and reveal originals."
+commands.allow = ["desktop_pick_files", "desktop_file_info", "desktop_read_file_chunk", "desktop_reveal_file"]
