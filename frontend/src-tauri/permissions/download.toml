@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-desktop-save-file"
+description = "Save downloaded bytes only to a destination selected in the native save dialog."
+commands.allow = ["desktop_save_file"]

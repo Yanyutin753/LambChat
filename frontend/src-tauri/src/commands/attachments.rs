@@ -94,7 +94,7 @@ fn root(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| e.to_string())?
         .join("file-references"))
 }
-fn register(app: &AppHandle, path: &Path) -> Result<DesktopFile, String> {
+pub(crate) fn register(app: &AppHandle, path: &Path) -> Result<DesktopFile, String> {
     let path = path
         .canonicalize()
         .map_err(|_| "Original file unavailable")?;

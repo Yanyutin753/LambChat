@@ -2239,6 +2239,7 @@
   },
   "fileUpload": {
     "localFile": "Local original",
+    "dropUnavailable": "Unable to read the dropped file or image. Save it to this computer, then choose the file to attach.",
     "localFileUnavailable": "The original file is unavailable on this computer. Check its location or select it again.",
     "selectFiles": "Select files",
     "cancelUpload": "Cancel upload",

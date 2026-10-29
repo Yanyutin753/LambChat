@@ -120,6 +120,78 @@ export function revealDesktopFile(token: string): Promise<void> {
   return invokeInShell("desktop_reveal_file", { token });
 }
 
+/** Only WebView2 File objects can grant a native receipt; never send a JS path. */
+export async function resolveDroppedDesktopFiles(
+  files: File[],
+  signal?: AbortSignal,
+): Promise<(DesktopFile | null)[] | null> {
+  const webview = (
+    window as unknown as {
+      chrome?: {
+        webview?: {
+          postMessageWithAdditionalObjects?: (
+            message: unknown,
+            files: File[],
+          ) => void;
+        };
+      };
+    }
+  ).chrome?.webview;
+  if (!webview) return null;
+  if (!webview.postMessageWithAdditionalObjects)
+    throw new Error("file_drop_unavailable");
+  signal?.throwIfAborted();
+  const { listen } = await import("@tauri-apps/api/event");
+  signal?.throwIfAborted();
+  const requestId = crypto.randomUUID().replaceAll("-", "");
+  return new Promise((resolve, reject) => {
+    let stop: (() => void) | undefined;
+    let done = false;
+    const finish = (value: (DesktopFile | null)[] | null, error?: Error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      stop?.();
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const abort = () =>
+      finish(null, new DOMException("File drop cancelled", "AbortError"));
+    const timer = setTimeout(
+      () => finish(null, new Error("file_drop_unavailable")),
+      3000,
+    );
+    signal?.addEventListener("abort", abort, { once: true });
+    void listen<{
+      requestId: string;
+      files: (DesktopFile | null)[];
+      error?: boolean;
+    }>("desktop-drop-resolved", ({ payload }) => {
+      if (payload.requestId !== requestId) return;
+      if (
+        payload.error ||
+        !Array.isArray(payload.files) ||
+        payload.files.length !== files.length
+      )
+        finish(null, new Error("file_drop_unavailable"));
+      else finish(payload.files);
+    })
+      .then((unlisten) => {
+        if (done) {
+          unlisten();
+          return;
+        }
+        stop = unlisten;
+        webview.postMessageWithAdditionalObjects!(
+          { kind: "lambchat-file-drop", requestId },
+          files,
+        );
+      })
+      .catch(() => finish(null, new Error("file_drop_unavailable")));
+  });
+}
+
 /** Unknown defaults must never turn a restored original-path draft into an upload. */
 export function resolveDesktopAttachmentEnvironment(input: {
   agent?: { supports_sandbox?: boolean };

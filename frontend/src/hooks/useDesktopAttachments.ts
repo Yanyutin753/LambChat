@@ -316,6 +316,7 @@ export function useDesktopAttachments(options: DesktopAttachmentOptions) {
     }
   }, [native, options, t]);
   return {
+    receiveFiles: native ? receive : undefined,
     pickFiles: native ? pickFiles : undefined,
     blocked: options.attachments.some(
       (item) =>

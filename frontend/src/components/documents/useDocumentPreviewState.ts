@@ -1,3 +1,5 @@
+import toast from "react-hot-toast";
+import { isShellAvailable } from "../../services/tauri/sandboxShell";
 import { downloadBlob } from "../common/viewerDownload";
 import {
   useState,
@@ -493,8 +495,12 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           buildUploadProxyUrl(downloadUrl, undefined, { force: true }) ||
             downloadUrl,
         );
-        downloadBlob(await response.blob(), fileName);
+        await downloadBlob(await response.blob(), fileName);
       } catch {
+        if (isShellAvailable()) {
+          toast.error(t("chat.message.downloadFailed"));
+          return;
+        }
         try {
           window.open(
             await resolveUploadFileUrl(downloadUrl),
@@ -509,7 +515,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     }
 
     if (data?.content !== undefined) {
-      downloadBlob(new Blob([data.content], { type: "text/plain" }), fileName);
+      await downloadBlob(
+        new Blob([data.content], { type: "text/plain" }),
+        fileName,
+      );
     }
   };
 
