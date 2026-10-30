@@ -12,6 +12,7 @@ test("exports the window control surface used by the titlebar", () => {
   expect(typeof windowControls.minimizeWindow).toBe("function");
   expect(typeof windowControls.toggleMaximizeWindow).toBe("function");
   expect(typeof windowControls.closeWindow).toBe("function");
+  expect(typeof windowControls.startDraggingWindow).toBe("function");
   expect(typeof windowControls.queryWindowMaximized).toBe("function");
   expect(typeof windowControls.subscribeWindowResized).toBe("function");
 });

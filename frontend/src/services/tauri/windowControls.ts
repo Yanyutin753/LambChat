@@ -12,8 +12,17 @@ async function invokeWindowMethod(method: WindowMethod): Promise<void> {
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow()[method]();
-  } catch {
-    // 窗口操作失败静默（权限缺失等由壳层日志暴露）
+  } catch (error) {
+    console.error(`[desktop-window] ${method} failed`, error);
+  }
+}
+
+export async function startDraggingWindow(): Promise<void> {
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().startDragging();
+  } catch (error) {
+    console.error("[desktop-window] drag failed", error);
   }
 }
 
