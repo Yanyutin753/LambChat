@@ -154,7 +154,11 @@ asyncio.run(main())
         (2, "?thumb=1", "缩略图"),
         (3, "?cover=1", "封面"),
     ]:
-        status, headers, _ = request("GET", public_url + flags)
+        anonymous_status, _, _ = request("GET", public_url + flags)
+        assert anonymous_status == 404, (
+            f"{label} anonymous URL must be denied, got {anonymous_status}"
+        )
+        status, headers, _ = request("GET", public_url + flags, token)
         assert status == 302, f"{label} direct URL must redirect to storage, got {status}"
         signed = headers["location"]
         parsed = urllib.parse.urlsplit(signed)
@@ -165,7 +169,7 @@ asyncio.run(main())
             f"{label} storage response invalid"
         )
         proxy_url = public_url + (flags + "&proxy=true" if flags else "?proxy=true")
-        status, proxy_headers, proxied = request("GET", proxy_url)
+        status, proxy_headers, proxied = request("GET", proxy_url, token)
         assert status == 200 and "location" not in proxy_headers, (
             f"{label} proxy must stream bytes, got {status}"
         )
