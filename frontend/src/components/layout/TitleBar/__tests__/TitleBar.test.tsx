@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   minimizeWindow: vi.fn(async () => undefined),
   toggleMaximizeWindow: vi.fn(async () => undefined),
   closeWindow: vi.fn(async () => undefined),
+  startDraggingWindow: vi.fn(async () => undefined),
   queryWindowMaximized: vi.fn(async () => false),
   subscribeWindowResized: vi.fn(async () => () => undefined),
 }));
@@ -132,6 +133,14 @@ test("drag region spans the flexible middle area", () => {
   expect(drag).toBeTruthy();
   // 拖拽区必须是 flex 弹性占位，否则窗口抓不住
   expect(drag?.className).toContain("flex-1");
+});
+
+test("dragging the titlebar invokes the native window drag API", async () => {
+  renderTitleBar("windows");
+  fireEvent.pointerDown(document.querySelector("[data-tauri-drag-region]")!, {
+    button: 0,
+  });
+  await waitFor(() => expect(mocks.startDraggingWindow).toHaveBeenCalledOnce());
 });
 
 test("mac titlebar keeps navigation centered without CSS position compensation", () => {
