@@ -70,6 +70,7 @@ export interface DocumentPreviewProps {
 }
 
 export function useDocumentPreviewState(props: DocumentPreviewProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
   const {
     path,
     content,
@@ -484,41 +485,47 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
   // Action handlers
   const handleDownload = async () => {
-    const downloadUrl =
-      getFullUrl(signedUrl) ||
-      getFullUrl(resolvedUrl) ||
-      getFullUrl(externalImageUrl) ||
-      buildUploadProxyUrlFromKey(s3Key);
-    if (downloadUrl) {
-      try {
-        const response = await fetchUploadFile(
-          buildUploadProxyUrl(downloadUrl, undefined, { force: true }) ||
-            downloadUrl,
-        );
-        await downloadBlob(await response.blob(), fileName);
-      } catch {
-        if (isShellAvailable()) {
-          toast.error(t("chat.message.downloadFailed"));
-          return;
-        }
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const downloadUrl =
+        getFullUrl(signedUrl) ||
+        getFullUrl(resolvedUrl) ||
+        getFullUrl(externalImageUrl) ||
+        buildUploadProxyUrlFromKey(s3Key);
+      if (downloadUrl) {
         try {
-          window.open(
-            await resolveUploadFileUrl(downloadUrl),
-            "_blank",
-            "noopener,noreferrer",
+          const response = await fetchUploadFile(
+            buildUploadProxyUrl(downloadUrl, undefined, { force: true }) ||
+              downloadUrl,
           );
+          await downloadBlob(await response.blob(), fileName);
         } catch {
-          setError(t("documents.failedToLoadFromS3", "从存储加载文件失败"));
+          if (isShellAvailable()) {
+            toast.error(t("chat.message.downloadFailed"));
+            return;
+          }
+          try {
+            window.open(
+              await resolveUploadFileUrl(downloadUrl),
+              "_blank",
+              "noopener,noreferrer",
+            );
+          } catch {
+            setError(t("documents.failedToLoadFromS3", "从存储加载文件失败"));
+          }
         }
+        return;
       }
-      return;
-    }
 
-    if (data?.content !== undefined) {
-      await downloadBlob(
-        new Blob([data.content], { type: "text/plain" }),
-        fileName,
-      );
+      if (data?.content !== undefined) {
+        await downloadBlob(
+          new Blob([data.content], { type: "text/plain" }),
+          fileName,
+        );
+      }
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -602,6 +609,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     effectiveOnBack,
     handleCopy,
     handleDownload,
+    isDownloading,
     retryLoad: s3Key || signedUrl ? retryLoad : undefined,
 
     // Setters

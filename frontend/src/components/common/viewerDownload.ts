@@ -3,8 +3,38 @@ import toast from "react-hot-toast";
 import { isShellAvailable } from "../../services/tauri/sandboxShell";
 import { saveDesktopFile } from "../../services/tauri/saveFile";
 import { getOwnUploadFileUrl } from "../../services/api/uploadFileUrl";
-import { buildUploadProxyUrl } from "../../services/api/config";
+import {
+  buildUploadProxyUrl,
+  isNativeAppRuntime,
+} from "../../services/api/config";
 import { fetchUploadFile } from "../documents/documentFetchCache";
+import { bytesToBase64 } from "../../utils/bytesToBase64";
+
+async function saveMobileFile(blob: Blob, fileName: string): Promise<void> {
+  const { Filesystem, Directory } = await import("@capacitor/filesystem");
+  const safeFileName = fileName.split(/[\\/]/).pop() || "download";
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const written = await Filesystem.writeFile({
+    path: safeFileName,
+    data: bytesToBase64(bytes),
+    directory: Directory.Documents,
+    recursive: true,
+  });
+
+  const share = navigator.share;
+  if (share && typeof File !== "undefined") {
+    try {
+      await share.call(navigator, {
+        title: safeFileName,
+        files: [new File([blob], safeFileName, { type: blob.type })],
+      });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+  window.open(written.uri, "_blank", "noopener,noreferrer");
+}
 
 export function downloadUrl(url: string, fileName?: string): Promise<void> {
   if (getOwnUploadFileUrl(url) || isShellAvailable()) {
@@ -41,6 +71,11 @@ export function downloadBlob(blob: Blob, fileName: string): Promise<void> {
       .catch(() => {
         toast.error(i18n.t("chat.message.downloadFailed"));
       });
+  }
+  if (isNativeAppRuntime()) {
+    return saveMobileFile(blob, fileName).catch(() => {
+      toast.error(i18n.t("chat.message.downloadFailed"));
+    });
   }
   const url = URL.createObjectURL(blob);
   downloadUrl(url, fileName);

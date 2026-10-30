@@ -109,6 +109,7 @@ function TreeFileRow({
   onOpenImagePreview?: (artifact: RevealArtifact & { kind: "file" }) => void;
 }) {
   const { t } = useTranslation();
+  const [isDownloading, setIsDownloading] = useState(false);
   const ext = node.artifact.name.split(".").pop()?.toLowerCase() || "";
   const imageSrc = isImageFile(ext) ? node.artifact.preview.signedUrl : null;
 
@@ -189,17 +190,28 @@ function TreeFileRow({
         <Tooltip content={t("documents.downloadFile")}>
           <ToolbarIconButton
             variant="muted"
-            disabled={!node.artifact.preview.signedUrl}
-            onClick={() => {
-              if (node.artifact.preview.signedUrl) {
-                downloadUrl(
+            disabled={!node.artifact.preview.signedUrl || isDownloading}
+            onClick={async () => {
+              if (!node.artifact.preview.signedUrl || isDownloading) return;
+              setIsDownloading(true);
+              try {
+                await downloadUrl(
                   node.artifact.preview.signedUrl,
                   node.artifact.name,
                 );
+              } finally {
+                setIsDownloading(false);
               }
             }}
             aria-label={`${t("documents.downloadFile")}: ${node.artifact.name}`}
-            icon={<Download size={18} />}
+            aria-busy={isDownloading}
+            icon={
+              isDownloading ? (
+                <LoadingSpinner color="text-current" size={18} />
+              ) : (
+                <Download size={18} />
+              )
+            }
           />
         </Tooltip>
         {!inline && (
