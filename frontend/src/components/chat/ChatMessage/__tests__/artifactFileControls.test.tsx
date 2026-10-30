@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   panel: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  download: vi.fn(),
+}));
+vi.mock("../../../common/viewerDownload", () => ({
+  downloadUrl: mocks.download,
 }));
 vi.mock("../../../../utils/clipboard", () => ({ copyToClipboard: mocks.copy }));
 vi.mock("../../../../utils/exportProjectZip", () => ({
@@ -42,6 +46,7 @@ vi.mock("react-i18next", async (original) => ({
 }));
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.download.mockResolvedValue(undefined);
 });
 afterEach(() => {
   cleanup();
@@ -151,6 +156,27 @@ test.each(["project", "summary"])(
     ).toBeVisible();
   },
 );
+
+test("single file download shows loading and blocks duplicate clicks", async () => {
+  let finishDownload!: () => void;
+  mocks.download.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      finishDownload = resolve;
+    }),
+  );
+  showFiles("summary");
+  const download = screen.getByRole("button", {
+    name: "documents.downloadFile: report.md",
+  });
+
+  fireEvent.click(download);
+  expect(download).toBeDisabled();
+  fireEvent.click(download);
+  expect(mocks.download).toHaveBeenCalledOnce();
+
+  await act(async () => finishDownload());
+  expect(download).toBeEnabled();
+});
 
 function showFiles(kind: string) {
   const open = vi.fn();

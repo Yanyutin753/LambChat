@@ -24,6 +24,7 @@ import {
   shouldShowLanguageBadge,
 } from "./utils";
 import { ResourceCardMenu } from "../common/ResourceCardMenu";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
@@ -59,6 +60,7 @@ type ToolbarProps = {
   | "effectiveOnBack"
   | "handleCopy"
   | "handleDownload"
+  | "isDownloading"
   | "toolbarRef"
   | "panelRef"
   | "setViewSource"
@@ -100,6 +102,7 @@ export default function DocumentPreviewToolbar({
   effectiveOnBack,
   handleCopy,
   handleDownload,
+  isDownloading = false,
   toolbarRef,
   panelRef,
   setViewSource,
@@ -312,7 +315,15 @@ export default function DocumentPreviewToolbar({
           resolvedUrl) && (
           <ToolbarIconButton
             title={t("documents.download")}
-            icon={<Download size={TOOLBAR_ICON_SIZE} />}
+            disabled={isDownloading}
+            aria-busy={isDownloading}
+            icon={
+              isDownloading ? (
+                <LoadingSpinner size={TOOLBAR_ICON_SIZE} color="text-current" />
+              ) : (
+                <Download size={TOOLBAR_ICON_SIZE} />
+              )
+            }
             onClick={handleDownload}
           />
         )}
