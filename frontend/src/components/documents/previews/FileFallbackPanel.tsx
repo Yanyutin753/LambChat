@@ -1,6 +1,6 @@
 import { downloadUrl as downloadFileUrl } from "../../common/viewerDownload";
 import { SceneIllustration } from "../../common/SceneIllustration";
-import { type ElementType } from "react";
+import { type ElementType, useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "../../common/ui/Button";
 import type { TFunction } from "i18next";
@@ -30,13 +30,20 @@ export default function FileFallbackPanel({
   downloadLabel,
   onDownload,
 }: FileFallbackPanelProps) {
-  const handleDownload = () => {
-    if (onDownload) {
-      onDownload();
-      return;
+  const [isDownloading, setIsDownloading] = useState(false);
+  const handleDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      if (onDownload) {
+        await onDownload();
+        return;
+      }
+      if (!downloadUrl) return;
+      await downloadFileUrl(downloadUrl, fileName);
+    } finally {
+      setIsDownloading(false);
     }
-    if (!downloadUrl) return;
-    downloadFileUrl(downloadUrl, fileName);
   };
 
   return (
@@ -59,6 +66,7 @@ export default function FileFallbackPanel({
             <Button
               size="lg"
               onClick={handleDownload}
+              loading={isDownloading}
               leftIcon={<Download size={16} aria-hidden="true" />}
             >
               {downloadLabel}

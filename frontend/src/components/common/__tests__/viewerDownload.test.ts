@@ -5,7 +5,18 @@ import toast from "react-hot-toast";
 import { downloadBlob, downloadUrl } from "../viewerDownload";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn() }));
+const mobileFilesystem = vi.hoisted(() => ({
+  writeFile: vi.fn().mockResolvedValue({ uri: "file:///documents/file.txt" }),
+}));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
+vi.mock(
+  "@capacitor/filesystem",
+  () => ({
+    Directory: { Documents: "DOCUMENTS" },
+    Filesystem: mobileFilesystem,
+  }),
+  { virtual: true },
+);
 vi.mock("react-hot-toast", () => ({ default: { error: vi.fn() } }));
 vi.mock("i18next", () => ({ default: { t: (key: string) => key } }));
 let anchorClick: ReturnType<typeof vi.spyOn>;
@@ -75,4 +86,22 @@ test("web downloads keep the browser anchor path", async () => {
   await downloadBlob(new Blob(["data"]), "file.txt");
   expect(anchorClick).toHaveBeenCalledOnce();
   expect(bridge.invoke).not.toHaveBeenCalled();
+});
+
+test("Capacitor downloads save bytes and open the native share sheet", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", undefined);
+  vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
+  const share = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: share,
+  });
+
+  await downloadBlob(new Blob([new Uint8Array([80, 75, 0, 255])]), "报告.docx");
+
+  expect(mobileFilesystem.writeFile).toHaveBeenCalledWith(
+    expect.objectContaining({ path: "报告.docx", directory: "DOCUMENTS" }),
+  );
+  expect(share).toHaveBeenCalledOnce();
+  expect(anchorClick).not.toHaveBeenCalled();
 });
