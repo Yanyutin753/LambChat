@@ -114,11 +114,11 @@ from src.infra.storage.s3.service import get_or_init_storage
 from src.infra.agent.events.binary_uploads import _upload_private_screenshot
 async def main():
  users=UserStorage(); owner=await users.get_by_id(OWNER);assert owner and owner.is_active
- other=await users.collection.find_one({"_id":{"$ne":ObjectId(OWNER)},"is_active":True},{"_id":1});assert other
+ other=await users.collection.find_one({"_id":{"$ne":ObjectId(OWNER)},"is_active":True},{"_id":1,"auth_version":1});assert other
  await SessionStorage().create(SessionCreate(name=PREFIX+MARKER,metadata={"agent_id":"quick"}),OWNER,session_id=SESSION)
  raw=base64.b64decode(PNG);storage=await get_or_init_storage()
  capture=await _upload_private_screenshot(storage,io.BytesIO(raw),"image-regression-private.png","image/png",len(raw),OWNER,SESSION)
- print(json.dumps({"token":create_access_token(OWNER,expires_delta=timedelta(minutes=15)),"other_token":create_access_token(str(other["_id"]),expires_delta=timedelta(minutes=2)),"private_key":capture.key}))
+ print(json.dumps({"token":create_access_token(OWNER,expires_delta=timedelta(minutes=15),auth_version=owner.auth_version),"other_token":create_access_token(str(other["_id"]),expires_delta=timedelta(minutes=2),auth_version=other.get("auth_version")),"private_key":capture.key}))
 asyncio.run(main())
 """.replace("PREFIX", repr(session_prefix))
         .replace("OWNER", repr(common.UID))
