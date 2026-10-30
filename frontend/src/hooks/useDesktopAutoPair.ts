@@ -1,5 +1,6 @@
 import { toast } from "react-hot-toast";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { sandboxApi } from "../services/api/sandbox";
 import { effectiveApiBase } from "../services/api/serverConfig";
 import { getValidAccessToken } from "../services/api/tokenManager";
@@ -13,6 +14,7 @@ import { notifySandboxStatusRefresh } from "./useSandboxStatus";
 
 /** 由桌面壳挂载：登录时配对一次，不依赖设置页，也不在取消配对后持续重连。 */
 export function useDesktopAutoPair(userId?: string) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -52,7 +54,11 @@ export function useDesktopAutoPair(userId?: string) {
           return;
         }
         console.warn("[DesktopAutoPair] pairing failed:", error);
-        if (!cancelled && attempts < 3) timer = setTimeout(pair, 3000);
+        if (!cancelled && attempts < 3) {
+          timer = setTimeout(pair, 3000);
+        } else if (!cancelled) {
+          toast.error(t("errors.sandboxInitFailed", "沙箱初始化失败"));
+        }
       }
     };
     // 延后一拍，StrictMode 的首次 effect 清理不会重复签发 PAT。
@@ -61,5 +67,5 @@ export function useDesktopAutoPair(userId?: string) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [userId]);
+  }, [t, userId]);
 }

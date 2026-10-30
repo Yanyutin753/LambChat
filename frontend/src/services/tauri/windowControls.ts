@@ -6,14 +6,23 @@
  * 组件测试 mock 本模块而非底层 API。
  */
 
-type WindowMethod = "minimize" | "toggleMaximize" | "close";
+type WindowMethod = "minimize" | "toggleMaximize" | "destroy";
 
 async function invokeWindowMethod(method: WindowMethod): Promise<void> {
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow()[method]();
-  } catch {
-    // 窗口操作失败静默（权限缺失等由壳层日志暴露）
+  } catch (error) {
+    console.error(`[desktop-window] ${method} failed`, error);
+  }
+}
+
+export async function startDraggingWindow(): Promise<void> {
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().startDragging();
+  } catch (error) {
+    console.error("[desktop-window] drag failed", error);
   }
 }
 
@@ -26,7 +35,7 @@ export function toggleMaximizeWindow(): Promise<void> {
 }
 
 export function closeWindow(): Promise<void> {
-  return invokeWindowMethod("close");
+  return invokeWindowMethod("destroy");
 }
 
 /** 查询最大化态；查询失败（非壳/权限）返回 null，调用方保持现值 */
