@@ -6,7 +6,7 @@
  * 组件测试 mock 本模块而非底层 API。
  */
 
-type WindowMethod = "minimize" | "toggleMaximize" | "close";
+type WindowMethod = "minimize" | "toggleMaximize" | "destroy";
 
 async function invokeWindowMethod(method: WindowMethod): Promise<void> {
   try {
@@ -35,7 +35,7 @@ export function toggleMaximizeWindow(): Promise<void> {
 }
 
 export function closeWindow(): Promise<void> {
-  return invokeWindowMethod("close");
+  return invokeWindowMethod("destroy");
 }
 
 /** 查询最大化态；查询失败（非壳/权限）返回 null，调用方保持现值 */
