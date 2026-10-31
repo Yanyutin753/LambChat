@@ -124,7 +124,7 @@ export function UserAgentPreferencePanel() {
                     className="shrink-0"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-14 font-medium text-theme-text dark:text-stone-100 truncate">
+                    <span className="block text-14 font-medium font-serif text-theme-text dark:text-stone-100 truncate">
                       {displayName}
                     </span>
                     <span className="block text-12 text-theme-text-secondary dark:text-stone-400 mt-0.5 truncate">
