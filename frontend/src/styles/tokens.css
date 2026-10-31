@@ -33,12 +33,9 @@
   --theme-bg-elevated: #ffffff;
   /* subtle 必须与页面底色拉开一档:白天模式下曾与 --theme-bg 完全同值,
      工作目录条/本地电脑等"凹陷"表面(如 composer-workspace-strip)与页面
-     背景融为一体分不出层次(暗色主题 subtle 天然更亮,无此问题)。 */
-  --theme-bg-subtle: color-mix(
-    in srgb,
-    var(--theme-text) 6%,
-    var(--theme-bg)
-  );
+     背景融为一体分不出层次(暗色主题 subtle 天然更亮,无此问题)。
+     浅色主题表面禁用 color-mix(webviewColorFallback),保持字面量。 */
+  --theme-bg-subtle: #eceae8;
   --theme-bg-hover: color-mix(
     in srgb,
     var(--theme-text) 9%,
