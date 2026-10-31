@@ -19,10 +19,17 @@ vi.mock(
 );
 vi.mock("react-hot-toast", () => ({ default: { error: vi.fn() } }));
 vi.mock("i18next", () => ({ default: { t: (key: string) => key } }));
+vi.mock("../../../services/api/authenticatedRequest", () => ({
+  authenticatedRequest: vi.fn(),
+}));
+import { authenticatedRequest } from "../../../services/api/authenticatedRequest";
+const request = vi.mocked(authenticatedRequest);
 let anchorClick: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   bridge.invoke.mockReset().mockResolvedValue(true);
+  mobileFilesystem.writeFile.mockClear();
   vi.mocked(toast.error).mockClear();
+  request.mockReset();
   vi.stubGlobal("__TAURI_INTERNALS__", {});
   vi.stubGlobal("Blob", NodeBlob);
   vi.stubGlobal(
@@ -104,4 +111,64 @@ test("Capacitor downloads save bytes and open the native share sheet", async () 
   );
   expect(share).toHaveBeenCalledOnce();
   expect(anchorClick).not.toHaveBeenCalled();
+});
+
+test("browser upload downloads hand the signed proxy URL to the native anchor without prefetching bytes", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", undefined);
+  await downloadUrl(
+    "/api/upload/file/generated-images/gen-image.png?file_token=tok",
+  );
+  expect(fetch).not.toHaveBeenCalled();
+  expect(request).not.toHaveBeenCalled();
+  expect(anchorClick).toHaveBeenCalledOnce();
+  const anchor = anchorClick.mock.instances[0] as HTMLAnchorElement;
+  const href = new URL(anchor.href);
+  expect(href.pathname).toBe("/api/upload/file/generated-images/gen-image.png");
+  expect(href.searchParams.get("file_token")).toBe("tok");
+  expect(href.searchParams.get("proxy")).toBe("true");
+  expect(anchor.download).toBe("gen-image.png");
+});
+
+test("browser upload downloads resolve the capability first and never fetch the file body", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", undefined);
+  localStorage.setItem("access_token", "acct-viewer-download");
+  request.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        url: "/api/upload/file/generated-images/clip.mp4?file_token=cap2",
+      }),
+    ),
+  );
+  await downloadUrl(
+    "/api/upload/file/generated-images/clip.mp4",
+    "clip.mp4",
+  );
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(fetch).not.toHaveBeenCalled();
+  expect(anchorClick).toHaveBeenCalledOnce();
+  const anchor = anchorClick.mock.instances[0] as HTMLAnchorElement;
+  const href = new URL(anchor.href);
+  expect(href.searchParams.get("file_token")).toBe("cap2");
+  expect(href.searchParams.get("proxy")).toBe("true");
+  expect(anchor.download).toBe("clip.mp4");
+});
+
+test("native app runtimes keep the prefetch path for cross-origin webview downloads", async () => {
+  vi.stubGlobal("__TAURI_INTERNALS__", undefined);
+  vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
+  const share = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: share,
+  });
+  await downloadUrl(
+    "/api/upload/file/generated-images/native-shot.png?file_token=tok3",
+    "native-shot.png",
+  );
+  await vi.waitFor(() =>
+    expect(mobileFilesystem.writeFile).toHaveBeenCalledOnce(),
+  );
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(anchorClick).not.toHaveBeenCalled();
+  expect(bridge.invoke).not.toHaveBeenCalled();
 });
