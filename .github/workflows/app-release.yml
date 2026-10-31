@@ -100,7 +100,7 @@ jobs:
           # macOS uses native architecture runners so crypto verification is bundled.
           # asset_suffix 带架构：双 mac 构建产物不得同名互踩。
           - label: macOS Apple Silicon
-            runner: macos-14
+            runner: macos-15
             bundles: dmg,app
             artifact_slug: macos-apple-silicon
             target: aarch64-apple-darwin
