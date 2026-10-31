@@ -119,6 +119,33 @@ try {
       waitUntil: "domcontentloaded",
       timeout: 45000,
     });
+    if (!blocked) {
+      const windowControls = page.locator("[data-window-controls]");
+      await windowControls.getByRole("button", { name: "最大化" }).click();
+      await windowControls.getByRole("button", { name: "还原" }).waitFor({
+        state: "visible",
+        timeout: 5000,
+      });
+      await windowControls.getByRole("button", { name: "还原" }).click();
+      await windowControls.getByRole("button", { name: "最大化" }).waitFor({
+        state: "visible",
+        timeout: 5000,
+      });
+      const dragRegion = page.locator("[data-tauri-drag-region]");
+      const dragBox = await dragRegion.boundingBox();
+      assert(dragBox, "titlebar drag region is missing");
+      await page.mouse.move(dragBox.x + 40, dragBox.y + dragBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(dragBox.x + 120, dragBox.y + dragBox.height / 2, { steps: 3 });
+      await page.mouse.up();
+      await windowControls.getByRole("button", { name: "最小化" }).click();
+      assert.equal(
+        await windowControls.count(),
+        1,
+        "window controls disappeared after minimize",
+      );
+      console.log("PASS real Windows titlebar maximize/restore/minimize controls");
+    }
     const publicImage = page
       .getByAltText(metadata.publicAlt, { exact: true })
       .first();

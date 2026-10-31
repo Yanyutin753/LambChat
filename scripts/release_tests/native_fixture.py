@@ -38,9 +38,11 @@ def main():
     data = json.loads(state.read_text())
     if data and not data.get("token"):
         data["token"] = images.pod_python(
-            'from src.infra.auth.jwt import create_access_token\nimport json\nprint(json.dumps({"token":create_access_token('
+            "import asyncio,json\nfrom src.infra.auth.jwt import create_access_token\nfrom src.infra.user.storage import UserStorage\nasync def main():\n u=await UserStorage().get_by_id("
             + repr(images.common.UID)
-            + ")}))"
+            + ')\n print(json.dumps({"token":create_access_token('
+            + repr(images.common.UID)
+            + ",auth_version=u.auth_version)}))\nasyncio.run(main())"
         )["token"]
     images.CLEANUP.update(data)
     if data:

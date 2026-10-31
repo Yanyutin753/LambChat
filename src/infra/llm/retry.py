@@ -88,6 +88,30 @@ def _is_provider_retryable_error(exc: BaseException) -> bool:
     return False
 
 
+def _error_status(exc: BaseException | None) -> int | None:
+    """Extract the first plausible HTTP status from an exception chain."""
+    if exc is None:
+        return None
+    for current in _exception_chain(exc):
+        candidate = (
+            getattr(current, "status_code", None)
+            or getattr(getattr(current, "response", None), "status_code", None)
+            or getattr(current, "code", None)
+        )
+        if type(candidate) is int and 100 <= candidate <= 599:
+            return candidate
+    return None
+
+
+def is_rate_limit_model_error(exc: BaseException) -> bool:
+    """Return whether an LLM failure is a 429 rate limit.
+
+    Rate-limit windows rarely clear within the retry backoff horizon, so droppable
+    auxiliary features use this to skip retries instead of burning quota.
+    """
+    return _error_status(exc) == 429
+
+
 def is_retryable_model_error(exc: BaseException) -> bool:
     """Return whether an LLM failure is transient and safe to retry."""
     for current in _exception_chain(exc):
@@ -156,13 +180,79 @@ def is_auth_model_error(exc: BaseException) -> bool:
     return False
 
 
+_CONTENT_MODERATION_MARKERS = (
+    "content exists risk",  # DeepSeek 风控拒绝
+    "content filter",
+    "content_policy_violation",
+    "content management policy",
+)
+
+
+def content_moderation_message(exc: BaseException) -> str | None:
+    """Classify upstream content-moderation rejections and return a user-facing message.
+
+    这类 4xx 是对请求内容本身的终审判决:换通道重试没有意义,而上游原始 JSON
+    (含 request_id 与内部错误结构)不应透传给用户。命中标记返回固定文案,
+    否则返回 None 由调用方保持原有行为。
+    """
+    if _error_status(exc) not in (400, 403):
+        return None
+    for current in _exception_chain(exc):
+        text = str(current).lower()
+        if any(marker in text for marker in _CONTENT_MODERATION_MARKERS):
+            return (
+                "The message was blocked by the model provider's safety policy. "
+                "Please rephrase it or switch to another model and try again."
+            )
+    return None
+
+
+def _unwrap_model(model: Any) -> Any:
+    """Follow wrapper layers (binding/sequence/parallel) down to the underlying chat model.
+
+    ``with_structured_output`` 返回 RunnableSequence/RunnableParallel,模型元数据
+    (名称/provider/协议/quota 标注)在包装层上不可见,失败日志会整体退化为
+    ``model=unknown provider=unknown``(issue #1123)。
+    """
+    from langchain_core.runnables import RunnableParallel, RunnableSequence
+
+    for _ in range(4):
+        bound = getattr(model, "bound", None)
+        if bound is not None:
+            model = bound
+            continue
+        if isinstance(model, RunnableSequence):
+            model = model.first
+            continue
+        if isinstance(model, RunnableParallel):
+            branches = getattr(model, "steps__", None)
+            if isinstance(branches, dict) and branches:
+                model = next(iter(branches.values()))
+                continue
+        break
+    return model
+
+
+def model_failure_reason(exc: BaseException | None) -> str:
+    """Classify a model failure into a bounded reason label."""
+    if exc is None:
+        return "invalid_output"
+    if is_auth_model_error(exc):
+        return "auth"
+    if _error_status(exc) == 429:
+        return "rate_limit"
+    if is_retryable_model_error(exc):
+        return "transient"
+    return "error"
+
+
 class EmptyModelResponseError(RuntimeError):
     """A completed model call returned no final answer or tool calls."""
 
 
 def model_failure_context(model: Any, exc: BaseException | None = None) -> str:
     """Bounded diagnostic labels; never serialize clients, URLs or upstream error bodies."""
-    model = getattr(model, "bound", model)
+    model = _unwrap_model(model)
 
     def label(value: Any) -> str:
         if (
@@ -173,28 +263,8 @@ def model_failure_context(model: Any, exc: BaseException | None = None) -> str:
             return value
         return "unknown"
 
-    status = None
-    if exc is not None:
-        for current in _exception_chain(exc):
-            candidate = (
-                getattr(current, "status_code", None)
-                or getattr(getattr(current, "response", None), "status_code", None)
-                or getattr(current, "code", None)
-            )
-            if type(candidate) is int and 100 <= candidate <= 599:
-                status = candidate
-                break
-    reason = (
-        "invalid_output"
-        if exc is None
-        else "auth"
-        if is_auth_model_error(exc)
-        else "rate_limit"
-        if status == 429
-        else "transient"
-        if is_retryable_model_error(exc)
-        else "error"
-    )
+    status = _error_status(exc)
+    reason = model_failure_reason(exc)
     fields = {
         "model": model
         if isinstance(model, str)

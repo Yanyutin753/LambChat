@@ -114,11 +114,11 @@ from src.infra.storage.s3.service import get_or_init_storage
 from src.infra.agent.events.binary_uploads import _upload_private_screenshot
 async def main():
  users=UserStorage(); owner=await users.get_by_id(OWNER);assert owner and owner.is_active
- other=await users.collection.find_one({"_id":{"$ne":ObjectId(OWNER)},"is_active":True},{"_id":1});assert other
+ other=await users.collection.find_one({"_id":{"$ne":ObjectId(OWNER)},"is_active":True},{"_id":1,"auth_version":1});assert other
  await SessionStorage().create(SessionCreate(name=PREFIX+MARKER,metadata={"agent_id":"quick"}),OWNER,session_id=SESSION)
  raw=base64.b64decode(PNG);storage=await get_or_init_storage()
  capture=await _upload_private_screenshot(storage,io.BytesIO(raw),"image-regression-private.png","image/png",len(raw),OWNER,SESSION)
- print(json.dumps({"token":create_access_token(OWNER,expires_delta=timedelta(minutes=15)),"other_token":create_access_token(str(other["_id"]),expires_delta=timedelta(minutes=2)),"private_key":capture.key}))
+ print(json.dumps({"token":create_access_token(OWNER,expires_delta=timedelta(minutes=15),auth_version=owner.auth_version),"other_token":create_access_token(str(other["_id"]),expires_delta=timedelta(minutes=2),auth_version=other.get("auth_version")),"private_key":capture.key}))
 asyncio.run(main())
 """.replace("PREFIX", repr(session_prefix))
         .replace("OWNER", repr(common.UID))
@@ -154,7 +154,11 @@ asyncio.run(main())
         (2, "?thumb=1", "缩略图"),
         (3, "?cover=1", "封面"),
     ]:
-        status, headers, _ = request("GET", public_url + flags)
+        anonymous_status, _, _ = request("GET", public_url + flags)
+        assert anonymous_status == 404, (
+            f"{label} anonymous URL must be denied, got {anonymous_status}"
+        )
+        status, headers, _ = request("GET", public_url + flags, token)
         assert status == 302, f"{label} direct URL must redirect to storage, got {status}"
         signed = headers["location"]
         parsed = urllib.parse.urlsplit(signed)
@@ -165,7 +169,7 @@ asyncio.run(main())
             f"{label} storage response invalid"
         )
         proxy_url = public_url + (flags + "&proxy=true" if flags else "?proxy=true")
-        status, proxy_headers, proxied = request("GET", proxy_url)
+        status, proxy_headers, proxied = request("GET", proxy_url, token)
         assert status == 200 and "location" not in proxy_headers, (
             f"{label} proxy must stream bytes, got {status}"
         )
