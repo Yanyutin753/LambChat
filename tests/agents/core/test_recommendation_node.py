@@ -939,7 +939,9 @@ async def test_rate_limited_recommendations_keep_local_fallback_and_redact_failu
         questions = await generate_recommend_questions("How do I get started?")
 
     assert questions == build_recommend_questions("How do I get started?")
-    assert model.ainvoke.await_count == 2
+    # issue #1123:推荐问题是可牺牲的增强,429 限流直接跳过本轮(不重试、不烧配额),
+    # 只调一次后落本地启发式;失败日志仍需带 model/reason 且脱敏。
+    assert model.ainvoke.await_count == 1
     assert "model=claude-title" in caplog.text
     assert "reason=rate_limit" in caplog.text
     for secret in ("private.invalid", "query-secret", "body-secret", "account-secret"):

@@ -779,6 +779,13 @@ class ErrorCode(Enum):
         "The model exhausted its output limit before returning an answer. Review the progress or use another model.",
     )
 
+    MODEL_CONTENT_BLOCKED = (
+        "model_content_blocked",
+        400,
+        "The message was blocked by the model provider's safety policy. "
+        "Please rephrase it or switch to another model and try again.",
+    )
+
     # ---------- team：团队 ----------
     TEAM_NOT_FOUND = ("team_not_found", 404, "Team not found")
     TEAM_MEMBER_MODEL_UNAVAILABLE = (
