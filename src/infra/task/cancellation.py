@@ -31,9 +31,26 @@ _interrupted_runs: Dict[str, float] = {}
 # 清理参数
 _INTERRUPT_MAX_AGE = 600  # 10 分钟
 _INTERRUPT_CLEANUP_INTERVAL = 1000  # 每 1000 次检查触发一次清理
+_INTERRUPT_WRITE_CLEANUP_INTERVAL = 60.0  # 写路径至少间隔 60s 触发一次清理
 _GRACEFUL_CANCEL_TIMEOUT = 2.0
 _AGENT_CLOSE_CANCEL_TIMEOUT = 2.0
 _interrupt_check_counter = 0
+_last_write_cleanup_ts = 0.0
+
+
+def _maybe_cleanup_stale_interrupts() -> None:
+    """写路径顺带清理过期中断条目(issue #1139)。
+
+    ``check_interrupt_fast`` 里的计数清理只在「执行 run 的进程」里触发;纯 API
+    副本也会经 cancel/pubsub 写入条目,却永远等不到清理调用,导致该字典只增
+    不减。任何写入方都以 60s 节流顺带修剪,保证所有进程都有清理触发点。
+    """
+    global _last_write_cleanup_ts
+    now = time.monotonic()
+    if now - _last_write_cleanup_ts < _INTERRUPT_WRITE_CLEANUP_INTERVAL:
+        return
+    _last_write_cleanup_ts = now
+    _cleanup_stale_interrupts()
 
 
 async def _cancel_payload_json_dumps(payload: dict[str, Any]) -> str:
@@ -100,6 +117,7 @@ class TaskCancellation:
 
         # 1. 立即设置内存中的中断标志（最快）
         _interrupted_runs[run_id] = time.time()
+        _maybe_cleanup_stale_interrupts()
         logger.info(f"Memory interrupt flag set for run_id={run_id}")
 
         # 2. 设置 Redis 中断信号（用于分布式场景）
@@ -294,6 +312,7 @@ class TaskCancellation:
         系统中断而吞掉终态事件。
         """
         _interrupted_runs[run_id] = time.time()
+        _maybe_cleanup_stale_interrupts()
 
     @staticmethod
     async def check_interrupt(run_id: str) -> None:
