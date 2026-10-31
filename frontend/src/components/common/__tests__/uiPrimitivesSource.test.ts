@@ -231,7 +231,7 @@ test("diagram viewers share blob download behavior", () => {
   assertExports(commonIndex, "downloadBlob");
   expect(helper).toMatch(/export function downloadBlob/);
   expect(helper).toMatch(/URL\.createObjectURL\(blob\)/);
-  expect(helper).toMatch(/downloadUrl\(url, fileName\)/);
+  expect(helper).toMatch(/triggerBrowserDownload\(url, fileName\)/);
   expect(helper).toMatch(/URL\.revokeObjectURL\(url\)/);
   assertExports(commonIndex, "ViewerDropdownMenuItem");
   expect(menuItem).toMatch(
