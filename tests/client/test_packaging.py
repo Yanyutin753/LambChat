@@ -214,7 +214,7 @@ def test_release_workflow_matrix_covers_three_platforms() -> None:
         "macOS Apple Silicon",
         "macOS Intel",
     }
-    assert by_label["macOS Apple Silicon"]["runner"] == "macos-14"
+    assert by_label["macOS Apple Silicon"]["runner"] == "macos-15"
     assert by_label["macOS Intel"]["runner"] == "macos-15-intel"
     assert by_label["macOS Apple Silicon"]["target"] == "aarch64-apple-darwin"
     assert by_label["macOS Intel"]["target"] == "x86_64-apple-darwin"
