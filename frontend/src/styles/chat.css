@@ -1830,8 +1830,6 @@ html .composer-environment-panel button:hover {
 @container workspace (max-width: 40rem) {
   .composer-workspace-strip {
     gap: 0.5rem;
-    margin-inline: 0.5rem;
-    padding-left: 0.5rem;
   }
   .composer-workspace-strip :is(.chat-tool-btn, .ui-select-trigger) {
     min-height: 2.75rem;
