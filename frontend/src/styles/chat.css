@@ -213,6 +213,9 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   padding: 0.25rem 0.5rem 1rem 0.25rem;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   background: var(--theme-bg-subtle);
+  /* 白天模式下 subtle 与页面底色相近,加一条内嵌上缘线保证「本地电脑/工作
+     目录」条带始终有清晰边界(暗色下二者本就有别,该线不可见、无副作用)。 */
+  box-shadow: inset 0 1px 0 var(--theme-border-faint);
 }
 .composer-workspace-strip:empty {
   display: none;

@@ -121,3 +121,10 @@ test("settings panel group eyebrow matches profile serif eyebrow", () => {
     /text-12 font-semibold font-serif uppercase tracking-wider/,
   );
 });
+
+test("profile default-agent preference renders agent names with font-serif", () => {
+  const source = readComponent("profile/UserAgentPreferencePanel.tsx");
+  expect(source).toMatch(
+    /block text-14 font-medium font-serif text-theme-text/,
+  );
+});
