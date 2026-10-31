@@ -25,7 +25,7 @@ from src.kernel.config import settings
 from . import arq_payloads
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings, close_arq_pool
-from .cancellation import TaskCancellation
+from .cancellation import TaskCancellation, build_run_info_from_session
 from .exceptions import TaskInterruptedError
 from .executor import TaskExecutor
 from .heartbeat import TaskHeartbeat
@@ -700,8 +700,10 @@ class BackgroundTaskManager:
                         "run_id": None,
                         "message": "没有正在运行的任务",
                     }
-                run_info = await self._build_run_info_from_session(
+                run_info = await build_run_info_from_session(
+                    self._status_queries(),
                     session,
+                    self._run_info,
                     session_id=session_id,
                     run_id=str(run_id),
                     user_id=user_id,
@@ -726,31 +728,6 @@ class BackgroundTaskManager:
             "run_id": None,
             "message": "取消失败",
         }
-
-    async def _build_run_info_from_session(
-        self,
-        session: Any,
-        *,
-        session_id: str,
-        run_id: str,
-        user_id: Optional[str],
-    ) -> Dict[str, Any]:
-        metadata = getattr(session, "metadata", None) or {}
-        trace_id = metadata.get("trace_id") or await self._lookup_trace_id_for_run(run_id)
-        run_info: Dict[str, Any] = {
-            "session_id": session_id,
-            "trace_id": trace_id or "",
-            "agent_id": metadata.get("agent_id") or getattr(session, "agent_id", None),
-            "user_id": user_id or getattr(session, "user_id", None),
-        }
-        existing = self._run_info.get(run_id)
-        if existing:
-            run_info.update({key: value for key, value in existing.items() if value is not None})
-        self._run_info.setdefault(run_id, run_info)
-        return run_info
-
-    async def _lookup_trace_id_for_run(self, run_id: str) -> Optional[str]:
-        return await self._status_queries().lookup_trace_id_for_run(run_id)
 
     async def resume_session(
         self,

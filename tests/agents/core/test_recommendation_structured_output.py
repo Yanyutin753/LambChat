@@ -168,3 +168,37 @@ async def test_legacy_json_text_blocks_are_joined_without_reasoning():
         {"type": "text", "text": '"second?","third?"]}'},
     ]
     assert await _parse_questions(_extract_text(content)) == ["first?", "second?", "third?"]
+
+
+async def test_rate_limited_recommendation_skips_retry_storm(monkeypatch):
+    """429 限流窗口内推荐问题只试一次,直接落本地启发式(issue #1123)。"""
+
+    from src.agents.core.recommendations import build_recommend_questions
+
+    calls: list[str] = []
+
+    class Model:
+        _llm_type = "anthropic-chat"
+        model = "glm-5.3"
+
+        def with_structured_output(self, schema, *, method, include_raw):  # noqa: ANN001
+            async def invoke(_prompt):
+                calls.append(method)
+                raise httpx.HTTPStatusError(
+                    "Error code: 429 - rate limit exceeded",
+                    request=httpx.Request("POST", "https://unit.invalid"),
+                    response=httpx.Response(429),
+                )
+
+            return SimpleNamespace(ainvoke=invoke)
+
+    async def get_model(**kwargs):  # noqa: ANN003
+        return Model()
+
+    monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", get_model)
+    monkeypatch.setattr("src.agents.core.recommendations.settings.LLM_MAX_RETRIES", 6)
+
+    questions = await generate_recommend_questions("聊到一半该问什么?")
+
+    assert calls == ["json_schema"]
+    assert questions == build_recommend_questions("聊到一半该问什么?")

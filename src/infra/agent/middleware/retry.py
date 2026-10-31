@@ -26,10 +26,14 @@ from src.infra.agent.middleware.dead_attachment import (
 from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import (
     _is_output_limit_response,
+    content_moderation_message,
+    is_rate_limit_model_error,
     is_retryable_model_error,
     model_failure_context,
+    model_failure_reason,
 )
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import ExtendedModelResponse
@@ -233,7 +237,61 @@ class ModelFallbackMiddleware(AgentMiddleware):
                 self._fallback_model,
                 model_failure_context(fallback_llm, fallback_exc),
             )
+            replayed = await self._replay_primary_if_transient(request, handler, error)
+            if replayed is not None:
+                return replayed
+            # 全灭是可用性的最后防线,单独打点供巡检聚合成告警(issue #1140);
+            # 标签有界,不携带上游错误原文。
+            logger.error(
+                "[ModelFallback] fallback_exhausted reason=%s primary=%s fallback=%s",
+                model_failure_reason(error),
+                model_failure_context(request.model, error),
+                model_failure_context(fallback_llm, fallback_exc),
+            )
+            blocked = content_moderation_message(fallback_exc) or (
+                content_moderation_message(error) if error is not None else None
+            )
+            if blocked is not None:
+                # 内容风控是终审判决:上游原始 JSON(含 request_id/内部结构)
+                # 不透传给用户,映射为可行动的文案(issue #1140)。
+                raise AppError(ErrorCode.MODEL_CONTENT_BLOCKED) from fallback_exc
             raise
+
+    async def _replay_primary_if_transient(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+        error: BaseException | None,
+    ) -> ModelResponse[ResponseT] | None:
+        """主模型纯瞬时失败且 fallback 也失败时,退避后回切主模型重放一次。
+
+        双通道全灭首例(2026-10-30,issue #1140):主模型 zai 瞬时 500,fallback
+        撞上更严的内容风控 400 被终判——而主模型往往数秒内自愈。仅对纯瞬时
+        (5xx/网络/超时)回切;限流窗口内回切只会白白再烧一轮配额。
+        """
+        if error is None or not is_retryable_model_error(error) or is_rate_limit_model_error(error):
+            return None
+        delay = min(settings.LLM_RETRY_DELAY * 2, 10.0)
+        logger.warning(
+            "[ModelFallback] Both channels failed on a transient primary; "
+            "replaying primary once in %.1fs",
+            delay,
+        )
+        if delay > 0:
+            await asyncio.sleep(delay)
+        try:
+            response = await handler(request)
+        except Exception as replay_exc:
+            logger.error(
+                "[ModelFallback] Primary replay also failed: %s",
+                model_failure_context(request.model, replay_exc),
+            )
+            return None
+        if _response_is_invalid(response):
+            logger.error("[ModelFallback] Primary replay returned invalid content")
+            return None
+        logger.info("[ModelFallback] Primary replay recovered the request")
+        return response
 
     async def awrap_model_call(
         self,

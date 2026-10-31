@@ -18,7 +18,12 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 from src.agents.core.base import get_presenter
 from src.agents.core.subagent_prompts import RESPONSE_LANGUAGE_NAMES
 from src.infra.async_utils import run_long_blocking_io
-from src.infra.llm.retry import ainvoke_with_retry, model_failure_context
+from src.infra.llm.retry import (
+    ainvoke_with_retry,
+    is_rate_limit_model_error,
+    is_retryable_model_error,
+    model_failure_context,
+)
 from src.infra.llm.structured_output import (
     bind_structured_output,
     is_terminal_structured_response,
@@ -237,6 +242,15 @@ def _get_token_encoding() -> Any | None:
     except Exception:
         _token_encoding = None
     return _token_encoding
+
+
+def _retryable_except_rate_limit(exc: BaseException) -> bool:
+    """推荐问题遇到 429 直接跳过本轮(issue #1123)。
+
+    该特性是可牺牲的增强功能,失败后走本地启发式兜底;限流窗口内连发 6 次
+    重试既出不了结果,又白白消耗配额、刷重试告警。
+    """
+    return is_retryable_model_error(exc) and not is_rate_limit_model_error(exc)
 
 
 def count_recommend_prompt_tokens(prompt: str) -> int:
@@ -558,6 +572,7 @@ async def generate_recommend_questions(
                     bind_structured_output(model, RecommendedQuestions, method),
                     messages,
                     operation="recommend-questions",
+                    retry_if=_retryable_except_rate_limit,
                 )
             except Exception as exc:
                 if not is_unsupported_structured_output(exc):
