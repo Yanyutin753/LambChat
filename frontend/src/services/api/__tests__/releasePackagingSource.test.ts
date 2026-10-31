@@ -44,9 +44,10 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   // Linux 只发 deb/rpm（AppImage 停发，应用内走缓存+pkexec 自研链路）
   expect(workflow).toMatch(/bundles: deb,rpm/);
   expect(workflow).not.toMatch(/appimage/);
-  // macOS 双架构矩阵：两条目都在 macos-14（arm64 宿主）上构建，Intel 走
-  // rustup target 交叉编译 + daemon Rosetta 路径（矩阵变量而非字面量）
-  expect(workflow).toMatch(/runner: macos-14/);
+  // macOS 双架构矩阵：AS 走 macos-15（arm64 宿主；macos-14 已于 2026-11-02
+  // 退役），Intel 走 macos-15-intel + rustup target 交叉编译 + daemon Rosetta
+  // 路径（矩阵变量而非字面量）
+  expect(workflow).toMatch(/runner: macos-15\n/);
   expect(workflow).toMatch(/target: aarch64-apple-darwin/);
   expect(workflow).toMatch(/target: x86_64-apple-darwin/);
   expect(workflow).toMatch(/rustup target add \$\{\{ matrix\.target \}\}/);
