@@ -2,7 +2,10 @@ import i18n from "i18next";
 import toast from "react-hot-toast";
 import { isShellAvailable } from "../../services/tauri/sandboxShell";
 import { saveDesktopFile } from "../../services/tauri/saveFile";
-import { getOwnUploadFileUrl } from "../../services/api/uploadFileUrl";
+import {
+  getOwnUploadFileUrl,
+  resolveUploadFileUrl,
+} from "../../services/api/uploadFileUrl";
 import {
   buildUploadProxyUrl,
   isNativeAppRuntime,
@@ -36,31 +39,69 @@ async function saveMobileFile(blob: Blob, fileName: string): Promise<void> {
   window.open(written.uri, "_blank", "noopener,noreferrer");
 }
 
-export function downloadUrl(url: string, fileName?: string): Promise<void> {
-  if (getOwnUploadFileUrl(url) || isShellAvailable()) {
-    return fetchUploadFile(
-      buildUploadProxyUrl(url, undefined, { force: true }) || url,
-    )
-      .then(async (response) => {
-        const name =
-          fileName ||
-          decodeURIComponent(
-            new URL(response.url || url, window.location.href).pathname
-              .split("/")
-              .pop() || "download",
-          );
-        await downloadBlob(await response.blob(), name);
-      })
-      .catch(() => {
-        toast.error(i18n.t("chat.message.downloadFailed"));
-      });
+function fileNameFromUrl(url: string): string {
+  try {
+    return (
+      decodeURIComponent(
+        new URL(url, window.location.href).pathname.split("/").pop() || "",
+      ) || "download"
+    );
+  } catch {
+    return "download";
   }
+}
+
+function triggerBrowserDownload(url: string, fileName?: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName ?? "";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+}
+
+/**
+ * Prefetch the whole file and save it through the shell dialog or a blob
+ * anchor. Native shells need this: their webview origin differs from the
+ * real server, so a signed URL is cross-origin there and the `download`
+ * attribute would be ignored (the webview would navigate instead).
+ */
+function downloadViaPrefetch(url: string, fileName?: string): Promise<void> {
+  return fetchUploadFile(
+    buildUploadProxyUrl(url, undefined, { force: true }) || url,
+  )
+    .then(async (response) => {
+      const name = fileName || fileNameFromUrl(response.url || url);
+      await downloadBlob(await response.blob(), name);
+    })
+    .catch(() => {
+      toast.error(i18n.t("chat.message.downloadFailed"));
+    });
+}
+
+export function downloadUrl(url: string, fileName?: string): Promise<void> {
+  if (isShellAvailable()) {
+    return downloadViaPrefetch(url, fileName);
+  }
+  if (getOwnUploadFileUrl(url)) {
+    if (isNativeAppRuntime()) {
+      return downloadViaPrefetch(url, fileName);
+    }
+    // Browser: hand the signed same-origin proxy URL straight to the native
+    // download so the prompt appears immediately instead of after a full
+    // in-memory prefetch. proxy=true keeps the final response same-origin,
+    // which the `download` attribute needs to override inline disposition.
+    return resolveUploadFileUrl(url)
+      .then((signed) => {
+        const target =
+          buildUploadProxyUrl(signed, undefined, { force: true }) || signed;
+        triggerBrowserDownload(target, fileName || fileNameFromUrl(signed));
+      })
+      .catch(() => {
+        toast.error(i18n.t("chat.message.downloadFailed"));
+      });
+  }
+  triggerBrowserDownload(url, fileName);
   return Promise.resolve();
 }
 
@@ -78,7 +119,7 @@ export function downloadBlob(blob: Blob, fileName: string): Promise<void> {
     });
   }
   const url = URL.createObjectURL(blob);
-  downloadUrl(url, fileName);
+  triggerBrowserDownload(url, fileName);
   // Browsers may consume the download after the click handler returns.
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return Promise.resolve();

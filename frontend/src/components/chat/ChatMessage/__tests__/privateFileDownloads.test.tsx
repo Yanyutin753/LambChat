@@ -129,18 +129,38 @@ test.each(["summary", "project", "preview", "key-only preview"])(
           : `documents.downloadFile: ${name}`,
       }),
     );
-    await waitFor(() =>
-      expect(saved).toEqual([{ href: "blob:download", name, connected: true }]),
-    );
+    if (kind.includes("preview")) {
+      // Preview panes still materialize the bytes themselves.
+      await waitFor(() =>
+        expect(saved).toEqual([
+          { href: "blob:download", name, connected: true },
+        ]),
+      );
+      const fetched = new URL(
+        String(fetchFile.mock.calls[0][0]),
+        window.location.origin,
+      );
+      expect(fetched.searchParams.get("file_token")).toBe("capability");
+      expect(fetched.searchParams.get("proxy")).toBe("true");
+      expect(blobs[0].size).toBe(new Blob(["complete original file"]).size);
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    } else {
+      // Chat cards hand the authenticated same-origin URL straight to the
+      // browser's native download; the browser streams the bytes itself.
+      await waitFor(() => expect(saved).toHaveLength(1));
+      const target = new URL(saved[0].href, window.location.origin);
+      expect(target.pathname).toBe(url);
+      expect(target.searchParams.get("file_token")).toBe("capability");
+      expect(target.searchParams.get("proxy")).toBe("true");
+      expect(saved[0]).toEqual({
+        href: saved[0].href,
+        name,
+        connected: true,
+      });
+      expect(fetchFile).not.toHaveBeenCalled();
+      expect(blobs).toEqual([]);
+    }
     expect(authenticatedRequest).toHaveBeenCalledOnce();
-    const fetched = new URL(
-      String(fetchFile.mock.calls[0][0]),
-      window.location.origin,
-    );
-    expect(fetched.searchParams.get("file_token")).toBe("capability");
-    expect(fetched.searchParams.get("proxy")).toBe("true");
-    expect(blobs[0].size).toBe(new Blob(["complete original file"]).size);
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
   },
 );
 
