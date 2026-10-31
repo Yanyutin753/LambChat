@@ -7,7 +7,6 @@ Background Task Manager - 后台任务管理器
 """
 
 import asyncio
-import time
 from collections.abc import Awaitable
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -26,7 +25,7 @@ from src.kernel.config import settings
 from . import arq_payloads
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings, close_arq_pool
-from .cancellation import TaskCancellation
+from .cancellation import TaskCancellation, build_run_info_from_session
 from .exceptions import TaskInterruptedError
 from .executor import TaskExecutor
 from .heartbeat import TaskHeartbeat
@@ -47,13 +46,6 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
-
-# cancel 路径 run_info 条目的过期参数(issue #1139):
-# cancel() 在「不执行该 run 的副本」上也会 setdefault,本地完成回调永远不
-# 会 pop 这些条目;标记 + 过期修剪保证注册表回到有界。
-_CANCEL_PROBE_MAX_AGE = 600.0  # 秒,与中断标志的过期窗对齐
-_CANCEL_PROBE_PRUNE_INTERVAL = 60.0  # 写路径至少间隔 60s 修剪一次
-_last_cancel_probe_prune = 0.0
 
 
 def _generate_run_id() -> str:
@@ -708,8 +700,10 @@ class BackgroundTaskManager:
                         "run_id": None,
                         "message": "没有正在运行的任务",
                     }
-                run_info = await self._build_run_info_from_session(
+                run_info = await build_run_info_from_session(
+                    self._status_queries(),
                     session,
+                    self._run_info,
                     session_id=session_id,
                     run_id=str(run_id),
                     user_id=user_id,
@@ -734,67 +728,6 @@ class BackgroundTaskManager:
             "run_id": None,
             "message": "取消失败",
         }
-
-    def _prune_cancel_probe_run_info(self) -> None:
-        """修剪 cancel 路径在非执行副本上留下的过期 run_info 条目(issue #1139)。
-
-        只动带 ``_cancel_probe`` 标记的条目:本地提交/执行路径写入的条目没有
-        标记,由各自的完成回调负责清理,这里绝不误删正在运行的 run。
-        """
-        global _last_cancel_probe_prune
-        now = time.monotonic()
-        if now - _last_cancel_probe_prune < _CANCEL_PROBE_PRUNE_INTERVAL:
-            return
-        _last_cancel_probe_prune = now
-        expired = [
-            run_id
-            for run_id, info in self._run_info.items()
-            if info.get("_cancel_probe")
-            and now - float(info.get("_cancel_probe_ts", 0.0)) > _CANCEL_PROBE_MAX_AGE
-        ]
-        for run_id in expired:
-            self._run_info.pop(run_id, None)
-        if expired:
-            logger.info(
-                f"Pruned {len(expired)} stale cancel-probe run_info entries; "
-                f"size={len(self._run_info)}"
-            )
-
-    async def _build_run_info_from_session(
-        self,
-        session: Any,
-        *,
-        session_id: str,
-        run_id: str,
-        user_id: Optional[str],
-    ) -> Dict[str, Any]:
-        self._prune_cancel_probe_run_info()
-        metadata = getattr(session, "metadata", None) or {}
-        trace_id = metadata.get("trace_id") or await self._lookup_trace_id_for_run(run_id)
-        run_info: Dict[str, Any] = {
-            "session_id": session_id,
-            "trace_id": trace_id or "",
-            "agent_id": metadata.get("agent_id") or getattr(session, "agent_id", None),
-            "user_id": user_id or getattr(session, "user_id", None),
-        }
-        existing = self._run_info.get(run_id)
-        if existing:
-            run_info.update(
-                {
-                    key: value
-                    for key, value in existing.items()
-                    if value is not None and not key.startswith("_cancel_probe")
-                }
-            )
-        if run_id not in self._run_info:
-            stored = dict(run_info)
-            stored["_cancel_probe"] = True
-            stored["_cancel_probe_ts"] = time.monotonic()
-            self._run_info[run_id] = stored
-        return run_info
-
-    async def _lookup_trace_id_for_run(self, run_id: str) -> Optional[str]:
-        return await self._status_queries().lookup_trace_id_for_run(run_id)
 
     async def resume_session(
         self,

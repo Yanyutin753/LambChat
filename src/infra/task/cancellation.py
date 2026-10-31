@@ -53,6 +53,86 @@ def _maybe_cleanup_stale_interrupts() -> None:
     _cleanup_stale_interrupts()
 
 
+# cancel 路径 run_info 探针条目(issue #1139):cancel() 在不执行该 run 的副本上
+# 写入的注册表条目没有本地完成回调,必须自带过期修剪才能有界。
+CANCEL_PROBE_KEY = "_cancel_probe"
+CANCEL_PROBE_TS_KEY = "_cancel_probe_ts"
+_CANCEL_PROBE_MAX_AGE = 600.0  # 秒,与中断标志的过期窗对齐
+_CANCEL_PROBE_PRUNE_INTERVAL = 60.0
+_last_cancel_probe_prune = 0.0
+
+
+def mark_cancel_probe(run_info: Dict[str, Any]) -> Dict[str, Any]:
+    """返回带取消探针标记的存储副本;标记键不流入 cancel 流程的返回值。"""
+    stored = dict(run_info)
+    stored[CANCEL_PROBE_KEY] = True
+    stored[CANCEL_PROBE_TS_KEY] = time.monotonic()
+    return stored
+
+
+def prune_cancel_probe_run_info(run_info_registry: Dict[str, Dict[str, Any]]) -> None:
+    """修剪 cancel 路径留下的过期 run_info 条目(60s 节流)。
+
+    只动带 ``CANCEL_PROBE_KEY`` 标记的条目:本地提交/执行路径写入的条目没有
+    标记,由各自的完成回调负责清理,这里绝不误删正在运行的 run。
+    """
+    global _last_cancel_probe_prune
+    now = time.monotonic()
+    if now - _last_cancel_probe_prune < _CANCEL_PROBE_PRUNE_INTERVAL:
+        return
+    _last_cancel_probe_prune = now
+    expired = [
+        run_id
+        for run_id, info in run_info_registry.items()
+        if info.get(CANCEL_PROBE_KEY)
+        and now - float(info.get(CANCEL_PROBE_TS_KEY, 0.0)) > _CANCEL_PROBE_MAX_AGE
+    ]
+    for run_id in expired:
+        run_info_registry.pop(run_id, None)
+    if expired:
+        logger.info(
+            f"Pruned {len(expired)} stale cancel-probe run_info entries; "
+            f"size={len(run_info_registry)}"
+        )
+
+
+async def build_run_info_from_session(
+    status_queries: Any,
+    session: Any,
+    run_info_registry: Dict[str, Dict[str, Any]],
+    *,
+    session_id: str,
+    run_id: str,
+    user_id: str | None,
+) -> Dict[str, Any]:
+    """从会话记录构建 cancel 所需的 run_info,并维护注册表有界性(issue #1139)。
+
+    该函数运行在「收到取消请求的副本」上,run 可能执行在别处:注册表条目带
+    取消探针标记并在此顺带修剪,返回值本身不含内部标记键。
+    """
+    prune_cancel_probe_run_info(run_info_registry)
+    metadata = getattr(session, "metadata", None) or {}
+    trace_id = metadata.get("trace_id") or await status_queries.lookup_trace_id_for_run(run_id)
+    run_info: Dict[str, Any] = {
+        "session_id": session_id,
+        "trace_id": trace_id or "",
+        "agent_id": metadata.get("agent_id") or getattr(session, "agent_id", None),
+        "user_id": user_id or getattr(session, "user_id", None),
+    }
+    existing = run_info_registry.get(run_id)
+    if existing:
+        run_info.update(
+            {
+                key: value
+                for key, value in existing.items()
+                if value is not None and not key.startswith("_")
+            }
+        )
+    if run_id not in run_info_registry:
+        run_info_registry[run_id] = mark_cancel_probe(run_info)
+    return run_info
+
+
 async def _cancel_payload_json_dumps(payload: dict[str, Any]) -> str:
     return await run_blocking_io(json.dumps, payload)
 
