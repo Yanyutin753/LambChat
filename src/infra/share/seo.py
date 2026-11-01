@@ -342,8 +342,12 @@ def build_shared_page_seo(
         description = DEFAULT_SHARE_DESCRIPTION
 
     summary = description
-    if summary == DEFAULT_SHARE_DESCRIPTION and _normalize_text(session.get("agent_name")):
-        summary = f"{summary} Agent: {_normalize_text(session.get('agent_name'))}."
+    agent_meta = session.get("agent_meta") or {}
+    agent_label = _normalize_text(
+        agent_meta.get("name") or session.get("agent_name")
+    )
+    if summary == DEFAULT_SHARE_DESCRIPTION and agent_label:
+        summary = f"{summary} Agent: {agent_label}."
 
     robots = "index, follow, max-image-preview:large" if indexable else DEFAULT_SHARE_ROBOTS
     canonical_url = f"{base_url.rstrip('/')}/shared/{share_id}"

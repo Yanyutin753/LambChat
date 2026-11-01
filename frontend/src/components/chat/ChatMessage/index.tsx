@@ -49,6 +49,8 @@ import { ShareButton } from "./ShareButton";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
+import { resolveAssistantIdentityDisplay } from "../../agent/agentCatalog";
+import { useAgentDisplayCatalog } from "../../agent/agentDisplayCatalog";
 import { shouldCloseTokenDetailsPopover } from "./tokenDetailsPopoverGuards";
 import { resolveTokenUsageModelDetails } from "./tokenUsageModel";
 import {
@@ -662,6 +664,7 @@ export const ChatMessage = memo(function ChatMessage({
   const { availableModels } = useSettingsContext();
   const { isAuthenticated } = useAuth();
   const fxRates = useFxRates();
+  const displayAgents = useAgentDisplayCatalog();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
   const [isForking, setIsForking] = useState(false);
@@ -670,6 +673,14 @@ export const ChatMessage = memo(function ChatMessage({
     model: message.tokenUsage?.model,
     availableModels,
   });
+  // 普通 agent 的名称/头像跟随当前目录解析，历史消息不再被 run 提交时的
+  // 快照旧名锁死；persona/团队身份仍用快照
+  const identityDisplay = resolveAssistantIdentityDisplay(
+    message.assistantIdentity,
+    displayAgents,
+    i18n.language,
+    t,
+  );
 
   // If there are parts, render in order; otherwise fall back to old rendering method
   const hasParts = message.parts && message.parts.length > 0;
@@ -829,31 +840,15 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="chat-assistant-heading mb-2 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
-              personaAvatar={
-                message.assistantIdentity
-                  ? message.assistantIdentity.avatar
-                  : personaAvatar
-              }
-              personaName={
-                message.assistantIdentity
-                  ? message.assistantIdentity.name
-                  : personaName
-              }
-              personaSeed={message.assistantIdentity?.seed ?? personaSeed}
+              personaAvatar={identityDisplay.avatar ?? personaAvatar}
+              personaName={identityDisplay.name ?? personaName}
+              personaSeed={identityDisplay.seed ?? personaSeed}
             />
             <span
               className="min-w-0 truncate text-16 sm:text-18 lg:text-20 leading-normal font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
-              {message.assistantIdentity?.name
-                ? t(message.assistantIdentity.name, {
-                    defaultValue: message.assistantIdentity.name.startsWith(
-                      "agents.",
-                    )
-                      ? t("chat.message.assistant")
-                      : message.assistantIdentity.name,
-                  })
-                : personaName || t("chat.message.assistant")}
+              {identityDisplay.name || personaName || t("chat.message.assistant")}
             </span>
           </div>
 

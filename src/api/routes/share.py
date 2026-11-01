@@ -176,12 +176,18 @@ def _shared_agent_metadata(agent_id: str, catalog: AgentCatalogConfig | None = N
     except AppError as exc:
         if exc.error_code != ErrorCode.AGENT_NOT_REGISTERED:
             raise
+    # 展示详情统一收进 agent_meta 字典，后续扩展只加键，不再加顶层字段
     return {
         "agent_id": agent_id,
-        "agent_name": catalog.name if catalog else agent_name,
-        "agent_labels": {locale: {"name": label.name} for locale, label in catalog.labels.items()}
-        if catalog
-        else {},
+        "agent_meta": {
+            "id": agent_id,
+            "name": catalog.name if catalog else agent_name,
+            "labels": {locale: {"name": label.name} for locale, label in catalog.labels.items()}
+            if catalog
+            else {},
+            # 公开分享页拉不到 agent 目录接口，头像随会话下发才能和站内一致
+            "icon": catalog.icon if catalog else None,
+        },
     }
 
 

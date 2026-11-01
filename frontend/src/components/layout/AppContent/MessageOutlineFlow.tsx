@@ -23,6 +23,9 @@ import {
 import { useAuth } from "../../../hooks/useAuth";
 import { getFullUrl } from "../../../services/api";
 import { AssistantAvatar } from "../../chat/ChatMessage/AssistantAvatar";
+import { findPlainAgentEntry } from "../../agent/agentCatalog";
+import { useAgentDisplayCatalog } from "../../agent/agentDisplayCatalog";
+import type { AgentInfo } from "../../../types";
 import "./outlineFlow.css";
 
 // ---- custom node ----
@@ -171,6 +174,7 @@ function buildFlowData(
   activeId: string | null,
   avatarUrl: string | undefined,
   username: string,
+  agents: readonly AgentInfo[],
 ) {
   const flowItems = items.filter(
     (item) => item.kind === "user-message" || item.kind === "assistant-message",
@@ -188,9 +192,11 @@ function buildFlowData(
       isActive: activeId === item.anchorId,
       avatarUrl,
       username,
+      // 普通 agent 头像跟当前目录（与消息头部一致），其余用 run 快照
       personaAvatar:
         item.kind === "assistant-message"
-          ? item.assistantIdentity?.avatar
+          ? findPlainAgentEntry(item.assistantIdentity, agents)?.icon ??
+            item.assistantIdentity?.avatar
           : null,
       personaSeed:
         item.kind === "assistant-message" ? item.assistantIdentity?.seed : null,
@@ -228,6 +234,7 @@ function OutlineFlowInner({
   const { user } = useAuth();
   const { t } = useTranslation();
   const { fitView, setViewport } = useReactFlow();
+  const agents = useAgentDisplayCatalog();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(400);
 
@@ -241,8 +248,8 @@ function OutlineFlowInner({
   );
 
   const { nodes, edges } = useMemo(
-    () => buildFlowData(items, flowActiveId, avatarUrl, username),
-    [items, flowActiveId, avatarUrl, username],
+    () => buildFlowData(items, flowActiveId, avatarUrl, username, agents),
+    [items, flowActiveId, avatarUrl, username, agents],
   );
 
   // track container size for responsive zoom

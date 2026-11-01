@@ -82,3 +82,61 @@ export function resolveAgentReferenceName(
   if (agent) return resolveAgentDisplayName(agent, locale, t);
   return agentId ? t(`agents.${agentId}.name`, name || agentId) : name;
 }
+
+export const BUILT_IN_AGENT_IDS: readonly string[] = Object.keys(en.agents);
+
+type AssistantIdentityLike = {
+  seed?: string | null;
+  name?: string | null;
+  avatar?: string | null;
+};
+
+/**
+ * 判定 run 身份是否指向普通 agent（seed 是 agent id 或旧快照名是
+ * `agents.<id>.name` 形态）。persona（seed=preset_id）与团队（seed=队名）
+ * 的身份按 run 冻结，不在此列。
+ */
+export function findPlainAgentEntry(
+  identity: AssistantIdentityLike | undefined,
+  agents: readonly AgentInfo[],
+): AgentInfo | undefined {
+  if (!identity) return undefined;
+  const seed = identity.seed?.trim() || "";
+  const bySeed = agents.find((item) => item.id === seed);
+  if (bySeed) return bySeed;
+  const keyMatch = /^agents\.([a-z0-9_-]+)\.name$/i.exec(identity.name || "");
+  const agentId = keyMatch?.[1] || seed;
+  if (!BUILT_IN_AGENT_IDS.includes(agentId)) return undefined;
+  return (
+    agents.find((item) => item.id === agentId) ?? {
+      id: agentId,
+      name: `agents.${agentId}.name`,
+      description: "",
+      version: "",
+    }
+  );
+}
+
+/**
+ * 渲染时解析 assistant 身份的展示名与头像。普通 agent 跟随当前目录
+ * （含本地化标签与头像，管理端改名后新旧消息一致），其余身份沿用
+ * run 提交时的快照，避免历史消息名/头像与站内来回跳变。
+ */
+export function resolveAssistantIdentityDisplay(
+  identity: AssistantIdentityLike | undefined,
+  agents: readonly AgentInfo[],
+  locale: string | undefined,
+  t: Translate,
+): { name: string | null; avatar: string | null; seed: string } {
+  if (!identity) return { name: null, avatar: null, seed: "agent" };
+  const seed = identity.seed?.trim() || "agent";
+  const entry = findPlainAgentEntry(identity, agents);
+  if (entry) {
+    return {
+      name: resolveAgentDisplayName(entry, locale, t),
+      avatar: entry.icon ?? null,
+      seed,
+    };
+  }
+  return { name: identity.name ?? null, avatar: identity.avatar ?? null, seed };
+}

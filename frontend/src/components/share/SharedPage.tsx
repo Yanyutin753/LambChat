@@ -70,7 +70,9 @@ import { formatDate, formatDateTimeShort } from "../../utils/datetime";
 import { ModelIconImg } from "../agent/modelIcon.tsx";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
 import { AgentAvatar } from "../common/AgentAvatar";
-import { resolveAgentReferenceName } from "../agent/agentCatalog";
+import { resolveAgentDisplayName } from "../agent/agentCatalog";
+import { AgentDisplayCatalogProvider } from "../agent/agentDisplayCatalog";
+import { sharedAgentMetaToEntry } from "./sharedAgentMeta";
 
 const metadataClassName =
   "inline-flex min-w-0 max-w-full items-center gap-1.5 text-12 text-theme-text-secondary [overflow-wrap:anywhere] [&>svg]:shrink-0";
@@ -87,15 +89,13 @@ export function SharedPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
-  const agentName = data
-    ? resolveAgentReferenceName(
-        data.session.agent_id,
-        data.session.agent_name || "",
-        [],
-        i18n.language,
-        t,
-        data.session.agent_labels,
-      )
+  // agent_meta 字典 → 目录条目：页头与消息内名称/头像共用，展示一致
+  const sharedAgentEntry = sharedAgentMetaToEntry(
+    data?.session.agent_meta,
+    data?.session.agent_id,
+  );
+  const agentName = sharedAgentEntry
+    ? resolveAgentDisplayName(sharedAgentEntry, i18n.language, t)
     : "";
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -552,6 +552,7 @@ export function SharedPage({
 
       {/* Scrollable article area */}
       <main className="chat-view-content-region relative flex-1 overflow-x-hidden scroll-smooth">
+        <AgentDisplayCatalogProvider agents={sharedAgentEntry ? [sharedAgentEntry] : []}>
         <SessionImageGalleryProvider messages={messages}>
           <article className="w-full">
             {/* Editorial hero */}
@@ -720,6 +721,7 @@ export function SharedPage({
             )}
           </article>
         </SessionImageGalleryProvider>
+        </AgentDisplayCatalogProvider>
       </main>
 
       {/* Footer */}

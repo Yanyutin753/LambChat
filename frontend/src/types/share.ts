@@ -75,13 +75,20 @@ export interface SharedContentOwner {
   avatar_url?: string;
 }
 
+/** 分享接口随会话下发的 agent 展示详情（与后端 _shared_agent_metadata 的 agent_meta 同构）。 */
+export interface SharedAgentMeta {
+  id: string;
+  name?: string;
+  labels?: Record<string, Pick<AgentCatalogLocale, "name">>;
+  icon?: string | null;
+}
+
 export interface SharedContentResponse {
   session: {
     id: string;
     name?: string;
     agent_id: string;
-    agent_name?: string;
-    agent_labels?: Record<string, Pick<AgentCatalogLocale, "name">>;
+    agent_meta?: SharedAgentMeta;
     model?: string;
     created_at?: string;
     updated_at?: string;
@@ -108,8 +115,7 @@ export interface SharedProjectSessionItem {
   id: string;
   agent_id?: string;
   name?: string;
-  agent_name?: string;
-  agent_labels?: Record<string, Pick<AgentCatalogLocale, "name">>;
+  agent_meta?: SharedAgentMeta;
   model?: string;
   updated_at?: string;
   event_count?: number;
