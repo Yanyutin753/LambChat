@@ -7,8 +7,10 @@
   trafilatura 提取正文并转 Markdown（开源基准长期第一），纯文本原样透传；
 - ``jina``：r.jina.ai URL 前缀协议，返回 LLM 友好 Markdown——SPA/JS 渲染页
   direct 拿到空正文时的兜底；多 key 复用 ApiKeyPool 轮询 + 错误冷却；
-- ``auto``（默认）：direct → deepseek → tavily → firecrawl → exa → jina；
-  仅启用已配置的远程供应商，钉死供应商不回退。
+- ``anysearch``：AnySearch /v1/extract（与 web_search 共用 key 池），SPA/反爬
+  页的云端提取,排在 deepseek 之前；
+- ``auto``（默认）：direct → anysearch → deepseek → tavily → firecrawl → exa
+  → jina；仅启用已配置的远程供应商，钉死供应商不回退。
 
 SSRF 防护（安全底线，与 sandbox 确认门同级敏感）：
 - 仅 http/https scheme；DNS 解析后逐 IP 校验，拒绝环回/内网/链路本地/
@@ -47,6 +49,7 @@ JINA_READER_PREFIX = "https://r.jina.ai/"
 TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 FIRECRAWL_DEFAULT_BASE = "https://api.firecrawl.dev"
 DEEPSEEK_FETCH_URL = "https://api.deepseek.com/v1/tools/fetch"
+ANYSEARCH_FETCH_URL = "https://api.anysearch.com/v1/extract"
 EXA_CONTENTS_URL = "https://api.exa.ai/contents"
 
 # 直连抓取限制：读超时 30s；下载体积上限 5MB（Markdown 提取前的原始 body 上限，
@@ -552,6 +555,60 @@ async def deepseek_fetch(
     )
 
 
+async def anysearch_fetch(
+    client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
+) -> dict[str, Any]:
+    parts = urlsplit(url)
+    if len(url) > 8192 or parts.username is not None or parts.password is not None:
+        return {"success": False, "error": "web_fetch_anysearch_invalid_url"}
+    ok, err = await validate_public_http_url(url)
+    if not ok:
+        return {"success": False, "error": err}
+    async with unpriced_usage(operation="web_fetch", provider="anysearch"):
+        response = await _request_no_redirect(
+            client,
+            "POST",
+            ANYSEARCH_FETCH_URL,
+            json={"url": url},
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
+        try:
+            _raise_for_status(response)
+        except ProviderRequestError as exc:
+            # AnySearch 错误体可能包含凭证,仅保留状态码与重试节奏(对齐 search 层)。
+            raise ProviderRequestError(
+                exc.status_code, "AnySearch request failed", exc.retry_after
+            ) from None
+    try:
+        body = response.json()
+    except ValueError:
+        raise ProviderRequestError(502, "Invalid AnySearch response") from None
+    data = body.get("data") if isinstance(body, dict) else None
+    if (
+        not isinstance(body, dict)
+        or type(body.get("code")) is not int
+        or body["code"] != 0
+        or not isinstance(data, dict)
+        or not isinstance(data.get("content"), str)
+    ):
+        raise ProviderRequestError(502, "Invalid AnySearch response")
+    raw = data["content"].strip()
+    if not raw:
+        return {"success": False, "error": "web_fetch_empty_content"}
+    title = data.get("title")
+    final_url = data.get("url")
+    content, truncated = _truncate(raw, max_chars)
+    return _fetch_result(
+        url=url,
+        final_url=final_url if isinstance(final_url, str) and final_url else url,
+        provider="anysearch",
+        title=title if isinstance(title, str) and title else None,
+        content=content,
+        content_type="text/markdown",
+        truncated=truncated,
+    )
+
+
 async def tavily_extract(
     client: httpx.AsyncClient, url: str, api_key: str, max_chars: int
 ) -> dict[str, Any]:
@@ -661,16 +718,18 @@ def _tavily_available() -> bool:
 
 
 def resolve_fetch_chain() -> list[str]:
-    """供应商链：auto 按配置拼接 direct → deepseek → tavily → firecrawl → exa → jina。
+    """供应商链：auto 按配置拼接 direct → anysearch → deepseek → tavily → firecrawl → exa → jina。
 
-    direct 被拦时先尝试 DeepSeek，再由 tavily extract 等供应商接住；
-    firecrawl（可自建）与 exa（缓存+实爬）做中段兜底；jina 收尾 JS 渲染页。
-    钉死供应商时只返回它。
+    direct 被拦时先尝试 AnySearch 云端提取（与 web_search 共用 key 池），再由
+    DeepSeek、tavily extract 等供应商接住；firecrawl（可自建）与 exa（缓存+
+    实爬）做中段兜底；jina 收尾 JS 渲染页。钉死供应商时只返回它。
     """
     provider = str(getattr(settings, "WEB_FETCH_PROVIDER", "auto") or "auto").strip().lower()
-    if provider in ("direct", "deepseek", "tavily", "firecrawl", "exa", "jina"):
+    if provider in ("direct", "anysearch", "deepseek", "tavily", "firecrawl", "exa", "jina"):
         return [provider]
     chain = ["direct"]
+    if _get_pool("anysearch") is not None:
+        chain.append("anysearch")
     if _get_pool("deepseek") is not None:
         chain.append("deepseek")
     if _tavily_available():
@@ -692,7 +751,7 @@ async def execute_web_fetch(
     if not ok:
         return {"success": False, "error": err}
 
-    if provider in ("direct", "deepseek", "jina"):
+    if provider in ("direct", "anysearch", "deepseek", "jina"):
         chain = [provider]
     else:
         chain = resolve_fetch_chain()
@@ -712,6 +771,39 @@ async def execute_web_fetch(
             if result.get("success"):
                 return result
             errors.append(str(result.get("error")))
+            continue
+
+        if name == "anysearch":
+            pool = _get_pool(name)
+            if pool is None:
+                errors.append("anysearch: no api keys configured")
+                continue
+            for _ in range(len(pool)):
+                picked = pool.next_key()
+                if picked is None:
+                    break
+                index, key = picked
+                try:
+                    result = await anysearch_fetch(client, url, key, max_chars)
+                except ProviderRequestError as exc:
+                    errors.append(f"anysearch key#{index + 1}: HTTP {exc.status_code}")
+                    # 400/404/413/422 是 URL/页面级失败,换 key 无法修复;401/403
+                    # (凭证/账户)与 429/5xx 换 key 或冷却后仍有机会。
+                    if exc.status_code in (400, 404, 413, 422):
+                        break
+                    pool.mark_cooldown(index, _cooldown_seconds(exc))
+                    continue
+                except Exception as exc:  # noqa: BLE001
+                    if is_quota_error(exc):
+                        raise
+                    pool.mark_cooldown(index, 30.0)
+                    errors.append(f"anysearch key#{index + 1}: {type(exc).__name__}")
+                    continue
+                if result.get("success"):
+                    return result
+                errors.append(str(result.get("error")))
+                break
+            errors.append("anysearch: no usable result or all keys cooling down")
             continue
 
         if name == "deepseek":

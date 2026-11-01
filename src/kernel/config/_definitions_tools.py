@@ -707,7 +707,7 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "auto",
         "depends_on": "ENABLE_WEB_FETCH",
         "frontend_visible": True,
-        "options": ["auto", "direct", "deepseek", "tavily", "firecrawl", "exa", "jina"],
+        "options": ["auto", "direct", "anysearch", "deepseek", "tavily", "firecrawl", "exa", "jina"],
     },
     "JINA_API_KEYS": {
         "type": SettingType.STRING,

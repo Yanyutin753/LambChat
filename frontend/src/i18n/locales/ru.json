@@ -3649,7 +3649,7 @@
     "LLM_STREAM_IDLE_TIMEOUT": "Максимальный простой в секундах между chunk потокового ответа; застой вышестоящего канала прерывает вызов, а не зависает навсегда (0 или меньше — отключено)",
     "LLM_STREAM_GAP_WARN_TIMEOUT": "Предупреждать в логе, если между последовательными chunk потокового ответа больше этого числа секунд; обнаруживает застои с возможной потерей контента (только предупреждение, 0 или меньше — отключено)",
     "ENABLE_WEB_FETCH": "Включить инструмент чтения веб-страниц: публичные страницы как Markdown (внутренние адреса всегда отклоняются).",
-    "WEB_FETCH_PROVIDER": "Провайдер: direct — локально; DeepSeek — официальный Markdown API; tavily — ключи поиска; firecrawl — свой сервер; exa — кэш+краул; jina — r.jina.ai. auto: direct → DeepSeek → tavily → firecrawl → exa → jina.",
+    "WEB_FETCH_PROVIDER": "Провайдер: direct — локально; anysearch — облачное извлечение (ключи поиска); DeepSeek — официальный Markdown API; tavily — ключи поиска; firecrawl — свой сервер; exa — кэш+краул; jina — r.jina.ai. auto: direct → anysearch → DeepSeek → tavily → firecrawl → exa → jina.",
     "JINA_API_KEYS": "Ключи Jina Reader API, через запятую для ротации. Пусто — jina отключён.",
     "WEB_FETCH_MAX_CHARS": "Максимум символов на загрузку; лишнее обрезается.",
     "FIRECRAWL_BASE_URL": "URL своего Firecrawl (напр. http://fc.internal:3000). Пусто = официальный SaaS. Своий инстанс может работать без ключей.",
