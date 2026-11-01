@@ -43,6 +43,7 @@ type ContentProps = Pick<
   | "showImageViewer"
   | "viewSource"
   | "path"
+  | "signedUrl"
   | "initialLine"
   | "language"
   | "ext"
@@ -368,7 +369,7 @@ export default function DocumentPreviewContent({
     return viewSource ? (
       <CodeRenderer content={data?.content || ""} filePath={path} t={t} />
     ) : (
-      <MarkdownRenderer content={data?.content || ""} _t={t} />
+      <MarkdownRenderer content={data?.content || ""} _t={t} baseUrl={signedUrl} />
     );
   }
 
