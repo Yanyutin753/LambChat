@@ -44,9 +44,8 @@ def test_shared_agent_label_keeps_missing_agent_fallback_and_propagates_other_er
 
     monkeypatch.setattr(share_route, "get_agent_class", missing)
     result = build(session)
-    assert (
-        result["agent_name"] if isinstance(result, dict) else result.agent_name
-    ) == "missing-agent"
+    data = result if isinstance(result, dict) else result.model_dump()
+    assert data["agent_meta"]["name"] == "missing-agent"
 
     def unrelated(_agent_id):
         raise AppError(ErrorCode.SESSION_NOT_FOUND)
@@ -790,5 +789,10 @@ def test_shared_sessions_include_only_public_agent_display_metadata(monkeypatch,
     result = build(session, catalog)
     data = result if isinstance(result, dict) else result.model_dump()
     assert data["agent_id"] == "search"
-    assert data["agent_name"] == "Research Agent"
-    assert data["agent_labels"] == {"zh": {"name": "研究助手"}}
+    meta = data["agent_meta"]
+    assert meta["id"] == "search"
+    assert meta["name"] == "Research Agent"
+    assert meta["labels"] == {"zh": {"name": "研究助手"}}
+    assert meta["icon"] == catalog.icon
+    # 内部描述不得进入公开负载
+    assert "description" not in meta

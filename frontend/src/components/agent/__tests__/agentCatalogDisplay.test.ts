@@ -2,6 +2,7 @@ import {
   resolveAgentDescription,
   resolveAgentDisplayName,
   resolveAgentReferenceName,
+  resolveAssistantIdentityDisplay,
 } from "../agentCatalog";
 
 const translations: Record<string, string> = {
@@ -69,4 +70,39 @@ test("legacy English rankings use the current catalog even after its fallback na
   expect(resolveAgentReferenceName("Search Agent", "Search Agent", [
     { ...agent, name: "Renamed", version: "1", labels: { ru: { name: "Исследователь", description: "" } } },
   ], "ru", t)).toBe("Исследователь");
+});
+
+test("plain-agent identities follow the current catalog instead of the frozen snapshot", () => {
+  const catalog = [{ ...agent, name: "全能 Agent", version: "1", icon: "generated:avatar-5" }];
+  // run 提交时冻结的旧名/旧头像不再决定展示：跟随目录标签与 icon
+  expect(
+    resolveAssistantIdentityDisplay(
+      { seed: "search", name: "全能 Agent", avatar: "generated:avatar-9" },
+      catalog,
+      "zh-CN",
+      t,
+    ),
+  ).toEqual({ name: "搜索助手", avatar: "generated:avatar-5", seed: "search" });
+});
+
+test("plain-agent identities fall back to built-in translations without a catalog", () => {
+  expect(
+    resolveAssistantIdentityDisplay(
+      { seed: "search", name: "agents.search.name", avatar: null },
+      [],
+      "ru",
+      t,
+    ),
+  ).toEqual({ name: "Агент поиска", avatar: null, seed: "search" });
+});
+
+test("persona and team identities keep their per-run snapshot", () => {
+  expect(
+    resolveAssistantIdentityDisplay(
+      { seed: "preset-42", name: "写作搭子", avatar: "😀" },
+      [{ ...agent, name: "Search Agent", version: "1" }],
+      "zh-CN",
+      t,
+    ),
+  ).toEqual({ name: "写作搭子", avatar: "😀", seed: "preset-42" });
 });

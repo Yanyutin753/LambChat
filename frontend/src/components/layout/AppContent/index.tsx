@@ -1,5 +1,7 @@
 import "../../../styles/app-content.css";
 import { lazy, useCallback, useEffect, useRef, useState } from "react";
+import { useAgentCatalog } from "../../agent/useAgentCatalog";
+import { AgentDisplayCatalogProvider } from "../../agent/agentDisplayCatalog";
 import type { RightPanelLayoutSnapshot } from "../../../hooks/rightPanelLayout";
 import { getRightPanelLayoutSnapshot } from "../../../hooks/rightPanelWidthEvents";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../../hooks/useAuth";
@@ -39,6 +41,9 @@ interface AppContentProps {
 
 export function AppContent({ activeTab }: AppContentProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // assistant 身份展示目录：整应用取一份，消息头部名称/头像渲染时共用
+  const displayAgents = useAgentCatalog();
 
   // Persisted sidebar state — only changes on explicit user action
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -200,7 +205,24 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   if (activeTab === "chat") {
     return (
-      <ChatAppContent
+      <AgentDisplayCatalogProvider agents={displayAgents}>
+        <ChatAppContent
+          showProfileModal={showProfileModal}
+          onCloseProfileModal={handleCloseProfileModal}
+          sidebarCollapsed={effectiveCollapsed}
+          setSidebarCollapsed={handleSetSidebarCollapsed}
+          mobileSidebarOpen={mobileSidebarOpen}
+          setMobileSidebarOpen={setMobileSidebarOpen}
+          onShowProfile={handleShowProfile}
+        />
+      </AgentDisplayCatalogProvider>
+    );
+  }
+
+  return (
+    <AgentDisplayCatalogProvider agents={displayAgents}>
+      <NonChatAppContent
+        activeTab={activeTab}
         showProfileModal={showProfileModal}
         onCloseProfileModal={handleCloseProfileModal}
         sidebarCollapsed={effectiveCollapsed}
@@ -209,19 +231,6 @@ export function AppContent({ activeTab }: AppContentProps) {
         setMobileSidebarOpen={setMobileSidebarOpen}
         onShowProfile={handleShowProfile}
       />
-    );
-  }
-
-  return (
-    <NonChatAppContent
-      activeTab={activeTab}
-      showProfileModal={showProfileModal}
-      onCloseProfileModal={handleCloseProfileModal}
-      sidebarCollapsed={effectiveCollapsed}
-      setSidebarCollapsed={handleSetSidebarCollapsed}
-      mobileSidebarOpen={mobileSidebarOpen}
-      setMobileSidebarOpen={setMobileSidebarOpen}
-      onShowProfile={handleShowProfile}
-    />
+    </AgentDisplayCatalogProvider>
   );
 }
