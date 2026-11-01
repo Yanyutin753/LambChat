@@ -31,12 +31,11 @@ test("workspace controls remain one horizontally scrollable row in the composer 
   );
 });
 
-test("workspace strip keeps a compact vertical rhythm and aligns with the editor column", () => {
-  // 本地电脑/工作区上下文条只留极小上下留白（2026-10-28 用户反馈"上下间距小一点点"）；
-  // 横向与编辑区文字列对齐（2026-10-31 条带与输入卡融合为同一张卡）
+test("workspace strip keeps a compact vertical rhythm", () => {
+  // 本地电脑/工作区上下文条只留极小上下留白（2026-10-28 用户反馈"上下间距小一点点"）
   const css = read("../../../styles/chat.css");
   expect(css).toMatch(
-    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem calc\(var\(--chat-content-inset\) - 1px\) 1rem;/,
+    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem 0\.5rem 1rem 0\.25rem;/,
   );
 });
 
@@ -56,13 +55,12 @@ test("local directory selection lives in the workspace strip while the submit gu
   );
 });
 
-test("narrow workspace strip stays fused to the card without horizontal insets", () => {
-  // 条带与输入卡同宽融合后,窄视口不得重新引入横向 margin/padding 覆盖,
-  // 否则条带会比卡片窄、左右错位（横向缩进统一由 --chat-content-inset 驱动）。
+test("narrow workspace strip compensates its smaller margin to preserve the icon edge", () => {
   const css = read("../../../styles/chat.css");
   const narrow = css.match(
     /@container workspace \(max-width: 40rem\) \{([\s\S]*?)\n\}/,
   )?.[1];
-  expect(narrow).toMatch(/\.composer-workspace-strip\s*\{/);
-  expect(narrow).not.toMatch(/margin-inline|padding-left/);
+  expect(narrow).toMatch(
+    /\.composer-workspace-strip\s*\{[^}]*margin-inline:\s*0?\.5rem;[^}]*padding-left:\s*0?\.5rem;/,
+  );
 });
