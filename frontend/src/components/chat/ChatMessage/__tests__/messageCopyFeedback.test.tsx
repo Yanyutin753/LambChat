@@ -209,7 +209,8 @@ test("historical assistant avatar and name stay fixed when the current selection
     timestamp: new Date(),
     assistantIdentity: {
       seed: "fast",
-      name: "Original assistant",
+      // 旧快照字面量：普通 agent 渲染时按目录解析，不再展示冻结旧名
+      name: "Renamed away",
       avatar: null,
     },
   };
@@ -232,7 +233,9 @@ test("historical assistant avatar and name stay fixed when the current selection
     ]);
   const original = artwork();
   expect(original.length).toBeGreaterThan(0);
-  expect(screen.getByText("Original assistant")).toBeInTheDocument();
+  // 无目录时回退内置翻译 key（t 被 mock 成原样返回 key）
+  expect(screen.getByText("agents.fast.name")).toBeInTheDocument();
+  expect(screen.queryByText("Renamed away")).not.toBeInTheDocument();
   rerender(
     <ChatMessage
       message={message}
@@ -242,6 +245,6 @@ test("historical assistant avatar and name stay fixed when the current selection
     />,
   );
   expect(artwork()).toEqual(original);
-  expect(screen.getByText("Original assistant")).toBeInTheDocument();
+  expect(screen.getByText("agents.fast.name")).toBeInTheDocument();
   expect(screen.queryByText("Current search")).not.toBeInTheDocument();
 });

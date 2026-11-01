@@ -41,7 +41,9 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { formatDate } from "../../utils/datetime";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
-import { resolveAgentReferenceName } from "../agent/agentCatalog";
+import { resolveAgentDisplayName } from "../agent/agentCatalog";
+import { AgentDisplayCatalogProvider } from "../agent/agentDisplayCatalog";
+import { sharedAgentMetaToEntry } from "./sharedAgentMeta";
 import { computeProjectHasMore } from "./sharedProjectPageState";
 
 const ChatMessage = lazy(() =>
@@ -266,14 +268,15 @@ export function SharedProjectPage({
                           t("share.untitledSession", "未命名会话")}
                       </span>
                       <span className="block text-12 text-theme-text-secondary truncate">
-                        {resolveAgentReferenceName(
-                          session.agent_id,
-                          session.agent_name || "",
-                          [],
-                          i18n.language,
-                          t,
-                          session.agent_labels,
-                        )}
+                        {(() => {
+                          const entry = sharedAgentMetaToEntry(
+                            session.agent_meta,
+                            session.agent_id,
+                          );
+                          return entry
+                            ? resolveAgentDisplayName(entry, i18n.language, t)
+                            : "";
+                        })()}
                         {session.updated_at
                           ? ` · ${formatDate(session.updated_at)}`
                           : ""}
@@ -387,6 +390,11 @@ function SessionMessages({ content }: { content: SharedContentResponse }) {
       activeSubagentStack: [],
     });
   }, [content?.events]);
+  // 子会话各自可能用不同 agent，按本会话的 agent_meta 合成条目
+  const agentEntry = sharedAgentMetaToEntry(
+    content?.session.agent_meta,
+    content?.session.agent_id,
+  );
 
   if (messages.length === 0) {
     return (
@@ -408,19 +416,21 @@ function SessionMessages({ content }: { content: SharedContentResponse }) {
         </div>
       }
     >
-      <div className="space-y-2">
-        {messages.map((message, index) => (
-          <div key={message.id}>
-            <ChatMessage
-              message={message}
-              sessionId={content.session.id}
-              isLastMessage={index === messages.length - 1}
-              showFeedbackAndShareActions={false}
-              isFirst={index === 0}
-            />
-          </div>
-        ))}
-      </div>
+      <AgentDisplayCatalogProvider agents={agentEntry ? [agentEntry] : []}>
+        <div className="space-y-2">
+          {messages.map((message, index) => (
+            <div key={message.id}>
+              <ChatMessage
+                message={message}
+                sessionId={content.session.id}
+                isLastMessage={index === messages.length - 1}
+                showFeedbackAndShareActions={false}
+                isFirst={index === 0}
+              />
+            </div>
+          ))}
+        </div>
+      </AgentDisplayCatalogProvider>
     </Suspense>
   );
 }
