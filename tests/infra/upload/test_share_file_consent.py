@@ -216,6 +216,7 @@ async def test_share_redacts_old_capabilities_from_browser_normalized_url_aliase
     )
     assert "borrowed" not in str(result)
 
+
 async def test_percent_encoded_reveal_urls_with_spaces_and_punctuation_get_signed(
     files, monkeypatch
 ):
