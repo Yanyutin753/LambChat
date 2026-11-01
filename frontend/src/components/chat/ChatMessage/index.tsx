@@ -840,8 +840,14 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="chat-assistant-heading mb-2 flex flex-nowrap items-center gap-2">
             <AssistantAvatar
               className="size-5 sm:size-6 shrink-0 rounded-full"
-              personaAvatar={identityDisplay.avatar ?? personaAvatar}
-              personaName={identityDisplay.name ?? personaName}
+              personaAvatar={
+                message.assistantIdentity
+                  ? identityDisplay.avatar
+                  : personaAvatar
+              }
+              personaName={
+                message.assistantIdentity ? identityDisplay.name : personaName
+              }
               personaSeed={identityDisplay.seed ?? personaSeed}
             />
             <span

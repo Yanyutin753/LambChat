@@ -86,7 +86,7 @@ test("assistant message header shows the selected team in team mode", () => {
   expect(chatViewPropsSource).toMatch(/getTeamFallbackAvatar/);
   expect(chatViewSource).not.toMatch(/personaAvatar=\{assistantIdentity\.avatar\}/);
   expect(chatViewSource).not.toMatch(/personaName=\{assistantIdentity\.name\}/);
-  expect(chatMessageSource).toMatch(
-    /message\.assistantIdentity\?\.name/,
-  );
+  // 消息头身份经 resolveAssistantIdentityDisplay 渲染时解析(团队/普通 agent 各自来源)
+  expect(chatMessageSource).toMatch(/resolveAssistantIdentityDisplay\(/);
+  expect(chatMessageSource).toMatch(/identityDisplay\.name/);
 });
