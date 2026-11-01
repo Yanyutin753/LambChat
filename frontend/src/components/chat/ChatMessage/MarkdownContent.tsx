@@ -26,6 +26,7 @@ import { getFileLinkInfo } from "../../documents/utils";
 import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
 import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 import { shouldInterceptFilePreviewLink } from "./items/revealPreviewLinks";
+import { remarkRelativeLinkBase } from "../../common/markdownRemarkPlugins";
 import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
 import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
@@ -629,11 +630,14 @@ export const MarkdownContent = memo(function MarkdownContent({
   isStreaming,
   headingAnchorContext,
   userMessageReferences,
+  linkBaseUrl,
 }: {
   content: string;
   isStreaming?: boolean;
   headingAnchorContext?: { messageId: string; partIndex: number };
   userMessageReferences?: MarkdownUserMessageReferences;
+  /** 当前渲染的 markdown 文件自身 URL:文档内相对链接按此解析(README 内链支持文件可见) */
+  linkBaseUrl?: string;
 }) {
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   return (
@@ -651,7 +655,12 @@ export const MarkdownContent = memo(function MarkdownContent({
         aria-busy={isStreaming || undefined}
       >
         <ReactMarkdown
-          remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
+          remarkPlugins={[
+            ...(linkBaseUrl ? [remarkRelativeLinkBase(linkBaseUrl)] : []),
+            ...cjkGfmRemarkPlugins,
+            remarkBreaks,
+            remarkMath,
+          ]}
           rehypePlugins={
             userMessageReferences
               ? [

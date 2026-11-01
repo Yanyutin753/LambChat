@@ -4,11 +4,14 @@ import { MarkdownContent } from "../../chat/ChatMessage/MarkdownContent";
 interface MarkdownRendererProps {
   content: string;
   _t: (key: string, options?: Record<string, unknown>) => string;
+  /** 当前 markdown 文件的 URL,用于解析文档内相对链接(README 内链支持文件可见) */
+  baseUrl?: string;
 }
 
 // Reuse MarkdownContent to avoid maintaining two separate markdown renderers
 const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
+  baseUrl,
 }: MarkdownRendererProps) {
   // Limit content for very large files
   const displayContent = useMemo(() => {
@@ -22,7 +25,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   return (
     <div className="markdown-preview overflow-auto h-full">
       <div className="document-reading-column">
-        <MarkdownContent content={displayContent} />
+        <MarkdownContent content={displayContent} linkBaseUrl={baseUrl} />
       </div>
     </div>
   );
