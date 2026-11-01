@@ -28,6 +28,7 @@ import json
 import os
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any, Optional
+from urllib.parse import quote
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
@@ -537,7 +538,9 @@ async def reveal_file(
 
         file_category = get_file_category(upload_result.content_type or mime_type)
 
-        proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
+        # key 含空格/中文等字符时必须百分号编码，否则分享页的 URL 授权重写会在
+        # 空白处截断，导致匿名访客拿不到 file_token（预览 404）
+        proxy_url = f"{base_url}/api/upload/file/{quote(upload_result.key, safe='/')}"
 
         reveal_result = {
             "key": upload_result.key,

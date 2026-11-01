@@ -14,7 +14,7 @@ import re
 from contextvars import ContextVar
 from tempfile import SpooledTemporaryFile
 from typing import Any, Literal, Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
@@ -466,7 +466,7 @@ async def _upload_local_resource(
                 res_filename,
                 res_mime,
             )
-            url = f"{base_url}/api/upload/file/{upload_result.key}"
+            url = f"{base_url}/api/upload/file/{quote(upload_result.key, safe='/')}"
             logger.info(f"[reveal_file] Uploaded local resource {local_path} -> {url}")
             return url
         if content is None:
@@ -488,7 +488,7 @@ async def _upload_local_resource(
                 content_type=res_mime,
                 skip_size_limit=True,
             )
-        url = f"{base_url}/api/upload/file/{upload_result.key}"
+        url = f"{base_url}/api/upload/file/{quote(upload_result.key, safe='/')}"
         logger.info(f"[reveal_file] Uploaded local resource {local_path} -> {url}")
         return url
     except Exception as e:
