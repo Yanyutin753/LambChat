@@ -343,9 +343,7 @@ def build_shared_page_seo(
 
     summary = description
     agent_meta = session.get("agent_meta") or {}
-    agent_label = _normalize_text(
-        agent_meta.get("name") or session.get("agent_name")
-    )
+    agent_label = _normalize_text(agent_meta.get("name") or session.get("agent_name"))
     if summary == DEFAULT_SHARE_DESCRIPTION and agent_label:
         summary = f"{summary} Agent: {agent_label}."
 
