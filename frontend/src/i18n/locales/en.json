@@ -3649,7 +3649,7 @@
     "LLM_STREAM_IDLE_TIMEOUT": "Maximum idle seconds between consecutive streaming chunks; an upstream stall fails the call instead of hanging forever (0 or negative = disabled)",
     "LLM_STREAM_GAP_WARN_TIMEOUT": "Warn in logs when consecutive streaming chunks are more than this many seconds apart; detects upstream stalls that may drop content (warning only, 0 or negative = disabled)",
     "ENABLE_WEB_FETCH": "Enable the web fetch tool: read public pages as markdown for the model (internal addresses always rejected).",
-    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; DeepSeek = official Markdown API; tavily = shared search keys; firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai. Auto: direct → DeepSeek → tavily → firecrawl → exa → jina.",
+    "WEB_FETCH_PROVIDER": "Web fetch provider: direct = local; anysearch = cloud extraction (shared search keys); DeepSeek = official Markdown API; tavily = shared search keys; firecrawl = self-hostable; exa = cache+live crawl; jina = r.jina.ai. Auto: direct → anysearch → DeepSeek → tavily → firecrawl → exa → jina.",
     "JINA_API_KEYS": "Jina Reader API keys, comma-separated for rotation (r.jina.ai: 20 RPM keyless, 200 RPM with key). Empty disables jina.",
     "WEB_FETCH_MAX_CHARS": "Max characters returned per fetch; longer content is truncated.",
     "FIRECRAWL_BASE_URL": "Self-hosted Firecrawl base URL (e.g. http://fc.internal:3000). Empty = official SaaS. Self-host can work without keys.",

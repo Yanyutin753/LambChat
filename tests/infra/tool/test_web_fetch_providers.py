@@ -602,3 +602,148 @@ async def test_streamed_compressed_response_is_decoded_only_once() -> None:
     assert "Content-Encoding" not in response.headers
     assert response.headers["Content-Length"] == str(len(body))
     assert response.headers["Retry-After"] == "5"
+
+
+# ---------------------------------------------------------------------------
+# anysearch 提取(与 web_search 共用 key 池,auto 链排在 deepseek 之前)
+# ---------------------------------------------------------------------------
+
+
+def _anysearch_envelope(content: str, title: str = "", url: str = "https://example.com/doc"):
+    import json as _json
+
+    return (
+        '{"code": 0, "message": "success", "request_id": "r-1", '
+        '"data": {"url": "'
+        + url
+        + '", "title": "'
+        + title
+        + '", "content": '
+        + _json.dumps(content)
+        + "}}"
+    ).encode()
+
+
+async def test_anysearch_fetch_parses_success_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_request(client, method, url, *, json=None, headers=None):
+        assert url == wfp.ANYSEARCH_FETCH_URL
+        assert method == "POST"
+        assert json == {"url": "https://example.com/doc"}
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=_anysearch_envelope(
+                "# 标题\n\nAnySearch 抽取的正文内容，长度足以通过阈值判定。", "示例页"
+            ),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.anysearch_fetch(
+        wfp._get_client(), "https://example.com/doc", "any-key", 32768
+    )
+    assert result["success"] is True
+    assert result["provider"] == "anysearch"
+    assert result["title"] == "示例页"
+    assert result["final_url"] == "https://example.com/doc"
+    assert "AnySearch 抽取的正文" in result["content"]
+
+
+async def test_anysearch_fetch_rejects_nonzero_code_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_request(client, method, url, **kwargs):
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=b'{"code": -1, "message": "extract failed", "request_id": "r-2"}',
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    with pytest.raises(wsp.ProviderRequestError):
+        await wfp.anysearch_fetch(wfp._get_client(), "https://example.com/doc", "any-key", 32768)
+
+
+async def test_anysearch_fetch_empty_content_returns_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_request(client, method, url, **kwargs):
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            content=_anysearch_envelope("   "),
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wfp, "_request_no_redirect", fake_request)
+    result = await wfp.anysearch_fetch(
+        wfp._get_client(), "https://example.com/doc", "any-key", 32768
+    )
+    assert result["success"] is False
+    assert result["error"] == "web_fetch_empty_content"
+
+
+def test_resolve_fetch_chain_places_anysearch_before_deepseek(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(wsp.settings, "ANYSEARCH_API_KEYS", "ak1")
+    monkeypatch.setattr(wsp.settings, "DEEPSEEK_API_KEYS", "dk1")
+    assert wfp.resolve_fetch_chain() == ["direct", "anysearch", "deepseek"]
+
+    monkeypatch.setattr(wsp.settings, "ANYSEARCH_API_KEYS", "")
+    assert wfp.resolve_fetch_chain() == ["direct", "deepseek"]
+
+
+def test_resolve_fetch_chain_pinned_anysearch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(wfp.settings, "WEB_FETCH_PROVIDER", "anysearch")
+    assert wfp.resolve_fetch_chain() == ["anysearch"]
+
+
+async def test_execute_web_fetch_direct_block_falls_back_to_anysearch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """直连被拦 → anysearch 云端提取接住:不应再落 deepseek。"""
+    calls: list[str] = []
+
+    async def blocked_direct(client, url, max_chars):
+        calls.append("direct")
+        return {"success": False, "error": "web_fetch_http_403"}
+
+    async def ok_anysearch(client, url, key, max_chars):
+        calls.append("anysearch")
+        return {
+            "success": True,
+            "provider": "anysearch",
+            "url": url,
+            "final_url": url,
+            "title": None,
+            "content": "AnySearch 兜底正文内容，长度足以通过阈值判定。",
+            "content_chars": 30,
+            "truncated": False,
+        }
+
+    async def never_deepseek(client, url, key, max_chars):
+        calls.append("deepseek")
+        raise AssertionError("anysearch 已成功，不应再落 deepseek")
+
+    monkeypatch.setattr(wfp, "direct_fetch", blocked_direct)
+    monkeypatch.setattr(wfp, "anysearch_fetch", ok_anysearch)
+    monkeypatch.setattr(wfp, "deepseek_fetch", never_deepseek)
+    monkeypatch.setattr(wfp, "validate_public_http_url", _allow_all)
+    monkeypatch.setattr(wsp.settings, "ANYSEARCH_API_KEYS", "ak1")
+    monkeypatch.setattr(wsp.settings, "DEEPSEEK_API_KEYS", "dk1")
+    monkeypatch.setattr(wfp, "_tavily_available", lambda: False)
+    monkeypatch.setattr(wfp, "_jina_keys", lambda: [])
+
+    result = await wfp.execute_web_fetch("https://example.com/doc", 32768)
+    assert result["success"] is True
+    assert result["provider"] == "anysearch"
+    assert calls == ["direct", "anysearch"]
