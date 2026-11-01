@@ -4,6 +4,7 @@ import type { Options } from "react-markdown";
 import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough/parseOnly";
 import remarkGfm from "remark-gfm";
+import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 
 // GFM includes full-width punctuation in bare URLs; keep following prose outside file links.
@@ -57,8 +58,8 @@ const NON_RELATIVE_URL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
  * (README 里的 ./report.pdf、docs/x.md 等),使链接进入站内文件的
  * 预览/能力签名管线,私有文件同样可见。
  */
-export function remarkRelativeLinkBase(baseUrl: string): Options["remarkPlugins"][number] {
-  const plugin = function remarkRelativeLinkBasePlugin() {
+export function remarkRelativeLinkBase(baseUrl: string): Plugin<[], Root> {
+  return function remarkRelativeLinkBasePlugin() {
     return (tree: Root) => {
       const origin =
         typeof window === "undefined" ? "http://localhost" : window.location.origin;
@@ -82,5 +83,4 @@ export function remarkRelativeLinkBase(baseUrl: string): Options["remarkPlugins"
       });
     };
   };
-  return plugin as unknown as Options["remarkPlugins"][number];
 }
