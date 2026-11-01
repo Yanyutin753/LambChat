@@ -69,6 +69,7 @@ def test_web_fetch_settings_are_registered() -> None:
     assert TOOLS_SETTING_DEFINITIONS["WEB_FETCH_PROVIDER"]["options"] == [
         "auto",
         "direct",
+        "anysearch",
         "deepseek",
         "tavily",
         "firecrawl",
