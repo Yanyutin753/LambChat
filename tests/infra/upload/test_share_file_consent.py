@@ -215,3 +215,47 @@ async def test_share_redacts_old_capabilities_from_browser_normalized_url_aliase
         {"type": "html", "content": url}, share(allow_files=enabled)
     )
     assert "borrowed" not in str(result)
+
+async def test_percent_encoded_reveal_urls_with_spaces_and_punctuation_get_signed(
+    files, monkeypatch
+):
+    """reveal 工具输出的 key 必须百分号编码:空格/引号/长破折号是 URL 匹配的终止符。
+
+    未编码时授权重写在第一个空白处截断,所有权永远匹配不上,分享页预览 404。
+    """
+    access, shared_files, _ = files
+    raw_key = "revealed_projects/The Godfather Trilogy — A Fan's Tribute_1214a512/x y.png"
+    monkeypatch.setattr(shared_files, "owned_file_keys", AsyncMock(return_value={raw_key}))
+    encoded = (
+        "https://chat.example/api/upload/file/revealed_projects/"
+        "The%20Godfather%20Trilogy%20%E2%80%94%20A%20Fan%27s%20Tribute_1214a512/x%20y.png"
+    )
+    manifest = {
+        "type": "project_reveal",
+        "version": 2,
+        "entry": "/x y.png",
+        "files": {"/x y.png": {"url": encoded, "is_binary": True, "size": 1}},
+    }
+    result = await shared_files.authorize_shared_files([{"data": manifest}], share())
+    signed = result[0]["data"]["files"]["/x y.png"]["url"]
+    assert "file_token=" in signed
+    assert access.upload_key_from_url(signed) == raw_key
+
+
+async def test_unencoded_reveal_urls_with_spaces_stay_unsigned(files, monkeypatch):
+    """历史数据里未编码的带空格 URL 无法签发——这正是揭示工具必须编码的原因。"""
+    _, shared_files, _ = files
+    raw_url = "https://chat.example/api/upload/file/revealed_projects/Game Icons/x y.png"
+    monkeypatch.setattr(
+        shared_files,
+        "owned_file_keys",
+        AsyncMock(return_value={"revealed_projects/Game Icons/x y.png"}),
+    )
+    manifest = {
+        "type": "project_reveal",
+        "version": 2,
+        "entry": "/x y.png",
+        "files": {"/x y.png": {"url": raw_url, "is_binary": True, "size": 1}},
+    }
+    result = await shared_files.authorize_shared_files([{"data": manifest}], share())
+    assert result[0]["data"]["files"]["/x y.png"]["url"] == raw_url
