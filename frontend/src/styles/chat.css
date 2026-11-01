@@ -201,8 +201,8 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   border-color: var(--theme-border-hover);
 }
 
-/* 目录/沙箱条带与输入卡是同一张卡:同底色、同边框、同圆角、同阴影,
-   负下边距把两段融合为一体;卡片自身的顶边充当条带与编辑区的分隔线。 */
+/* 仅两处调整:背景与输入卡一致(--theme-bg-elevated)、边框可见(--theme-border)。
+   几何(宽度/内边距/圆角/位置)保持原有形态,不与卡片融合。 */
 .composer-workspace-strip {
   flex-shrink: 0;
   overflow-x: auto;
@@ -210,17 +210,12 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   scrollbar-width: none;
   gap: 0.5rem;
   white-space: nowrap;
-  margin: 0 0 -0.75rem;
-  /* 水平内边距与编辑区文字列对齐(跟随 --chat-content-inset 的桌面/移动档) */
-  padding: 0.25rem calc(var(--chat-content-inset) - 1px) 1rem;
-  border: 1px solid var(--theme-border-subtle);
+  margin: 0 0.75rem -0.75rem;
+  padding: 0.25rem 0.5rem 1rem 0.25rem;
+  border: 1px solid var(--theme-border);
   border-bottom: none;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   background: var(--theme-bg-elevated);
-  box-shadow: 0 2px 8px var(--theme-shadow-sm);
-}
-.composer-workspace-shell:hover .composer-workspace-strip {
-  border-color: var(--theme-border-hover);
 }
 .composer-workspace-strip:empty {
   display: none;
@@ -1830,6 +1825,8 @@ html .composer-environment-panel button:hover {
 @container workspace (max-width: 40rem) {
   .composer-workspace-strip {
     gap: 0.5rem;
+    margin-inline: 0.5rem;
+    padding-left: 0.5rem;
   }
   .composer-workspace-strip :is(.chat-tool-btn, .ui-select-trigger) {
     min-height: 2.75rem;
