@@ -500,3 +500,4 @@ async def test_missing_model_conversation_admission_is_finished_and_paused(monke
     assert finish.call_args.args[2] == "failed"
     assert finish.call_args.args[1]["error_code"] == "model_not_found"
     assert finish.call_args.args[1]["scheduled_task_updated_at"] is None
+    storage.update_run.assert_any_await("r", {"input_snapshot": task.input_payload})

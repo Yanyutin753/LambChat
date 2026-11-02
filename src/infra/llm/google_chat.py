@@ -44,7 +44,9 @@ def _downgrade_foreign_reasoning(messages: list[BaseMessage]) -> list[BaseMessag
 
 def _foreign_reasoning_as_text_blocks(message: AIMessage) -> AIMessage | None:
     content = message.content
-    reasoning = reasoning_text_from_message(message)
+    reasoning = reasoning_text_from_message(
+        message.model_copy(update={"content": message.content_blocks})
+    )
     if isinstance(content, str):
         removed = False
         blocks: list[Any] = [{"type": "text", "text": content}] if content else []

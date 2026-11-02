@@ -106,3 +106,21 @@ def test_empty_foreign_thinking_is_dropped_without_placeholder():
     )
     normalized = _downgrade_foreign_reasoning([message])[0]
     assert normalized.content == [{"type": "text", "text": "2"}]
+
+
+def test_openai_responses_reasoning_summary_survives_google_switch():
+    message = AIMessage(
+        content=[
+            {
+                "type": "reasoning",
+                "id": "rs_1",
+                "summary": [{"type": "summary_text", "text": "Verified the previous result"}],
+            },
+            {"type": "text", "text": "2"},
+        ],
+        response_metadata={"model_provider": "openai"},
+    )
+    request = google_model()._prepare_request(
+        [HumanMessage(content="calculate"), message, HumanMessage(content="continue")]
+    )
+    assert "Verified the previous result" in model_part_texts(request)

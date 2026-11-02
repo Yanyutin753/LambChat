@@ -1,14 +1,9 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   groupPendingHydrations,
   hydrateScheduledEvents,
-  resetScheduledHydrationCache,
 } from "../scheduledEventHydration";
 import type { Message } from "../../../types";
-
-beforeEach(() => {
-  resetScheduledHydrationCache();
-});
 
 function scheduledMessage(
   id: string,
@@ -78,7 +73,7 @@ function eventFor(runId: string) {
 }
 
 describe("hydrateScheduledEvents", () => {
-  test("fetches once per source and serves repeats from the module cache", async () => {
+  test("fetches each source again on a new hydration to observe updated usage", async () => {
     const fetcher: Fetcher = vi.fn(async (_source: string, runIds: string[]) =>
       runIds.map((runId) => eventFor(runId)),
     );
@@ -98,11 +93,11 @@ describe("hydrateScheduledEvents", () => {
       [{ executionSessionId: "sch_a", runIds: ["r1", "r2"] }],
       fetcher,
     );
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     expect(second.get("r2")).toEqual([eventFor("r2")]);
   });
 
-  test("only uncached run ids hit the network", async () => {
+  test("does not retain private events across independent hydration calls", async () => {
     const fetcher: Fetcher = vi.fn(async (_source: string, runIds: string[]) =>
       runIds.map((runId) => eventFor(runId)),
     );
@@ -115,30 +110,30 @@ describe("hydrateScheduledEvents", () => {
       fetcher,
     );
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(fetcher).toHaveBeenLastCalledWith("sch_a", ["r2"]);
+    expect(fetcher).toHaveBeenLastCalledWith("sch_a", ["r1", "r2"]);
   });
 
-  test("concurrent identical requests share one in-flight call", async () => {
-    let release: (() => void) | undefined;
-    const fetcher: Fetcher = vi.fn(
-      (_source: string, runIds: string[]) =>
-        new Promise((resolve) => {
-          release = () => resolve(runIds.map((runId) => eventFor(runId)));
-        }),
-    );
-    const p1 = hydrateScheduledEvents(
-      [{ executionSessionId: "sch_a", runIds: ["r1"] }],
-      fetcher,
-    );
-    const p2 = hydrateScheduledEvents(
-      [{ executionSessionId: "sch_a", runIds: ["r1"] }],
-      fetcher,
-    );
-    release?.();
-    const [a, b] = await Promise.all([p1, p2]);
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(a.get("r1")).toEqual([eventFor("r1")]);
+  test("a cancelled consumer cannot poison another consumer's request", async () => {
+    const failed = vi
+      .fn()
+      .mockRejectedValue(new DOMException("Aborted", "AbortError"));
+    const ready = vi.fn(async () => [eventFor("r1")]);
+    const requests = [{ executionSessionId: "sch_a", runIds: ["r1"] }];
+    const [a, b] = await Promise.all([
+      hydrateScheduledEvents(requests, failed),
+      hydrateScheduledEvents(requests, ready),
+    ]);
+    expect(a.size).toBe(0);
     expect(b.get("r1")).toEqual([eventFor("r1")]);
+  });
+
+  test("missing runs remain retryable instead of being marked loaded", async () => {
+    const result = await hydrateScheduledEvents(
+      [{ executionSessionId: "sch_a", runIds: ["r1", "r2"] }],
+      async () => [eventFor("r1")],
+    );
+    expect(result.has("r1")).toBe(true);
+    expect(result.has("r2")).toBe(false);
   });
 
   test("batches larger than the chunk size split into several fetches", async () => {

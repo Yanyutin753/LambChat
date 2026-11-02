@@ -10,7 +10,6 @@ import {
   SCHEDULED_RESULT_EVENT,
 } from "../scheduledResults";
 import { sessionApi } from "../../../services/api/session";
-import { resetScheduledHydrationCache } from "../scheduledEventHydration";
 import type { Message } from "../../../types";
 
 vi.mock("../../../services/api/session", () => ({
@@ -22,7 +21,6 @@ vi.mock("../../../services/api/session", () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
-  resetScheduledHydrationCache();
 });
 const data = {
   session_id: "parent",

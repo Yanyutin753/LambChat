@@ -266,7 +266,7 @@ async def test_user_chat_and_steer_queue_do_not_delay_scheduled_admission():
     assert storage.update_run.call_args.args[1]["conversation_state"] == "submitted"
 
 
-async def test_result_delivery_carries_the_task_prompt():
+async def test_result_delivery_keeps_run_prompt_after_task_edit():
     from src.infra.scheduler.results import deliver_result
 
     task = SimpleNamespace(
@@ -276,11 +276,12 @@ async def test_result_delivery_carries_the_task_prompt():
         agent_id="search",
         target_session_id="parent",
         notification_policy="always",
-        input_payload={"message": "Check whether AO3 is back"},
+        input_payload={"message": "Edited after admission"},
     )
     record = {
         "_id": "scheduled-1",
         "session_id": "child",
+        "input_snapshot": {"message": "Check whether AO3 is back"},
         "created_at": datetime(2026, 10, 16, 17, 46, 0, tzinfo=timezone.utc),
     }
     traces = SimpleNamespace(
@@ -341,11 +342,12 @@ async def test_result_delivery_prompt_falls_back_to_prompt_key_and_stays_absent_
     ):
         await deliver_result(
             SimpleNamespace(**base, input_payload={"prompt": "Legacy"}),
-            {"_id": "r1", "session_id": "child"},
+            {"_id": "r1", "session_id": "child", "input_snapshot": {"prompt": "Legacy"}},
         )
         assert websocket.send_to_user_with_broadcast.call_args.args[1]["data"]["prompt"] == "Legacy"
         await deliver_result(
-            SimpleNamespace(**base, input_payload={}), {"_id": "r2", "session_id": "child"}
+            SimpleNamespace(**base, input_payload={"message": "New prompt"}),
+            {"_id": "r2", "session_id": "child"},
         )
         assert "prompt" not in websocket.send_to_user_with_broadcast.call_args.args[1]["data"]
 

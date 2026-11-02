@@ -102,7 +102,7 @@ class _FakeStorage:
 
     async def download_file(self, key: str) -> bytes:
         self.downloaded.append(key)
-        return self._payload
+        return self.objects.get(key, self._payload)
 
     async def upload_to_key(self, data: bytes, key: str, content_type=None, **kwargs) -> None:
         self.objects[key] = data
@@ -138,7 +138,7 @@ async def test_render_failure_writes_marker_and_repeat_hits_404_without_redownlo
         )
     assert second.value.error_code.code == "cover_thumbnail_not_available"
     assert second.value.http_status == 404
-    assert storage.downloaded == ["revealed_files/notes.docx"]
+    assert storage.downloaded == ["revealed_files/notes.docx", _MARKER]
 
 
 @pytest.mark.asyncio
@@ -191,3 +191,19 @@ def _async_of(value):
         return value
 
     return _factory
+
+
+@pytest.mark.parametrize("marker", [b"1000", b"cover-render-failed:OSError"])
+async def test_expired_or_legacy_failure_marker_allows_render_retry(monkeypatch, marker):
+    storage = _FakeStorage(_make_docx_bytes())
+    storage.objects[_MARKER] = marker
+    monkeypatch.setattr(upload_cover.time, "time", lambda: 2000)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    monkeypatch.setattr(
+        "src.api.routes.upload_content_cover.render_content_cover",
+        lambda data, ext: b"rendered-jpeg",
+    )
+    await upload.get_file_proxy(
+        "revealed_files/notes.docx", _fake_request(), cover=True, current_user=_OWNER
+    )
+    assert storage.objects["covers/560x315/revealed_files/notes.docx.jpg"] == b"rendered-jpeg"

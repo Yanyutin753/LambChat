@@ -102,7 +102,7 @@ async def exercise(base_url, db, username, password):
                 "/api/scheduled-tasks/",
                 {
                     "name": name,
-                    "agent_id": "quick",
+                    "agent_id": "search",
                     "execution_mode": "conversation",
                     "target_session_id": session_id,
                     "source_session_id": session_id,
@@ -352,7 +352,7 @@ async def exercise_unlimited(base_url, db, username, password):
                 "/api/scheduled-tasks/",
                 {
                     "name": f"Unlimited {mode} {index}",
-                    "agent_id": "quick",
+                    "agent_id": "search",
                     "execution_mode": mode,
                     "target_session_id": session_id if mode == "conversation" else None,
                     "source_session_id": session_id,
@@ -636,7 +636,7 @@ async def exercise_live_progress(base_url, db, username, password):
                 "/api/scheduled-tasks/",
                 {
                     "name": "Visible task progress",
-                    "agent_id": "quick",
+                    "agent_id": "search",
                     "execution_mode": "conversation",
                     "target_session_id": parent_id,
                     "source_session_id": parent_id,

@@ -1,12 +1,7 @@
 import type { Message } from "../../types";
 import type { HistoryEvent } from "./types";
 
-/**
- * 定时结果卡片的执行事件补全：按执行会话分组的批量拉取 + 模块级缓存。
- *
- * 最终 run 的事件不可变，缓存无需 TTL；in-flight 去重避免同屏重复请求。
- * 解决旧实现「每张卡片一个请求、串行、重进对话全部重拉」的问题。
- */
+// Loaded details live on the message, never in a cross-account module cache.
 
 /** 单个批量请求携带的 run 数上限（控制 URL 长度） */
 const RUN_IDS_CHUNK = 50;
@@ -49,77 +44,27 @@ export function groupPendingHydrations(
   }));
 }
 
-const cachedEvents = new Map<string, HistoryEvent[]>();
-const inflight = new Map<string, Promise<Map<string, HistoryEvent[]>>>();
-
-export function resetScheduledHydrationCache() {
-  cachedEvents.clear();
-  inflight.clear();
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const groups: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    groups.push(items.slice(index, index + size));
-  }
-  return groups;
-}
-
-function fetchSourceBatch(
-  executionSessionId: string,
-  runIds: string[],
-  fetcher: HydrationFetcher,
-): Promise<Map<string, HistoryEvent[]>> {
-  const key = `${executionSessionId}|${[...runIds].sort().join(",")}`;
-  const existing = inflight.get(key);
-  if (existing) return existing;
-  const promise = fetcher(executionSessionId, runIds)
-    .then((events) => {
-      const byRun = new Map<string, HistoryEvent[]>();
-      for (const event of events) {
-        const runId = event.run_id;
-        if (typeof runId !== "string") continue;
-        const bucket = byRun.get(runId);
-        if (bucket) bucket.push(event);
-        else byRun.set(runId, [event]);
-      }
-      for (const runId of runIds) {
-        const events = byRun.get(runId) ?? [];
-        byRun.set(runId, events);
-        cachedEvents.set(runId, events);
-      }
-      return byRun;
-    })
-    .finally(() => {
-      inflight.delete(key);
-    });
-  inflight.set(key, promise);
-  return promise;
-}
-
 export async function hydrateScheduledEvents(
   requests: HydrationRequest[],
   fetcher: HydrationFetcher,
 ): Promise<Map<string, HistoryEvent[]>> {
   const merged = new Map<string, HistoryEvent[]>();
   for (const { executionSessionId, runIds } of requests) {
-    const missing: string[] = [];
-    for (const runId of runIds) {
-      const events = cachedEvents.get(runId);
-      if (events) merged.set(runId, events);
-      else missing.push(runId);
-    }
-    const batches = chunk(missing, RUN_IDS_CHUNK);
-    const results = await Promise.all(
-      batches.map((batch) =>
-        fetchSourceBatch(executionSessionId, batch, fetcher).catch(
-          () => new Map<string, HistoryEvent[]>(),
-        ),
-      ),
-    );
-    for (const byRun of results) {
-      for (const [runId, events] of byRun) {
-        merged.set(runId, events);
+    const uniqueIds = [...new Set(runIds)];
+    for (let offset = 0; offset < uniqueIds.length; offset += RUN_IDS_CHUNK) {
+      const batch = uniqueIds.slice(offset, offset + RUN_IDS_CHUNK);
+      try {
+        const events = await fetcher(executionSessionId, batch);
+        for (const event of events) {
+          const runId = event.run_id;
+          if (typeof runId !== "string" || !batch.includes(runId)) continue;
+          const bucket = merged.get(runId);
+          if (bucket) bucket.push(event);
+          else merged.set(runId, [event]);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") break;
+        // Leave missing runs retryable on the next refresh.
       }
     }
   }

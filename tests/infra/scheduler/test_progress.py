@@ -387,6 +387,7 @@ async def test_progress_relay_carries_the_task_prompt():
         "session_id": "sch_conversation_t",
         "owner_id": "owner",
         "target_session_id": "parent",
+        "input_snapshot": {"message": "Check whether AO3 is back"},
     }
     storage = SimpleNamespace(
         _get_collection=lambda _: SimpleNamespace(find_one=AsyncMock(return_value=record)),
@@ -394,7 +395,7 @@ async def test_progress_relay_carries_the_task_prompt():
             return_value=SimpleNamespace(
                 name="Numbers",
                 notification_policy="always",
-                input_payload={"message": "Check whether AO3 is back"},
+                input_payload={"message": "Edited"},
             )
         ),
     )
@@ -437,6 +438,7 @@ async def test_catchup_progress_carries_the_task_prompt():
         "created_at": datetime.now(timezone.utc),
         "conversation_state": "submitted",
         "status": "running",
+        "input_snapshot": {"prompt": "Legacy prompt"},
     }
 
     class Cursor:
@@ -453,7 +455,7 @@ async def test_catchup_progress_carries_the_task_prompt():
                 name="Numbers",
                 owner_id="owner",
                 notification_policy="always",
-                input_payload={"prompt": "Legacy prompt"},
+                input_payload={"prompt": "Edited"},
             )
         ),
     )

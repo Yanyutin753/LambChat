@@ -157,7 +157,7 @@ _RENDER_MAX_SOURCE_BYTES = 30 * 1024 * 1024
 
 
 def _cover_failed_marker_key(thumb_key: str) -> str:
-    """Negative-cache key for content whose cover render fails deterministically."""
+    """Short-lived failure marker shared across API replicas."""
     return thumb_key.removesuffix(".jpg") + ".failed"
 
 
@@ -374,10 +374,14 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
         if await storage.file_exists(thumb_key):
             return await _serve_cached_cover(storage, thumb_key, expires)
         if await storage.file_exists(_cover_failed_marker_key(thumb_key)):
-            # Deterministic render failure for immutable content: retrying
-            # only re-downloads and re-errors on every user refresh.
-            logger.info(f"Cover for {key} previously failed to render; skipping")
-            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
+            marker = await storage.download_file(_cover_failed_marker_key(thumb_key))
+            try:
+                failed_at = float(marker)
+            except ValueError:
+                failed_at = 0
+            # Renderers can fail transiently or be repaired by a deployment.
+            if 0 <= time.time() - failed_at < 300:
+                raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
     except AppError:
         raise
     except Exception as e:
@@ -449,7 +453,7 @@ async def _do_render_and_cache(
         logger.error(f"Failed to render {kind} cover for {key}: {e}", exc_info=True)
         try:
             await storage.upload_to_key(
-                f"cover-render-failed:{type(e).__name__}".encode(),
+                str(time.time()).encode(),
                 _cover_failed_marker_key(thumb_key),
                 content_type="text/plain",
                 skip_size_limit=True,

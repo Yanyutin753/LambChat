@@ -828,11 +828,6 @@ export const ChatMessage = memo(function ChatMessage({
       {typeof message.metadata?.scheduledTaskName === "string" && (
         <div className="mb-4 sm:mb-6">
           <ScheduledRunBubble
-            taskId={
-              typeof message.metadata.scheduledTaskId === "string"
-                ? message.metadata.scheduledTaskId
-                : undefined
-            }
             taskName={message.metadata.scheduledTaskName}
             prompt={
               typeof message.metadata.scheduledTaskPrompt === "string"
