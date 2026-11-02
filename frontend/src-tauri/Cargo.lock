@@ -2024,7 +2024,7 @@ dependencies = [
 
 [[package]]
 name = "lambchat"
-version = "2.15.7"
+version = "2.15.8"
 dependencies = [
  "block2",
  "command-group",
