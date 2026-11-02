@@ -740,7 +740,9 @@
     "twoFactorInvalid": "유효하지 않거나 이미 사용한 코드입니다. 새 코드를 입력하세요.",
     "twoFactorExpired": "인증이 만료되었습니다. 다시 로그인하거나 연결하세요.",
     "twoFactorState": "2단계 인증 설정이 변경되었습니다. 새로고침하세요.",
-    "twoFactorUnavailable": "보안 인증을 일시적으로 사용할 수 없습니다."
+    "twoFactorUnavailable": "보안 인증을 일시적으로 사용할 수 없습니다.",
+    "modelContentBlocked": "모델 제공사의 안전 정책에 따라 메시지가 차단되었습니다. 표현을 바꾸거나 다른 모델로 다시 시도해 주세요.",
+    "scheduledTaskAgentUnsupported": "이 에이전트({{agent}})는 기록 압축을 지원하지 않아 대화 모드 예약 작업에 사용할 수 없습니다. 다른 에이전트를 선택하거나 독립 대화 모드를 사용하세요"
   },
   "categories": {
     "scheduled_task": "예약 작업",

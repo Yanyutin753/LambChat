@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from datetime import datetime
 from itertools import chain
 from typing import Any
 
@@ -96,3 +97,39 @@ def parse_event_types_filter(event_types: str | None, limit: int = 100) -> list[
         if len(parsed) >= limit:
             break
     return parsed or None
+
+
+def normalize_run_id_params(
+    run_id: str | list[str] | None,
+) -> tuple[str | None, list[str] | None]:
+    """重复 run_id 查询参数归一：去空去重；单个保持标量语义，多个走批量过滤。"""
+    if not run_id:
+        return None, None
+    raw_run_ids = [run_id] if isinstance(run_id, str) else list(run_id)
+    seen_run_ids: set[str] = set()
+    unique_run_ids: list[str] = []
+    for item in raw_run_ids:
+        if item and item.strip() and item not in seen_run_ids:
+            seen_run_ids.add(item)
+            unique_run_ids.append(item)
+    single_run_id = unique_run_ids[0] if len(unique_run_ids) == 1 else None
+    batch_run_ids = unique_run_ids if len(unique_run_ids) > 1 else None
+    return single_run_id, batch_run_ids
+
+
+def parse_trace_window_cursor(
+    before_trace_started_at: str | None,
+    before_trace_id: str | None,
+) -> tuple[datetime | None, str | None]:
+    """窄化直连调用残留的 Query 默认对象并解析翻页游标；非法时间直接 BAD_REQUEST。"""
+    from src.infra.utils.datetime import parse_iso
+    from src.kernel.errors import AppError, ErrorCode
+
+    before_trace_id_param = before_trace_id if isinstance(before_trace_id, str) else None
+    if not isinstance(before_trace_started_at, str) or not before_trace_started_at:
+        return None, before_trace_id_param
+    try:
+        started_at = parse_iso(before_trace_started_at)
+    except (TypeError, ValueError) as error:
+        raise AppError(ErrorCode.INVALID_BEFORE_TRACE_STARTED_AT) from error
+    return started_at, before_trace_id_param

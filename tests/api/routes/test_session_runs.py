@@ -449,6 +449,7 @@ async def test_get_session_events_uses_bounded_history_read(
             "event_types": ["user:message", "done"],
             "run_id": "run-1",
             "exclude_run_id": None,
+            "run_ids": None,
             "completed_only": True,
             "max_events": 3,
         }
@@ -500,6 +501,7 @@ async def test_get_session_events_opt_in_returns_race_safe_snapshot_metadata(
             "event_types": ["user:message", "message:chunk", "done"],
             "run_id": None,
             "exclude_run_id": None,
+            "run_ids": None,
             "completed_only": True,
             "max_events": None,
             "active_run_id": "run-active",

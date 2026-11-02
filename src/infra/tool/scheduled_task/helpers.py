@@ -161,7 +161,7 @@ def _build_task_preview(
         "effect": (
             f"After creation, agent '{agent_id}' will run on {schedule}. "
             + (
-                "Each run continues this conversation with its latest context. "
+                "Each run continues the task's independent history and sends its result to this conversation. "
                 if execution_mode == "conversation"
                 else "Each run will start a new session and send the prompt listed below to the agent."
             )

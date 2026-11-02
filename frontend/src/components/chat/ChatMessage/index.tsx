@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
+import { ScheduledRunBubble } from "./ScheduledRunBubble";
 import { BookmarkButton } from "./BookmarkButton";
 import { buildBookmarkLabel } from "../../../utils/bookmarks";
 import { MessagePartRenderer } from "./MessagePartRenderer";
@@ -826,10 +827,14 @@ export const ChatMessage = memo(function ChatMessage({
     >
       {typeof message.metadata?.scheduledTaskName === "string" && (
         <div className="mb-4 sm:mb-6">
-          <UserMessageBubble
-            content={`${t("scheduledTask.title")} · ${
-              message.metadata.scheduledTaskName
-            }\n${message.timestamp.toLocaleString()}`}
+          <ScheduledRunBubble
+            taskName={message.metadata.scheduledTaskName}
+            prompt={
+              typeof message.metadata.scheduledTaskPrompt === "string"
+                ? message.metadata.scheduledTaskPrompt
+                : undefined
+            }
+            timestamp={message.timestamp.toLocaleString()}
           />
         </div>
       )}
@@ -854,7 +859,9 @@ export const ChatMessage = memo(function ChatMessage({
               className="min-w-0 truncate text-16 sm:text-18 lg:text-20 leading-normal font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
-              {identityDisplay.name || personaName || t("chat.message.assistant")}
+              {identityDisplay.name ||
+                personaName ||
+                t("chat.message.assistant")}
             </span>
           </div>
 

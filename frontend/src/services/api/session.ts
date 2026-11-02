@@ -61,6 +61,8 @@ export interface SessionRunsQuery {
 export interface SessionEventsQuery {
   event_types?: string[];
   run_id?: string;
+  /** 批量按多个 run 取事件；序列化为重复的 run_id 查询参数 */
+  run_ids?: string[];
   exclude_run_id?: string;
   include_active_user_message?: boolean;
   include_active_events?: boolean;
@@ -234,6 +236,11 @@ export function buildSessionEventsUrl(
     searchParams.set("event_types", options.event_types.join(","));
   }
   if (options?.run_id) searchParams.set("run_id", options.run_id);
+  if (options?.run_ids?.length) {
+    for (const runId of options.run_ids) {
+      searchParams.append("run_id", runId);
+    }
+  }
   if (options?.exclude_run_id) {
     searchParams.set("exclude_run_id", options.exclude_run_id);
   }

@@ -56,12 +56,14 @@ test("restores completed scheduled execution details from its own run", async ()
         event_type: "scheduled:instruction",
         data: { content: "INTERNAL" },
         timestamp: data.timestamp,
+        run_id: "scheduled-1",
       },
       {
         id: "start",
         event_type: "tool:start",
         data: { tool: "execute", tool_call_id: "exec", args: {} },
         timestamp: data.timestamp,
+        run_id: "scheduled-1",
       },
       {
         id: "result",
@@ -73,6 +75,7 @@ test("restores completed scheduled execution details from its own run", async ()
           success: true,
         },
         timestamp: data.timestamp,
+        run_id: "scheduled-1",
       },
     ],
   } as Awaited<ReturnType<typeof sessionApi.getEvents>>);
@@ -84,7 +87,7 @@ test("restores completed scheduled execution details from its own run", async ()
   );
   expect(sessionApi.getEvents).toHaveBeenCalledWith(
     "sch_conversation_task",
-    expect.objectContaining({ run_id: "scheduled-1" }),
+    expect.objectContaining({ run_ids: ["scheduled-1"] }),
   );
   expect(result.current[0].parts).toEqual([
     expect.objectContaining({
