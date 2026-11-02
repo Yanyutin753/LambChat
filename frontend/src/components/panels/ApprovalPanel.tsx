@@ -29,6 +29,11 @@ import {
   toggleSingleSelectValue,
 } from "./approvalFormValidation";
 import { parseAskHumanMessage } from "./askHumanMessage";
+import {
+  loadApprovalFormDraft,
+  removeApprovalFormDraft,
+  saveApprovalFormDraft,
+} from "./approvalDraftStore";
 import { ApprovalOpList } from "./ApprovalOpList";
 
 interface ApprovalPanelProps {
@@ -37,7 +42,7 @@ interface ApprovalPanelProps {
     id: string,
     response: Record<string, unknown>,
     approved: boolean,
-  ) => void;
+  ) => void | boolean | Promise<void | boolean>;
   isLoading: boolean;
 }
 
@@ -394,8 +399,9 @@ export function ApprovalPanel({
     for (const a of approvals) {
       const secs = remaining[a.id];
       if (secs === 0 && remaining[a.id] !== undefined) {
-        // Expired — auto-reject
+        // Expired — auto-reject；过期后草稿一并作废
         onRespond(a.id, {}, false);
+        removeApprovalFormDraft(a.id);
       }
     }
   }, [remaining, approvals, onRespond]);
@@ -442,14 +448,26 @@ export function ApprovalPanel({
   );
 
   useEffect(() => {
+    // 刷新/重开后审批会从 /human/pending 恢复，浏览器草稿在此一并回填；
+    // 读取放在 updater 外，保持 setState 更新器纯净
+    const drafts = new Map<string, Record<string, unknown> | null>();
+    for (const approval of approvals) {
+      drafts.set(
+        approval.id,
+        loadApprovalFormDraft(approval.id, approval.fields),
+      );
+    }
     setFormValues((prev) => {
       const newValues = { ...prev };
       approvals.forEach((approval) => {
         if (!newValues[approval.id]) {
+          const draft = drafts.get(approval.id);
           const initialValues: Record<string, unknown> = {};
           approval.fields.forEach((field) => {
             initialValues[field.name] =
-              field.default ?? getDefaultValue(field.type);
+              draft?.[field.name] ??
+              field.default ??
+              getDefaultValue(field.type);
           });
           newValues[approval.id] = initialValues;
         }
@@ -511,6 +529,11 @@ export function ApprovalPanel({
   const approvalSummary = currentApproval.message.replace(/\s+/g, " ").trim();
 
   const handleFieldChange = (fieldName: string, value: unknown) => {
+    // 已填内容随时落浏览器草稿，刷新/关闭页面后不丢
+    saveApprovalFormDraft(currentApproval.id, {
+      ...currentFormValues,
+      [fieldName]: value,
+    });
     setFormValues((prev) => ({
       ...prev,
       [currentApproval.id]: {
@@ -520,15 +543,26 @@ export function ApprovalPanel({
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (isSubmitDisabled) {
       return;
     }
-    onRespond(currentApproval.id, currentFormValues, true);
+    const settled = await onRespond(
+      currentApproval.id,
+      currentFormValues,
+      true,
+    );
+    // 同步 void 调用方视为已受理；异步失败（false）时保留草稿供重试
+    if (settled !== false) {
+      removeApprovalFormDraft(currentApproval.id);
+    }
   };
 
-  const handleCancel = () => {
-    onRespond(currentApproval.id, {}, false);
+  const handleCancel = async () => {
+    const settled = await onRespond(currentApproval.id, {}, false);
+    if (settled !== false) {
+      removeApprovalFormDraft(currentApproval.id);
+    }
   };
 
   const isAskHuman = currentApproval.metadata?.mode === "interrupt";
