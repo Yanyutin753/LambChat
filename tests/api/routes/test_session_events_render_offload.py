@@ -42,10 +42,19 @@ def _patch_route(monkeypatch: pytest.MonkeyPatch, events: list[dict[str, Any]]) 
             *,
             run_id: str | None = None,
             exclude_run_id: str | None = None,
+            run_ids: list[str] | None = None,
             completed_only: bool = True,
             max_events: int | None = None,
         ) -> list[dict[str, Any]]:
-            del session_id, types_list, run_id, exclude_run_id, completed_only, max_events
+            del (
+                session_id,
+                types_list,
+                run_id,
+                exclude_run_id,
+                run_ids,
+                completed_only,
+                max_events,
+            )
             return list(events)
 
     import src.infra.session.dual_writer as dual_writer_module

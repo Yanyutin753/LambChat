@@ -17,6 +17,13 @@ logger = logging.getLogger(__name__)
 PRIVATE_PROGRESS_EVENTS = {"scheduled:instruction", "user:message"}
 
 
+def task_prompt(record) -> str:
+    """The user-authored task prompt, shown as the run's question (never the internal wrapper)."""
+    payload = record.get("input_snapshot") or {}
+    prompt = payload.get("message") or payload.get("prompt")
+    return prompt.strip() if isinstance(prompt, str) else ""
+
+
 async def deliver_result(task, record):
     from src.infra.session.manager import SessionManager
     from src.infra.websocket import get_connection_manager
@@ -54,6 +61,9 @@ async def deliver_result(task, record):
     )
     if identity:
         data["assistant_identity"] = identity
+    prompt = task_prompt(record)
+    if prompt:
+        data["prompt"] = prompt
     trace_id = message_id
     if not await traces.acquire_session_trace_write(target_session_id):
         return True
@@ -287,6 +297,7 @@ async def relay_progress(presenter, event):
                 "message_id": f"scheduled-result:{run_id}",
                 "task_id": record["task_id"],
                 "task_name": task.name,
+                "prompt": task_prompt(record),
                 "assistant_identity": identity,
                 "content": "",
                 "events": [],
@@ -471,6 +482,7 @@ async def get_session_progress(session_id, owner_id, *, run_ids=()):
                 "message_id": f"scheduled-result:{record['_id']}",
                 "task_id": record["task_id"],
                 "task_name": task.name,
+                "prompt": task_prompt(record),
                 "content": "",
                 "timestamp": record["created_at"].isoformat(),
                 "updated_at": utc_now().isoformat(),

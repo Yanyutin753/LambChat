@@ -234,6 +234,18 @@ export function TaskFormModal({
       toast.error(t("scheduledTask.targetRequired"));
       return;
     }
+    // quick 无历史压缩，conversation 模式会让执行会话上下文无限增长（后端同款拒绝）
+    if (
+      executionMode === "conversation" &&
+      (sessions.find((session) => session.id === targetSessionId)?.agent_id ||
+        agentId ||
+        "search") === "quick"
+    ) {
+      toast.error(
+        t("backendErrors.scheduledTaskAgentUnsupported", { agent: "quick" }),
+      );
+      return;
+    }
     if (executionMode === "standalone" && !agentId) {
       toast.error(t("scheduledTask.agentRequired"));
       return;

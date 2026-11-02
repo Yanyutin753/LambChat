@@ -366,6 +366,8 @@ async def dispatch_pending():
                 await storage.update_task(task.id, {"enabled": False, "status": "paused"})
                 await _finish(storage, record, "failed", "Chat permission is unavailable")
                 continue
+            # Capture the exact input used at admission, before progress can be published.
+            await storage.update_run(record["_id"], {"input_snapshot": task.input_payload})
             token = SCHEDULED_SUBMISSION.set({"task_id": task.id, "run_id": record["_id"]})
             try:
                 result = await chat_stream(

@@ -280,6 +280,105 @@ async def test_contract_legacy_no_limit_returns_full_history(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_contract_repeated_run_ids_return_only_those_runs(monkeypatch):
+    """批量 run_id（重复查询参数）：一次请求取回多个 run 的完整事件（定时结果卡片补全）。"""
+    session_routes = _load_contract_routes_module(monkeypatch)
+    writer = _real_dual_writer_with(_rich_traces())
+
+    response = await _call_events(
+        session_routes,
+        monkeypatch,
+        writer,
+        run_id=["run-02", "run-04", "run-10"],
+        trace_limit=None,
+        include_active_user_message=False,
+    )
+
+    grouped = _events_by_run(response["events"])
+    assert set(grouped) == {"run-02", "run-04", "run-10"}
+    for rid, events in grouped.items():
+        assert events, f"{rid} 不应丢事件"
+        assert events[0]["event_type"] == "user:message"
+        assert events[-1]["event_type"] in {"done", "recommend:questions"}
+    # 批量请求的响应 run_id 字段落回 current_run_id，不误导单 run 语义
+    assert response["run_id"] == "run-active"
+
+
+@pytest.mark.asyncio
+async def test_contract_single_run_id_list_behaves_like_scalar(monkeypatch):
+    session_routes = _load_contract_routes_module(monkeypatch)
+    writer = _real_dual_writer_with(_rich_traces())
+
+    scalar = await _call_events(
+        session_routes,
+        monkeypatch,
+        writer,
+        run_id="run-05",
+        trace_limit=None,
+        include_active_user_message=False,
+    )
+    repeated = await _call_events(
+        session_routes,
+        monkeypatch,
+        writer,
+        run_id=["run-05"],
+        trace_limit=None,
+        include_active_user_message=False,
+    )
+
+    assert _events_by_run(scalar["events"]).keys() == {"run-05"}
+    assert _events_by_run(repeated["events"]).keys() == {"run-05"}
+    assert repeated["run_id"] == "run-05"
+
+
+@pytest.mark.asyncio
+async def test_contract_repeated_run_id_params_over_http(monkeypatch):
+    """HTTP 层：?run_id=a&run_id=b 重复参数解析为批量过滤。"""
+    import httpx
+    from fastapi import FastAPI
+
+    from src.api.error_handlers import register_error_handlers
+
+    routes = _load_contract_routes_module(monkeypatch)
+    writer = _real_dual_writer_with(_rich_traces())
+    monkeypatch.setattr(
+        sys.modules["src.infra.session.dual_writer"], "get_dual_writer", lambda: writer
+    )
+    app = FastAPI()
+    app.include_router(routes.router, prefix="/api/sessions")
+    user_dependency = (
+        next(route for route in routes.router.routes if route.name == "get_session_events")
+        .dependant.dependencies[0]
+        .call
+    )
+    app.dependency_overrides[user_dependency] = lambda: SimpleNamespace(sub="user-1")
+    register_error_handlers(app)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/api/sessions/session-1/events",
+            params=[("run_id", "run-02"), ("run_id", "run-04")],
+        )
+        active_reject = await client.get(
+            "/api/sessions/session-1/events",
+            params=[
+                ("run_id", "run-02"),
+                ("run_id", "run-04"),
+                ("include_active_events", "true"),
+            ],
+        )
+
+    assert response.status_code == 200
+    grouped = _events_by_run(response.json()["events"])
+    assert set(grouped) == {"run-02", "run-04"}
+    # include_active_events 仍要求唯一 run：批量 + 活动回放直接 400
+    assert active_reject.status_code == 400
+    assert active_reject.json()["detail"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
 async def test_contract_compact_mode_keeps_every_run_represented(monkeypatch):
     session_routes = _load_contract_routes_module(monkeypatch)
     writer = _real_dual_writer_with(_rich_traces())
@@ -300,3 +399,21 @@ async def test_contract_compact_mode_keeps_every_run_represented(monkeypatch):
         types = [e["event_type"] for e in events]
         assert "user:message" in types, f"{rid} 缺用户消息"
         assert types[-1] in {"done", "recommend:questions", "message:chunk"}, rid
+
+
+@pytest.mark.asyncio
+async def test_contract_invalid_trace_window_cursor_is_rejected(monkeypatch):
+    session_routes = _load_contract_routes_module(monkeypatch)
+    writer = _real_dual_writer_with(_rich_traces())
+    from src.kernel.errors import AppError, ErrorCode
+
+    with pytest.raises(AppError) as excinfo:
+        await _call_events(
+            session_routes,
+            monkeypatch,
+            writer,
+            trace_limit=None,
+            before_trace_started_at="not-a-date",
+            include_active_user_message=False,
+        )
+    assert excinfo.value.error_code == ErrorCode.INVALID_BEFORE_TRACE_STARTED_AT

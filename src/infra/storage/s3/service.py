@@ -445,7 +445,11 @@ class S3StorageService:
         if key.startswith(("covers/", "thumbs/")):
             return
         backend = self._get_backend()
-        for preview in (f"covers/560x315/{key}.jpg", f"thumbs/560/{key}.jpg"):
+        for preview in (
+            f"covers/560x315/{key}.jpg",
+            f"covers/560x315/{key}.failed",
+            f"thumbs/560/{key}.jpg",
+        ):
             if await backend.exists(preview):
                 await backend.delete(preview)
 

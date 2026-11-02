@@ -475,3 +475,37 @@ test.each(["live", "history"])(
     });
   },
 );
+
+describe("scheduled prompt metadata", () => {
+  test("result merge stores the task prompt for the synthetic user bubble", () => {
+    const messages = mergeScheduledResult([], {
+      ...result,
+      prompt: "Check AO3",
+    });
+    expect(messages[0].metadata?.scheduledTaskPrompt).toBe("Check AO3");
+  });
+
+  test("progress merge stores the task prompt as soon as the run starts", () => {
+    const started = mergeScheduledProgress([], {
+      ...result,
+      content: "",
+      prompt: "Check AO3",
+      status: "running",
+      updated_at: result.timestamp,
+    });
+    expect(started[0].metadata?.scheduledTaskPrompt).toBe("Check AO3");
+  });
+
+  test("hydration replay without a prompt keeps the prompt already known", () => {
+    const hydrated = mergeScheduledResult(
+      mergeScheduledResult([], { ...result, prompt: "Check AO3" }),
+      { ...result, events: [] as never },
+    );
+    expect(hydrated[0].metadata?.scheduledTaskPrompt).toBe("Check AO3");
+  });
+
+  test("payloads without a prompt key stay valid and store no prompt", () => {
+    const messages = mergeScheduledResult([], result);
+    expect(messages[0].metadata?.scheduledTaskPrompt).toBeUndefined();
+  });
+});

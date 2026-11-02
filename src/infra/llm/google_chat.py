@@ -8,13 +8,66 @@ from typing import Any
 
 from google.genai.types import HttpOptions
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import Field
 
 from src.infra.llm.quota import QuotaChatMixin, _QuotaResource
+from src.infra.llm.reasoning_patch import reasoning_text_from_message
 from src.infra.llm.streaming import aiter_with_first_event_timeout
+
+# langchain_google_genai 认定的原生来源；其余 provider 的思考块无法以 Gemini
+# thought part 回放，会在消息转换时被静默丢弃（_REASONING_BLOCK_TYPES）。
+_NATIVE_MODEL_PROVIDERS = frozenset({"google_genai", "google_vertexai"})
+_DROPPED_REASONING_BLOCK_TYPES = frozenset({"reasoning", "thinking", "reasoning_content"})
+
+
+def _downgrade_foreign_reasoning(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Replay foreign-provider reasoning as plain text for the Gemini lane.
+
+    A session whose earlier turns ran on the anthropic/openai lanes carries
+    thinking blocks or ``reasoning_content`` kwargs that Gemini cannot replay
+    as thought parts; without this they are dropped silently and the model
+    loses its own prior reasoning. Native Gemini thoughts are left untouched.
+    """
+    normalized: list[BaseMessage] = []
+    for message in messages:
+        replacement = None
+        if isinstance(message, AIMessage):
+            provider = message.response_metadata.get("model_provider")
+            if provider is not None and provider not in _NATIVE_MODEL_PROVIDERS:
+                replacement = _foreign_reasoning_as_text_blocks(message)
+        normalized.append(replacement if replacement is not None else message)
+    return normalized
+
+
+def _foreign_reasoning_as_text_blocks(message: AIMessage) -> AIMessage | None:
+    content = message.content
+    reasoning = reasoning_text_from_message(
+        message.model_copy(update={"content": message.content_blocks})
+    )
+    if isinstance(content, str):
+        removed = False
+        blocks: list[Any] = [{"type": "text", "text": content}] if content else []
+    elif isinstance(content, list):
+        blocks = [
+            block
+            for block in content
+            if not (isinstance(block, dict) and block.get("type") in _DROPPED_REASONING_BLOCK_TYPES)
+        ]
+        removed = len(blocks) != len(content)
+    else:
+        return None
+    if not removed and not reasoning.strip():
+        return None
+    if reasoning.strip():
+        new_content = [{"type": "text", "text": reasoning}, *blocks]
+    else:
+        new_content = blocks
+    if new_content == content:
+        return None
+    return message.model_copy(update={"content": new_content})
 
 
 class LambChatGoogleChatModel(QuotaChatMixin, ChatGoogleGenerativeAI):
@@ -30,7 +83,7 @@ class LambChatGoogleChatModel(QuotaChatMixin, ChatGoogleGenerativeAI):
         return super()._format_tools(deepcopy(tools), deepcopy(functions))
 
     def _prepare_request(self, messages: list[BaseMessage], **kwargs: Any) -> dict[str, Any]:
-        request = super()._prepare_request(messages, **kwargs)
+        request = super()._prepare_request(_downgrade_foreign_reasoning(messages), **kwargs)
         contents = request.get("contents", [])
         if not any(
             part.inline_data is not None for content in contents for part in content.parts or []

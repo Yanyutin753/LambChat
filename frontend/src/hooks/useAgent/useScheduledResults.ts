@@ -12,6 +12,10 @@ import {
   SCHEDULED_RESULT_EVENT,
   SCHEDULED_RESULTS_REFRESH_EVENT,
 } from "./scheduledResults";
+import {
+  groupPendingHydrations,
+  hydrateScheduledEvents,
+} from "./scheduledEventHydration";
 
 export function useScheduledResults(
   sessionId: string | null,
@@ -31,47 +35,48 @@ export function useScheduledResults(
   useEffect(() => {
     if (!sessionId || !userId) return;
     const controller = new AbortController();
+    const requests = groupPendingHydrations(messages);
+    if (requests.length === 0) return () => controller.abort();
     const hydrate = async () => {
-      for (const message of messages) {
-        if (controller.signal.aborted) return;
-        const runId = message.runId;
-        const source = message.metadata?.scheduledExecutionSessionId;
-        const taskId = message.metadata?.scheduledTaskId;
-        const taskName = message.metadata?.scheduledTaskName;
-        if (
-          !message.metadata?.scheduledFinal ||
-          message.metadata.scheduledEventsLoaded ||
-          typeof source !== "string" ||
-          !runId ||
-          typeof taskId !== "string" ||
-          typeof taskName !== "string"
-        )
-          continue;
-        try {
-          const response = await sessionApi.getEvents(source, {
-            run_id: runId,
-            signal: controller.signal,
-          });
-          if (controller.signal.aborted) return;
-          setMessages((previous) =>
-            controller.signal.aborted
-              ? previous
-              : mergeScheduledResult(previous, {
-                  session_id: sessionId,
-                  run_id: runId,
-                  message_id: message.id,
-                  task_id: taskId,
-                  task_name: taskName,
-                  content: message.content,
-                  timestamp: message.timestamp.toISOString(),
-                  execution_session_id: source,
-                  events: response.events,
-                }),
-          );
-        } catch (error) {
-          if (!controller.signal.aborted)
-            console.warn("Scheduled execution history deferred", error);
-        }
+      try {
+        const eventsByRun = await hydrateScheduledEvents(
+          requests,
+          (source, runIds) =>
+            sessionApi
+              .getEvents(source, { run_ids: runIds, signal: controller.signal })
+              .then((response) => response.events),
+        );
+        if (controller.signal.aborted || eventsByRun.size === 0) return;
+        setMessages((previous) => {
+          let next = previous;
+          for (const message of previous) {
+            const events = message.runId
+              ? eventsByRun.get(message.runId)
+              : undefined;
+            if (!events || !message.metadata?.scheduledFinal) continue;
+            const taskId = message.metadata.scheduledTaskId;
+            const taskName = message.metadata.scheduledTaskName;
+            const source = message.metadata.scheduledExecutionSessionId;
+            if (typeof taskId !== "string" || typeof taskName !== "string")
+              continue;
+            if (typeof source !== "string") continue;
+            next = mergeScheduledResult(next, {
+              session_id: sessionId,
+              run_id: message.runId!,
+              message_id: message.id,
+              task_id: taskId,
+              task_name: taskName,
+              content: message.content,
+              timestamp: message.timestamp.toISOString(),
+              execution_session_id: source,
+              events,
+            });
+          }
+          return next;
+        });
+      } catch (error) {
+        if (!controller.signal.aborted)
+          console.warn("Scheduled execution history deferred", error);
       }
     };
     void hydrate();

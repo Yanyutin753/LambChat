@@ -740,7 +740,9 @@
     "twoFactorInvalid": "验证码无效或已使用，请输入新的验证码",
     "twoFactorExpired": "验证已过期，请重新登录或配对",
     "twoFactorState": "双重验证设置已更改，请重新加载",
-    "twoFactorUnavailable": "安全认证暂时不可用，请稍后重试"
+    "twoFactorUnavailable": "安全认证暂时不可用，请稍后重试",
+    "modelContentBlocked": "消息被模型服务商的安全策略拦截，请调整表述或更换模型后重试。",
+    "scheduledTaskAgentUnsupported": "该智能体（{{agent}}）不支持历史压缩，无法用于「结果发回此对话」的定时任务；请更换智能体或使用独立对话模式"
   },
   "categories": {
     "scheduled_task": "定时任务",

@@ -68,12 +68,15 @@ class ScheduledTaskService:
         self._active_task_count = 0
 
     @staticmethod
-    async def _validate_conversation(mode, target, owner_id):
+    async def _validate_conversation(mode, target, owner_id, agent_id=None):
         if mode != "conversation":
             return
         from src.infra.session.manager import SessionManager
         from src.kernel.errors import AppError, ErrorCode
 
+        # quick 图无摘要中间件，conversation 模式下执行会话历史会无限增长。
+        if agent_id == "quick":
+            raise AppError(ErrorCode.SCHEDULED_TASK_AGENT_UNSUPPORTED, args={"agent": agent_id})
         session = await SessionManager().get_session(target) if target else None
         if session is None or session.user_id != owner_id:
             raise AppError(ErrorCode.SCHEDULED_TASK_ERROR)
@@ -87,7 +90,7 @@ class ScheduledTaskService:
     ) -> ScheduledTask:
         """Validate, persist, and register a new scheduled task."""
         await self._validate_conversation(
-            request.execution_mode, request.target_session_id, owner_id
+            request.execution_mode, request.target_session_id, owner_id, request.agent_id
         )
         # Validate trigger config
         self._build_trigger(request.trigger_type, request.trigger_config, request.timezone)
@@ -156,6 +159,7 @@ class ScheduledTaskService:
             updates.get("execution_mode", task.execution_mode),
             updates.get("target_session_id", task.target_session_id),
             task.owner_id,
+            updates.get("agent_id", task.agent_id),
         )
 
         if any(

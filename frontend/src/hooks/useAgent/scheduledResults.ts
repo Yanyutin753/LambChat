@@ -18,6 +18,8 @@ export interface ScheduledResult {
   content: string;
   timestamp: string;
   execution_session_id?: string;
+  /** 本次 run 的任务提示词（用户设置的任务提示词，非内部包装指令） */
+  prompt?: string;
   events?: HistoryEvent[];
   assistant_identity?: Message["assistantIdentity"];
 }
@@ -52,6 +54,7 @@ function isScheduledPayload(
     Number.isFinite(Date.parse(data.timestamp as string)) &&
     (data.execution_session_id === undefined ||
       typeof data.execution_session_id === "string") &&
+    (data.prompt === undefined || typeof data.prompt === "string") &&
     (data.events === undefined ||
       (Array.isArray(data.events) &&
         data.events.every(
@@ -116,6 +119,8 @@ export function mergeScheduledResult(
     metadata: {
       scheduledTaskId: data.task_id,
       scheduledTaskName: data.task_name,
+      scheduledTaskPrompt:
+        data.prompt || existing?.metadata?.scheduledTaskPrompt,
       scheduledFinal: true,
       scheduledExecutionSessionId:
         data.execution_session_id ??
@@ -196,6 +201,8 @@ export function mergeScheduledProgress(
       ...existing?.metadata,
       scheduledTaskId: data.task_id,
       scheduledTaskName: data.task_name,
+      scheduledTaskPrompt:
+        data.prompt || existing?.metadata?.scheduledTaskPrompt,
       scheduledProgressStatus: data.status,
       scheduledUpdatedAt: data.updated_at,
       scheduledExecutionSessionId:
