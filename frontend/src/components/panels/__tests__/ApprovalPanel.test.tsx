@@ -11,6 +11,10 @@ import type { ReactNode } from "react";
 import i18n from "../../../i18n";
 import type { PendingApproval } from "../../../types";
 import { ApprovalPanel } from "../ApprovalPanel";
+import {
+  loadApprovalFormDraft,
+  saveApprovalFormDraft,
+} from "../approvalDraftStore";
 
 vi.mock("../../agent/useAgentCatalog", () => ({
   useAgentCatalog: () => [],
@@ -115,6 +119,112 @@ test.each([undefined, { mode: "interrupt" }])(
     );
   },
 );
+
+test("restores a saved browser draft when the approval reappears", async () => {
+  localStorage.clear();
+  const askHumanFields: PendingApproval["fields"] = [
+    {
+      name: "platform",
+      type: "radio",
+      label: "验证平台",
+      options: ["桌面端", "移动端"],
+      required: true,
+    },
+    {
+      name: "note",
+      type: "text",
+      label: "备注",
+      required: false,
+      placeholder: "补充说明",
+    },
+  ];
+  saveApprovalFormDraft("confirmation", { platform: "桌面端" });
+  render(
+    <ApprovalPanel
+      approvals={[
+        approval({ metadata: { mode: "interrupt" }, fields: askHumanFields }),
+      ]}
+      onRespond={vi.fn()}
+      isLoading={false}
+    />,
+  );
+
+  expect(await screen.findByRole("option", { name: /桌面端/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "提交" })).toBeEnabled();
+  expect(screen.getByPlaceholderText("补充说明")).toHaveValue("");
+});
+
+test("persists edits as a browser draft and clears it once submitted", async () => {
+  localStorage.clear();
+  const askHumanFields: PendingApproval["fields"] = [
+    {
+      name: "platform",
+      type: "radio",
+      label: "验证平台",
+      options: ["桌面端", "移动端"],
+      required: true,
+    },
+  ];
+  const onRespond = vi.fn().mockResolvedValue(true);
+  render(
+    <ApprovalPanel
+      approvals={[
+        approval({ metadata: { mode: "interrupt" }, fields: askHumanFields }),
+      ]}
+      onRespond={onRespond}
+      isLoading={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("option", { name: /桌面端/ }));
+  expect(loadApprovalFormDraft("confirmation", askHumanFields)).toEqual({
+    platform: "桌面端",
+  });
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "提交" }));
+  });
+  expect(onRespond).toHaveBeenCalledWith(
+    "confirmation",
+    { platform: "桌面端" },
+    true,
+  );
+  expect(loadApprovalFormDraft("confirmation", askHumanFields)).toBeNull();
+});
+
+test("keeps the browser draft when responding fails", async () => {
+  localStorage.clear();
+  const askHumanFields: PendingApproval["fields"] = [
+    {
+      name: "platform",
+      type: "radio",
+      label: "验证平台",
+      options: ["桌面端", "移动端"],
+      required: true,
+    },
+  ];
+  const onRespond = vi.fn().mockResolvedValue(false);
+  render(
+    <ApprovalPanel
+      approvals={[
+        approval({ metadata: { mode: "interrupt" }, fields: askHumanFields }),
+      ]}
+      onRespond={onRespond}
+      isLoading={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("option", { name: /桌面端/ }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "提交" }));
+  });
+  expect(loadApprovalFormDraft("confirmation", askHumanFields)).toEqual({
+    platform: "桌面端",
+  });
+});
 
 test("ordinary confirmation renders markdown immediately and keeps cancellation", () => {
   const onRespond = vi.fn();
