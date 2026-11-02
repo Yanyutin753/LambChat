@@ -47,6 +47,18 @@ class _HTMLText(HTMLParser):
             self.lines.append(data.strip())
 
 
+def _docx_fallback_text(data: bytes) -> str:
+    """Best-effort text from the raw main document part.
+
+    markitdown/mammoth reject some structurally unusual docx files outright
+    (WPS and other generators); the plain XML text runs are still readable.
+    """
+    with _checked_archive(data) as archive:
+        root = ElementTree.fromstring(archive.read("word/document.xml"))
+    runs = [el.text for el in root.iter() if el.tag.endswith("}t")]
+    return " ".join(text for text in runs if text and text.strip())
+
+
 def preview_text(data: bytes, ext: str) -> str:
     if ext in OFFICE_EXTENSIONS | {"zip"}:
         with _checked_archive(data) as archive:
@@ -71,9 +83,19 @@ def preview_text(data: bytes, ext: str) -> str:
                 return "\n".join(parser.lines)[:_MAX_TEXT]
         from markitdown import MarkItDown
 
-        result = MarkItDown(enable_plugins=False).convert_stream(
-            io.BytesIO(data), file_extension="." + ext
-        )
+        try:
+            result = MarkItDown(enable_plugins=False).convert_stream(
+                io.BytesIO(data), file_extension="." + ext
+            )
+        except Exception:
+            if ext == "docx":
+                try:
+                    fallback = _docx_fallback_text(data)
+                except Exception:
+                    fallback = ""
+                if fallback.strip():
+                    return fallback[:_MAX_TEXT]
+            raise
         return str(result.text_content or "")[:_MAX_TEXT]
     text = data[:65536].decode("utf-8-sig", errors="replace")
     if ext in {"html", "htm"}:
