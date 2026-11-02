@@ -802,6 +802,12 @@ class ErrorCode(Enum):
         "Failed to submit resume task, please retry",
     )
     SCHEDULED_TASK_ERROR = ("scheduled_task_error", 400, "Scheduled task operation failed")
+    SCHEDULED_TASK_AGENT_UNSUPPORTED = (
+        "scheduled_task_agent_unsupported",
+        400,
+        "Agent '{{agent}}' has no history compaction and cannot run conversation-mode "
+        "scheduled tasks; pick another agent or use standalone mode",
+    )
 
     # ---------- chat / agent：对话与执行 ----------
     INVALID_ATTACHMENTS = ("invalid_attachments", 400, "Invalid attachments")

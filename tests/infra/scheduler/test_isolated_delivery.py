@@ -266,6 +266,90 @@ async def test_user_chat_and_steer_queue_do_not_delay_scheduled_admission():
     assert storage.update_run.call_args.args[1]["conversation_state"] == "submitted"
 
 
+async def test_result_delivery_carries_the_task_prompt():
+    from src.infra.scheduler.results import deliver_result
+
+    task = SimpleNamespace(
+        id="task",
+        owner_id="owner",
+        name="Numbers",
+        agent_id="search",
+        target_session_id="parent",
+        notification_policy="always",
+        input_payload={"message": "Check whether AO3 is back"},
+    )
+    record = {
+        "_id": "scheduled-1",
+        "session_id": "child",
+        "created_at": datetime(2026, 10, 16, 17, 46, 0, tzinfo=timezone.utc),
+    }
+    traces = SimpleNamespace(
+        get_run_events=AsyncMock(
+            return_value=[{"event_type": "message:chunk", "data": {"content": "748196"}}]
+        ),
+        acquire_session_trace_write=AsyncMock(return_value=True),
+        release_session_trace_write=AsyncMock(),
+        collection=SimpleNamespace(
+            update_one=AsyncMock(return_value=SimpleNamespace(upserted_id="new"))
+        ),
+    )
+    websocket = SimpleNamespace(send_to_user_with_broadcast=AsyncMock())
+    with (
+        patch("src.infra.scheduler.results.get_trace_storage", return_value=traces),
+        patch(
+            "src.infra.session.manager.SessionManager.get_session",
+            AsyncMock(return_value=SimpleNamespace(user_id="owner")),
+        ),
+        patch("src.infra.websocket.get_connection_manager", return_value=websocket),
+    ):
+        await deliver_result(task, record)
+    delivered = websocket.send_to_user_with_broadcast.call_args.args[1]["data"]
+    assert delivered["prompt"] == "Check whether AO3 is back"
+    stored = traces.collection.update_one.call_args.args[1]["$setOnInsert"]["events"][0]["data"]
+    assert stored["prompt"] == "Check whether AO3 is back"
+
+
+async def test_result_delivery_prompt_falls_back_to_prompt_key_and_stays_absent_when_unset():
+    from src.infra.scheduler.results import deliver_result
+
+    base = dict(
+        id="task",
+        owner_id="owner",
+        name="Numbers",
+        agent_id="search",
+        target_session_id="parent",
+        notification_policy="always",
+    )
+    traces = SimpleNamespace(
+        get_run_events=AsyncMock(
+            return_value=[{"event_type": "message:chunk", "data": {"content": "ok"}}]
+        ),
+        acquire_session_trace_write=AsyncMock(return_value=True),
+        release_session_trace_write=AsyncMock(),
+        collection=SimpleNamespace(
+            update_one=AsyncMock(return_value=SimpleNamespace(upserted_id="new"))
+        ),
+    )
+    websocket = SimpleNamespace(send_to_user_with_broadcast=AsyncMock())
+    with (
+        patch("src.infra.scheduler.results.get_trace_storage", return_value=traces),
+        patch(
+            "src.infra.session.manager.SessionManager.get_session",
+            AsyncMock(return_value=SimpleNamespace(user_id="owner")),
+        ),
+        patch("src.infra.websocket.get_connection_manager", return_value=websocket),
+    ):
+        await deliver_result(
+            SimpleNamespace(**base, input_payload={"prompt": "Legacy"}),
+            {"_id": "r1", "session_id": "child"},
+        )
+        assert websocket.send_to_user_with_broadcast.call_args.args[1]["data"]["prompt"] == "Legacy"
+        await deliver_result(
+            SimpleNamespace(**base, input_payload={}), {"_id": "r2", "session_id": "child"}
+        )
+        assert "prompt" not in websocket.send_to_user_with_broadcast.call_args.args[1]["data"]
+
+
 async def test_internal_schedule_instruction_is_not_persisted_as_user_input():
     from src.infra.writer.present import Presenter, PresenterConfig
 

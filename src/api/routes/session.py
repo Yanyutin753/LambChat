@@ -9,11 +9,13 @@ from pydantic import BaseModel
 
 from src.api.deps import require_permissions
 from src.api.routes.session_history_render import (
-    parse_event_types_filter as _parse_event_types_filter,
-)
-from src.api.routes.session_history_render import (
+    normalize_run_id_params,
+    parse_trace_window_cursor,
     prepare_history_events,
     render_history_response_offloaded,
+)
+from src.api.routes.session_history_render import (
+    parse_event_types_filter as _parse_event_types_filter,
 )
 from src.api.routes.session_usage_projection import project_session_usage_costs
 from src.api.routes.session_workspace import get_workspace_locations
@@ -25,7 +27,7 @@ from src.infra.session.favorites import is_session_favorite, normalize_session_m
 from src.infra.session.manager import SessionManager
 from src.infra.session.read_notifications import broadcast_read
 from src.infra.session.storage import SessionStorage
-from src.infra.utils.datetime import parse_iso, to_iso
+from src.infra.utils.datetime import to_iso
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import NotFoundError, SessionError
@@ -286,7 +288,9 @@ async def get_session_events(
     event_types: Optional[str] = Query(
         None, description="事件类型过滤，逗号分隔，如: message,thinking,tool_use"
     ),
-    run_id: Optional[str] = Query(None, description="Run ID 过滤（用于获取特定对话轮次的事件）"),
+    run_id: Optional[list[str]] = Query(
+        None, description="运行 ID 过滤；重复传同一个参数可一次取回多个 run（批量补全）"
+    ),
     exclude_run_id: Optional[str] = Query(
         None, description="排除的 Run ID（用于排除正在运行的 run）"
     ),
@@ -331,10 +335,10 @@ async def get_session_events(
 
     verify_session_ownership(session, user)
 
+    single_run_id, batch_run_ids = normalize_run_id_params(run_id)
+
     active_events_requested = include_active_events is True
-    if active_events_requested and (
-        not isinstance(run_id, str) or not run_id.strip() or isinstance(exclude_run_id, str)
-    ):
+    if active_events_requested and (not single_run_id or isinstance(exclude_run_id, str)):
         raise AppError(ErrorCode.BAD_REQUEST)
 
     dual_writer = get_dual_writer()
@@ -345,17 +349,9 @@ async def get_session_events(
     # 直接调用（绕过 FastAPI 依赖解析）时 Query 默认对象会原样传入，
     # 按类型收窄为真实值
     trace_limit_value = trace_limit if isinstance(trace_limit, int) else None
-    before_trace_started_at_param = (
-        before_trace_started_at if isinstance(before_trace_started_at, str) else None
+    before_trace_started_at_dt, before_trace_id_param = parse_trace_window_cursor(
+        before_trace_started_at, before_trace_id
     )
-    before_trace_id_param = before_trace_id if isinstance(before_trace_id, str) else None
-
-    before_trace_started_at_dt: Optional[datetime] = None
-    if before_trace_started_at_param:
-        try:
-            before_trace_started_at_dt = parse_iso(before_trace_started_at_param)
-        except (TypeError, ValueError):
-            raise AppError(ErrorCode.INVALID_BEFORE_TRACE_STARTED_AT)
 
     current_run_id = session.metadata.get("current_run_id") if session.metadata else None
     trace_window_requested = trace_limit_value is not None or before_trace_started_at_dt is not None
@@ -373,8 +369,9 @@ async def get_session_events(
             snapshot = await dual_writer.read_session_events_snapshot(
                 session_id,
                 types_list,
-                run_id=run_id,
+                run_id=single_run_id,
                 exclude_run_id=exclude_run_id,
+                run_ids=batch_run_ids,
                 completed_only=not active_events_requested,
                 max_events=events_probe_limit,
                 active_run_id=(
@@ -400,8 +397,9 @@ async def get_session_events(
             events = await dual_writer.read_session_events(
                 session_id,
                 types_list,
-                run_id=run_id,
+                run_id=single_run_id,
                 exclude_run_id=exclude_run_id,
+                run_ids=batch_run_ids,
                 completed_only=not active_events_requested,
                 max_events=events_probe_limit,
             )
@@ -416,7 +414,7 @@ async def get_session_events(
     response = {
         "events": events,
         "session_id": session_id,
-        "run_id": run_id or current_run_id,
+        "run_id": single_run_id or current_run_id,
         "events_limited": events_limited,
         "events_limit": limit,
     }

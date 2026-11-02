@@ -740,7 +740,9 @@
     "twoFactorInvalid": "Invalid or already used code. Enter a new code.",
     "twoFactorExpired": "Verification expired. Sign in or pair again.",
     "twoFactorState": "Two-factor settings changed. Please reload.",
-    "twoFactorUnavailable": "Secure authentication is temporarily unavailable."
+    "twoFactorUnavailable": "Secure authentication is temporarily unavailable.",
+    "modelContentBlocked": "The message was blocked by the model provider's safety policy. Please rephrase it or switch to another model and try again.",
+    "scheduledTaskAgentUnsupported": "Agent '{{agent}}' has no history compaction and cannot run conversation-mode scheduled tasks; pick another agent or use standalone mode"
   },
   "categories": {
     "scheduled_task": "Scheduled tasks",

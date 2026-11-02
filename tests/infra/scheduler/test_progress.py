@@ -377,3 +377,103 @@ async def test_catchup_restores_known_terminal_run_without_a_delivered_result(
     assert query["owner_id"] == "owner"
     assert query["target_session_id"] == "parent"
     assert {"_id": {"$in": ["scheduled-1"]}} in query["$or"]
+
+
+async def test_progress_relay_carries_the_task_prompt():
+    identity = {"kind": "agent", "agent_id": "quick", "name": "Quick"}
+    record = {
+        "_id": "scheduled-1",
+        "task_id": "t",
+        "session_id": "sch_conversation_t",
+        "owner_id": "owner",
+        "target_session_id": "parent",
+    }
+    storage = SimpleNamespace(
+        _get_collection=lambda _: SimpleNamespace(find_one=AsyncMock(return_value=record)),
+        get_task=AsyncMock(
+            return_value=SimpleNamespace(
+                name="Numbers",
+                notification_policy="always",
+                input_payload={"message": "Check whether AO3 is back"},
+            )
+        ),
+    )
+    presenter = SimpleNamespace(
+        config=SimpleNamespace(session_id=record["session_id"], user_id="owner"),
+        run_id=record["_id"],
+        trace_id="trace",
+    )
+    websocket = SimpleNamespace(send_to_user_with_broadcast=AsyncMock())
+    with (
+        patch("src.infra.scheduler.storage.get_scheduled_task_storage", return_value=storage),
+        patch(
+            "src.infra.session.manager.SessionManager.get_session",
+            AsyncMock(return_value=SimpleNamespace(user_id="owner")),
+        ),
+        patch("src.infra.websocket.get_connection_manager", return_value=websocket),
+        patch(
+            "src.infra.scheduler.results.get_trace_storage",
+            return_value=SimpleNamespace(get_last_trace_event=AsyncMock(return_value=None)),
+        ),
+    ):
+        await relay_progress(presenter, {"event": "message:chunk", "data": {"content": "748196"}})
+    events = [call.args[1] for call in websocket.send_to_user_with_broadcast.await_args_list]
+    assert events[0]["data"]["prompt"] == "Check whether AO3 is back"
+
+
+async def test_catchup_progress_carries_the_task_prompt():
+    from datetime import datetime, timezone
+    from unittest.mock import Mock
+
+    from src.infra.scheduler.results import get_session_progress
+    from src.infra.task.status import TaskStatus
+
+    record = {
+        "_id": "scheduled-1",
+        "task_id": "t",
+        "session_id": "sch_conversation_t",
+        "target_session_id": "parent",
+        "owner_id": "owner",
+        "created_at": datetime.now(timezone.utc),
+        "conversation_state": "submitted",
+        "status": "running",
+    }
+
+    class Cursor:
+        def __aiter__(self):
+            async def rows():
+                yield record
+
+            return rows()
+
+    storage = SimpleNamespace(
+        _get_collection=lambda _: SimpleNamespace(find=Mock(return_value=Cursor())),
+        get_task=AsyncMock(
+            return_value=SimpleNamespace(
+                name="Numbers",
+                owner_id="owner",
+                notification_policy="always",
+                input_payload={"prompt": "Legacy prompt"},
+            )
+        ),
+    )
+    with (
+        patch("src.infra.scheduler.storage.get_scheduled_task_storage", return_value=storage),
+        patch(
+            "src.infra.session.manager.SessionManager.get_session",
+            AsyncMock(return_value=SimpleNamespace(user_id="owner")),
+        ),
+        patch(
+            "src.infra.scheduler.results.get_trace_storage",
+            return_value=SimpleNamespace(
+                get_session_events=AsyncMock(return_value=[]),
+                get_run_events=AsyncMock(return_value=[]),
+            ),
+        ),
+        patch(
+            "src.infra.task.manager.get_task_manager",
+            return_value=SimpleNamespace(get_run_status=AsyncMock(return_value=TaskStatus.RUNNING)),
+        ),
+    ):
+        progress = await get_session_progress("parent", "owner")
+    assert progress[0]["prompt"] == "Legacy prompt"

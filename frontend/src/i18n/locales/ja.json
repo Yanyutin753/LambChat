@@ -740,7 +740,9 @@
     "twoFactorInvalid": "コードが無効または使用済みです。新しいコードを入力してください。",
     "twoFactorExpired": "認証の期限が切れました。再度ログインまたは連携してください。",
     "twoFactorState": "2段階認証の設定が変更されました。再読み込みしてください。",
-    "twoFactorUnavailable": "安全な認証は一時的に利用できません。"
+    "twoFactorUnavailable": "安全な認証は一時的に利用できません。",
+    "modelContentBlocked": "メッセージはモデル提供元の安全ポリシーによりブロックされました。表現を変えるか、別のモデルでお試しください。",
+    "scheduledTaskAgentUnsupported": "このエージェント（{{agent}}）は履歴圧縮に対応しないため、会話モードの定期タスクには使用できません。別のエージェントを選ぶかスタンドアロンモードをご利用ください"
   },
   "categories": {
     "scheduled_task": "スケジュールタスク",

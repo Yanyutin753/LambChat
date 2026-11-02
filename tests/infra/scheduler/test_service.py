@@ -168,6 +168,64 @@ async def test_create_cron_task_uses_request_timezone(
 
 
 @pytest.mark.asyncio
+async def test_create_rejects_quick_agent_for_conversation_mode(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+) -> None:
+    """quick agent 无历史压缩，conversation 模式会让执行会话上下文无限增长。"""
+    from src.kernel.errors import AppError, ErrorCode
+
+    request = _make_create_request(
+        execution_mode="conversation",
+        target_session_id="chat-1",
+        agent_id="quick",
+    )
+    with patch(
+        "src.infra.session.manager.SessionManager.get_session",
+        AsyncMock(return_value=AsyncMock(user_id="user_1")),
+    ):
+        with pytest.raises(AppError) as excinfo:
+            await service.create_task(request, owner_id="user_1")
+    assert excinfo.value.error_code == ErrorCode.SCHEDULED_TASK_AGENT_UNSUPPORTED
+    mock_storage.create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_switching_conversation_task_to_quick(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+) -> None:
+    from src.kernel.errors import AppError, ErrorCode
+
+    task = _make_task(execution_mode="conversation", target_session_id="chat-1")
+    mock_storage.get_task = AsyncMock(return_value=task)
+    mock_storage.has_open_conversation_runs = AsyncMock(return_value=False)
+
+    with patch(
+        "src.infra.session.manager.SessionManager.get_session",
+        AsyncMock(return_value=AsyncMock(user_id="user_1")),
+    ):
+        with pytest.raises(AppError) as excinfo:
+            await service.update_task("task_1", _make_update_request(agent_id="quick"))
+    assert excinfo.value.error_code == ErrorCode.SCHEDULED_TASK_AGENT_UNSUPPORTED
+
+
+@pytest.mark.asyncio
+async def test_create_allows_quick_agent_for_standalone_mode(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    request = _make_create_request(agent_id="quick")
+
+    mock_storage.create_task = AsyncMock(return_value=None)
+    task = await service.create_task(request, owner_id="user_1")
+
+    assert task.agent_id == "quick"
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_create_task_invalid_trigger_raises(
     service: ScheduledTaskService,
 ) -> None:
