@@ -27,6 +27,7 @@ from src.infra.backend.protocol_compat import (
     FileUploadResponse,
     LsResult,
     ReadResult,
+    classify_download_error,
     classify_upload_error,
     file_download_response,
     file_upload_response,
@@ -463,7 +464,7 @@ class E2BAsyncMixin:
                         SANDBOX_DOWNLOAD_MAX_BYTES,
                     )
                     responses.append(
-                        FileDownloadResponse(path=resolved, content=None, error="file_not_found")
+                        file_download_response(path=resolved, content=None, error="file_too_large")
                     )
                     continue
 
@@ -475,8 +476,8 @@ class E2BAsyncMixin:
                     FileDownloadResponse(path=resolved, content=bytes(raw), error=None)
                 )
             except Exception as e:
-                logger.error(f"Failed to download {resolved}: {e}")
-                responses.append(
-                    file_download_response(path=resolved, content=None, error="file_not_found")
-                )
+                error = classify_download_error(e)
+                if error != "file_not_found":
+                    logger.error("Failed to download %s: %s", resolved, e)
+                responses.append(file_download_response(path=resolved, content=None, error=error))
         return responses

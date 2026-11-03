@@ -23,6 +23,12 @@ class ErrorCode(Enum):
     METHOD_NOT_ALLOWED = ("method_not_allowed", 405, "Method not allowed")
     BAD_REQUEST = ("bad_request", 400, "Bad request")
     CONFLICT = ("conflict", 409, "Request conflict")
+    CONVERSATION_HISTORY_SAVE_FAILED = (
+        "conversation_history_save_failed",
+        503,
+        "Conversation history could not be saved. The current context was retained; "
+        "please retry when storage is available.",
+    )
     STORAGE_MIGRATION_BLOCKED = (
         "storage_migration_blocked",
         409,

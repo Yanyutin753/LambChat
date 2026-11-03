@@ -26,6 +26,7 @@ from src.infra.backend.protocol_compat import (
     LsResult,
     ReadResult,
     WriteResult,
+    classify_download_error,
     file_download_response,
 )
 from src.infra.logging import get_logger
@@ -112,6 +113,16 @@ def _decode_b64_pieces(pieces: list[str], expected_size: int | None) -> bytes:
 def _pieces_from_output(output: str | None) -> str:
     """execute() 会把 stderr 并入 output；剥掉全部空白（base64 输出不含空白）。"""
     return "".join((output or "").split())
+
+
+def _read_failure(message: str) -> OSError:
+    error = OSError(message)
+    kind = classify_download_error(error)
+    if kind == "file_not_found":
+        return FileNotFoundError(message)
+    if kind == "permission_denied":
+        return PermissionError(message)
+    return error
 
 
 class CubeSandboxBackend(E2BBackend):
@@ -279,7 +290,7 @@ class CubeSandboxBackend(E2BBackend):
             headers=headers,
         )
         if resp.status_code != 200:
-            raise IOError(f"envd raw read HTTP {resp.status_code}: {(resp.text or '')[:120]}")
+            raise _read_failure(f"envd raw read HTTP {resp.status_code}: {(resp.text or '')[:500]}")
         return resp.content
 
     async def _aiter_file_bytes(self, path: str) -> AsyncGenerator[bytes, None]:
@@ -328,6 +339,8 @@ class CubeSandboxBackend(E2BBackend):
                 return data
             raise IOError(f"envd raw read size mismatch: got {len(data)}, expected {size}")
         except Exception as e:
+            if classify_download_error(e) in {"file_not_found", "permission_denied"}:
+                raise
             logger.info(
                 "CubeSandbox raw byte read fell back to command channel for %s: %s", path, e
             )
@@ -339,7 +352,9 @@ class CubeSandboxBackend(E2BBackend):
         for command in _b64_chunk_commands(path, size):
             result = self.execute(command)
             if result.exit_code != 0:
-                raise IOError(f"binary read command failed (exit {result.exit_code})")
+                raise _read_failure(
+                    f"binary read command failed (exit {result.exit_code}): {result.output}"
+                )
             pieces.append(_pieces_from_output(result.output))
         return _decode_b64_pieces(pieces, size)
 
@@ -359,6 +374,8 @@ class CubeSandboxBackend(E2BBackend):
                 return self._read_as_base64(self._read_bytes(file_path, size))
             return slice_read_response(create_file_data(str(content)), offset, limit)
         except Exception as e:
+            if classify_download_error(e) == "file_not_found":
+                return ReadResult(error="file_not_found")
             logger.warning("CubeSandbox files.read(%s) failed: %s", file_path, e)
             return ReadResult(error=str(e))
 
@@ -405,16 +422,16 @@ class CubeSandboxBackend(E2BBackend):
                 size = self._file_size(path)
                 if size is not None and size > SANDBOX_DOWNLOAD_MAX_BYTES:
                     responses.append(
-                        file_download_response(path=path, content=None, error="file_not_found")
+                        file_download_response(path=path, content=None, error="file_too_large")
                     )
                     continue
                 content_bytes = self._read_bytes(path, size)
                 responses.append(file_download_response(path=path, content=content_bytes))
             except Exception as e:
-                logger.error("CubeSandbox download %s failed: %s", path, e)
-                responses.append(
-                    file_download_response(path=path, content=None, error="file_not_found")
-                )
+                error = classify_download_error(e)
+                if error != "file_not_found":
+                    logger.error("CubeSandbox download %s failed: %s", path, e)
+                responses.append(file_download_response(path=path, content=None, error=error))
         return responses
 
     # ── async 覆写：不走 e2b 客户端 files.read(bytes)（Cube envd 保真度
@@ -443,6 +460,8 @@ class CubeSandboxBackend(E2BBackend):
                 return data
             raise IOError(f"envd raw read size mismatch: got {len(data)}, expected {size}")
         except Exception as e:
+            if classify_download_error(e) in {"file_not_found", "permission_denied"}:
+                raise
             logger.info(
                 "CubeSandbox async raw byte read fell back to command channel for %s: %s",
                 path,
@@ -455,7 +474,9 @@ class CubeSandboxBackend(E2BBackend):
         for command in _b64_chunk_commands(path, size):
             result = await self.aexecute(command)
             if result.exit_code != 0:
-                raise IOError(f"binary read command failed (exit {result.exit_code})")
+                raise _read_failure(
+                    f"binary read command failed (exit {result.exit_code}): {result.output}"
+                )
             pieces.append(_pieces_from_output(result.output))
         return _decode_b64_pieces(pieces, size)
 
@@ -480,6 +501,8 @@ class CubeSandboxBackend(E2BBackend):
                 return self._read_as_base64(await self._aread_bytes(resolved, size))
             return slice_read_response(create_file_data(str(text)), offset, limit)
         except Exception as e:
+            if classify_download_error(e) in {"file_not_found", "permission_denied"}:
+                return ReadResult(error=classify_download_error(e))
             logger.warning(
                 "CubeSandbox async files.read(%s) failed: %s, falling back to sync",
                 file_path,
@@ -501,16 +524,16 @@ class CubeSandboxBackend(E2BBackend):
                 size = await self._astat_size(resolved)
                 if size is not None and size > SANDBOX_DOWNLOAD_MAX_BYTES:
                     responses.append(
-                        file_download_response(path=resolved, content=None, error="file_not_found")
+                        file_download_response(path=resolved, content=None, error="file_too_large")
                     )
                     continue
                 content = await self._aread_bytes(resolved, size)
                 responses.append(file_download_response(path=resolved, content=content))
             except Exception as e:
-                logger.error("CubeSandbox async download %s failed: %s", resolved, e)
-                responses.append(
-                    file_download_response(path=resolved, content=None, error="file_not_found")
-                )
+                error = classify_download_error(e)
+                if error != "file_not_found":
+                    logger.error("CubeSandbox async download %s failed: %s", resolved, e)
+                responses.append(file_download_response(path=resolved, content=None, error=error))
         return responses
 
     def _file_size(self, path: str) -> int | None:
