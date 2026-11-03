@@ -3640,6 +3640,7 @@
     "SESSION_EVENT_TTL_CACHE_MAX": "会话事件 TTL 缓存最大大小",
     "SESSION_MAX_RUNS_PER_SESSION": "每个会话的最大运行次数",
     "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS": "服务启动后延迟执行会话搜索回填的秒数",
+    "KEENABLE_API_KEY": "Keenable API 密钥（可选；选择 keenable 时无需密钥也可使用）",
     "SEARXNG_API_KEY": "SearXNG API 密钥（实例未开启鉴权时留空）",
     "SEARXNG_BASE_URL": "SearXNG 实例地址（如 https://searx.example）",
     "SESSION_TITLE_API_BASE": "兼容旧配置保留。标题生成的 provider、API 地址和密钥现在来自所选模型配置。",

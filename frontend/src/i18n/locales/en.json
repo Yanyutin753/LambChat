@@ -3640,6 +3640,7 @@
     "SESSION_EVENT_TTL_CACHE_MAX": "Maximum TTL cache size for session events",
     "SESSION_MAX_RUNS_PER_SESSION": "Maximum runs per session",
     "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS": "Delay before session search backfill starts after server startup, in seconds",
+    "KEENABLE_API_KEY": "Keenable API key (optional; WEB_SEARCH_PROVIDER=keenable works without a key)",
     "SEARXNG_API_KEY": "SearXNG API key (leave empty if the instance has no auth)",
     "SEARXNG_BASE_URL": "SearXNG instance URL (e.g. https://searx.example)",
     "SESSION_TITLE_API_BASE": "Legacy setting kept for compatibility. Title generation provider, API base, and key now come from the selected model configuration.",

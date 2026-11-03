@@ -3640,6 +3640,7 @@
     "SESSION_EVENT_TTL_CACHE_MAX": "세션 이벤트 TTL 캐시 최대 크기",
     "SESSION_MAX_RUNS_PER_SESSION": "세션당 최대 실행 횟수",
     "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS": "서버 시작 후 세션 검색 백필이 시작될 때까지의 지연 시간(초)",
+    "KEENABLE_API_KEY": "Keenable API 키 (선택 사항; keenable 선택 시 키 없이도 사용 가능)",
     "SEARXNG_API_KEY": "SearXNG API 키 (인증 없는 인스턴스는 비워 두기)",
     "SEARXNG_BASE_URL": "SearXNG 인스턴스 URL (예: https://searx.example)",
     "SESSION_TITLE_API_BASE": "호환성을 위해 유지되는 기존 설정입니다. 제목 생성의 provider, API base, key는 선택한 모델 설정에서 가져옵니다.",
