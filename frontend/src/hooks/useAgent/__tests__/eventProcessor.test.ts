@@ -1,5 +1,30 @@
 import type { MessagePart } from "../../../types";
 import { processMessageEvent, convertAttachments } from "../eventProcessor.ts";
+import { splitRunTailGroups } from "../../../components/chat/ChatMessage/runStepsCollapseUtils";
+
+test("a terminal error keeps the preceding AI answer visible outside collapsed steps", () => {
+  const result = processMessageEvent(
+    "error",
+    { error: "History could not be saved", type: "task_error" },
+    [
+      { type: "thinking", content: "Working" },
+      { type: "text", content: "The generated answer" },
+      { type: "tool", name: "execute", args: {} },
+    ],
+    "The generated answer",
+    [],
+    0,
+    [],
+    false,
+  );
+  const groups = result.parts.map((part, partIndex) => ({
+    type: "single" as const,
+    part,
+    partIndex,
+  }));
+  const { tail } = splitRunTailGroups(groups, { enabled: true });
+  expect(tail.map((group) => group.part)).toEqual(result.parts.slice(1));
+});
 
 test.each([true, false])(
   "failures remain visible after process parts (streaming: %s)",
@@ -20,7 +45,7 @@ test.each([true, false])(
     );
     expect(result.parts).toEqual([
       ...parts,
-      { type: "text", content: result.content },
+      { type: "text", content: result.content, isError: true },
     ]);
     expect(result.content).toContain("Request timed out");
     const replay = processMessageEvent(

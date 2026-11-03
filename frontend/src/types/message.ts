@@ -177,6 +177,7 @@ export interface RecommendQuestionsPart {
 export interface TextPart {
   type: "text";
   content: string;
+  isError?: boolean;
   depth?: number;
   agent_id?: string;
 }

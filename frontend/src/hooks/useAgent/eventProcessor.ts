@@ -834,7 +834,7 @@ export function processMessageEvent(
         if (lastPart?.type !== "text" || lastPart.content !== result.content) {
           result.parts = [
             ...nextParts,
-            { type: "text", content: result.content },
+            { type: "text", content: result.content, isError: true },
           ];
         }
       }

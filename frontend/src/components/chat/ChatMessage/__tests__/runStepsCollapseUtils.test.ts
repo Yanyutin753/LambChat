@@ -98,6 +98,16 @@ describe("splitRunTailGroups", () => {
     expect(result.tail).toEqual(groups);
   });
 
+  test("keeps an error visible when no AI text was generated", () => {
+    const groups = [
+      group(thinking(), 0),
+      group({ type: "text", content: "Storage failed", isError: true }, 1),
+    ];
+    expect(splitRunTailGroups(groups, { enabled: true }).tail).toEqual(
+      groups.slice(1),
+    );
+  });
+
   test("keeps image galleries intact when splitting", () => {
     const groups = [gallery(0), gallery(1), group(text("final"), 2)];
     const result = splitRunTailGroups(groups, { enabled: true });
