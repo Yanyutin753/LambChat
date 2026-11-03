@@ -59,9 +59,9 @@ fn install_sigterm_handler(app: tauri::AppHandle) {
         .name("lambchat-sigterm".to_string())
         .spawn(move || loop {
             if SIGTERM_SEEN.load(Ordering::SeqCst) {
-                daemon::emit_stderr_line(&format!(
-                    "[lambchat] SIGTERM received; stopping daemon and exiting"
-                ));
+                daemon::emit_stderr_line(
+                    "[lambchat] SIGTERM received; stopping daemon and exiting",
+                );
                 app.exit(0);
                 return;
             }
@@ -257,7 +257,18 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     api.prevent_close();
-                    let _ = window.hide();
+                    let has_tray = window.app_handle().tray_by_id("lambchat-tray").is_some();
+                    let result = if should_hide_on_close(window.label(), has_tray) {
+                        window.hide()
+                    } else {
+                        // Keep a taskbar/Dock entry when tray creation failed.
+                        window.minimize()
+                    };
+                    if let Err(error) = result {
+                        daemon::emit_stderr_line(&format!(
+                            "[lambchat] close window failed: {error}"
+                        ));
+                    }
                 }
             }
         })
@@ -276,6 +287,10 @@ pub fn run() {
         });
 }
 
+fn should_hide_on_close(label: &str, has_tray: bool) -> bool {
+    label == "main" && has_tray
+}
+
 fn should_restore_main_window(event: &tauri::RunEvent) -> bool {
     match event {
         // Reopen also covers a minimized window; don't gate on visible windows.
@@ -288,6 +303,14 @@ fn should_restore_main_window(event: &tauri::RunEvent) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn main_window_is_hidden_only_when_the_tray_can_restore_it() {
+        assert!(should_hide_on_close("main", true));
+        assert!(!should_hide_on_close("main", false));
+        assert!(!should_hide_on_close("preview", true));
+        assert!(!should_hide_on_close("preview", false));
+    }
 
     #[test]
     fn ordinary_run_events_do_not_restore_the_window() {

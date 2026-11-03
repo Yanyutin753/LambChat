@@ -50,6 +50,7 @@ export const versionApi = {
     const suffix = query.size > 0 ? `?${query}` : "";
     return authFetch<VersionInfo>(`${API_BASE}/api/version${suffix}`, {
       skipAuth: true,
+      timeoutMs: 30_000,
     });
   },
 
@@ -68,6 +69,7 @@ export const versionApi = {
     }
     return authFetch<VersionInfo>(`${API_BASE}/api/version?${query}`, {
       skipAuth: true,
+      timeoutMs: 30_000,
     });
   },
 };

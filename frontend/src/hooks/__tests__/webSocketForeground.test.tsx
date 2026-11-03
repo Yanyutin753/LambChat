@@ -132,3 +132,43 @@ test("authentication reconnect recovers when refresh briefly fails after a close
   });
   expect(Socket.instances).toHaveLength(2);
 });
+
+test.each(["handshake", "authentication"])(
+  "a stalled %s times out and reconnects without a close event",
+  async (stage) => {
+    const notify = vi.fn();
+    renderHook(() => useWebSocket({ userId: "owner", onTaskComplete: notify }));
+    await act(async () => {});
+    const old = Socket.instances[0];
+    const late = old.onmessage!;
+    if (stage === "handshake") old.readyState = Socket.CONNECTING;
+    else act(() => old.onopen?.());
+    old.close.mockImplementation(() => {
+      old.readyState = 3;
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+    expect(old.close).toHaveBeenCalledOnce();
+    expect(Socket.instances).toHaveLength(2);
+    act(() =>
+      late({ data: JSON.stringify({ type: "task:complete", data: {} }) }),
+    );
+    expect(notify).not.toHaveBeenCalled();
+  },
+);
+
+test("successful authentication and unmount both release the connection deadline", async () => {
+  const hook = renderHook(() => useWebSocket({ userId: "owner" }));
+  await act(async () => {});
+  const socket = Socket.instances[0];
+  act(() => socket.onmessage?.({ data: '{"type":"auth:ok"}' }));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(socket.close).not.toHaveBeenCalled();
+  expect(hook.result.current.isConnected).toBe(true);
+  await act(async () => document.dispatchEvent(new Event("resume")));
+  hook.unmount();
+  expect(vi.getTimerCount()).toBe(0);
+});

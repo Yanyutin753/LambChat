@@ -1,22 +1,12 @@
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
-import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { AgentIcon } from "../../agent/AgentIcon";
 import { AgentAvatar } from "../../common/AgentAvatar";
 import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import toast from "react-hot-toast";
 import i18n from "../../../i18n";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
-import {
-  CalendarClock,
-  Pencil,
-  Plus,
-  Save,
-  Timer,
-  UserRound,
-  UsersRound,
-} from "lucide-react";
+import { Pencil, Plus, Save, UserRound, UsersRound } from "lucide-react";
 import {
   Button,
   Input,
@@ -52,7 +42,12 @@ import {
   getScheduledTaskTeamId,
   withScheduledTaskAttachments,
 } from "../scheduledTaskPayload";
-import { getBrowserTimezone, toDateTimeLocalValue } from "./utils";
+import {
+  getBrowserTimezone,
+  getSchedulePreset,
+  toDateTimeLocalValue,
+  type SchedulePreset,
+} from "./utils";
 
 /** Create/Edit form sidebar */
 export function TaskFormModal({
@@ -63,6 +58,7 @@ export function TaskFormModal({
   defaultSessionId,
   defaultModelId,
   defaultModelValue,
+  registryKey,
   onSave,
   onClose,
 }: {
@@ -73,6 +69,7 @@ export function TaskFormModal({
   defaultSessionId?: string;
   defaultModelId?: string;
   defaultModelValue?: string;
+  registryKey?: string;
   onSave: (data: ScheduledTaskCreate) => Promise<void>;
   onClose: () => void;
 }) {
@@ -138,11 +135,36 @@ export function TaskFormModal({
   const [triggerType, setTriggerType] = useState<TriggerType>(
     task?.trigger_type ?? "interval",
   );
+  const [schedulePreset, setSchedulePreset] = useState<SchedulePreset>(
+    getSchedulePreset(task),
+  );
+  const [calendarDraft, setCalendarDraft] = useState(() => {
+    const config = task?.trigger_config as
+      | { hour?: string; minute?: string; day_of_week?: string }
+      | undefined;
+    const preset = getSchedulePreset(task);
+    return {
+      hour: ["daily", "weekdays", "weekly"].includes(preset)
+        ? config?.hour || "9"
+        : "9",
+      minute: ["daily", "weekdays", "weekly"].includes(preset)
+        ? config?.minute || "0"
+        : "0",
+      weekday: preset === "weekly" ? config?.day_of_week || "mon" : "mon",
+    };
+  });
   const [timezone] = useState(task?.timezone || getBrowserTimezone());
   const [intervalSeconds, setIntervalSeconds] = useState(
     task?.trigger_type === "interval"
       ? String((task?.trigger_config as { seconds?: number })?.seconds ?? 300)
       : "300",
+  );
+  const [intervalUnit, setIntervalUnit] = useState(() =>
+    Number(intervalSeconds) % 3600 === 0
+      ? 3600
+      : Number(intervalSeconds) % 60 === 0
+        ? 60
+        : 1,
   );
   const [runDate, setRunDate] = useState(
     task?.trigger_type === "date"
@@ -186,6 +208,24 @@ export function TaskFormModal({
   const [inputPayload, setInputPayload] = useState(
     task ? JSON.stringify(task.input_payload ?? {}, null, 2) : "{}",
   );
+  let parsedPayload: Record<string, unknown> | null = null;
+  try {
+    const value: unknown = JSON.parse(inputPayload || "{}");
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      parsedPayload = value as Record<string, unknown>;
+    }
+  } catch {
+    /* Keep invalid advanced input editable. */
+  }
+  const promptKey = parsedPayload?.message
+    ? "message"
+    : typeof parsedPayload?.prompt === "string"
+      ? "prompt"
+      : "message";
+  const prompt =
+    typeof parsedPayload?.[promptKey] === "string"
+      ? (parsedPayload[promptKey] as string)
+      : "";
   const [attachments, setAttachments] = useState<MessageAttachment[]>(
     getScheduledTaskAttachments(task?.input_payload),
   );
@@ -193,6 +233,25 @@ export function TaskFormModal({
   const [runOnStart, setRunOnStart] = useState(task?.run_on_start ?? false);
   const [maxRetries, setMaxRetries] = useState(String(task?.max_retries ?? 0));
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+  const fieldsRef = useRef<HTMLFieldSetElement>(null);
+  const errorId = useId();
+  const [formError, setFormError] = useState<{
+    message: string;
+    label?: string;
+  } | null>(null);
+  const showError = (message: string, label?: string) => {
+    setFormError({ message, label });
+    if (label) {
+      const field = Array.from(
+        fieldsRef.current?.querySelectorAll<HTMLElement>("[aria-label]") || [],
+      ).find((element) => element.getAttribute("aria-label") === label);
+      field?.focus();
+    }
+  };
+  const handleClose = () => {
+    if (!savingRef.current) onClose();
+  };
   const [jsonError, setJsonError] = useState<string | null>(null);
   const isTeamAgent = agentId === "team";
   const uploadController = useFileUpload({
@@ -226,12 +285,17 @@ export function TaskFormModal({
   }, []);
 
   const handleSave = async () => {
+    if (savingRef.current || hasUploadingAttachment) return;
+    setFormError(null);
     if (!name.trim()) {
-      toast.error(t("scheduledTask.nameRequired"));
+      showError(t("scheduledTask.nameRequired"), t("scheduledTask.name"));
       return;
     }
     if (executionMode === "conversation" && !targetSessionId) {
-      toast.error(t("scheduledTask.targetRequired"));
+      showError(
+        t("scheduledTask.targetRequired"),
+        t("scheduledTask.targetConversation"),
+      );
       return;
     }
     // quick 无历史压缩，conversation 模式会让执行会话上下文无限增长（后端同款拒绝）
@@ -241,46 +305,58 @@ export function TaskFormModal({
         agentId ||
         "search") === "quick"
     ) {
-      toast.error(
+      showError(
         t("backendErrors.scheduledTaskAgentUnsupported", { agent: "quick" }),
+        t("scheduledTask.targetConversation"),
       );
       return;
     }
     if (executionMode === "standalone" && !agentId) {
-      toast.error(t("scheduledTask.agentRequired"));
+      showError(t("scheduledTask.agentRequired"), t("scheduledTask.agent"));
       return;
     }
 
-    // Validate JSON
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(inputPayload || "{}");
-    } catch {
+    if (!parsedPayload) {
       setJsonError(t("scheduledTask.invalidJson"));
       return;
     }
     setJsonError(null);
-    payload = withScheduledTaskAttachments(payload, attachments);
+    const payload = withScheduledTaskAttachments(parsedPayload, attachments);
 
     // Build trigger config
     let triggerConfig: Record<string, unknown>;
     if (triggerType === "interval") {
-      triggerConfig = {
-        seconds: Math.max(1, parseInt(intervalSeconds) || 300),
-      };
+      const seconds = Number(intervalSeconds);
+      if (!Number.isInteger(seconds) || seconds < 1) {
+        showError(
+          t("scheduledTask.intervalMinimum"),
+          t("scheduledTask.interval"),
+        );
+        return;
+      }
+      triggerConfig = { seconds };
     } else if (triggerType === "date") {
       if (!runDate) {
-        toast.error(t("scheduledTask.runDateRequired"));
+        showError(
+          t("scheduledTask.runDateRequired"),
+          t("scheduledTask.runDate"),
+        );
         return;
       }
       const date = new Date(runDate);
       if (Number.isNaN(date.getTime())) {
-        toast.error(t("scheduledTask.runDateRequired"));
+        showError(
+          t("scheduledTask.runDateRequired"),
+          t("scheduledTask.runDate"),
+        );
         return;
       }
       triggerConfig = { run_date: date.toISOString() };
     } else {
       triggerConfig = {
+        ...(schedulePreset === "cron" && task?.trigger_type === "cron"
+          ? task.trigger_config
+          : {}),
         hour: cronHour || "0",
         minute: cronMinute || "0",
         second: cronSecond || "0",
@@ -288,8 +364,12 @@ export function TaskFormModal({
         ...(cronMonth ? { month: cronMonth } : {}),
         ...(cronDayOfWeek ? { day_of_week: cronDayOfWeek } : {}),
       };
+      if (!cronDay) delete triggerConfig.day;
+      if (!cronMonth) delete triggerConfig.month;
+      if (!cronDayOfWeek) delete triggerConfig.day_of_week;
     }
 
+    savingRef.current = true;
     setIsSaving(true);
     try {
       const nextPayload = buildScheduledTaskInputPayload(payload, {
@@ -324,7 +404,12 @@ export function TaskFormModal({
         max_retries: Math.max(0, parseInt(maxRetries) || 0),
         timeout_seconds: 0,
       });
+    } catch (error) {
+      showError(
+        error instanceof Error ? error.message : t("common.saveFailed"),
+      );
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   };
@@ -354,28 +439,64 @@ export function TaskFormModal({
 
   return (
     <EditorSidebar
-      registryKey={isEdit ? "schedules:edit" : "schedules:create"}
+      registryKey={
+        registryKey ?? (isEdit ? "schedules:edit" : "schedules:create")
+      }
       open={true}
-      onClose={onClose}
+      onClose={handleClose}
       title={isEdit ? t("scheduledTask.edit") : t("scheduledTask.create")}
       icon={isEdit ? <Pencil size={16} /> : <Plus size={16} />}
       footer={
-        <PanelFooterActions>
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button
-            variant="primary"
-            onClick={handleSave}
-            loading={isSaving}
-            disabled={hasUploadingAttachment}
-            leftIcon={<Save size={16} />}
-          >
-            {t("common.save")}
-          </Button>
-        </PanelFooterActions>
+        <div className="space-y-2">
+          {formError && (
+            <p
+              id={errorId}
+              role="alert"
+              className="text-13 text-theme-error [overflow-wrap:anywhere]"
+            >
+              {formError.message}
+            </p>
+          )}
+          <p className="hidden text-12 text-theme-text-tertiary sm:block">
+            {t("scheduledTask.saveShortcut")}
+          </p>
+          <PanelFooterActions>
+            <Button disabled={isSaving} onClick={handleClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={hasUploadingAttachment}
+              leftIcon={<Save size={16} />}
+            >
+              {t("common.save")}
+            </Button>
+          </PanelFooterActions>
+        </div>
       }
     >
-      <div className="es-form" style={{ gap: 0 }}>
-        <div className="space-y-5">
+      <div
+        className="es-form"
+        style={{ gap: 0 }}
+        onKeyDown={(event) => {
+          if (
+            event.key === "Enter" &&
+            (event.metaKey || event.ctrlKey) &&
+            !event.nativeEvent.isComposing
+          ) {
+            event.preventDefault();
+            void handleSave();
+          }
+        }}
+      >
+        <fieldset
+          ref={fieldsRef}
+          disabled={isSaving}
+          aria-busy={isSaving}
+          className="min-w-0 space-y-5"
+        >
           {/* Name */}
           <div className="scheduled-task-form-field">
             <label className="scheduled-task-label">
@@ -383,6 +504,12 @@ export function TaskFormModal({
             </label>
             <Input
               aria-label={t("scheduledTask.name")}
+              error={formError?.label === t("scheduledTask.name")}
+              aria-describedby={
+                formError?.label === t("scheduledTask.name")
+                  ? errorId
+                  : undefined
+              }
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -391,19 +518,37 @@ export function TaskFormModal({
             />
           </div>
 
-          {/* Description */}
           <div className="scheduled-task-form-field">
             <label className="scheduled-task-label">
-              {t("scheduledTask.description")}
+              {t("chat.message.toolTaskPrompt")}
             </label>
             <Textarea
-              aria-label={t("scheduledTask.description")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
+              aria-label={t("chat.message.toolTaskPrompt")}
+              value={prompt}
+              disabled={!parsedPayload}
+              onChange={(event) => {
+                const nextPayload = {
+                  ...parsedPayload,
+                  [promptKey]: event.target.value,
+                };
+                // Remove the alternate instruction alias so clearing text cannot revive it.
+                if (
+                  typeof nextPayload.message === "string" &&
+                  typeof nextPayload.prompt === "string"
+                ) {
+                  delete nextPayload[
+                    promptKey === "message" ? "prompt" : "message"
+                  ];
+                }
+                setInputPayload(JSON.stringify(nextPayload, null, 2));
+              }}
+              rows={5}
               className={`${inputClass} resize-y`}
-              placeholder={t("scheduledTask.descriptionPlaceholder")}
+              placeholder={t("scheduledTask.promptPlaceholder")}
             />
+            <p className="text-12 text-theme-text-secondary">
+              {t("scheduledTask.promptHint")}
+            </p>
           </div>
 
           <div className="scheduled-task-form-field">
@@ -411,6 +556,7 @@ export function TaskFormModal({
               {t("scheduledTask.executionMode")}
             </label>
             <Select
+              disabled={isSaving}
               ariaLabel={t("scheduledTask.executionMode")}
               value={executionMode}
               onChange={(value) =>
@@ -435,6 +581,7 @@ export function TaskFormModal({
                 {t("scheduledTask.targetConversation")}
               </label>
               <Select
+                disabled={isSaving}
                 ariaLabel={t("scheduledTask.targetConversation")}
                 value={targetSessionId}
                 onChange={setTargetSessionId}
@@ -467,6 +614,7 @@ export function TaskFormModal({
               {t("scheduledTask.notificationPolicy")}
             </label>
             <Select
+              disabled={isSaving}
               ariaLabel={t("scheduledTask.notificationPolicy")}
               value={notificationPolicy}
               onChange={(value) =>
@@ -490,6 +638,7 @@ export function TaskFormModal({
                   {t("scheduledTask.agent")} *
                 </label>
                 <Select
+                  disabled={isSaving}
                   ariaLabel={t("scheduledTask.agent")}
                   value={agentId}
                   onChange={(v) => {
@@ -533,6 +682,7 @@ export function TaskFormModal({
                   <span>{personaOrTeamIconLabel}</span>
                 </label>
                 <Select
+                  disabled={isSaving}
                   ariaLabel={personaOrTeamIconLabel}
                   value={isTeamAgent ? teamId : personaPresetId}
                   onChange={isTeamAgent ? setTeamId : setPersonaPresetId}
@@ -585,6 +735,9 @@ export function TaskFormModal({
                 </label>
                 <Select
                   ariaLabel={t("scheduledTask.model")}
+                  disabled={
+                    isSaving || !availableModels || availableModels.length === 0
+                  }
                   value={modelId}
                   onChange={(v) => {
                     const nextModel = availableModels?.find(
@@ -593,7 +746,6 @@ export function TaskFormModal({
                     setModelId(v);
                     setModelValue(nextModel?.value || "");
                   }}
-                  disabled={!availableModels || availableModels.length === 0}
                   triggerClassName={inputClass}
                   options={[
                     { value: "", label: t("scheduledTask.modelPlaceholder") },
@@ -621,46 +773,100 @@ export function TaskFormModal({
             <label className="scheduled-task-label">
               {t("scheduledTask.triggerType")}
             </label>
-            <div className="scheduled-task-segmented">
-              {(["date", "interval", "cron"] as const).map((tt) => (
-                <button
-                  key={tt}
-                  type="button"
-                  aria-pressed={triggerType === tt}
-                  onClick={() => setTriggerType(tt)}
-                  className={`scheduled-task-segment ${
-                    triggerType === tt ? "scheduled-task-segment--active" : ""
-                  }`}
-                >
-                  {tt === "interval" ? (
-                    <InteractiveIcon>
-                      <Timer size={16} />
-                    </InteractiveIcon>
-                  ) : (
-                    <InteractiveIcon>
-                      <CalendarClock size={16} />
-                    </InteractiveIcon>
-                  )}
-                  {t(`scheduledTask.${tt}`)}
-                </button>
-              ))}
-            </div>
+            <Select
+              disabled={isSaving}
+              ariaLabel={t("scheduledTask.triggerType")}
+              value={schedulePreset}
+              triggerClassName={inputClass}
+              onChange={(value) => {
+                const preset = value as SchedulePreset;
+                setSchedulePreset(preset);
+                const calendar =
+                  preset === "daily" ||
+                  preset === "weekdays" ||
+                  preset === "weekly";
+                setTriggerType(calendar ? "cron" : (preset as TriggerType));
+                if (calendar) {
+                  setCronHour(calendarDraft.hour);
+                  setCronMinute(calendarDraft.minute);
+                  setCronSecond("0");
+                  setCronDay("");
+                  setCronMonth("");
+                  setCronDayOfWeek(
+                    preset === "weekdays"
+                      ? "mon-fri"
+                      : preset === "weekly"
+                        ? calendarDraft.weekday
+                        : "",
+                  );
+                }
+              }}
+              options={[
+                "date",
+                "interval",
+                "daily",
+                "weekdays",
+                "weekly",
+                "cron",
+              ].map((value) => ({ value, label: t(`scheduledTask.${value}`) }))}
+            />
           </div>
 
           {/* Trigger config */}
           {triggerType === "interval" ? (
             <div className="scheduled-task-form-field">
               <label className="scheduled-task-label">
-                {t("scheduledTask.intervalSeconds")} *
+                {t("scheduledTask.interval")} *
               </label>
-              <Input
-                aria-label={t("scheduledTask.intervalSeconds")}
-                type="number"
-                min={1}
-                value={intervalSeconds}
-                onChange={(e) => setIntervalSeconds(e.target.value)}
-                className={inputClass}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  aria-label={t("scheduledTask.interval")}
+                  error={formError?.label === t("scheduledTask.interval")}
+                  aria-describedby={
+                    formError?.label === t("scheduledTask.interval")
+                      ? errorId
+                      : undefined
+                  }
+                  type="number"
+                  min={1 / intervalUnit}
+                  step="any"
+                  value={
+                    intervalSeconds === ""
+                      ? ""
+                      : Number(intervalSeconds) / intervalUnit
+                  }
+                  onChange={(event) =>
+                    setIntervalSeconds(
+                      event.target.value === ""
+                        ? ""
+                        : String(Number(event.target.value) * intervalUnit),
+                    )
+                  }
+                  className={inputClass}
+                />
+                <Select
+                  disabled={isSaving}
+                  ariaLabel={t("scheduledTask.intervalUnit")}
+                  value={String(intervalUnit)}
+                  onChange={(value) => {
+                    setIntervalSeconds(
+                      intervalSeconds === ""
+                        ? ""
+                        : String(
+                            (Number(intervalSeconds) / intervalUnit) *
+                              Number(value),
+                          ),
+                    );
+                    setIntervalUnit(Number(value));
+                  }}
+                  triggerClassName={inputClass}
+                  options={[
+                    { value: "1", label: t("scheduledTask.secondsUnit") },
+                    { value: "60", label: t("scheduledTask.minutesUnit") },
+                    { value: "3600", label: t("scheduledTask.hoursUnit") },
+                  ]}
+                />
+              </div>
             </div>
           ) : triggerType === "date" ? (
             <div className="scheduled-task-form-field">
@@ -669,11 +875,76 @@ export function TaskFormModal({
               </label>
               <Input
                 aria-label={t("scheduledTask.runDate")}
+                error={formError?.label === t("scheduledTask.runDate")}
+                aria-describedby={
+                  formError?.label === t("scheduledTask.runDate")
+                    ? errorId
+                    : undefined
+                }
                 type="datetime-local"
                 value={runDate}
                 onChange={(e) => setRunDate(e.target.value)}
                 className={inputClass}
               />
+            </div>
+          ) : schedulePreset !== "cron" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="scheduled-task-form-field">
+                <label className="scheduled-task-label">
+                  {t("scheduledTask.timeOfDay")}
+                </label>
+                <Input
+                  type="time"
+                  aria-label={t("scheduledTask.timeOfDay")}
+                  value={`${cronHour.padStart(2, "0")}:${cronMinute.padStart(
+                    2,
+                    "0",
+                  )}`}
+                  onChange={(event) => {
+                    const [hour, minute] = event.target.value.split(":");
+                    setCronHour(hour || "0");
+                    setCronMinute(minute || "0");
+                    setCalendarDraft((previous) => ({
+                      ...previous,
+                      hour: hour || "0",
+                      minute: minute || "0",
+                    }));
+                  }}
+                  className={inputClass}
+                />
+              </div>
+              {schedulePreset === "weekly" && (
+                <div className="scheduled-task-form-field">
+                  <label className="scheduled-task-label">
+                    {t("scheduledTask.cronDayOfWeek")}
+                  </label>
+                  <Select
+                    disabled={isSaving}
+                    ariaLabel={t("scheduledTask.cronDayOfWeek")}
+                    value={cronDayOfWeek}
+                    onChange={(weekday) => {
+                      setCronDayOfWeek(weekday);
+                      setCalendarDraft((previous) => ({
+                        ...previous,
+                        weekday,
+                      }));
+                    }}
+                    triggerClassName={inputClass}
+                    options={[
+                      "mon",
+                      "tue",
+                      "wed",
+                      "thu",
+                      "fri",
+                      "sat",
+                      "sun",
+                    ].map((day) => ({
+                      value: day,
+                      label: t(`scheduledTask.weekday.${day}`),
+                    }))}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -734,26 +1005,53 @@ export function TaskFormModal({
             </div>
           )}
 
-          {/* Input payload */}
-          <div className="scheduled-task-form-field">
-            <label className="scheduled-task-label">
-              {t("scheduledTask.inputPayload")}
-            </label>
-            <Textarea
-              aria-label={t("scheduledTask.inputPayload")}
-              value={inputPayload}
-              onChange={(e) => {
-                setInputPayload(e.target.value);
-                setJsonError(null);
-              }}
-              rows={4}
-              className={`${inputClass} resize-y font-mono text-12`}
-              placeholder="{}"
-            />
-            {jsonError && (
-              <p className="mt-1 text-12 text-red-500">{jsonError}</p>
-            )}
-          </div>
+          <p className="text-12 text-theme-text-secondary">
+            {t("scheduledTask.scheduleTimezone", {
+              timezone:
+                triggerType === "date" ? getBrowserTimezone() : timezone,
+            })}
+          </p>
+
+          <details className="space-y-3" open={jsonError ? true : undefined}>
+            <summary className="cursor-pointer text-13 text-theme-text-secondary focus-visible:outline focus-visible:outline-2">
+              {t("agentConfig.advancedConfig")}
+            </summary>
+            {/* Description */}
+            <div className="scheduled-task-form-field">
+              <label className="scheduled-task-label">
+                {t("scheduledTask.description")}
+              </label>
+              <Textarea
+                aria-label={t("scheduledTask.description")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className={`${inputClass} resize-y`}
+                placeholder={t("scheduledTask.descriptionPlaceholder")}
+              />
+            </div>
+            <div className="scheduled-task-form-field">
+              <label className="scheduled-task-label">
+                {t("scheduledTask.inputPayload")}
+              </label>
+              <Textarea
+                aria-label={t("scheduledTask.inputPayload")}
+                value={inputPayload}
+                onChange={(e) => {
+                  setInputPayload(e.target.value);
+                  setJsonError(null);
+                }}
+                rows={4}
+                className={`${inputClass} resize-y font-mono text-12`}
+                placeholder="{}"
+              />
+              {jsonError && (
+                <p role="alert" className="mt-1 text-12 text-theme-error">
+                  {jsonError}
+                </p>
+              )}
+            </div>
+          </details>
 
           <div className="scheduled-task-form-field">
             <div className="mb-2 flex items-center justify-between gap-3 font-serif">
@@ -858,7 +1156,7 @@ export function TaskFormModal({
               </span>
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
     </EditorSidebar>
   );

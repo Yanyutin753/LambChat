@@ -11,6 +11,7 @@ import type {
 } from "../../types/scheduledTask";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export const scheduledTaskApi = {
   async list(
@@ -41,6 +42,7 @@ export const scheduledTaskApi = {
     }
     return authFetch<ScheduledTaskListResponse>(
       `${API_BASE}/api/scheduled-tasks/?${params}`,
+      { timeoutMs: REQUEST_TIMEOUT_MS },
     );
   },
 
@@ -55,11 +57,14 @@ export const scheduledTaskApi = {
   },
 
   async get(id: string): Promise<ScheduledTask> {
-    return authFetch<ScheduledTask>(`${API_BASE}/api/scheduled-tasks/${id}`);
+    return authFetch<ScheduledTask>(`${API_BASE}/api/scheduled-tasks/${id}`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
   },
 
   async create(data: ScheduledTaskCreate): Promise<ScheduledTask> {
     return authFetch<ScheduledTask>(`${API_BASE}/api/scheduled-tasks/`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -67,6 +72,7 @@ export const scheduledTaskApi = {
 
   async update(id: string, data: ScheduledTaskUpdate): Promise<ScheduledTask> {
     return authFetch<ScheduledTask>(`${API_BASE}/api/scheduled-tasks/${id}`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -75,25 +81,27 @@ export const scheduledTaskApi = {
   async pause(id: string): Promise<ScheduledTask> {
     return authFetch<ScheduledTask>(
       `${API_BASE}/api/scheduled-tasks/${id}/pause`,
-      { method: "POST" },
+      { method: "POST", timeoutMs: REQUEST_TIMEOUT_MS },
     );
   },
 
   async resume(id: string): Promise<ScheduledTask> {
     return authFetch<ScheduledTask>(
       `${API_BASE}/api/scheduled-tasks/${id}/resume`,
-      { method: "POST" },
+      { method: "POST", timeoutMs: REQUEST_TIMEOUT_MS },
     );
   },
 
   async delete(id: string): Promise<void> {
     return authFetch(`${API_BASE}/api/scheduled-tasks/${id}`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
       method: "DELETE",
     });
   },
 
   async runNow(id: string): Promise<Record<string, unknown>> {
     return authFetch(`${API_BASE}/api/scheduled-tasks/${id}/run`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
       method: "POST",
     });
   },
@@ -109,6 +117,7 @@ export const scheduledTaskApi = {
     });
     return authFetch<TaskRunListResponse>(
       `${API_BASE}/api/scheduled-tasks/${id}/runs?${params}`,
+      { timeoutMs: REQUEST_TIMEOUT_MS },
     );
   },
 
@@ -123,6 +132,7 @@ export const scheduledTaskApi = {
     });
     return authFetch<TaskSessionListResponse>(
       `${API_BASE}/api/scheduled-tasks/${id}/sessions?${params}`,
+      { timeoutMs: REQUEST_TIMEOUT_MS },
     );
   },
 };

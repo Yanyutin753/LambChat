@@ -3,10 +3,11 @@
 from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
 from deepagents import create_deep_agent
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langgraph.checkpoint.memory import MemorySaver
 
 from src.agents.core.base import GraphBuilder
@@ -15,8 +16,9 @@ from src.agents.quick_agent.nodes import quick_agent_node
 
 
 class RoutingModel:
-    def __init__(self, *, delegate=True):
+    def __init__(self, *, delegate=True, tool_name="handoff_to_search"):
         self.delegate = delegate
+        self.tool_name = tool_name
         self.tools = []
         self.messages = []
 
@@ -29,13 +31,15 @@ class RoutingModel:
         if self.delegate:
             return AIMessage(
                 content="",
-                tool_calls=[{"name": "handoff_to_search", "args": {}, "id": "route-1"}],
+                tool_calls=[{"name": self.tool_name, "args": {}, "id": "route-1"}],
             )
         return AIMessage(content="你好")
 
 
 class GraphModel(BaseChatModel):
     delegate: bool = True
+    tool_name: str = "handoff_to_search"
+    unavailable: bool = False
 
     @property
     def _llm_type(self):
@@ -48,13 +52,32 @@ class GraphModel(BaseChatModel):
         response = AIMessage(
             content="" if self.delegate else "已完成",
             tool_calls=(
-                [{"name": "handoff_to_search", "args": {}, "id": "route-1"}]
-                if self.delegate
-                else []
+                [{"name": self.tool_name, "args": {}, "id": "route-1"}] if self.delegate else []
             ),
             usage_metadata={"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
         )
         return ChatResult(generations=[ChatGeneration(message=response)])
+
+    def _stream(self, messages, stop=None, run_manager=None, **kwargs: Any):
+        if self.unavailable:
+            import httpx
+
+            raise httpx.ReadTimeout("Primary unavailable")
+        yield ChatGenerationChunk(
+            message=AIMessageChunk(
+                content="",
+                tool_call_chunks=[
+                    {"name": self.tool_name, "args": "{", "id": "route-1", "index": 0}
+                ],
+            )
+        )
+        yield ChatGenerationChunk(
+            message=AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": None, "args": "}", "id": None, "index": 0}],
+                usage_metadata={"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+            )
+        )
 
 
 def patch_model(monkeypatch, model):
@@ -64,8 +87,9 @@ def patch_model(monkeypatch, model):
     monkeypatch.setattr("src.agents.quick_agent.nodes.LLMClient.get_model", get_model)
 
 
-async def test_handoff_preserves_history_without_writing_current_turn_twice(monkeypatch):
-    model = RoutingModel()
+@pytest.mark.parametrize("tool_name", ["handoff_to_search", "execute", "write_file"])
+async def test_handoff_preserves_history_without_writing_current_turn_twice(monkeypatch, tool_name):
+    model = RoutingModel(tool_name=tool_name)
     patch_model(monkeypatch, model)
     checkpointer = MemorySaver()
     builder = GraphBuilder(QuickAgent().state_class)
@@ -95,6 +119,7 @@ async def test_handoff_preserves_history_without_writing_current_turn_twice(monk
         "查一下现在有哪些选择",
     ]
     assert model.tools
+    assert not any(getattr(message, "tool_calls", []) for message in result["messages"])
 
     # Search's real inner graph replaces the same ID instead of appending a duplicate.
     search = create_deep_agent(model=GraphModel(delegate=False), checkpointer=checkpointer)
@@ -140,10 +165,37 @@ async def test_unavailable_search_does_not_expose_handoff(monkeypatch):
     assert result["output"] == "你好"
 
 
-async def test_real_stream_handoff_has_usage_but_no_early_done_or_goal_end(monkeypatch):
-    from src.infra.writer.present import Presenter, PresenterConfig
+@pytest.mark.parametrize("tool_name", ["handoff_to_search", "execute", "write_file"])
+async def test_tool_response_cannot_handoff_without_search_access(monkeypatch, tool_name):
+    from src.kernel.errors import AppError
 
-    patch_model(monkeypatch, GraphModel())
+    model = RoutingModel(tool_name=tool_name)
+    patch_model(monkeypatch, model)
+    with pytest.raises(AppError):
+        await quick_agent_node(
+            {"input": "生成报告", "messages": []},
+            {"configurable": {"agent_options": {"_resolved_fallback_model": None}}},
+        )
+    assert not model.tools
+
+
+@pytest.mark.parametrize("tool_name", ["handoff_to_search", "execute", "write_file"])
+@pytest.mark.parametrize("use_fallback", [False, True])
+async def test_real_stream_handoff_has_usage_but_no_early_done_or_goal_end(
+    monkeypatch, tool_name, use_fallback
+):
+    from src.infra.writer.present import Presenter, PresenterConfig
+    from src.kernel.config import settings
+
+    model = GraphModel(tool_name=tool_name)
+    get_model = AsyncMock(
+        side_effect=[GraphModel(unavailable=True), model] if use_fallback else [model]
+    )
+    monkeypatch.setattr("src.agents.quick_agent.nodes.LLMClient.get_model", get_model)
+    monkeypatch.setattr(settings, "LLM_MAX_RETRIES", 0)
+    monkeypatch.setattr(
+        "src.agents.quick_agent.nodes.resolve_model_image_url_mode", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr("src.infra.task.manager.BackgroundTaskManager.check_interrupt", AsyncMock())
     monkeypatch.setattr(
         "src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast", lambda _: False
@@ -167,7 +219,7 @@ async def test_real_stream_handoff_has_usage_but_no_early_done_or_goal_end(monke
             "handoff-stream",
             presenter=presenter,
             allow_search_handoff=True,
-            agent_options={"_resolved_fallback_model": None},
+            agent_options={"_resolved_fallback_model": "fallback" if use_fallback else None},
             active_goal={"objective": "查证"},
         )
     ]
@@ -179,3 +231,4 @@ async def test_real_stream_handoff_has_usage_but_no_early_done_or_goal_end(monke
         event["data"]["total_tokens"] for event in saved if event["event"] == "token:usage"
     ] == [12]
     assert not agent._stream_tasks
+    assert get_model.await_count == (2 if use_fallback else 1)

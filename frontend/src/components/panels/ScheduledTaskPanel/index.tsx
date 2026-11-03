@@ -36,7 +36,6 @@ import type {
   ScheduledTask,
   ScheduledTaskCreate,
   ScheduledTaskStatus as ScheduledTaskStatusType,
-  ScheduledTaskUpdate,
 } from "../../../types/scheduledTask";
 import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
@@ -46,6 +45,7 @@ import { personaPresetApi } from "../../../services/api/personaPreset";
 import { teamApi } from "../../../services/api/team";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import {
+  buildScheduledTaskUpdate,
   getAgentOptionsFromScheduledTaskPayload,
   getScheduledTaskPersonaPresetId,
   getScheduledTaskTeamId,
@@ -204,74 +204,27 @@ export function ScheduledTaskPanel({
 
   const handleCreate = async (data: ScheduledTaskCreate) => {
     if (!canWrite) {
-      toast.error(t("errors.noPermission"));
-      return;
+      throw new Error(t("errors.noPermission"));
     }
-    try {
-      await scheduledTaskApi.create(data);
-      toast.success(t("scheduledTask.createdSuccess"));
-      setIsCreating(false);
-      fetchTasks();
-      notifyScheduledTaskMutation();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t("common.saveFailed");
-      toast.error(message);
-    }
+    await scheduledTaskApi.create(data);
+    toast.success(t("scheduledTask.createdSuccess"));
+    setIsCreating(false);
+    fetchTasks();
+    notifyScheduledTaskMutation();
   };
 
   const handleUpdate = async (data: ScheduledTaskCreate) => {
     if (!editingTask) return;
     if (!canWrite) {
-      toast.error(t("errors.noPermission"));
-      return;
+      throw new Error(t("errors.noPermission"));
     }
-    try {
-      const updateData: ScheduledTaskUpdate = {};
-      if (data.execution_mode !== editingTask.execution_mode)
-        updateData.execution_mode = data.execution_mode;
-      if (data.target_session_id !== editingTask.target_session_id)
-        updateData.target_session_id = data.target_session_id;
-      if (data.notification_policy !== editingTask.notification_policy)
-        updateData.notification_policy = data.notification_policy;
-      if (data.name !== editingTask.name) updateData.name = data.name;
-      if (data.agent_id !== editingTask.agent_id)
-        updateData.agent_id = data.agent_id;
-      if (data.trigger_type !== editingTask.trigger_type)
-        updateData.trigger_type = data.trigger_type;
-      if (
-        JSON.stringify(data.trigger_config) !==
-        JSON.stringify(editingTask.trigger_config)
-      )
-        updateData.trigger_config = data.trigger_config;
-      if (data.timezone && data.timezone !== editingTask.timezone)
-        updateData.timezone = data.timezone;
-      if (
-        JSON.stringify(data.input_payload) !==
-        JSON.stringify(editingTask.input_payload)
-      )
-        updateData.input_payload = data.input_payload;
-      if (data.description !== editingTask.description)
-        updateData.description = data.description;
-      if (data.enabled !== editingTask.enabled)
-        updateData.enabled = data.enabled;
-      if (data.run_on_start !== editingTask.run_on_start)
-        updateData.run_on_start = data.run_on_start;
-      if (data.max_retries !== editingTask.max_retries)
-        updateData.max_retries = data.max_retries;
-      if (data.timeout_seconds !== editingTask.timeout_seconds)
-        updateData.timeout_seconds = data.timeout_seconds;
+    const updateData = buildScheduledTaskUpdate(editingTask, data);
 
-      await scheduledTaskApi.update(editingTask.id, updateData);
-      toast.success(t("scheduledTask.updatedSuccess"));
-      setEditingTask(null);
-      fetchTasks();
-      notifyScheduledTaskMutation();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t("common.saveFailed");
-      toast.error(message);
-    }
+    await scheduledTaskApi.update(editingTask.id, updateData);
+    toast.success(t("scheduledTask.updatedSuccess"));
+    setEditingTask(null);
+    fetchTasks();
+    notifyScheduledTaskMutation();
   };
 
   const handleDelete = async () => {

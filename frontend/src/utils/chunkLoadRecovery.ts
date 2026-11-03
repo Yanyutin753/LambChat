@@ -65,18 +65,23 @@ export function attemptChunkReload(
   { now = Date.now }: InstallOptions = {},
 ): boolean {
   const at = now();
-  const storedAt = Number(win.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY));
-  if (
-    !shouldReloadAfterChunkError(
-      Number.isFinite(storedAt) ? storedAt : null,
-      at,
+  try {
+    const stored = win.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY);
+    const storedAt = stored === null ? null : Number(stored);
+    if (
+      !shouldReloadAfterChunkError(
+        storedAt !== null && Number.isFinite(storedAt) ? storedAt : null,
+        at,
+      )
     )
-  ) {
+      return false;
+    win.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(at));
+    win.location.replace(buildCacheBustedUrl(win.location.href, at));
+    return true;
+  } catch {
+    // Keep the error boundary usable when storage or navigation is unavailable.
     return false;
   }
-  win.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(at));
-  win.location.replace(buildCacheBustedUrl(win.location.href, at));
-  return true;
 }
 
 export function installChunkLoadRecovery(
@@ -87,9 +92,7 @@ export function installChunkLoadRecovery(
     const payload = (event as Event & { payload?: unknown }).payload;
     if (!isChunkLoadError(payload)) return;
 
-    // 吞掉错误，避免它冒泡到 React lazy 边界崩成白屏
-    event.preventDefault();
-
-    attemptChunkReload(win, { now });
+    // Suppress only errors for which navigation will actually recover the page.
+    if (attemptChunkReload(win, { now })) event.preventDefault();
   });
 }

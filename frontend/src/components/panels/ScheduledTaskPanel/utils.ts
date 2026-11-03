@@ -6,6 +6,35 @@ import type { RunConversationMessage, ScheduledTaskDefaults } from "./types";
 
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 
+export type SchedulePreset =
+  | ScheduledTask["trigger_type"]
+  | "daily"
+  | "weekdays"
+  | "weekly";
+
+export function getSchedulePreset(
+  task?: Pick<ScheduledTask, "trigger_type" | "trigger_config"> | null,
+): SchedulePreset {
+  if (!task || task.trigger_type !== "cron")
+    return task?.trigger_type ?? "interval";
+  const config = task.trigger_config as Record<string, unknown>;
+  // Only collapse schedules that the simple controls can represent without loss.
+  if (
+    Object.keys(config).some(
+      (key) => !["hour", "minute", "second", "day_of_week"].includes(key),
+    ) ||
+    !/^(?:[01]?\d|2[0-3])$/.test(String(config.hour)) ||
+    !/^[0-5]?\d$/.test(String(config.minute ?? "0")) ||
+    Number(config.second ?? 0) !== 0
+  )
+    return "cron";
+  if (!config.day_of_week || config.day_of_week === "*") return "daily";
+  if (config.day_of_week === "mon-fri") return "weekdays";
+  return /^(mon|tue|wed|thu|fri|sat|sun)$/.test(String(config.day_of_week))
+    ? "weekly"
+    : "cron";
+}
+
 export function getBrowserTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -74,7 +103,12 @@ export function toDateTimeLocalValue(value: string | null | undefined): string {
 export function formatTaskTrigger(task: ScheduledTask, t: TFunction): string {
   if (task.trigger_type === "interval") {
     const cfg = task.trigger_config as { seconds?: number };
-    return `${t("scheduledTask.interval")}: ${cfg.seconds ?? "-"}s`;
+    const seconds = cfg.seconds ?? 0;
+    if (seconds > 0 && seconds % 3600 === 0)
+      return t("scheduledTask.everyHours", { count: seconds / 3600 });
+    if (seconds > 0 && seconds % 60 === 0)
+      return t("scheduledTask.everyMinutes", { count: seconds / 60 });
+    return t("scheduledTask.everySeconds", { count: seconds });
   }
 
   if (task.trigger_type === "date") {
@@ -91,6 +125,17 @@ export function formatTaskTrigger(task: ScheduledTask, t: TFunction): string {
     month?: string;
     day_of_week?: string;
   };
+  const preset = getSchedulePreset(task);
+  if (preset === "daily" || preset === "weekdays" || preset === "weekly") {
+    const time = `${String(cfg.hour).padStart(2, "0")}:${String(
+      cfg.minute ?? "0",
+    ).padStart(2, "0")}`;
+    const day =
+      preset === "weekly"
+        ? ` · ${t(`scheduledTask.weekday.${cfg.day_of_week}`)}`
+        : "";
+    return `${t(`scheduledTask.${preset}`)}${day} · ${time} (${task.timezone})`;
+  }
   return `${t("scheduledTask.cron")}: ${[
     cfg.minute ?? "*",
     cfg.hour ?? "*",

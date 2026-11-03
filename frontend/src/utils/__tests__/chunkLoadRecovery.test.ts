@@ -114,7 +114,7 @@ test("installChunkLoadRecovery prevents default and reloads with cache-busted ur
   );
 });
 
-test("installChunkLoadRecovery swallows repeat failures without reload loop", () => {
+test("repeat failures reach the error boundary when reload is suppressed", () => {
   const { win, dispatchPreloadError, replace } = createHarness();
   installChunkLoadRecovery(win);
 
@@ -123,9 +123,23 @@ test("installChunkLoadRecovery swallows repeat failures without reload loop", ()
   dispatchPreloadError(TAURI_STALE_CHUNK_ERROR);
   const preventedAgain = dispatchPreloadError(TAURI_STALE_CHUNK_ERROR);
 
-  expect(preventedAgain).toBe(true);
+  expect(preventedAgain).toBe(false);
   expect(replace).toHaveBeenCalledTimes(1);
 });
+
+test.each(["getItem", "setItem"] as const)(
+  "unavailable storage (%s) cannot crash error recovery",
+  (method) => {
+    const { win, dispatchPreloadError, replace } = createHarness();
+    win.sessionStorage[method] = () => {
+      throw new DOMException("Blocked", "SecurityError");
+    };
+    installChunkLoadRecovery(win);
+    expect(dispatchPreloadError(TAURI_STALE_CHUNK_ERROR)).toBe(false);
+    expect(attemptChunkReload(win)).toBe(false);
+    expect(replace).not.toHaveBeenCalled();
+  },
+);
 
 test("installChunkLoadRecovery allows another reload after cooldown", () => {
   const { win, dispatchPreloadError, replace } = createHarness();

@@ -5,17 +5,13 @@ import ru from "../i18n/locales/ru.json";
 import zh from "../i18n/locales/zh.json";
 
 test("scheduled-task Chinese UI copy does not expose placeholders", () => {
-  const scheduledTask = zh.scheduledTask as Record<string, string>;
+  const scheduledTask = zh.scheduledTask;
 
   expect(scheduledTask.conversationTasks).toBe("会话定时任务");
   expect(scheduledTask.details).toBe("详情");
-  expect(scheduledTask.noConversationTasks).toBe(
-    "当前会话暂无 Agent 创建的定时任务",
-  );
+  expect(scheduledTask.noConversationTasks).toBe("此对话暂无定时任务");
 
-  for (const value of Object.values(scheduledTask)) {
-    expect(value).not.toMatch(/【待翻译】/);
-  }
+  expect(JSON.stringify(scheduledTask)).not.toMatch(/【待翻译】/);
 });
 
 test("scheduled-task delete warning explains task sessions lose their entry point", () => {

@@ -150,7 +150,7 @@ export const authApi = {
    * 获取当前用户信息
    */
   async getCurrentUser(): Promise<User> {
-    return authFetch<User>(`${API_BASE}/api/auth/me`);
+    return authFetch<User>(`${API_BASE}/api/auth/me`, { timeoutMs: 30_000 });
   },
 
   /**

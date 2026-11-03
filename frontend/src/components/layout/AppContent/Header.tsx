@@ -2,7 +2,15 @@ import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { PageNavigationBar } from "../../common/PageNavigationBar";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { SceneIllustration } from "../../common/SceneIllustration";
-import { useState, useRef, useEffect, useCallback, useId } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useId,
+  lazy,
+  Suspense,
+} from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -12,6 +20,7 @@ import {
 } from "../../common/ResourceCardMenu";
 import {
   Share2,
+  CalendarClock,
   MoreHorizontal,
   SquarePen,
   Bell,
@@ -42,8 +51,15 @@ import {
   OPEN_NOTIFICATIONS_EVENT,
   NOTIFICATION_COUNT_EVENT,
 } from "../DesktopSidebarShell/desktopShellPlatform";
+import { useRightPanelState } from "../../../hooks/useRightPanelState";
 import { Permission } from "../../../types";
 import type { TabType } from "./types";
+
+const SessionScheduledTasksPanel = lazy(() =>
+  import("../../panels/ScheduledTaskPanel/SessionScheduledTasksPanel").then(
+    (module) => ({ default: module.SessionScheduledTasksPanel }),
+  ),
+);
 
 interface HeaderProps {
   activeTab: TabType;
@@ -82,7 +98,7 @@ export function Header({
 }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { languageState, selectLanguage, retryLanguage } =
     useLanguagePreference();
   const { theme, toggleTheme, appearanceState, retryAppearance } = useTheme();
@@ -93,6 +109,9 @@ export function Header({
     modelsError,
     reloadModels,
   } = useSettingsContext();
+  const [scheduledSessionId, setScheduledSessionId] = useRightPanelState<
+    string | null
+  >("session-scheduled-tasks", null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
@@ -150,6 +169,17 @@ export function Header({
   });
 
   const mainActions: ResourceCardAction[] = [
+    ...(activeTab === "chat" &&
+    sessionId &&
+    hasPermission(Permission.SCHEDULED_TASK_READ)
+      ? [
+          {
+            label: t("scheduledTask.conversationTasks"),
+            icon: <CalendarClock size={16} />,
+            onClick: () => setScheduledSessionId(sessionId),
+          },
+        ]
+      : []),
     ...(showOutlineButton && onToggleOutline
       ? [
           {
@@ -385,6 +415,18 @@ export function Header({
 
         {activeTab === "chat" && actions}
       </header>
+
+      {activeTab === "chat" &&
+        scheduledSessionId === sessionId &&
+        sessionId && (
+          <Suspense fallback={null}>
+            <SessionScheduledTasksPanel
+              key={sessionId}
+              sessionId={sessionId}
+              onClose={() => setScheduledSessionId(null)}
+            />
+          </Suspense>
+        )}
 
       {sessionId && (
         <ShareDialog

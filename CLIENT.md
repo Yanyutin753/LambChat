@@ -33,6 +33,8 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 ## 3. 环境（§3）
 
 - Node 版本由 `frontend/package.json` engines + pnpm lockfile 锁定；Rust 工具链用 `frontend/src-tauri/rust-toolchain.toml` 锁定（**待补**，见 §11）。
+- Android 使用 JDK 21，SDK 版本以 `frontend/android/variables.gradle` 为准，Gradle 使用仓库 wrapper；本地 `JAVA_HOME` / `ANDROID_HOME` 指向独立工具链，不提交 `local.properties`。构建经共享验证锁运行，Gradle 指定 `--max-workers=1 --no-parallel`。
+- iOS 依赖 CocoaPods 与完整 Xcode/iOS SDK，仅安装 Command Line Tools 不能编译 iOS。`mobile:sync` 会同步两个移动平台；仅验证 Android 时可在前端构建后运行 `cap sync android`，`cap copy ios` 只算资源复制，不算 iOS 原生验证。
 - PBS runtime 与 PyInstaller 版本必须 pin 精确版本，禁止 `latest`；升级单独 PR。
 - daemon 打包使用 `uv.lock` 中的 `daemon-build` 组（含 `cua`），安装到 `client/build/venv`，不安装服务端依赖或改动开发环境。更新器校验使用同一 Cargo workspace 内的 `lambchat-updater-verifier`，复用真实校验源码和锁定版本，只编译校验需要的依赖。
 - 本地开发起点：`make client-fetch-pbs` + `make client-build-daemon`；建议补 `make dev-desktop` 一键拉起桌面开发壳（§11）。
@@ -95,6 +97,10 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - **macOS 特例**：ad-hoc 签名（`signingIdentity: "-"`）+ `hardenedRuntime: false` 是 PBS sidecar 内嵌 dylib 的既定兼容决策，改动此项必须附 macOS 自动化签名与启动验证结论，真机抽测可选；不得放宽 CI 签名校验与 Gatekeeper 兼容要求。
 - **sidecar 生命周期契约**：退避重启（上限 3 次、稳定 300s 重置计数）、`kill(pid,0)` 存活探测、SIGTERM 优雅退出、`RunEvent::Exit` 兜底回收——**凡动 `daemon.rs` 或 daemon 进程管理（`procsup.py`），合并前必须跑 `uv run python scripts/e2e_local_sandbox.py` 全绿**（AGENTS.md 硬性门禁）。
 - **升级保留数据**：升级或同版本重装不得递归删除 app data / WebView 数据目录；登录、偏好和窗口状态随版本保留。前端资源通过构建产物文件名更新，禁止为刷新资源而清空持久化数据。
+- **关闭到托盘的降级**：系统关窗请求仅在主窗口且托盘创建成功时隐藏窗口；托盘缺失时最小化，保留任务栏/Dock 恢复入口。预览窗口仍正常关闭，自绘标题栏既有退出行为不变。
+- **Linux 安装来源探测**：`dpkg/rpm` 查询放在后台阻塞线程，每次探测最多 3 秒；丢弃探测输出，超时回收进程组并沿用未知来源的下载页回退，不阻塞窗口线程。
+- **连接和资源恢复**：通知 WebSocket 的握手及认证最多等待 15 秒，超时即隔离旧连接并按已有退避重连，不依赖系统发送 close 事件；认证成功、账户切换及卸载均清理计时器。资源加载失败仅在确实发起自动重载时吞掉异常，冷却期或存储不可用时保留错误边界和手动刷新入口。
+- **网络等待与资源释放**：用户资料初始化、版本 API、定时任务 CRUD/操作及 Windows/macOS 原生更新检查最多等待 30 秒；JSON 请求计时覆盖响应正文，保留调用方取消信号；定时任务超时释放界面忙碌状态，不自动重放创建或执行请求。原生更新下载最多 30 分钟，失败、跳过或丢弃的更新对象须释放，待安装对象保留到安装或用户丢弃。原生 API 地址改写须保留 `Request` 的取消、凭据、缓存及重定向策略。
 - **日志**：统一写 `~/.lambchat/logs/desktop.log`，禁止另起路径；日志里不得出现 token / pairing 凭据明文。
 - **Windows 凭证权限**：使用进程 token 的用户 SID 与原生 Win32 API 设置受保护的 owner-only DACL；目录授予该 SID 可继承的 FullControl。禁止为此启动 PowerShell / `Set-Acl`，避免域信任或域账户解析失败阻塞配对。权限设置失败必须停止写入，保留既有凭证。
 
@@ -107,6 +113,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 - **应用图标**：`frontend/resources/mobile-icon.png` 是 512×512 RGBA 原图，底板纯白且不透明；由 `pnpm brand:assets` 同步 Android launcher、`resources/icon.png` 与 1024×1024 RGB iOS AppIcon（无 alpha 通道），`pnpm brand:assets:check` 校验一致性。系统负责移动端外轮廓裁切，不在原图画圆角。桌面端独立使用 `resources/native-icon.png`，Web 图标继续沿用现有素材。
 - **流程**：改 WebView 代码后 `pnpm mobile:sync` 重新同步；`android/`、`ios/App/` 的 diff 必须人工过目后再提交，防止 sync 静默改坏原生配置。
+- **Android 更新下载**：系统下载与 WebView 备用下载均限制为 60 秒无进展、总计 30 分钟。系统任务失败或停滞后先调用 `UpdateDownloader.cancel` 移除任务，成功取消后才能开始备用下载；旧壳缺少取消方法或取消失败时明确结束本轮并报错，不并行启动备用下载。原生查询异常必须 reject 插件调用；备用流下载在异常时释放 reader、清理半截缓存，完成后核对 Release 提供的大小再启动安装器。
 - **版本**：`versionCode` 按 AGENTS.md 的核心版本加构建序号公式计算；`versionName` 使用统一核心版本，dev.N 使用构建序号 N，正式版使用 999，禁止绕过统一版本预检。
 - **安全红线**：`allowMixedContent: false` 不动摇，API 一律 https；敏感数据不进 WebView localStorage，走原生侧或后端会话。
 - **发布产物现状**：Android 出签名 APK（密钥在 CI secrets，降级 debug APK 需在 Release notes 标注）；iOS 当前为 unsigned xcarchive——签名链路上线前按 §11 推进。
@@ -114,7 +121,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 ## 9. 版本与发布（§ AGENTS.md 发版流程的客户端细化）
 
 - 六文件 bump 规则以 `AGENTS.md` 为准；`versionCode`（第七处）随 `versionName` 联动。
-- **cargo `Cargo.toml` crate 版本当前已漂移（2.8.6 vs `tauri.conf.json` 2.10.1）且 preflight 不校验**——二选一，团队拍板：纳入 preflight 一并 bump（推荐），或在 `Cargo.toml` 注释明确「crate 版本不参与发版」并写明理由。悬空不管是最差选项。
+- `Cargo.toml` crate 版本参与运行时版本及发布预检，必须与 `tauri.conf.json` 和 AGENTS.md 所列版本文件同步，不能豁免。
 - 建议 bump 脚本化（`scripts/bump_version.py`：一次改齐全部版本文件 + 校验 versionCode 规则），替代手工六处编辑；出 tag 的 preflight 继续兜底。
 - 正式版发版完成要求 CI、打包冒烟、签名校验和自动化回归通过，latest.json 三个桌面平台条目齐全（Windows x64、macOS Apple Silicon / Intel，含 `darwin-x86_64`）。Mac、Windows 及手机真机检查可选，未测不阻塞发布。
 
@@ -132,7 +139,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 | 层 | 现状 | 要求 |
 |----|------|------|
 | TS / React | vitest（CI 有） | 沿用 AGENTS.md TDD 流程 |
-| Rust | 仅 `lib.rs` 少量单测，CI 无 `cargo test` | `daemon.rs` / `tray.rs` 改动补单测；`lint.yml` 补快速 `cargo test` |
+| Rust | `lint.yml` 已有 `cargo test --lib`，单 worker / test thread | `daemon.rs` / `tray.rs` 改动补单测；平台专属代码仍需对应 runner 验证 |
 | daemon 链路 | `e2e_local_sandbox.py`（硬性门禁） | 涉及沙箱链路必跑；发版前加 `--stress` |
 | 打包产物 | CI 冒烟门禁（mac/Linux/Windows 三式） | 不豁免；新平台/新包型先补冒烟再合 |
 
@@ -141,11 +148,9 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 | 优先级 | 事项 | 对应章节 |
 |--------|------|----------|
 | P0 | Rust fmt/clippy 配置 + CI 步骤 | §5 |
-| P0 | `Cargo.toml` 版本口径拍板（纳入 preflight 或显式豁免） | §9 |
 | P0 | 版本 bump 脚本化 | §9 |
 | P1 | VitePress「客户端开发」章节 | §2 |
 | P1 | `make dev-desktop` 一键桌面开发壳 + `rust-toolchain.toml` | §3 |
-| P1 | `lint.yml` 增加 `cargo test` | §10 |
 | P2 | CSP 收紧方案 | §7 |
 | P2 | iOS 签名链路 | §8 |
 
