@@ -341,3 +341,15 @@ async def test_probe_download_error_reuses_the_failed_download_response() -> Non
     assert await _download_file_from_backend(backend, "/d") is None
     assert await _probe_download_error(backend, "/d") == "is_directory"
     assert backend.calls == 1
+
+
+def test_download_distinguishes_missing_file_from_missing_sandbox():
+    from cubesandbox._exceptions import FilesystemNotFoundError, SandboxNotFoundError
+    from e2b.exceptions import FileNotFoundException, SandboxNotFoundException
+
+    from src.infra.backend.protocol_compat import classify_download_error
+
+    for error_type in (FilesystemNotFoundError, FileNotFoundException):
+        assert classify_download_error(error_type("missing")) == "file_not_found"
+    for error_type in (SandboxNotFoundError, SandboxNotFoundException):
+        assert classify_download_error(error_type("missing")) == "io_error"

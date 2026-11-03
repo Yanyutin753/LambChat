@@ -24,6 +24,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from src.infra.agent.events.buffers import ActivityReferenceFilter
+from src.infra.agent.middleware.summary_history import protect_summary_history
 from src.infra.agent.middleware.summary_stats import attach_summary_token_stats
 from src.infra.backend.resource_authority import (
     protect_server_artifact_eviction,
@@ -344,6 +345,7 @@ def summarization_fallback_patch(
                 middleware = _reuse_summary_prefix(
                     middleware, fallback_model=fallback, thinking=reasoning
                 )
+                middleware = protect_summary_history(middleware)
                 summaries[id(middleware)] = middleware
                 return middleware
 

@@ -4,6 +4,8 @@ import base64
 import re
 from types import SimpleNamespace
 
+import pytest
+
 
 def _mock_stream_transport(monkeypatch, handler):
     import httpx
@@ -351,7 +353,7 @@ def test_cubesandbox_download_reports_size_mismatch(monkeypatch) -> None:
 
     responses = backend.download_files(["trunc.bin"])
 
-    assert responses[0].error == "file_not_found"
+    assert responses[0].error == "io_error"
     assert responses[0].content is None
 
 
@@ -451,7 +453,7 @@ async def test_cubesandbox_download_honors_changed_limit_without_text_read(monke
     backend._async_disabled = True
     monkeypatch.setattr(module, "SANDBOX_DOWNLOAD_MAX_BYTES", len(payload) - 1)
     denied = await backend.adownload_files(["image.png"])
-    assert denied[0].error and denied[0].content is None
+    assert denied[0].error == "file_too_large" and denied[0].content is None
     assert client.calls == []
     monkeypatch.setattr(module, "SANDBOX_DOWNLOAD_MAX_BYTES", len(payload))
     allowed = await backend.adownload_files(["image.png"])
@@ -585,3 +587,106 @@ def test_cubesandbox_unimplemented_async_handshake_fails_fast_quietly(caplog) ->
     backend2._register_async_init_failure(RuntimeError("connection refused"))
     assert backend2._async_disabled is False
     assert backend2._async_init_failures == 1
+
+
+@pytest.mark.parametrize("sync", [False, True])
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (FileNotFoundError("No such file or directory"), "file_not_found"),
+        (PermissionError("Permission denied"), "permission_denied"),
+        (TimeoutError("timed out"), "timeout"),
+        (RuntimeError("sandbox not found"), "io_error"),
+        (IOError("binary read size mismatch"), "io_error"),
+    ],
+)
+async def test_download_preserves_error_kind(monkeypatch, sync, error, expected):
+    import asyncio
+    from unittest.mock import AsyncMock, Mock
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    backend = CubeSandboxBackend(sandbox=_FakeCubeSandbox(), work_dir="/w")
+    monkeypatch.setattr(backend, "_file_size", Mock(return_value=None))
+    monkeypatch.setattr(backend, "_astat_size", AsyncMock(return_value=None))
+    monkeypatch.setattr(backend, "_read_bytes", Mock(side_effect=error))
+    monkeypatch.setattr(backend, "_aread_bytes", AsyncMock(side_effect=error))
+    results = (
+        await asyncio.to_thread(backend.download_files, ["/w/history.md"])
+        if sync
+        else await backend.adownload_files(["/w/history.md"])
+    )
+    assert results[0].error == expected and results[0].content is None
+
+
+async def test_known_missing_text_does_not_retry_sync_or_log_storage_failure(monkeypatch, caplog):
+    from unittest.mock import AsyncMock, Mock
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    backend = CubeSandboxBackend(sandbox=_FakeCubeSandbox(), work_dir="/w")
+    monkeypatch.setattr(backend, "_astat_size", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        backend, "_acube_text_read", AsyncMock(side_effect=FileNotFoundError("missing history"))
+    )
+    sync_read = Mock(side_effect=AssertionError("missing file must not be retried"))
+    monkeypatch.setattr(backend, "read", sync_read)
+    assert (await backend.aread("/w/history.md")).error == "file_not_found"
+    sync_read.assert_not_called()
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("sync", [False, True])
+async def test_binary_command_preserves_missing_file_diagnostic(monkeypatch, sync):
+    import asyncio
+    from unittest.mock import AsyncMock, Mock
+
+    from deepagents.backends.protocol import ExecuteResponse
+
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    backend = CubeSandboxBackend(sandbox=_FakeCubeSandbox(), work_dir="/w")
+    result = ExecuteResponse(output="base64: /w/history.md: No such file or directory", exit_code=1)
+    monkeypatch.setattr(backend, "execute", Mock(return_value=result))
+    monkeypatch.setattr(backend, "aexecute", AsyncMock(return_value=result))
+    with pytest.raises(FileNotFoundError, match="No such file"):
+        if sync:
+            await asyncio.to_thread(backend._read_bytes_via_command, "/w/history.md", None)
+        else:
+            await backend._aread_bytes_via_command("/w/history.md", None)
+
+
+@pytest.mark.parametrize("sync", [False, True])
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (FileNotFoundError("No such file or directory"), "file_not_found"),
+        (PermissionError("Permission denied"), "permission_denied"),
+        (TimeoutError("timed out"), "timeout"),
+        (RuntimeError("sandbox not found"), "io_error"),
+    ],
+)
+async def test_e2b_download_preserves_error_kind(monkeypatch, sync, error, expected):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from src.infra.backend.e2b import E2BBackend
+
+    backend = E2BBackend(sandbox=_FakeCubeSandbox(), work_dir="/w")
+    client = SimpleNamespace(files=SimpleNamespace(read=AsyncMock(side_effect=error)))
+    monkeypatch.setattr(backend, "_async_client_or_none", AsyncMock(return_value=client))
+    monkeypatch.setattr(backend, "_afile_size", AsyncMock(return_value=None))
+    monkeypatch.setattr(backend, "_file_size", Mock(return_value=None))
+    monkeypatch.setattr(backend, "_files_read", Mock(side_effect=error))
+
+    async def sdk_call(_name, call):
+        return await call()
+
+    monkeypatch.setattr(backend, "_asdk", sdk_call)
+    result = (
+        await asyncio.to_thread(backend.download_files, ["history.md"])
+        if sync
+        else await backend.adownload_files(["history.md"])
+    )
+    assert result[0].error == expected

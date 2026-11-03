@@ -470,6 +470,7 @@
     "requestNewResetLink": "重新获取重置链接"
   },
   "backendErrors": {
+    "conversationHistorySaveFailed": "会话历史暂时无法保存，已保留当前上下文。请在存储恢复后重试。",
     "sandboxWorkspaceInvalid": "工作目录绑定无效或属于另一台电脑，请重新选择目录",
     "storageMigrationBlocked": "存储迁移校验未通过，当前存储保持不变。请补齐文件并校验内容后重试。",
     "storageMigrationBusy": "校验期间有上传或存储配置发生变化。请等待上传完成后重试。",

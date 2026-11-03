@@ -470,6 +470,7 @@
     "requestNewResetLink": "재설정 링크 다시 받기"
   },
   "backendErrors": {
+    "conversationHistorySaveFailed": "대화 기록을 저장하지 못했습니다. 현재 컨텍스트는 유지됩니다. 저장소가 복구되면 다시 시도해 주세요.",
     "sandboxWorkspaceInvalid": "작업 폴더 연결이 잘못되었거나 다른 컴퓨터에 속해 있습니다. 폴더를 다시 선택하세요.",
     "storageMigrationBlocked": "스토리지 이전 검증에 실패했습니다. 현재 스토리지는 유지됩니다. 모든 파일을 복사하고 내용을 확인한 후 다시 시도하세요.",
     "storageMigrationBusy": "검증 중 업로드 또는 스토리지 설정이 변경되었습니다. 업로드 완료 후 다시 시도하세요.",
