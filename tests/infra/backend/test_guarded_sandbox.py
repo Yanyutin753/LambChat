@@ -132,8 +132,9 @@ async def test_summary_history_appends_after_file_observation_reset(
         "decode_error",
     ],
 )
+@pytest.mark.parametrize("protected", [False, True])
 async def test_summary_history_refuses_concurrent_write_after_observation(
-    tmp_path, monkeypatch, mutation
+    tmp_path, monkeypatch, mutation, protected
 ):
     from deepagents.middleware.summarization import create_summarization_middleware
     from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -188,6 +189,26 @@ async def test_summary_history_refuses_concurrent_write_after_observation(
     summary = create_summarization_middleware(
         GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
     )
+    if protected:
+        from src.infra.agent.middleware.summary_history import protect_summary_history
+        from src.kernel.errors import AppError
+
+        summary = protect_summary_history(summary)
+        if mutation in {"before_download", "after_download"}:
+            assert await summary._aoffload_to_backend(
+                artifact, [HumanMessage("new history")], "session-a"
+            )
+            assert target.read_text().startswith("concurrent writer")
+            assert target.read_text().count("new history") == 1
+        else:
+            with pytest.raises(AppError):
+                await summary._aoffload_to_backend(
+                    artifact, [HumanMessage("new history")], "session-a"
+                )
+            assert target.read_text() == (
+                "original history" if download_failure else "concurrent writer"
+            )
+        return
     appended = await summary._aoffload_to_backend(
         artifact, [HumanMessage("new history")], "session-a"
     )

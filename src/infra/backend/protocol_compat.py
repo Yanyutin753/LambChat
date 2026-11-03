@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Literal, TypeGuard, cast
 
+import httpx
 from deepagents.backends.protocol import (
     BackendProtocol,
     DeleteResult,
@@ -55,6 +57,25 @@ ExtendedFileError = Literal[
     "io_error",
     "timeout",
 ]
+
+
+def classify_download_error(error: Exception) -> ExtendedFileError:
+    """Only confirmed filesystem absence permits creating a new archive."""
+    message = str(error).lower()
+    if (
+        isinstance(error, FileNotFoundError)
+        or type(error).__name__ in {"FilesystemNotFoundError", "FileNotFoundException"}
+        or "no such file or directory" in message
+        or re.search(r"\bpath ['\"].+['\"] does not exist", message)
+    ):
+        return "file_not_found"
+    if isinstance(error, PermissionError) or "permission denied" in message:
+        return "permission_denied"
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return "timeout"
+    if isinstance(error, IsADirectoryError) or "is a directory" in message:
+        return "is_directory"
+    return "io_error"
 
 
 def classify_upload_error(error_text: str | BaseException) -> ExtendedFileError:

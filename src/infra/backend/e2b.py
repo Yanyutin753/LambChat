@@ -46,6 +46,7 @@ from src.infra.backend.protocol_compat import (
     LsResult,
     ReadResult,
     WriteResult,
+    classify_download_error,
     classify_upload_error,
     file_download_response,
     file_upload_response,
@@ -765,7 +766,7 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
                         SANDBOX_DOWNLOAD_MAX_BYTES,
                     )
                     responses.append(
-                        FileDownloadResponse(path=path, content=None, error="file_not_found")
+                        file_download_response(path=path, content=None, error="file_too_large")
                     )
                     continue
                 content = self._files_read(path, "bytes")
@@ -773,15 +774,10 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
                     FileDownloadResponse(path=path, content=bytes(content), error=None)
                 )
             except Exception as e:
-                error_str = str(e).lower()
-                if "permission" in error_str:
-                    error_type = "permission_denied"
-                elif "is a directory" in error_str or "is a dir" in error_str:
-                    error_type = "is_directory"
-                else:
-                    error_type = "file_not_found"
-                logger.error(f"Failed to download {path}: {e}")
-                responses.append(FileDownloadResponse(path=path, content=None, error=error_type))
+                error = classify_download_error(e)
+                if error != "file_not_found":
+                    logger.error("Failed to download %s: %s", path, e)
+                responses.append(file_download_response(path=path, content=None, error=error))
         return responses
 
     def _file_size(self, path: str) -> int | None:

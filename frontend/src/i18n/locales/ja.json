@@ -470,6 +470,7 @@
     "requestNewResetLink": "再設定リンクを再取得"
   },
   "backendErrors": {
+    "conversationHistorySaveFailed": "会話履歴を保存できませんでした。現在のコンテキストは保持されています。ストレージの復旧後に再試行してください。",
     "sandboxWorkspaceInvalid": "作業フォルダーの設定が無効か、別のコンピューターに属しています。フォルダーを選択し直してください。",
     "storageMigrationBlocked": "ストレージ移行の検証に失敗しました。現在のストレージは変更されません。すべてのファイルをコピーして内容を確認し、再試行してください。",
     "storageMigrationBusy": "検証中にアップロードまたはストレージ設定が変更されました。アップロード完了後に再試行してください。",

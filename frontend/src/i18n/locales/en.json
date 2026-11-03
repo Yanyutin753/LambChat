@@ -470,6 +470,7 @@
     "requestNewResetLink": "Request a new reset link"
   },
   "backendErrors": {
+    "conversationHistorySaveFailed": "Conversation history could not be saved. The current context was retained; please retry when storage is available.",
     "sandboxWorkspaceInvalid": "Workspace binding is invalid or belongs to another computer. Select the folder again.",
     "storageMigrationBlocked": "Storage migration verification failed. Current storage is unchanged. Copy and verify all files before retrying.",
     "storageMigrationBusy": "Uploads or storage settings changed during verification. Finish uploads and retry.",
