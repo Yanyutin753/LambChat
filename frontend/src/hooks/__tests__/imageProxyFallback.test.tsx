@@ -280,6 +280,7 @@ test.each(["desktop", "android", "ios"])(
     if (platform === "desktop") vi.stubGlobal("__TAURI_INTERNALS__", {});
     else vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
     setStoredServerUrl("https://chat.example");
+    localStorage.setItem("access_token", "private-image-owner");
     vi.mocked(authenticatedRequest).mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -315,6 +316,7 @@ test("viewer relocates an upload URL from the webview origin before loading it",
   );
   vi.stubGlobal("__TAURI_INTERNALS__", {});
   setStoredServerUrl("https://chat.example");
+  localStorage.setItem("access_token", "private-image-owner");
   render(
     <ImageViewer
       src="tauri://localhost/api/upload/file/image/u/relative.png"

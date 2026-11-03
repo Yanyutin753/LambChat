@@ -33,6 +33,7 @@ function makeAttachment(
 }
 
 beforeEach(async () => {
+  localStorage.setItem("access_token", "attachment-owner");
   await i18n.changeLanguage("en");
 });
 
