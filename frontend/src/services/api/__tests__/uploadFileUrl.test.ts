@@ -41,6 +41,7 @@ test("resolves owner uploads through app capabilities and preserves variants", a
 });
 
 test("never sends account authentication to foreign origins or resolves shared capabilities again", async () => {
+  localStorage.removeItem("access_token");
   for (const url of [
     "https://evil.example/api/upload/file/uploads/a.png",
     "//evil.example/api/upload/file/uploads/a.png",
@@ -51,6 +52,18 @@ test("never sends account authentication to foreign origins or resolves shared c
   ]) {
     expect(await resolveUploadFileUrl(url)).toContain(url);
   }
+  expect(request).not.toHaveBeenCalled();
+});
+
+test("anonymous long shares reject unsigned private files without a signing request storm", async () => {
+  localStorage.removeItem("access_token");
+  request.mockResolvedValue(new Response("denied", { status: 401 }));
+  const results = await Promise.allSettled(
+    Array.from({ length: 350 }, (_, i) =>
+      resolveUploadFileUrl(`/api/upload/file/uploads/${i}.png`),
+    ),
+  );
+  expect(results.every((result) => result.status === "rejected")).toBe(true);
   expect(request).not.toHaveBeenCalled();
 });
 
@@ -101,6 +114,7 @@ test("rejects late capabilities after logout and retries failed signing", async 
   localStorage.removeItem("access_token");
   finish(signed());
   await expect(pending).rejects.toThrow();
+  localStorage.setItem("access_token", "signed-in-again");
   request.mockResolvedValueOnce(new Response("denied", { status: 404 }));
   await expect(
     resolveUploadFileUrl("/api/upload/file/uploads/a.png"),

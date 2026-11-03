@@ -66,6 +66,7 @@ export async function resolveUploadFileUrl(source: string): Promise<string> {
     inflight.clear();
     cacheAccount = account;
   }
+  if (!account) throw new Error("File unavailable: authentication required");
   const cacheKey = `${url.origin}/${key}`;
   const cached = capabilities.get(cacheKey);
   let signedUrl: string;
