@@ -18,7 +18,7 @@ export type RunPartGroup =
 /**
  * 将分组后的 parts 切成 head（可折叠的中间过程）与 tail（始终可见的收尾）。
  * tail 从最后一个 text part（最终 output_text）开始，保留其后的实际执行顺序；
- * 若没有任何 text part，则只有末尾连续的 cancelled 分组保留可见。
+ * 错误提示不替代已有正文；无正文时保留末尾的错误/取消提示。
  */
 export function splitRunTailGroups<T extends RunPartGroup>(
   groups: T[],
@@ -31,7 +31,11 @@ export function splitRunTailGroups<T extends RunPartGroup>(
   let lastTextIndex = -1;
   for (let i = groups.length - 1; i >= 0; i--) {
     const group = groups[i];
-    if (group.type === "single" && group.part.type === "text") {
+    if (
+      group.type === "single" &&
+      group.part.type === "text" &&
+      !group.part.isError
+    ) {
       lastTextIndex = i;
       break;
     }
@@ -47,7 +51,12 @@ export function splitRunTailGroups<T extends RunPartGroup>(
   let tailStart = groups.length;
   while (tailStart > 0) {
     const group = groups[tailStart - 1];
-    if (group.type !== "single" || group.part.type !== "cancelled") break;
+    if (
+      group.type !== "single" ||
+      (group.part.type !== "cancelled" &&
+        !(group.part.type === "text" && group.part.isError))
+    )
+      break;
     tailStart--;
   }
 
