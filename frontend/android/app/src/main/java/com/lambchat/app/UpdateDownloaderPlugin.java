@@ -135,9 +135,9 @@ public class UpdateDownloaderPlugin extends Plugin {
                 call.reject("download not found");
                 return;
             }
-            int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
-            long soFar = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-            long total = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            long soFar = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+            long total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
 
             JSObject ret = new JSObject();
             ret.put("status", mapStatus(status));
@@ -154,6 +154,25 @@ public class UpdateDownloaderPlugin extends Plugin {
                 ret.put("reason", reasonIdx >= 0 ? c.getInt(reasonIdx) : 0);
             }
             call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("progress failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void cancel(PluginCall call) {
+        try {
+            long id = Long.parseLong(call.getString("downloadId", ""));
+            DownloadManager dm = (DownloadManager) getContext()
+                    .getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm == null) {
+                call.reject("DownloadManager unavailable");
+                return;
+            }
+            dm.remove(id);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("cancel failed: " + e.getMessage());
         }
     }
 
