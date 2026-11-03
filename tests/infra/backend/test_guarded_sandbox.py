@@ -62,6 +62,53 @@ class FilesystemBackend:
         return results
 
 
+@pytest.mark.parametrize("sync", [False, True])
+async def test_history_larger_than_text_read_limit_can_append_without_losing_old_bytes(
+    tmp_path, monkeypatch, sync
+):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from deepagents.middleware.summarization import create_summarization_middleware
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.infra.agent.middleware.summary_history import protect_summary_history
+    from src.infra.backend.guarded_sandbox import GuardedSandboxBackend
+    from src.infra.backend.resource_authority import (
+        AuthorizedCompositeBackend,
+        server_artifact_backend,
+    )
+
+    original = "old decision\n" * 180000
+    target = tmp_path / "conversation_history/session-a.md"
+    target.parent.mkdir()
+    target.write_text(original)
+    raw = FilesystemBackend(tmp_path)
+    monkeypatch.setattr(
+        raw, "aread", AsyncMock(return_value=ReadResult(error="file too large to read directly"))
+    )
+    guard = GuardedSandboxBackend(raw, user_id="u1", session_id="a")
+    artifact = server_artifact_backend(
+        AuthorizedCompositeBackend(
+            default=guard, routes={}, user_id="u1", artifacts_root=str(tmp_path)
+        )
+    )
+    summary = protect_summary_history(
+        create_summarization_middleware(
+            GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
+        )
+    )
+    messages = [HumanMessage("new decision")]
+    if sync:
+        path = await asyncio.to_thread(summary._offload_to_backend, artifact, messages, "session-a")
+    else:
+        path = await summary._aoffload_to_backend(artifact, messages, "session-a")
+    assert path == str(target)
+    assert target.read_text().startswith(original)
+    assert target.read_text().count("new decision") == 1
+
+
 @pytest.mark.parametrize("reset", ["new_backend", "execute", "pre_read_failure"])
 @pytest.mark.parametrize("sync", [False, True])
 async def test_summary_history_appends_after_file_observation_reset(
@@ -194,7 +241,7 @@ async def test_summary_history_refuses_concurrent_write_after_observation(
         from src.kernel.errors import AppError
 
         summary = protect_summary_history(summary)
-        if mutation in {"before_download", "after_download"}:
+        if mutation in {"before_download", "after_download", "read_failure"}:
             assert await summary._aoffload_to_backend(
                 artifact, [HumanMessage("new history")], "session-a"
             )

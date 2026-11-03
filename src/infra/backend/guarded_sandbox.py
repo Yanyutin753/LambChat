@@ -17,6 +17,7 @@ from src.infra.backend.protocol_compat import (
     DeleteResult,
     EditResult,
     ExecuteResponse,
+    FileDownloadResponse,
     FileUploadResponse,
     ReadResult,
     WriteResult,
@@ -224,10 +225,36 @@ class GuardedSandboxBackend(BaseSandbox):
         return _run_coro_sync(self.aupload_files(files))
 
     def download_files(self, paths):
-        return self._backend.download_files(paths)
+        return _run_coro_sync(self.adownload_files(paths))
 
     async def adownload_files(self, paths):
-        return await self._backend.adownload_files(paths)
+        resolved = [self._path(path) for path in paths]
+        for path in resolved:
+            self._versions.pop(path, None)
+        try:
+            before = [await self._remote("version", path) for path in resolved]
+            downloaded = await self._backend.adownload_files(resolved)
+            if len(downloaded) != len(paths):
+                raise RuntimeError("missing file download result")
+            results = []
+            for file_path, path, version, result in zip(
+                paths, resolved, before, downloaded, strict=True
+            ):
+                after = await self._remote("version", path)
+                if version != after or result.path != path:
+                    results.append(FileDownloadResponse(path=file_path, error="io_error"))
+                    continue
+                # Full-byte reads also establish an observation when text reads exceed their limit.
+                if result.error is None and result.content is not None:
+                    self._versions[path] = after["version"]
+                results.append(
+                    FileDownloadResponse(path=file_path, content=result.content, error=result.error)
+                )
+            return results
+        except Exception:
+            for path in resolved:
+                self._versions.pop(path, None)
+            return [FileDownloadResponse(path=path, error="io_error") for path in paths]
 
     async def aexecute(self, command: str, *, timeout: int | None = None):
         self._versions.clear()
