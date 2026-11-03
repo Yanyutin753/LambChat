@@ -13,6 +13,14 @@ const mocks = vi.hoisted(() => ({
   loading: vi.fn(),
   apkStatus: vi.fn(),
   apkStart: vi.fn(),
+  apkProgress: vi.fn(),
+  apkCancel: vi.fn(),
+  apkCleanup: vi.fn(),
+  installApk: vi.fn(),
+  stat: vi.fn(),
+  writeFile: vi.fn(),
+  appendFile: vi.fn(),
+  deleteFile: vi.fn(),
 }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mocks.check }));
 vi.mock("../../services/api", () => ({
@@ -20,7 +28,20 @@ vi.mock("../../services/api", () => ({
   buildReleaseAssetDownloadUrl: (name: string) => `/assets/${name}`,
 }));
 vi.mock("../../services/capacitor/updateDownloader", () => ({
-  UpdateDownloader: { status: mocks.apkStatus, start: mocks.apkStart },
+  UpdateDownloader: {
+    status: mocks.apkStatus,
+    start: mocks.apkStart,
+    progress: mocks.apkProgress,
+    cancel: mocks.apkCancel,
+    cleanup: mocks.apkCleanup,
+  },
+}));
+vi.mock("../../services/capacitor/apkInstaller", () => ({
+  ApkInstaller: { installApk: mocks.installApk },
+}));
+vi.mock("@capacitor/filesystem", () => ({
+  Filesystem: mocks,
+  Directory: { Cache: "CACHE" },
 }));
 vi.mock("../../services/tauri/linuxUpdate", () => ({
   getLinuxInstallInfo: mocks.linuxInfo,
@@ -42,7 +63,238 @@ beforeEach(() => {
   });
   Object.assign(window, { __TAURI_INTERNALS__: {}, Capacitor: undefined });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+test("native checks and downloads have separate bounded network timeouts", async () => {
+  const download = vi.fn().mockResolvedValue(undefined);
+  mocks.check.mockResolvedValue({
+    available: true,
+    version: "9.0.0",
+    download,
+  });
+  const { result } = renderHook(() => useAutoUpdate());
+  await act(async () => {
+    await result.current.checkNow();
+  });
+  expect(mocks.check).toHaveBeenCalledWith(
+    expect.objectContaining({ timeout: 30_000 }),
+  );
+  expect(download).toHaveBeenCalledWith(expect.any(Function), {
+    timeout: 30 * 60_000,
+  });
+});
+
+test.each(["skipped", "failed", "dismissed"])(
+  "%s native update releases its resource",
+  async (scenario) => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    if (scenario === "skipped")
+      localStorage.setItem("lambchat:skipped-update-versions", '["9.0.0"]');
+    mocks.check.mockResolvedValue({
+      available: true,
+      version: "9.0.0",
+      close,
+      download:
+        scenario === "failed"
+          ? vi.fn().mockRejectedValue(new Error("offline"))
+          : async () => {},
+    });
+    const { result } = renderHook(() => useAutoUpdate());
+    await act(async () => {
+      if (scenario === "skipped") {
+        window.dispatchEvent(new Event("focus"));
+      } else {
+        await result.current.checkNow();
+      }
+    });
+    if (scenario === "dismissed") act(() => result.current.skipThisVersion());
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+
+async function androidUpdate() {
+  Object.assign(window, {
+    __TAURI_INTERNALS__: undefined,
+    Capacitor: { getPlatform: () => "android" },
+  });
+  mocks.backend.mockResolvedValue({
+    has_update: true,
+    latest_version: "9.0.0",
+    release_assets: [{ name: "update.apk", size: 10 }],
+  });
+  mocks.apkStatus.mockResolvedValue({ exists: false });
+  mocks.apkCancel.mockResolvedValue(undefined);
+  mocks.apkCleanup.mockResolvedValue(undefined);
+  mocks.stat.mockRejectedValue(new Error("ENOENT"));
+  mocks.writeFile.mockResolvedValue({ uri: "file:///update.apk" });
+  mocks.appendFile.mockResolvedValue(undefined);
+  mocks.deleteFile.mockResolvedValue(undefined);
+  const hook = renderHook(() => useAutoUpdate());
+  await act(async () => {
+    await hook.result.current.checkNow();
+  });
+  return hook;
+}
+
+test("Android stalled native download is cancelled before fallback and releases busy state", async () => {
+  vi.useFakeTimers();
+  const { result } = await androidUpdate();
+  mocks.apkStart.mockResolvedValue({ downloadId: "17" });
+  mocks.apkProgress.mockResolvedValue({
+    status: "paused",
+    bytesSoFar: 0,
+    totalBytes: 10,
+  });
+  const fallback = vi.fn(async () => {
+    expect(mocks.apkCancel).toHaveBeenCalledWith({ downloadId: "17" });
+    throw new TypeError("offline");
+  });
+  vi.stubGlobal("fetch", fallback);
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.startUpdate();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_400);
+  });
+  expect(fallback).toHaveBeenCalledOnce();
+  await pending;
+  expect(result.current.state.downloading).toBe(false);
+});
+
+test("Android truncated fallback download is removed and never installed", async () => {
+  const { result } = await androidUpdate();
+  mocks.apkStart.mockRejectedValue(new Error("unavailable"));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2]))),
+  );
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(mocks.installApk).not.toHaveBeenCalled();
+  expect(mocks.deleteFile).toHaveBeenCalledWith({
+    path: "update.apk",
+    directory: "CACHE",
+  });
+  expect(result.current.state.downloading).toBe(false);
+  expect(result.current.state.error).toBeTruthy();
+});
+
+test("an old Android shell that cannot cancel never starts a competing fallback", async () => {
+  vi.useFakeTimers();
+  const { result } = await androidUpdate();
+  mocks.apkStart.mockResolvedValue({ downloadId: "17" });
+  mocks.apkProgress.mockResolvedValue({
+    status: "paused",
+    bytesSoFar: 0,
+    totalBytes: 10,
+  });
+  mocks.apkCancel.mockRejectedValue(new Error("UNIMPLEMENTED"));
+  const fallback = vi.fn();
+  vi.stubGlobal("fetch", fallback);
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.startUpdate();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_400);
+  });
+  expect(result.current.state.downloading).toBe(false);
+  await pending;
+  expect(fallback).not.toHaveBeenCalled();
+  expect(result.current.state.error).toBeTruthy();
+});
+
+test("Android progress renews the idle budget and a complete native package installs", async () => {
+  vi.useFakeTimers();
+  const { result } = await androidUpdate();
+  mocks.installApk.mockResolvedValue({ status: "installer" });
+  mocks.apkStart.mockResolvedValue({ downloadId: "17" });
+  mocks.apkProgress.mockResolvedValue({
+    status: "running",
+    bytesSoFar: 1,
+    totalBytes: 10,
+  });
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.startUpdate();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(59_000);
+  });
+  mocks.apkProgress.mockResolvedValue({
+    status: "running",
+    bytesSoFar: 5,
+    totalBytes: 10,
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(59_000);
+  });
+  expect(result.current.state.downloading).toBe(true);
+  mocks.apkProgress.mockResolvedValue({
+    status: "success",
+    bytesSoFar: 10,
+    totalBytes: 10,
+    localUri: "file:///update.apk",
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(400);
+    await pending;
+  });
+  expect(mocks.installApk).toHaveBeenCalledWith({ path: "file:///update.apk" });
+  expect(mocks.apkCancel).not.toHaveBeenCalled();
+  expect(result.current.state.readyToInstall).toBe(true);
+});
+
+test("a complete Android fallback package remains cached and installs", async () => {
+  const { result } = await androidUpdate();
+  mocks.apkStart.mockRejectedValue(new Error("unavailable"));
+  mocks.installApk.mockResolvedValue({ status: "installer" });
+  const response = new Response(new Uint8Array(10));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(mocks.installApk).toHaveBeenCalledWith({ path: "file:///update.apk" });
+  expect(mocks.deleteFile).not.toHaveBeenCalled();
+  expect(response.body?.locked).toBe(false);
+});
+
+test("Android fallback stops a stalled response body and releases its reader", async () => {
+  vi.useFakeTimers();
+  const { result } = await androidUpdate();
+  mocks.apkStart.mockRejectedValue(new Error("unavailable"));
+  let response!: Response;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((_url, init) => {
+      const stream = new ReadableStream({
+        start(controller) {
+          init.signal?.addEventListener("abort", () =>
+            controller.error(init.signal.reason),
+          );
+        },
+      });
+      response = new Response(stream);
+      return Promise.resolve(response);
+    }),
+  );
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.startUpdate();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
+  expect(result.current.state.downloading).toBe(false);
+  await pending;
+  expect(response.body?.locked).toBe(false);
+});
 
 test("Android rechecks preserve an active download and prevent duplicate starts", async () => {
   Object.assign(window, {

@@ -130,6 +130,15 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
         method: input.method,
         headers: input.headers,
         body: input.body,
+        signal: input.signal,
+        credentials: input.credentials,
+        cache: input.cache,
+        redirect: input.redirect,
+        referrer: input.referrer,
+        referrerPolicy: input.referrerPolicy,
+        integrity: input.integrity,
+        mode: input.mode,
+        keepalive: input.keepalive,
         ...(input.body ? ({ duplex: "half" } as RequestInit) : {}),
       });
       return rawFetch(cloned, init);

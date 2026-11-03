@@ -25,10 +25,11 @@ export interface UpdateDownloaderPlugin {
     reason?: number;
   }>;
 
+  /** Stop an unfinished system download before starting the WebView fallback. */
+  cancel(options: { downloadId: string }): Promise<void>;
+
   /** 查目标文件是否已完整下载（应用专属 Downloads 目录，按文件名）。 */
-  status(options: {
-    fileName: string;
-  }): Promise<{
+  status(options: { fileName: string }): Promise<{
     exists: boolean;
     size: number;
     /** 绝对路径（可直接交给 ApkInstaller.installApk） */

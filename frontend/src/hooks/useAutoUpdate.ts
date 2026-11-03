@@ -107,6 +107,11 @@ export function formatUpdateError(error: unknown, platform: string): string {
 
 /** Debounce delay (ms) before checking for updates on startup */
 const CHECK_DELAY_MS = 5000;
+const UPDATE_CHECK_TIMEOUT_MS = 30_000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
+const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
+
+class ActiveNativeDownloadError extends Error {}
 
 type UpdateCheckResult = { ok: boolean; version: string | null };
 
@@ -381,24 +386,27 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     try {
       let downloaded = 0;
       let contentLength = 0;
-      await update.download((event: any) => {
-        switch (event.event) {
-          case "Started":
-            contentLength = event.data.contentLength ?? 0;
-            setState((prev) => ({ ...prev, contentLength }));
-            break;
-          case "Progress": {
-            downloaded += event.data.chunkLength;
-            const pct =
-              contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-            setState((prev) => ({ ...prev, downloaded, progress: pct }));
-            break;
+      await update.download(
+        (event: any) => {
+          switch (event.event) {
+            case "Started":
+              contentLength = event.data.contentLength ?? 0;
+              setState((prev) => ({ ...prev, contentLength }));
+              break;
+            case "Progress": {
+              downloaded += event.data.chunkLength;
+              const pct =
+                contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
+              setState((prev) => ({ ...prev, downloaded, progress: pct }));
+              break;
+            }
+            case "Finished":
+              setState((prev) => ({ ...prev, progress: 100 }));
+              break;
           }
-          case "Finished":
-            setState((prev) => ({ ...prev, progress: 100 }));
-            break;
-        }
-      });
+        },
+        { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS },
+      );
       pendingUpdateRef.current = {
         install: () => update.install(),
         close: () => update.close(),
@@ -416,6 +424,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       downloadInFlightRef.current = false;
       setUpdateBusy(false);
       setState((prev) => ({ ...prev, downloading: false }));
+      await update.close?.().catch(() => {});
     }
   }, []);
 
@@ -428,6 +437,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         const revision = getUpdateRevision();
         const channel = getUpdateChannel();
         const update = await check({
+          timeout: UPDATE_CHECK_TIMEOUT_MS,
           headers: { "X-LambChat-Update-Channel": channel },
         });
         if (revision !== getUpdateRevision()) {
@@ -470,6 +480,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           } else {
             // 被跳过的版本：不弹窗、指示器熄灭（保持初始态）
             setState(INITIAL_STATE);
+            await update.close?.();
           }
         }
         return { ok: true, version: update?.available ? update.version : null };
@@ -830,10 +841,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       error: null,
       progress: 0,
     }));
+    let update: import("@tauri-apps/plugin-updater").Update | null = null;
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const { relaunch } = await import("@tauri-apps/plugin-process");
-      const update = await check({
+      update = await check({
+        timeout: UPDATE_CHECK_TIMEOUT_MS,
         headers: { "X-LambChat-Update-Channel": getUpdateChannel() },
       });
       if (!update) throw new Error("No update found");
@@ -841,28 +854,31 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       let downloaded = 0;
       let contentLength = 0;
 
-      await update.downloadAndInstall((event: any) => {
-        switch (event.event) {
-          case "Started":
-            contentLength = event.data.contentLength ?? 0;
-            setState((prev) => ({ ...prev, contentLength }));
-            break;
-          case "Progress": {
-            downloaded += event.data.chunkLength;
-            const pct =
-              contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-            setState((prev) => ({
-              ...prev,
-              downloaded,
-              progress: pct,
-            }));
-            break;
+      await update.downloadAndInstall(
+        (event: any) => {
+          switch (event.event) {
+            case "Started":
+              contentLength = event.data.contentLength ?? 0;
+              setState((prev) => ({ ...prev, contentLength }));
+              break;
+            case "Progress": {
+              downloaded += event.data.chunkLength;
+              const pct =
+                contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
+              setState((prev) => ({
+                ...prev,
+                downloaded,
+                progress: pct,
+              }));
+              break;
+            }
+            case "Finished":
+              setState((prev) => ({ ...prev, progress: 100 }));
+              break;
           }
-          case "Finished":
-            setState((prev) => ({ ...prev, progress: 100 }));
-            break;
-        }
-      });
+        },
+        { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS },
+      );
 
       // Download and install complete, relaunch
       await relaunch();
@@ -874,6 +890,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         downloading: false,
         error: formatUpdateError(err, platform),
       }));
+    } finally {
+      await update?.close?.().catch(() => {});
     }
   }, [platform]);
 
@@ -896,7 +914,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       try {
         await installAndroidUpdateViaNative(apkAsset.name, apkAsset.size);
         return;
-      } catch {
+      } catch (error) {
+        if (error instanceof ActiveNativeDownloadError) throw error;
         // 原生桥不可用/下载失败（旧壳、系统裁剪、瞬时网络）：
         // 回落 WebView 流式代理路径——两条链路同一代理 URL，行为一致
       }
@@ -973,28 +992,62 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         fileName: assetName,
       });
 
-      // 轮询驱动 UI：binder 调用极轻量，400ms 粒度足够
-      for (;;) {
-        await new Promise((r) => setTimeout(r, 400));
-        const p = await UpdateDownloader.progress({ downloadId });
-        const pct = p.totalBytes > 0 ? (p.bytesSoFar / p.totalBytes) * 100 : 0;
-        setState((prev) => ({
-          ...prev,
-          downloaded: p.bytesSoFar,
-          progress: pct,
-          contentLength: p.totalBytes,
-        }));
-        if (p.status === "success" && p.localUri) {
-          // 清旧版本残留，保留当前包（未安装前可能再弹窗直装）
-          await UpdateDownloader.cleanup({ keepFileName: assetName }).catch(
-            () => undefined,
-          );
-          await launchAndroidInstaller(p.localUri);
-          return;
+      const startedAt = Date.now();
+      let lastProgressAt = startedAt;
+      let lastBytes = 0;
+      let complete = false;
+      try {
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 400));
+          const p = await UpdateDownloader.progress({ downloadId });
+          if (p.bytesSoFar > lastBytes) {
+            lastBytes = p.bytesSoFar;
+            lastProgressAt = Date.now();
+          }
+          const pct =
+            p.totalBytes > 0 ? (p.bytesSoFar / p.totalBytes) * 100 : 0;
+          setState((prev) => ({
+            ...prev,
+            downloaded: p.bytesSoFar,
+            progress: pct,
+            contentLength: p.totalBytes,
+          }));
+          if (p.status === "success") {
+            if (
+              !p.localUri ||
+              !isDownloadedApkComplete(
+                { exists: true, size: p.bytesSoFar },
+                expectedSize,
+              )
+            )
+              throw new Error(i18n.t("updateDownloadNetworkError"));
+            complete = true;
+            await UpdateDownloader.cleanup({ keepFileName: assetName }).catch(
+              () => undefined,
+            );
+            await launchAndroidInstaller(p.localUri);
+            return;
+          }
+          if (
+            p.status === "failed" ||
+            Date.now() - lastProgressAt >= DOWNLOAD_IDLE_TIMEOUT_MS ||
+            Date.now() - startedAt >= UPDATE_DOWNLOAD_TIMEOUT_MS
+          ) {
+            throw new Error(i18n.t("updateDownloadNetworkError"));
+          }
         }
-        if (p.status === "failed") {
-          throw new Error(`Native download failed (reason=${p.reason ?? "?"})`);
+      } catch (error) {
+        if (!complete) {
+          try {
+            await UpdateDownloader.cancel({ downloadId });
+          } catch {
+            // An old shell may lack cancel; never start a second transfer beside it.
+            throw new ActiveNativeDownloadError(
+              i18n.t("updateDownloadNetworkError"),
+            );
+          }
         }
+        throw error;
       }
     },
     [launchAndroidInstaller],
@@ -1030,60 +1083,105 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         // 未下载过（stat ENOENT）：走下载
       }
 
-      // 直连 GitHub browser_download_url 会被 WebView CORS 拦截
-      // （Failed to fetch）：走自托管后端同源代理流式下载。
-      const response = await fetch(
-        buildReleaseAssetDownloadUrl(
-          assetName,
-          undefined,
-          stateRef.current.version ?? undefined,
-        ),
+      const controller = new AbortController();
+      let idleTimer: ReturnType<typeof setTimeout>;
+      const resetIdleTimeout = () => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(
+          () => controller.abort(),
+          DOWNLOAD_IDLE_TIMEOUT_MS,
+        );
+      };
+      resetIdleTimeout();
+      const totalTimer = setTimeout(
+        () => controller.abort(),
+        UPDATE_DOWNLOAD_TIMEOUT_MS,
       );
-      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-      const contentLength = Number(response.headers.get("content-length") ?? 0);
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      // 逐块 base64 落盘（writeFile + appendFile），避免整包 APK 在
-      // WebView 内存里 Blob+base64 双份驻留导致低端机 OOM。
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       let wroteAny = false;
+      let complete = false;
       let writtenUri: string | undefined;
       let downloaded = 0;
+      try {
+        const response = await fetch(
+          buildReleaseAssetDownloadUrl(
+            assetName,
+            undefined,
+            stateRef.current.version ?? undefined,
+          ),
+          { signal: controller.signal },
+        );
+        if (!response.ok)
+          throw new Error(`Download failed: ${response.status}`);
+        const contentLength = Number(
+          response.headers.get("content-length") ?? 0,
+        );
+        reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value?.length) continue;
-        const base64Chunk = bytesToBase64(new Uint8Array(value));
-        if (!wroteAny) {
-          const written = await Filesystem.writeFile({
-            path: fileName,
-            data: base64Chunk,
-            directory: Directory.Cache,
-          });
-          writtenUri = written.uri;
-          wroteAny = true;
-        } else {
-          await Filesystem.appendFile({
-            path: fileName,
-            data: base64Chunk,
-            directory: Directory.Cache,
-          });
+        // Keep APK chunks off the JS heap once they have been written to native storage.
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value?.length) continue;
+          resetIdleTimeout();
+          const base64Chunk = bytesToBase64(new Uint8Array(value));
+          if (!wroteAny) {
+            wroteAny = true;
+            const written = await Filesystem.writeFile({
+              path: fileName,
+              data: base64Chunk,
+              directory: Directory.Cache,
+            });
+            writtenUri = written.uri;
+          } else {
+            await Filesystem.appendFile({
+              path: fileName,
+              data: base64Chunk,
+              directory: Directory.Cache,
+            });
+          }
+          downloaded += value.byteLength;
+          if (controller.signal.aborted)
+            throw new Error(i18n.t("updateDownloadNetworkError"));
+          const pct =
+            contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
+          setState((prev) => ({
+            ...prev,
+            downloaded,
+            progress: pct,
+            contentLength,
+          }));
         }
-        downloaded += value.byteLength;
-        const pct = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-        setState((prev) => ({
-          ...prev,
-          downloaded,
-          progress: pct,
-          contentLength,
-        }));
+        if (
+          controller.signal.aborted ||
+          !writtenUri ||
+          !isDownloadedApkComplete(
+            { exists: true, size: downloaded },
+            expectedSize || contentLength,
+          )
+        )
+          throw new Error(i18n.t("updateDownloadNetworkError"));
+        complete = true;
+      } catch (error) {
+        if (wroteAny)
+          await Filesystem.deleteFile({
+            path: fileName,
+            directory: Directory.Cache,
+          }).catch(() => undefined);
+        throw controller.signal.aborted
+          ? new Error(i18n.t("updateDownloadNetworkError"))
+          : error;
+      } finally {
+        clearTimeout(idleTimer!);
+        clearTimeout(totalTimer);
+        if (!complete) controller.abort();
+        if (reader) {
+          await reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+        }
       }
-      if (!wroteAny || !writtenUri) throw new Error("Empty download");
-
-      // 拉起系统安装器（ACTION_VIEW + FileProvider 覆盖安装）。
-      // Share（ACTION_SEND）只开分享面板装不了包。
-      await launchAndroidInstaller(writtenUri);
+      await launchAndroidInstaller(writtenUri!);
     },
     [launchAndroidInstaller],
   );
@@ -1110,6 +1208,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     }
     setShowDialog(false);
     if (platformRef.current === "tauri") {
+      void pendingUpdateRef.current?.close?.().catch(() => {});
       pendingUpdateRef.current = null;
       updateVersionRef.current = null;
       linuxTargetAssetRef.current = null;

@@ -176,7 +176,12 @@ const tasks = rows((i, name) => ({
   description: "收集近期进展并生成项目周报",
   agent_id: "search",
   trigger_type: "cron",
-  trigger_config: { cron: "0 9 * * 1", expression: "0 9 * * 1" },
+  trigger_config:
+    i % 3 === 0
+      ? { hour: "9", minute: "30", day_of_week: "mon-fri" }
+      : i % 3 === 1
+        ? { hour: "9", minute: "0", day_of_week: "mon" }
+        : { hour: "*/3", minute: "0" },
   timezone: "Asia/Shanghai",
   input_payload: { message: "生成本周项目进展摘要" },
   status: i % 4 ? "active" : "paused",

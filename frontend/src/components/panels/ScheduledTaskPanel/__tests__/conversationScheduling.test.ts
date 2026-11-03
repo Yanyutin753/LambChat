@@ -22,6 +22,19 @@ for (const locale of ["zh", "en", "ja", "ko", "ru"]) {
       "alwaysNotify",
       "openConversation",
       "noUpdate",
+      "daily",
+      "weekdays",
+      "weekly",
+      "timeOfDay",
+      "scheduleTimezone",
+      "promptPlaceholder",
+      "promptHint",
+      "intervalMinimum",
+      "intervalUnit",
+      "secondsUnit",
+      "minutesUnit",
+      "hoursUnit",
+      "saveShortcut",
     ]) {
       expect(messages.scheduledTask[key], key).toBeTypeOf("string");
     }
@@ -34,6 +47,9 @@ test("scheduled tasks stay accessible from the sidebar without a chat header sho
     "utf8",
   );
   expect(source).not.toContain("SessionScheduledTasksButton");
+  expect(source).toContain("<SessionScheduledTasksPanel");
+  expect(source).toContain("hasPermission(Permission.SCHEDULED_TASK_READ)");
+  expect(source).toContain("onClick: () => setScheduledSessionId(sessionId)");
   const sidebar = readFileSync(
     new URL("../../SidebarParts/SidebarRail.tsx", import.meta.url),
     "utf8",

@@ -50,7 +50,10 @@ vi.mock("../../../notification/NotificationDialog", () => ({
   NotificationDialog: () => null,
 }));
 vi.mock("../../../../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: appearance.userId, permissions: [] } }),
+  useAuth: () => ({
+    user: { id: appearance.userId, permissions: [] },
+    hasPermission: () => false,
+  }),
 }));
 vi.mock("../../../../contexts/ThemeContext", () => ({
   useTheme: () => ({
