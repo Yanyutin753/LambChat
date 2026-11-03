@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import {
+  act,
   fireEvent,
   cleanup,
   render,
@@ -88,6 +89,55 @@ const task: ScheduledTask = {
   updated_at: null,
 };
 
+test("plain instructions edit legacy prompts without losing custom payload or schedule fields", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={{
+        ...task,
+        trigger_type: "cron",
+        trigger_config: { hour: "9", minute: "0", year: "2027" },
+        input_payload: { prompt: "Old instructions", custom: { keep: true } },
+      }}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.change(
+    screen.getByLabelText(i18n.t("chat.message.toolTaskPrompt")),
+    { target: { value: "Check the release and report only changes" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].input_payload).toEqual({
+    prompt: "Check the release and report only changes",
+    custom: { keep: true },
+  });
+  expect(onSave.mock.calls[0][0].trigger_config.year).toBe("2027");
+});
+
+test("advanced payload rejects arrays instead of silently turning them into objects", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.change(
+    screen.getByLabelText(i18n.t("scheduledTask.inputPayload")),
+    { target: { value: "[]" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(onSave).not.toHaveBeenCalled();
+});
+
 test("scheduled-task uploaded attachment removal is local and omitted on save", async () => {
   const onSave = vi.fn().mockResolvedValue(undefined);
   render(
@@ -140,7 +190,7 @@ test("task configuration fields and trigger choices have accessible names and st
   for (const key of [
     "name",
     "description",
-    "intervalSeconds",
+    "interval",
     "inputPayload",
     "maxRetries",
   ]) {
@@ -151,12 +201,18 @@ test("task configuration fields and trigger choices have accessible names and st
       screen.getByRole("button", { name: i18n.t(`scheduledTask.${key}`) }),
     ).toBeTruthy();
   }
-  const cron = screen.getByRole("button", {
-    name: i18n.t("scheduledTask.cron"),
-    exact: true,
-  });
-  fireEvent.click(cron);
-  expect(cron.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("scheduledTask.triggerType") }),
+  );
+  fireEvent.click(
+    screen.getByRole("option", {
+      name: i18n.t("scheduledTask.cron"),
+      exact: true,
+    }),
+  );
+  expect(
+    screen.getByRole("button", { name: i18n.t("scheduledTask.triggerType") }),
+  ).toHaveTextContent(i18n.t("scheduledTask.cron"));
   for (const key of [
     "cronHour",
     "cronMinute",
@@ -220,4 +276,242 @@ test("legacy task editing shows no execution deadline and saves unlimited durati
   fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
   await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
   expect(onSave.mock.calls[0][0].timeout_seconds).toBe(0);
+});
+
+test("calendar presets save weekdays at the chosen local time", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("scheduledTask.triggerType") }),
+  );
+  fireEvent.click(
+    screen.getByRole("option", {
+      name: i18n.t("scheduledTask.weekdays"),
+      exact: true,
+    }),
+  );
+  fireEvent.change(screen.getByLabelText(i18n.t("scheduledTask.timeOfDay")), {
+    target: { value: "14:35" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0]).toMatchObject({
+    trigger_type: "cron",
+    trigger_config: {
+      hour: "14",
+      minute: "35",
+      second: "0",
+      day_of_week: "mon-fri",
+    },
+    timezone: "Asia/Shanghai",
+  });
+});
+
+test("interval editing presents minutes and saves seconds", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText(i18n.t("scheduledTask.interval"))).toHaveValue(
+    5,
+  );
+  fireEvent.change(screen.getByLabelText(i18n.t("scheduledTask.interval")), {
+    target: { value: "10" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].trigger_config).toEqual({ seconds: 600 });
+});
+
+test("invalid intervals do not silently become a default interval", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText("scheduled.pdf");
+  fireEvent.change(screen.getByLabelText(i18n.t("scheduledTask.interval")), {
+    target: { value: "0" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+test("clearing instructions cannot revive a legacy prompt alias", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={{
+        ...task,
+        input_payload: {
+          message: "Current instructions",
+          prompt: "Obsolete instructions",
+          custom: true,
+        },
+      }}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.change(
+    screen.getByLabelText(i18n.t("chat.message.toolTaskPrompt")),
+    { target: { value: "" } },
+  );
+  expect(
+    screen.getByLabelText(i18n.t("chat.message.toolTaskPrompt")),
+  ).toHaveValue("");
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].input_payload).toEqual({
+    message: "",
+    custom: true,
+  });
+});
+
+test("editing a legacy sub-minute interval preserves its configured cadence", async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={{ ...task, trigger_config: { seconds: 30 } }}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls[0][0].trigger_config).toEqual({ seconds: 30 });
+});
+
+test("name validation remains visible and focuses the missing field", async () => {
+  const onSave = vi.fn();
+  render(
+    <TaskFormModal
+      task={null}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    i18n.t("scheduledTask.nameRequired"),
+  );
+  expect(screen.getByLabelText(i18n.t("scheduledTask.name"))).toHaveFocus();
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+test("keyboard save locks editing and cancellation until the request settles", async () => {
+  let finish!: () => void;
+  const onSave = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const onClose = vi.fn();
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={onClose}
+    />,
+  );
+  const name = screen.getByLabelText(i18n.t("scheduledTask.name"));
+  fireEvent.keyDown(name, { key: "Enter", ctrlKey: true, isComposing: true });
+  expect(onSave).not.toHaveBeenCalled();
+  fireEvent.keyDown(name, { key: "Enter", ctrlKey: true });
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(name).toBeDisabled();
+  const cancel = screen.getByRole("button", { name: i18n.t("common.cancel") });
+  expect(cancel).toBeDisabled();
+  fireEvent.click(cancel);
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(name, { key: "Enter", metaKey: true });
+  expect(onSave).toHaveBeenCalledOnce();
+  await act(async () => finish());
+  expect(name).not.toBeDisabled();
+});
+
+test("save failures stay visible and allow retry with the same draft", async () => {
+  const onSave = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Network unavailable"))
+    .mockResolvedValue(undefined);
+  render(
+    <TaskFormModal
+      task={task}
+      agents={[]}
+      availableModels={null}
+      onSave={onSave}
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Network unavailable",
+  );
+  expect(screen.getByLabelText(i18n.t("scheduledTask.name"))).toHaveValue(
+    task.name,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+});
+
+test("calendar time and weekday survive temporary changes to another schedule type", async () => {
+  render(
+    <TaskFormModal
+      task={{
+        ...task,
+        trigger_type: "cron",
+        trigger_config: { hour: "14", minute: "35", day_of_week: "fri" },
+      }}
+      agents={[]}
+      availableModels={null}
+      onSave={vi.fn()}
+      onClose={vi.fn()}
+    />,
+  );
+  for (const preset of ["interval", "daily", "weekly"]) {
+    fireEvent.click(
+      screen.getByRole("button", { name: i18n.t("scheduledTask.triggerType") }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: i18n.t(`scheduledTask.${preset}`),
+        exact: true,
+      }),
+    );
+  }
+  expect(screen.getByLabelText(i18n.t("scheduledTask.timeOfDay"))).toHaveValue(
+    "14:35",
+  );
+  expect(
+    screen.getByRole("button", { name: i18n.t("scheduledTask.cronDayOfWeek") }),
+  ).toHaveTextContent(i18n.t("scheduledTask.weekday.fri"));
 });

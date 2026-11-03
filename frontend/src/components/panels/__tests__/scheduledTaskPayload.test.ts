@@ -1,5 +1,6 @@
 import {
   buildScheduledTaskInputPayload,
+  buildScheduledTaskUpdate,
   getScheduledTaskAttachments,
   getScheduledTaskPersonaPresetId,
   getScheduledTaskTeamId,
@@ -155,4 +156,25 @@ test("scheduled task payload stores sanitized uploaded attachments", () => {
   ).toEqual({
     message: "read this",
   });
+});
+
+test("task edits send only changed editable fields and never rewrite creation metadata", () => {
+  const task = {
+    name: "Before",
+    agent_id: "search",
+    trigger_type: "interval" as const,
+    trigger_config: { seconds: 300 },
+    input_payload: { message: "Check progress" },
+    source_session_id: "original",
+  };
+  expect(
+    buildScheduledTaskUpdate(
+      task as import("../../../types/scheduledTask").ScheduledTask,
+      {
+        ...task,
+        name: "After",
+        source_session_id: "another-chat",
+      },
+    ),
+  ).toEqual({ name: "After" });
 });

@@ -147,6 +147,10 @@ impl UNNotificationResponse {
     );
 }
 extern_protocol!(
+    /// # Safety
+    /// Implementors must preserve the declared Objective-C method signatures and
+    /// uphold the requirements of `NSObjectProtocol`.
+    #[allow(clippy::missing_safety_doc)] // Clippy does not recognize these docs through extern_protocol!.
     pub unsafe trait UNUserNotificationCenterDelegate: NSObjectProtocol {
         #[optional]
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]

@@ -1,3 +1,8 @@
+import type {
+  ScheduledTask,
+  ScheduledTaskCreate,
+  ScheduledTaskUpdate,
+} from "../../types/scheduledTask";
 import type { AvailableModel } from "../../contexts/SettingsContext";
 import type { FileCategory, MessageAttachment } from "../../types";
 
@@ -148,4 +153,40 @@ export function buildScheduledTaskInputPayload(
     nextPayload.persona_preset_id = personaPresetId;
   }
   return nextPayload;
+}
+
+export function buildScheduledTaskUpdate(
+  task: ScheduledTask,
+  data: ScheduledTaskCreate,
+): ScheduledTaskUpdate {
+  const updateData: ScheduledTaskUpdate = {};
+  if (data.execution_mode !== task.execution_mode)
+    updateData.execution_mode = data.execution_mode;
+  if (data.target_session_id !== task.target_session_id)
+    updateData.target_session_id = data.target_session_id;
+  if (data.notification_policy !== task.notification_policy)
+    updateData.notification_policy = data.notification_policy;
+  if (data.name !== task.name) updateData.name = data.name;
+  if (data.agent_id !== task.agent_id) updateData.agent_id = data.agent_id;
+  if (data.trigger_type !== task.trigger_type)
+    updateData.trigger_type = data.trigger_type;
+  if (
+    JSON.stringify(data.trigger_config) !== JSON.stringify(task.trigger_config)
+  )
+    updateData.trigger_config = data.trigger_config;
+  if (data.timezone && data.timezone !== task.timezone)
+    updateData.timezone = data.timezone;
+  if (JSON.stringify(data.input_payload) !== JSON.stringify(task.input_payload))
+    updateData.input_payload = data.input_payload;
+  if (data.description !== task.description)
+    updateData.description = data.description;
+  if (data.enabled !== task.enabled) updateData.enabled = data.enabled;
+  if (data.run_on_start !== task.run_on_start)
+    updateData.run_on_start = data.run_on_start;
+  if (data.max_retries !== task.max_retries)
+    updateData.max_retries = data.max_retries;
+  if (data.timeout_seconds !== task.timeout_seconds)
+    updateData.timeout_seconds = data.timeout_seconds;
+
+  return updateData;
 }

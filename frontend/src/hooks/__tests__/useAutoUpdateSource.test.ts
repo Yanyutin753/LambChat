@@ -72,6 +72,12 @@ test("linux detection failure maps to unknown source, never the updater chain", 
   expect(svc).toMatch(/catch \{\s*return null;\s*\}/);
 });
 
+test("Linux package probes run outside the window thread", () => {
+  const source = readRepoFile("frontend/src-tauri/src/linux_update.rs");
+  expect(source).toMatch(/pub async fn get_linux_install_source/);
+  expect(source).toMatch(/spawn_blocking\(/);
+});
+
 test("ApkInstallerPlugin opens the system installer via ACTION_VIEW", () => {
   const plugin = readRepoFile(
     "frontend/android/app/src/main/java/com/lambchat/app/ApkInstallerPlugin.java",
@@ -300,6 +306,19 @@ test("UpdateDownloaderPlugin exposes status and cleanup for the apk cache", () =
   // status 回绝对路径（可直接交给 installApk），cleanup 保留当前目标包
   expect(plugin).toMatch(/getAbsolutePath/);
   expect(plugin).toMatch(/keepFileName/);
+});
+
+test("Android download cancellation removes the system job and query failures reject the bridge call", () => {
+  const plugin = readRepoFile(
+    "frontend/android/app/src/main/java/com/lambchat/app/UpdateDownloaderPlugin.java",
+  );
+  expect(plugin).toMatch(
+    /@PluginMethod\s+public void cancel\(PluginCall call\)/,
+  );
+  expect(plugin).toMatch(/dm\.remove\(id\)/);
+  expect(plugin).toMatch(
+    /catch \(Exception e\) \{\s+call\.reject\("progress failed:/,
+  );
 });
 
 test("windows updater artifacts are NSIS currentUser installers", () => {

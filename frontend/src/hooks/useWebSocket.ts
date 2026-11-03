@@ -183,6 +183,7 @@ const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const RECONNECT_DELAY_MULTIPLIER = 1.5;
 const MAX_AUTH_FAILURES = 3; // Switch to long interval after this many consecutive 401s
 const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max failures
+const CONNECTION_TIMEOUT_MS = 15_000;
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
@@ -207,6 +208,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const connectionTimeoutRef = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
   const onSessionsReadRef = useRef(onSessionsRead);
   onSessionsReadRef.current = onSessionsRead;
   const onScheduledProgressRef = useRef(onScheduledProgress);
@@ -359,6 +363,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           const message = JSON.parse(event.data);
 
           if (message.type === "auth:ok") {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = undefined;
             // Auth confirmed by server — now truly connected
             isConnectingRef.current = false;
             setIsConnected(true);
@@ -388,6 +394,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       ws.onclose = (event) => {
         if (!isCurrent() || wsRef.current !== ws) return;
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = undefined;
         console.log("[WebSocket] Disconnected:", event.code, event.reason);
         isConnectingRef.current = false;
         setIsConnected(false);
@@ -470,6 +478,24 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       wsRef.current = ws;
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (!isCurrent() || wsRef.current !== ws) return;
+        connectionTimeoutRef.current = undefined;
+        // A dead native socket may never emit close; detach before retrying.
+        wsRef.current = null;
+        isConnectingRef.current = false;
+        setIsConnected(false);
+        try {
+          ws.close();
+        } catch (error) {
+          console.warn(
+            "[WebSocket] Failed to close stalled connection:",
+            error,
+          );
+        }
+        scheduleReconnect();
+        onWsCloseRef.current?.();
+      }, CONNECTION_TIMEOUT_MS);
     } catch (e) {
       if (!isCurrent()) return;
       console.error("[WebSocket] Connection failed:", e);
@@ -480,6 +506,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   const disconnect = useCallback(() => {
     connectionVersionRef.current += 1;
+    clearTimeout(connectionTimeoutRef.current);
+    connectionTimeoutRef.current = undefined;
     // Clear any pending reconnect
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);

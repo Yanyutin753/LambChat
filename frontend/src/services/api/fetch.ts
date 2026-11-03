@@ -76,10 +76,15 @@ export async function authFetchResponse(
       try {
         await refreshAccessToken();
       } catch (error) {
-        if ((error as Error & { status?: number })?.status === 401) redirectToLogin();
+        if ((error as Error & { status?: number })?.status === 401)
+          redirectToLogin();
         throw error;
       }
-      return authFetchResponse(url, { ...options, skipAuth: false, _retry: true });
+      return authFetchResponse(url, {
+        ...options,
+        skipAuth: false,
+        _retry: true,
+      });
     }
 
     redirectToLogin();
@@ -107,20 +112,45 @@ export async function authFetchResponse(
   return response;
 }
 
-export async function authFetch<T>(url: string, options: FetchOptions = {}): Promise<T> {
-  const response = await authFetchResponse(url, options);
-  // 处理空响应
-  // 注意：当响应体为空时返回 null，调用者应处理 T | null 的情况
-  // 对于必须返回非空值的场景，API 应确保返回空对象 {} 而不是空响应
-  const text = await response.text();
-  if (!text) {
-    return null as T;
-  }
-
+export async function authFetch<T>(
+  url: string,
+  options: FetchOptions & { timeoutMs?: number } = {},
+): Promise<T> {
+  const { timeoutMs, ...requestOptions } = options;
+  const controller = timeoutMs ? new AbortController() : null;
+  const abort = () => controller?.abort(options.signal?.reason);
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
+  const timer = controller
+    ? setTimeout(
+        () =>
+          controller.abort(
+            new DOMException("Request timed out", "TimeoutError"),
+          ),
+        timeoutMs,
+      )
+    : undefined;
   try {
-    return JSON.parse(text) as T;
-  } catch {
-    console.warn("[authFetch] Failed to parse response as JSON:", text);
-    return null as T;
+    const response = await authFetchResponse(url, {
+      ...requestOptions,
+      signal: controller?.signal ?? options.signal,
+    });
+    // 处理空响应
+    // 注意：当响应体为空时返回 null，调用者应处理 T | null 的情况
+    // 对于必须返回非空值的场景，API 应确保返回空对象 {} 而不是空响应
+    const text = await response.text();
+    if (!text) {
+      return null as T;
+    }
+
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      console.warn("[authFetch] Failed to parse response as JSON:", text);
+      return null as T;
+    }
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
   }
 }

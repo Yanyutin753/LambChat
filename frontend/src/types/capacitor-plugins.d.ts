@@ -51,6 +51,7 @@ declare module "@capacitor/filesystem" {
   export const Filesystem: {
     writeFile: (options: WriteFileOptions) => Promise<WriteFileResult>;
     appendFile: (options: AppendFileOptions) => Promise<void>;
+    deleteFile: (options: StatOptions) => Promise<void>;
     stat: (options: StatOptions) => Promise<StatResult>;
     getUri: (options: StatOptions) => Promise<GetUriResult>;
   };

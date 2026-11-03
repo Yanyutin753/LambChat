@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import merge_configs
 
 from src.agents.core.node_utils import (
     build_human_message,
@@ -143,7 +144,7 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     ai_message = await ainvoke_with_retry(
         llm,
         messages,
-        config=config,
+        config=merge_configs(config, {"metadata": {"lc_source": "quick_agent"}}),
         operation="quick-agent",
         fallback_model=fallback,
         prepare_fallback_prompt=prepare_fallback_prompt,
@@ -153,9 +154,8 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     ai_message = ActivityReferenceMiddleware._strip_model_references(ai_message)
 
-    if configurable.get("allow_search_handoff") and any(
-        call.get("name") == "handoff_to_search" for call in ai_message.tool_calls
-    ):
+    # Models may repeat historical execution tools; Search must re-plan, never replay them.
+    if configurable.get("allow_search_handoff") and ai_message.tool_calls:
         # Commit the request before changing executors; Search reuses this ID to deduplicate.
         presenter = configurable.get("presenter")
         human_message.id = f"handoff-user:{presenter.run_id if presenter else uuid4().hex}"

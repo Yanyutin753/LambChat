@@ -71,11 +71,32 @@ fn is_appimage_path(exe: &Path) -> bool {
 
 /// 命令是否存在且可执行（`--version` 探测；找不到二进制自然为 false）。
 fn command_exists(name: &str) -> bool {
-    Command::new(name)
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    probe_command_success(Command::new(name).arg("--version"), Duration::from_secs(3))
+}
+
+fn probe_command_success(command: &mut Command, timeout: Duration) -> bool {
+    use command_group::CommandGroup;
+    let Ok(mut child) = command
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .group_spawn()
+    else {
+        return false;
+    };
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if started.elapsed() < timeout => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
 }
 
 /// `dpkg -S` / `rpm -qf` 反查路径归属的包管理器（权威信号；先查 dpkg——
@@ -83,12 +104,10 @@ fn command_exists(name: &str) -> bool {
 /// 自然返回 None。
 fn owning_package_manager(exe: &Path) -> Option<&'static str> {
     let run = |argv: [&str; 3]| -> bool {
-        Command::new(argv[0])
-            .arg(argv[1])
-            .arg(argv[2])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+        probe_command_success(
+            Command::new(argv[0]).args(&argv[1..]),
+            Duration::from_secs(3),
+        )
     };
     if run(["dpkg", "-S", &exe.to_string_lossy()]) {
         Some(SOURCE_DEB)
@@ -559,10 +578,14 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
 
 /// 检测当前安装来源与资产 arch（前端更新分流依据）。
 #[tauri::command]
-pub fn get_linux_install_source() -> LinuxInstallInfo {
-    let source = std::env::current_exe()
-        .map(|p| detect_install_source(&p).to_string())
-        .unwrap_or_else(|_| SOURCE_UNKNOWN.to_string());
+pub async fn get_linux_install_source() -> LinuxInstallInfo {
+    let source = tauri::async_runtime::spawn_blocking(|| {
+        std::env::current_exe()
+            .map(|p| detect_install_source(&p).to_string())
+            .unwrap_or_else(|_| SOURCE_UNKNOWN.to_string())
+    })
+    .await
+    .unwrap_or_else(|_| SOURCE_UNKNOWN.to_string());
     LinuxInstallInfo {
         source,
         arch: release_asset_arch().map(str::to_string),
@@ -819,6 +842,25 @@ mod tests {
         assert!(!is_appimage_path(Path::new("/usr/bin/lambchat")));
         assert!(!is_appimage_path(Path::new("/usr/bin/lambchat.deb")));
         assert!(!is_appimage_path(Path::new("/home/user/lambchat")));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn package_probe_times_out_and_discards_output() {
+        let started = Instant::now();
+        assert!(!probe_command_success(
+            Command::new("/bin/sh").args(["-c", "exec sleep 10"]),
+            Duration::from_millis(50),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(probe_command_success(
+            Command::new("/bin/sh").args(["-c", "head -c 1048576 /dev/zero; exit 0"]),
+            Duration::from_secs(2),
+        ));
+        assert!(!probe_command_success(
+            Command::new("/bin/sh").args(["-c", "exit 1"]),
+            Duration::from_secs(2),
+        ));
     }
 
     #[test]
@@ -1103,7 +1145,7 @@ mod tests {
     #[ignore]
     fn detect_current_machine_source() {
         let exe = std::env::current_exe().unwrap();
-        let info = get_linux_install_source();
+        let info = tauri::async_runtime::block_on(get_linux_install_source());
         println!(
             "[e2e] exe={} source={} arch={:?}",
             exe.display(),

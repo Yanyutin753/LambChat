@@ -582,5 +582,10 @@ class StreamEventMixin:
                                 await self._emit_text_flush(*ready)
 
         tool_call_chunks = getattr(chunk, "tool_call_chunks", None)
-        if isinstance(tool_call_chunks, list) and tool_call_chunks:
+        # Quick only requests handoff; its tool calls never enter a tool execution lifecycle.
+        if (
+            isinstance(tool_call_chunks, list)
+            and tool_call_chunks
+            and event.get("metadata", {}).get("lc_source") != "quick_agent"
+        ):
             await self._handle_tool_args_chunks(tool_call_chunks, current_depth, current_agent_id)

@@ -106,7 +106,7 @@ export function SessionBookmarksPanelBody({
 /**
  * 聊天输入框上方悬浮按钮组里的「本会话书签」入口：
  * 一键查看当前会话收藏的消息（大纲/总结），点击直达并高亮。
- * 与 SessionScheduledTasksButton 的交互模式保持一致。
+ * 与 会话工具面板 的交互模式保持一致。
  */
 export function SessionBookmarksButton({
   sessionId,

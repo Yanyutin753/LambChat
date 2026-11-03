@@ -129,6 +129,22 @@ def args_stream(
     }
 
 
+@pytest.mark.parametrize("agent_id", ["quick", "search"])
+@pytest.mark.parametrize("tool_name", ["execute", "write_file"])
+async def test_quick_tool_requests_do_not_leave_unexecuted_tool_cards(agent_id, tool_name):
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    metadata = {"lc_source": f"{agent_id}_agent"}
+    await processor.process_event(
+        args_stream(
+            [{"index": 0, "id": "call-1", "name": tool_name, "args": '{"input":'}], metadata
+        )
+    )
+    await processor.process_event(args_stream([{"index": 0, "args": '"example"}'}], metadata))
+    await processor._flush_tool_args_buffers()
+    assert bool(presenter.emitted) is (agent_id == "search")
+
+
 def model_end(metadata: dict[str, Any] | None = None):
     return {
         "event": "on_chat_model_end",

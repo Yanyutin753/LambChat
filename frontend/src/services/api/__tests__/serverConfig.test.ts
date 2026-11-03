@@ -133,6 +133,33 @@ describe("installServerUrlNetworkPatch", () => {
     });
   });
 
+  test("rewritten requests retain cancellation and fetch policies", async () => {
+    const fetchImpl = vi.fn(
+      async (_input: RequestInfo | URL) => new Response("{}"),
+    );
+    installServerUrlNetworkPatch({
+      base: "https://s.example.com",
+      fetchImpl,
+      WebSocketCtor: class {} as unknown as typeof WebSocket,
+    });
+    const controller = new AbortController();
+    const request = new Request(new URL("/api/chat", window.location.href), {
+      signal: controller.signal,
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+    });
+    await window.fetch(request);
+    const rewritten = fetchImpl.mock.calls[0][0] as Request;
+    controller.abort();
+    expect(rewritten.signal.aborted).toBe(true);
+    expect(rewritten.credentials).toBe("omit");
+    expect(rewritten.cache).toBe("no-store");
+    expect(rewritten.redirect).toBe("error");
+    expect(rewritten.referrerPolicy).toBe("no-referrer");
+  });
+
   test("buildAbsoluteUrl joins base and path", () => {
     expect(buildAbsoluteUrl("/api/x", "https://s.example.com")).toBe(
       "https://s.example.com/api/x",
