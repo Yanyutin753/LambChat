@@ -77,5 +77,7 @@ USER app
 EXPOSE 8000
 
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+# Bound glibc's per-process arenas so idle IO threads do not retain peak-sized heaps.
+ENV MALLOC_ARENA_MAX=4
 
 CMD ["/app/.venv/bin/python", "main.py"]
