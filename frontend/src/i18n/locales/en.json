@@ -1,5 +1,26 @@
 {
   "assistants": {
+    "taskPlaceholder": "Describe what you want done…",
+    "taskConversation": "Task conversation",
+    "workspaceNavigation": "Workspace navigation",
+    "workspaceTitle": "A place to work with your assistant",
+    "workspaceWelcome": "Choose an assistant to continue, or create one to follow through on your tasks.",
+    "workspaceHint": "Your assistants keep the context. Come back whenever you’re ready.",
+    "backToChat": "Back to chat",
+    "conversation": "Conversation",
+    "toggleNavigation": "Toggle navigation",
+    "conversationMismatch": "This conversation does not belong to this assistant. Open it from tasks or discussions.",
+    "workspaceUnavailable": "This page is unavailable or you do not have access.",
+    "newTask": "New task",
+    "taskCount": "Total tasks: {{count}}",
+    "taskDetails": "Task details",
+    "taskHelp": "Task controls and notifications",
+    "pageGroupingHint": "Tasks on this page are grouped by status. Use pagination to see other records.",
+    "taskGroups": {
+      "attention": "Needs your attention",
+      "active": "In progress",
+      "history": "History"
+    },
     "taskReference": "Task ID",
     "taskRoutingHint": "In its originating channel discussion, send /task <task-id> <follow-up> to continue a finished task. Use the task conversation for running work or approvals. Create an explicitly authorized new task to change environment or permissions.",
     "taskConfigurationHint": "This task keeps its original configuration and environment. Assistant defaults apply to future tasks.",

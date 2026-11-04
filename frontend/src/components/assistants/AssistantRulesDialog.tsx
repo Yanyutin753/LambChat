@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +10,7 @@ import type {
   AssistantRuleCreate,
   AssistantRuleMode,
 } from "../../types/assistant";
-import { Dialog } from "../common/Dialog";
+import { AssistantSurface } from "./AssistantSurface";
 import { Pagination } from "../common/Pagination";
 import { PanelLoadingState } from "../common/PanelLoadingState";
 import {
@@ -37,14 +38,17 @@ export function AssistantRulesDialog({
   assistant,
   canWrite,
   onClose,
+  embedded = false,
 }: {
   assistant: Assistant;
   canWrite: boolean;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [data, setData] = useState<{
     rules: AssistantRule[];
@@ -67,7 +71,10 @@ export function AssistantRulesDialog({
     void assistantApi
       .rules(assistant.id, (page - 1) * PAGE_SIZE, PAGE_SIZE)
       .then((value) => {
-        if (active) setData(value);
+        if (active) {
+          setData(value);
+          setTotal(value.total);
+        }
       })
       .catch((failure: unknown) => {
         if (active)
@@ -166,7 +173,8 @@ export function AssistantRulesDialog({
         await scheduledTaskApi.resume(rule.id);
     });
   return (
-    <Dialog
+    <AssistantSurface
+      embedded={embedded}
       open
       onClose={onClose}
       title={t("assistants.rulesTitle", { name: assistant.name })}
@@ -177,7 +185,7 @@ export function AssistantRulesDialog({
           <Pagination
             page={page}
             pageSize={PAGE_SIZE}
-            total={data?.total ?? 0}
+            total={total}
             onChange={(next) => {
               setData(null);
               setPage(next);
@@ -337,9 +345,10 @@ export function AssistantRulesDialog({
         {!data && !error ? (
           <PanelLoadingState />
         ) : data?.rules.length === 0 ? (
-          <p className="text-14 text-theme-text-secondary">
-            {t("assistants.noRules")}
-          </p>
+          <EmptyState
+            illustration="panel-schedule"
+            title={t("assistants.noRules")}
+          />
         ) : (
           <ul className="divide-y divide-theme-border">
             {data?.rules.map((rule) => (
@@ -427,6 +436,6 @@ export function AssistantRulesDialog({
           </ul>
         )}
       </div>
-    </Dialog>
+    </AssistantSurface>
   );
 }

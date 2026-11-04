@@ -14,9 +14,11 @@ import { MemoryPanel } from "../panels/MemoryPanel";
 export function AssistantDataPage({
   assistantId,
   view,
+  embedded = false,
 }: {
   assistantId: string;
   view: "memory" | "usage";
+  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -59,29 +61,42 @@ export function AssistantDataPage({
   }, [assistantId, refresh, t]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="panel-inset flex flex-wrap items-center gap-3 py-3">
-        <Button onClick={() => navigate("/assistants")}>
-          {t("common.back")}
-        </Button>
-        {assistant && (
-          <div className="min-w-0">
-            <strong className="break-words font-medium">
-              {assistant.name}
-            </strong>
-            <p className="text-12 text-theme-text-secondary">
-              {t(
-                view === "usage"
-                  ? "assistants.usageHint"
-                  : discussionId
-                    ? "assistants.discussionMemory"
-                    : assistant.memory_mode === "project"
-                      ? "assistants.projectMemory"
-                      : "assistants.privateMemory",
-              )}
-            </p>
-          </div>
-        )}
-      </div>
+      {!embedded && (
+        <div className="panel-inset flex flex-wrap items-center gap-3 py-3">
+          <Button onClick={() => navigate("/assistants")}>
+            {t("common.back")}
+          </Button>
+          {assistant && (
+            <div className="min-w-0">
+              <strong className="break-words font-medium">
+                {assistant.name}
+              </strong>
+              <p className="text-12 text-theme-text-secondary">
+                {t(
+                  view === "usage"
+                    ? "assistants.usageHint"
+                    : discussionId
+                      ? "assistants.discussionMemory"
+                      : assistant.memory_mode === "project"
+                        ? "assistants.projectMemory"
+                        : "assistants.privateMemory",
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      {embedded && assistant && view === "memory" && (
+        <p className="panel-inset pt-3 text-12 text-theme-text-secondary">
+          {t(
+            discussionId
+              ? "assistants.discussionMemory"
+              : assistant.memory_mode === "project"
+                ? "assistants.projectMemory"
+                : "assistants.privateMemory",
+          )}
+        </p>
+      )}
       {error ? (
         <div className="panel-inset">
           <ConfigPanelErrorCallout message={error} />

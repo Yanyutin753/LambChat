@@ -1,5 +1,26 @@
 {
   "assistants": {
+    "taskPlaceholder": "描述要完成的事…",
+    "taskConversation": "任务对话",
+    "workspaceNavigation": "工作区导航",
+    "workspaceTitle": "与助手一起，把事情做完",
+    "workspaceWelcome": "选择左侧的助手继续工作，或创建一个助手，持续跟进你的任务。",
+    "workspaceHint": "助手会保留上下文，你可以随时回来继续。",
+    "backToChat": "返回聊天",
+    "conversation": "主对话",
+    "toggleNavigation": "展开或收起导航",
+    "conversationMismatch": "此对话不属于当前助手。请从任务或讨论列表打开。",
+    "workspaceUnavailable": "此页面不可用，或你没有访问权限。",
+    "newTask": "新建任务",
+    "taskCount": "共 {{count}} 项任务",
+    "taskDetails": "任务详情",
+    "taskHelp": "操作与通知说明",
+    "pageGroupingHint": "以下仅按状态分组当前页的任务，可翻页查看其余记录。",
+    "taskGroups": {
+      "attention": "需要你处理",
+      "active": "进行中",
+      "history": "历史记录"
+    },
     "taskReference": "任务编号",
     "taskRoutingHint": "在原渠道讨论中发送 /task <任务编号> <补充要求> 可续办已结束的任务。运行中任务和审批请在任务对话中处理；环境或权限范围变化请明确创建新任务。",
     "taskConfigurationHint": "此任务沿用创建时的配置和环境。修改助手默认设置仅影响后续任务。",

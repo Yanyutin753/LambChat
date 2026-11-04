@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Bot } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types/auth";
@@ -19,6 +19,7 @@ export function AssistantConversationBar({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission(Permission.CHAT_WRITE);
   const [loaded, setLoaded] = useState<{
@@ -75,6 +76,8 @@ export function AssistantConversationBar({
     );
   const assistant = current?.assistant;
   if (!assistant) return null;
+  // The dedicated workspace already provides assistant navigation and settings.
+  if (pathname.startsWith("/assistants/")) return null;
   const contextSessionId = assistant.context_session_id || sessionId;
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-theme-border px-4 py-2">

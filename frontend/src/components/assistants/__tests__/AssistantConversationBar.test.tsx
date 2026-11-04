@@ -75,7 +75,10 @@ test("identity load failure is visible and retryable", async () => {
   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
 });
 
-vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => navigate,
+  useLocation: () => ({ pathname: "/chat/thread" }),
+}));
 
 test("discussion memory opens the audience bank, not private assistant memory", async () => {
   canReadMemory.mockReturnValue(true);

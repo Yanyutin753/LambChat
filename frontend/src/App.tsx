@@ -633,6 +633,22 @@ function App() {
                   }
                 />
                 <Route
+                  path="/assistants/:assistantId/chat/:sessionId"
+                  element={
+                    <ProtectedRoute permissions={[Permission.SESSION_READ]}>
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants/:assistantId/:view?"
+                  element={
+                    <ProtectedRoute permissions={[Permission.SESSION_READ]}>
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/assistants"
                   element={
                     <ProtectedRoute permissions={[Permission.SESSION_READ]}>

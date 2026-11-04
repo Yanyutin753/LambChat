@@ -29,6 +29,44 @@ const assistant = {
 beforeEach(() => {
   api.rules.mockResolvedValue({ rules: [], total: 0 });
 });
+
+test("rule pagination retains its total between pages", async () => {
+  api.rules.mockImplementation((_id, skip) =>
+    Promise.resolve({
+      total: 11,
+      rules: [
+        {
+          id: "rule",
+          name: skip ? "Second page" : "First page",
+          enabled: false,
+          status: "paused",
+          trigger_type: "interval",
+          trigger_config: { seconds: 300 },
+          input_payload: {
+            message: "Check",
+            assistant_rule: {
+              assistant_id: "helper",
+              mode: "observe",
+              timeout_seconds: 120,
+              max_wakeups: 3,
+            },
+          },
+        },
+      ],
+    }),
+  );
+  render(
+    <AssistantRulesDialog
+      assistant={assistant}
+      canWrite={false}
+      onClose={() => {}}
+    />,
+  );
+  await screen.findByText("First page");
+  fireEvent.click(screen.getByRole("button", { name: "common.next" }));
+  expect(await screen.findByText("Second page")).toBeVisible();
+  expect(api.rules).toHaveBeenLastCalledWith("helper", 10, 10);
+});
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();

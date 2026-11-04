@@ -21,6 +21,12 @@ import {
   readStoredWidth,
 } from "../DesktopSidebarShell/sidebarWidth";
 
+const AssistantsPanel = lazy(() =>
+  import("../../assistants/AssistantsPanel").then((module) => ({
+    default: module.AssistantsPanel,
+  })),
+);
+
 const ChatAppContent = lazy(() =>
   import("./ChatAppContent").then((module) => ({
     default: module.ChatAppContent,
@@ -202,6 +208,14 @@ export function AppContent({ activeTab }: AppContentProps) {
     [],
   );
   const handleShowProfile = useCallback(() => setShowProfileModal(true), []);
+
+  if (activeTab === "assistants") {
+    return (
+      <AgentDisplayCatalogProvider agents={displayAgents}>
+        <AssistantsPanel />
+      </AgentDisplayCatalogProvider>
+    );
+  }
 
   if (activeTab === "chat") {
     return (

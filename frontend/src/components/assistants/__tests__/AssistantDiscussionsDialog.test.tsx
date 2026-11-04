@@ -66,3 +66,26 @@ test("failed discussion loading can be retried", async () => {
     await screen.findByText("assistants.noDiscussions"),
   ).toBeInTheDocument();
 });
+
+test("discussion pagination retains its total between pages", async () => {
+  api.discussions.mockImplementation((_id, skip) =>
+    Promise.resolve({
+      total: 11,
+      discussions: [
+        {
+          session_id: "group",
+          channel_type: "feishu",
+          chat_id: skip ? "Second page" : "First page",
+          available: true,
+        },
+      ],
+    }),
+  );
+  render(
+    <AssistantDiscussionsDialog assistant={assistant} onClose={() => {}} />,
+  );
+  await screen.findByText("First page");
+  fireEvent.click(screen.getByRole("button", { name: "common.next" }));
+  expect(await screen.findByText("Second page")).toBeVisible();
+  expect(api.discussions).toHaveBeenLastCalledWith("helper", 10, 10);
+});

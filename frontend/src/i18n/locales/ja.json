@@ -1,5 +1,26 @@
 {
   "assistants": {
+    "taskPlaceholder": "取り組んでほしいことを入力…",
+    "taskConversation": "タスクの会話",
+    "workspaceNavigation": "ワークスペースのナビゲーション",
+    "workspaceTitle": "アシスタントと仕事を進める場所",
+    "workspaceWelcome": "左からアシスタントを選んで続けるか、新しく作成してタスクを任せましょう。",
+    "workspaceHint": "アシスタントは文脈を保持します。いつでも作業を再開できます。",
+    "backToChat": "チャットに戻る",
+    "conversation": "メインの会話",
+    "toggleNavigation": "ナビゲーションを切り替え",
+    "conversationMismatch": "この会話は現在のアシスタントに属していません。タスクまたはディスカッションから開いてください。",
+    "workspaceUnavailable": "このページは利用できないか、アクセス権がありません。",
+    "newTask": "新しいタスク",
+    "taskCount": "タスク合計 {{count}} 件",
+    "taskDetails": "タスクの詳細",
+    "taskHelp": "操作と通知について",
+    "pageGroupingHint": "このページのタスクを状態別に表示しています。他の記録はページを切り替えて確認できます。",
+    "taskGroups": {
+      "attention": "対応が必要",
+      "active": "進行中",
+      "history": "履歴"
+    },
     "taskReference": "タスク ID",
     "taskRoutingHint": "元のチャンネルの会話で /task <タスク ID> <追加の指示> を送ると、終了したタスクを継続できます。実行中の作業と承認はタスクの会話で処理してください。環境や権限の変更には明示的に承認した新しいタスクを作成してください。",
     "taskConfigurationHint": "このタスクは作成時の設定と環境を維持します。アシスタントの既定設定は今後のタスクに適用されます。",

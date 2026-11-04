@@ -1,3 +1,4 @@
+import { EmptyState } from "../common/EmptyState";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -5,7 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types/auth";
 import { assistantApi } from "../../services/api/assistant";
 import type { Assistant, AssistantDiscussion } from "../../types/assistant";
-import { Dialog } from "../common/Dialog";
+import { AssistantSurface } from "./AssistantSurface";
 import { Pagination } from "../common/Pagination";
 import { PanelLoadingState } from "../common/PanelLoadingState";
 import { Button } from "../common/ui";
@@ -16,14 +17,17 @@ const PAGE_SIZE = 10;
 export function AssistantDiscussionsDialog({
   assistant,
   onClose,
+  embedded = false,
 }: {
   assistant: Assistant;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [data, setData] = useState<{
     discussions: AssistantDiscussion[];
@@ -36,7 +40,10 @@ export function AssistantDiscussionsDialog({
     void assistantApi
       .discussions(assistant.id, (page - 1) * PAGE_SIZE, PAGE_SIZE)
       .then((value) => {
-        if (active) setData(value);
+        if (active) {
+          setData(value);
+          setTotal(value.total);
+        }
       })
       .catch((failure: unknown) => {
         if (active)
@@ -53,7 +60,8 @@ export function AssistantDiscussionsDialog({
     navigate(path);
   };
   return (
-    <Dialog
+    <AssistantSurface
+      embedded={embedded}
       open
       onClose={onClose}
       title={t("assistants.discussionsTitle", { name: assistant.name })}
@@ -63,7 +71,7 @@ export function AssistantDiscussionsDialog({
           <Pagination
             page={page}
             pageSize={PAGE_SIZE}
-            total={data?.total ?? 0}
+            total={total}
             onChange={(next) => {
               setData(null);
               setPage(next);
@@ -79,9 +87,11 @@ export function AssistantDiscussionsDialog({
       {!data && !error ? (
         <PanelLoadingState />
       ) : data?.discussions.length === 0 ? (
-        <p className="text-14 text-theme-text-secondary">
-          {t("assistants.noDiscussions")}
-        </p>
+        <EmptyState
+          illustration="panel-channels"
+          title={t("assistants.discussions")}
+          description={t("assistants.noDiscussions")}
+        />
       ) : (
         <ul className="divide-y divide-theme-border">
           {data?.discussions.map((discussion) => (
@@ -98,7 +108,13 @@ export function AssistantDiscussionsDialog({
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() =>
-                    open(`/chat/${encodeURIComponent(discussion.session_id)}`)
+                    open(
+                      `${
+                        embedded
+                          ? `/assistants/${encodeURIComponent(assistant.id)}`
+                          : ""
+                      }/chat/${encodeURIComponent(discussion.session_id)}`,
+                    )
                   }
                 >
                   {t("assistants.history")}
@@ -127,6 +143,6 @@ export function AssistantDiscussionsDialog({
       <p className="mt-4 text-12 text-theme-text-secondary">
         {t("assistants.discussionHint")}
       </p>
-    </Dialog>
+    </AssistantSurface>
   );
 }

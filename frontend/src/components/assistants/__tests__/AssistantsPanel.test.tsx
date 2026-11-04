@@ -9,17 +9,34 @@ import {
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantsPanel } from "../AssistantsPanel";
 
-const { api, navigate, canWrite, t } = vi.hoisted(() => ({
+const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
   api: {
     list: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     get: vi.fn(),
     openConversation: vi.fn(),
+    forConversation: vi.fn(),
+    tasks: vi.fn(),
   },
+  profiles: { persona: vi.fn(), team: vi.fn(), allowed: true },
   navigate: vi.fn(),
+  route: {
+    assistantId: undefined as string | undefined,
+    view: undefined as string | undefined,
+    sessionId: undefined as string | undefined,
+  },
   canWrite: { value: true },
   t: (key: string) => key,
+}));
+vi.mock("../../common/AgentAvatar", () => ({
+  AgentAvatar: ({ avatar, seed }: { avatar?: string; seed?: string }) => (
+    <span
+      data-testid="assistant-avatar"
+      data-avatar={avatar}
+      data-seed={seed}
+    />
+  ),
 }));
 vi.mock("../../../services/api/session", () => ({
   sessionApi: { cancel: vi.fn() },
@@ -30,6 +47,7 @@ vi.mock("../../../services/api/model", () => ({
 }));
 vi.mock("../../../services/api/team", () => ({
   teamApi: {
+    get: profiles.team,
     list: async () => ({
       teams: [{ id: "team-1", name: "Review team" }],
       total: 1,
@@ -40,22 +58,36 @@ vi.mock("../../../services/api/project", () => ({
   projectApi: { list: async () => [] },
 }));
 vi.mock("../../../services/api/personaPreset", () => ({
-  personaPresetApi: { list: async () => ({ presets: [], total: 0 }) },
+  personaPresetApi: {
+    get: profiles.persona,
+    list: async () => ({ presets: [], total: 0 }),
+  },
 }));
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({
     hasPermission: (permission: string) =>
-      permission !== "chat:write" || canWrite.value,
+      ["persona_preset:read", "team:read"].includes(permission)
+        ? profiles.allowed
+        : permission !== "chat:write" || canWrite.value,
   }),
 }));
 vi.mock("react-router-dom", () => ({
   useNavigate: () => navigate,
-  useParams: () => ({}),
-  useLocation: () => ({ pathname: "/assistants" }),
+  useParams: () => route,
+  useLocation: () => ({
+    pathname: route.assistantId
+      ? `/assistants/${route.assistantId}/${route.view || ""}`
+      : "/assistants",
+  }),
+  useSearchParams: () => [new URLSearchParams()],
 }));
 vi.mock("react-i18next", async (original) => ({
   ...(await original<typeof import("react-i18next")>()),
   useTranslation: () => ({ t }),
+}));
+
+vi.mock("../../layout/AppContent/ChatAppContent", () => ({
+  ChatAppContent: () => <div>Real chat workspace</div>,
 }));
 
 const helper = {
@@ -75,6 +107,18 @@ const helper = {
 };
 beforeEach(() => {
   canWrite.value = true;
+  profiles.allowed = true;
+  profiles.persona.mockResolvedValue({
+    name: "Research role",
+    avatar: "/role.png",
+  });
+  profiles.team.mockResolvedValue({ name: "Review team", avatar: "/team.png" });
+  route.assistantId = undefined;
+  route.view = undefined;
+  route.sessionId = undefined;
+  api.get.mockResolvedValue(helper);
+  api.openConversation.mockResolvedValue({ id: "thread" });
+  api.tasks.mockResolvedValue({ tasks: [], total: 0 });
   api.list.mockResolvedValue({ assistants: [helper], total: 1 });
 });
 afterEach(() => {
@@ -82,16 +126,63 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-test("opening an assistant resolves its stable conversation through the server", async () => {
-  api.openConversation.mockResolvedValue({ id: "stable-conversation" });
+test("selecting an assistant opens its dedicated workspace", async () => {
   render(<AssistantsPanel />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: "assistants.open" }),
-  );
+  fireEvent.click(await screen.findByRole("button", { name: /Researcher/ }));
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper");
+});
+
+test("an assistant deep link resolves its canonical conversation inside the workspace", async () => {
+  route.assistantId = "helper";
+  render(<AssistantsPanel />);
   await waitFor(() =>
-    expect(navigate).toHaveBeenCalledWith("/chat/stable-conversation"),
+    expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/thread", {
+      replace: true,
+    }),
   );
-  expect(api.openConversation).toHaveBeenCalledWith("helper");
+});
+
+test("tasks are a page region with no modal and keep workspace navigation", async () => {
+  route.assistantId = "helper";
+  route.view = "tasks";
+  render(<AssistantsPanel />);
+  expect(
+    await screen.findByRole("button", { name: "assistants.newTask" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    screen.getAllByRole("navigation", {
+      name: "assistants.workspaceNavigation",
+    }).length,
+  ).toBeGreaterThan(0);
+});
+
+test("a session from a different assistant never renders in the selected workspace", async () => {
+  route.assistantId = "helper";
+  route.view = "chat";
+  route.sessionId = "foreign";
+  api.forConversation.mockResolvedValue({ ...helper, id: "other" });
+  render(<AssistantsPanel />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "assistants.conversationMismatch",
+  );
+  expect(screen.queryByText("Real chat workspace")).toBeNull();
+});
+
+test("assistant pagination does not reset during a page request", async () => {
+  api.list.mockImplementation((skip) =>
+    Promise.resolve({
+      total: 21,
+      assistants: [{ ...helper, name: skip ? "Second page" : "First page" }],
+    }),
+  );
+  render(<AssistantsPanel />);
+  await screen.findByRole("button", { name: /First page/ });
+  fireEvent.click(screen.getByRole("button", { name: "common.next" }));
+  expect(
+    await screen.findByRole("button", { name: /Second page/ }),
+  ).toBeVisible();
+  expect(api.list).toHaveBeenLastCalledWith(20, 20, false);
 });
 
 test("a failed load offers retry without claiming the assistant list is empty", async () => {
@@ -171,6 +262,13 @@ test("assistant configuration can select an owned collaboration team", async () 
 });
 
 test("pausing an assistant preserves its explicit shared memory choice", async () => {
+  route.assistantId = "helper";
+  route.view = "tasks";
+  api.get.mockResolvedValue({
+    ...helper,
+    memory_mode: "project",
+    project_id: "project",
+  });
   api.list.mockResolvedValue({
     assistants: [{ ...helper, memory_mode: "project", project_id: "project" }],
     total: 1,
@@ -183,16 +281,139 @@ test("pausing an assistant preserves its explicit shared memory choice", async (
   fireEvent.click(
     await screen.findByRole("menuitem", { name: "assistants.pause" }),
   );
+
   await waitFor(() => expect(api.update).toHaveBeenCalled());
   expect(api.update.mock.calls[0][1].memory_mode).toBe("project");
 });
 
-test("assistant navigation wraps in the card body while status and menu stay in the footer", async () => {
+test("read-only users can open saved conversations without creating one", async () => {
+  canWrite.value = false;
+  route.assistantId = "helper";
   render(<AssistantsPanel />);
-  const open = await screen.findByRole("button", { name: "assistants.open" });
-  expect(open.closest(".scb__footer")).toBeNull();
-  expect(open.parentElement).toHaveClass("flex-wrap");
-  expect(
-    screen.getByText("assistants.active").closest(".scb__footer"),
-  ).not.toBeNull();
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/thread", {
+      replace: true,
+    }),
+  );
+  expect(api.openConversation).not.toHaveBeenCalled();
+});
+
+test("the canonical conversation uses the existing chat component inside the workspace", async () => {
+  route.assistantId = "helper";
+  route.sessionId = "thread";
+  render(<AssistantsPanel />);
+  expect(await screen.findByText("Real chat workspace")).toBeVisible();
+  expect(api.forConversation).not.toHaveBeenCalled();
+});
+
+test("a task conversation waits for assistant ownership before rendering", async () => {
+  route.assistantId = "helper";
+  route.sessionId = "task-thread";
+  let resolve!: (value: typeof helper) => void;
+  api.forConversation.mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  render(<AssistantsPanel />);
+  await waitFor(() =>
+    expect(api.forConversation).toHaveBeenCalledWith("task-thread"),
+  );
+  expect(screen.queryByText("Real chat workspace")).toBeNull();
+  resolve(helper);
+  expect(await screen.findByText("Real chat workspace")).toBeVisible();
+});
+
+test("task results identify their task context instead of claiming to be the main conversation", async () => {
+  route.assistantId = "helper";
+  route.sessionId = "task-thread";
+  api.forConversation.mockResolvedValue({ ...helper, context_kind: "task" });
+  render(<AssistantsPanel />);
+  await screen.findByText("Real chat workspace");
+  expect(screen.getByText("assistants.taskConversation")).toBeVisible();
+});
+
+test("bound role identity is shared by the assistant list and workspace header", async () => {
+  const assistant = { ...helper, persona_preset_id: "role-1" };
+  route.assistantId = helper.id;
+  route.view = "tasks";
+  api.get.mockResolvedValue(assistant);
+  api.list.mockResolvedValue({ assistants: [assistant], total: 1 });
+  render(<AssistantsPanel />);
+  await waitFor(() => expect(profiles.persona).toHaveBeenCalledWith("role-1"));
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByTestId("assistant-avatar")
+        .every((avatar) => avatar.dataset.avatar === "/role.png"),
+    ).toBe(true),
+  );
+  expect(screen.getAllByText("Research role")).toHaveLength(2);
+});
+
+test("team avatars take precedence over the role and failed metadata preserves navigation", async () => {
+  const assistant = {
+    ...helper,
+    team_id: "team-1",
+    persona_preset_id: "role-1",
+  };
+  api.list.mockResolvedValue({ assistants: [assistant], total: 1 });
+  profiles.team.mockRejectedValue(new Error("unavailable"));
+  render(<AssistantsPanel />);
+  await waitFor(() => expect(profiles.team).toHaveBeenCalledWith("team-1"));
+  expect(profiles.persona).not.toHaveBeenCalled();
+  fireEvent.click(await screen.findByRole("button", { name: /Researcher/ }));
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper");
+  expect(screen.getByTestId("assistant-avatar")).toHaveAttribute(
+    "data-seed",
+    "Researcher",
+  );
+});
+
+test("role and team metadata are not requested without read permissions", async () => {
+  profiles.allowed = false;
+  api.list.mockResolvedValue({
+    assistants: [
+      { ...helper, persona_preset_id: "role-1" },
+      { ...helper, id: "team-helper", team_id: "team-1" },
+    ],
+    total: 2,
+  });
+  render(<AssistantsPanel />);
+  await screen.findAllByRole("button", { name: /Researcher/ });
+  expect(profiles.persona).not.toHaveBeenCalled();
+  expect(profiles.team).not.toHaveBeenCalled();
+});
+
+test("a configured team uses its saved avatar", async () => {
+  api.list.mockResolvedValue({
+    assistants: [{ ...helper, team_id: "team-1" }],
+    total: 1,
+  });
+  render(<AssistantsPanel />);
+  await waitFor(() =>
+    expect(screen.getByTestId("assistant-avatar")).toHaveAttribute(
+      "data-avatar",
+      "/team.png",
+    ),
+  );
+  expect(screen.getByTestId("assistant-avatar")).toHaveAttribute(
+    "data-seed",
+    "team-1",
+  );
+});
+
+test("permission revocation removes resolved role metadata immediately", async () => {
+  api.list.mockResolvedValue({
+    assistants: [{ ...helper, persona_preset_id: "role-1" }],
+    total: 1,
+  });
+  const view = render(<AssistantsPanel />);
+  await screen.findByText("Research role");
+  profiles.allowed = false;
+  view.rerender(<AssistantsPanel />);
+  expect(screen.queryByText("Research role")).toBeNull();
+  expect(screen.getByTestId("assistant-avatar")).not.toHaveAttribute(
+    "data-avatar",
+  );
 });

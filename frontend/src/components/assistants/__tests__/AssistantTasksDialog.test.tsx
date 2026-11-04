@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantTasksDialog } from "../AssistantTasksDialog";
@@ -70,6 +71,7 @@ test("network retry keeps the task admission key and draft", async () => {
   render(
     <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
   );
+  fireEvent.click(screen.getByRole("button", { name: "assistants.newTask" }));
   fireEvent.change(screen.getByLabelText("assistants.taskDescription"), {
     target: { value: "Create a verified report" },
   });
@@ -84,6 +86,159 @@ test("network retry keeps the task admission key and draft", async () => {
     api.createTask.mock.calls[1][1],
   );
   expect(api.createTask.mock.calls[0][1].request_id).toBeTruthy();
+});
+
+test("activity comes first and the new task draft survives collapsing its form", async () => {
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  expect(
+    await screen.findByRole("heading", { name: task.description }),
+  ).toBeVisible();
+  expect(screen.queryByLabelText("assistants.taskDescription")).toBeNull();
+  const toggle = screen.getByRole("button", { name: "assistants.newTask" });
+  fireEvent.click(toggle);
+  fireEvent.change(screen.getByLabelText("assistants.taskDescription"), {
+    target: { value: "Keep my draft" },
+  });
+  fireEvent.click(toggle);
+  fireEvent.click(toggle);
+  expect(screen.getByLabelText("assistants.taskDescription")).toHaveValue(
+    "Keep my draft",
+  );
+});
+
+test("groups the current page by attention, active work and history without dropping tasks", async () => {
+  api.tasks.mockResolvedValue({
+    total: 31,
+    tasks: [
+      { ...task, id: "done", description: "Finished work", state: "accepted" },
+      { ...task, id: "working", description: "Working now", state: "running" },
+      {
+        ...task,
+        id: "approval",
+        description: "Approve this",
+        state: "waiting_human",
+      },
+      {
+        ...task,
+        id: "unknown",
+        description: "Unknown state",
+        state: "future_state",
+      },
+    ],
+  });
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  const attention = await screen.findByRole("region", {
+    name: "assistants.taskGroups.attention",
+  });
+  expect(
+    within(attention).getByRole("heading", { name: "Approve this" }),
+  ).toBeVisible();
+  expect(
+    within(attention).getByRole("heading", { name: "Unknown state" }),
+  ).toBeVisible();
+  expect(
+    screen
+      .getAllByRole("region")
+      .map((region) => region.getAttribute("aria-label")),
+  ).toEqual([
+    "assistants.taskGroups.attention",
+    "assistants.taskGroups.active",
+    "assistants.taskGroups.history",
+  ]);
+  expect(screen.getByText("assistants.pageGroupingHint")).toBeVisible();
+  expect(screen.getAllByRole("listitem")).toHaveLength(4);
+});
+
+test("execution details and task IDs remain available without crowding the activity list", async () => {
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  const details = (await screen.findByText("assistants.taskDetails")).closest(
+    "details",
+  )!;
+  expect(details).not.toHaveAttribute("open");
+  expect(
+    within(details).getByText("assistants.taskReference"),
+  ).toBeInTheDocument();
+});
+
+test("a successful task admission clears and closes the form, while a new task gets a new key", async () => {
+  api.createTask.mockResolvedValue({ status: "queued" });
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  for (const description of ["First task", "Second task"]) {
+    fireEvent.click(screen.getByRole("button", { name: "assistants.newTask" }));
+    const field = screen.getByLabelText("assistants.taskDescription");
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: description } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "assistants.startTask" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByLabelText("assistants.taskDescription")).toBeNull(),
+    );
+  }
+  expect(api.createTask.mock.calls[0][1].request_id).not.toBe(
+    api.createTask.mock.calls[1][1].request_id,
+  );
+});
+
+test("load failures do not show an empty inbox and can be retried", async () => {
+  api.tasks
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ tasks: [], total: 0 });
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+  expect(screen.queryByText("assistants.noTasks")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "common.refresh" }));
+  expect(await screen.findByText("assistants.noTasks")).toBeVisible();
+});
+
+test("accepted work keeps revision controls inside details", async () => {
+  api.tasks.mockResolvedValue({
+    tasks: [{ ...task, state: "accepted" }],
+    total: 1,
+  });
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  const summary = await screen.findByText("assistants.taskDetails");
+  const details = summary.closest("details")!;
+  expect(
+    within(details).getByRole("button", {
+      name: "assistants.rejectTask",
+      hidden: true,
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "assistants.acceptTask" }),
+  ).toBeNull();
+});
+
+test("changing pages keeps the known total while the next page loads", async () => {
+  api.tasks.mockImplementation((_id, skip) =>
+    Promise.resolve({
+      total: 11,
+      tasks: [{ ...task, description: skip ? "Second page" : "First page" }],
+    }),
+  );
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  await screen.findByRole("heading", { name: "First page" });
+  fireEvent.click(screen.getByRole("button", { name: "common.next" }));
+  expect(
+    await screen.findByRole("heading", { name: "Second page" }),
+  ).toBeVisible();
+  expect(api.tasks).toHaveBeenLastCalledWith("helper", 10, 10);
 });
 
 test("readers can inspect the real child conversation without write controls", async () => {
@@ -114,9 +269,9 @@ test("long task requirements leave room for controls and open the full conversat
   render(
     <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
   );
-  expect(await screen.findByText(description.trim())).toHaveClass(
-    "line-clamp-3",
-  );
+  expect(
+    await screen.findByRole("heading", { name: description.trim() }),
+  ).toHaveClass("line-clamp-3");
   fireEvent.click(
     screen.getByRole("button", { name: "assistants.inspectTask" }),
   );
@@ -187,4 +342,24 @@ test("notification journal entries are distinguished from transport acceptance",
   ).toBeInTheDocument();
   expect(screen.queryByText("assistants.receiptAccepted")).toBeNull();
   expect(screen.getByText("assistants.authorization.rule")).toBeInTheDocument();
+});
+
+test("workspace task titles open the result in place and preserve full requirements in details", async () => {
+  const description = "【金额汇总】仅在 task-b 目录创建文件，并运行完整测试。";
+  api.tasks.mockResolvedValue({
+    tasks: [{ ...task, description, state: "accepted" }],
+    total: 1,
+  });
+  render(
+    <AssistantTasksDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "金额汇总" }));
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/child");
+  expect(screen.getByText(description).closest("details")).not.toBeNull();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
