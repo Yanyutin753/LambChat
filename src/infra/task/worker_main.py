@@ -42,6 +42,7 @@ from typing import Any, Callable
 from src.infra.distributed_validation import validate_distributed_runtime_settings  # noqa: E402
 from src.infra.llm.pubsub import get_model_config_pubsub  # noqa: E402
 from src.infra.logging import get_logger
+from src.infra.monitoring import close_memory_monitor, get_memory_monitor
 from src.infra.monitoring.event_loop import start_event_loop_lag_monitor
 from src.infra.pricing.pubsub import get_pricing_pubsub  # noqa: E402
 from src.infra.settings.pubsub import get_settings_pubsub  # noqa: E402
@@ -141,6 +142,7 @@ async def _amain(stop: asyncio.Event) -> None:
         await initialize_settings()
         logger.info("Settings initialized from database")
         validate_distributed_runtime_settings(settings)
+        await get_memory_monitor().start()
         await start_event_loop_lag_monitor()
         await task_manager.start_pubsub_listener()
         await _start_cache_listeners()
@@ -171,6 +173,10 @@ async def _amain(stop: asyncio.Event) -> None:
             await worker_shutdown(worker_context)  # loop_bridge 清理 + 恢复入口静默
         except Exception:  # noqa: BLE101
             logger.warning("worker_shutdown failed", exc_info=True)
+        try:
+            await close_memory_monitor()
+        except Exception:  # noqa: BLE101
+            logger.warning("memory monitor stop failed", exc_info=True)
         logger.info("standalone arq worker stopped")
 
 

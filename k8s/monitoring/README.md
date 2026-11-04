@@ -95,6 +95,19 @@ cd k8s/monitoring/scripts
 4. 哪个函数吃 CPU → `./pyspy.sh record a 60` 看火焰图
 5. 请求挂死 → `./pyspy.sh dump a` 看线程栈
 
+### 进程内存增长
+
+API 与独立 worker 均启动 `MemoryMonitor`，通过 Redis 发布各进程快照；管理员
+可用后端 `/health/memory` 查看。`MEMORY_MONITOR_HEAVY_DIAGNOSTICS=true` 需在目标
+进程启动前设置，才会启用 tracemalloc 的分配位置统计，排查结束后关闭并重启该
+实例以回收诊断开销。该开关与业务记忆功能 `ENABLE_MEMORY` 无关。
+
+运行时镜像默认 `MALLOC_ARENA_MAX=4`，限制 glibc arena 数量，降低多线程负载后的
+空闲堆保留；Deployment 可通过同名环境变量覆盖，必须在进程启动前生效。它不降低
+ARQ 或 IO 线程池并发上限，也不能回收仍被引用的对象。比较修改前后的同等负载、空闲期
+RSS、任务吞吐及延迟；不能用 `VmData - VmRSS` 推算已释放内存，也不能仅靠重启后下降
+判定泄漏已修复。
+
 ## 运维
 
 ```bash

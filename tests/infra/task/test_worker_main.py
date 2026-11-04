@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -73,6 +74,9 @@ def wired(monkeypatch: pytest.MonkeyPatch, tmp_path):
         "memory": _FakePubSub(),
     }
     lag_monitor = SimpleNamespace(calls=0)
+    memory_monitor = SimpleNamespace(start=AsyncMock(), stop=AsyncMock())
+    monkeypatch.setattr(worker_main, "get_memory_monitor", lambda: memory_monitor)
+    monkeypatch.setattr(worker_main, "close_memory_monitor", memory_monitor.stop)
 
     async def fake_lag_monitor() -> None:
         lag_monitor.calls += 1
@@ -112,6 +116,7 @@ def wired(monkeypatch: pytest.MonkeyPatch, tmp_path):
         runtime=runtime,
         pubsubs=pubsubs,
         lag_monitor=lag_monitor,
+        memory_monitor=memory_monitor,
         startup_calls=startup_calls,
         shutdown_calls=shutdown_calls,
     )
@@ -137,6 +142,32 @@ async def test_amain_starts_required_services_with_forced_arq_runtime(wired, mon
     # force=True：绕过 ARQ_EMBEDDED_WORKER（该开关只约束 API 进程）
     assert wired.runtime.started_with == {"force": True}
     assert wired.startup_calls == ["worker_startup"]  # 分布式校验 + loop_bridge 登记
+
+
+@pytest.mark.parametrize("startup_fails", [False, True])
+async def test_worker_memory_monitor_spans_runtime_and_closes_on_failure(
+    wired, monkeypatch, startup_fails
+):
+    monkeypatch.setattr(worker_main.settings, "ENABLE_MEMORY", False)
+
+    async def start_runtime(**kwargs):
+        wired.memory_monitor.start.assert_awaited_once()
+        if startup_fails:
+            raise RuntimeError("runtime startup failed")
+
+    async def stop_runtime():
+        wired.memory_monitor.stop.assert_not_awaited()
+
+    wired.runtime.start = start_runtime
+    wired.runtime.stop = stop_runtime
+    stop = asyncio.Event()
+    stop.set()
+    if startup_fails:
+        with pytest.raises(RuntimeError, match="runtime startup failed"):
+            await worker_main._amain(stop)
+    else:
+        await worker_main._amain(stop)
+    wired.memory_monitor.stop.assert_awaited_once()
 
 
 async def test_amain_loads_db_settings_before_any_service(wired, monkeypatch):
