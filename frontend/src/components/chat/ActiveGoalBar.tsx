@@ -110,16 +110,16 @@ function EmbeddedGoalBar({
         .join(" ")}
       style={{
         borderBottom: "1px solid var(--theme-border)",
-        color: "var(--theme-text-tertiary)",
+        color: "var(--theme-text-secondary)",
       }}
     >
       <Target
-        className="size-4 shrink-0"
-        style={{ color: "var(--theme-text-tertiary)" }}
+        className="size-3.5 shrink-0"
+        style={{ color: "var(--theme-text-secondary)" }}
       />
 
       <span
-        className="shrink-0 font-medium"
+        className="shrink-0 font-normal"
         style={{ color: "var(--theme-text-secondary)" }}
       >
         {label}
@@ -130,7 +130,7 @@ function EmbeddedGoalBar({
       </span>
 
       {durationLabel && durationText && (
-        <span className="shrink-0 tabular-nums" style={{ opacity: 0.5 }}>
+        <span className="shrink-0 tabular-nums">
           {durationText}
         </span>
       )}
@@ -143,10 +143,9 @@ function EmbeddedGoalBar({
           title={clearLabel}
           aria-label={clearLabel}
           className="flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40"
-          style={{ opacity: 0.4 }}
         >
           <InteractiveIcon>
-            <X className="h-3.5 w-3.5" />
+            <X size={14} className="h-3.5 w-3.5" />
           </InteractiveIcon>
         </button>
       )}
@@ -160,7 +159,7 @@ function EmbeddedGoalBar({
           className="flex size-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40 sm:size-8"
         >
           <InteractiveIcon>
-            <Play className="size-3.5" aria-hidden="true" />
+            <Play size={14} className="size-3.5" aria-hidden="true" />
           </InteractiveIcon>
         </button>
       )}
@@ -242,17 +241,17 @@ function PersistentGoalStrip({
     ? formatElapsedCompact(elapsedSeconds)
     : "—";
   const buttonClass =
-    "flex size-9 sm:size-8 shrink-0 items-center justify-center rounded-md text-theme-text-tertiary transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40";
+    "flex size-9 sm:size-8 shrink-0 items-center justify-center rounded-md text-theme-text-secondary transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40";
   if (goal.status === "cleared") return null;
   return (
     <div
-      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-13 leading-5 ${
+      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-14 leading-5 ${
         embedded ? "composer-goal-row" : "mx-auto w-full max-w-[52rem] py-2"
       } ${className}`}
     >
-      <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-1.5 font-medium text-theme-text-secondary">
+      <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-2 font-normal text-theme-text-secondary">
         <Target
-          className="size-3.5 shrink-0 text-theme-text-tertiary"
+          className="size-3.5 shrink-0 text-theme-text-secondary"
           aria-hidden="true"
         />
         {t("chat.goalPersistent.label", "Goal")}
@@ -270,9 +269,9 @@ function PersistentGoalStrip({
       >
         {goal.objective}
       </span>
-      <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-0.5">
+      <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-1">
         <span
-          className="hidden h-9 min-w-8 items-center justify-end pr-1 text-12 tabular-nums text-theme-text-tertiary sm:flex sm:h-8"
+          className="hidden h-9 min-w-8 items-center justify-end pr-1 text-14 tabular-nums text-theme-text-secondary sm:flex sm:h-8"
           title={t("chat.goal.duration")}
           aria-label={`${t("chat.goal.duration")}: ${duration}`}
         >
@@ -288,7 +287,7 @@ function PersistentGoalStrip({
             className={buttonClass}
           >
             <InteractiveIcon>
-              <Pencil className="size-3.5" aria-hidden="true" />
+              <Pencil size={14} className="size-3.5" aria-hidden="true" />
             </InteractiveIcon>
           </button>
         )}
@@ -302,7 +301,7 @@ function PersistentGoalStrip({
             className={buttonClass}
           >
             <InteractiveIcon>
-              <Trash2 className="size-3.5" aria-hidden="true" />
+              <Trash2 size={14} className="size-3.5" aria-hidden="true" />
             </InteractiveIcon>
           </button>
         )}
@@ -316,7 +315,7 @@ function PersistentGoalStrip({
             className={buttonClass}
           >
             <InteractiveIcon>
-              <Pause className="size-3.5" aria-hidden="true" />
+              <Pause size={14} className="size-3.5" aria-hidden="true" />
             </InteractiveIcon>
           </button>
         )}
@@ -330,7 +329,7 @@ function PersistentGoalStrip({
             className={buttonClass}
           >
             <InteractiveIcon>
-              <Play className="size-3.5" aria-hidden="true" />
+              <Play size={14} className="size-3.5" aria-hidden="true" />
             </InteractiveIcon>
           </button>
         )}
@@ -348,9 +347,9 @@ function PersistentGoalStrip({
         >
           <InteractiveIcon>
             {expanded ? (
-              <Minimize2 className="size-3.5" aria-hidden="true" />
+              <Minimize2 size={14} className="size-3.5" aria-hidden="true" />
             ) : (
-              <Maximize2 className="size-3.5" aria-hidden="true" />
+              <Maximize2 size={14} className="size-3.5" aria-hidden="true" />
             )}
           </InteractiveIcon>
         </button>
@@ -472,7 +471,7 @@ function OrdinaryGoalBar({
         className="h-4 w-4 shrink-0"
         style={{ color: "var(--theme-primary)" }}
       />
-      <span className="shrink-0 font-medium">{label}</span>
+      <span className="shrink-0 font-normal">{label}</span>
       <span className="min-w-0 flex-1 truncate" title={goal.objective}>
         {goal.objective}
       </span>
@@ -491,7 +490,7 @@ function OrdinaryGoalBar({
           className="flex size-9 shrink-0 items-center justify-center rounded-md text-theme-text-secondary hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:opacity-40 sm:size-8"
         >
           <InteractiveIcon>
-            <Play className="size-3.5" aria-hidden="true" />
+            <Play size={14} className="size-3.5" aria-hidden="true" />
           </InteractiveIcon>
         </button>
       )}

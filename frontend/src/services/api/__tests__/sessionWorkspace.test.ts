@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 const fetchMock = vi.hoisted(() => vi.fn());
 vi.mock("../fetch", () => ({ authFetch: fetchMock }));
-import { saveSessionWorkspaceOption } from "../sessionWorkspace";
+import { discardSessionWorkspaceSave, readSessionWorkspaceOptions, saveSessionWorkspaceOption, waitForSessionWorkspace } from "../sessionWorkspace";
 import { sandboxFsApi } from "../sandboxFs";
 import { sessionApi } from "../session";
 
@@ -114,4 +114,23 @@ test("submission waits until workspace changes are saved", async () => {
   finish();
   await Promise.all([saved, submitted]);
   expect(fetchMock.mock.calls[1][0]).toContain("/api/chat/stream");
+});
+
+test("a rejected UI selection is not replayed by later workspace reads", async () => {
+  fetchMock.mockReset();
+  fetchMock.mockRejectedValueOnce(new Error("run active"));
+  const request = saveSessionWorkspaceOption("rejected-ui", "sandbox", "local");
+  await expect(request).rejects.toThrow("run active");
+  discardSessionWorkspaceSave("rejected-ui", request);
+  await waitForSessionWorkspace("rejected-ui");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("workspace save and acknowledgement recovery have bounded requests", async () => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ metadata: { agent_options: { sandbox: "cloud", enable_thinking: "high" } } });
+  await saveSessionWorkspaceOption("bounded", "sandbox", "cloud");
+  await expect(readSessionWorkspaceOptions("bounded")).resolves.toEqual({ sandbox: "cloud" });
+  expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "PATCH", timeoutMs: 30_000 });
+  expect(fetchMock.mock.calls[1][1]).toEqual({ timeoutMs: 30_000 });
 });

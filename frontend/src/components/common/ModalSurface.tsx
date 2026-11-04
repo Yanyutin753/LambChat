@@ -48,7 +48,7 @@ export function ModalSurface({
     <div
       data-yields-sidebar
       style={{ zIndex: layer }}
-      className="safe-area-viewport-padding-top modal-overlay"
+      className="fixed safe-area-viewport-padding-top modal-overlay"
     >
       <div
         data-dialog-backdrop

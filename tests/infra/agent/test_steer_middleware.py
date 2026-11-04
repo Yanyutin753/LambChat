@@ -433,10 +433,10 @@ async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> N
     middleware = SteerMiddleware(session_id="session-hitl", presenter=_ResumedPresenter())
 
     first = await middleware.abefore_model({"messages": []}, None)
-    # 恢复后再次进入 before_model：队列已空，不重复注入
-    second = await middleware.abefore_model({"messages": []}, None)
-
     assert first is not None
+    # 恢复后再次进入 before_model：队列已空，不重复注入
+    second = await middleware.abefore_model(first, None)
+
     assert second is None
     assert saved == [
         {

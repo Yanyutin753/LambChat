@@ -548,10 +548,11 @@ export const sessionApi = {
     sessionId: string,
     message: string,
     messageId?: string,
+    preventReenqueue = true,
   ): Promise<{
     status: string;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer${preventReenqueue ? "" : "?prevent_reenqueue=false"}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

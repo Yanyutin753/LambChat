@@ -31,13 +31,13 @@ import {
   SessionWorkspaceBar,
   type SessionWorkspaceBarHandle,
 } from "./SessionWorkspaceBar";
+import { isWorkspaceSelectionLocked } from "./workspaceSelection";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
-import * as runModeOptions from "./chatInputRunModes";
-const { collectActiveRunModes } = runModeOptions;
+import { collectActiveRunModes } from "./chatInputRunModes";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { useMentionPopupPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -968,7 +968,7 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
           ref={workspaceRef}
           values={agentOptionValues}
           onChange={onToggleAgentOption}
-          disabled={isLoading || !canSend}
+          disabled={isWorkspaceSelectionLocked(props) || !canSend}
         />
       )}
       <ChatInputSelectors

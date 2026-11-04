@@ -67,3 +67,24 @@ export function isCurrentWorkspaceMachine(
 ): boolean {
   return mode === "local" && !!current && current === selected;
 }
+
+export interface WorkspaceControlState {
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  isLoading?: boolean;
+  sendBlocked?: boolean;
+  persistentGoal?: { status: string } | null;
+}
+
+/** Every environment entry point shares the same runtime and save guard. */
+export function isWorkspaceSelectionLocked(state: WorkspaceControlState): boolean {
+  return Boolean(
+    state.workspaceLocked ||
+      state.workspaceSaving ||
+      state.workspaceUnconfirmed ||
+      state.isLoading ||
+      state.sendBlocked ||
+      ["active", "waiting_human"].includes(state.persistentGoal?.status ?? ""),
+  );
+}

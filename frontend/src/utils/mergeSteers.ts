@@ -12,6 +12,8 @@ export interface SteerItem {
   status?: "pending" | "failed" | "deferred";
   /** true = API raced with run completion; send as the next normal message */
   deferred?: boolean;
+  /** DELETE outcome is unknown; keep visible without automatic resubmission. */
+  cancelFailed?: boolean;
   timestamp: Date;
 }
 
@@ -38,6 +40,7 @@ export function mergeMessagesWithSteers(
       queued: steer.queued,
       ...(steer.status ? { steerStatus: steer.status } : {}),
       ...(steer.deferred ? { deferred: true } : {}),
+      ...(steer.cancelFailed ? { steerCancelFailed: true } : {}),
     },
   }));
 

@@ -48,6 +48,10 @@ export interface ChatInputProps {
   queueControl?: FollowUpQueueControl;
   onCancelSteer?: (content: string, messageId?: string) => void;
   isLoading: boolean;
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  onRetryWorkspaceRead?: () => Promise<boolean>;
   disabled?: boolean;
   /** Block sending while an ask-human interrupt is awaiting a response. */
   sendBlocked?: boolean;

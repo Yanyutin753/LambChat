@@ -109,6 +109,32 @@ function selectedPolicy(policy: string) {
   });
 }
 
+test("a running workspace remains inspectable while environment, machine and policy controls are locked", () => {
+  const change = vi.fn();
+  render(
+    <ChatInputSelectors
+      canManageSandbox
+      workspaceLocked
+      activePanel="sandbox"
+      onActivePanelChange={vi.fn()}
+      agentOptions={{ sandbox: option }}
+      agentOptionValues={{ sandbox: "local", sandbox_machine_id: "mac" }}
+      onToggleAgentOption={change}
+    />,
+  );
+  expect(screen.getByText("agentOptions.sandbox.lockedWhileActive")).toBeVisible();
+  const cloud = screen.getByRole("button", { name: /Cloud/ });
+  expect(cloud).toBeDisabled();
+  fireEvent.click(cloud);
+  for (const machine of document.querySelectorAll("[data-sandbox-machine-row]")) {
+    expect(machine).toBeDisabled();
+    fireEvent.click(machine);
+  }
+  expect(screen.getByRole("button", { name: "agentOptions.sandboxPolicy.section" })).toBeDisabled();
+  expect(change).not.toHaveBeenCalled();
+  expect(state.machinePolicy).not.toHaveBeenCalled();
+});
+
 test("cloud shows its policy without personal devices or local offline guidance", () => {
   render(panel());
   expect(selectedPolicy("none")).toBeInTheDocument();
