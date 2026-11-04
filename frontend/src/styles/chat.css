@@ -1587,10 +1587,14 @@ html[data-mobile-keyboard="true"]
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.composer-queue svg {
+.composer-queue svg,
+[id^="composer-queue-menu-"] svg {
   width: 0.75rem;
   height: 0.75rem;
   flex-shrink: 0;
+}
+[id^="composer-queue-menu-"] .ui-menu-item {
+  font-size: 0.875rem;
 }
 .composer-queue-row {
   padding: 0 var(--composer-row-inset, 0.75rem);

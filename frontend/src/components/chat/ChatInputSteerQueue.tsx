@@ -125,7 +125,7 @@ function QueueRow({
             title={t("chat.queueMore")}
             aria-haspopup="menu"
             aria-expanded={!!menuPosition}
-            aria-controls={menuPosition ? menuId : undefined}
+            aria-controls={menuPosition ? `composer-queue-menu-${menuId}` : undefined}
             onClick={() => {
               if (menuPosition) closeMenu();
               else {
@@ -142,7 +142,7 @@ function QueueRow({
       </div>
       {menuPosition && onEdit && (
         <ResourceCardMenu
-          id={menuId}
+          id={`composer-queue-menu-${menuId}`}
           title={t("chat.queueMore")}
           position={menuPosition}
           anchorRef={triggerRef}
