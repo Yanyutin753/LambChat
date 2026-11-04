@@ -1596,6 +1596,10 @@ html[data-mobile-keyboard="true"]
 [id^="composer-queue-menu-"] .ui-menu-item {
   font-size: 0.875rem;
 }
+.composer-queue .interactive-action-icon > div,
+[id^="composer-queue-menu-"] .interactive-action-icon > div {
+  flex-shrink: 0;
+}
 .composer-queue-row {
   padding: 0 var(--composer-row-inset, 0.75rem);
 }
