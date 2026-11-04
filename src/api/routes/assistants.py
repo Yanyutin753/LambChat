@@ -57,6 +57,7 @@ async def get_conversation_assistant(
         assistant.model_copy(
             update={
                 "context_kind": "task",
+                "context_task_id": record["_id"],
                 "context_session_id": record.get("assistant_source_session_id")
                 or record["parent_session_id"],
             }

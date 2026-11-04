@@ -258,6 +258,7 @@ async def test_background_task_identity_uses_owned_task_and_its_original_audienc
     service.store.for_session = AsyncMock(return_value=None)
     service.store.get = AsyncMock(return_value=service.get.return_value)
     service.task_collection.find_one.return_value = {
+        "_id": "owned-task",
         "assistant_id": "a",
         "parent_session_id": "parent",
         "assistant_source_session_id": "audience",
@@ -269,6 +270,7 @@ async def test_background_task_identity_uses_owned_task_and_its_original_audienc
         response = await client.get("/api/assistants/conversation/child")
     assert response.status_code == 200
     assert response.json()["context_kind"] == "task"
+    assert response.json()["context_task_id"] == "owned-task"
     assert response.json()["context_session_id"] == "audience"
     service.task_collection.find_one.assert_awaited_once_with(
         {"user_id": "owner", "session_id": "child"}

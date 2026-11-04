@@ -18,6 +18,8 @@ const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
     openConversation: vi.fn(),
     forConversation: vi.fn(),
     tasks: vi.fn(),
+    task: vi.fn(),
+    reviewTask: vi.fn(),
   },
   profiles: { persona: vi.fn(), team: vi.fn(), allowed: true },
   navigate: vi.fn(),
@@ -151,10 +153,14 @@ test("tasks are a page region with no modal and keep workspace navigation", asyn
   ).toBeVisible();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(
-    screen.getAllByRole("navigation", {
+    screen.queryByRole("navigation", {
       name: "assistants.workspaceNavigation",
-    }).length,
-  ).toBeGreaterThan(0);
+    }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
+  expect(
+    await screen.findByRole("menuitem", { name: "assistants.workRecords" }),
+  ).toBeVisible();
 });
 
 test("a session from a different assistant never renders in the selected workspace", async () => {
@@ -324,13 +330,16 @@ test("a task conversation waits for assistant ownership before rendering", async
   expect(await screen.findByText("Real chat workspace")).toBeVisible();
 });
 
-test("task results identify their task context instead of claiming to be the main conversation", async () => {
+test("task results retain assistant identity without a second conversation mode", async () => {
   route.assistantId = "helper";
   route.sessionId = "task-thread";
   api.forConversation.mockResolvedValue({ ...helper, context_kind: "task" });
   render(<AssistantsPanel />);
   await screen.findByText("Real chat workspace");
-  expect(screen.getByText("assistants.taskConversation")).toBeVisible();
+  expect(screen.queryByText("assistants.taskConversation")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "assistants.chatWith" }),
+  ).toBeVisible();
 });
 
 test("bound role identity is shared by the assistant list and workspace header", async () => {
@@ -415,5 +424,54 @@ test("permission revocation removes resolved role metadata immediately", async (
   expect(screen.queryByText("Research role")).toBeNull();
   expect(screen.getByTestId("assistant-avatar")).not.toHaveAttribute(
     "data-avatar",
+  );
+});
+
+test("secondary destinations have one entry in the workspace menu", async () => {
+  route.assistantId = "helper";
+  route.view = "tasks";
+  render(<AssistantsPanel />);
+  await screen.findByRole("button", { name: "common.moreOptions" });
+  expect(
+    screen.queryByRole("button", { name: "assistants.discussions" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "assistants.memory" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "assistants.discussions" }),
+  );
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper/discussions");
+});
+
+test("verified task conversations expose review next to the real chat", async () => {
+  route.assistantId = "helper";
+  route.sessionId = "task-thread";
+  api.forConversation.mockResolvedValue({
+    ...helper,
+    context_kind: "task",
+    context_task_id: "task-1",
+  });
+  api.task.mockResolvedValue({
+    id: "task-1",
+    session_id: "task-thread",
+    description: "Review this report",
+    state: "awaiting_review",
+    run_id: "run-1",
+    review_revision: 2,
+  });
+  api.reviewTask.mockResolvedValue({});
+  render(<AssistantsPanel />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.acceptTask" }),
+  );
+  expect(screen.getByText("Real chat workspace")).toBeVisible();
+  await waitFor(() =>
+    expect(api.reviewTask).toHaveBeenCalledWith("helper", "task-1", {
+      run_id: "run-1",
+      revision: 2,
+      accepted: true,
+    }),
   );
 });

@@ -17,6 +17,7 @@ export type AssistantStatus = "active" | "paused" | "archived";
 export interface Assistant extends AssistantConfiguration {
   context_kind?: "conversation" | "task";
   context_session_id?: string | null;
+  context_task_id?: string | null;
   id: string;
   user_id: string;
   session_id: string;

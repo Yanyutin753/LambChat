@@ -156,6 +156,14 @@ export function AssistantTasksDialog({
       setCreating(false);
       document.getElementById(`${formId}-toggle`)?.focus();
       setPage(1);
+      if (embedded && result.session_id) {
+        onClose();
+        navigate(
+          `/assistants/${encodeURIComponent(
+            assistant.id,
+          )}/chat/${encodeURIComponent(result.session_id)}`,
+        );
+      }
     });
   const review = (task: AssistantTask, accepted: boolean) =>
     perform(() =>
@@ -230,7 +238,7 @@ export function AssistantTasksDialog({
             <div>
               {embedded && (
                 <h2 className="text-24 font-medium tracking-tight">
-                  {t("assistants.tasks")}
+                  {t("assistants.workRecords")}
                 </h2>
               )}
               <p

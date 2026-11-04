@@ -91,6 +91,15 @@ export function AssistantDiscussionsDialog({
           illustration="panel-channels"
           title={t("assistants.discussions")}
           description={t("assistants.noDiscussions")}
+          action={
+            <Button
+              onClick={() =>
+                open(`/assistants/${encodeURIComponent(assistant.id)}`)
+              }
+            >
+              {t("assistants.openConversation")}
+            </Button>
+          }
         />
       ) : (
         <ul className="divide-y divide-theme-border">

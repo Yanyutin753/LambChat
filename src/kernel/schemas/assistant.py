@@ -46,6 +46,7 @@ class AssistantUpdate(AssistantCreate):
 class Assistant(AssistantCreate):
     context_kind: Literal["conversation", "task"] = "conversation"
     context_session_id: str | None = None
+    context_task_id: str | None = None
     id: str
     user_id: str
     session_id: str

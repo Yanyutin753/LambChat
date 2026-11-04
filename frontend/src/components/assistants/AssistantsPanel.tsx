@@ -39,6 +39,7 @@ import { AssistantDataPage } from "./AssistantDataPage";
 import { AssistantEditor } from "./AssistantEditor";
 import { AssistantDiscussionsDialog } from "./AssistantDiscussionsDialog";
 import { AssistantRulesDialog } from "./AssistantRulesDialog";
+import { AssistantTaskContext } from "./AssistantTaskContext";
 import { AssistantTasksDialog } from "./AssistantTasksDialog";
 import "../../styles/assistant-workspace.css";
 
@@ -84,6 +85,7 @@ export function AssistantsPanel() {
   const [verifiedSession, setVerifiedSession] = useState<{
     key: string;
     kind: Assistant["context_kind"];
+    taskId?: string | null;
   } | null>(null);
   const [sessionError, setSessionError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -265,6 +267,7 @@ export function AssistantsPanel() {
           setVerifiedSession({
             key: `${assistant.id}:${sessionId}`,
             kind: context.context_kind,
+            taskId: context.context_task_id,
           });
         else setSessionError(t("assistants.conversationMismatch"));
       })
@@ -305,7 +308,7 @@ export function AssistantsPanel() {
 
   const navigation = [
     { id: "chat", label: "conversation", icon: MessageSquare },
-    { id: "tasks", label: "tasks", icon: ListTodo },
+    { id: "tasks", label: "workRecords", icon: ListTodo },
     { id: "discussions", label: "discussions", icon: MessagesSquare },
     ...(hasPermission(Permission.SCHEDULED_TASK_READ)
       ? [{ id: "rules", label: "rules", icon: CalendarClock }]
@@ -450,24 +453,6 @@ export function AssistantsPanel() {
             }}
           />
         </div>
-        {assistant && (
-          <nav
-            className="assistant-workspace-navigation"
-            aria-label={t("assistants.workspaceNavigation")}
-          >
-            {navigation.slice(2).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                aria-current={view === id ? "page" : undefined}
-                onClick={() => openView(id)}
-              >
-                <Icon size={16} />
-                <span>{t(`assistants.${label}`)}</span>
-              </button>
-            ))}
-          </nav>
-        )}
       </aside>
       <div
         ref={panelRef}
@@ -502,22 +487,32 @@ export function AssistantsPanel() {
           )}
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-14 font-medium">
-              {assistant?.name || t("assistants.title")}
+              {assistant ? (
+                <button
+                  type="button"
+                  className="max-w-full truncate rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+                  aria-label={t("assistants.chatWith", {
+                    name: assistant.name,
+                  })}
+                  onClick={() => openView("chat")}
+                >
+                  {assistant.name}
+                </button>
+              ) : (
+                t("assistants.title")
+              )}
             </h2>
             {assistant && (
               <p className="assistant-workspace-role">
-                {!taskConversation &&
-                assistant.status === "active" &&
+                {assistant.status === "active" &&
                 ["chat", "tasks"].includes(view)
                   ? currentProfile?.name
                   : t(
                       `assistants.${
-                        taskConversation
-                          ? "taskConversation"
-                          : assistant.status !== "active"
-                            ? assistant.status
-                            : navigation.find((item) => item.id === view)
-                                ?.label || "conversation"
+                        assistant.status !== "active"
+                          ? assistant.status
+                          : navigation.find((item) => item.id === view)
+                              ?.label || "conversation"
                       }`,
                     )}
               </p>
@@ -525,25 +520,6 @@ export function AssistantsPanel() {
           </div>
           {assistant && (
             <>
-              <nav
-                className="assistant-workspace-view-switch"
-                aria-label={t("assistants.workspaceNavigation")}
-              >
-                {navigation.slice(0, 2).map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-current={
-                      (taskConversation ? "tasks" : view) === id
-                        ? "page"
-                        : undefined
-                    }
-                    onClick={() => openView(id)}
-                  >
-                    {t(`assistants.${label}`)}
-                  </button>
-                ))}
-              </nav>
               <button
                 ref={menuAnchor}
                 type="button"
@@ -572,7 +548,7 @@ export function AssistantsPanel() {
                     if (restore) menuAnchor.current?.focus();
                   }}
                   actions={[
-                    ...navigation.slice(2).map(({ id, label, icon: Icon }) => ({
+                    ...navigation.slice(1).map(({ id, label, icon: Icon }) => ({
                       label: t(`assistants.${label}`),
                       icon: <Icon size={14} />,
                       onClick: () => openView(id),
@@ -654,17 +630,28 @@ export function AssistantsPanel() {
               sessionId &&
               (sessionId === assistant.session_id ||
                 verifiedSession?.key === `${assistant.id}:${sessionId}`) ? (
-                <ChatAppContent
-                  key={`${assistant.id}:${sessionId}`}
-                  embedded
-                  showProfileModal={false}
-                  onCloseProfileModal={noop}
-                  sidebarCollapsed
-                  setSidebarCollapsed={noop}
-                  mobileSidebarOpen={false}
-                  setMobileSidebarOpen={noop}
-                  onShowProfile={noop}
-                />
+                <>
+                  {taskConversation && verifiedSession?.taskId && (
+                    <AssistantTaskContext
+                      key={`${assistant.id}:${sessionId}`}
+                      assistantId={assistant.id}
+                      taskId={verifiedSession.taskId}
+                      sessionId={sessionId}
+                      canWrite={canWrite}
+                    />
+                  )}
+                  <ChatAppContent
+                    key={`${assistant.id}:${sessionId}`}
+                    embedded
+                    showProfileModal={false}
+                    onCloseProfileModal={noop}
+                    sidebarCollapsed
+                    setSidebarCollapsed={noop}
+                    mobileSidebarOpen={false}
+                    setMobileSidebarOpen={noop}
+                    onShowProfile={noop}
+                  />
+                </>
               ) : (
                 <PanelLoadingState />
               )

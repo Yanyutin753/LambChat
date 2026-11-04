@@ -106,3 +106,23 @@
 - 未做手机或桌面物理设备验收；浏览器窄屏模拟不等同于原生设备验证。
 - 额外启用的全目录真实记忆压测在长时间无进展后中断，不计为通过；最终门禁使用常规回归及明确选择的真实 MongoDB/Redis 集成验证。
 - 未部署、合并或发布生产版本；生产上线仍走既有 staging 与发布流程。R4 的供应商端到端证据和上述未测环境不能标为已通过。
+
+
+## 个人助手交互收敛（2026-11-04）
+
+保留现有 Codex 式执行工作区，在 `/assistants` 增加 Dots 式长期助手体验。两个区域复用聊天、文件预览、后台任务与权限系统；不引入第二套执行引擎。
+
+- 点击助手进入持续对话，不要求用户在“主对话”和“任务”之间选择模式。工作记录、渠道讨论、规则、记忆及费用集中在一个更多菜单，移除重复侧栏入口。
+- 从工作记录安排工作后直接进入真实执行对话；自然语言交代工作时，现有后台工具生成的结果链接也保持在当前助手工作区。原有普通聊天链接行为保持不变。
+- 工作结果旁展示当前状态及按需出现的停止、验收和返工操作。完整要求折叠保存；任务读取匹配当前会话，操作绑定当前 run/revision，加载失败及版本冲突期间禁用决策。轮询与窗口恢复刷新状态，旧读取不能覆盖新的验收。
+- 助手名称可返回日常对话；空渠道列表提供开始聊天的路径。执行记录仍独立持久化，不混合不同工作的证据或渠道受众。
+
+主要参考近期个人助手项目 [OpenDots](https://github.com/CopilotKit/OpenDots)：连续聊天、内联工作反馈和上下文中的人工决定。阅读其 `Chat.tsx`、`PageReviewCard.tsx`、`TaskActions.tsx` 后，复用 LambChat 的真实状态与审批约束，不移植其运行时或资产。
+
+[DSH SuperAgent](https://github.com/deepseek-ai/dsh-superagent-prototype) 于本次核验时是研究原型，其部署面向单个 GitHub 仓库，不是现成个人助手产品。借鉴 [Philosophy](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/main/docs/000-philosophy.md) 的少概念、少设置、必要时才打扰，以及 [Domain](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/main/docs/001-domain.md) 中同一讨论承接多项授权工作、结果回到来源的模型；不复制其管理面板全部标签页。
+
+[DS-Bot](https://github.com/Fei2411/DS-Bot) 与 [omdsh-dev/dsh-bot](https://github.com/omdsh-dev/dsh-bot) 是两个社区项目，不应与官方 DSH SuperAgent 研究原型混称。前者的 [产品愿景](https://github.com/Fei2411/DS-Bot/blob/main/docs/vision.md)、[UI 规范](https://github.com/Fei2411/DS-Bot/blob/main/docs/design/ui-standard.md) 和实际仓库截图更贴近“保留执行工作区，增加个人助手”：以 Bot 身份和联系人列表组织持续聊天，配置进入详情，后台执行结果回到交流上下文。后者也将私聊、显式成员群聊、原生执行会话与受众记忆区分。这里只借鉴交互和边界；Chief 管理 Bot、自动创建群聊及多 Bot 群聊没有在本轮实现。
+
+OpenClaw、Hermes Agent 与 nanobot 的当前官方仓库也用于核对长期身份、记忆、渠道与主动执行方向；本轮交互取舍以 DS-Bot、OpenDots 与 DSH 为主。没有安装或运行这些第三方系统，其文档声明不算 LambChat 的验收证据。
+
+本轮最终检查：前端 1,052 文件 / 6,379 项测试、后端助手相关 121 项（另 3 项按条件跳过）、Ruff、Mypy（674 源文件）、ESLint、TypeScript、生产构建及体积检查通过。共享锁内记录的相关源码在检查和浏览器验收期间未变化。真实 glm-5.3 完成新工作后，页面直接进入结果对话；“需要修改 → 验收通过”、助手名称返回、空状态入口和菜单 Escape 焦点恢复通过。深浅色 1280px 桌面及 390px 手机走查无横向溢出，浏览器未记录错误；原深色偏好和浏览器尺寸已恢复。后续仅补充此研究与验收记录，代码快照不变。

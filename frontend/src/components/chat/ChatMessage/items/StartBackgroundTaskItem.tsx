@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Workflow } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useMatch } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { parseSubagentControlResult } from "../subagentPanelState";
@@ -14,6 +14,7 @@ import {
 
 function BackgroundConversationLink(props: ToolDetailProps) {
   const { t } = useTranslation();
+  const workspace = useMatch("/assistants/:assistantId/*");
   const result = parseSubagentControlResult(props.result);
   if (
     props.isPending ||
@@ -26,7 +27,11 @@ function BackgroundConversationLink(props: ToolDetailProps) {
     return null;
   return (
     <Link
-      to={`/chat/${encodeURIComponent(result.session_id)}`}
+      to={`${
+        workspace?.params.assistantId
+          ? `/assistants/${encodeURIComponent(workspace.params.assistantId)}`
+          : ""
+      }/chat/${encodeURIComponent(result.session_id)}`}
       className="inline-flex min-h-9 max-w-full items-center rounded px-1 text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary"
     >
       {t("chat.message.toolBackgroundTaskOpen")}

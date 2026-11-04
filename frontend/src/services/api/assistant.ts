@@ -90,6 +90,11 @@ export const assistantApi = {
       })}`,
     );
   },
+  task(id: string, taskId: string) {
+    return authFetch<AssistantTask>(
+      `${resource(id)}/tasks/${encodeURIComponent(taskId)}`,
+    );
+  },
   createTask(
     id: string,
     data: { description: string; request_id: string; timeout_seconds: number },

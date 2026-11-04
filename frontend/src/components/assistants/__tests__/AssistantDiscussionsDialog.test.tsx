@@ -89,3 +89,18 @@ test("discussion pagination retains its total between pages", async () => {
   expect(await screen.findByText("Second page")).toBeVisible();
   expect(api.discussions).toHaveBeenLastCalledWith("helper", 10, 10);
 });
+
+test("an empty channel inbox offers a route back to the assistant conversation", async () => {
+  api.discussions.mockResolvedValue({ total: 0, discussions: [] });
+  render(
+    <AssistantDiscussionsDialog
+      assistant={assistant}
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.openConversation" }),
+  );
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper");
+});

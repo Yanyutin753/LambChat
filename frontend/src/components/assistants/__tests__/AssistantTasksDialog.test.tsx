@@ -363,3 +363,54 @@ test("workspace task titles open the result in place and preserve full requireme
   expect(screen.getByText(description).closest("details")).not.toBeNull();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+test("new workspace tasks immediately open their admitted conversation", async () => {
+  api.createTask.mockResolvedValue({
+    status: "queued",
+    task_id: "new",
+    session_id: "new-child",
+  });
+  const close = vi.fn();
+  render(
+    <AssistantTasksDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={close}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "assistants.newTask" }));
+  fireEvent.change(screen.getByLabelText("assistants.taskDescription"), {
+    target: { value: "Verify sources" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "assistants.startTask" }));
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/new-child"),
+  );
+  expect(close).toHaveBeenCalledOnce();
+});
+
+test("failed admission retains the draft and does not navigate", async () => {
+  api.createTask.mockResolvedValue({
+    status: "error",
+    session_id: "failed-child",
+  });
+  render(
+    <AssistantTasksDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "assistants.newTask" }));
+  fireEvent.change(screen.getByLabelText("assistants.taskDescription"), {
+    target: { value: "Keep this" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "assistants.startTask" }));
+  await screen.findByRole("alert");
+  expect(navigate).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("assistants.taskDescription")).toHaveValue(
+    "Keep this",
+  );
+});
