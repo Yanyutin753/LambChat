@@ -33,6 +33,7 @@ class _CancelHarness:
     def session(self):
         harness = self
         return SimpleNamespace(
+            id="session-1",
             user_id="user-1",
             session_id="session-1",
             metadata={
@@ -98,10 +99,13 @@ class _CancelHarness:
         harness = self
 
         class _SessionManager:
+            storage = SimpleNamespace(update_metadata_for_run=AsyncMock(return_value=True))
+
             async def get_session(self, session_id):
                 return harness.session()
 
         monkeypatch.setattr("src.api.routes.chat.SessionManager", _SessionManager)
+        monkeypatch.setattr("src.infra.session.manager.SessionManager", _SessionManager)
         monkeypatch.setattr("src.api.routes.chat.get_task_manager", lambda: harness.task_manager())
         monkeypatch.setattr(
             "src.infra.storage.mongodb.get_approval_storage",

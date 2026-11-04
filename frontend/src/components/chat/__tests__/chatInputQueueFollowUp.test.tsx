@@ -193,10 +193,11 @@ test("guiding a queued message preserves attachments and the current draft", asy
   fireEvent.click(
     screen.getByRole("button", { name: i18n.t("chat.queueGuide") }),
   );
-  expect(onCancelSteer).toHaveBeenCalledWith("Use these notes", "q1");
+  expect(onCancelSteer).not.toHaveBeenCalled();
   expect(onSupplement).toHaveBeenCalledExactlyOnceWith(
     "Use these notes",
     attachments,
+    "q1",
   );
   expect(editor).toHaveTextContent("unfinished draft");
 });

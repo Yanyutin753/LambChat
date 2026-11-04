@@ -1561,21 +1561,26 @@ html[data-mobile-keyboard="true"]
   }
 }
 
-/* All composer controls align to the same text and icon edges. */
+/* A quiet context panel sits inside the wider writing surface. */
 .composer-workspace-shell {
   --composer-row-inset: 0.75rem;
+}
+.composer-context-panel {
+  margin-inline: 0.75rem;
   border: 1px solid var(--theme-border-subtle);
-  border-radius: var(--radius-xl);
-  background: var(--theme-bg-elevated);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--theme-bg-secondary);
+}
+.composer-context-panel:has(> .composer-workspace-strip:only-child:empty) {
+  display: none;
+}
+.composer-workspace-shell .chat-input-container {
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
 }
-.composer-workspace-shell:focus-within {
-  border-color: var(--theme-ring);
-}
-.composer-workspace-shell
-  .chat-input-container:not([data-composer-expanded]):not([data-drag-over]) {
-  border-color: transparent;
-  box-shadow: none;
+.composer-queue-pause {
+  padding: 0.125rem var(--composer-row-inset);
+  border-bottom: 1px solid var(--theme-border-subtle);
 }
 .composer-queue {
   max-height: min(12rem, 25dvh);
@@ -1586,7 +1591,7 @@ html[data-mobile-keyboard="true"]
 .composer-goal-row {
   padding: 0.25rem var(--composer-row-inset, 0.75rem);
 }
-.composer-workspace-shell > :is(.composer-queue, .composer-goal-row) {
+.composer-context-panel > :is(.composer-queue, .composer-goal-row) {
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 .composer-workspace-shell .composer-workspace-strip {

@@ -180,6 +180,7 @@ export function ChatAppContent({
     queueFollowUp,
     supplementFollowUp,
     steerMessages,
+    queueControl,
     cancelSteer,
     applyRecommendQuestions,
     clearActiveGoal,
@@ -937,6 +938,7 @@ export function ChatAppContent({
           onSupplementFollowUpMessage={supplementFollowUp}
           onQueueFollowUpMessage={queueFollowUp}
           steerMessages={steerMessages}
+          queueControl={queueControl}
           onCancelSteer={cancelSteer}
           activeGoal={activeGoal}
           persistentGoal={persistentGoal}

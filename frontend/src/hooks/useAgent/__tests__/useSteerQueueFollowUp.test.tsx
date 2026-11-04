@@ -67,7 +67,10 @@ test("queueFollowUp supports stacking multiple follow-ups in order", () => {
 });
 
 test("a steer rejected after a restored run ended stays eligible for idle promotion", async () => {
-  steer.mockRejectedValueOnce({ status: 409 });
+  steer.mockRejectedValueOnce({
+    status: 409,
+    code: "steer_session_not_running",
+  });
   const deferred: string[] = [];
   const { result } = renderHook(() =>
     useSteerQueue({
@@ -111,7 +114,7 @@ test("a late steer rejection preserves its fallback in the original session queu
     result.current.queueFollowUp("B 的补充");
   });
   await act(async () => {
-    reject({ status: 409 });
+    reject({ status: 409, code: "steer_session_not_running" });
     await sending;
   });
   expect(result.current.steerMessages.map((item) => item.content)).toEqual([
@@ -159,8 +162,44 @@ test("a late steer rejection cannot resurrect an explicitly cancelled draft", as
   const item = result.current.steerMessages[0];
   act(() => result.current.cancelSteer(item.content, item.id));
   await act(async () => {
-    reject({ status: 409 });
+    reject({ status: 409, code: "steer_session_not_running" });
     await sending;
   });
   expect(result.current.steerMessages).toEqual([]);
+});
+
+test("guiding a queued draft targets its run and retains the same draft on failure", async () => {
+  steer.mockRejectedValueOnce({ status: 409, code: "conflict" });
+  const { result, unmount } = renderHook(() =>
+    useSteerQueue({
+      sessionIdRef: { current: "guide-session" },
+      currentRunIdRef: { current: "run-1" },
+    }),
+  );
+  act(() => result.current.queueFollowUp("保留引导"));
+  const id = result.current.steerMessages[0].id;
+  await act(async () => {
+    await result.current.steerMessage("保留引导", [], id);
+  });
+  expect(steer).toHaveBeenCalledWith(
+    "guide-session",
+    "保留引导",
+    id,
+    [],
+    "run-1",
+  );
+  expect(result.current.steerMessages).toHaveLength(1);
+  expect(result.current.steerMessages[0]).toMatchObject({
+    id,
+    content: "保留引导",
+    status: "failed",
+  });
+  unmount();
+  const restored = renderHook(() =>
+    useSteerQueue({ sessionIdRef: { current: "guide-session" } }),
+  );
+  expect(restored.result.current.steerMessages[0]).toMatchObject({
+    id,
+    status: "failed",
+  });
 });

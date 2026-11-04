@@ -623,6 +623,8 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
     agentOptionValues,
     t,
   );
+  const canGuideQueued =
+    canSend && !sendBlocked && (isLoading || props.queueControl?.paused);
   const goalControl = (action: "pause" | "resume" | "clear") =>
     onControlPersistentGoal && (() => onControlPersistentGoal(action));
   const goalBar = (
@@ -692,40 +694,39 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
                 }}
               >
                 <div className="composer-workspace-shell">
-                  <ChatInputSteerQueue
-                    items={steerMessages}
-                    onCancel={onCancelSteer}
-                    onEdit={onCancelSteer ? editQueuedMessage : undefined}
-                    onGuide={
-                      isLoading && canSend && !sendBlocked
-                        ? onSupplement
-                        : undefined
-                    }
-                  />
-                  {!composerExpanded && goalBar}
-                  <div
-                    data-static-icons
-                    className="composer-workspace-strip flex min-w-0 flex-nowrap items-center font-sans"
-                  >
-                    {onToggleAgentOption && (
-                      <ComposerSandboxChip
-                        options={agentOptions}
-                        values={agentOptionValues}
-                        expanded={activePanel === "sandbox"}
-                        onClick={() =>
-                          setActivePanel(
-                            activePanel === "sandbox" ? null : "sandbox",
-                          )
-                        }
-                      />
-                    )}
-                    {currentAgentInfo?.supports_sandbox &&
-                      agentOptionValues.sandbox === "local" && (
-                        <div
-                          ref={setWorkspaceHost}
-                          className="min-w-0 empty:hidden"
+                  <div className="composer-context-panel">
+                    <ChatInputSteerQueue
+                      items={steerMessages}
+                      {...props.queueControl}
+                      onCancel={onCancelSteer}
+                      onEdit={onCancelSteer ? editQueuedMessage : undefined}
+                      onGuide={canGuideQueued ? onSupplement : undefined}
+                    />
+                    {!composerExpanded && goalBar}
+                    <div
+                      data-static-icons
+                      className="composer-workspace-strip flex min-w-0 flex-nowrap items-center font-sans"
+                    >
+                      {onToggleAgentOption && (
+                        <ComposerSandboxChip
+                          options={agentOptions}
+                          values={agentOptionValues}
+                          expanded={activePanel === "sandbox"}
+                          onClick={() =>
+                            setActivePanel(
+                              activePanel === "sandbox" ? null : "sandbox",
+                            )
+                          }
                         />
                       )}
+                      {currentAgentInfo?.supports_sandbox &&
+                        agentOptionValues.sandbox === "local" && (
+                          <div
+                            ref={setWorkspaceHost}
+                            className="min-w-0 empty:hidden"
+                          />
+                        )}
+                    </div>
                   </div>
                   <div
                     ref={containerRef}

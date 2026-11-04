@@ -18,6 +18,14 @@ from src.api.deps import guard_authenticated_stream, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
+from src.api.routes.chat_queue_control import (
+    queue_status,
+    set_queue_paused,
+    validate_follow_up_submission,
+)
+from src.api.routes.chat_queue_control import (
+    router as queue_control_router,
+)
 from src.api.routes.chat_request_config import (  # noqa: F401 - 转发导入保持 from chat import 兼容
     build_assistant_identity,
     build_conversation_config,
@@ -69,6 +77,7 @@ from src.kernel.schemas.session import Session
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+router.include_router(queue_control_router)
 logger = get_logger(__name__)
 
 from src.api.routes.chat_session_config import (  # noqa: E402
@@ -260,6 +269,11 @@ async def chat_stream(
         queue_position: 排队位置（仅排队时返回）
     """
     async with conversation_submission(request.session_id, user.sub):
+        if request.follow_up_to_run_id:
+            if not request.session_id:
+                raise AppError(ErrorCode.SESSION_NOT_FOUND)
+            session = await _get_owned_session(request.session_id, user)
+            validate_follow_up_submission(session, request.follow_up_to_run_id)
         async with timed_server_phase("chat_submit"):
             return await submit_chat_with_goal(_submit_chat, request, http_request, agent_id, user)
 
@@ -780,41 +794,14 @@ async def get_session_status(
     # 验证用户对该 session 的所有权
     session = await _get_owned_session(session_id, user)
 
-    task_manager = get_task_manager()
-
-    if run_id:
-        status = await task_manager.get_run_status(session_id, run_id)
-        error = await task_manager.get_run_error(run_id)
-    else:
-        status = await task_manager.get_status(session_id)
-        error = await task_manager.get_error(session_id)
-
-    if status not in {TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.EXPIRED}:
-        error = None
-
-    # A recovered run can retain an older trace error; prefer its current session code.
-    error_code = None
-    if error:
-        metadata = session.metadata or {}
-        if not run_id or metadata.get("current_run_id") == run_id:
-            error_code = metadata.get("task_error_code")
-        error_code = error_code or ("internal_error" if status is TaskStatus.FAILED else None)
-
-    result = {
-        "session_id": session_id,
-        "run_id": run_id,
-        "status": status.value,
-        "error": error,
-    }
-    if error_code:
-        result["code"] = error_code
-    return result
+    return await queue_status(session_id, session, run_id, get_task_manager())
 
 
 @router.post("/sessions/{session_id}/cancel")
 async def cancel_session(
     session_id: str,
     user: TokenPayload = Depends(require_permissions("chat:write")),
+    run_id: str | None = None,
 ):
     """
     取消正在运行的任务（包括排队中的任务）
@@ -831,6 +818,11 @@ async def cancel_session(
     async with conversation_submission(session_id, user.sub, allow_busy=True):
         # 验证用户对该 session 的所有权
         session = await _get_owned_session(session_id, user)
+
+        if run_id is not None and (session.metadata or {}).get("current_run_id") != run_id:
+            raise AppError(ErrorCode.CONFLICT)
+
+        await set_queue_paused(session, True)
 
         if (session.metadata or {}).get("persistent_goal_id"):
             from src.infra.goal_continuation import publish_goal
@@ -902,44 +894,51 @@ async def steer_running_agent(
     插话永远等不到下一次模型调用——此时插话视为打断，终止挂起 run
     （前端状态行切「已停止」），消息由前端作为新 run 的普通输入发送。
     """
-    session = await _get_owned_session(session_id, user)
+    async with conversation_submission(session_id, user.sub, allow_busy=True):
+        session = await _get_owned_session(session_id, user)
 
-    message = request.message.strip()
-    if not message:
-        raise AppError(ErrorCode.STEER_CONTENT_REQUIRED)
+        if (
+            request.expected_run_id
+            and (session.metadata or {}).get("current_run_id") != request.expected_run_id
+        ):
+            raise AppError(ErrorCode.CONFLICT)
 
-    task_manager = get_task_manager()
-    status = await task_manager.get_status(session_id)
-    if status == TaskStatus.WAITING_HUMAN:
+        message = request.message.strip()
+        if not message:
+            raise AppError(ErrorCode.STEER_CONTENT_REQUIRED)
+
+        task_manager = get_task_manager()
+        status = await task_manager.get_status(session_id)
+        if status == TaskStatus.WAITING_HUMAN:
+            message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
+            from src.api.routes.chat_steer import steer_interrupt_waiting_human
+
+            return await steer_interrupt_waiting_human(
+                session_id, session, user, message_id, task_manager
+            )
+        if status != TaskStatus.RUNNING:
+            raise AppError(
+                ErrorCode.STEER_SESSION_NOT_RUNNING,
+                args={"status": status.value if hasattr(status, "value") else status},
+            )
+
+        from src.infra.task.steer import SteerItem, get_steer_queue
+
+        await validate_steer_attachments(request, session, user)
         message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
-        from src.api.routes.chat_steer import steer_interrupt_waiting_human
-
-        return await steer_interrupt_waiting_human(
-            session_id, session, user, message_id, task_manager
+        attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
+        queued = await get_steer_queue().enqueue_item(
+            session_id,
+            SteerItem(id=message_id, content=message, attachments=attachments),
         )
-    if status != TaskStatus.RUNNING:
-        raise AppError(
-            ErrorCode.STEER_SESSION_NOT_RUNNING,
-            args={"status": status.value if hasattr(status, "value") else status},
-        )
-
-    from src.infra.task.steer import SteerItem, get_steer_queue
-
-    await validate_steer_attachments(request, session, user)
-    message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
-    attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
-    queued = await get_steer_queue().enqueue_item(
-        session_id,
-        SteerItem(id=message_id, content=message, attachments=attachments),
-    )
-    return {
-        # Keep status=queued for existing clients; outcome is newer protocol field.
-        "status": "queued",
-        "outcome": "accepted",
-        "session_id": session_id,
-        "message_id": message_id,
-        "queued": queued,
-    }
+        return {
+            # Keep status=queued for existing clients; outcome is newer protocol field.
+            "status": "queued",
+            "outcome": "accepted",
+            "session_id": session_id,
+            "message_id": message_id,
+            "queued": queued,
+        }
 
 
 @router.get("/sessions/{session_id}/steer")

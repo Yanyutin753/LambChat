@@ -1,9 +1,10 @@
+import { useQueuePause } from "./useAgent/queuePause";
 /**
  * Main useAgent hook
  * Provides agent communication, message management, and SSE streaming
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import { resolveAgentDisplayName } from "../components/agent/agentCatalog";
@@ -218,8 +219,35 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     discardQuietSnapshot,
     options,
   );
+  const {
+    queuePaused,
+    queuePauseReason,
+    queueResuming,
+    queuePauseRevision,
+    setQueuePaused,
+    isQueuePaused,
+    resumeQueue: resumeQueueRequest,
+  } = useQueuePause(sessionIdRef);
+  const resumeQueue = useCallback(async () => {
+    try {
+      await resumeQueueRequest();
+    } catch {
+      setError(i18n.t("chat.requestFailed"));
+    }
+  }, [resumeQueueRequest, setError]);
+  const queueControl = useMemo(
+    () => ({
+      paused: queuePaused,
+      pauseReason: queuePauseReason,
+      resuming: queueResuming,
+      onResume: resumeQueue,
+    }),
+    [queuePaused, queuePauseReason, queueResuming, resumeQueue],
+  );
+  const stoppedSubmitSeqRef = useRef<number | null>(null);
   const steerQueue = useSteerQueue({
     sessionIdRef,
+    currentRunIdRef,
     removeDeferredSteer,
   });
   const {
@@ -935,6 +963,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             requestTeamId,
             goalForRun,
             runOptions?.runModes?.includes("auto") || undefined,
+            submissionCallbacks?.followUpToRunId,
           ) as Promise<{
             session_id: string;
             run_id: string;
@@ -949,9 +978,29 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const newRunId = submitData.run_id;
         submissionAccepted = true;
         notifySubmissionAccepted(submissionCallbacks);
+        if (stoppedSubmitSeqRef.current === sendSeq) {
+          setQueuePaused(newSessionId, true, newRunId);
+          const stillViewingStoppedSend = sendSeqRef.current === sendSeq + 1;
+          if (stillViewingStoppedSend) {
+            if (!sessionId) {
+              bindSteerSession(newSessionId);
+              sessionIdRef.current = newSessionId;
+              setSessionId(newSessionId);
+            }
+            currentRunIdRef.current = newRunId;
+            setCurrentRunId(newRunId);
+          }
+          try {
+            await sessionApi.cancel(newSessionId, newRunId);
+          } catch {
+            if (stillViewingStoppedSend) setError(i18n.t("chat.requestFailed"));
+          }
+          return;
+        }
         // Leaving the view does not cancel an accepted server task. Its late
         // admission must not attach an SSE stream or mutate the next chat.
         if (!ownsSend()) return;
+        setQueuePaused(newSessionId, false);
         const projectId = pendingProjectIdRef.current;
         submitInFlightRef.current = false;
 
@@ -1194,6 +1243,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setPersistentGoal,
       setPersistentGoalBusy,
       bindSteerSession,
+      setQueuePaused,
       setActiveGoal,
       setConnectionStatus,
       setCurrentProjectId,
@@ -1224,6 +1274,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // stranded above the composer.（运行中探测/重试在 hook 内部，见
   // useSteerFollowUpPromotion）
   useSteerFollowUpPromotion({
+    queuePauseRevision,
+    isQueuePaused,
+    setQueuePaused,
     isLoading,
     isSendingRef,
     steerMessages: steerQueue.steerMessages,
@@ -1236,6 +1289,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   const stopGeneration = useCallback(
     async (requireCancellation = false) => {
+      const stoppedRunId = currentRunIdRef.current;
+      setQueuePaused(sessionIdRef.current, true, stoppedRunId ?? undefined);
+      if (submitInFlightRef.current)
+        stoppedSubmitSeqRef.current = sendSeqRef.current;
       // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
       // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
       sendSeqRef.current += 1;
@@ -1255,25 +1312,50 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
         try {
-          await sessionApi.cancel(currentSessionId);
+          await sessionApi.cancel(currentSessionId, stoppedRunId ?? undefined);
         } catch (error) {
           console.error(
             "[stopGeneration] Failed to call backend cancel API:",
             error,
           );
+          if (sessionIdRef.current === currentSessionId)
+            setError(i18n.t("chat.requestFailed"));
           if (requireCancellation) throw error;
         }
       }
     },
-    [options, setIsInitializingSandbox, setIsLoading, setSandboxError],
+    [
+      options,
+      setIsInitializingSandbox,
+      setIsLoading,
+      setSandboxError,
+      setQueuePaused,
+    ],
   );
 
   // 补充当前问题：打断进行中的 run，把补充内容并入这轮思考重新生成
   // （原问题与已生成部分保留在历史，新一轮自动携带完整上下文）
   const supplementFollowUp = useCallback(
-    async (content: string, attachments?: MessageAttachment[]) => {
+    async (
+      content: string,
+      attachments?: MessageAttachment[],
+      queuedMessageId?: string,
+    ) => {
       const text = content.trim();
       if (!text && !attachments?.length) return;
+      if (queuedMessageId) {
+        if (queuePaused) {
+          const targetSession = sessionIdRef.current;
+          await sendMessageRef.current?.(text, attachments, {
+            onAccepted: () =>
+              clearSteer(text, queuedMessageId, targetSession ?? undefined),
+          });
+          return;
+        }
+        if (!submitInFlightRef.current)
+          await steerMessage(text, attachments, queuedMessageId);
+        return;
+      }
       // isSendingRef 在整个流式期间恒为 true，不能用它在途判定；只有
       // POST 尚未被服务端受理时打断才会造成同会话双提交——仅该窗口转排队
       if (submitInFlightRef.current) {
@@ -1300,7 +1382,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       if (!isCurrentSupplement()) return;
       await sendMessageRef.current?.(text, attachments);
     },
-    [queueFollowUp, stopGeneration, persistentGoal?.status, steerMessage],
+    [
+      queueFollowUp,
+      stopGeneration,
+      persistentGoal?.status,
+      steerMessage,
+      queuePaused,
+      clearSteer,
+    ],
   );
 
   const clearMessages = useCallback(() => {
@@ -1422,10 +1511,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isLoading,
     canContinueInBackground: Boolean(
       isLoading &&
-        sessionId &&
-        currentRunId &&
-        !isLoadingHistory &&
-        !submitInFlightRef.current,
+      sessionId &&
+      currentRunId &&
+      !isLoadingHistory &&
+      !submitInFlightRef.current,
     ),
     isLoadingHistory,
     historyLoadGeneration,
@@ -1452,6 +1541,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sandboxError,
     sendMessage,
     ...steerQueue,
+    queueControl,
     supplementFollowUp,
     applyRecommendQuestions,
     clearActiveGoal,

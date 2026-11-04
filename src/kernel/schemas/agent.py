@@ -60,6 +60,7 @@ class SteerRequest(BaseModel):
 
     message: str = Field(..., min_length=1, max_length=32000)
     message_id: str | None = Field(default=None, min_length=1, max_length=128)
+    expected_run_id: str | None = Field(default=None, min_length=1, max_length=128)
     attachments: list[AttachmentSchema] | None = Field(default=None, max_length=20)
 
 
@@ -68,6 +69,7 @@ class AgentRequest(BaseModel):
 
     message: str = Field(..., description="User message or task description")
     session_id: Optional[str] = Field(None, description="Session ID for conversation continuity")
+    follow_up_to_run_id: str | None = Field(default=None, min_length=1, max_length=128)
     workspace_dir: str = Field("./workspace", description="Working directory for file operations")
     max_steps: int = Field(50, description="Maximum number of agent steps")
     disabled_tools: Optional[list[str]] = Field(

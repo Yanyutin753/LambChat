@@ -16,7 +16,7 @@ function readQueue(sessionId: string | null): SteerItem[] {
         !item ||
         typeof item.id !== "string" ||
         typeof item.content !== "string" ||
-        item.status !== "deferred" ||
+        !["deferred", "failed"].includes(item.status) ||
         typeof item.timestamp !== "string"
       )
         return [];
@@ -37,7 +37,12 @@ function readQueue(sessionId: string | null): SteerItem[] {
       )
         return [];
       return [
-        { ...item, timestamp, queued: true, deferred: true } as SteerItem,
+        {
+          ...item,
+          timestamp,
+          queued: item.status === "deferred",
+          deferred: item.status === "deferred",
+        } as SteerItem,
       ];
     });
   } catch {
@@ -50,7 +55,9 @@ function saveQueue(sessionId: string | null, items: SteerItem[]) {
   try {
     // Backend steers already have server persistence. Keeping local copies
     // would resurrect messages delivered while this tab was disconnected.
-    const queued = items.filter((item) => item.status === "deferred");
+    const queued = items.filter(
+      (item) => item.status === "deferred" || item.status === "failed",
+    );
     if (queued.length)
       sessionStorage.setItem(storageKey(sessionId), JSON.stringify(queued));
     else sessionStorage.removeItem(storageKey(sessionId));

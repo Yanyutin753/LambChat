@@ -4,6 +4,8 @@ import {
   CornerDownRight,
   ListEnd,
   Pencil,
+  Pause,
+  Play,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -11,13 +13,21 @@ import type { SteerItem } from "../../utils/mergeSteers";
 
 interface ChatInputSteerQueueProps {
   items: SteerItem[];
+  paused?: boolean;
+  pauseReason?: "interrupted" | "delivery";
+  resuming?: boolean;
+  onResume?: () => void;
   onCancel?: (content: string, messageId?: string) => void;
   onEdit?: (
     content: string,
     messageId: string,
     attachments?: SteerItem["attachments"],
   ) => void;
-  onGuide?: (content: string, attachments?: SteerItem["attachments"]) => void;
+  onGuide?: (
+    content: string,
+    attachments?: SteerItem["attachments"],
+    messageId?: string,
+  ) => void;
 }
 
 const actionClass =
@@ -65,8 +75,7 @@ function QueueRow({
           <button
             type="button"
             onClick={() => {
-              onCancel(item.content, item.id);
-              onGuide(item.content, item.attachments);
+              onGuide(item.content, item.attachments, item.id);
             }}
             className={`${actionClass} composer-queue-guide px-3`}
             aria-label={t("chat.queueGuide")}
@@ -75,7 +84,9 @@ function QueueRow({
             <InteractiveIcon>
               <CornerDownRight size={14} />
             </InteractiveIcon>
-            <span className="composer-queue-guide-label">{t("chat.queueGuide")}</span>
+            <span className="composer-queue-guide-label">
+              {t("chat.queueGuide")}
+            </span>
           </button>
         )}
         {onCancel && (
@@ -112,6 +123,10 @@ function QueueRow({
 
 export function ChatInputSteerQueue({
   items,
+  paused,
+  pauseReason,
+  resuming,
+  onResume,
   ...actions
 }: ChatInputSteerQueueProps) {
   const { t } = useTranslation();
@@ -122,6 +137,28 @@ export function ChatInputSteerQueue({
       className="composer-queue text-theme-text-secondary"
       aria-label={t("chat.steerQueue")}
     >
+      {paused && (
+        <div className="composer-queue-pause flex min-w-0 items-center gap-2">
+          <Pause size={14} aria-hidden="true" className="shrink-0 opacity-60" />
+          <span role="status" className="min-w-0 flex-1 text-12">
+            {t(
+              pauseReason === "delivery"
+                ? "chat.queuePausedAfterFailure"
+                : "chat.queuePausedByStop",
+            )}
+          </span>
+          <button
+            type="button"
+            className={`${actionClass} px-2`}
+            onClick={onResume}
+            disabled={resuming || !onResume}
+            aria-label={t("chat.queueResume")}
+          >
+            <Play size={14} aria-hidden="true" />
+            {t("chat.queueResume")}
+          </button>
+        </div>
+      )}
       {items.map((item) => (
         <QueueRow key={item.id} item={item} {...actions} />
       ))}
