@@ -426,10 +426,11 @@ html[data-right-panel-presentation="docked"]:has(
 }
 
 @container composer (max-width: 320px) {
-  .chat-input-toolbar {
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar {
+    --composer-row-inset: 0.5rem;
     gap: 0;
   }
-  .chat-input-toolbar > div {
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar > div {
     gap: 0;
   }
   .chat-input-toolbar [data-composer-run-modes] {

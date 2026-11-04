@@ -7,7 +7,7 @@ android {
         applicationId "com.lambchat.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21508007
+        versionCode 21508008
         versionName "2.15.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
