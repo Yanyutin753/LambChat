@@ -1,3 +1,6 @@
+import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
+import { filterApprovalsBySession } from "../../../utils/approvals";
+import type { PendingApproval } from "../../../types";
 import type { Message } from "../../../types";
 import type { SessionConfig } from "../../../hooks/useAgent/types";
 import type { ConnectionStatus } from "../../../types";
@@ -116,4 +119,20 @@ export function withoutModelSelection(
   delete result.model;
   delete result.model_id;
   return result;
+}
+
+/** Running work and unresolved human input keep the session binding fixed. */
+export function isSessionWorkspaceLocked(state: {
+  sessionId: string | null;
+  messages: Message[];
+  busy: boolean;
+  persistentGoal?: { status: string } | null;
+  approvals: PendingApproval[];
+}): boolean {
+  return Boolean(
+    isSessionRunning(state.messages, state.busy) ||
+      ["active", "waiting_human"].includes(state.persistentGoal?.status ?? "") ||
+      filterApprovalsBySession(state.approvals, state.sessionId).length > 0 ||
+      hasPendingAskHuman(state.messages.flatMap((message) => message.parts ?? [])),
+  );
 }

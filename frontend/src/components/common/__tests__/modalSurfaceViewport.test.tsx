@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { useAppViewport } from "../../../hooks/useAppViewport";
@@ -46,7 +47,7 @@ test("a body-portal dialog receives the keyboard inset when only the visual view
     // jsdom does not lay out visual viewports. Check that the actual portal is
     // selected by the production rule consuming those measured keyboard bounds.
     const utilities = readFileSync(
-      new URL("../../../styles/utilities.css", import.meta.url),
+      resolve(import.meta.dirname, "../../../styles/utilities.css"),
       "utf8",
     );
     const rule = utilities.match(

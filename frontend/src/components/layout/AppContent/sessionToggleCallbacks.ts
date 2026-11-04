@@ -257,5 +257,17 @@ export function useWorkspaceOptionActions(
     },
     [sessionId, setProject, change, agentContext, scope],
   );
-  return { changeOption, selectProject, workspaceSaving, workspaceUnconfirmed, retryWorkspaceRead };
+  return {
+    changeOption,
+    selectProject,
+    workspaceSaving,
+    workspaceUnconfirmed,
+    retryWorkspaceRead,
+    workspaceProps: {
+      workspaceLocked: workspace.locked,
+      workspaceSaving,
+      workspaceUnconfirmed,
+      onRetryWorkspaceRead: retryWorkspaceRead,
+    },
+  };
 }

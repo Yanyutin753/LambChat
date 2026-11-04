@@ -540,6 +540,11 @@ export function useAgentOptions(
     prepareAgentOptionChange,
     markWorkspaceIntent,
     restoreWorkspaceOptions,
+    workspaceActions: {
+      prepareChange: prepareAgentOptionChange,
+      markIntent: markWorkspaceIntent,
+      restore: restoreWorkspaceOptions,
+    },
     restoreAgentOptions,
     resetAgentOptionDefaults,
   };

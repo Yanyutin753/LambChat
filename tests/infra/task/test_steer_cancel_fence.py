@@ -116,3 +116,34 @@ async def test_expired_claim_preserves_payload_for_another_replica(lease_redis):
     assert await second.ack_items("session") is True
     assert await second.list_items("session") == []
     assert await second.list_receipts("session") == [item]
+
+
+async def test_settled_query_is_read_only_and_receipt_wins_across_replicas(lease_redis):
+    first, second = SteerQueue(redis=lease_redis), SteerQueue(redis=lease_redis)
+    await first.enqueue_item("session", SteerItem("delivered", "once"))
+    await first.drain_items("session")
+    assert await first.ack_items("session")
+    await first.remove_by_id("session", "delivered")
+    await first.remove_by_id("session", "cancelled")
+    before = {key: await lease_redis.dump(key) for key in await lease_redis.keys("lambchat:steer:*")}
+    assert await second.settled_outcome("session", "delivered") == "delivered"
+    assert await second.settled_outcome("session", "cancelled") == "cancelled"
+    assert await second.settled_outcome("session", "new") is None
+    assert await second.settled_outcome("other", "delivered") is None
+    after = {key: await lease_redis.dump(key) for key in await lease_redis.keys("lambchat:steer:*")}
+    assert after == before
+
+
+async def test_settled_query_ignores_expired_receipts_without_deleting_them(lease_redis, monkeypatch):
+    import src.infra.task.steer as module
+
+    now = 1000.0
+    monkeypatch.setattr(module.time, "time", lambda: now)
+    queue = SteerQueue(redis=lease_redis)
+    await queue.enqueue_item("session", SteerItem("expired", "old"))
+    await queue.drain_items("session")
+    assert await queue.ack_items("session")
+    before = await lease_redis.lrange(queue._receipts_key("session"), 0, -1)
+    now += 86401
+    assert await queue.settled_outcome("session", "expired") is None
+    assert await lease_redis.lrange(queue._receipts_key("session"), 0, -1) == before

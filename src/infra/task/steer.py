@@ -149,6 +149,37 @@ class SteerQueue:
             session_id, SteerItem(id=f"steer-{uuid4().hex}", content=message)
         )
 
+    async def settled_outcome(self, session_id: str, message_id: str) -> str | None:
+        """Read an existing receipt/withdrawal without admitting or mutating a message."""
+        redis = await self._redis_or_none()
+        if redis is not None:
+            result = await redis.eval(
+                """
+                for _, raw in ipairs(redis.call('LRANGE', KEYS[1], 0, -1)) do
+                  local value = cjson.decode(raw)
+                  if value['id'] == ARGV[1]
+                    and tonumber(value['receipt_expires_at'] or 0) > tonumber(ARGV[2]) then
+                    return -2
+                  end
+                end
+                if redis.call('EXISTS', KEYS[2]) == 1 then return -1 end
+                return 0
+                """,
+                2,
+                self._receipts_key(session_id),
+                self._cancelled_key(session_id, message_id),
+                message_id,
+                str(time.time()),
+            )
+            return {DELIVERED_STEER: "delivered", CANCELLED_STEER: "cancelled"}.get(int(result))
+        async with self._lock:
+            receipt = self._receipts.get(session_id, {}).get(message_id)
+            if receipt is not None and receipt[1] > time.time():
+                return "delivered"
+            if self._cancelled.get((session_id, message_id), 0) > time.monotonic():
+                return "cancelled"
+            return None
+
     async def enqueue_item(self, session_id: str, item: SteerItem) -> int:
         """入队；未消费的同 ID 去重，已撤回的 ID 返回 CANCELLED_STEER。
 

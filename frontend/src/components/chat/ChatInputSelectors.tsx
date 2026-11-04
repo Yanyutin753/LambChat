@@ -9,6 +9,7 @@ import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
+import { isWorkspaceSelectionLocked, type WorkspaceControlState } from "./workspaceSelection";
 import { AgentOptionButton } from "./AgentOptionButton";
 import { Select } from "../common/ui/Select";
 import {
@@ -43,10 +44,7 @@ import type {
   PersonaPresetSnapshot,
 } from "../../types";
 
-export interface ChatInputSelectorsProps {
-  workspaceLocked?: boolean;
-  workspaceSaving?: boolean;
-  workspaceUnconfirmed?: boolean;
+export interface ChatInputSelectorsProps extends WorkspaceControlState {
   onRetryWorkspaceRead?: () => Promise<boolean>;
   activePanel: FeaturePanel;
   onActivePanelChange: (panel: FeaturePanel) => void;
@@ -114,65 +112,65 @@ export interface ChatInputSelectorsProps {
   modelSupportsThinking?: boolean;
 }
 
-export function ChatInputSelectors({
-  workspaceLocked = false,
-  workspaceSaving = false,
-  workspaceUnconfirmed = false,
-  onRetryWorkspaceRead,
-  activePanel,
-  onActivePanelChange,
-  tools = [],
-  onToggleTool,
-  onToggleCategory,
-  onToggleAll,
-  enabledToolsCount = 0,
-  totalToolsCount = 0,
-  skills = [],
-  onToggleSkill,
-  onToggleSkillCategory,
-  onToggleAllSkills,
-  pendingSkillNames = [],
-  skillsMutating = false,
-  enabledSkillsCount = 0,
-  totalSkillsCount = 0,
-  enableSkills = true,
-  personaSkillsControlled = false,
-  selectedPersonaName,
-  personaPresets = [],
-  personaPresetsTotal,
-  personaPresetsPage,
-  onPersonaPresetsPageChange,
-  onPersonaPresetsSearchChange,
-  onPersonaPresetsTagChange,
-  selectedPersonaPresetId,
-  personaPresetsLoading = false,
-  personaPresetsError,
-  onRetryPersonaPresets,
-  personaPresetsMutating = false,
-  onUsePersonaPreset,
-  onTogglePersonaPreference,
-  onCopyPersonaPreset,
-  onClearPersonaPreset,
-  canManagePersonaPresets = false,
-  canCopyPersonaPresets = false,
-  canManageSandbox = false,
-  agents = [],
-  agentsLoading = false,
-  agentsError = false,
-  onRetryAgents,
-  currentAgent,
-  onSelectAgent,
-  selectedTeamId,
-  onSelectTeam,
-  onOpenTeamBuilder,
-  agentOptions,
-  agentOptionValues = {},
-  onToggleAgentOption,
-  modelSupportsThinking,
-}: ChatInputSelectorsProps) {
+export function ChatInputSelectors(props: ChatInputSelectorsProps) {
+  const {
+    workspaceSaving = false,
+    workspaceUnconfirmed = false,
+    onRetryWorkspaceRead,
+    activePanel,
+    onActivePanelChange,
+    tools = [],
+    onToggleTool,
+    onToggleCategory,
+    onToggleAll,
+    enabledToolsCount = 0,
+    totalToolsCount = 0,
+    skills = [],
+    onToggleSkill,
+    onToggleSkillCategory,
+    onToggleAllSkills,
+    pendingSkillNames = [],
+    skillsMutating = false,
+    enabledSkillsCount = 0,
+    totalSkillsCount = 0,
+    enableSkills = true,
+    personaSkillsControlled = false,
+    selectedPersonaName,
+    personaPresets = [],
+    personaPresetsTotal,
+    personaPresetsPage,
+    onPersonaPresetsPageChange,
+    onPersonaPresetsSearchChange,
+    onPersonaPresetsTagChange,
+    selectedPersonaPresetId,
+    personaPresetsLoading = false,
+    personaPresetsError,
+    onRetryPersonaPresets,
+    personaPresetsMutating = false,
+    onUsePersonaPreset,
+    onTogglePersonaPreference,
+    onCopyPersonaPreset,
+    onClearPersonaPreset,
+    canManagePersonaPresets = false,
+    canCopyPersonaPresets = false,
+    canManageSandbox = false,
+    agents = [],
+    agentsLoading = false,
+    agentsError = false,
+    onRetryAgents,
+    currentAgent,
+    onSelectAgent,
+    selectedTeamId,
+    onSelectTeam,
+    onOpenTeamBuilder,
+    agentOptions,
+    agentOptionValues = {},
+    onToggleAgentOption,
+    modelSupportsThinking,
+  } = props;
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const workspaceBlocked = workspaceLocked || workspaceSaving || workspaceUnconfirmed;
+  const workspaceBlocked = isWorkspaceSelectionLocked(props);
   const workspaceBlockedRef = useRef(workspaceBlocked);
   workspaceBlockedRef.current = workspaceBlocked;
   // 沙箱选择器动态适配：壳检测 + daemon 在线状态双条件
@@ -532,7 +530,7 @@ export function ChatInputSelectors({
                 ? t("agentOptions.sandbox.saveUnconfirmed")
                 : workspaceSaving
                 ? t("common.saving")
-                : workspaceLocked
+                : workspaceBlocked
                   ? t("agentOptions.sandbox.lockedWhileActive")
                   : isLocal && !sandboxOnline
                   ? t("agentOptions.sandbox.offlineHint")
