@@ -125,7 +125,9 @@ async def test_settled_query_is_read_only_and_receipt_wins_across_replicas(lease
     assert await first.ack_items("session")
     await first.remove_by_id("session", "delivered")
     await first.remove_by_id("session", "cancelled")
-    before = {key: await lease_redis.dump(key) for key in await lease_redis.keys("lambchat:steer:*")}
+    before = {
+        key: await lease_redis.dump(key) for key in await lease_redis.keys("lambchat:steer:*")
+    }
     assert await second.settled_outcome("session", "delivered") == "delivered"
     assert await second.settled_outcome("session", "cancelled") == "cancelled"
     assert await second.settled_outcome("session", "new") is None
@@ -134,7 +136,9 @@ async def test_settled_query_is_read_only_and_receipt_wins_across_replicas(lease
     assert after == before
 
 
-async def test_settled_query_ignores_expired_receipts_without_deleting_them(lease_redis, monkeypatch):
+async def test_settled_query_ignores_expired_receipts_without_deleting_them(
+    lease_redis, monkeypatch
+):
     import src.infra.task.steer as module
 
     now = 1000.0
