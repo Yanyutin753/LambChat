@@ -180,6 +180,7 @@ export function ChatAppContent({
     queueFollowUp,
     supplementFollowUp,
     steerMessages,
+    queueControl,
     cancelSteer,
     applyRecommendQuestions,
     clearActiveGoal,
@@ -937,6 +938,7 @@ export function ChatAppContent({
           onSupplementFollowUpMessage={supplementFollowUp}
           onQueueFollowUpMessage={queueFollowUp}
           steerMessages={steerMessages}
+          queueControl={queueControl}
           onCancelSteer={cancelSteer}
           activeGoal={activeGoal}
           persistentGoal={persistentGoal}
@@ -951,20 +953,7 @@ export function ChatAppContent({
           onToggleGoalMode={setGoalModeEnabled}
           attachments={pageDragAttachments}
           onAttachmentsChange={setPageDragAttachments}
-          externalNavigationToken={externalNavigation.externalNavigationToken}
-          externalNavigationTargetFile={
-            externalNavigation.externalNavigationTargetFile
-          }
-          externalNavigationPreview={
-            externalNavigation.externalNavigationPreview
-          }
-          externalNavigationTargetRunId={
-            externalNavigation.externalNavigationTargetRunId
-          }
-          externalNavigationTargetRunPending={
-            externalNavigation.externalNavigationTargetRunPending
-          }
-          externalScrollToBottom={externalNavigation.externalScrollToBottom}
+          {...externalNavigation}
           outlineToggleRef={outlineToggleRef}
         />
         <BlockPreviewPortal />

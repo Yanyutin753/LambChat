@@ -375,7 +375,9 @@ export interface UseAgentReturn {
   supplementFollowUp: (
     content: string,
     attachments?: MessageAttachment[],
+    queuedMessageId?: string,
   ) => Promise<void>;
+  queueControl: FollowUpQueueControl;
   cancelSteer: (content: string, messageId?: string) => void;
   steerMessages: import("../../utils/mergeSteers").SteerItem[];
   markSteerDelivered: (content: string, messageId?: string) => void;
@@ -408,6 +410,7 @@ export interface UseAgentReturn {
 }
 
 export interface ChatSubmissionCallbacks {
+  followUpToRunId?: string;
   onAccepted: () => void;
   onRejected?: () => void;
 }
@@ -435,4 +438,11 @@ export interface BackendSession {
   is_active: boolean;
   metadata: Record<string, unknown>;
   name?: string;
+}
+
+export interface FollowUpQueueControl {
+  paused: boolean;
+  pauseReason?: "interrupted" | "delivery";
+  resuming: boolean;
+  onResume: () => Promise<void>;
 }
