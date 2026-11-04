@@ -1567,6 +1567,9 @@ html[data-mobile-keyboard="true"]
 }
 .composer-context-panel {
   margin-inline: 0.75rem;
+  /* Extend the surface behind the editor's rounded shoulders. */
+  padding-bottom: var(--radius-2xl);
+  margin-bottom: calc(-1 * var(--radius-2xl));
   border: 1px solid var(--theme-border-subtle);
   border-bottom: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
