@@ -36,7 +36,7 @@ function QueueRow({
     item.content || item.attachments?.map((file) => file.name).join(", ");
 
   return (
-    <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 sm:px-4">
+    <div className="composer-queue-row flex min-w-0 items-center gap-2">
       {failed ? (
         <AlertCircle size={16} className="shrink-0 text-[var(--theme-error)]" />
       ) : (
@@ -68,13 +68,14 @@ function QueueRow({
               onCancel(item.content, item.id);
               onGuide(item.content, item.attachments);
             }}
-            className={`${actionClass} px-3`}
+            className={`${actionClass} composer-queue-guide px-3`}
+            aria-label={t("chat.queueGuide")}
             title={t("chat.queueGuideHint")}
           >
             <InteractiveIcon>
               <CornerDownRight size={14} />
             </InteractiveIcon>
-            {t("chat.queueGuide")}
+            <span className="composer-queue-guide-label">{t("chat.queueGuide")}</span>
           </button>
         )}
         {onCancel && (
@@ -117,12 +118,13 @@ export function ChatInputSteerQueue({
   if (items.length === 0) return null;
 
   return (
-    <div className="chat-content-column" aria-label={t("chat.steerQueue")}>
-      <div className="-mb-5 rounded-t-3xl border border-b-0 border-[var(--theme-border)] bg-[var(--theme-bg-card)] pb-5 text-[var(--theme-text-secondary)]">
-        {items.map((item) => (
-          <QueueRow key={item.id} item={item} {...actions} />
-        ))}
-      </div>
+    <div
+      className="composer-queue text-theme-text-secondary"
+      aria-label={t("chat.steerQueue")}
+    >
+      {items.map((item) => (
+        <QueueRow key={item.id} item={item} {...actions} />
+      ))}
     </div>
   );
 }

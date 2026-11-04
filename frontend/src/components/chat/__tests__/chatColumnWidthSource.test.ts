@@ -11,7 +11,6 @@ test("message column, composer, skeletons and approval panel share the chat colu
     "src/components/chat/ChatMessage/index.tsx",
     "src/components/chat/ChatMessage/UserMessageBubble.tsx",
     "src/components/chat/ChatInput.tsx",
-    "src/components/chat/ChatInputSteerQueue.tsx",
     "src/components/chat/SessionTodoDock.tsx",
     "src/components/skeletons/ChatSkeletons.tsx",
     "src/components/panels/ApprovalPanel.tsx",

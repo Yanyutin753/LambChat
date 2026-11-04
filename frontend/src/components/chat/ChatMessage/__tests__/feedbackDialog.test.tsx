@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { FeedbackDialog } from "../FeedbackDialog";
 import { FeedbackButtons } from "../FeedbackButtons";
+import { FeedbackProvider } from "../FeedbackProvider";
 import { uploadApi } from "../../../../services/api/upload";
 import { feedbackApi } from "../../../../services/api/feedback";
 import { compressImageFile } from "../../../../utils/imageCompression";
@@ -252,11 +253,13 @@ test("a feedback response after navigation cannot update a later conversation", 
   vi.spyOn(feedbackApi, "submit").mockReturnValue(pending.promise);
   const onFeedbackChange = vi.fn();
   const { unmount } = render(
-    <FeedbackButtons
-      sessionId="session"
-      runId="run"
-      onFeedbackChange={onFeedbackChange}
-    />,
+    <FeedbackProvider>
+      <FeedbackButtons
+        sessionId="session"
+        runId="run"
+        onFeedbackChange={onFeedbackChange}
+      />
+    </FeedbackProvider>,
   );
   fireEvent.click(screen.getByRole("button", { name: "feedback.negative" }));
   fireEvent.click(screen.getByRole("button", { name: "feedback.submit" }));
@@ -269,7 +272,11 @@ test("feedback submission failure keeps the comment and offers a persistent retr
   vi.spyOn(feedbackApi, "submit")
     .mockRejectedValueOnce(new Error("Feedback unavailable"))
     .mockResolvedValueOnce({} as never);
-  render(<FeedbackButtons sessionId="session" runId="run" />);
+  render(
+    <FeedbackProvider>
+      <FeedbackButtons sessionId="session" runId="run" />
+    </FeedbackProvider>,
+  );
   fireEvent.click(screen.getByRole("button", { name: "feedback.negative" }));
   fireEvent.change(screen.getByRole("textbox"), {
     target: { value: "Keep my comment" },
@@ -284,4 +291,77 @@ test("feedback submission failure keeps the comment and offers a persistent retr
   expect(feedbackApi.submit).toHaveBeenLastCalledWith(
     expect.objectContaining({ comment: "Keep my comment", rating: "down" }),
   );
+});
+
+test("image upload and draft survive the message row being recycled", async () => {
+  const pending = deferred<UploadResult>();
+  const abort = vi.fn();
+  vi.spyOn(uploadApi, "uploadFile").mockReturnValue({
+    promise: pending.promise,
+    abort,
+  });
+  vi.spyOn(feedbackApi, "submit").mockResolvedValue({} as never);
+  const view = render(
+    <FeedbackProvider>
+      <FeedbackButtons sessionId="session" runId="run" />
+    </FeedbackProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "feedback.negative" }));
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: "Keep my screenshot" },
+  });
+  chooseFile();
+  await waitFor(() => expect(uploadApi.uploadFile).toHaveBeenCalledOnce());
+  view.rerender(<FeedbackProvider>{null}</FeedbackProvider>);
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(abort).not.toHaveBeenCalled();
+  await act(async () => pending.resolve(uploaded));
+  expect(screen.getByRole("textbox")).toHaveValue("Keep my screenshot");
+  expect(screen.getByRole("img", { name: "screen.png" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "feedback.submit" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(feedbackApi.submit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      session_id: "session",
+      run_id: "run",
+      comment: "Keep my screenshot",
+      attachments: [expect.objectContaining({ key: "photo" })],
+    }),
+  );
+  view.rerender(
+    <FeedbackProvider>
+      <FeedbackButtons sessionId="session" runId="run" />
+    </FeedbackProvider>,
+  );
+  expect(
+    screen.getByLabelText("feedback.alreadySubmitted"),
+  ).toBeInTheDocument();
+});
+
+test("switching conversations closes the draft and aborts its upload", async () => {
+  const pending = deferred<UploadResult>();
+  const abort = vi.fn();
+  vi.spyOn(uploadApi, "uploadFile").mockReturnValue({
+    promise: pending.promise,
+    abort,
+  });
+  const view = render(
+    <FeedbackProvider key="first">
+      <FeedbackButtons sessionId="first" runId="run" />
+    </FeedbackProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "feedback.negative" }));
+  chooseFile();
+  await waitFor(() => expect(uploadApi.uploadFile).toHaveBeenCalledOnce());
+  view.rerender(
+    <FeedbackProvider key="second">
+      <FeedbackButtons sessionId="second" runId="run" />
+    </FeedbackProvider>,
+  );
+  expect(abort).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "feedback.negative" }));
+  await act(async () => pending.resolve(uploaded));
+  expect(screen.getByRole("textbox")).toHaveValue("");
+  expect(screen.queryByRole("img", { name: "screen.png" })).toBeNull();
 });
