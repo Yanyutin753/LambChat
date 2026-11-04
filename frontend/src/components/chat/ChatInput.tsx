@@ -1,3 +1,4 @@
+import { useChatInputConfiguration } from "./chatInputConfiguration";
 import { useComposerDesktopAttachments } from "../../hooks/useComposerDesktopAttachments";
 import { Permission } from "../../types";
 import { InteractiveIcon } from "../common/InteractiveIcon";
@@ -71,7 +72,9 @@ import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 import { useChatDraftAttachments } from "./chatDraftStore";
 import { useChatDraftComposer } from "./useChatDraftComposer";
 export type { ChatInputProps } from "./chatInputTypes";
-export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
+export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
+  const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
+  const props = useChatInputConfiguration(rawProps, setActivePanel);
   const {
     draftKey,
     sessionId,
@@ -85,11 +88,9 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
     disabled,
     sendBlocked = false,
     canSend = true,
-    toolsLoading: _toolsLoading,
     enabledToolsCount = 0,
     totalToolsCount = 0,
     skills = [],
-    skillsLoading: _skillsLoading,
     enabledSkillsCount = 0,
     totalSkillsCount = 0,
     enableSkills = true,
@@ -157,7 +158,6 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
       focusComposerAtEnd();
     }
   }, [pendingInput, onPendingInputConsumed, focusComposerAtEnd]);
-  const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [runEnabledSkillNames, setRunEnabledSkillNames] = useState<
     string[] | null
   >(
@@ -222,7 +222,9 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
     attachments,
     onAttachmentsChange: setAttachments,
     agent: currentAgentInfo,
-    mode: agentOptionValues.sandbox ?? agentOptions?.sandbox?.default,
+    mode: props.configurationLocked
+      ? undefined
+      : agentOptionValues.sandbox ?? agentOptions?.sandbox?.default,
     selectedMachine: agentOptionValues.sandbox_machine_id,
     onToggleAgentOption,
     uploadFiles,
@@ -295,22 +297,7 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
       composerRef.current?.insertText(`${separator}${prompt}`);
     });
   }, []);
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac =
-        typeof navigator !== "undefined" &&
-        navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-      const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key === "t") {
-        e.preventDefault();
-        if (currentAgent === "team" && onSelectTeam) {
-          setActivePanel((prev) => (prev === "team" ? null : "team"));
-        }
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [currentAgent, onSelectTeam]);
+
   const mentionPopupPlacement = useMentionPopupPlacement(
     mention.isActive,
     containerRef,
@@ -894,7 +881,13 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
                     </div>
                     <ChatInputToolbar
                       userId={user?.id}
-                      activePanel={activePanel}
+                      activePanel={
+                        props.configurationLocked &&
+                        activePanel !== "tools" &&
+                        activePanel !== "skills"
+                          ? null
+                          : activePanel
+                      }
                       onActivePanelChange={setActivePanel}
                       canSend={canSend}
                       sendBlocked={sendBlocked}
@@ -957,7 +950,7 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
             )}
         </div>
       </div>
-      {currentAgentInfo?.supports_sandbox && (
+      {!props.configurationLocked && currentAgentInfo?.supports_sandbox && (
         <SessionWorkspaceBar
           host={workspaceHost}
           compact
@@ -970,7 +963,13 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
       )}
       <ChatInputSelectors
         {...props}
-        activePanel={activePanel}
+        activePanel={
+          props.configurationLocked &&
+          activePanel !== "tools" &&
+          activePanel !== "skills"
+            ? null
+            : activePanel
+        }
         canCopyPersonaPresets={hasPermission(Permission.PERSONA_PRESET_WRITE)}
         canManageSandbox={hasPermission(Permission.SANDBOX_MANAGE)}
         onActivePanelChange={setActivePanel}

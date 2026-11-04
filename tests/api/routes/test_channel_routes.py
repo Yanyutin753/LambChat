@@ -548,3 +548,47 @@ async def test_start_feishu_registration_returns_without_polling_sleep(
 
 async def _async_noop(*args, **kwargs) -> None:
     return None
+
+
+async def test_bound_assistant_ignores_legacy_configuration_but_unbinding_revalidates(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.assistant.store import AssistantStore
+
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+    monkeypatch.setattr(
+        AssistantStore, "get", AsyncMock(return_value=SimpleNamespace(status="active"))
+    )
+    validate = AsyncMock(side_effect=AppError(channels_route.ErrorCode.PROJECT_NOT_FOUND))
+    monkeypatch.setattr(channels_route, "_validate_project_id", validate)
+    await channels_route.update_channel_instance(
+        ChannelType.FEISHU,
+        "instance-1",
+        ChannelConfigUpdate(
+            config={}, project_id="retired", runtime_config={"assistant_id": "helper"}
+        ),
+        user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+        storage=storage,
+    )
+    validate.assert_not_awaited()
+    assert storage.last_update_kwargs["project_id"] == "retired"
+    monkeypatch.setattr(
+        storage,
+        "get_config",
+        AsyncMock(
+            return_value={"project_id": "retired", "runtime_config": {"assistant_id": "helper"}}
+        ),
+    )
+    with pytest.raises(AppError):
+        await channels_route.update_channel_instance(
+            ChannelType.FEISHU,
+            "instance-1",
+            ChannelConfigUpdate(config={}, runtime_config={"assistant_id": None}),
+            user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+            storage=storage,
+        )
+    validate.assert_awaited_once_with(
+        "retired", SimpleNamespace(sub="user-1", roles=[], permissions=[])
+    )

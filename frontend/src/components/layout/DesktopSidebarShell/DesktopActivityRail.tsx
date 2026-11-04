@@ -7,6 +7,7 @@ import { SparklesIcon } from "@animateicons/react/lucide/sparkles-icon";
 import { ServerIcon } from "@animateicons/react/lucide/server-icon";
 import { NetworkIcon } from "@animateicons/react/lucide/network-icon";
 import { BrainIcon } from "@animateicons/react/lucide/brain-icon";
+import { BotIcon } from "@animateicons/react/lucide/bot-icon";
 import { EllipsisIcon } from "@animateicons/react/lucide/ellipsis-icon";
 import { ActivityRailButton } from "./ActivityRailButton";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import { DesktopMoreMenu } from "../../panels/SidebarParts/DesktopMoreMenu";
 import { Permission } from "../../../types/auth";
 
 const navigationIcons: Record<string, typeof MessageCircleIcon> = {
+  "/assistants": BotIcon,
   "/files": FolderOpenIcon,
   "/scheduled-tasks": CalendarClockIcon,
   "/persona": UserRoundIcon,
@@ -42,7 +44,7 @@ export function DesktopActivityRail({
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const menu = useMoreMenu({ isCollapsed: true, isMobile: false });
-  const primaryPaths = ["/persona", "/team", "/skills", "/mcp"];
+  const primaryPaths = ["/assistants", "/persona", "/team", "/skills", "/mcp"];
   const primaryItems = [
     {
       path: "/files",

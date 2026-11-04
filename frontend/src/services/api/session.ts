@@ -508,13 +508,20 @@ export const sessionApi = {
   /**
    * Cancel running task for a session
    */
-  async cancel(sessionId: string): Promise<{
+  async cancel(
+    sessionId: string,
+    runId?: string,
+  ): Promise<{
     success: boolean;
     message: string;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/cancel`, {
-      method: "POST",
-    });
+    const query = runId ? `?${new URLSearchParams({ run_id: runId })}` : "";
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/cancel${query}`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   /**

@@ -333,9 +333,10 @@ async def create_channel_instance(
     runtime_config = await validate_runtime_configuration(data.runtime_config, user.sub)
 
     # Validate agent_id against user permissions
-    await _validate_agent_id(data.agent_id, user)
-    await _validate_project_id(data.project_id, user)
-    await _validate_persona_preset_id(data.persona_preset_id, user)
+    if not runtime_config.get("assistant_id"):
+        await _validate_agent_id(data.agent_id, user)
+        await _validate_project_id(data.project_id, user)
+        await _validate_persona_preset_id(data.persona_preset_id, user)
 
     try:
         config = await storage.create_config(
@@ -420,10 +421,26 @@ async def update_channel_instance(
         else ...
     )
 
+    effective_runtime = (
+        existing.get("runtime_config") or {} if runtime_config is ... else runtime_config
+    )
+    if not effective_runtime.get("assistant_id"):
+        # Unbinding revives stored choices, so validate those even if omitted by the UI.
+        unbinding = bool((existing.get("runtime_config") or {}).get("assistant_id"))
+        for field, validate in (
+            ("agent_id", _validate_agent_id),
+            ("project_id", _validate_project_id),
+            ("persona_preset_id", _validate_persona_preset_id),
+        ):
+            if unbinding or field in data.model_fields_set:
+                await validate(
+                    getattr(data, field) if field in data.model_fields_set else existing.get(field),
+                    user,
+                )
+
     # Validate agent_id if explicitly provided in the request
     agent_id_value: str | None = ...  # type: ignore[assignment]
     if "agent_id" in data.model_fields_set:
-        await _validate_agent_id(data.agent_id, user)
         agent_id_value = data.agent_id
     else:
         agent_id_value = ...  # type: ignore[assignment]
@@ -438,7 +455,6 @@ async def update_channel_instance(
     # Handle project_id with same ellipsis pattern
     project_id_value: str | None = ...  # type: ignore[assignment]
     if "project_id" in data.model_fields_set:
-        await _validate_project_id(data.project_id, user)
         project_id_value = data.project_id
     else:
         project_id_value = ...  # type: ignore[assignment]
@@ -453,7 +469,6 @@ async def update_channel_instance(
     # Handle persona_preset_id with same ellipsis pattern
     persona_preset_id_value: str | None = ...  # type: ignore[assignment]
     if "persona_preset_id" in data.model_fields_set:
-        await _validate_persona_preset_id(data.persona_preset_id, user)
         persona_preset_id_value = data.persona_preset_id
     else:
         persona_preset_id_value = ...  # type: ignore[assignment]

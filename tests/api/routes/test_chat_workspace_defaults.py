@@ -11,6 +11,13 @@ from src.kernel.schemas.project import ProjectWorkspace
 from src.kernel.schemas.user import TokenPayload
 
 
+@pytest.fixture(autouse=True)
+def ordinary_conversations(monkeypatch):
+    from src.infra.assistant.store import AssistantStore
+
+    monkeypatch.setattr(AssistantStore, "for_session", AsyncMock(return_value=None))
+
+
 @pytest.mark.parametrize("exists", [False, True])
 async def test_chat_resolves_workspace_before_dispatch_and_keeps_existing_scope(
     monkeypatch, exists

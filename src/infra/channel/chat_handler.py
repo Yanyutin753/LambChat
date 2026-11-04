@@ -104,7 +104,26 @@ def create_chat_message_handler(channel: Any, default_agent: str):
             if not await channel.send_message(chat_id, "New conversation ready.", **metadata):
                 raise RuntimeError("Channel reply failed")
             return
-        session_id = delivery_session(await redis.get(key) or f"channel_{scope}")
+        from src.infra.assistant.channel_binding import (
+            channel_assistant_id,
+            channel_discussion_session,
+        )
+
+        session_id = delivery_session(
+            channel_discussion_session(
+                await redis.get(key) or f"channel_{scope}", config, channel.user_id
+            )
+        )
+        if channel_assistant_id(config):
+            from src.infra.assistant.channel_tasks import route_task_message
+
+            reply = await route_task_message(
+                channel.user_id, session_id, content, metadata.get("attachments")
+            )
+            if reply is not None:
+                if not await channel.send_message(chat_id, reply, **metadata):
+                    raise RuntimeError("Channel reply failed")
+                return
         from src.infra.channel.runtime import (
             build_channel_agent_options,
             build_channel_session_metadata,
@@ -114,7 +133,7 @@ def create_chat_message_handler(channel: Any, default_agent: str):
         persona_system_prompt = None
         enabled_skills = None
         enabled_mcp_servers = None
-        if config.get("persona_preset_id"):
+        if config.get("persona_preset_id") and not channel_assistant_id(config):
             from src.infra.persona_preset.manager import PersonaPresetManager
 
             snapshot = await PersonaPresetManager().use_preset(
@@ -129,6 +148,7 @@ def create_chat_message_handler(channel: Any, default_agent: str):
                 "channel_type": channel.channel_type.value,
                 "channel_instance_id": channel.config.instance_id,
                 "chat_id": chat_id,
+                "sender_id": sender_id,
                 "enabled": True,
                 "send_on_success": True,
             },

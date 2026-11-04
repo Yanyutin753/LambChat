@@ -3,6 +3,7 @@
 // ============================================
 
 export interface UsageLog {
+  assistant_id?: string;
   trace_id: string;
   session_id: string;
   user_id: string;

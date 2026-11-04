@@ -56,6 +56,7 @@ export interface ConfigField {
 }
 
 export interface ChannelRuntimeConfig {
+  assistant_id?: string | null;
   sandbox?: "default" | "local" | "cloud";
   sandbox_machine_id?: string;
   enable_thinking?: "" | "low" | "medium" | "high" | "max";

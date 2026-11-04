@@ -122,6 +122,9 @@ class UsageStorage:
                 name="trace_id_unique_idx",
             )
             await self.collection.create_index([("user_id", 1), ("started_at", -1)])
+            await self.collection.create_index(
+                [("user_id", 1), ("assistant_id", 1), ("started_at", -1)]
+            )
             await self.collection.create_index([("started_at", -1)])
             await self.collection.create_index([("model", 1), ("started_at", -1)])
             await self.collection.create_index([("team_id", 1), ("started_at", -1)])
@@ -131,21 +134,12 @@ class UsageStorage:
         except Exception as e:
             logger.error(f"Failed to create usage logs indexes: {e}")
 
-    async def _get_session_metadata(self, session_id: str) -> Dict[str, Any]:
-        if not session_id:
-            return {}
-        try:
-            from src.infra.session.storage import SessionStorage
+    async def _get_session_metadata(
+        self, session_id: str, user_id: str | None = None
+    ) -> Dict[str, Any]:
+        from src.infra.usage.attribution import session_usage_metadata
 
-            doc = await SessionStorage().collection.find_one(
-                {"session_id": session_id},
-                {"_id": 0, "metadata": 1},
-            )
-            metadata = (doc or {}).get("metadata") or {}
-            return metadata if isinstance(metadata, dict) else {}
-        except Exception as e:
-            logger.debug("Failed to load session metadata for usage log %s: %s", session_id, e)
-            return {}
+        return await session_usage_metadata(session_id, user_id)
 
     async def _resolve_team_name(self, team_id: str) -> str:
         if not team_id:
@@ -219,7 +213,9 @@ class UsageStorage:
             return False
 
         metadata = trace_doc.get("metadata", {}) or {}
-        session_metadata = await self._get_session_metadata(str(trace_doc.get("session_id") or ""))
+        session_metadata = await self._get_session_metadata(
+            str(trace_doc.get("session_id") or ""), user_id=trace_doc.get("user_id")
+        )
         usage_data = usage_data or {}
         input_tokens = _as_int(usage_data.get("input_tokens", 0))
         output_tokens = _as_int(usage_data.get("output_tokens", 0))
@@ -294,6 +290,8 @@ class UsageStorage:
             "persona_preset_name": _merge_metadata_value(
                 metadata, session_metadata, "persona_preset_name"
             ),
+            "assistant_id": _merge_metadata_value(metadata, session_metadata, "assistant_id")
+            or _merge_metadata_value(metadata, session_metadata, "background_assistant_id"),
             "source": _merge_metadata_value(metadata, session_metadata, "source") or "chat",
             "scheduled_task_id": _merge_metadata_value(
                 metadata, session_metadata, "scheduled_task_id"
@@ -403,6 +401,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         model: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -430,6 +429,7 @@ class UsageStorage:
 
         query = self._build_query(
             user_id=user_id,
+            assistant_id=assistant_id,
             model=model,
             start_date=start_date,
             end_date=end_date,
@@ -458,6 +458,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         start_date: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Stats-only 查询路径：跳过 items 分页 find，只做计数 + 聚合。
@@ -465,7 +466,7 @@ class UsageStorage:
         /stats 路由只需要聚合统计；走 list_usage_logs 全链路会白做一次
         items 查询。返回结构与 _empty_stats()/stats_dict 完全一致。
         """
-        query = self._build_query(user_id=user_id, start_date=start_date)
+        query = self._build_query(user_id=user_id, assistant_id=assistant_id, start_date=start_date)
         try:
             _, stats = await self._count_and_stats(query)
             return stats
@@ -480,6 +481,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         model: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -489,6 +491,8 @@ class UsageStorage:
 
         if user_id:
             query["user_id"] = user_id
+        if assistant_id:
+            query["assistant_id"] = assistant_id
         if model:
             query["model"] = model
         if start_date or end_date:
@@ -506,6 +510,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         model: Optional[str] = None,
@@ -514,6 +519,7 @@ class UsageStorage:
         """Aggregate usage logs into an operations dashboard."""
         query = self._build_query(
             user_id=user_id,
+            assistant_id=assistant_id,
             model=model,
             start_date=start_date,
             end_date=end_date,

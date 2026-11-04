@@ -431,6 +431,16 @@ async def execute_conversation_schedule(session_id, agent_id, message, user_id, 
     from src.infra.task.background_tasks import validate_background_execution
 
     await validate_scheduled_run_admission(session_id, user_id, kwargs["presenter"].run_id)
+    from src.infra.assistant.service import conversation_assistant
+
+    if await conversation_assistant(user_id, session_id) is not None:
+        from src.infra.assistant.execution import execute_assistant_stream
+
+        async for event in execute_assistant_stream(
+            session_id, agent_id, message, user_id, **kwargs
+        ):
+            yield event
+        return
     request = await validate_background_execution(
         session_id, agent_id, user_id, kwargs.get("agent_options") or {}
     )

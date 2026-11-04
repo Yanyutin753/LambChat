@@ -489,6 +489,9 @@ async def submit_hitl_resume_run(
         from .concurrency import get_registered_executor
 
         executor_key = str(metadata.get("executor_key") or "agent_stream")
+        if executor_key == "assistant_stream":
+            from src.infra.assistant import execution  # noqa: F401
+
         executor_fn = get_registered_executor(executor_key)
         if executor_fn is None and executor_key == "agent_stream":
             from importlib import import_module

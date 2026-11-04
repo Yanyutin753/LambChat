@@ -51,6 +51,7 @@ import {
   useWorkspaceOptionActions,
 } from "./sessionToggleCallbacks";
 import type { ChatAppContentProps } from "./types";
+import { useAssistantContext } from "../../assistants/useAssistantContext";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
 export function ChatAppContent({
   showProfileModal,
@@ -234,17 +235,11 @@ export function ChatAppContent({
     getPersonaSnapshot: () => sessionConfigRef.current.personaSnapshot,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     getAgentOptions: () => sessionConfigRef.current.agentOptions,
-    onSkillAdded: (
-      skillName: string,
-      _description: string,
-      filesCount: number,
-    ) => {
-      console.log(
-        `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
-      );
+    onSkillAdded: () => {
       setTimeout(() => fetchSkills(), 500);
     },
   });
+  const { assistant, onAssistantResolved } = useAssistantContext(sessionId);
   ensureResumeStreamRef.current = (runId, sourceSessionId) => {
     if (sourceSessionId && sourceSessionId !== sessionId) return;
     void reconnectSSE(runId);
@@ -784,7 +779,7 @@ export function ChatAppContent({
       onShowProfile={onShowProfile}
       availableModels={filteredModels}
       currentModelId={currentModelId}
-      onSelectModel={handleSelectModel}
+      onSelectModel={assistant ? undefined : handleSelectModel}
       sessionId={sessionId}
       showOutlineButton={shouldShowMessageOutline(messages)}
       onToggleOutline={handleToggleOutline}
@@ -841,6 +836,8 @@ export function ChatAppContent({
         )}
 
         <ChatView
+          assistant={assistant}
+          onAssistantResolved={onAssistantResolved}
           draftKey={draftKey}
           messages={messages}
           sessionId={sessionId}

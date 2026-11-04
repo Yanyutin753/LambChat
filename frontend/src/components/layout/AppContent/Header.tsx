@@ -398,12 +398,21 @@ export function Header({
             </>
           ) : (
             <PageNavigationBar
-              title={t(`nav.${activeTab}`, { defaultValue: activeTab })}
+              title={t(
+                activeTab === "assistants"
+                  ? "assistants.title"
+                  : `nav.${activeTab}`,
+                { defaultValue: activeTab },
+              )}
               onBack={() => navigate(-1)}
               icon={
                 <SceneIllustration
                   scene={`panel-${
-                    activeTab === "scheduled-tasks" ? "schedule" : activeTab
+                    activeTab === "scheduled-tasks"
+                      ? "schedule"
+                      : activeTab === "assistants"
+                        ? "agents"
+                        : activeTab
                   }`}
                   className="panel-nav-avatar"
                 />

@@ -18,6 +18,7 @@ export interface MemoryItem {
   updated_at: string | null;
   access_count: number;
   has_full_content: boolean;
+  source_refs?: Array<{ session_id: string; run_id: string }>;
 }
 
 export interface MemoryListResponse {
@@ -88,8 +89,21 @@ export interface MemoryUpdateResponse {
   memory_id: string;
 }
 
+function assistantQuery(
+  assistantId?: string,
+  discussionId?: string,
+  extra = "",
+) {
+  const query = new URLSearchParams(extra);
+  if (assistantId) query.set("assistant_id", assistantId);
+  if (discussionId) query.set("discussion_id", discussionId);
+  return query.size ? `?${query}` : "";
+}
+
 export const memoryApi = {
   async list(params?: {
+    assistant_id?: string;
+    discussion_id?: string;
     memory_type?: string;
     source?: string;
     search?: string;
@@ -98,6 +112,8 @@ export const memoryApi = {
     offset?: number;
   }): Promise<MemoryListResponse> {
     const query = new URLSearchParams();
+    if (params?.discussion_id) query.set("discussion_id", params.discussion_id);
+    if (params?.assistant_id) query.set("assistant_id", params.assistant_id);
     if (params?.memory_type) query.set("memory_type", params.memory_type);
     if (params?.source) query.set("source", params.source);
     if (params?.search) query.set("search", params.search);
@@ -110,63 +126,118 @@ export const memoryApi = {
     return authFetch<MemoryListResponse>(url);
   },
 
-  async get(memory_id: string): Promise<MemoryItem> {
-    return authFetch<MemoryItem>(`${API_BASE}/api/memory/${memory_id}`);
+  async get(
+    memory_id: string,
+    assistantId?: string,
+    discussionId?: string,
+  ): Promise<MemoryItem> {
+    return authFetch<MemoryItem>(
+      `${API_BASE}/api/memory/${memory_id}${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
+    );
   },
 
-  async create(data: MemoryCreateRequest): Promise<MemoryCreateResponse> {
-    return authFetch<MemoryCreateResponse>(`${API_BASE}/api/memory/`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+  async create(
+    data: MemoryCreateRequest,
+    assistantId?: string,
+    discussionId?: string,
+  ): Promise<MemoryCreateResponse> {
+    return authFetch<MemoryCreateResponse>(
+      `${API_BASE}/api/memory/${assistantQuery(assistantId, discussionId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
   },
 
   async update(
     memory_id: string,
     data: MemoryUpdateRequest,
+    assistantId?: string,
+    discussionId?: string,
   ): Promise<MemoryUpdateResponse> {
     return authFetch<MemoryUpdateResponse>(
-      `${API_BASE}/api/memory/${memory_id}`,
+      `${API_BASE}/api/memory/${memory_id}${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
       { method: "PUT", body: JSON.stringify(data) },
     );
   },
 
   async delete(
     memory_id: string,
+    assistantId?: string,
+    discussionId?: string,
   ): Promise<{ success: boolean; message: string }> {
     return authFetch<{ success: boolean; message: string }>(
-      `${API_BASE}/api/memory/${memory_id}`,
+      `${API_BASE}/api/memory/${memory_id}${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
       { method: "DELETE" },
     );
   },
 
   async batchDelete(
     memory_ids: string[],
+    assistantId?: string,
+    discussionId?: string,
   ): Promise<{ success: boolean; deleted: number }> {
     return authFetch<{ success: boolean; deleted: number }>(
-      `${API_BASE}/api/memory/batch-delete`,
+      `${API_BASE}/api/memory/batch-delete${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
       { method: "POST", body: JSON.stringify({ memory_ids }) },
     );
   },
 
-  async export(): Promise<MemoryExportResponse> {
-    return authFetch<MemoryExportResponse>(`${API_BASE}/api/memory/export`);
+  async export(
+    assistantId?: string,
+    discussionId?: string,
+  ): Promise<MemoryExportResponse> {
+    return authFetch<MemoryExportResponse>(
+      `${API_BASE}/api/memory/export${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
+    );
   },
 
-  async import(data: MemoryImportRequest): Promise<MemoryImportResponse> {
-    return authFetch<MemoryImportResponse>(`${API_BASE}/api/memory/import`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+  async import(
+    data: MemoryImportRequest,
+    assistantId?: string,
+    discussionId?: string,
+  ): Promise<MemoryImportResponse> {
+    return authFetch<MemoryImportResponse>(
+      `${API_BASE}/api/memory/import${assistantQuery(
+        assistantId,
+        discussionId,
+      )}`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
   },
 
   async importAll(
     data: unknown,
     onProgress?: (progress: MemoryImportProgress) => void,
+    assistantId?: string,
+    discussionId?: string,
   ): Promise<MemoryImportResponse> {
     const preflight = (batch: MemoryImportRequest) =>
       authFetch<MemoryImportPreflight>(
-        `${API_BASE}/api/memory/import?validate_only=true`,
+        `${API_BASE}/api/memory/import${assistantQuery(
+          assistantId,
+          discussionId,
+          "validate_only=true",
+        )}`,
         { method: "POST", body: JSON.stringify(batch) },
       );
     const { limits } = await preflight({ memories: [] });
@@ -193,7 +264,7 @@ export const memoryApi = {
     onProgress?.({ phase: "importing", processed: 0, total });
     for (const batch of batches) {
       try {
-        const result = await memoryApi.import(batch);
+        const result = await memoryApi.import(batch, assistantId, discussionId);
         if (
           !result.success ||
           ![result.imported, result.created, result.overwritten].every(

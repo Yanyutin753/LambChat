@@ -183,9 +183,11 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         user_id: str,
         policy_resolver: Callable[[], Awaitable[str]] | None = None,
         machine_id: str | None = None,
+        backend: Any = None,
     ) -> None:
         super().__init__()
         self._user_id = user_id
+        self._backend = backend
         self._policy_resolver = policy_resolver or _RegistryPolicyResolver(user_id, machine_id)
 
     async def awrap_tool_call(
@@ -241,7 +243,8 @@ class SandboxConfirmMiddleware(AgentMiddleware):
         # 确定性批清单：本批全部需确认的操作（各并行任务算得同一份）
         batch_listing: list[str] = []
         seen: set[tuple[str, str]] = set()
-        for tc in _last_tool_calls(request.state):
+        batch = _last_tool_calls(request.state)
+        for tc in batch:
             tc_name = str(tc.get("name", ""))
             if tc_name not in CONFIRMABLE_TOOLS:
                 continue
@@ -266,6 +269,13 @@ class SandboxConfirmMiddleware(AgentMiddleware):
 
         from langgraph.types import interrupt
 
+        from src.infra.backend.file_confirmation import (
+            capture_file_confirmation,
+            restore_file_confirmation,
+        )
+
+        confirmation_context = await capture_file_confirmation(self._backend, batch)
+
         message = f"确认在本机执行 {len(batch_listing)} 项操作：\n" + "\n".join(
             f"{i + 1}. {desc}" for i, desc in enumerate(batch_listing)
         )
@@ -279,9 +289,18 @@ class SandboxConfirmMiddleware(AgentMiddleware):
                 # 各自 tool_call_id：物化层聚合进审批 metadata，approval_resolved
                 # 回执据此终结聊天里的执行工具卡（缺失则点忽略后卡永远无 result）
                 "tool_call_id": str(tool_call.get("id", "") or ""),
+                **({"confirmation_context": confirmation_context} if confirmation_context else {}),
             }
         )
         approved = bool(isinstance(resume_value, dict) and resume_value.get("approved"))
+        if approved and not await restore_file_confirmation(
+            self._backend, batch, resume_value.get("confirmation_context")
+        ):
+            return ToolMessage(
+                content="File approval no longer matches this environment or operation; read the file and request approval again.",
+                tool_call_id=str(tool_call.get("id", "")),
+                status="error",
+            )
         return await self._run(request, handler, approved)
 
     async def _run(
@@ -329,4 +348,5 @@ def create_sandbox_confirm_middleware(
         user_id=user_id,
         policy_resolver=None if local else _CloudPolicyResolver(user_id),
         machine_id=machine_id if local else None,
+        backend=backend,
     )

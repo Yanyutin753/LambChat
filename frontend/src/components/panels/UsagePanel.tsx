@@ -70,7 +70,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // ── Main Component ─────────────────────────────────────
 
-export function UsagePanel() {
+export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
   const { hasPermission } = useAuth();
@@ -80,7 +80,7 @@ export function UsagePanel() {
     [availableModels],
   );
   const agents = useAgentCatalog();
-  const isAdmin = hasPermission(Permission.USAGE_ADMIN);
+  const isAdmin = !assistantId && hasPermission(Permission.USAGE_ADMIN);
 
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [stats, setStats] = useState<UsageStats | null>(null);
@@ -158,6 +158,7 @@ export function UsagePanel() {
     const search = isAdmin && debouncedSearch ? debouncedSearch : undefined;
     const response = await usageApi.list({
       skip,
+      assistant_id: assistantId,
       limit: pageSize,
       search,
       ...dateRange,
@@ -165,7 +166,7 @@ export function UsagePanel() {
     setLogs(response.items);
     setTotal(response.total);
     setStats(response.stats);
-  }, [skip, period, debouncedSearch, isAdmin, computeDateRange]);
+  }, [skip, period, debouncedSearch, isAdmin, computeDateRange, assistantId]);
 
   // Fetch dashboard independently (silent failure)
   const fetchDashboard = useCallback(async () => {
@@ -174,6 +175,7 @@ export function UsagePanel() {
       // 与日志列表共用同一时间窗（今日为客户端本地 0 点），保证 KPI 与看板口径一致
       const dateRange = computeDateRange(period);
       const data = await usageApi.getDashboard({
+        assistant_id: assistantId,
         period: period as "today" | "week" | "month" | "all",
         search,
         ...dateRange,
@@ -182,7 +184,7 @@ export function UsagePanel() {
     } catch {
       setDashboard(null);
     }
-  }, [period, debouncedSearch, isAdmin, computeDateRange]);
+  }, [period, debouncedSearch, isAdmin, computeDateRange, assistantId]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);

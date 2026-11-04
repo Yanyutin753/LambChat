@@ -59,9 +59,11 @@ const agents = [
 function Composer({
   onSend,
   input = "List the files",
+  configurationLocked = false,
 }: {
   onSend: ReturnType<typeof vi.fn>;
   input?: string;
+  configurationLocked?: boolean;
 }) {
   const [values, setValues] = useState<
     Record<string, string | boolean | number>
@@ -71,6 +73,7 @@ function Composer({
   });
   return (
     <ChatInput
+      configurationLocked={configurationLocked}
       onSend={onSend}
       onStop={vi.fn()}
       isLoading={false}
@@ -165,4 +168,19 @@ test("local composer offers directory selection directly above the input", async
       name: "Choose working directory: /repo",
     }),
   ).toHaveTextContent("repo");
+});
+
+test("assistant configuration bypasses stale local workspace selection without losing the draft", async () => {
+  const onSend = vi.fn();
+  render(<Composer onSend={onSend} configurationLocked />);
+  const editor = await screen.findByRole("textbox");
+  await waitFor(() => expect(editor).toHaveTextContent("List the files"));
+  expect(
+    screen.queryByRole("button", { name: "Choose working directory" }),
+  ).toBeNull();
+  await act(async () => {
+    fireEvent.submit(editor.closest("form")!);
+  });
+  expect(invoke).not.toHaveBeenCalled();
+  expect(onSend).toHaveBeenCalled();
 });

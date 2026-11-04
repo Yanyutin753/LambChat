@@ -11,6 +11,7 @@ import { LazyRevealPreviewHost } from "../../chat/ChatMessage/items/LazyRevealPr
 import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImageGallery";
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
+import { AssistantConversationBar } from "../../assistants/AssistantConversationBar";
 import { SessionTodoDock } from "../../chat/SessionTodoDock";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
@@ -77,6 +78,8 @@ export function ChatView({
   draftKey,
   messages,
   sessionId,
+  assistant,
+  onAssistantResolved,
   composerFocusRequest,
   currentRunId,
   isLoading,
@@ -706,7 +709,12 @@ export function ChatView({
     onCancelSteer,
     isLoading: sessionRunning,
     sendBlocked: approvals.length > 0 || hasPendingAskHumanParts,
-    canSend: canSendMessage,
+    canSend:
+      canSendMessage &&
+      (!assistant ||
+        assistant.context_kind === "task" ||
+        assistant.status === "active"),
+    configurationLocked: Boolean(assistant),
     tools,
     onToggleTool,
     onToggleCategory,
@@ -786,6 +794,13 @@ export function ChatView({
     <WorkspaceMediaContext.Provider value={mediaWorkspace}>
       <SessionImageGalleryProvider messages={messages}>
         <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
+          {sessionId && (
+            <AssistantConversationBar
+              key={sessionId}
+              sessionId={sessionId}
+              onResolved={onAssistantResolved}
+            />
+          )}
           <main
             ref={messagesContainerRef}
             className="relative flex-1 min-h-0 overflow-hidden"
