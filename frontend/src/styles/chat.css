@@ -1572,7 +1572,8 @@ html[data-mobile-keyboard="true"]
 .composer-workspace-shell:focus-within {
   border-color: var(--theme-ring);
 }
-.composer-workspace-shell .chat-input-container:not([data-composer-expanded]) {
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded]):not([data-drag-over]) {
   border-color: transparent;
   box-shadow: none;
 }
