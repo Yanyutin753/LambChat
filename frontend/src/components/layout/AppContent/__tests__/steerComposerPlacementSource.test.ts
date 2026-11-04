@@ -18,7 +18,7 @@ test("keeps pending steer items out of the Virtuoso message list", () => {
   expect(chatViewSource).not.toMatch(
     /mergeMessagesWithSteers\(messages,\s*steerMessages/,
   );
-  expect(chatViewSource).toMatch(/steerMessages,\s*onCancelSteer/);
+  expect(chatViewSource).toMatch(/steerMessages,[\s\S]*onCancelSteer/);
 });
 
 test("renders pending steer items above the composer", () => {
@@ -26,6 +26,6 @@ test("renders pending steer items above the composer", () => {
   // 渲染移入 ChatInputSteerQueue（steerMessages.map 在队列组件内执行）；
   // onEdit 提供排队消息「弹回输入框编辑」（Codex edit_queued_message）
   expect(chatInputSource).toMatch(
-    /<ChatInputSteerQueue\s+items=\{steerMessages\}\s+onCancel=\{onCancelSteer\}\s+onEdit=/,
+    /<ChatInputSteerQueue\s+items=\{steerMessages\}[\s\S]*?onCancel=\{onCancelSteer\}\s+onEdit=/,
   );
 });

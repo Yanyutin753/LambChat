@@ -10,6 +10,7 @@ import type { ChatSubmissionCallbacks } from "./types";
 
 interface SteerQueueOptions {
   sessionIdRef: RefObject<string | null>;
+  currentRunIdRef?: RefObject<string | null>;
   deferSteer?: (
     content: string,
     messageId: string,
@@ -85,6 +86,7 @@ export interface PromoteSteerFollowUpsDeps {
     content: string,
     attachments?: MessageAttachment[],
     onAccepted?: () => void,
+    messageId?: string,
   ) => Promise<unknown>;
   isCancelled?: (messageId: string) => boolean;
   clearSteer?: (content: string, messageId: string, sessionId?: string) => void;
@@ -92,6 +94,7 @@ export interface PromoteSteerFollowUpsDeps {
   isSessionActive?: () => Promise<boolean>;
   /** 本地 sendMessage 在途时返回 true：补发会被在途守卫静默丢弃，须保留排队项稍后重试 */
   isSending?: () => boolean;
+  isPaused?: () => boolean;
 }
 
 export interface PromoteSteerFollowUpsResult {
@@ -118,7 +121,7 @@ export async function promoteSteerFollowUps(
   deps: PromoteSteerFollowUpsDeps,
 ): Promise<PromoteSteerFollowUpsResult> {
   const { sessionId } = deps;
-  if (!sessionId) return { promoted: 0, skippedActive: 0 };
+  if (!sessionId || deps.isPaused?.()) return { promoted: 0, skippedActive: 0 };
   if (deps.isSessionActive) {
     let active: boolean;
     try {
@@ -126,7 +129,7 @@ export async function promoteSteerFollowUps(
     } catch {
       active = true;
     }
-    if (active) {
+    if (active || deps.isPaused?.()) {
       const skippedActive = items.filter(
         (item) => !deps.isCancelled?.(item.id),
       ).length;
@@ -136,6 +139,7 @@ export async function promoteSteerFollowUps(
   let promoted = 0;
   let deferredBySending = 0;
   for (const item of items) {
+    if (deps.isPaused?.()) break;
     if (deps.isCancelled?.(item.id)) continue;
     // 本地提交在途（用户恰好在 run 结束瞬间手动发送）：sendMessage 的
     // 在途守卫会静默丢弃补发调用，若先清本地项这条排队消息就丢了。
@@ -149,6 +153,7 @@ export async function promoteSteerFollowUps(
     } catch {
       // 取消失败继续补发；新 run 提交时的后端兜底清理会移除残留项
     }
+    if (deps.isPaused?.()) break;
     if (deps.isCancelled?.(item.id)) continue;
     if (deps.isSending?.()) {
       deferredBySending += 1;
@@ -163,6 +168,7 @@ export async function promoteSteerFollowUps(
       item.content,
       item.attachments,
       onAccepted,
+      item.id,
     );
     if (!accepted && result !== false) onAccepted();
     if (accepted) promoted += 1;
@@ -185,6 +191,15 @@ const ACTIVE_RUN_STATUSES = new Set([
 const PROMOTE_RETRY_INTERVAL_MS = 5000;
 
 export interface SteerFollowUpPromotionOptions {
+  markSteerFailed?: (messageId: string, sessionId: string) => void;
+  queuePauseRevision?: number;
+  isQueuePaused?: (sessionId: string | null) => boolean;
+  setQueuePaused?: (
+    sessionId: string | null,
+    paused: boolean,
+    runId?: string,
+    reason?: "interrupted" | "delivery",
+  ) => void;
   isLoading: boolean;
   isSendingRef: RefObject<boolean>;
   steerMessages: SteerItem[];
@@ -221,6 +236,10 @@ export function useSteerFollowUpPromotion(
     followUpSteerIdsRef,
     sessionIdRef,
     sendMessageRef,
+    queuePauseRevision,
+    isQueuePaused,
+    setQueuePaused,
+    markSteerFailed,
   } = options;
   // 重试时校验插话是否仍在队列（已被注入/送达的不重发，防同内容双投）
   const steerMessagesRef = useRef(steerMessages);
@@ -229,7 +248,12 @@ export function useSteerFollowUpPromotion(
   }, [steerMessages]);
 
   useEffect(() => {
-    if (isLoading || isSendingRef.current) return;
+    if (
+      isLoading ||
+      isSendingRef.current ||
+      isQueuePaused?.(sessionIdRef.current)
+    )
+      return;
     const followUps = selectSteersForFollowUp(steerMessages).filter(
       (item) => !followUpSteerIdsRef.current.has(item.id),
     );
@@ -245,6 +269,7 @@ export function useSteerFollowUpPromotion(
     const queuedSnapshot = steerMessagesRef;
     const ownerSessionId = sessionIdRef.current;
     const promote = async () => {
+      let followUpToRunId: string | undefined;
       // 先取消后端队列中的残留项再补发，否则新 run 的首次模型调用会把
       // 同一条插话再次注入（同内容投递两次）。FIFO 逐条等待补发，避免
       // 单 run 守卫丢弃后续条目。
@@ -252,9 +277,20 @@ export function useSteerFollowUpPromotion(
         sessionId: ownerSessionId,
         cancelSteer: (sessionId, content, messageId) =>
           sessionApi.cancelSteer(sessionId, content, messageId),
-        sendMessage: async (content, attachments, onAccepted) => {
+        sendMessage: async (content, attachments, onAccepted, messageId) => {
           let accepted = false;
           await sendMessageRef.current?.(content, attachments, {
+            followUpToRunId,
+            onRejected: () => {
+              if (messageId && ownerSessionId)
+                markSteerFailed?.(messageId, ownerSessionId);
+              setQueuePaused?.(
+                ownerSessionId,
+                true,
+                followUpToRunId,
+                "delivery",
+              );
+            },
             onAccepted: () => {
               accepted = true;
               onAccepted?.();
@@ -271,10 +307,14 @@ export function useSteerFollowUpPromotion(
         clearSteer,
         isSessionActive: async () => {
           if (!ownerSessionId) return false;
-          const { status } = await sessionApi.getStatus(ownerSessionId);
-          return ACTIVE_RUN_STATUSES.has(status);
+          const { status, run_id, queue_paused } =
+            await sessionApi.getStatus(ownerSessionId);
+          followUpToRunId = run_id;
+          if (queue_paused) setQueuePaused?.(ownerSessionId, true, run_id);
+          return !!queue_paused || ACTIVE_RUN_STATUSES.has(status);
         },
         isSending: () => isSendingRef.current,
+        isPaused: () => isQueuePaused?.(ownerSessionId) ?? false,
       });
       // 会话仍在运行：插话留在原 run 队列等注入，稍后再探测
       if (result.skippedActive > 0 && !cancelled) {
@@ -307,6 +347,10 @@ export function useSteerFollowUpPromotion(
     followUpSteerIdsRef,
     sessionIdRef,
     sendMessageRef,
+    queuePauseRevision,
+    isQueuePaused,
+    setQueuePaused,
+    markSteerFailed,
   ]);
 }
 
@@ -332,6 +376,7 @@ export interface PendingSteerSnapshot {
  */
 export function useSteerQueue({
   sessionIdRef,
+  currentRunIdRef,
   deferSteer,
   removeDeferredSteer,
 }: SteerQueueOptions) {
@@ -348,24 +393,45 @@ export function useSteerQueue({
   // 引用必须稳定：作为 props 传给 memo(ChatInput)，流式期间父级高频
   // 重渲染时不能破坏记忆化（否则编辑器每个 token 重渲染一次）
   const steerMessage = useCallback(
-    async (content: string, attachments: MessageAttachment[] = []) => {
+    async (
+      content: string,
+      attachments: MessageAttachment[] = [],
+      queuedMessageId?: string,
+    ) => {
       const text = content.trim();
       const currentSessionId = sessionIdRef.current;
-      if (!text || !currentSessionId) return;
+      if ((!text && !attachments.length) || !currentSessionId) return;
 
       const item: SteerItem = {
-        id: uuid(),
+        id: queuedMessageId ?? uuid(),
         content: text,
         attachments,
-        queued: true,
+        queued: false,
         status: "pending",
         timestamp: new Date(),
       };
       const pending = { cancelled: false };
       pendingSteersRef.current.set(item.id, pending);
-      setSteerMessages((prev) => [...prev, item]);
+      setSteerMessages((prev) =>
+        prev.some((queued) => queued.id === item.id)
+          ? prev.map((queued) => (queued.id === item.id ? item : queued))
+          : [...prev, item],
+      );
       try {
-        await sessionApi.steer(currentSessionId, text, item.id, attachments);
+        await sessionApi.steer(
+          currentSessionId,
+          text,
+          item.id,
+          attachments,
+          currentRunIdRef?.current ?? undefined,
+        );
+        setSteerMessages(
+          (prev) =>
+            prev.map((queued) =>
+              queued.id === item.id ? { ...queued, queued: true } : queued,
+            ),
+          currentSessionId,
+        );
       } catch (error) {
         if (pending.cancelled) return;
         console.error("[steerMessage] Failed to steer session:", error);
@@ -373,10 +439,12 @@ export function useSteerQueue({
           typeof error === "object" && error !== null && "status" in error
             ? (error as { status?: number }).status
             : undefined;
-        // A 409 means the run ended between the status check and enqueue. It
-        // is safe to preserve the user's intent as a normal next turn;
-        // transport/auth/server failures must remain retryable instead.
-        if (status === 409) {
+        // Only an ended run can fall back; a stale-turn conflict must not target a newer run.
+        const code =
+          typeof error === "object" && error !== null && "code" in error
+            ? error.code
+            : undefined;
+        if (status === 409 && code === "steer_session_not_running") {
           const deferred: SteerItem = {
             ...item,
             queued: true,
@@ -392,16 +460,18 @@ export function useSteerQueue({
           );
           return;
         }
-        setSteerMessages((prev) =>
-          prev.map((s) =>
-            s.id === item.id ? { ...s, queued: false, status: "failed" } : s,
-          ),
+        setSteerMessages(
+          (prev) =>
+            prev.map((s) =>
+              s.id === item.id ? { ...s, queued: false, status: "failed" } : s,
+            ),
+          currentSessionId,
         );
       } finally {
         pendingSteersRef.current.delete(item.id);
       }
     },
-    [sessionIdRef, setSteerMessages],
+    [sessionIdRef, currentRunIdRef, setSteerMessages],
   );
 
   // 追加提问：只入本地排队（不 POST /steer），run 结束后自动转普通消息
@@ -460,12 +530,32 @@ export function useSteerQueue({
     [setSteerMessages],
   );
 
+  const markSteerFailed = useCallback(
+    (messageId: string, sessionId: string) => {
+      setSteerMessages(
+        (prev) =>
+          prev.map((item) =>
+            item.id === messageId
+              ? { ...item, queued: false, status: "failed" }
+              : item,
+          ),
+        sessionId,
+      );
+    },
+    [setSteerMessages],
+  );
+
   const hydrateSteers = useCallback(
-    (items: PendingSteerSnapshot[]) => {
+    (items: PendingSteerSnapshot[], deliveredIds: string[] = []) => {
       setSteerMessages((prev) => {
-        const existing = new Map(prev.map((item) => [item.id, item]));
+        const delivered = new Set(deliveredIds);
+        const existing = new Map(
+          prev
+            .filter((item) => !delivered.has(item.id))
+            .map((item) => [item.id, item]),
+        );
         for (const item of items) {
-          if (!existing.has(item.message_id)) {
+          if (!delivered.has(item.message_id)) {
             existing.set(item.message_id, {
               id: item.message_id,
               content: item.content,
@@ -516,6 +606,7 @@ export function useSteerQueue({
     queueFollowUp,
     cancelSteer,
     markSteerDelivered,
+    markSteerFailed,
     clearSteerMessages,
     clearSteer,
     hydrateSteers,

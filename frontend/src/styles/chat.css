@@ -1561,32 +1561,52 @@ html[data-mobile-keyboard="true"]
   }
 }
 
-/* All composer controls align to the same text and icon edges. */
+/* A quiet context panel sits inside the wider writing surface. */
 .composer-workspace-shell {
   --composer-row-inset: 0.75rem;
+}
+.composer-context-panel {
+  margin-inline: 0.75rem;
   border: 1px solid var(--theme-border-subtle);
-  border-radius: var(--radius-xl);
-  background: var(--theme-bg-elevated);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--theme-bg-subtle);
+}
+.composer-context-panel:has(> .composer-workspace-strip:only-child:empty) {
+  display: none;
+}
+.composer-workspace-shell .chat-input-container {
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
 }
-.composer-workspace-shell:focus-within {
-  border-color: var(--theme-ring);
-}
-.composer-workspace-shell
-  .chat-input-container:not([data-composer-expanded]):not([data-drag-over]) {
-  border-color: transparent;
-  box-shadow: none;
+.composer-queue-pause {
+  padding: 0 var(--composer-row-inset);
+  border-bottom: 1px solid var(--theme-border-subtle);
 }
 .composer-queue {
   max-height: min(12rem, 25dvh);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.composer-queue-row,
+.composer-queue svg,
+[id^="composer-queue-menu-"] svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+[id^="composer-queue-menu-"] .ui-menu-item {
+  font-size: 0.875rem;
+}
+.composer-queue .interactive-action-icon > div,
+[id^="composer-queue-menu-"] .interactive-action-icon > div {
+  flex-shrink: 0;
+}
+.composer-queue-row {
+  padding: 0 var(--composer-row-inset, 0.75rem);
+}
 .composer-goal-row {
   padding: 0.25rem var(--composer-row-inset, 0.75rem);
 }
-.composer-workspace-shell > :is(.composer-queue, .composer-goal-row) {
+.composer-context-panel > :is(.composer-queue, .composer-goal-row) {
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 .composer-workspace-shell .composer-workspace-strip {
@@ -1842,16 +1862,43 @@ html .composer-environment-panel button:hover {
 }
 
 @container workspace (max-width: 22rem) {
+  .composer-queue {
+    max-height: min(16rem, 45dvh);
+  }
+  .composer-queue-pause {
+    display: grid;
+    grid-template-columns: 0.75rem minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .composer-queue-pause > button {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .composer-queue-row {
+    flex-wrap: wrap;
+  }
+  .composer-queue-row > span:first-of-type {
+    min-width: 5rem;
+  }
+  .composer-queue-row > div {
+    margin-left: auto;
+  }
+  .composer-queue-row > [role="status"] {
+    order: 1;
+    flex-basis: 100%;
+    max-width: 100%;
+    padding-left: 1.25rem;
+  }
+  .composer-queue-row button:not(.composer-queue-guide) {
+    width: max(36px, 2rem);
+  }
+  .composer-queue-guide {
+    padding-inline: 0;
+  }
+
   .composer-goal-row .composer-goal-summary {
     grid-column: 1 / -1;
     grid-row: 2;
     padding-bottom: 0.25rem;
-  }
-  .composer-queue-guide {
-    width: 2.25rem;
-    padding-inline: 0;
-  }
-  .composer-queue-guide-label {
-    display: none;
   }
 }
