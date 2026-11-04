@@ -27,6 +27,7 @@ def test_web_search_settings_are_registered() -> None:
         "BRAVE_API_KEYS": "",
         "SEARXNG_BASE_URL": "",
         "SEARXNG_API_KEY": "",
+        "KEENABLE_API_KEY": "",
     }
     for key, default in expected_defaults.items():
         assert Settings.model_fields[key].default == default
@@ -39,12 +40,14 @@ def test_web_search_settings_are_registered() -> None:
         "tavily",
         "brave",
         "searxng",
+        "keenable",
     ]
     assert TOOLS_SETTING_DEFINITIONS["DEEPSEEK_API_KEYS"]["is_sensitive"] is True
     assert TOOLS_SETTING_DEFINITIONS["TAVILY_API_KEYS"]["is_sensitive"] is True
     assert TOOLS_SETTING_DEFINITIONS["ANYSEARCH_API_KEYS"]["is_sensitive"] is True
     assert TOOLS_SETTING_DEFINITIONS["BRAVE_API_KEYS"]["is_sensitive"] is True
     assert TOOLS_SETTING_DEFINITIONS["SEARXNG_API_KEY"]["is_sensitive"] is True
+    assert TOOLS_SETTING_DEFINITIONS["KEENABLE_API_KEY"]["is_sensitive"] is True
     assert TOOLS_SETTING_DEFINITIONS["SEARXNG_BASE_URL"].get("is_sensitive") is not True
     for key in expected_defaults:
         if key not in ("ENABLE_WEB_SEARCH", "DEEPSEEK_API_KEYS"):

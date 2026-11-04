@@ -5,6 +5,7 @@
 - key 池按 round-robin 轮询，429/432/401 等错误按语义冷却后跳过（比开源项目
   的纯轮询更进一步：单 key 额度耗尽或限速时自动换下一个 key）；
 - auto 模式按 anysearch → deepseek → tavily → brave → searxng 顺序回退，钉死某供应商时不回退。
+- keenable 无需 key（公开端点），只在显式选择时使用，不参与 auto；KEENABLE_API_KEY 可选。
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 ANYSEARCH_SEARCH_URL = "https://api.anysearch.com/v1/search"
 DEEPSEEK_SEARCH_URL = "https://api.deepseek.com/v1/tools/search"
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+KEENABLE_PUBLIC_SEARCH_URL = "https://api.keenable.ai/v1/search/public"
+KEENABLE_SEARCH_URL = "https://api.keenable.ai/v1/search"
+KEENABLE_SNIPPET_MAX_CHARS = 1000
 
 # 归一化 time_range（Tavily/SearXNG 原生支持，Brave 映射为 freshness）
 _TIME_RANGE_ALIASES = {"d": "day", "w": "week", "m": "month", "y": "year"}
@@ -437,12 +441,55 @@ async def searxng_search(
     return _result(query=query, provider="searxng", results=results, answer=answer)
 
 
+# ---------------------------------------------------------------------------
+# Keenable
+# ---------------------------------------------------------------------------
+
+
+async def keenable_search(
+    client: httpx.AsyncClient,
+    api_key: str,
+    query: str,
+    max_results: int,
+    time_range: str | None,
+) -> dict[str, Any]:
+    """Keenable：无 key 走公开端点；配置 key 时走带鉴权端点（更高限额）。"""
+    headers = {"Content-Type": "application/json", "X-Keenable-Title": "LambChat"}
+    url = KEENABLE_PUBLIC_SEARCH_URL
+    if api_key:
+        headers["X-API-Key"] = api_key
+        url = KEENABLE_SEARCH_URL
+    response = await client.post(
+        url,
+        json={"query": query, "max_results": max(1, min(int(max_results), 20))},
+        headers=headers,
+    )
+    _raise_for_status(response)
+    data = response.json()
+
+    results = [
+        {
+            "title": _clean(item.get("title")) or "",
+            "url": _clean(item.get("url")) or "",
+            "snippet": _clean(item.get("description"))
+            or (_clean(item.get("snippet")) or "")[:KEENABLE_SNIPPET_MAX_CHARS],
+            "score": None,
+            "favicon_url": None,
+            "published_date": None,
+        }
+        for item in (data.get("results") or [])
+        if isinstance(item, dict) and _clean(item.get("url"))
+    ]
+    return _result(query=query, provider="keenable", results=results)
+
+
 PROVIDER_FUNCS: dict[str, Callable[..., Any]] = {
     "anysearch": anysearch_search,
     "deepseek": deepseek_search,
     "tavily": tavily_search,
     "brave": brave_search,
     "searxng": searxng_search,
+    "keenable": keenable_search,
 }
 
 
@@ -583,6 +630,24 @@ async def execute_web_search(
         if provider == "anysearch" and time_range:
             errors.append("anysearch: time_range is not supported")
             continue
+        if provider == "keenable":
+            if time_range:
+                errors.append("keenable: time_range is not supported")
+                continue
+            try:
+                return await keenable_search(
+                    _get_client(),
+                    str(getattr(settings, "KEENABLE_API_KEY", "") or "").strip(),
+                    query,
+                    max_results,
+                    time_range,
+                )
+            except Exception as e:
+                if is_quota_error(e):
+                    raise
+                logger.warning("[WebSearch] keenable failed: %s", type(e).__name__)
+                errors.append(f"keenable: {type(e).__name__}")
+                continue
         if provider == "searxng":
             base_url = str(getattr(settings, "SEARXNG_BASE_URL", "") or "").strip()
             if not base_url:

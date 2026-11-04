@@ -298,6 +298,7 @@ def _configure(monkeypatch: pytest.MonkeyPatch, **values: Any) -> None:
         "BRAVE_API_KEYS": "",
         "SEARXNG_BASE_URL": "",
         "SEARXNG_API_KEY": "",
+        "KEENABLE_API_KEY": "",
     }
     defaults.update(values)
     for key, value in defaults.items():
@@ -558,3 +559,54 @@ async def test_transport_errors_never_expose_keys_in_logs_or_results(monkeypatch
     assert out["success"] is False
     assert "key-sentinel" not in str(out) + caplog.text
     assert "LocalProtocolError" in str(out)
+
+
+# ---------------------------------------------------------------------------
+# Keenable
+# ---------------------------------------------------------------------------
+
+
+async def test_keenable_keyless_uses_public_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="keenable")
+    client = _fake_client(
+        monkeypatch,
+        [
+            _FakeResponse(
+                json_data={
+                    "results": [
+                        {"title": "K", "url": "https://k/1", "description": "d", "snippet": "s"},
+                        {"title": "no url", "description": "dropped"},
+                        {"title": "L", "url": "https://k/2", "snippet": "x" * 2000},
+                    ]
+                }
+            )
+        ],
+    )
+
+    out = await wsp.execute_web_search("hello", 5, None)
+
+    req = client.requests[0]
+    assert req["url"] == wsp.KEENABLE_PUBLIC_SEARCH_URL
+    assert req["json"] == {"query": "hello", "max_results": 5}
+    assert req["headers"]["X-Keenable-Title"] == "LambChat"
+    assert "X-API-Key" not in req["headers"]
+    assert out["success"] is True
+    assert out["provider"] == "keenable"
+    assert [r["url"] for r in out["results"]] == ["https://k/1", "https://k/2"]
+    assert out["results"][0]["snippet"] == "d"
+    assert len(out["results"][1]["snippet"]) == wsp.KEENABLE_SNIPPET_MAX_CHARS
+
+
+async def test_keenable_with_key_uses_keyed_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="keenable", KEENABLE_API_KEY="kn")
+    client = _fake_client(monkeypatch, [_FakeResponse(json_data={"results": []})])
+
+    await wsp.execute_web_search("hello", 5, None)
+
+    assert client.requests[0]["url"] == wsp.KEENABLE_SEARCH_URL
+    assert client.requests[0]["headers"]["X-API-Key"] == "kn"
+
+
+def test_keenable_is_not_in_auto_chain(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure(monkeypatch, WEB_SEARCH_PROVIDER="auto")
+    assert "keenable" not in wsp.resolve_provider_chain()

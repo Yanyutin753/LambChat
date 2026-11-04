@@ -554,6 +554,7 @@ class Settings(BaseSettings):
     BRAVE_API_KEYS: str = ""
     SEARXNG_BASE_URL: str = ""
     SEARXNG_API_KEY: str = ""
+    KEENABLE_API_KEY: str = ""
 
     # Web fetch tool settings（各家 key 英文逗号分隔轮询；direct 无需 key）。
     # 默认挂载：direct 供应商零 key 可用
