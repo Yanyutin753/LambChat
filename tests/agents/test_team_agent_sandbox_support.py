@@ -117,6 +117,9 @@ async def test_interrupted_delegating_agent_drains_activity_filters_without_clea
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeepAgent) -> None:
+    if hasattr(module, "resolve_group_for_session"):
+        monkeypatch.setattr(module, "resolve_group_for_session", AsyncMock(return_value=None))
+
     async def fake_get_model(**_kwargs):
         return object()
 

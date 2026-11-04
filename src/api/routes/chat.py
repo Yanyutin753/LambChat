@@ -199,8 +199,12 @@ async def _submit_chat(
         raise
 
     if assistant or assistant_task:
+        from src.infra.assistant.groups import assistant_instructions
+
         instructions = (
-            assistant.instructions if assistant else assistant_task.get("assistant_instructions")
+            assistant_instructions(assistant)
+            if assistant
+            else assistant_task.get("assistant_instructions")
         )
         request.persona_system_prompt = (
             "\n\n".join(part for part in (request.persona_system_prompt, instructions) if part)

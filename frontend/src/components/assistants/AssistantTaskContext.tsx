@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Square } from "lucide-react";
+import { ChevronDown, Square } from "lucide-react";
 import { assistantApi } from "../../services/api/assistant";
 import { sessionApi } from "../../services/api/session";
 import type { AssistantTask } from "../../types/assistant";
@@ -88,16 +88,6 @@ export function AssistantTaskContext({
       setBusy(false);
     }
   };
-  const review = (accepted: boolean) => {
-    if (task)
-      void perform(() =>
-        assistantApi.reviewTask(assistantId, taskId, {
-          run_id: task.run_id,
-          revision: task.review_revision,
-          accepted,
-        }),
-      );
-  };
   const running =
     task &&
     [
@@ -108,16 +98,6 @@ export function AssistantTaskContext({
       "recovering",
       "waiting_human",
     ].includes(task.state);
-  const reviewable =
-    task && ["awaiting_review", "needs_revision"].includes(task.state);
-  const hint =
-    task?.state === "waiting_human"
-      ? "workApprovalHint"
-      : task?.state === "awaiting_review"
-        ? "workReviewHint"
-        : task?.state === "needs_revision"
-          ? "workRevisionHint"
-          : null;
   return (
     <section
       className="assistant-work-context"
@@ -170,37 +150,6 @@ export function AssistantTaskContext({
               </Button>
             )}
           </div>
-          {(hint || (canWrite && reviewable)) && (
-            <div className="assistant-work-context-row">
-              {hint && (
-                <p className="min-w-0 flex-1 text-12 text-theme-text-secondary">
-                  {t(`assistants.${hint}`)}
-                </p>
-              )}
-              {canWrite && reviewable && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={busy || !!error}
-                    leftIcon={<Check size={14} />}
-                    onClick={() => review(true)}
-                  >
-                    {t("assistants.acceptTask")}
-                  </Button>
-                  {task.state === "awaiting_review" && (
-                    <Button
-                      size="sm"
-                      disabled={busy || !!error}
-                      onClick={() => review(false)}
-                    >
-                      {t("assistants.rejectTask")}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </>
       ) : (
         !error && (

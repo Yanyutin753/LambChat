@@ -82,7 +82,7 @@ def service(value=None, session=None):
 async def test_task_query_is_scoped_to_owner_and_canonical_assistant_session():
     task_service, collection = service(session=child(task_status="completed"))
     result = await task_service.get(owner(), "helper", "task")
-    assert result["state"] == "awaiting_review"
+    assert result["state"] == "completed"
     assert "api_key" not in str(result)
     collection.find_one.assert_awaited_once_with(
         {
@@ -136,7 +136,7 @@ async def test_old_acceptance_does_not_accept_a_follow_up_run():
         session=child(task_status="completed"),
     )
     result = await task_service.get(owner(), "helper", "task")
-    assert result["state"] == "awaiting_review"
+    assert result["state"] == "completed"
 
 
 async def test_manual_task_retries_dispatch_once_and_preserve_configuration(monkeypatch):

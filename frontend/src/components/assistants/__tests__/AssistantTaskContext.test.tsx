@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  act,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantTaskContext } from "../AssistantTaskContext";
@@ -38,58 +37,18 @@ afterEach(() => {
   cleanup();
   vi.resetAllMocks();
 });
-test("review submits the displayed run and revision and refreshes the receipt", async () => {
-  api.reviewTask.mockImplementation(async () => {
-    api.task.mockResolvedValue({
-      ...task,
-      state: "accepted",
-      review_revision: 5,
-    });
-  });
+test("completed work offers its result without an acceptance ceremony", async () => {
+  api.task.mockResolvedValue({ ...task, state: "completed" });
   render(<AssistantTaskContext {...props} />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: "assistants.acceptTask" }),
-  );
   expect(
-    await screen.findByText("assistants.taskStates.accepted"),
+    await screen.findByText("assistants.taskStates.completed"),
   ).toBeVisible();
-  expect(api.reviewTask).toHaveBeenCalledWith("helper", "task", {
-    run_id: "run",
-    revision: 4,
-    accepted: true,
-  });
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
-});
-test("a stale review is disabled until current work is reloaded", async () => {
-  api.reviewTask.mockRejectedValue(new Error("Review changed"));
-  render(<AssistantTaskContext {...props} />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: "assistants.acceptTask" }),
-  );
-  expect(await screen.findByRole("alert")).toHaveTextContent("Review changed");
   expect(
-    screen.getByRole("button", { name: "assistants.acceptTask" }),
-  ).toBeDisabled();
-  api.task.mockResolvedValue({
-    ...task,
-    run_id: "new-run",
-    review_revision: 5,
-  });
-  fireEvent.click(screen.getByRole("button", { name: "common.refresh" }));
-  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-  api.reviewTask.mockResolvedValue({});
-  fireEvent.click(
-    screen.getByRole("button", { name: "assistants.rejectTask" }),
-  );
-  await waitFor(() =>
-    expect(api.reviewTask).toHaveBeenLastCalledWith("helper", "task", {
-      run_id: "new-run",
-      revision: 5,
-      accepted: false,
-    }),
-  );
+    screen.queryByRole("button", { name: "assistants.rejectTask" }),
+  ).toBeNull();
 });
 test("readers see status without mutation controls", async () => {
   render(<AssistantTaskContext {...props} canWrite={false} />);
@@ -120,34 +79,15 @@ test("stopping work is fenced to its visible run", async () => {
   );
   await waitFor(() => expect(cancel).toHaveBeenCalledWith("child", "run"));
 });
-test("focus refresh picks up work completed in the background", async () => {
+test("focus refresh picks up completed work without a decision prompt", async () => {
   api.task.mockResolvedValueOnce({ ...task, state: "running" });
   render(<AssistantTaskContext {...props} />);
   await screen.findByText("assistants.taskStates.running");
+  api.task.mockResolvedValue({ ...task, state: "completed" });
   fireEvent(window, new Event("focus"));
   expect(
-    await screen.findByRole("button", { name: "assistants.acceptTask" }),
+    await screen.findByText("assistants.taskStates.completed"),
   ).toBeVisible();
-});
-test("an older read cannot overwrite a completed review", async () => {
-  let resolve!: (value: unknown) => void;
-  render(<AssistantTaskContext {...props} />);
-  await screen.findByRole("button", { name: "assistants.acceptTask" });
-  api.task.mockImplementationOnce(
-    () =>
-      new Promise((done) => {
-        resolve = done;
-      }),
-  );
-  fireEvent(window, new Event("focus"));
-  api.reviewTask.mockImplementation(async () => {
-    api.task.mockResolvedValue({ ...task, state: "accepted" });
-  });
-  fireEvent.click(
-    screen.getByRole("button", { name: "assistants.acceptTask" }),
-  );
-  await screen.findByText("assistants.taskStates.accepted");
-  await act(async () => resolve(task));
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();

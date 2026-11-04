@@ -30,7 +30,7 @@ def task_view(record, session):
         state = (
             ("accepted" if review.get("accepted") else "needs_revision")
             if reviewed
-            else "awaiting_review"
+            else "completed"
         )
     else:
         state = status or "queued"
@@ -51,7 +51,7 @@ def task_view(record, session):
         "admission_state": record["state"],
         "execution_mode": record["execution_mode"],
         "created_at": record["created_at"],
-        "environment": (record.get("agent_options") or {}).get("sandbox"),
+        "environment": (record.get("agent_options") or {}).get("sandbox") or None,
         "timeout_seconds": record.get("timeout_seconds"),
         "review_revision": record.get("review_revision", 0),
         "source_run_id": record.get("parent_run_id"),
@@ -141,6 +141,10 @@ class AssistantTaskService:
             team_id=assistant.team_id,
         )
         await resolve_persona_request(request, user)
+        if assistant.kind == "group":
+            from src.infra.assistant.discussions import restrict_discussion_request
+
+            restrict_discussion_request(request)
         options = await resolve_workspace_options(
             assistant_options(assistant), user.sub, project_id=assistant.project_id
         )
@@ -200,6 +204,7 @@ class AssistantTaskService:
         session = await self.background.sessions.get_session(record["session_id"])
         view = task_view(record, session)
         if view["run_id"] != data.run_id or view["state"] not in {
+            "completed",
             "awaiting_review",
             "accepted",
             "needs_revision",

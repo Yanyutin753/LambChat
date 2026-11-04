@@ -493,3 +493,5 @@ export function ToolCallItem({
 export { CancelSubagentItem } from "./items/CancelSubagentItem";
 export { StartBackgroundTaskItem } from "./items/StartBackgroundTaskItem";
 export { ListSubagentsItem } from "./items/ListSubagentsItem";
+
+export { AssistantManageItem } from "./items/AssistantManageItem";

@@ -33,3 +33,12 @@ test("subagent sidebar timestamp is rendered in the panel footer", () => {
     /subtitle,\s*\n\s*panelKey,\s*\n\s*children: <SubagentPanelContent/,
   );
 });
+
+test("group contributions stay in the conversation without opening a side panel automatically", () => {
+  expect(source).toContain(
+    "const inGroup = useAssistantGroupMembers() !== null",
+  );
+  expect(source).toContain("if (inGroup) return");
+  expect(source).toContain("inGroup && result");
+  expect(source).toContain("<MarkdownContent content={result}");
+});

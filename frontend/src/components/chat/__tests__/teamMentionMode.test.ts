@@ -5,7 +5,12 @@ const chatInputSource = readFileSync(
 );
 
 test("team agent mention switches teams instead of persona presets", () => {
-  expect(chatInputSource).toMatch(/useTeamMentionSearch/);
+  expect(chatInputSource).toMatch(/useChatInputMentions/);
+  const mentionSource = readFileSync(
+    new URL("../useChatInputMentions.ts", import.meta.url),
+    "utf8",
+  );
+  expect(mentionSource).toMatch(/useTeamMentionSearch/);
   expect(chatInputSource).toMatch(
     /const mentionMode =[\s\S]*currentAgent === "team"[\s\S]*\? "team"[\s\S]*: "persona"/,
   );

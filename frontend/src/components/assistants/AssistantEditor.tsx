@@ -28,7 +28,7 @@ export function AssistantEditor({
 }: {
   value?: Assistant;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
@@ -110,14 +110,14 @@ export function AssistantEditor({
     setError("");
     try {
       const data = { ...draft, name: draft.name.trim() };
-      if (saved)
-        await assistantApi.update(saved.id, {
-          ...data,
-          revision: saved.revision,
-          status: saved.status,
-        });
-      else await assistantApi.create(data);
-      onSaved();
+      const result = saved
+        ? await assistantApi.update(saved.id, {
+            ...data,
+            revision: saved.revision,
+            status: saved.status,
+          })
+        : await assistantApi.create(data);
+      onSaved(result.id);
     } catch (failure) {
       setError(
         failure instanceof Error

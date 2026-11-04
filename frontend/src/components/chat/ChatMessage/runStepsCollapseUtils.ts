@@ -22,12 +22,27 @@ export type RunPartGroup =
  */
 export function splitRunTailGroups<T extends RunPartGroup>(
   groups: T[],
-  opts: { enabled: boolean },
+  opts: { enabled: boolean; preserveSubagents?: boolean },
 ): { head: T[]; tail: T[] } {
   if (!opts.enabled) {
     return { head: [], tail: groups };
   }
 
+  const splitAt = (index: number) => {
+    const head: T[] = [];
+    const tail: T[] = [];
+    groups.forEach((group, position) => {
+      if (
+        position >= index ||
+        (opts.preserveSubagents &&
+          group.type === "single" &&
+          group.part.type === "subagent")
+      )
+        tail.push(group);
+      else head.push(group);
+    });
+    return { head, tail };
+  };
   let lastTextIndex = -1;
   for (let i = groups.length - 1; i >= 0; i--) {
     const group = groups[i];
@@ -42,10 +57,7 @@ export function splitRunTailGroups<T extends RunPartGroup>(
   }
 
   if (lastTextIndex >= 0) {
-    return {
-      head: groups.slice(0, lastTextIndex),
-      tail: groups.slice(lastTextIndex),
-    };
+    return splitAt(lastTextIndex);
   }
 
   let tailStart = groups.length;
@@ -60,7 +72,7 @@ export function splitRunTailGroups<T extends RunPartGroup>(
     tailStart--;
   }
 
-  return { head: groups.slice(0, tailStart), tail: groups.slice(tailStart) };
+  return splitAt(tailStart);
 }
 
 /** 折叠摘要中统计的"步骤"类型（不含不可见锚点与纯文本）。 */

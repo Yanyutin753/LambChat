@@ -7,6 +7,7 @@ import { Permission } from "../../types/auth";
 import type { Assistant } from "../../types/assistant";
 import { assistantApi } from "../../services/api/assistant";
 import { Button } from "../common/ui";
+import { AssistantGroupEditor } from "./AssistantGroupEditor";
 import { AssistantEditor } from "./AssistantEditor";
 import { AssistantTasksDialog } from "./AssistantTasksDialog";
 
@@ -130,7 +131,17 @@ export function AssistantConversationBar({
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog === "edit" && (
+      {dialog === "edit" && assistant.kind === "group" && (
+        <AssistantGroupEditor
+          value={assistant}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            setRefresh((value) => value + 1);
+          }}
+        />
+      )}
+      {dialog === "edit" && assistant.kind !== "group" && (
         <AssistantEditor
           key={assistant.id}
           value={assistant}

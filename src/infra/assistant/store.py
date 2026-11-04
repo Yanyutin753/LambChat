@@ -33,11 +33,11 @@ class AssistantStore:
         await self.collection.create_index([("user_id", 1), ("updated_at", -1), ("_id", -1)])
         await self.collection.create_index("session_id", unique=True)
 
-    async def create(self, user_id: str, data: AssistantCreate) -> Assistant:
+    async def create(self, user_id: str, data: AssistantCreate, *, identity=None) -> Assistant:
         now = utc_now()
         document = {
             **data.model_dump(by_alias=True),
-            "_id": uuid4().hex,
+            "_id": identity or uuid4().hex,
             "user_id": user_id,
             "session_id": str(ObjectId()),
             "revision": 1,
@@ -45,7 +45,22 @@ class AssistantStore:
             "created_at": now,
             "updated_at": now,
         }
-        await self.collection.insert_one(document)
+        if identity:
+            from pymongo.errors import DuplicateKeyError
+
+            try:
+                document = await self.collection.find_one_and_update(
+                    {"_id": identity, "user_id": user_id},
+                    {"$setOnInsert": document},
+                    upsert=True,
+                    return_document=ReturnDocument.AFTER,
+                )
+            except DuplicateKeyError:
+                document = await self.collection.find_one({"_id": identity, "user_id": user_id})
+            if document is None:
+                raise ValueError("Assistant identity conflict")
+        else:
+            await self.collection.insert_one(document)
         return _assistant(document)
 
     async def get(self, user_id: str, assistant_id: str) -> Assistant | None:

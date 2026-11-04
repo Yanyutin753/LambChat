@@ -5,12 +5,15 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantsPanel } from "../AssistantsPanel";
 
 const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
   api: {
+    chief: vi.fn(),
+    members: vi.fn(),
     list: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -34,7 +37,7 @@ const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
 vi.mock("../../common/AgentAvatar", () => ({
   AgentAvatar: ({ avatar, seed }: { avatar?: string; seed?: string }) => (
     <span
-      data-testid="assistant-avatar"
+      data-testid={seed === "Chief" ? "chief-avatar" : "assistant-avatar"}
       data-avatar={avatar}
       data-seed={seed}
     />
@@ -208,7 +211,12 @@ test("creating an assistant saves real configuration and closes only after succe
     .mockResolvedValueOnce(helper);
   render(<AssistantsPanel />);
   fireEvent.click(
-    screen.getAllByRole("button", { name: "assistants.create" })[0],
+    screen.getAllByRole("button", { name: "assistants.newChat" })[0],
+  );
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "assistants.create",
+    }),
   );
   fireEvent.change(
     await screen.findByRole("textbox", { name: /assistants.name/ }),
@@ -226,6 +234,9 @@ test("creating an assistant saves real configuration and closes only after succe
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(api.create).toHaveBeenLastCalledWith({
     name: "Researcher",
+    kind: "assistant",
+    member_ids: [],
+    leader_id: null,
     instructions: "Verify sources",
     model_id: null,
     persona_preset_id: null,
@@ -251,7 +262,12 @@ test("assistant configuration can select an owned collaboration team", async () 
   api.create.mockResolvedValue(helper);
   render(<AssistantsPanel />);
   fireEvent.click(
-    screen.getAllByRole("button", { name: "assistants.create" })[0],
+    screen.getAllByRole("button", { name: "assistants.newChat" })[0],
+  );
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "assistants.create",
+    }),
   );
   fireEvent.change(
     await screen.findByRole("textbox", { name: /assistants.name/ }),
@@ -445,7 +461,7 @@ test("secondary destinations have one entry in the workspace menu", async () => 
   expect(navigate).toHaveBeenCalledWith("/assistants/helper/discussions");
 });
 
-test("verified task conversations expose review next to the real chat", async () => {
+test("verified work shows status beside the real chat without requiring acceptance", async () => {
   route.assistantId = "helper";
   route.sessionId = "task-thread";
   api.forConversation.mockResolvedValue({
@@ -456,22 +472,25 @@ test("verified task conversations expose review next to the real chat", async ()
   api.task.mockResolvedValue({
     id: "task-1",
     session_id: "task-thread",
-    description: "Review this report",
-    state: "awaiting_review",
+    description: "Report",
+    state: "completed",
     run_id: "run-1",
-    review_revision: 2,
   });
-  api.reviewTask.mockResolvedValue({});
   render(<AssistantsPanel />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: "assistants.acceptTask" }),
-  );
+  expect(
+    await screen.findByText("assistants.taskStates.completed"),
+  ).toBeVisible();
   expect(screen.getByText("Real chat workspace")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "assistants.acceptTask" }),
+  ).toBeNull();
+});
+
+test("Chief opens its actual persistent identity", async () => {
+  api.chief.mockResolvedValue({ ...helper, id: "chief", kind: "chief" });
+  render(<AssistantsPanel />);
+  fireEvent.click(screen.getByRole("button", { name: /Chief/ }));
   await waitFor(() =>
-    expect(api.reviewTask).toHaveBeenCalledWith("helper", "task-1", {
-      run_id: "run-1",
-      revision: 2,
-      accepted: true,
-    }),
+    expect(navigate).toHaveBeenCalledWith("/assistants/chief"),
   );
 });

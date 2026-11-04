@@ -15,6 +15,14 @@ const endpoint = `${API_BASE}/api/assistants`;
 const resource = (id: string) => `${endpoint}/${encodeURIComponent(id)}`;
 
 export const assistantApi = {
+  chief() {
+    return authFetch<Assistant>(`${endpoint}/chief`, { method: "POST" });
+  },
+  members(id: string) {
+    return authFetch<{
+      members: { id: string; name: string; status: string }[];
+    }>(`${resource(id)}/members`);
+  },
   forConversation(sessionId: string) {
     return authFetch<Assistant | null>(
       `${endpoint}/conversation/${encodeURIComponent(sessionId)}`,

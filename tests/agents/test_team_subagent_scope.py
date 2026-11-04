@@ -124,7 +124,10 @@ async def test_selected_team_rebuilds_member_model_and_role_from_current_snapsho
     )
     role = build_team_member_subagent_type(member)
     team = SimpleNamespace(
-        active_members=[member], name="Current team", team_instructions="CURRENT_TEAM_RULES"
+        id="team-1",
+        active_members=[member],
+        name="Current team",
+        team_instructions="CURRENT_TEAM_RULES",
     )
     options.update(
         team=object(), runtime_subagent_specs={role: {"name": role, "model": "stale model"}}

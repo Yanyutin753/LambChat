@@ -43,7 +43,8 @@ function taskGroup(state: string) {
     ].includes(state)
   )
     return "active";
-  if (["accepted", "cancelled"].includes(state)) return "history";
+  if (["completed", "awaiting_review", "accepted", "cancelled"].includes(state))
+    return "history";
   return "attention";
 }
 
@@ -165,14 +166,6 @@ export function AssistantTasksDialog({
         );
       }
     });
-  const review = (task: AssistantTask, accepted: boolean) =>
-    perform(() =>
-      assistantApi.reviewTask(assistant.id, task.id, {
-        run_id: task.run_id,
-        revision: task.review_revision,
-        accepted,
-      }),
-    );
 
   const openTask = (task: AssistantTask) => {
     if (!task.session_id) return;
@@ -445,27 +438,6 @@ export function AssistantTasksDialog({
                                 {t("assistants.stopTask")}
                               </Button>
                             )}
-                          {canWrite &&
-                            ["awaiting_review", "needs_revision"].includes(
-                              task.state,
-                            ) && (
-                              <>
-                                <Button
-                                  disabled={busy || task.state === "accepted"}
-                                  onClick={() => void review(task, true)}
-                                >
-                                  {t("assistants.acceptTask")}
-                                </Button>
-                                <Button
-                                  disabled={
-                                    busy || task.state === "needs_revision"
-                                  }
-                                  onClick={() => void review(task, false)}
-                                >
-                                  {t("assistants.rejectTask")}
-                                </Button>
-                              </>
-                            )}
                         </div>
                         <details
                           className={
@@ -495,14 +467,7 @@ export function AssistantTasksDialog({
                             <p className="whitespace-pre-wrap break-words text-theme-text">
                               {task.description}
                             </p>
-                            {canWrite && task.state === "accepted" && (
-                              <Button
-                                disabled={busy}
-                                onClick={() => void review(task, false)}
-                              >
-                                {t("assistants.rejectTask")}
-                              </Button>
-                            )}
+
                             <p className="break-all text-12 text-theme-text-secondary">
                               {t("assistants.taskReference")}{" "}
                               <code className="select-all">{task.id}</code>
@@ -572,6 +537,7 @@ export function AssistantTasksDialog({
                               </p>
                             ) : (
                               [
+                                "completed",
                                 "awaiting_review",
                                 "accepted",
                                 "needs_revision",

@@ -1,3 +1,4 @@
+import { useAssistantGroupMembers } from "../../assistants/AssistantGroupContext";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { clsx } from "clsx";
@@ -662,6 +663,7 @@ export const ChatMessage = memo(function ChatMessage({
   isFirst,
 }: ChatMessageProps) {
   const { t, i18n } = useTranslation();
+  const inGroup = useAssistantGroupMembers() !== null;
   const { availableModels } = useSettingsContext();
   const { isAuthenticated } = useAuth();
   const fxRates = useFxRates();
@@ -746,7 +748,7 @@ export const ChatMessage = memo(function ChatMessage({
   const runPartGroups = hasParts ? groupPartsForGallery(message.parts!) : [];
   const { head: runHeadGroups, tail: runTailGroups } = splitRunTailGroups(
     runPartGroups,
-    { enabled: true },
+    { enabled: true, preserveSubagents: inGroup },
   );
   const renderPartGroups = (
     groups: Array<(typeof runPartGroups)[number]>,

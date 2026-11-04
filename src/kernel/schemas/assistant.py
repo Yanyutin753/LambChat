@@ -18,6 +18,9 @@ class AssistantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: AssistantName
+    kind: Literal["assistant", "group", "chief"] = "assistant"
+    member_ids: list[ResourceId] = Field(default_factory=list, max_length=12)
+    leader_id: ResourceId | None = None
     instructions: str = Field(default="", max_length=20_000)
     model_id: ResourceId | None = None
     persona_preset_id: ResourceId | None = None
@@ -29,6 +32,15 @@ class AssistantCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_environment(self):
+        if self.kind == "group":
+            if len(self.member_ids) < 2 or len(set(self.member_ids)) != len(self.member_ids):
+                raise ValueError("A group requires 2-12 distinct assistants")
+            if self.leader_id not in self.member_ids:
+                raise ValueError("The group coordinator must be a member")
+            if self.team_id or self.persona_preset_id or self.memory_mode != "private":
+                raise ValueError("Groups use their members and isolated group memory")
+        elif self.member_ids or self.leader_id:
+            raise ValueError("Only groups have members")
         if self.memory_mode == "project" and not self.project_id:
             raise ValueError("Shared assistant memory requires a project")
         if self.team_id and self.persona_preset_id:

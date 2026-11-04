@@ -14,6 +14,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Users,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types/auth";
@@ -36,6 +37,9 @@ import { ResourceCardMenu } from "../common/ResourceCardMenu";
 import { Button } from "../common/ui";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 import { AssistantDataPage } from "./AssistantDataPage";
+import { Dialog } from "../common/Dialog";
+import { AssistantGroupEditor } from "./AssistantGroupEditor";
+import { AssistantGroupContext } from "./AssistantGroupContext";
 import { AssistantEditor } from "./AssistantEditor";
 import { AssistantDiscussionsDialog } from "./AssistantDiscussionsDialog";
 import { AssistantRulesDialog } from "./AssistantRulesDialog";
@@ -91,7 +95,9 @@ export function AssistantsPanel() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [actionError, setActionError] = useState("");
-  const [editor, setEditor] = useState<Assistant | "new" | null>(null);
+  const [editor, setEditor] = useState<
+    Assistant | "new" | "group" | "choose" | null
+  >(null);
   const [profiles, setProfiles] = useState<Record<string, AssistantProfile>>(
     {},
   );
@@ -161,6 +167,27 @@ export function AssistantsPanel() {
       active = false;
     };
   }, [profileKeys, refresh]);
+  const chief = data?.find((item) => item.kind === "chief");
+  const openChief = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setActionError("");
+    try {
+      const value = chief ?? (await assistantApi.chief());
+      navigate(`/assistants/${encodeURIComponent(value.id)}`);
+      setRefresh((x) => x + 1);
+    } catch (failure) {
+      setActionError(
+        failure instanceof Error
+          ? failure.message
+          : t("common.operationFailed"),
+      );
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
   const profileFor = (item: Assistant) =>
     (item.team_id ? canReadTeams : canReadPersonas)
       ? profiles[profileKey(item)]
@@ -192,6 +219,26 @@ export function AssistantsPanel() {
       active = false;
     };
   }, [page, archived, refresh, t]);
+
+  useEffect(() => {
+    let active = true;
+    const update = () => {
+      void assistantApi
+        .list((page - 1) * PAGE_SIZE, PAGE_SIZE, archived)
+        .then((result) => {
+          if (active) {
+            setData(result.assistants);
+            setTotal(result.total);
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("assistants:changed", update);
+    return () => {
+      active = false;
+      window.removeEventListener("assistants:changed", update);
+    };
+  }, [page, archived]);
 
   useEffect(() => {
     let active = true;
@@ -364,11 +411,29 @@ export function AssistantsPanel() {
               className="assistant-workspace-create"
               variant="ghost"
               leftIcon={<Pencil size={16} />}
-              onClick={() => setEditor("new")}
+              onClick={() => setEditor("choose")}
             >
-              {t("assistants.create")}
+              {t("assistants.newChat")}
             </Button>
           </div>
+        )}
+        {canWrite && !archived && (
+          <button
+            type="button"
+            className="assistant-chief"
+            aria-current={assistant?.kind === "chief" ? "page" : undefined}
+            disabled={busy}
+            onClick={() => void openChief()}
+          >
+            <AgentAvatar seed="Chief" size={48} />
+            <span>
+              <strong>Chief</strong>
+              <span>{t("assistants.chiefHint")}</span>
+            </span>
+          </button>
+        )}
+        {actionError && !assistant && (
+          <ConfigPanelErrorCallout message={actionError} />
         )}
         <div className="assistant-workspace-sidebar-heading">
           <h1>{t(archived ? "assistants.archived" : "assistants.current")}</h1>
@@ -395,43 +460,51 @@ export function AssistantsPanel() {
             <PanelLoadingState />
           ) : data?.length ? (
             <ul>
-              {data.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="assistant-workspace-assistant"
-                    aria-current={item.id === assistantId ? "page" : undefined}
-                    onClick={() =>
-                      navigate(`/assistants/${encodeURIComponent(item.id)}`)
-                    }
-                    title={item.name}
-                  >
-                    <AgentAvatar
-                      avatar={profileFor(item)?.avatar}
-                      seed={profileFor(item)?.seed || item.name}
-                      size={32}
-                    />
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate font-medium">
-                        {item.name}
+              {data
+                .filter((item) => item.kind !== "chief")
+                .map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="assistant-workspace-assistant"
+                      aria-current={
+                        item.id === assistantId ? "page" : undefined
+                      }
+                      onClick={() =>
+                        navigate(`/assistants/${encodeURIComponent(item.id)}`)
+                      }
+                      title={item.name}
+                    >
+                      <AgentAvatar
+                        avatar={profileFor(item)?.avatar}
+                        seed={profileFor(item)?.seed || item.name}
+                        size={32}
+                      />
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block truncate font-medium">
+                          {item.name}
+                        </span>
+                        <span className="assistant-workspace-role">
+                          {(item.kind === "group"
+                            ? t("assistants.groupCount", {
+                                count: item.member_ids?.length ?? 0,
+                              })
+                            : profileFor(item)?.name) ||
+                            t(
+                              item.team_id
+                                ? "assistants.team"
+                                : "assistants.title",
+                            )}
+                        </span>
                       </span>
-                      <span className="assistant-workspace-role">
-                        {profileFor(item)?.name ||
-                          t(
-                            item.team_id
-                              ? "assistants.team"
-                              : "assistants.title",
-                          )}
-                      </span>
-                    </span>
-                    {item.status !== "active" && (
-                      <span className="text-11 text-theme-text-secondary">
-                        {t(`assistants.${item.status}`)}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
+                      {item.status !== "active" && (
+                        <span className="text-11 text-theme-text-secondary">
+                          {t(`assistants.${item.status}`)}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
             </ul>
           ) : !listError && !loading ? (
             <p className="px-3 py-4 text-12 text-theme-text-secondary">
@@ -518,6 +591,19 @@ export function AssistantsPanel() {
               </p>
             )}
           </div>
+          {assistant?.kind === "group" && (
+            <Button
+              variant="ghost"
+              aria-label={t("assistants.groupDetails")}
+              onClick={() => setEditor(assistant)}
+              disabled={!canWrite}
+              leftIcon={<Users size={16} />}
+            >
+              {t("assistants.groupCount", {
+                count: assistant.member_ids?.length ?? 0,
+              })}
+            </Button>
+          )}
           {assistant && (
             <>
               <button
@@ -575,7 +661,8 @@ export function AssistantsPanel() {
                                   : "active",
                               ),
                           },
-                          ...(assistant.status !== "archived"
+                          ...(assistant.kind !== "chief" &&
+                          assistant.status !== "archived"
                             ? [
                                 {
                                   label: t("assistants.archive"),
@@ -614,7 +701,7 @@ export function AssistantsPanel() {
                   <Button
                     variant="primary"
                     leftIcon={<Plus size={16} />}
-                    onClick={() => setEditor("new")}
+                    onClick={() => setEditor("choose")}
                   >
                     {t("assistants.create")}
                   </Button>
@@ -630,7 +717,7 @@ export function AssistantsPanel() {
               sessionId &&
               (sessionId === assistant.session_id ||
                 verifiedSession?.key === `${assistant.id}:${sessionId}`) ? (
-                <>
+                <AssistantGroupContext assistant={assistant}>
                   {taskConversation && verifiedSession?.taskId && (
                     <AssistantTaskContext
                       key={`${assistant.id}:${sessionId}`}
@@ -651,7 +738,7 @@ export function AssistantsPanel() {
                     setMobileSidebarOpen={noop}
                     onShowProfile={noop}
                   />
-                </>
+                </AssistantGroupContext>
               ) : (
                 <PanelLoadingState />
               )
@@ -698,16 +785,58 @@ export function AssistantsPanel() {
           </Suspense>
         )}
       </div>
-      {editor && (
-        <AssistantEditor
-          value={editor === "new" ? undefined : editor}
+      {editor === "choose" && (
+        <Dialog
+          open
           onClose={() => setEditor(null)}
-          onSaved={() => {
+          title={t("assistants.newChat")}
+        >
+          <div className="space-y-2">
+            <Button
+              className="w-full justify-start"
+              variant="ghost"
+              leftIcon={<Plus size={16} />}
+              onClick={() => setEditor("new")}
+            >
+              {t("assistants.create")}
+            </Button>
+            <Button
+              className="w-full justify-start"
+              variant="ghost"
+              leftIcon={<Users size={16} />}
+              onClick={() => setEditor("group")}
+            >
+              {t("assistants.createGroup")}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+      {(editor === "group" ||
+        (typeof editor === "object" && editor?.kind === "group")) && (
+        <AssistantGroupEditor
+          value={typeof editor === "object" ? editor ?? undefined : undefined}
+          onClose={() => setEditor(null)}
+          onSaved={(id) => {
             setEditor(null);
-            retry();
+            setRefresh((x) => x + 1);
+            navigate(`/assistants/${encodeURIComponent(id)}`);
           }}
         />
       )}
+      {editor &&
+        editor !== "choose" &&
+        editor !== "group" &&
+        (editor === "new" || editor.kind !== "group") && (
+          <AssistantEditor
+            value={editor === "new" ? undefined : editor}
+            onClose={() => setEditor(null)}
+            onSaved={(id) => {
+              setEditor(null);
+              retry();
+              navigate(`/assistants/${encodeURIComponent(id)}`);
+            }}
+          />
+        )}
     </div>
   );
 }

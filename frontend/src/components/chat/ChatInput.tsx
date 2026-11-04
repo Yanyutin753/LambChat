@@ -1,3 +1,5 @@
+import { useChatInputMentions } from "./useChatInputMentions";
+import { AssistantMentionPopup } from "../assistants/AssistantMentionPopup";
 import { useChatInputConfiguration } from "./chatInputConfiguration";
 import { useComposerDesktopAttachments } from "../../hooks/useComposerDesktopAttachments";
 import { Permission } from "../../types";
@@ -9,11 +11,8 @@ import toast from "react-hot-toast";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFileUpload } from "../../hooks/useFileUpload";
-import { useMentionState } from "../../hooks/useMentionState";
-import { useMentionSearch } from "../../hooks/useMentionSearch";
 import { resolveAgentDisplayName } from "../agent/agentCatalog";
 import { ChatInputPlaceholder } from "./ChatInputPlaceholder";
-import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
 import {
   useLongTextConversion,
@@ -240,56 +239,32 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
   const agentName = currentAgentInfo
     ? resolveAgentDisplayName(currentAgentInfo, i18n.language, t)
     : t("agent.selectMode");
-  const mentionEnabled =
-    mentionMode === "team" ? !!onSelectTeam : !!onUsePersonaPreset;
   const {
+    groupMembers,
+    mentionEnabled,
     mention,
-    moveHighlight: moveMentionHighlight,
-    setHighlightedIndex: setMentionHighlight,
-    setResultCount: setMentionResultCount,
+    mentionSearch,
+    teamMentionSearch,
+    groupMatches,
+    applyGroupMention,
+    moveMentionHighlight,
+    setMentionHighlight,
     resetMention,
     dismissMention,
-  } = useMentionState(input, cursorPosition, mentionEnabled);
-  const mentionSearch = useMentionSearch(
-    mention.query,
-    mention.isActive && mentionMode === "persona",
-  );
-  const teamMentionSearch = useTeamMentionSearch(
-    mention.query,
-    mention.isActive && mentionMode === "team",
-  );
-  useEffect(() => {
-    if (mention.isActive) {
-      setMentionResultCount(
-        mentionMode === "team"
-          ? teamMentionSearch.teams.length
-          : mentionSearch.presets.length,
-      );
-    }
-  }, [
-    mention.isActive,
+  } = useChatInputMentions({
+    input,
+    cursorPosition,
     mentionMode,
-    mentionSearch.presets.length,
-    teamMentionSearch.teams.length,
-    setMentionResultCount,
-  ]);
-  useEffect(() => {
-    if (!onMentionQueryChange) return;
-    onMentionQueryChange(mention.isActive ? mention.query : null);
-  }, [mention.isActive, mention.query, onMentionQueryChange]);
+    onSelectTeam,
+    onUsePersonaPreset,
+    onMentionQueryChange,
+    selectedPersonaPresetId,
+    selectedTeamId,
+    setComposerPlainText,
+    setCursorPosition,
+    focusComposerAtEnd,
+  });
   useNotifyTodayUsageRefresh(isLoading);
-  useEffect(() => {
-    const selectedId =
-      mentionMode === "team" ? selectedTeamId : selectedPersonaPresetId;
-    if (!onMentionQueryChange || !selectedId || !mention.isActive) return;
-    const before = input.substring(0, mention.atIndex);
-    const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setComposerPlainText(before + after);
-    setCursorPosition(before.length || 0);
-    focusComposerAtEnd();
-    resetMention();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on selection
-  }, [selectedPersonaPresetId, selectedTeamId, setComposerPlainText]);
   useEffect(() => {
     return subscribeSelectionActionPrompts((prompt) => {
       const separator = inputValueRef.current.trim() ? "\n\n" : "";
@@ -474,7 +449,10 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
       if (mention.isActive) {
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
-          if (mentionMode === "team") {
+          if (groupMembers !== null) {
+            const member = groupMatches[mention.highlightedIndex];
+            if (member) applyGroupMention(member);
+          } else if (mentionMode === "team") {
             const team = teamMentionSearch.teams[mention.highlightedIndex];
             if (team) applyTeamMentionSelection(team);
           } else {
@@ -511,6 +489,9 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
       }
     },
     [
+      groupMembers,
+      groupMatches,
+      applyGroupMention,
       applyMentionSelection,
       applyTeamMentionSelection,
       dismissMention,
@@ -729,7 +710,16 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
                   >
                     {composerExpanded && goalBar}
                     {isDraggingOver && <ChatInputDragOverlay />}
+                    {mention.isActive && groupMembers !== null && (
+                      <AssistantMentionPopup
+                        members={groupMatches}
+                        highlightedIndex={mention.highlightedIndex}
+                        onSelect={applyGroupMention}
+                        onHover={setMentionHighlight}
+                      />
+                    )}
                     {mention.isActive &&
+                      groupMembers === null &&
                       !onMentionQueryChange &&
                       mentionMode === "persona" && (
                         <MentionPopup
@@ -747,6 +737,7 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
                         />
                       )}
                     {mention.isActive &&
+                      groupMembers === null &&
                       !onMentionQueryChange &&
                       mentionMode === "team" && (
                         <TeamMentionPopup
@@ -815,28 +806,36 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
                           ariaLabel={t("chat.messageInput", "Message")}
                           initialPlainText={input}
                           placeholder={
-                            <ChatInputPlaceholder
-                              {...{
-                                canSend,
-                                disabled,
-                                sendBlocked,
-                                isLoading,
-                                mentionMode,
-                              }}
-                              mentionEnabled={
-                                mentionEnabled && !onMentionQueryChange
-                              }
-                              selectedId={
-                                mentionMode === "team"
-                                  ? selectedTeamId
-                                  : selectedPersonaPresetId
-                              }
-                              sandbox={
-                                agentOptions?.sandbox &&
-                                (agentOptionValues.sandbox ??
-                                  agentOptions.sandbox.default)
-                              }
-                            />
+                            groupMembers !== null &&
+                            canSend &&
+                            !disabled &&
+                            !sendBlocked &&
+                            !isLoading ? (
+                              t("assistants.groupPlaceholder")
+                            ) : (
+                              <ChatInputPlaceholder
+                                {...{
+                                  canSend,
+                                  disabled,
+                                  sendBlocked,
+                                  isLoading,
+                                  mentionMode,
+                                }}
+                                mentionEnabled={
+                                  mentionEnabled && !onMentionQueryChange
+                                }
+                                selectedId={
+                                  mentionMode === "team"
+                                    ? selectedTeamId
+                                    : selectedPersonaPresetId
+                                }
+                                sandbox={
+                                  agentOptions?.sandbox &&
+                                  (agentOptionValues.sandbox ??
+                                    agentOptions.sandbox.default)
+                                }
+                              />
+                            )
                           }
                           availableSkills={availableRunSkills}
                           onApplySlashCommand={applySlashCommand}

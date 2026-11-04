@@ -58,7 +58,7 @@ async def test_submit_loads_authoritative_identity_even_if_metadata_marker_was_r
 
     async def bind(request, *_args):
         assert request.persona_system_prompt == "Cite primary sources."
-        assert request.agent_options == {"model_id": "configured"}
+        assert request.agent_options == {"model_id": "configured", "sandbox": None}
         assert request.team_id == team_id
         raise PreparedError
 

@@ -90,6 +90,25 @@ async def create_assistant(
     return await _service().create(user, data)
 
 
+@router.post("/chief", response_model=Assistant)
+async def open_chief(user: TokenPayload = Depends(require_permissions("chat:write"))):
+    return await _service().chief(user)
+
+
+@router.get("/{assistant_id}/members")
+async def get_group_members(
+    assistant_id: str,
+    user: TokenPayload = Depends(require_permissions("session:read")),
+):
+    group = await _service().get(user, assistant_id)
+    members = []
+    for identity in group.member_ids:
+        member = await _service().store.get(user.sub, identity)
+        if member:
+            members.append({"id": member.id, "name": member.name, "status": member.status})
+    return {"members": members}
+
+
 @router.get("/{assistant_id}", response_model=Assistant)
 async def get_assistant(
     assistant_id: str,

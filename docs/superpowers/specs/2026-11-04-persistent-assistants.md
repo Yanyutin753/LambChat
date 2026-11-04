@@ -121,8 +121,30 @@
 
 [DSH SuperAgent](https://github.com/deepseek-ai/dsh-superagent-prototype) 于本次核验时是研究原型，其部署面向单个 GitHub 仓库，不是现成个人助手产品。借鉴 [Philosophy](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/main/docs/000-philosophy.md) 的少概念、少设置、必要时才打扰，以及 [Domain](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/main/docs/001-domain.md) 中同一讨论承接多项授权工作、结果回到来源的模型；不复制其管理面板全部标签页。
 
-[DS-Bot](https://github.com/Fei2411/DS-Bot) 与 [omdsh-dev/dsh-bot](https://github.com/omdsh-dev/dsh-bot) 是两个社区项目，不应与官方 DSH SuperAgent 研究原型混称。前者的 [产品愿景](https://github.com/Fei2411/DS-Bot/blob/main/docs/vision.md)、[UI 规范](https://github.com/Fei2411/DS-Bot/blob/main/docs/design/ui-standard.md) 和实际仓库截图更贴近“保留执行工作区，增加个人助手”：以 Bot 身份和联系人列表组织持续聊天，配置进入详情，后台执行结果回到交流上下文。后者也将私聊、显式成员群聊、原生执行会话与受众记忆区分。这里只借鉴交互和边界；Chief 管理 Bot、自动创建群聊及多 Bot 群聊没有在本轮实现。
+[DS-Bot](https://github.com/Fei2411/DS-Bot) 与 [omdsh-dev/dsh-bot](https://github.com/omdsh-dev/dsh-bot) 是两个社区项目，不应与官方 DSH SuperAgent 研究原型混称。前者的 [产品愿景](https://github.com/Fei2411/DS-Bot/blob/main/docs/vision.md)、[UI 规范](https://github.com/Fei2411/DS-Bot/blob/main/docs/design/ui-standard.md) 和实际仓库截图更贴近“保留执行工作区，增加个人助手”：以 Bot 身份和联系人列表组织持续聊天，配置进入详情，后台执行结果回到交流上下文。后者也将私聊、显式成员群聊、原生执行会话与受众记忆区分。这一轮最初只借鉴交互和边界；后续 Chief 和多 Bot 群聊实现见下节。
 
 OpenClaw、Hermes Agent 与 nanobot 的当前官方仓库也用于核对长期身份、记忆、渠道与主动执行方向；本轮交互取舍以 DS-Bot、OpenDots 与 DSH 为主。没有安装或运行这些第三方系统，其文档声明不算 LambChat 的验收证据。
 
 本轮最终检查：前端 1,052 文件 / 6,379 项测试、后端助手相关 121 项（另 3 项按条件跳过）、Ruff、Mypy（674 源文件）、ESLint、TypeScript、生产构建及体积检查通过。共享锁内记录的相关源码在检查和浏览器验收期间未变化。真实 glm-5.3 完成新工作后，页面直接进入结果对话；“需要修改 → 验收通过”、助手名称返回、空状态入口和菜单 Escape 焦点恢复通过。深浅色 1280px 桌面及 390px 手机走查无横向溢出，浏览器未记录错误；原深色偏好和浏览器尺寸已恢复。后续仅补充此研究与验收记录，代码快照不变。
+
+
+## DS-Bot 交互与群聊续作
+
+实际拉取 `Fei2411/DS-Bot` 源码，阅读 `frame-layout.js`、`sidebar.js`、`new-chat.js`、`team-actions.js`、`group-settings.js` 和 `at-menu.js`，参考其固定 Chief、联系人式 Bot/群列表、选择协调者与成员的建群流程、群内点名和按需展开详情。复用 LambChat 原有组件与主题，没有复制第三方源码、资产或安装其运行时。
+
+- 保留原执行工作区，个人助手区域只增加一个“新聊天”选择器。Chief 固定在列表顶部；创建普通助手或群聊后直接打开相应聊天。
+- Chief 的列表、创建、更新工具复用所有者隔离的 AssistantService，工具调用重新检查用户权限与 Chief 会话身份。创建按工具调用身份去重，更新保留版本冲突检查；工具不能修改凭据、权限或工作目录。
+- 群聊保存真实成员 ID 与协调者 ID，动态投影为现有 Team 执行；成员复用各自角色、模型、技能与 MCP 约束，以及群内持久子会话。每次成员执行重新检查归属、状态和配置。
+- 点名只路由实际群成员；群聊有独立会话与私有记忆分区，不读取成员原有私聊。成员结果显示在聊天内，执行详情由用户主动打开。
+- 本轮交互取代前文的强制人工验收按钮：正常完成直接显示“已完成”，用户继续聊天提出修改。历史 review 字段及版本保护保留兼容；“完成”仍不代表用户已接受或外部投递已送达。
+- 群成员不支持嵌套 Team 或群，沿用现有 Team 的并发、预算及取消约束；未新增第二套队列或自动唤醒循环。
+
+本轮真实使用已有 glm-5.3 验证：Chief 实际读取列表、创建两位助手及群聊；两位成员分别生成读书会方案与独立预算核算。后续 @ 复核员只执行同一持久子会话，记住活动代号「青禾」，按 14 人重新计算 360 − 120 − 14 × 15 = 30 元。手动建群、编辑用途、取消/Escape 焦点、键盘点名及原有 ⌘+Enter 发送偏好通过；Chief 实际将新群改名，revision 从 2 变为 3，成员、协调者和用途保持不变，返回链接可打开正确群聊。原有两位助手 revision 保持 1。
+
+真实走查发现并修复了未配置环境却初始化默认云沙箱的问题：群聊执行与 Chief 长对话归档使用既有持久存储后端；项目默认工作目录继承不变。Chief 首轮改名曾反复误选 list_subagents，主动停止并保留记录；重试暴露归档错误，修复后在原会话成功完成历史压缩和改名。最终重试提供了 API 真实读取的 ID/revision，因此不把这轮描述为无需指导的稳定自主操作。模型另一次误用 reveal_file 打开应用路径失败，最终 Markdown 链接正常；这些失败不计作通过。
+
+最终后端助手/Team/Search 回归 189 通过、3 条按环境条件跳过，Ruff、Mypy（676 源文件）及提交钩子通过。前端首次全量 1,053 文件、6,379 通过、2 条文件长度门禁失败，随后提取原有逻辑修复；受影响范围 1,556 项、成员结果相关 965 项、最新点名行为 5 项通过，最终 ESLint、TypeScript、生产构建和体积检查通过。未把失败的早期全量运行称为全量通过。
+
+深浅色 1280px 桌面和 390px 手机、浅色 820px 平板无页面横向溢出，手机群设置底部操作可见；原深色偏好和临时浏览器尺寸恢复。检查及浏览器验收均使用共享验证锁、单 worker，相关源码哈希无漂移，随后仅补充本文档。Impeccable 检查器未安装，按 DESIGN.md 手工走查。原始日志、失败记录、截图和工具事件保留在仓库外。
+
+本轮未测真实外部飞书/微信投递或物理设备，未合并、部署、发布。按已确认的共享工作区安排只更新助手相关 PR，暂缓 rebase；develop 合入 #1195 后 chat.py 有内容冲突，集成前须解决，不能直接合并。本地工作区包含其他对话改动，独立 PR 提交仍需 CI 核验。

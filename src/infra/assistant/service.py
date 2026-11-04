@@ -8,8 +8,8 @@ from src.kernel.schemas.user import TokenPayload
 
 
 def assistant_options(assistant: AssistantCreate) -> dict:
-    values = {"model_id": assistant.model_id} if assistant.model_id else {}
-    if assistant.sandbox:
+    values: dict = {"model_id": assistant.model_id} if assistant.model_id else {}
+    if assistant.sandbox or not assistant.project_id:
         values["sandbox"] = assistant.sandbox
     if assistant.workspace:
         values["sandbox_machine_id"] = assistant.workspace.machine_id
@@ -18,7 +18,7 @@ def assistant_options(assistant: AssistantCreate) -> dict:
 
 
 def assistant_agent(assistant: AssistantCreate) -> str:
-    return "team" if assistant.team_id else "search"
+    return "team" if assistant.team_id or assistant.kind == "group" else "search"
 
 
 async def assistant_scope_session(user_id: str, session_id: str) -> str:
@@ -71,6 +71,11 @@ class AssistantService:
         return assistant
 
     async def validate_configuration(self, user: TokenPayload, data: AssistantCreate) -> None:
+        if data.kind == "group":
+            from src.infra.assistant.groups import group_members
+
+            for member in await group_members(user, data, store=self.store):
+                await self.validate_configuration(user, member)
         if data.team_id:
             from src.infra.team.storage import TeamStorage
 
@@ -99,9 +104,23 @@ class AssistantService:
             {"model_id": data.model_id} if data.model_id else {}, user
         )
 
-    async def create(self, user: TokenPayload, data: AssistantCreate) -> Assistant:
+    async def create(
+        self, user: TokenPayload, data: AssistantCreate, *, identity=None
+    ) -> Assistant:
+        if data.kind == "chief":
+            raise AppError(ErrorCode.FORBIDDEN)
         await self.validate_configuration(user, data)
+        if identity:
+            return await self.store.create(user.sub, data, identity=identity)
         return await self.store.create(user.sub, data)
+
+    async def chief(self, user: TokenPayload) -> Assistant:
+        from hashlib import sha256
+
+        identity = "chief-" + sha256(user.sub.encode()).hexdigest()[:32]
+        return await self.store.create(
+            user.sub, AssistantCreate(name="Chief", kind="chief"), identity=identity
+        )
 
     async def open_conversation(self, user: TokenPayload, assistant_id: str):
         from dataclasses import asdict
@@ -144,7 +163,7 @@ class AssistantService:
             "name": assistant.name,
             "user_id": user.sub,
             "metadata": metadata,
-            "agent_id": "search",
+            "agent_id": assistant_agent(assistant),
             "is_active": True,
             "created_at": now,
             "updated_at": now,
@@ -173,7 +192,9 @@ class AssistantService:
     async def update(
         self, user: TokenPayload, assistant_id: str, data: AssistantUpdate
     ) -> Assistant:
-        await self.get(user, assistant_id)
+        current = await self.get(user, assistant_id)
+        if data.kind != current.kind or (current.kind == "chief" and data.status == "archived"):
+            raise AppError(ErrorCode.CONFLICT)
         # Pausing must remain possible after a model or project becomes unavailable.
         if data.status == "active":
             await self.validate_configuration(user, data)
@@ -207,6 +228,8 @@ async def prepare_assistant_request(
         raise AppError(ErrorCode.CONFLICT)
     await owner.validate_configuration(user, assistant)
     if is_discussion_session(scope_session_id):
+        restrict_discussion_request(request)
+    if assistant.kind == "group":
         restrict_discussion_request(request)
     request.persona_preset_id = assistant.persona_preset_id
     request.team_id = assistant.team_id

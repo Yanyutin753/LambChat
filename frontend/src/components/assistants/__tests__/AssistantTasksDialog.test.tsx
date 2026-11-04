@@ -44,24 +44,24 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-test("completed work needs explicit review tied to the displayed run", async () => {
-  api.reviewTask.mockResolvedValue({ ...task, state: "accepted" });
+test("completed work opens directly without manual acceptance", async () => {
+  api.tasks.mockResolvedValue({
+    tasks: [{ ...task, state: "completed" }],
+    total: 1,
+  });
   render(
     <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
   );
   expect(
-    await screen.findByText("assistants.taskStates.awaiting_review"),
+    await screen.findByText("assistants.taskStates.completed"),
   ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "assistants.acceptTask" }),
+  ).toBeNull();
   fireEvent.click(
-    screen.getByRole("button", { name: "assistants.acceptTask" }),
+    screen.getByRole("button", { name: "assistants.inspectTask" }),
   );
-  await waitFor(() =>
-    expect(api.reviewTask).toHaveBeenCalledWith("helper", "task", {
-      run_id: "run-2",
-      revision: 3,
-      accepted: true,
-    }),
-  );
+  expect(navigate).toHaveBeenCalledWith("/chat/child");
 });
 
 test("network retry keeps the task admission key and draft", async () => {
@@ -202,7 +202,7 @@ test("load failures do not show an empty inbox and can be retried", async () => 
   expect(await screen.findByText("assistants.noTasks")).toBeVisible();
 });
 
-test("accepted work keeps revision controls inside details", async () => {
+test("legacy acceptance is retained without obsolete review controls", async () => {
   api.tasks.mockResolvedValue({
     tasks: [{ ...task, state: "accepted" }],
     total: 1,
@@ -210,16 +210,12 @@ test("accepted work keeps revision controls inside details", async () => {
   render(
     <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
   );
-  const summary = await screen.findByText("assistants.taskDetails");
-  const details = summary.closest("details")!;
+  await screen.findByText("assistants.taskStates.accepted");
   expect(
-    within(details).getByRole("button", {
+    screen.queryByRole("button", {
       name: "assistants.rejectTask",
       hidden: true,
     }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
 });
 

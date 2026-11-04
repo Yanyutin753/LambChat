@@ -1,6 +1,9 @@
 import type { Project } from "./index";
 
 export interface AssistantConfiguration {
+  kind?: "assistant" | "group" | "chief";
+  member_ids?: string[];
+  leader_id?: string | null;
   name: string;
   instructions: string;
   model_id: string | null;
@@ -56,6 +59,9 @@ export function assistantConfiguration(
   value?: Assistant,
 ): AssistantConfiguration {
   return {
+    kind: value?.kind ?? "assistant",
+    member_ids: value?.member_ids ?? [],
+    leader_id: value?.leader_id ?? null,
     name: value?.name ?? "",
     instructions: value?.instructions ?? "",
     model_id: value?.model_id ?? null,

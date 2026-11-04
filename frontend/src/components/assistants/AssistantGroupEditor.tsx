@@ -1,0 +1,263 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { assistantApi } from "../../services/api/assistant";
+import { assistantConfiguration, type Assistant } from "../../types/assistant";
+import { Dialog } from "../common/Dialog";
+import { AgentAvatar } from "../common/AgentAvatar";
+import { Button, FormField, Input, Textarea } from "../common/ui";
+import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
+
+export function AssistantGroupEditor({
+  value,
+  onClose,
+  onSaved,
+}: {
+  value?: Assistant;
+  onClose: () => void;
+  onSaved: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const formId = useId();
+  const [bots, setBots] = useState<Assistant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState(value?.name ?? "");
+  const [instructions, setInstructions] = useState(value?.instructions ?? "");
+  const [members, setMembers] = useState(value?.member_ids ?? []);
+  const [leader, setLeader] = useState(value?.leader_id ?? "");
+  const [busy, setBusy] = useState(false);
+  const guard = useRef(false);
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    void (async () => {
+      const all: Assistant[] = [];
+      let skip = 0;
+      while (active) {
+        const page = await assistantApi.list(skip, 100);
+        all.push(...page.assistants);
+        skip += page.assistants.length;
+        if (skip >= page.total || !page.assistants.length) break;
+      }
+      if (active)
+        setBots(
+          all.filter(
+            (bot) =>
+              bot.kind !== "group" &&
+              !bot.team_id &&
+              (bot.status === "active" || members.includes(bot.id)),
+          ),
+        );
+    })()
+      .catch((failure) => {
+        if (active)
+          setError(
+            failure instanceof Error ? failure.message : t("common.loadFailed"),
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+    // Membership edits do not reload the catalogue and erase the current selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, t]);
+  const save = async () => {
+    if (guard.current || loading || !leader || members.length < 2) return;
+    guard.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const selected = bots.filter((bot) => members.includes(bot.id));
+      const draft = {
+        ...assistantConfiguration(value),
+        kind: "group" as const,
+        name:
+          name.trim() ||
+          selected
+            .map((bot) => bot.name)
+            .join(" · ")
+            .slice(0, 80),
+        instructions,
+        member_ids: members,
+        leader_id: leader,
+      };
+      const result = value
+        ? await assistantApi.update(value.id, {
+            ...draft,
+            status: value.status,
+            revision: value.revision,
+          })
+        : await assistantApi.create(draft);
+      onSaved(result.id);
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : t("common.operationFailed"),
+      );
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={t(value ? "assistants.groupDetails" : "assistants.createGroup")}
+      dismissible={!busy}
+      footer={
+        <>
+          <Button disabled={busy} onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            variant="primary"
+            loading={busy}
+            disabled={
+              loading ||
+              !leader ||
+              members.length < 2 ||
+              members.some(
+                (id) =>
+                  !bots.some((bot) => bot.id === id && bot.status === "active"),
+              )
+            }
+          >
+            {t(value ? "common.save" : "assistants.createGroup")}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        {error && (
+          <>
+            <ConfigPanelErrorCallout message={error} />
+            <Button disabled={busy} onClick={() => setRefresh((x) => x + 1)}>
+              {t("common.refresh")}
+            </Button>
+          </>
+        )}
+        {loading ? (
+          <p role="status">{t("common.loading")}</p>
+        ) : (
+          <fieldset disabled={busy} className="space-y-5">
+            <div
+              role="radiogroup"
+              aria-label={t("assistants.groupLeader")}
+              className="space-y-2"
+            >
+              <p className="text-13 text-theme-text-secondary">
+                {t("assistants.groupLeader")}
+              </p>
+              <div className="assistant-member-picker">
+                {bots.map((bot) => (
+                  <button
+                    key={bot.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={leader === bot.id}
+                    disabled={bot.status !== "active"}
+                    onClick={() => {
+                      setLeader(bot.id);
+                      setMembers((ids) => [
+                        bot.id,
+                        ...ids.filter((id) => id !== bot.id),
+                      ]);
+                    }}
+                  >
+                    <AgentAvatar seed={bot.name} size={28} />
+                    <span>{bot.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {leader && (
+              <div
+                role="group"
+                aria-label={t("assistants.groupMembers")}
+                className="space-y-2"
+              >
+                <p className="text-13 text-theme-text-secondary">
+                  {t("assistants.groupMembers")}
+                </p>
+                <div className="assistant-member-picker">
+                  {bots
+                    .filter((bot) => bot.id !== leader)
+                    .map((bot) => (
+                      <button
+                        key={bot.id}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={members.includes(bot.id)}
+                        disabled={
+                          bot.status !== "active" ||
+                          (!members.includes(bot.id) && members.length >= 12)
+                        }
+                        onClick={() =>
+                          setMembers((ids) =>
+                            ids.includes(bot.id)
+                              ? ids.filter((id) => id !== bot.id)
+                              : [...ids, bot.id],
+                          )
+                        }
+                      >
+                        <AgentAvatar seed={bot.name} size={28} />
+                        <span>{bot.name}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+            {members
+              .filter((id) => !bots.some((bot) => bot.id === id))
+              .map((id) => (
+                <Button
+                  key={id}
+                  onClick={() => {
+                    setMembers((ids) => ids.filter((member) => member !== id));
+                    if (leader === id) setLeader("");
+                  }}
+                >
+                  {t("assistants.unavailableSelection")} · {t("common.remove")}
+                </Button>
+              ))}
+            <FormField label={t("assistants.name")}>
+              <Input
+                maxLength={80}
+                value={name}
+                placeholder={t("assistants.groupNameHint")}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </FormField>
+            <FormField label={t("assistants.groupPurpose")}>
+              <Textarea
+                rows={3}
+                maxLength={20000}
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+              />
+            </FormField>
+            <p className="text-12 text-theme-text-secondary">
+              {t("assistants.groupPrivacyHint")}
+            </p>
+          </fieldset>
+        )}
+      </form>
+    </Dialog>
+  );
+}

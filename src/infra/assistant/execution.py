@@ -37,14 +37,20 @@ async def execute_assistant_stream(session_id, agent_id, message, user_id, **kwa
         restrict_discussion_request,
     )
 
-    if is_discussion_session(await assistant_scope_session(user_id, session_id)):
+    discussion = is_discussion_session(await assistant_scope_session(user_id, session_id))
+    if assistant.kind == "group" or discussion:
         restrict_discussion_request(request)
+    if discussion:
         request.persona_system_prompt = "\n\n".join(
             filter(None, [request.persona_system_prompt, DISCUSSION_ROUTING_GUIDANCE])
         )
+    from src.infra.assistant.groups import assistant_instructions
+
     request.persona_system_prompt = (
         "\n\n".join(
-            part for part in (request.persona_system_prompt, assistant.instructions) if part
+            part
+            for part in (request.persona_system_prompt, assistant_instructions(assistant))
+            if part
         )
         or None
     )

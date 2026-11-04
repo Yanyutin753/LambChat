@@ -1,3 +1,4 @@
+import { AssistantManageItem } from "./items/AssistantManageItem";
 import { clsx } from "clsx";
 import { ArrowRightLeft, RotateCcw, Square } from "lucide-react";
 import type { MessagePart } from "../../../types";
@@ -466,6 +467,25 @@ export function MessagePartRenderer({
       return (
         <PersonaItem
           id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "list_assistants" ||
+      part.name === "create_assistant" ||
+      part.name === "update_assistant"
+    ) {
+      return (
+        <AssistantManageItem
+          id={part.id}
+          toolName={part.name}
           args={toolArgs}
           result={part.result}
           success={part.success}

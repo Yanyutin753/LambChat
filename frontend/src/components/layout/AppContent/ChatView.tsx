@@ -13,6 +13,7 @@ import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistent
 import { ChatInput } from "../../chat/ChatInput";
 import { AssistantConversationBar } from "../../assistants/AssistantConversationBar";
 import { SessionTodoDock } from "../../chat/SessionTodoDock";
+import { AssistantWelcome } from "../../assistants/AssistantWelcome";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
@@ -818,6 +819,11 @@ export function ChatView({
               !hasPendingApproval &&
               (isLoading ? (
                 <ChatSkeleton count={8} />
+              ) : assistant ? (
+                <AssistantWelcome
+                  assistant={assistant}
+                  chatInputProps={chatInputProps}
+                />
               ) : (
                 <WelcomePage
                   greeting={greeting}
