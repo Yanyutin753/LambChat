@@ -3640,6 +3640,7 @@
     "SESSION_EVENT_TTL_CACHE_MAX": "セッションイベントのTTLキャッシュ最大サイズ",
     "SESSION_MAX_RUNS_PER_SESSION": "セッションあたりの最大実行回数",
     "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS": "サーバー起動後、セッション検索バックフィルが開始されるまでの遅延時間（秒）",
+    "KEENABLE_API_KEY": "Keenable API キー（任意。keenable を選択すればキーなしでも利用可能）",
     "SEARXNG_API_KEY": "SearXNG API キー（認証なしインスタンスは空欄）",
     "SEARXNG_BASE_URL": "SearXNG インスタンス URL（例: https://searx.example）",
     "SESSION_TITLE_API_BASE": "互換性のために残された従来設定です。タイトル生成のprovider、APIベース、キーは選択したモデル設定から取得されます。",

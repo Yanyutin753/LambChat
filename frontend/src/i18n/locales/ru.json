@@ -3640,6 +3640,7 @@
     "SESSION_EVENT_TTL_CACHE_MAX": "Максимальный размер TTL-кэша для событий сессии",
     "SESSION_MAX_RUNS_PER_SESSION": "Максимальное количество запусков за сессию",
     "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS": "Задержка перед запуском обратного заполнения поиска сессий после старта сервера, в секундах",
+    "KEENABLE_API_KEY": "API-ключ Keenable (необязательно; провайдер keenable работает без ключа)",
     "SEARXNG_API_KEY": "API-ключ SearXNG (оставьте пустым, если аутентификации нет)",
     "SEARXNG_BASE_URL": "Адрес инстанса SearXNG (например, https://searx.example)",
     "SESSION_TITLE_API_BASE": "Устаревшая настройка сохранена для совместимости. Provider, API base и ключ для заголовков теперь берутся из выбранной конфигурации модели.",
