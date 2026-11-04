@@ -4,7 +4,7 @@ import { useQueuePause } from "./useAgent/queuePause";
  * Provides agent communication, message management, and SSE streaming
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import { resolveAgentDisplayName } from "../components/agent/agentCatalog";
@@ -31,7 +31,7 @@ import {
   createScheduledTaskApprovalLookup,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
-import { settleRunMessages } from "./useAgent/settleStream";
+import { useQueueActions } from "./useAgent/queueActions";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
 import {
   connectToSSE,
@@ -221,29 +221,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
   const {
     queuePaused,
-    queuePauseReason,
-    queueResuming,
     queuePauseRevision,
     setQueuePaused,
     isQueuePaused,
-    resumeQueue: resumeQueueRequest,
-  } = useQueuePause(sessionIdRef);
-  const resumeQueue = useCallback(async () => {
-    try {
-      await resumeQueueRequest();
-    } catch {
-      setError(i18n.t("chat.requestFailed"));
-    }
-  }, [resumeQueueRequest, setError]);
-  const queueControl = useMemo(
-    () => ({
-      paused: queuePaused,
-      pauseReason: queuePauseReason,
-      resuming: queueResuming,
-      onResume: resumeQueue,
-    }),
-    [queuePaused, queuePauseReason, queueResuming, resumeQueue],
-  );
+    queueControl,
+  } = useQueuePause(sessionIdRef, setError);
   const stoppedSubmitSeqRef = useRef<number | null>(null);
   const steerQueue = useSteerQueue({
     sessionIdRef,
@@ -1287,110 +1269,28 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sendMessageRef,
   });
 
-  const stopGeneration = useCallback(
-    async (requireCancellation = false) => {
-      const stoppedRunId = currentRunIdRef.current;
-      setQueuePaused(sessionIdRef.current, true, stoppedRunId ?? undefined);
-      if (submitInFlightRef.current)
-        stoppedSubmitSeqRef.current = sendSeqRef.current;
-      // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
-      // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
-      sendSeqRef.current += 1;
-      submitInFlightRef.current = false;
-      isSendingRef.current = false;
-      setIsLoading(false);
-      setIsInitializingSandbox(false);
-      setSandboxError(null);
-
-      // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
-      options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
-
-      setMessages((previous) =>
-        settleRunMessages(previous, currentRunIdRef.current),
-      );
-
-      const currentSessionId = sessionIdRef.current;
-      if (currentSessionId) {
-        try {
-          await sessionApi.cancel(currentSessionId, stoppedRunId ?? undefined);
-        } catch (error) {
-          console.error(
-            "[stopGeneration] Failed to call backend cancel API:",
-            error,
-          );
-          if (sessionIdRef.current === currentSessionId)
-            setError(i18n.t("chat.requestFailed"));
-          if (requireCancellation) throw error;
-        }
-      }
-    },
-    [
-      options,
-      setIsInitializingSandbox,
-      setIsLoading,
-      setSandboxError,
-      setQueuePaused,
-    ],
-  );
-
-  // 补充当前问题：打断进行中的 run，把补充内容并入这轮思考重新生成
-  // （原问题与已生成部分保留在历史，新一轮自动携带完整上下文）
-  const supplementFollowUp = useCallback(
-    async (
-      content: string,
-      attachments?: MessageAttachment[],
-      queuedMessageId?: string,
-    ) => {
-      const text = content.trim();
-      if (!text && !attachments?.length) return;
-      if (queuedMessageId) {
-        if (queuePaused) {
-          const targetSession = sessionIdRef.current;
-          await sendMessageRef.current?.(text, attachments, {
-            onAccepted: () =>
-              clearSteer(text, queuedMessageId, targetSession ?? undefined),
-          });
-          return;
-        }
-        if (!submitInFlightRef.current)
-          await steerMessage(text, attachments, queuedMessageId);
-        return;
-      }
-      // isSendingRef 在整个流式期间恒为 true，不能用它在途判定；只有
-      // POST 尚未被服务端受理时打断才会造成同会话双提交——仅该窗口转排队
-      if (submitInFlightRef.current) {
-        queueFollowUp(text, attachments);
-        return;
-      }
-      if (persistentGoal?.status === "active") {
-        await steerMessage(text, attachments);
-        return;
-      }
-      const targetSession = sessionIdRef.current;
-      const targetVersion = streamVersionRef.current;
-      const stopSequence = sendSeqRef.current + 1;
-      const isCurrentSupplement = () =>
-        sessionIdRef.current === targetSession &&
-        streamVersionRef.current === targetVersion &&
-        sendSeqRef.current === stopSequence;
-      try {
-        await stopGeneration(true);
-      } catch {
-        if (isCurrentSupplement()) queueFollowUp(text, attachments);
-        return;
-      }
-      if (!isCurrentSupplement()) return;
-      await sendMessageRef.current?.(text, attachments);
-    },
-    [
-      queueFollowUp,
-      stopGeneration,
-      persistentGoal?.status,
-      steerMessage,
-      queuePaused,
-      clearSteer,
-    ],
-  );
+  const { stopGeneration, supplementFollowUp } = useQueueActions({
+    sessionIdRef,
+    currentRunIdRef,
+    submitInFlightRef,
+    isSendingRef,
+    sendSeqRef,
+    stoppedSubmitSeqRef,
+    streamVersionRef,
+    sendMessageRef,
+    setQueuePaused,
+    queuePaused,
+    queueFollowUp,
+    steerMessage,
+    clearSteer,
+    setIsLoading,
+    setIsInitializingSandbox,
+    setSandboxError,
+    setError,
+    setMessages,
+    persistentGoalStatus: persistentGoal?.status,
+    onClearApprovals: options?.onClearApprovals,
+  });
 
   const clearMessages = useCallback(() => {
     sendSeqRef.current += 1;

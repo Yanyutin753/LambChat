@@ -1,11 +1,15 @@
-import { useCallback, useRef, useState, type RefObject } from "react";
+import { useCallback, useRef, useState, useMemo, type RefObject } from "react";
+import i18n from "../../i18n";
 import { sessionApi } from "../../services/api";
 
 const pauseStorageKey = (sessionId: string) =>
   `lambchat:queue-pause:v1:${sessionId}`;
 
 /** Local stop takes effect immediately; the server fence survives reconnects and API changes. */
-export function useQueuePause(sessionIdRef: RefObject<string | null>) {
+export function useQueuePause(
+  sessionIdRef: RefObject<string | null>,
+  onResumeError?: (message: string) => void,
+) {
   const pauses = useRef(
     new Map<
       string | null,
@@ -85,9 +89,25 @@ export function useQueuePause(sessionIdRef: RefObject<string | null>) {
       setResuming(false);
     }
   }, [sessionIdRef, setQueuePaused]);
+  const onResume = useCallback(async () => {
+    const owner = sessionIdRef.current;
+    try {
+      await resumeQueue();
+    } catch {
+      if (sessionIdRef.current === owner)
+        onResumeError?.(i18n.t("chat.requestFailed"));
+    }
+  }, [resumeQueue, sessionIdRef, onResumeError]);
+  const paused = isQueuePaused(sessionIdRef.current);
+  const pauseReason = pauses.current.get(sessionIdRef.current)?.reason;
+  const queueControl = useMemo(
+    () => ({ paused, pauseReason, resuming, onResume }),
+    [paused, pauseReason, resuming, onResume],
+  );
   return {
-    queuePaused: isQueuePaused(sessionIdRef.current),
-    queuePauseReason: pauses.current.get(sessionIdRef.current)?.reason,
+    queueControl,
+    queuePaused: paused,
+    queuePauseReason: pauseReason,
     queueResuming: resuming,
     queuePauseRevision: revision,
     setQueuePaused,
