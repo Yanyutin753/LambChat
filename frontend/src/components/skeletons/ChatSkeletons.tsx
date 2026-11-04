@@ -142,13 +142,15 @@ function ChatInputSkeleton({
     <div className={shellClassName}>
       <div className="chat-input-shell pb-3 sm:pb-2">
         <div className={`composer-workspace-shell ${formClassName}`}>
-          <div
-            className="composer-workspace-strip flex min-w-0 flex-nowrap items-center"
-            aria-hidden="true"
-          >
-            <div className="flex h-9 items-center gap-2 px-2">
-              <div className="skeleton-line size-4 rounded-sm" />
-              <div className="skeleton-line h-3.5 w-20 rounded-md" />
+          <div className="composer-context-panel">
+            <div
+              className="composer-workspace-strip flex min-w-0 flex-nowrap items-center"
+              aria-hidden="true"
+            >
+              <div className="flex h-9 items-center gap-2 px-2">
+                <div className="skeleton-line size-4 rounded-sm" />
+                <div className="skeleton-line h-3.5 w-20 rounded-md" />
+              </div>
             </div>
           </div>
           <ChatInputShellSkeleton />
