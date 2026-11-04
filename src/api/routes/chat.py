@@ -904,7 +904,7 @@ async def steer_running_agent(
             raise AppError(ErrorCode.CONFLICT)
 
         message = request.message.strip()
-        if not message:
+        if not message and not request.attachments:
             raise AppError(ErrorCode.STEER_CONTENT_REQUIRED)
 
         task_manager = get_task_manager()

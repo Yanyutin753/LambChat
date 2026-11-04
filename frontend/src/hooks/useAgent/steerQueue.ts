@@ -400,7 +400,7 @@ export function useSteerQueue({
     ) => {
       const text = content.trim();
       const currentSessionId = sessionIdRef.current;
-      if (!text || !currentSessionId) return;
+      if ((!text && !attachments.length) || !currentSessionId) return;
 
       const item: SteerItem = {
         id: queuedMessageId ?? uuid(),

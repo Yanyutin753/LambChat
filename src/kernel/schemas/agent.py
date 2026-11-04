@@ -58,7 +58,7 @@ class AttachmentSchema(BaseModel):
 class SteerRequest(BaseModel):
     """运行中插话请求体。"""
 
-    message: str = Field(..., min_length=1, max_length=32000)
+    message: str = Field(..., max_length=32000)
     message_id: str | None = Field(default=None, min_length=1, max_length=128)
     expected_run_id: str | None = Field(default=None, min_length=1, max_length=128)
     attachments: list[AttachmentSchema] | None = Field(default=None, max_length=20)

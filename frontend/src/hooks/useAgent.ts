@@ -761,7 +761,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       },
       submissionCallbacks?: ChatSubmissionCallbacks,
     ) => {
-      if (!content.trim()) {
+      if (!content.trim() && !attachments?.length) {
         notifySubmissionRejected(submissionCallbacks);
         return;
       }
