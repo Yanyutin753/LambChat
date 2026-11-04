@@ -1570,7 +1570,7 @@ html[data-mobile-keyboard="true"]
   border: 1px solid var(--theme-border-subtle);
   border-bottom: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: var(--theme-bg-secondary);
+  background: var(--theme-bg-subtle);
 }
 .composer-context-panel:has(> .composer-workspace-strip:only-child:empty) {
   display: none;
@@ -1579,7 +1579,7 @@ html[data-mobile-keyboard="true"]
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
 }
 .composer-queue-pause {
-  padding: 0.125rem var(--composer-row-inset);
+  padding: 0 var(--composer-row-inset);
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 .composer-queue {
@@ -1587,7 +1587,14 @@ html[data-mobile-keyboard="true"]
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.composer-queue-row,
+.composer-queue svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+.composer-queue-row {
+  padding: 0 var(--composer-row-inset, 0.75rem);
+}
 .composer-goal-row {
   padding: 0.25rem var(--composer-row-inset, 0.75rem);
 }
@@ -1847,16 +1854,22 @@ html .composer-environment-panel button:hover {
 }
 
 @container workspace (max-width: 22rem) {
+  .composer-queue { max-height: min(16rem, 35dvh); }
+  .composer-queue-pause {
+    display: grid;
+    grid-template-columns: 0.75rem minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .composer-queue-pause > button { grid-column: 2; justify-self: end; }
+  .composer-queue-row { flex-wrap: wrap; }
+  .composer-queue-row > span:first-of-type { min-width: 5rem; }
+  .composer-queue-row > div { margin-left: auto; }
+  .composer-queue-row button:not(.composer-queue-guide) { width: max(36px, 2rem); }
+  .composer-queue-guide { padding-inline: 0; }
+
   .composer-goal-row .composer-goal-summary {
     grid-column: 1 / -1;
     grid-row: 2;
     padding-bottom: 0.25rem;
-  }
-  .composer-queue-guide {
-    width: 2.25rem;
-    padding-inline: 0;
-  }
-  .composer-queue-guide-label {
-    display: none;
   }
 }

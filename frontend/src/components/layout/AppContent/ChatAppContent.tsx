@@ -53,6 +53,7 @@ import {
 import type { ChatAppContentProps } from "./types";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
 export function ChatAppContent({
+  embedded = false,
   showProfileModal,
   onCloseProfileModal,
   sidebarCollapsed,
@@ -769,6 +770,7 @@ export function ChatAppContent({
 
   return (
     <AppShell
+      embedded={embedded}
       activeTab="chat"
       headerActions={
         <SessionWorkspaceButton

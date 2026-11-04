@@ -149,7 +149,10 @@ test("queue chip edit button loads that message into the composer", async () => 
   );
 
   const editor = await screen.findByRole("textbox");
-  fireEvent.click(screen.getByTestId("queue-edit-trigger"));
+  fireEvent.click(screen.getByTestId("queue-more-trigger"));
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: i18n.t("chat.message.queueEdit") }),
+  );
 
   expect(editor).toHaveTextContent("要改的追加");
   expect(onCancelSteer).toHaveBeenCalledWith("要改的追加", "q1");
