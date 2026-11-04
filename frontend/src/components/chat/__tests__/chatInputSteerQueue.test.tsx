@@ -36,12 +36,14 @@ test("attachment-only messages display the queued filenames", () => {
   expect(screen.getByText("report.pdf")).toBeInTheDocument();
 });
 
-test("queued messages expose editing directly", () => {
+test("the more menu edits the original queued message", () => {
   const onEdit = vi.fn();
   render(<ChatInputSteerQueue items={[item]} onEdit={onEdit} />);
-  expect(screen.queryByRole("button", { name: "chat.queueMore" })).toBeNull();
+  const more = screen.getByRole("button", { name: "chat.queueMore" });
+  expect(more).toHaveAttribute("aria-haspopup", "menu");
+  fireEvent.click(more);
   fireEvent.click(
-    screen.getByRole("button", { name: "chat.message.queueEdit" }),
+    screen.getByRole("menuitem", { name: "chat.message.queueEdit" }),
   );
   expect(onEdit).toHaveBeenCalledExactlyOnceWith(
     item.content,
@@ -49,6 +51,15 @@ test("queued messages expose editing directly", () => {
     undefined,
   );
   expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("Escape dismisses the queue menu and restores its trigger focus", () => {
+  render(<ChatInputSteerQueue items={[item]} onEdit={vi.fn()} />);
+  const more = screen.getByRole("button", { name: "chat.queueMore" });
+  fireEvent.click(more);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(more).toHaveFocus();
 });
 
 test("messages already being delivered cannot be guided again", () => {
@@ -87,8 +98,9 @@ test("failed messages remain visible and editable", () => {
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent("chat.steerFailedRetry");
+  fireEvent.click(screen.getByRole("button", { name: "chat.queueMore" }));
   expect(
-    screen.getByRole("button", { name: "chat.message.queueEdit" }),
+    screen.getByRole("menuitem", { name: "chat.message.queueEdit" }),
   ).toBeEnabled();
 });
 
@@ -103,7 +115,7 @@ test("queue actions keep equal spacing and fixed icon targets on narrow screens"
   );
   const guide = screen.getByRole("button", { name: "chat.queueGuide" });
   const remove = screen.getByRole("button", { name: "chat.queueDelete" });
-  const edit = screen.getByRole("button", { name: "chat.message.queueEdit" });
+  const edit = screen.getByRole("button", { name: "chat.queueMore" });
   expect(guide.parentElement).toHaveClass("flex", "gap-1", "shrink-0");
   for (const action of [guide, remove, edit]) {
     expect(action).toHaveClass("h-9");

@@ -149,7 +149,10 @@ test("queue chip edit button loads that message into the composer", async () => 
   );
 
   const editor = await screen.findByRole("textbox");
-  fireEvent.click(screen.getByTestId("queue-edit-trigger"));
+  fireEvent.click(screen.getByTestId("queue-more-trigger"));
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: i18n.t("chat.message.queueEdit") }),
+  );
 
   expect(editor).toHaveTextContent("要改的追加");
   expect(onCancelSteer).toHaveBeenCalledWith("要改的追加", "q1");
@@ -193,10 +196,11 @@ test("guiding a queued message preserves attachments and the current draft", asy
   fireEvent.click(
     screen.getByRole("button", { name: i18n.t("chat.queueGuide") }),
   );
-  expect(onCancelSteer).toHaveBeenCalledWith("Use these notes", "q1");
+  expect(onCancelSteer).not.toHaveBeenCalled();
   expect(onSupplement).toHaveBeenCalledExactlyOnceWith(
     "Use these notes",
     attachments,
+    "q1",
   );
   expect(editor).toHaveTextContent("unfinished draft");
 });

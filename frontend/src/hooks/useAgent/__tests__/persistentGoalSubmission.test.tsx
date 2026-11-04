@@ -299,9 +299,49 @@ test("guiding an active Goal enqueues a steer without cancelling or pausing it",
     "owner Xiaolin",
     expect.any(String),
     [],
+    undefined,
   );
   expect(mocks.cancel.mock.calls.length).toBe(cancellations);
   expect(mocks.submit.mock.calls.length).toBe(submissions);
   expect(result.current.persistentGoal?.status).toBe("active");
+  unmount();
+});
+
+test("stopping an unacknowledged first send cancels only its eventual run and retains the queue", async () => {
+  let admit!: (value: unknown) => void;
+  mocks.submit.mockReturnValueOnce(
+    new Promise((resolve) => {
+      admit = resolve;
+    }),
+  );
+  mocks.cancel.mockResolvedValue({ success: true });
+  const { result, unmount } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("fast"));
+  let sending!: Promise<void>;
+  act(() => {
+    sending = result.current.sendMessage("start task");
+  });
+  await waitFor(() => expect(admit).toBeDefined());
+  act(() => result.current.queueFollowUp("keep this next input"));
+  await act(async () => {
+    await result.current.stopGeneration();
+  });
+  await act(async () => {
+    admit({
+      session_id: "late-stopped-session",
+      run_id: "late-stopped-run",
+      status: "pending",
+    });
+    await sending;
+  });
+  expect(mocks.cancel).toHaveBeenCalledWith(
+    "late-stopped-session",
+    "late-stopped-run",
+  );
+  expect(result.current.sessionId).toBe("late-stopped-session");
+  expect(result.current.queueControl.paused).toBe(true);
+  expect(result.current.steerMessages.map((item) => item.content)).toEqual([
+    "keep this next input",
+  ]);
   unmount();
 });

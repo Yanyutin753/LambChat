@@ -150,6 +150,7 @@ export function ChatView({
   onSupplementFollowUpMessage,
   onQueueFollowUpMessage,
   steerMessages,
+  queueControl,
   onCancelSteer,
   activeGoal,
   persistentGoal,
@@ -669,8 +670,8 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler(
-      (content, messageId) => onCancelSteer?.(content, messageId),
+    setSteerCancelHandler((content, messageId) =>
+      onCancelSteer?.(content, messageId),
     );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
@@ -704,6 +705,7 @@ export function ChatView({
     onSupplement: onSupplementFollowUpMessage,
     onQueueFollowUp: onQueueFollowUpMessage,
     steerMessages,
+    queueControl,
     onCancelSteer,
     isLoading: sessionRunning,
     sendBlocked: approvals.length > 0 || hasPendingAskHumanParts,

@@ -353,7 +353,7 @@ export function handleStreamEvent(
       if (!historyCovered)
         ctx.setMessages((prev) => {
           const splitMessages = splitAssistantTurn(prev, messageId);
-          if (!steerContent) return splitMessages;
+          if (!steerContent && !steerAttachments?.length) return splitMessages;
           const hasOptimisticById = splitMessages.some(
             (message) =>
               message.id === deliveredSteerId &&
@@ -412,7 +412,7 @@ export function handleStreamEvent(
             ...withoutOptimistic.slice(nextAssistantIndex),
           ];
         });
-      if (steerContent) {
+      if (steerContent || steerAttachments?.length) {
         ctx.markSteerDelivered?.(steerContent, deliveredSteerId);
       }
       return;
@@ -727,7 +727,7 @@ function handleUserMessage(
       ? data.run_id
       : undefined;
 
-  if (userContent) {
+  if (userContent || userAttachments.length) {
     ctx.setMessages((prev) => {
       let existingUserIndex = prev.findIndex(
         (candidate) =>
