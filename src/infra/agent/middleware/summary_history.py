@@ -15,6 +15,12 @@ from src.infra.async_utils.loop_bridge import run_coro_sync
 from src.kernel.errors import AppError, ErrorCode
 
 logger = logging.getLogger(__name__)
+_RECONNECT_TIMEOUT = 120.0
+_LOCAL_CONNECTION_ERRORS = {
+    ErrorCode.DAEMON_OFFLINE,
+    ErrorCode.SANDBOX_MACHINE_OFFLINE,
+    ErrorCode.SANDBOX_TIMEOUT,
+}
 
 
 def protect_summary_history(middleware: Any) -> Any:
@@ -29,40 +35,69 @@ def protect_summary_history(middleware: Any) -> Any:
             f"## Summarized at {datetime.now(UTC).isoformat()}\n\n"
             f"{get_buffer_string(filtered, format='xml')}\n\n"
         )
-        for attempt in range(3):
-            try:
-                responses = await backend.adownload_files([path])
-                if not responses:
-                    raise OSError("history download returned no result")
-                response = responses[0]
-                if response.error == "file_not_found":
-                    existing = ""
-                elif response.error is None and response.content is not None:
-                    existing = response.content.decode("utf-8")
-                else:
-                    raise OSError(f"history download failed: {response.error or 'missing content'}")
-                # A lost write response must not duplicate an already committed section.
-                if section in existing:
-                    return path
-                result = (
-                    await backend.aedit(path, existing, existing + section)
-                    if existing
-                    else await backend.awrite(path, section)
-                )
-                if result is None or result.error:
-                    raise OSError(result.error if result else "history write returned no result")
-                return path
-            except Exception as exc:
-                logger.warning(
-                    "Conversation history archive failed (%s, attempt %d/3): %s: %s",
-                    path,
-                    attempt + 1,
-                    type(exc).__name__,
-                    exc,
-                )
-                if attempt == 2:
-                    raise AppError(ErrorCode.CONVERSATION_HISTORY_SAVE_FAILED) from exc
-                await asyncio.sleep(0.25 * (attempt + 1))
+        reconnect_error: AppError | None = None
+        try:
+            async with asyncio.timeout(None) as recovery:
+                attempt = 0
+                while True:
+                    try:
+                        responses = await backend.adownload_files([path])
+                        if not responses:
+                            raise OSError("history download returned no result")
+                        response = responses[0]
+                        if response.error == "file_not_found":
+                            existing = ""
+                        elif response.error is None and response.content is not None:
+                            existing = response.content.decode("utf-8")
+                        else:
+                            raise OSError(
+                                f"history download failed: {response.error or 'missing content'}"
+                            )
+                        # A lost write response must not duplicate an already committed section.
+                        if section in existing:
+                            return path
+                        if not existing:
+                            # Local file creation is capped; edits retain version checks without that cap.
+                            existing = "# Conversation history\n\n"
+                            created = await backend.awrite(path, existing)
+                            if created is None or created.error:
+                                raise OSError(
+                                    created.error if created else "history write returned no result"
+                                )
+                        result = await backend.aedit(path, existing, existing + section)
+                        if result is None or result.error:
+                            raise OSError(
+                                result.error if result else "history write returned no result"
+                            )
+                        return path
+                    except Exception as exc:
+                        if isinstance(exc, AppError) and exc.error_code in _LOCAL_CONNECTION_ERRORS:
+                            reconnect_error = exc
+                            if recovery.when() is None:
+                                recovery.reschedule(
+                                    asyncio.get_running_loop().time() + _RECONNECT_TIMEOUT
+                                )
+                                logger.warning(
+                                    "Waiting for local sandbox reconnection before saving history: %s",
+                                    path,
+                                )
+                            await asyncio.sleep(2)
+                            continue
+                        logger.warning(
+                            "Conversation history archive failed (%s, attempt %d/3): %s: %s",
+                            path,
+                            attempt + 1,
+                            type(exc).__name__,
+                            exc,
+                        )
+                        attempt += 1
+                        if attempt == 3:
+                            raise AppError(ErrorCode.CONVERSATION_HISTORY_SAVE_FAILED) from exc
+                        await asyncio.sleep(0.25 * attempt)
+        except TimeoutError:
+            if reconnect_error is not None and recovery.expired():
+                raise reconnect_error from None
+            raise
 
     middleware._offload_to_backend = lambda backend, messages, session_id: run_coro_sync(
         archive(backend, messages, session_id)
