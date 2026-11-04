@@ -509,7 +509,7 @@ export function AssistantsPanel() {
                 {!taskConversation &&
                 assistant.status === "active" &&
                 ["chat", "tasks"].includes(view)
-                  ? currentProfile?.name || t("assistants.title")
+                  ? currentProfile?.name
                   : t(
                       `assistants.${
                         taskConversation
