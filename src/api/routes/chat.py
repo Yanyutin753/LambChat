@@ -922,7 +922,12 @@ async def steer_running_agent(
                 args={"status": status.value if hasattr(status, "value") else status},
             )
 
-        from src.infra.task.steer import SteerItem, get_steer_queue
+        from src.infra.task.steer import (
+            CANCELLED_STEER,
+            DELIVERED_STEER,
+            SteerItem,
+            get_steer_queue,
+        )
 
         await validate_steer_attachments(request, session, user)
         message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
@@ -931,6 +936,15 @@ async def steer_running_agent(
             session_id,
             SteerItem(id=message_id, content=message, attachments=attachments),
         )
+        if queued in {CANCELLED_STEER, DELIVERED_STEER}:
+            outcome = "cancelled" if queued == CANCELLED_STEER else "delivered"
+            return {
+                "status": outcome,
+                "outcome": outcome,
+                "session_id": session_id,
+                "message_id": message_id,
+                "queued": 0,
+            }
         return {
             # Keep status=queued for existing clients; outcome is newer protocol field.
             "status": "queued",
@@ -970,6 +984,7 @@ async def cancel_steered_message(
     session_id: str,
     request: SteerRequest,
     user: TokenPayload = Depends(require_permissions("chat:write")),
+    prevent_reenqueue: bool = True,
 ):
     """
     取消一条还在排队、尚未送达的插话消息。
@@ -983,7 +998,9 @@ async def cancel_steered_message(
     queue = get_steer_queue()
     removed = False
     if request.message_id:
-        removed = await queue.remove_by_id(session_id, request.message_id)
+        removed = await queue.remove_by_id(
+            session_id, request.message_id, prevent_reenqueue=prevent_reenqueue
+        )
     else:
         removed = await queue.remove(session_id, request.message.strip())
     return {

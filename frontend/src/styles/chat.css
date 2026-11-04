@@ -189,6 +189,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
 /* Keep the composer on the same quiet surface as shared controls. */
 .chat-input-container {
   --composer-vertical-inset: 1.25rem;
+  --composer-control-inset: 0.625rem;
   border-radius: var(--radius-xl);
   box-shadow: 0 2px 8px var(--theme-shadow-sm);
   border-color: var(--theme-border-subtle);
@@ -209,7 +210,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   scrollbar-width: none;
   gap: 0.5rem;
   white-space: nowrap;
-  padding: 0.25rem var(--composer-row-inset);
+  padding: 0 var(--composer-row-inset);
 }
 .composer-workspace-strip:empty {
   display: none;
@@ -224,7 +225,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
 }
 .composer-workspace-strip :is(.chat-tool-btn, .session-workspace-bar > button) {
   min-height: 2.25rem;
-  padding-inline: 0.5rem;
+  padding-inline: 0;
   border-radius: var(--radius-md);
 }
 /* Keep this compact context row quiet; focus-visible outlines remain intact. */
@@ -1561,6 +1562,18 @@ html[data-mobile-keyboard="true"]
   }
 }
 
+/* Compact phone button groups without shrinking their touch targets. */
+@media (max-width: 639px), (max-width: 1023px) and (pointer: coarse) {
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar,
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar > div,
+  .composer-context-panel .composer-workspace-strip {
+    column-gap: 0.25rem;
+  }
+  .composer-context-panel :is(.composer-queue-row, .composer-goal-row) > div {
+    column-gap: 0;
+  }
+}
+
 /* A quiet context panel sits inside the wider writing surface. */
 .composer-workspace-shell {
   --composer-row-inset: 0.75rem;
@@ -1590,10 +1603,10 @@ html[data-mobile-keyboard="true"]
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.composer-queue svg,
+.composer-context-panel svg,
 [id^="composer-queue-menu-"] svg {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
   flex-shrink: 0;
 }
 [id^="composer-queue-menu-"] .ui-menu-item {
@@ -1607,7 +1620,7 @@ html[data-mobile-keyboard="true"]
   padding: 0 var(--composer-row-inset, 0.75rem);
 }
 .composer-goal-row {
-  padding: 0.25rem var(--composer-row-inset, 0.75rem);
+  padding: 0 var(--composer-row-inset, 0.75rem);
 }
 .composer-context-panel > :is(.composer-queue, .composer-goal-row) {
   border-bottom: 1px solid var(--theme-border-subtle);
@@ -1615,16 +1628,57 @@ html[data-mobile-keyboard="true"]
 .composer-workspace-shell .composer-workspace-strip {
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
+/* Text and placeholder share the toolbar icon's inset in every composer. */
+.composer-workspace-shell .chat-input-container:not([data-composer-expanded]) {
+  padding-inline: 0;
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
+  padding-inline: 0;
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded])
+  .rich-chat-composer__placeholder {
+  left: 0;
+  right: 0;
+}
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
   .chat-composer-editor-wrap {
-  padding-inline: calc(var(--composer-row-inset) + 0.5rem - 1px);
+  padding-inline: calc(var(--composer-row-inset) + var(--composer-control-inset));
 }
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
   .chat-input-toolbar {
   margin-inline: 0;
   padding-inline: var(--composer-row-inset);
+}
+
+/* Context rows share spacing and scale; wrapped content may increase height. */
+.composer-context-panel
+  :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row, .composer-workspace-strip) {
+  min-height: 2.75rem;
+  padding-block: 0;
+}
+.composer-context-panel {
+  color: var(--theme-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+.composer-workspace-strip .chat-tool-btn > div > span:first-child {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.composer-context-panel :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row) button {
+  min-width: 2rem;
+  min-height: 2rem;
+}
+@media (pointer: coarse), (max-width: 639px) {
+  .composer-context-panel :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row) button {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
 }
 
 /* Each message part owns its content; the shared stack owns the space between parts. */
@@ -1860,7 +1914,7 @@ html .composer-environment-panel button:hover {
 }
 @container workspace (max-width: 40rem) {
   .composer-workspace-strip :is(.chat-tool-btn, .ui-select-trigger) {
-    min-height: 2.75rem;
+    min-height: 2.25rem;
   }
 }
 
@@ -1870,7 +1924,7 @@ html .composer-environment-panel button:hover {
   }
   .composer-queue-pause {
     display: grid;
-    grid-template-columns: 0.75rem minmax(0, 1fr);
+    grid-template-columns: 0.875rem minmax(0, 1fr);
     row-gap: 0;
   }
   .composer-queue-pause > button {

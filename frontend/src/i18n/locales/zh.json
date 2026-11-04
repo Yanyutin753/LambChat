@@ -276,6 +276,8 @@
       "title": "运行设置",
       "section": "运行位置",
       "description": "运行位置与确认策略",
+      "lockedWhileActive": "运行、等待确认或持续目标活动期间，不能更改运行环境、设备、工作区或执行策略。请先停止任务或暂停持续目标。",
+      "saveUnconfirmed": "保存结果尚未确认。请重试读取当前环境，确认后再发送消息或更改设置。",
       "options": {
         "cloud": "云端电脑",
         "local": "本地电脑"
@@ -1684,6 +1686,7 @@
     "steerCancel": "取消这条插话",
     "steerFailed": "插话发送失败，请稍后重试",
     "steerFailedRetry": "未确认送达",
+    "steerCancelUnconfirmed": "撤回未确认，请重试撤回",
     "steerNext": "任务结束后发送",
     "queuePausedAfterFailure": "发送未确认，队列已暂停",
     "queuePausedByStop": "由于你中断了当前响应，队列已暂停",
@@ -4785,6 +4788,7 @@
     "toggleSidebar": "切换侧边栏"
   },
   "workspacePanel": {
+    "noEnvironment": "此对话未配置运行环境。生成的文件可以在对话中查看和下载。",
     "root": "工作区",
     "searchFiles": "搜索文件",
     "selectFile": "选择文件以预览内容",

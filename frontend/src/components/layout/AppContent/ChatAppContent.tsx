@@ -8,6 +8,7 @@ import {
 } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAgent } from "../../../hooks/useAgent";
+import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 import { useApprovalRefresh, useApprovals } from "../../../hooks/useApprovals";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTools } from "../../../hooks/useTools";
@@ -36,6 +37,7 @@ import {
   isLatestSessionLoad,
   shouldApplyRestoredModelSelection,
   withoutModelSelection,
+  isSessionRunning,
 } from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
@@ -279,19 +281,33 @@ export function ChatAppContent({
     return availableModels.filter((m) => agentAllowedModelIds.includes(m.id));
   }, [availableModels, agentAllowedModelIds]);
   const sandboxStatus = useSandboxStatus();
+  const workspaceActive = useMemo(
+    () =>
+      isLoadingHistory ||
+      isSessionRunning(messages, isLoading) ||
+      persistentGoalBusy ||
+      ["active", "waiting_human"].includes(persistentGoal?.status ?? "") ||
+      filterApprovalsBySession(approvals, sessionId).length > 0 ||
+      hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
+    [messages, isLoading, isLoadingHistory, persistentGoalBusy, persistentGoal?.status, approvals, sessionId],
+  );
   const {
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
+    prepareAgentOptionChange,
+    markWorkspaceIntent,
+    restoreWorkspaceOptions,
     restoreAgentOptions,
     resetAgentOptionDefaults,
-  } = useAgentOptions(agents, currentAgent, sandboxStatus, user?.id);
+  } = useAgentOptions(agents, currentAgent, sandboxStatus, user?.id, workspaceActive);
 
-  const { changeOption, selectProject } = useWorkspaceOptionActions(
+  const { changeOption, selectProject, workspaceSaving, workspaceUnconfirmed, retryWorkspaceRead } = useWorkspaceOptionActions(
     sessionId,
     handleToggleAgentOption,
     setPendingProjectId,
     { agents, currentAgent, switchAgent, restoreAgentOptions },
+    { locked: workspaceActive, prepareChange: prepareAgentOptionChange, markIntent: markWorkspaceIntent, restore: restoreWorkspaceOptions },
   );
 
   const {
@@ -307,11 +323,12 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 沙箱模式、选机或工作区绑定变化后，文件面板重新解析工作区。
   const workspaceModeForShell =
-    typeof agentOptionValues?.sandbox === "string"
-      ? agentOptionValues.sandbox
-      : null;
+    assistant && !assistant.sandbox && !assistant.project_id
+      ? "none"
+      : typeof agentOptionValues?.sandbox === "string"
+        ? agentOptionValues.sandbox
+        : null;
   const workspaceMachineForShell =
     typeof agentOptionValues?.sandbox_machine_id === "string"
       ? agentOptionValues.sandbox_machine_id
@@ -848,6 +865,10 @@ export function ChatAppContent({
           composerFocusRequest={sessionId ? undefined : composerFocusRequest}
           currentRunId={currentRunId}
           isLoading={isLoading}
+          workspaceLocked={workspaceActive}
+          workspaceSaving={workspaceSaving}
+          workspaceUnconfirmed={workspaceUnconfirmed}
+          onRetryWorkspaceRead={retryWorkspaceRead}
           isLoadingHistory={isLoadingHistory}
           historyLoadGeneration={historyLoadGeneration}
           hasMoreHistoryTraces={hasMoreHistoryTraces}

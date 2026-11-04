@@ -82,6 +82,10 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
     steerMessages = [],
     onCancelSteer,
     isLoading,
+    workspaceLocked = false,
+    workspaceSaving = false,
+    workspaceUnconfirmed = false,
+    onRetryWorkspaceRead,
     disabled,
     sendBlocked = false,
     canSend = true,
@@ -968,11 +972,15 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
           ref={workspaceRef}
           values={agentOptionValues}
           onChange={onToggleAgentOption}
-          disabled={isLoading || !canSend}
+          disabled={workspaceLocked || workspaceSaving || workspaceUnconfirmed || isLoading || sendBlocked || !canSend}
         />
       )}
       <ChatInputSelectors
         {...props}
+        workspaceLocked={workspaceLocked || isLoading || sendBlocked || ["active", "waiting_human"].includes(persistentGoal?.status ?? "")}
+        workspaceSaving={workspaceSaving}
+        workspaceUnconfirmed={workspaceUnconfirmed}
+        onRetryWorkspaceRead={onRetryWorkspaceRead}
         activePanel={activePanel}
         canCopyPersonaPresets={hasPermission(Permission.PERSONA_PRESET_WRITE)}
         canManageSandbox={hasPermission(Permission.SANDBOX_MANAGE)}

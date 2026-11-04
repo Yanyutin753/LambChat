@@ -1,6 +1,6 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Check, Download, Laptop, Monitor, Terminal } from "lucide-react";
@@ -44,6 +44,10 @@ import type {
 } from "../../types";
 
 export interface ChatInputSelectorsProps {
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  onRetryWorkspaceRead?: () => Promise<boolean>;
   activePanel: FeaturePanel;
   onActivePanelChange: (panel: FeaturePanel) => void;
   // Tools
@@ -111,6 +115,10 @@ export interface ChatInputSelectorsProps {
 }
 
 export function ChatInputSelectors({
+  workspaceLocked = false,
+  workspaceSaving = false,
+  workspaceUnconfirmed = false,
+  onRetryWorkspaceRead,
   activePanel,
   onActivePanelChange,
   tools = [],
@@ -164,6 +172,9 @@ export function ChatInputSelectors({
 }: ChatInputSelectorsProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const workspaceBlocked = workspaceLocked || workspaceSaving || workspaceUnconfirmed;
+  const workspaceBlockedRef = useRef(workspaceBlocked);
+  workspaceBlockedRef.current = workspaceBlocked;
   // 沙箱选择器动态适配：壳检测 + daemon 在线状态双条件
   const {
     online: sandboxOnline,
@@ -214,7 +225,7 @@ export function ChatInputSelectors({
           : "none";
   const policySaving = Object.values(states).includes("saving");
   const handlePolicyChange = (policy: string) => {
-    if (!canManageSandbox) return;
+    if (!canManageSandbox || workspaceBlockedRef.current) return;
     if (
       policySaving ||
       (isLocal && (!selectedMachine || selectedMachine.online === false))
@@ -224,6 +235,7 @@ export function ChatInputSelectors({
     save(
       policyTarget,
       async () => {
+        if (workspaceBlockedRef.current) throw new Error("Workspace settings are locked");
         if (!isLocal) {
           await authApi.updateMetadata({ sandboxCloudConfirmPolicy: policy });
         } else if (selectedMachine) {
@@ -245,6 +257,7 @@ export function ChatInputSelectors({
     );
   };
   const handleSelectMachineRow = (row: SandboxMachineRow) => {
+    if (workspaceBlockedRef.current) return;
     if (row.disabled) {
       // 离线机置灰保留展示仅为告知存在：点击提示不落选为目标
       toast.error(t("agentOptions.sandboxMachine.offlineHint"));
@@ -281,6 +294,7 @@ export function ChatInputSelectors({
                   key={row.value || "auto"}
                   type="button"
                   data-sandbox-machine-row
+                  disabled={workspaceBlocked}
                   aria-pressed={active}
                   aria-disabled={row.disabled || undefined}
                   onClick={() => handleSelectMachineRow(row)}
@@ -351,6 +365,7 @@ export function ChatInputSelectors({
           value={executionPolicy}
           onChange={handlePolicyChange}
           disabled={
+            workspaceBlocked ||
             !canManageSandbox ||
             policySaving ||
             (isLocal && selectedMachine?.online === false)
@@ -378,7 +393,10 @@ export function ChatInputSelectors({
             <span>{t("agentOptions.sandboxPolicy.updateFailed")}</span>
             <button
               type="button"
-              onClick={() => retry(policyTarget)}
+              disabled={workspaceBlocked}
+              onClick={() => {
+                if (!workspaceBlockedRef.current) retry(policyTarget);
+              }}
               className="min-h-11 px-2 underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)]"
             >
               {t("common.retry")}
@@ -500,6 +518,7 @@ export function ChatInputSelectors({
               : { option, value: storedValue };
 
             const handleChange = (value: boolean | string | number) => {
+              if (isSandbox && workspaceBlockedRef.current) return;
               if (isSandbox && value === "local" && !sandboxOnline) {
                 // 离线选本地档：五语提示，但选择仍然生效（不拦截用户意图）
                 toast.error(t("agentOptions.sandbox.offlineHint"));
@@ -509,8 +528,13 @@ export function ChatInputSelectors({
 
             if (isSandbox) {
               // 离线（壳内或纯 web 本地档置灰可见）：统一提示 + 底部下载引导
-              const note =
-                isLocal && !sandboxOnline
+              const note = workspaceUnconfirmed
+                ? t("agentOptions.sandbox.saveUnconfirmed")
+                : workspaceSaving
+                ? t("common.saving")
+                : workspaceLocked
+                  ? t("agentOptions.sandbox.lockedWhileActive")
+                  : isLocal && !sandboxOnline
                   ? t("agentOptions.sandbox.offlineHint")
                   : undefined;
               const downloadFooter =
@@ -538,9 +562,20 @@ export function ChatInputSelectors({
                   option={adapted.option}
                   value={adapted.value}
                   onChange={handleChange}
+                  disabled={workspaceBlocked}
                   note={note}
                   belowOptions={
                     <>
+                      {workspaceUnconfirmed && onRetryWorkspaceRead && (
+                        <button
+                          type="button"
+                          disabled={workspaceSaving}
+                          onClick={() => void onRetryWorkspaceRead()}
+                          className="min-h-11 px-2 text-14 underline disabled:opacity-50"
+                        >
+                          {t("common.retry")}
+                        </button>
+                      )}
                       {adapted.value === "local" ? machineSection : undefined}
                       {policySection}
                     </>

@@ -34,7 +34,7 @@ interface ChatInputSteerQueueProps {
 }
 
 const actionClass =
-  "flex h-9 sm:h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-14 font-medium hover:bg-[var(--theme-bg-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-50";
+  "flex h-9 sm:h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-14 font-normal hover:bg-[var(--theme-bg-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-50";
 
 function QueueRow({
   item,
@@ -53,7 +53,8 @@ function QueueRow({
     setMenuPosition(null);
     if (restoreFocus) triggerRef.current?.focus();
   }, []);
-  const failed = item.status === "failed";
+  const cancelFailed = item.cancelFailed === true;
+  const failed = item.status === "failed" || cancelFailed;
   const deferred = item.status === "deferred" || item.deferred;
   const preview =
     item.content || item.attachments?.map((file) => file.name).join(", ");
@@ -61,12 +62,12 @@ function QueueRow({
   return (
     <div className="composer-queue-row flex min-w-0 items-center gap-2">
       {failed ? (
-        <AlertCircle size={12} className="shrink-0 text-[var(--theme-error)]" />
+        <AlertCircle size={14} className="shrink-0 text-[var(--theme-error)]" />
       ) : (
-        <ListEnd size={12} className="shrink-0 opacity-60" />
+        <ListEnd size={14} className="shrink-0" />
       )}
       <span
-        className="min-w-0 flex-1 truncate text-14 font-semibold text-[var(--theme-text)]"
+        className="min-w-0 flex-1 truncate text-14 font-normal text-[var(--theme-text-secondary)]"
         title={preview}
       >
         {preview}
@@ -76,7 +77,7 @@ function QueueRow({
           role="status"
           className="max-w-[30%] break-words text-14 text-[var(--theme-error)]"
         >
-          {t("chat.steerFailedRetry")}
+          {t(cancelFailed ? "chat.steerCancelUnconfirmed" : "chat.steerFailedRetry")}
         </span>
       ) : deferred ? null : (
         <span role="status" className="max-w-[30%] text-14">
@@ -95,7 +96,7 @@ function QueueRow({
             title={t("chat.queueGuideHint")}
           >
             <InteractiveIcon>
-              <CornerDownRight size={12} />
+              <CornerDownRight size={14} />
             </InteractiveIcon>
             <span className="composer-queue-guide-label">
               {t("chat.queueGuide")}
@@ -111,11 +112,11 @@ function QueueRow({
             title={t("chat.queueDelete")}
           >
             <InteractiveIcon>
-              <Trash2 size={12} />
+              <Trash2 size={14} />
             </InteractiveIcon>
           </button>
         )}
-        {onEdit && (
+        {onEdit && !cancelFailed && (
           <button
             type="button"
             ref={triggerRef}
@@ -137,12 +138,12 @@ function QueueRow({
             }}
           >
             <InteractiveIcon>
-              <Ellipsis size={12} />
+              <Ellipsis size={14} />
             </InteractiveIcon>
           </button>
         )}
       </div>
-      {menuPosition && onEdit && (
+      {menuPosition && onEdit && !cancelFailed && (
         <ResourceCardMenu
           id={`composer-queue-menu-${menuId}`}
           title={t("chat.queueMore")}
@@ -152,7 +153,7 @@ function QueueRow({
           actions={[
             {
               label: t("chat.message.queueEdit"),
-              icon: <Pencil size={12} />,
+              icon: <Pencil size={14} />,
               onClick: () => onEdit(item.content, item.id, item.attachments),
             },
           ]}
@@ -176,15 +177,15 @@ export function ChatInputSteerQueue({
   return (
     <div
       data-static-icons
-      className="composer-queue text-[var(--theme-text-tertiary)]"
+      className="composer-queue text-[var(--theme-text-secondary)]"
       aria-label={t("chat.steerQueue")}
     >
       {paused && (
         <div className="composer-queue-pause flex min-w-0 items-center gap-2">
-          <Pause size={12} aria-hidden="true" className="shrink-0 opacity-60" />
+          <Pause size={14} aria-hidden="true" className="shrink-0" />
           <span
             role="status"
-            className="min-w-0 flex-1 break-words text-14 font-medium"
+            className="min-w-0 flex-1 break-words text-14 font-normal"
           >
             {t(
               pauseReason === "delivery"
@@ -200,7 +201,7 @@ export function ChatInputSteerQueue({
             aria-label={t("chat.queueResume")}
           >
             <Play
-              size={12}
+              size={14}
               fill="currentColor"
               strokeWidth={0}
               aria-hidden="true"

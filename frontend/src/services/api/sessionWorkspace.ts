@@ -19,6 +19,7 @@ function persist(sessionId: string, values: WorkspaceValues): Promise<unknown> {
   const write = () =>
     authFetch(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "PATCH",
+      timeoutMs: 30_000,
       body: JSON.stringify({
         metadata: Object.fromEntries(
           Object.entries(values).map(([key, value]) => [
@@ -69,6 +70,24 @@ export function saveSessionWorkspaceOptions(
     ...pending.get(sessionId)?.values,
     ...workspace,
   });
+}
+
+/** A rejected UI selection must not be silently replayed by a later file read. */
+export function discardSessionWorkspaceSave(
+  sessionId: string,
+  request: Promise<unknown>,
+): void {
+  const current = pending.get(sessionId);
+  if (current?.promise === request && current.failed) pending.delete(sessionId);
+}
+
+/** Read after a lost acknowledgement; never replay the uncertain mutation. */
+export async function readSessionWorkspaceOptions(sessionId: string): Promise<WorkspaceValues> {
+  const session = await authFetch<{ metadata?: { agent_options?: WorkspaceValues } }>(
+    `${API_BASE}/api/sessions/${sessionId}`,
+    { timeoutMs: 30_000 },
+  );
+  return Object.fromEntries(Object.entries(session.metadata?.agent_options ?? {}).filter(([key]) => WORKSPACE_OPTION_KEYS.has(key)));
 }
 
 /** 读取前等待落库；保存失败后的刷新会重试，绝不静默读取旧目录。 */

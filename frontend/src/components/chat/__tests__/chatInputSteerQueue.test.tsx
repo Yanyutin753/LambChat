@@ -124,3 +124,20 @@ test("queue actions keep equal spacing and fixed icon targets on narrow screens"
   expect(remove).toHaveClass("w-9");
   expect(edit).toHaveClass("w-9");
 });
+
+test("an unconfirmed cancellation can only be retried, never resent or edited", () => {
+  const onCancel = vi.fn();
+  render(
+    <ChatInputSteerQueue
+      items={[{ ...item, status: "failed", queued: false, cancelFailed: true }]}
+      onCancel={onCancel}
+      onEdit={vi.fn()}
+      onGuide={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("chat.steerCancelUnconfirmed");
+  expect(screen.queryByRole("button", { name: "chat.queueGuide" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "chat.queueMore" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "chat.queueDelete" }));
+  expect(onCancel).toHaveBeenCalledExactlyOnceWith(item.content, item.id);
+});
