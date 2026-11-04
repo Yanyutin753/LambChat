@@ -376,8 +376,7 @@ async def test_all_lanes_propagate_contextvars() -> None:
 def test_loop_limiter_registrations_do_not_leak_closed_loops() -> None:
     """车道限流器注册表用弱引用：已关闭的事件循环不被强引用滞留。
 
-    测试与内嵌场景常有大量短命 loop，强引用会让 loop+semaphore 永不
-    回收（anyio 用 ContextVar 挂载规避，我们用 WeakKeyDictionary）。
+    测试与内嵌场景常有大量短命 loop，注册表不能保活 loop 或 semaphore。
     """
     import gc
     import weakref
@@ -402,6 +401,37 @@ def test_loop_limiter_registrations_do_not_leak_closed_loops() -> None:
     assert not any(ref() is not None for ref in loops), (
         "用过车道的 loop 关闭后必须可回收（注册表不得强引用）"
     )
+
+
+@pytest.mark.parametrize(
+    "getter_name",
+    ["_get_submission_limiter", "_get_long_submission_limiter", "_get_shape_submission_limiter"],
+)
+def test_contended_limiter_does_not_retain_closed_loop(getter_name) -> None:
+    import gc
+    import weakref
+
+    from src.infra.async_utils import blocking
+
+    async def contend():
+        loop = asyncio.get_running_loop()
+        limiter = getattr(blocking, getter_name)(loop)
+        capacity = limiter._value
+        for _ in range(capacity):
+            await limiter.acquire()
+        waiter = asyncio.create_task(limiter.acquire())
+        await asyncio.sleep(0)
+        assert not waiter.done()
+        limiter.release()
+        await waiter
+        for _ in range(capacity):
+            limiter.release()
+        return weakref.ref(loop), weakref.ref(limiter)
+
+    loop_ref, limiter_ref = asyncio.run(contend())
+    gc.collect()
+    assert limiter_ref() is None
+    assert loop_ref() is None
 
 
 async def test_same_lane_reentrancy_executes_inline_with_warning(monkeypatch, caplog) -> None:

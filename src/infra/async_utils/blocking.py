@@ -75,17 +75,10 @@ _SHAPE_IO_EXECUTOR = ThreadPoolExecutor(
     max_workers=int(os.getenv("BLOCKING_IO_SHAPE_MAX_WORKERS", _DEFAULT_SHAPE_MAX_WORKERS)),
     thread_name_prefix="blocking-io-shape",
 )
-# 弱引用注册表（anyio 用 ContextVar 挂载规避同类问题）：已关闭的
-# loop 及其 semaphore 随 loop 回收，测试/内嵌场景大量短命 loop 不泄漏。
-_LOOP_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
-    weakref.WeakKeyDictionary()
-)
-_LOOP_LONG_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
-    weakref.WeakKeyDictionary()
-)
-_LOOP_SHAPE_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
-    weakref.WeakKeyDictionary()
-)
+# 信号量拥塞后会反向引用 loop；键和值都用弱引用，避免注册表保活整个循环。
+_LOOP_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, weakref.ReferenceType[asyncio.Semaphore]]" = weakref.WeakKeyDictionary()
+_LOOP_LONG_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, weakref.ReferenceType[asyncio.Semaphore]]" = weakref.WeakKeyDictionary()
+_LOOP_SHAPE_LIMITERS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, weakref.ReferenceType[asyncio.Semaphore]]" = weakref.WeakKeyDictionary()
 
 
 class _LaneStats:
@@ -130,17 +123,18 @@ def blocking_io_stats() -> dict[str, dict[str, float | int | str]]:
 
 def _ensure_limiter(
     loop: asyncio.AbstractEventLoop,
-    limiters: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]",
+    limiters: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, weakref.ReferenceType[asyncio.Semaphore]]",
     executor: ThreadPoolExecutor,
     default_workers: int,
     max_pending: int,
 ) -> asyncio.Semaphore:
-    limiter = limiters.get(loop)
+    limiter_ref = limiters.get(loop)
+    limiter = limiter_ref() if limiter_ref is not None else None
     if limiter is not None:
         return limiter
     max_workers = max(1, int(getattr(executor, "_max_workers", default_workers)))
     limiter = asyncio.Semaphore(max_workers + max_pending)
-    limiters[loop] = limiter
+    limiters[loop] = weakref.ref(limiter)
     return limiter
 
 
