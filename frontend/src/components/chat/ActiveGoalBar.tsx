@@ -102,7 +102,7 @@ function EmbeddedGoalBar({
     <div
       ref={containerRef}
       className={[
-        "flex items-center gap-3 p-3 text-14",
+        "composer-goal-row flex min-w-0 items-center gap-2 text-14",
         exiting ? "animate-goal-exit" : "animate-goal-enter",
         className,
       ]
@@ -142,7 +142,7 @@ function EmbeddedGoalBar({
           disabled={disabled}
           title={clearLabel}
           aria-label={clearLabel}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:text-theme-text disabled:cursor-not-allowed disabled:opacity-20"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40"
           style={{ opacity: 0.4 }}
         >
           <InteractiveIcon>
@@ -247,20 +247,8 @@ function PersistentGoalStrip({
   return (
     <div
       className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-13 leading-5 ${
-        embedded
-          ? "relative mx-3 -mb-3 rounded-t-xl border border-b-0 pb-3"
-          : "mx-auto w-full max-w-[52rem] py-2"
+        embedded ? "composer-goal-row" : "mx-auto w-full max-w-[52rem] py-2"
       } ${className}`}
-      style={
-        embedded
-          ? {
-              backgroundColor:
-                "color-mix(in srgb, var(--theme-bg-card) 85%, var(--theme-bg))",
-              borderColor:
-                "color-mix(in srgb, var(--theme-border) 60%, transparent)",
-            }
-          : undefined
-      }
     >
       <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-1.5 font-medium text-theme-text-secondary">
         <Target
@@ -276,7 +264,7 @@ function PersistentGoalStrip({
             ? "hidden"
             : expanded
               ? "col-span-3 row-start-2 max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-theme-border-subtle py-2 text-14 leading-relaxed [overflow-wrap:anywhere]"
-              : "col-start-2 row-start-1 truncate"
+              : "composer-goal-summary col-start-2 row-start-1 truncate"
         }`}
         title={expanded ? undefined : goal.objective}
       >

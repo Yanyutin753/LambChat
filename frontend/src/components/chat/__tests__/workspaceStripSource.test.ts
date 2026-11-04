@@ -35,7 +35,7 @@ test("workspace strip keeps a compact vertical rhythm", () => {
   // 本地电脑/工作区上下文条只留极小上下留白（2026-10-28 用户反馈"上下间距小一点点"）
   const css = read("../../../styles/chat.css");
   expect(css).toMatch(
-    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem 0\.5rem 1rem 0\.25rem;/,
+    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem var\(--composer-row-inset\);/,
   );
 });
 
@@ -55,12 +55,10 @@ test("local directory selection lives in the workspace strip while the submit gu
   );
 });
 
-test("narrow workspace strip compensates its smaller margin to preserve the icon edge", () => {
+test("context rows use the same inset without negative margins or nested borders", () => {
   const css = read("../../../styles/chat.css");
-  const narrow = css.match(
-    /@container workspace \(max-width: 40rem\) \{([\s\S]*?)\n\}/,
-  )?.[1];
-  expect(narrow).toMatch(
-    /\.composer-workspace-strip\s*\{[^}]*margin-inline:\s*0?\.5rem;[^}]*padding-left:\s*0?\.5rem;/,
-  );
+  const strip = css.match(/\.composer-workspace-strip\s*\{([^}]+)\}/)?.[1];
+  expect(strip).not.toMatch(/margin:.*-|border-radius:|border:|border-bottom:/);
+  expect(css).toContain("--composer-row-inset:");
+  expect(css).toContain(".composer-queue-row");
 });
