@@ -1959,3 +1959,14 @@ html .composer-environment-panel button:hover {
     padding-bottom: 0.25rem;
   }
 }
+
+@container workspace (max-width: 17rem) {
+  .composer-goal-row > span:first-child {
+    white-space: nowrap;
+  }
+  .composer-goal-row > div:first-of-type {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
+  }
+}
