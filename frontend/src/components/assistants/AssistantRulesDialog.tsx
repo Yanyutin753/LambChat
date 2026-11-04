@@ -1,3 +1,4 @@
+import { PanelHeader } from "../common/PanelHeader";
 import { EmptyState } from "../common/EmptyState";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -199,9 +200,17 @@ export function AssistantRulesDialog({
     >
       <div className="space-y-4">
         {error && <ConfigPanelErrorCallout message={error} />}
-        <p className="text-12 text-theme-text-secondary">
-          {t("assistants.rulesHint")}
-        </p>
+        {embedded ? (
+          <PanelHeader
+            className="!px-0"
+            title={t("assistants.rules")}
+            subtitle={t("assistants.rulesHint")}
+          />
+        ) : (
+          <p className="text-12 text-theme-text-secondary">
+            {t("assistants.rulesHint")}
+          </p>
+        )}
         {canWrite && (
           <form
             onSubmit={(event) => {

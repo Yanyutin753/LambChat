@@ -1,3 +1,4 @@
+import { ChatHeaderFrame } from "../layout/AppContent/ChatHeaderFrame";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -45,6 +46,7 @@ import { AssistantDiscussionsDialog } from "./AssistantDiscussionsDialog";
 import { AssistantRulesDialog } from "./AssistantRulesDialog";
 import { AssistantTaskContext } from "./AssistantTaskContext";
 import { AssistantTasksDialog } from "./AssistantTasksDialog";
+import { EmbeddedHeaderActionsContext } from "../layout/AppContent/EmbeddedHeaderActionsContext";
 import "../../styles/assistant-workspace.css";
 
 const ChatAppContent = lazy(() =>
@@ -104,6 +106,8 @@ export function AssistantsPanel() {
   const canReadPersonas = hasPermission(Permission.PERSONA_PRESET_READ);
   const canReadTeams = hasPermission(Permission.TEAM_READ);
   const [collapsed, setCollapsed] = useState(false);
+  const [headerActionsTarget, setHeaderActionsTarget] =
+    useState<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -484,7 +488,7 @@ export function AssistantsPanel() {
                         <span className="block truncate font-medium">
                           {item.name}
                         </span>
-                        <span className="assistant-workspace-role">
+                        <span className="assistant-workspace-role block truncate">
                           {(item.kind === "group"
                             ? t("assistants.groupCount", {
                                 count: item.member_ids?.length ?? 0,
@@ -533,7 +537,7 @@ export function AssistantsPanel() {
         data-panel="assistants"
         data-workspace-content=""
       >
-        <header className="assistant-workspace-header">
+        <ChatHeaderFrame className="assistant-workspace-header">
           <Button
             className="assistant-workspace-desktop-toggle"
             variant="ghost"
@@ -558,8 +562,8 @@ export function AssistantsPanel() {
               size={32}
             />
           )}
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-14 font-medium">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <h2 className="min-w-0 truncate text-14 font-medium">
               {assistant ? (
                 <button
                   type="button"
@@ -576,7 +580,7 @@ export function AssistantsPanel() {
               )}
             </h2>
             {assistant && (
-              <p className="assistant-workspace-role">
+              <p className="assistant-workspace-role hidden max-w-[40%] truncate sm:block">
                 {assistant.status === "active" &&
                 ["chat", "tasks"].includes(view)
                   ? currentProfile?.name
@@ -591,6 +595,10 @@ export function AssistantsPanel() {
               </p>
             )}
           </div>
+          <div
+            ref={setHeaderActionsTarget}
+            className="assistant-workspace-header-actions"
+          />
           {assistant?.kind === "group" && (
             <Button
               variant="ghost"
@@ -599,9 +607,11 @@ export function AssistantsPanel() {
               disabled={!canWrite}
               leftIcon={<Users size={16} />}
             >
-              {t("assistants.groupCount", {
-                count: assistant.member_ids?.length ?? 0,
-              })}
+              <span className="hidden sm:inline">
+                {t("assistants.groupCount", {
+                  count: assistant.member_ids?.length ?? 0,
+                })}
+              </span>
             </Button>
           )}
           {assistant && (
@@ -679,7 +689,7 @@ export function AssistantsPanel() {
               )}
             </>
           )}
-        </header>
+        </ChatHeaderFrame>
         {actionError && (
           <div className="panel-inset py-2">
             <ConfigPanelErrorCallout message={actionError} />
@@ -727,17 +737,21 @@ export function AssistantsPanel() {
                       canWrite={canWrite}
                     />
                   )}
-                  <ChatAppContent
-                    key={`${assistant.id}:${sessionId}`}
-                    embedded
-                    showProfileModal={false}
-                    onCloseProfileModal={noop}
-                    sidebarCollapsed
-                    setSidebarCollapsed={noop}
-                    mobileSidebarOpen={false}
-                    setMobileSidebarOpen={noop}
-                    onShowProfile={noop}
-                  />
+                  <EmbeddedHeaderActionsContext.Provider
+                    value={headerActionsTarget}
+                  >
+                    <ChatAppContent
+                      key={`${assistant.id}:${sessionId}`}
+                      embedded
+                      showProfileModal={false}
+                      onCloseProfileModal={noop}
+                      sidebarCollapsed
+                      setSidebarCollapsed={noop}
+                      mobileSidebarOpen={false}
+                      setMobileSidebarOpen={noop}
+                      onShowProfile={noop}
+                    />
+                  </EmbeddedHeaderActionsContext.Provider>
                 </AssistantGroupContext>
               ) : (
                 <PanelLoadingState />

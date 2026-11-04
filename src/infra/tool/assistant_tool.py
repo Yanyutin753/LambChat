@@ -120,12 +120,27 @@ async def update_assistant(
 ) -> dict:
     """Chief only: update a requested assistant/group using its current listed revision.
     Supports rename, duties, pause/resume/archive, and group membership/coordinator.
+    When changing leader_id, also supply the full reviewed instructions in the SAME call:
+    update references to the current coordinator, preserving unrelated duties and historical facts.
+    If instructions are coordinator-neutral, supply them unchanged (including an empty string).
     Omitted fields stay unchanged. Never changes models, workspaces, credentials or permissions.
     Archive preserves history. Do not retry a conflict blindly: reload and assess the change.
     """
     user = await chief_context(runtime, "chat:write")
     service = AssistantService()
     current = await service.get(user, assistant_id)
+    if (
+        current.kind == "group"
+        and leader_id is not None
+        and leader_id != current.leader_id
+        and instructions is None
+    ):
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            message="Changing a group coordinator requires full reviewed instructions in the same call. "
+            "Update current-coordinator references; preserve unrelated duties and historical facts. "
+            "If the purpose is coordinator-neutral, explicitly supply it unchanged.",
+        )
     values = current.model_dump(include=set(AssistantCreate.model_fields))
     for key, value in {
         "name": name,

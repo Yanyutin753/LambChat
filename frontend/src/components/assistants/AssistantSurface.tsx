@@ -13,7 +13,9 @@ export function AssistantSurface({
       aria-label={typeof props.title === "string" ? props.title : undefined}
     >
       <div className="panel-body overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl py-6">{props.children}</div>
+        <div className="mx-auto w-full max-w-3xl py-4 sm:py-5">
+          {props.children}
+        </div>
       </div>
       <div className="panel-pagination">
         <div className="assistant-workspace-footer mx-auto flex w-full max-w-3xl flex-wrap items-center justify-end gap-2">

@@ -80,6 +80,17 @@ function Composer({
       pendingInput={input}
       currentAgent="search"
       agents={agents}
+      agentOptions={{
+        sandbox: {
+          type: "select",
+          label: "Sandbox",
+          default: "cloud",
+          options: [
+            { value: "local", label: "Local" },
+            { value: "cloud", label: "Cloud" },
+          ],
+        },
+      }}
       agentOptionValues={values}
       onToggleAgentOption={(key, value) =>
         setValues((old) => ({ ...old, ...workspaceOptionPatch(key, value) }))
@@ -178,9 +189,20 @@ test("assistant configuration bypasses stale local workspace selection without l
   expect(
     screen.queryByRole("button", { name: "Choose working directory" }),
   ).toBeNull();
+  expect(
+    editor.closest("form")?.querySelector(".composer-workspace-strip"),
+  ).toBeEmptyDOMElement();
   await act(async () => {
     fireEvent.submit(editor.closest("form")!);
   });
   expect(invoke).not.toHaveBeenCalled();
   expect(onSend).toHaveBeenCalled();
+});
+
+test("assistant-managed empty composer does not describe the ordinary chat's local environment", async () => {
+  render(<Composer onSend={vi.fn()} input="" configurationLocked />);
+  await screen.findByRole("textbox");
+  expect(
+    screen.queryByText("What would you like to do on the selected computer?"),
+  ).toBeNull();
 });

@@ -104,3 +104,106 @@ async def test_chief_allows_root_tool_node_but_rejects_nested_namespace(monkeypa
     runtime.config["configurable"]["checkpoint_ns"] = "tools:root|tools:child"
     with pytest.raises(AppError):
         await module.chief_context(runtime, "chat:write")
+
+
+async def test_coordinator_change_requires_explicit_instructions_before_any_write(monkeypatch):
+    from src.infra.tool import assistant_tool as module
+    from src.kernel.errors import AppError, ErrorCode
+
+    monkeypatch.setattr(module, "chief_context", AsyncMock(return_value=user()))
+    current = assistant().model_copy(
+        update={
+            "kind": "group",
+            "member_ids": ["writer", "reviewer"],
+            "leader_id": "writer",
+            "instructions": "Writer coordinates. Reviewer checks sources.",
+        }
+    )
+    update = AsyncMock(return_value=current)
+    monkeypatch.setattr(
+        module,
+        "AssistantService",
+        lambda: SimpleNamespace(
+            get=AsyncMock(return_value=current),
+            update=update,
+        ),
+    )
+    with pytest.raises(AppError) as caught:
+        await module.update_assistant.coroutine(
+            assistant_id=current.id,
+            revision=7,
+            leader_id="reviewer",
+        )
+    assert caught.value.error_code == ErrorCode.VALIDATION_ERROR
+    update.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "instructions",
+    [
+        "Reviewer coordinates. Writer gathers sources; formerly Writer coordinated.",
+        "Check sources together.",
+        "",
+    ],
+)
+async def test_coordinator_and_reviewed_purpose_use_one_versioned_update(monkeypatch, instructions):
+    from src.infra.tool import assistant_tool as module
+
+    monkeypatch.setattr(module, "chief_context", AsyncMock(return_value=user()))
+    current = assistant(model_id="model").model_copy(
+        update={
+            "kind": "group",
+            "member_ids": ["writer", "reviewer"],
+            "leader_id": "writer",
+            "instructions": "Check sources together.",
+        }
+    )
+    update = AsyncMock(return_value=current)
+    monkeypatch.setattr(
+        module,
+        "AssistantService",
+        lambda: SimpleNamespace(
+            get=AsyncMock(return_value=current),
+            update=update,
+        ),
+    )
+    await module.update_assistant.coroutine(
+        assistant_id=current.id,
+        revision=7,
+        leader_id="reviewer",
+        instructions=instructions,
+    )
+    update.assert_awaited_once()
+    draft = update.call_args.args[2]
+    assert (draft.leader_id, draft.instructions, draft.revision) == ("reviewer", instructions, 7)
+    assert draft.member_ids == current.member_ids and draft.model_id == "model"
+
+
+async def test_unchanged_coordinator_does_not_require_rewriting_purpose(monkeypatch):
+    from src.infra.tool import assistant_tool as module
+
+    monkeypatch.setattr(module, "chief_context", AsyncMock(return_value=user()))
+    current = assistant().model_copy(
+        update={
+            "kind": "group",
+            "member_ids": ["writer", "reviewer"],
+            "leader_id": "writer",
+            "instructions": "Writer coordinates.",
+        }
+    )
+    update = AsyncMock(return_value=current)
+    monkeypatch.setattr(
+        module,
+        "AssistantService",
+        lambda: SimpleNamespace(
+            get=AsyncMock(return_value=current),
+            update=update,
+        ),
+    )
+    await module.update_assistant.coroutine(
+        assistant_id=current.id,
+        revision=7,
+        name="Renamed",
+        leader_id="writer",
+    )
+    assert update.call_args.args[2].instructions == current.instructions

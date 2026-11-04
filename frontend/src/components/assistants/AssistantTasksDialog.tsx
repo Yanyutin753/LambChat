@@ -9,7 +9,7 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { SceneIllustration } from "../common/SceneIllustration";
+import { PanelHeader } from "../common/PanelHeader";
 import { EmptyState } from "../common/EmptyState";
 import { useNavigate } from "react-router-dom";
 import { assistantApi } from "../../services/api/assistant";
@@ -177,6 +177,19 @@ export function AssistantTasksDialog({
     );
   };
 
+  const taskAction = canWrite && assistant.status === "active" && (
+    <Button
+      variant={embedded ? "primary" : "secondary"}
+      id={`${formId}-toggle`}
+      leftIcon={<Plus size={16} />}
+      aria-expanded={creating}
+      aria-controls={creating ? formId : undefined}
+      disabled={busy}
+      onClick={() => setCreating((value) => !value)}
+    >
+      {t("assistants.newTask")}
+    </Button>
+  );
   return (
     <AssistantSurface
       embedded={embedded}
@@ -210,59 +223,24 @@ export function AssistantTasksDialog({
         {(error || loadError) && (
           <ConfigPanelErrorCallout message={error || loadError} />
         )}
-        <div
-          className={
-            embedded
-              ? "assistant-task-page-heading"
-              : "flex flex-wrap items-center justify-between gap-3"
-          }
-        >
-          <div
-            className={
-              embedded ? "assistant-workspace-page-identity" : undefined
-            }
-          >
-            {embedded && (
-              <SceneIllustration
-                scene="panel-schedule"
-                className="assistant-workspace-spot"
-              />
-            )}
-            <div>
-              {embedded && (
-                <h2 className="text-24 font-medium tracking-tight">
-                  {t("assistants.workRecords")}
-                </h2>
-              )}
-              <p
-                className="text-14 text-theme-text-secondary"
-                aria-live="polite"
-              >
-                {data
-                  ? t("assistants.taskCount", { count: data.total })
-                  : t("assistants.tasks")}
-              </p>
-              {embedded && (
-                <p className="assistant-task-page-hint">
-                  {t("assistants.taskHint")}
-                </p>
-              )}
-            </div>
+        {embedded ? (
+          <PanelHeader
+            className="!px-0"
+            title={t("assistants.workRecords")}
+            count={data?.total}
+            subtitle={t("assistants.taskHint")}
+            actions={taskAction}
+          />
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-14 text-theme-text-secondary" aria-live="polite">
+              {data
+                ? t("assistants.taskCount", { count: data.total })
+                : t("assistants.tasks")}
+            </p>
+            {taskAction}
           </div>
-          {canWrite && assistant.status === "active" && (
-            <Button
-              variant={embedded ? "primary" : "secondary"}
-              id={`${formId}-toggle`}
-              leftIcon={<Plus size={16} />}
-              aria-expanded={creating}
-              aria-controls={creating ? formId : undefined}
-              disabled={busy}
-              onClick={() => setCreating((value) => !value)}
-            >
-              {t("assistants.newTask")}
-            </Button>
-          )}
-        </div>
+        )}
         {canWrite && assistant.status === "active" && creating && (
           <form
             id={formId}

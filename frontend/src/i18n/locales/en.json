@@ -88,8 +88,8 @@
     "project": "Project",
     "none": "None",
     "environment": "Execution environment",
-    "environmentHint": "Defaults apply to new work. Existing independent tasks keep their original environment.",
-    "inheritEnvironment": "Project or account default",
+    "environmentHint": "When no environment is selected, use the project environment; without a project, no execution environment is enabled. New settings apply to new work; existing independent tasks keep their environment.",
+    "inheritEnvironment": "Use project environment",
     "cloud": "Cloud sandbox",
     "local": "Local workspace",
     "localHint": "Choose a folder in the desktop app. Local execution requires its machine to be connected.",
@@ -182,6 +182,23 @@
       "update_assistant": "Update assistant or group"
     },
     "groupPlaceholder": "Message the group. Type @ to choose a member.",
+    "starters": {
+      "chief": {
+        "first": "Review my assistants and explain what each is best suited for.",
+        "second": "Help me put together a writing group with suitable assistants.",
+        "third": "Set up an assistant to help me follow a long-term study plan."
+      },
+      "assistant": {
+        "first": "What can you help me with? Suggest a few tasks that suit you.",
+        "second": "Break my goals for this week into actionable steps.",
+        "third": "I have a problem that needs deeper analysis. Help me frame it first."
+      },
+      "group": {
+        "first": "Introduce everyone’s roles and the problems we can solve together.",
+        "second": "Help plan a complex project: propose approaches and cross-check them.",
+        "third": "Help me weigh a decision from different perspectives."
+      }
+    },
     "chiefWelcome": "Tell me what you need. I can set up assistants or bring them together in a group.",
     "groupWelcome": "Talk together here. Type @ to choose a member. Context stays in this group.",
     "assistantWelcome": "Tell me what you want to work on. We can start here."
@@ -4970,6 +4987,7 @@
     "toggleSidebar": "Toggle sidebar"
   },
   "workspacePanel": {
+    "noEnvironment": "This conversation has no execution environment. You can view and download generated files in the conversation.",
     "root": "WORKSPACE",
     "searchFiles": "Search files",
     "selectFile": "Select a file to preview",

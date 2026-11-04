@@ -1,3 +1,4 @@
+import { PanelHeader } from "../common/PanelHeader";
 import { EmptyState } from "../common/EmptyState";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -83,6 +84,13 @@ export function AssistantDiscussionsDialog({
         </>
       }
     >
+      {embedded && (
+        <PanelHeader
+          className="!px-0"
+          title={t("assistants.discussions")}
+          count={total}
+        />
+      )}
       {error && <ConfigPanelErrorCallout message={error} />}
       {!data && !error ? (
         <PanelLoadingState />

@@ -685,7 +685,8 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
                         }
                       />
                     )}
-                    {currentAgentInfo?.supports_sandbox &&
+                    {!props.configurationLocked &&
+                      currentAgentInfo?.supports_sandbox &&
                       agentOptionValues.sandbox === "local" && (
                         <div
                           ref={setWorkspaceHost}
@@ -830,6 +831,7 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
                                     : selectedPersonaPresetId
                                 }
                                 sandbox={
+                                  !props.configurationLocked &&
                                   agentOptions?.sandbox &&
                                   (agentOptionValues.sandbox ??
                                     agentOptions.sandbox.default)

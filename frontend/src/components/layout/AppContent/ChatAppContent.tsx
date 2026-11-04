@@ -302,11 +302,12 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 沙箱模式、选机或工作区绑定变化后，文件面板重新解析工作区。
   const workspaceModeForShell =
-    typeof agentOptionValues?.sandbox === "string"
-      ? agentOptionValues.sandbox
-      : null;
+    assistant && !assistant.sandbox && !assistant.project_id
+      ? "none"
+      : typeof agentOptionValues?.sandbox === "string"
+        ? agentOptionValues.sandbox
+        : null;
   const workspaceMachineForShell =
     typeof agentOptionValues?.sandbox_machine_id === "string"
       ? agentOptionValues.sandbox_machine_id
