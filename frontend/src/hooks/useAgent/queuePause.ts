@@ -71,7 +71,12 @@ export function useQueuePause(
       const pause = pauses.current.get(sessionId);
       const status = await sessionApi.getStatus(sessionId);
       if (pauses.current.get(sessionId) !== pause) return;
-      if (!status.run_id || (pause?.runId && pause.runId !== status.run_id))
+      if (
+        !status.run_id ||
+        (pause?.runId &&
+          pause.runId !== status.run_id &&
+          (pause.reason !== "delivery" || status.queue_paused))
+      )
         throw new Error("Queue run changed");
       if (status.queue_paused) {
         if (!status.queue_pause_token)

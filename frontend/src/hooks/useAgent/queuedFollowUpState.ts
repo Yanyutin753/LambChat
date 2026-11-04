@@ -53,11 +53,15 @@ function readQueue(sessionId: string | null): SteerItem[] {
 function saveQueue(sessionId: string | null, items: SteerItem[]) {
   if (!sessionId) return;
   try {
-    // Backend steers already have server persistence. Keeping local copies
-    // would resurrect messages delivered while this tab was disconnected.
-    const queued = items.filter(
-      (item) => item.status === "deferred" || item.status === "failed",
-    );
+    // Only acknowledged steers belong solely to the server. Unconfirmed sends
+    // survive reload as failed drafts and require an explicit retry.
+    const queued = items.flatMap<SteerItem>((item) => {
+      if (item.status === "pending" && !item.queued)
+        return [{ ...item, status: "failed", queued: false }];
+      return item.status === "deferred" || item.status === "failed"
+        ? [item]
+        : [];
+    });
     if (queued.length)
       sessionStorage.setItem(storageKey(sessionId), JSON.stringify(queued));
     else sessionStorage.removeItem(storageKey(sessionId));

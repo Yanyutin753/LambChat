@@ -86,6 +86,7 @@ export interface PromoteSteerFollowUpsDeps {
     content: string,
     attachments?: MessageAttachment[],
     onAccepted?: () => void,
+    messageId?: string,
   ) => Promise<unknown>;
   isCancelled?: (messageId: string) => boolean;
   clearSteer?: (content: string, messageId: string, sessionId?: string) => void;
@@ -167,6 +168,7 @@ export async function promoteSteerFollowUps(
       item.content,
       item.attachments,
       onAccepted,
+      item.id,
     );
     if (!accepted && result !== false) onAccepted();
     if (accepted) promoted += 1;
@@ -189,6 +191,7 @@ const ACTIVE_RUN_STATUSES = new Set([
 const PROMOTE_RETRY_INTERVAL_MS = 5000;
 
 export interface SteerFollowUpPromotionOptions {
+  markSteerFailed?: (messageId: string, sessionId: string) => void;
   queuePauseRevision?: number;
   isQueuePaused?: (sessionId: string | null) => boolean;
   setQueuePaused?: (
@@ -236,6 +239,7 @@ export function useSteerFollowUpPromotion(
     queuePauseRevision,
     isQueuePaused,
     setQueuePaused,
+    markSteerFailed,
   } = options;
   // 重试时校验插话是否仍在队列（已被注入/送达的不重发，防同内容双投）
   const steerMessagesRef = useRef(steerMessages);
@@ -273,17 +277,20 @@ export function useSteerFollowUpPromotion(
         sessionId: ownerSessionId,
         cancelSteer: (sessionId, content, messageId) =>
           sessionApi.cancelSteer(sessionId, content, messageId),
-        sendMessage: async (content, attachments, onAccepted) => {
+        sendMessage: async (content, attachments, onAccepted, messageId) => {
           let accepted = false;
           await sendMessageRef.current?.(content, attachments, {
             followUpToRunId,
-            onRejected: () =>
+            onRejected: () => {
+              if (messageId && ownerSessionId)
+                markSteerFailed?.(messageId, ownerSessionId);
               setQueuePaused?.(
                 ownerSessionId,
                 true,
                 followUpToRunId,
                 "delivery",
-              ),
+              );
+            },
             onAccepted: () => {
               accepted = true;
               onAccepted?.();
@@ -343,6 +350,7 @@ export function useSteerFollowUpPromotion(
     queuePauseRevision,
     isQueuePaused,
     setQueuePaused,
+    markSteerFailed,
   ]);
 }
 
@@ -398,7 +406,7 @@ export function useSteerQueue({
         id: queuedMessageId ?? uuid(),
         content: text,
         attachments,
-        queued: true,
+        queued: false,
         status: "pending",
         timestamp: new Date(),
       };
@@ -416,6 +424,13 @@ export function useSteerQueue({
           item.id,
           attachments,
           currentRunIdRef?.current ?? undefined,
+        );
+        setSteerMessages(
+          (prev) =>
+            prev.map((queued) =>
+              queued.id === item.id ? { ...queued, queued: true } : queued,
+            ),
+          currentSessionId,
         );
       } catch (error) {
         if (pending.cancelled) return;
@@ -515,12 +530,32 @@ export function useSteerQueue({
     [setSteerMessages],
   );
 
+  const markSteerFailed = useCallback(
+    (messageId: string, sessionId: string) => {
+      setSteerMessages(
+        (prev) =>
+          prev.map((item) =>
+            item.id === messageId
+              ? { ...item, queued: false, status: "failed" }
+              : item,
+          ),
+        sessionId,
+      );
+    },
+    [setSteerMessages],
+  );
+
   const hydrateSteers = useCallback(
-    (items: PendingSteerSnapshot[]) => {
+    (items: PendingSteerSnapshot[], deliveredIds: string[] = []) => {
       setSteerMessages((prev) => {
-        const existing = new Map(prev.map((item) => [item.id, item]));
+        const delivered = new Set(deliveredIds);
+        const existing = new Map(
+          prev
+            .filter((item) => !delivered.has(item.id))
+            .map((item) => [item.id, item]),
+        );
         for (const item of items) {
-          if (!existing.has(item.message_id)) {
+          if (!delivered.has(item.message_id)) {
             existing.set(item.message_id, {
               id: item.message_id,
               content: item.content,
@@ -571,6 +606,7 @@ export function useSteerQueue({
     queueFollowUp,
     cancelSteer,
     markSteerDelivered,
+    markSteerFailed,
     clearSteerMessages,
     clearSteer,
     hydrateSteers,

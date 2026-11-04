@@ -620,7 +620,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             persistentGoalPromise,
           ]);
           if (isStaleHistoryLoad()) return null;
-          hydrateSteers(pendingSteersData.items);
+          hydrateSteers(
+            pendingSteersData.items,
+            reconstructedMessages
+              .filter((message) => message.metadata?.steer)
+              .map((message) => message.id),
+          );
           const streamRunId = resolveHistoryStreamRunId(
             eventsData.stream_run_id,
             supersedesSameSessionLoad ? undefined : targetChatRunId,
@@ -1262,6 +1267,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isLoading,
     isSendingRef,
     steerMessages: steerQueue.steerMessages,
+    markSteerFailed: steerQueue.markSteerFailed,
     clearSteer,
     cancelledSteerIdsRef,
     followUpSteerIdsRef,

@@ -92,3 +92,31 @@ test("an unconfirmed submission stays paused after reloading the conversation", 
   expect(restored.result.current.queuePaused).toBe(true);
   expect(restored.result.current.queuePauseReason).toBe("delivery");
 });
+
+test("continuing after an uncertain delivery can follow a newer unpaused run", async () => {
+  const { result } = renderHook(() => useQueuePause({ current: "s1" }));
+  act(() => result.current.setQueuePaused("s1", true, "r1", "delivery"));
+  api.getStatus.mockResolvedValueOnce({ run_id: "r2", queue_paused: false });
+  await act(async () => {
+    await result.current.resumeQueue();
+  });
+  expect(result.current.queuePaused).toBe(false);
+  expect(api.resumeQueue).not.toHaveBeenCalled();
+});
+
+test("an uncertain delivery cannot resume a newer server pause", async () => {
+  const { result } = renderHook(() => useQueuePause({ current: "s1" }));
+  act(() => result.current.setQueuePaused("s1", true, "r1", "delivery"));
+  api.getStatus.mockResolvedValueOnce({
+    run_id: "r2",
+    queue_paused: true,
+    queue_pause_token: "p2",
+  });
+  await act(async () => {
+    await expect(result.current.resumeQueue()).rejects.toThrow(
+      "Queue run changed",
+    );
+  });
+  expect(result.current.queuePaused).toBe(true);
+  expect(api.resumeQueue).not.toHaveBeenCalled();
+});

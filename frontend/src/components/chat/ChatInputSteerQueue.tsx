@@ -74,7 +74,7 @@ function QueueRow({
       {failed ? (
         <span
           role="status"
-          className="max-w-[30%] text-14 text-[var(--theme-error)]"
+          className="max-w-[30%] break-words text-14 text-[var(--theme-error)]"
         >
           {t("chat.steerFailedRetry")}
         </span>
@@ -125,7 +125,9 @@ function QueueRow({
             title={t("chat.queueMore")}
             aria-haspopup="menu"
             aria-expanded={!!menuPosition}
-            aria-controls={menuPosition ? `composer-queue-menu-${menuId}` : undefined}
+            aria-controls={
+              menuPosition ? `composer-queue-menu-${menuId}` : undefined
+            }
             onClick={() => {
               if (menuPosition) closeMenu();
               else {
@@ -180,7 +182,10 @@ export function ChatInputSteerQueue({
       {paused && (
         <div className="composer-queue-pause flex min-w-0 items-center gap-2">
           <Pause size={12} aria-hidden="true" className="shrink-0 opacity-60" />
-          <span role="status" className="min-w-0 flex-1 break-words text-14 font-medium">
+          <span
+            role="status"
+            className="min-w-0 flex-1 break-words text-14 font-medium"
+          >
             {t(
               pauseReason === "delivery"
                 ? "chat.queuePausedAfterFailure"
