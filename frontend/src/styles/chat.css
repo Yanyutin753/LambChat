@@ -1573,7 +1573,7 @@ html[data-mobile-keyboard="true"]
   border: 1px solid var(--theme-border-subtle);
   border-bottom: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: var(--theme-bg-subtle);
+  background: var(--theme-bg-elevated);
 }
 .composer-context-panel:has(> .composer-workspace-strip:only-child:empty) {
   display: none;
