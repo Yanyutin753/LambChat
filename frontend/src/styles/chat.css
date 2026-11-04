@@ -201,8 +201,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   border-color: var(--theme-border-hover);
 }
 
-/* 仅两处调整:背景与输入卡一致(--theme-bg-elevated)、边框可见(--theme-border)。
-   几何(宽度/内边距/圆角/位置)保持原有形态,不与卡片融合。 */
+/* Context and editor share one surface; every row stays in normal flow. */
 .composer-workspace-strip {
   flex-shrink: 0;
   overflow-x: auto;
@@ -210,12 +209,7 @@ html:not(.dark):not(.theme-sepia) .user-message-bubble {
   scrollbar-width: none;
   gap: 0.5rem;
   white-space: nowrap;
-  margin: 0 0.75rem -0.75rem;
-  padding: 0.25rem 0.5rem 1rem 0.25rem;
-  border: 1px solid var(--theme-border);
-  border-bottom: none;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: var(--theme-bg-elevated);
+  padding: 0.25rem var(--composer-row-inset);
 }
 .composer-workspace-strip:empty {
   display: none;
@@ -1124,14 +1118,16 @@ html[data-mobile-keyboard="true"]
   );
   border: 1px solid color-mix(in srgb, var(--theme-primary) 10%, transparent);
   overflow: hidden;
-  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  box-shadow: 0 1px 4px -1px
+    color-mix(in srgb, var(--theme-primary) 12%, transparent);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .mention-popup-item:hover .mention-popup-avatar {
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  box-shadow: 0 2px 8px -2px
+    color-mix(in srgb, var(--theme-primary) 18%, transparent);
   transform: scale(1.04);
 }
 
@@ -1565,30 +1561,47 @@ html[data-mobile-keyboard="true"]
   }
 }
 
-/* Align the folder, writing edge and add icon without moving either shell. */
-.composer-workspace-shell .chat-input-container:not([data-composer-expanded]) {
-  padding-left: 0;
+/* All composer controls align to the same text and icon edges. */
+.composer-workspace-shell {
+  --composer-row-inset: 0.75rem;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--theme-bg-elevated);
+  box-shadow: 0 2px 8px var(--theme-shadow-sm);
+}
+.composer-workspace-shell:focus-within {
+  border-color: var(--theme-ring);
+}
+.composer-workspace-shell
+  .chat-input-container:not([data-composer-expanded]):not([data-drag-over]) {
+  border-color: transparent;
+  box-shadow: none;
+}
+.composer-queue {
+  max-height: min(12rem, 25dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.composer-queue-row,
+.composer-goal-row {
+  padding: 0.25rem var(--composer-row-inset, 0.75rem);
+}
+.composer-workspace-shell > :is(.composer-queue, .composer-goal-row) {
+  border-bottom: 1px solid var(--theme-border-subtle);
+}
+.composer-workspace-shell .composer-workspace-strip {
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
   .chat-composer-editor-wrap {
-  padding-left: calc(1.5rem - 1px);
-}
-.composer-workspace-shell
-  .chat-input-container:not([data-composer-expanded])
-  :is(.rich-chat-composer__editor, [data-composer-editor-skeleton]) {
-  padding-left: 0;
-}
-.composer-workspace-shell
-  .chat-input-container:not([data-composer-expanded])
-  .rich-chat-composer__placeholder {
-  left: 0;
+  padding-inline: calc(var(--composer-row-inset) + 0.5rem - 1px);
 }
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
   .chat-input-toolbar {
-  margin-left: 0;
-  padding-left: calc(1.5rem - 1px - var(--composer-control-inset, 0.625rem));
+  margin-inline: 0;
+  padding-inline: var(--composer-row-inset);
 }
 
 /* Each message part owns its content; the shared stack owns the space between parts. */
@@ -1823,12 +1836,22 @@ html .composer-environment-panel button:hover {
   transform: none;
 }
 @container workspace (max-width: 40rem) {
-  .composer-workspace-strip {
-    gap: 0.5rem;
-    margin-inline: 0.5rem;
-    padding-left: 0.5rem;
-  }
   .composer-workspace-strip :is(.chat-tool-btn, .ui-select-trigger) {
     min-height: 2.75rem;
+  }
+}
+
+@container workspace (max-width: 22rem) {
+  .composer-goal-row .composer-goal-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-bottom: 0.25rem;
+  }
+  .composer-queue-guide {
+    width: 2.25rem;
+    padding-inline: 0;
+  }
+  .composer-queue-guide-label {
+    display: none;
   }
 }

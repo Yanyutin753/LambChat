@@ -667,14 +667,6 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
             document.body,
           )
         : null}
-      <ChatInputSteerQueue
-        items={steerMessages}
-        onCancel={onCancelSteer}
-        onEdit={onCancelSteer ? editQueuedMessage : undefined}
-        onGuide={
-          isLoading && canSend && !sendBlocked ? onSupplement : undefined
-        }
-      />
       <div
         className={
           className ?? "chat-content-column chat-conversation-composer"
@@ -699,8 +691,18 @@ export const ChatInput = memo(function ChatInput(props: ChatInputProps) {
                   handleSubmit(event);
                 }}
               >
-                {!composerExpanded && goalBar}
                 <div className="composer-workspace-shell">
+                  <ChatInputSteerQueue
+                    items={steerMessages}
+                    onCancel={onCancelSteer}
+                    onEdit={onCancelSteer ? editQueuedMessage : undefined}
+                    onGuide={
+                      isLoading && canSend && !sendBlocked
+                        ? onSupplement
+                        : undefined
+                    }
+                  />
+                  {!composerExpanded && goalBar}
                   <div
                     data-static-icons
                     className="composer-workspace-strip flex min-w-0 flex-nowrap items-center font-sans"
