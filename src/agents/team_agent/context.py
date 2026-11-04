@@ -288,13 +288,17 @@ class TeamAgentContext:
                 tool for tool in deferred_internal if getattr(tool, "name", "") not in direct_names
             )
             if self._deferred_system_tools:
-                from src.infra.tool.deferred_manager import DeferredToolManager
+                from src.infra.tool.deferred_manager import (
+                    DeferredToolManager,
+                    restore_discovered_tools,
+                )
 
                 self.deferred_manager = DeferredToolManager(
                     all_deferred_tools=[],
                     deferred_system_tools=self._deferred_system_tools,
                     session_id=self.session_id,
                     disabled_tools=self.disabled_tools,
+                    pre_discovered_names=await restore_discovered_tools(self.session_id),
                 )
             logger.info(
                 "[TeamAgentContext] Added %d direct and %d deferred internal tools",

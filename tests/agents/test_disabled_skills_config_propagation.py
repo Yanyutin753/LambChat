@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -74,6 +75,9 @@ class _FakeDeferredManager:
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeepAgent) -> None:
+    if hasattr(module, "resolve_group_for_session"):
+        monkeypatch.setattr(module, "resolve_group_for_session", AsyncMock(return_value=None))
+
     async def fake_get_model(**_kwargs):
         return object()
 
@@ -1090,7 +1094,6 @@ async def test_agent_node_language_section_bytes_stable_across_turns(
 @pytest.mark.parametrize("resume_mode", ["fresh", "interrupted", "hitl"])
 async def test_each_agent_checks_recovery_but_allows_new_input(monkeypatch, agent, resume_mode):
     import importlib
-    from unittest.mock import AsyncMock
 
     from langchain_core.messages import AIMessage
 
