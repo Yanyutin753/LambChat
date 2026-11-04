@@ -1685,7 +1685,7 @@
     "steerFailed": "ステアリングメッセージの送信に失敗しました。もう一度お試しください",
     "steerFailedRetry": "送信未確認",
     "steerNext": "タスク完了後に送信",
-    "queuePausedAfterFailure": "送信を確認できないためキューを一時停止しました。入力は保持されています。会話を確認してから編集・再送してください。",
+    "queuePausedAfterFailure": "送信未確認のため、キューを一時停止しました",
     "queuePausedByStop": "応答を中断したため、キューを一時停止しました",
     "queueResume": "再開",
     "queueGuide": "方向修正",

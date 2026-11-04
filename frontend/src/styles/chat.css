@@ -1863,7 +1863,7 @@ html .composer-environment-panel button:hover {
 
 @container workspace (max-width: 22rem) {
   .composer-queue {
-    max-height: min(16rem, 35dvh);
+    max-height: min(16rem, 45dvh);
   }
   .composer-queue-pause {
     display: grid;
@@ -1882,6 +1882,12 @@ html .composer-environment-panel button:hover {
   }
   .composer-queue-row > div {
     margin-left: auto;
+  }
+  .composer-queue-row > [role="status"] {
+    order: 1;
+    flex-basis: 100%;
+    max-width: 100%;
+    padding-left: 1.25rem;
   }
   .composer-queue-row button:not(.composer-queue-guide) {
     width: max(36px, 2rem);

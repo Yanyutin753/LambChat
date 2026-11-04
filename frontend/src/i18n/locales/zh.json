@@ -1685,7 +1685,7 @@
     "steerFailed": "插话发送失败，请稍后重试",
     "steerFailedRetry": "未确认送达",
     "steerNext": "任务结束后发送",
-    "queuePausedAfterFailure": "发送未确认，队列已暂停。内容已保留，请检查对话后再编辑发送。",
+    "queuePausedAfterFailure": "发送未确认，队列已暂停",
     "queuePausedByStop": "由于你中断了当前响应，队列已暂停",
     "queueResume": "继续",
     "queueGuide": "引导",

@@ -1685,7 +1685,7 @@
     "steerFailed": "Failed to send the steering message, please try again",
     "steerFailedRetry": "Delivery unconfirmed",
     "steerNext": "Send when the task finishes",
-    "queuePausedAfterFailure": "Delivery was not confirmed. Queue paused; your input is saved. Check the conversation before editing and sending again.",
+    "queuePausedAfterFailure": "Delivery unconfirmed. Queue paused.",
     "queuePausedByStop": "Queue paused because you interrupted the response",
     "queueResume": "Resume",
     "queueGuide": "Steer",
