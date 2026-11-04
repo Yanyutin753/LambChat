@@ -907,6 +907,15 @@ async def steer_running_agent(
         if not message and not request.attachments:
             raise AppError(ErrorCode.STEER_CONTENT_REQUIRED)
 
+        from src.api.routes.chat_steer import enqueue_steer, steer_response
+        from src.infra.task.steer import get_steer_queue
+
+        queue = get_steer_queue()
+        if request.message_id:
+            outcome = await queue.settled_outcome(session_id, request.message_id)
+            if outcome is not None:
+                return steer_response(session_id, request.message_id, outcome)
+
         task_manager = get_task_manager()
         status = await task_manager.get_status(session_id)
         if status == TaskStatus.WAITING_HUMAN:
@@ -922,23 +931,8 @@ async def steer_running_agent(
                 args={"status": status.value if hasattr(status, "value") else status},
             )
 
-        from src.infra.task.steer import SteerItem, get_steer_queue
-
         await validate_steer_attachments(request, session, user)
-        message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
-        attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
-        queued = await get_steer_queue().enqueue_item(
-            session_id,
-            SteerItem(id=message_id, content=message, attachments=attachments),
-        )
-        return {
-            # Keep status=queued for existing clients; outcome is newer protocol field.
-            "status": "queued",
-            "outcome": "accepted",
-            "session_id": session_id,
-            "message_id": message_id,
-            "queued": queued,
-        }
+        return await enqueue_steer(session_id, request, queue)
 
 
 @router.get("/sessions/{session_id}/steer")
@@ -970,6 +964,7 @@ async def cancel_steered_message(
     session_id: str,
     request: SteerRequest,
     user: TokenPayload = Depends(require_permissions("chat:write")),
+    prevent_reenqueue: bool = True,
 ):
     """
     取消一条还在排队、尚未送达的插话消息。
@@ -983,7 +978,9 @@ async def cancel_steered_message(
     queue = get_steer_queue()
     removed = False
     if request.message_id:
-        removed = await queue.remove_by_id(session_id, request.message_id)
+        removed = await queue.remove_by_id(
+            session_id, request.message_id, prevent_reenqueue=prevent_reenqueue
+        )
     else:
         removed = await queue.remove(session_id, request.message.strip())
     return {

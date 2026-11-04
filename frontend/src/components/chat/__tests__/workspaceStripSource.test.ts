@@ -35,7 +35,7 @@ test("workspace strip keeps a compact vertical rhythm", () => {
   // 本地电脑/工作区上下文条只留极小上下留白（2026-10-28 用户反馈"上下间距小一点点"）
   const css = read("../../../styles/chat.css");
   expect(css).toMatch(
-    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0\.25rem var\(--composer-row-inset\);/,
+    /\.composer-workspace-strip\s*\{[^}]*padding:\s*0 var\(--composer-row-inset\);/,
   );
 });
 

@@ -32,7 +32,7 @@ interface Props {
   host?: HTMLElement | null;
   ref?: Ref<SessionWorkspaceBarHandle>;
   values: Record<string, boolean | string | number>;
-  onChange?: (key: string, value: string) => void;
+  onChange?: (key: string, value: string) => void | boolean | Promise<boolean>;
   disabled: boolean;
   compact?: boolean;
   sessionId?: string | null;
@@ -165,7 +165,8 @@ export function SessionWorkspaceBar({
         picked.machineId !== selectedId
       )
         return;
-      onChange(WORKSPACE_OPTION, JSON.stringify(picked));
+      const applied = await onChange(WORKSPACE_OPTION, JSON.stringify(picked));
+      if (applied === false) return;
       rememberLocalWorkspace(user?.id, picked);
     } catch {
       toast.error(t("sessionWorkspace.failed"));
@@ -201,7 +202,7 @@ export function SessionWorkspaceBar({
               : "sessionWorkspace.independentHint",
         )}
       >
-        <Folder size={16} className="shrink-0" aria-hidden="true" />
+        <Folder size={14} className="shrink-0" aria-hidden="true" />
         <span className="min-w-0 break-all">{name || fallbackLabel}</span>
       </div>,
     );
@@ -229,10 +230,10 @@ export function SessionWorkspaceBar({
         }
       >
         {busy ? (
-          <LoadingSpinner color="text-current" size={16} className="shrink-0" />
+          <LoadingSpinner color="text-current" size={14} className="shrink-0" />
         ) : (
           <InteractiveIcon>
-            <Folder size={16} className="shrink-0" />
+            <Folder size={14} className="shrink-0" />
           </InteractiveIcon>
         )}
         <span className={compact ? "truncate" : "min-w-0 break-all"}>
@@ -257,7 +258,7 @@ export function SessionWorkspaceBar({
           <Select
             value=""
             ariaLabel={t("sessionWorkspace.previous")}
-            placeholder={<History size={16} aria-hidden="true" />}
+            placeholder={<History size={14} aria-hidden="true" />}
             triggerClassName="chat-tool-btn"
             className="shrink-0"
             disabled={disabled || busy || machine?.online !== true}
@@ -265,11 +266,12 @@ export function SessionWorkspaceBar({
               value: item.id,
               label: item.path,
             }))}
-            onChange={(id) => {
+            onChange={async (id) => {
               const selected = previousLocations.find((item) => item.id === id);
               if (!selected || disabled || busy || machine?.online !== true)
                 return;
-              onChange(WORKSPACE_OPTION, JSON.stringify(selected));
+              const applied = await onChange(WORKSPACE_OPTION, JSON.stringify(selected));
+              if (applied === false) return;
               rememberLocalWorkspace(user?.id, selected);
             }}
           />

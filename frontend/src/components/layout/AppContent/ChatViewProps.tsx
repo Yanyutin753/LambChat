@@ -125,6 +125,10 @@ export interface ChatViewProps {
   composerFocusRequest?: number;
   currentRunId: string | null;
   isLoading: boolean;
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  onRetryWorkspaceRead?: () => Promise<boolean>;
   isLoadingHistory: boolean;
   historyLoadGeneration: number;
   /** 历史分页：是否还有更早的轮次可加载 */

@@ -232,7 +232,7 @@ test("cloud preference stays cloud and choosing local then pins the client compu
   expect(result.current.agentOptionValues.sandbox_machine_id).toBe("this-mac");
 });
 
-test("switching an existing chat to local persists the same machine shown in the composer", () => {
+test("switching an existing chat to local persists the same machine shown in the composer", async () => {
   localStorage.setItem("defaultSandboxMode", "cloud");
   const save = vi
     .spyOn(workspaceApi, "saveSessionWorkspaceOptions")
@@ -244,10 +244,12 @@ test("switching an existing chat to local persists the same machine shown in the
       "session",
       options.handleToggleAgentOption,
       vi.fn(),
+      undefined,
+      { prepareChange: options.prepareAgentOptionChange },
     );
     return { ...options, ...actions };
   });
-  act(() => result.current.changeOption("sandbox", "local"));
+  await act(async () => result.current.changeOption("sandbox", "local"));
   expect(save).toHaveBeenCalledWith("session", {
     sandbox: "local",
     sandbox_machine_id: "this-mac",
@@ -286,6 +288,45 @@ test("restored cloud conversations stay cloud when a daemon reconnects", () => {
   act(() => result.current.restoreAgentOptions({ sandbox: "cloud" }));
   act(() => window.dispatchEvent(new Event(SANDBOX_ONLINE_CHANGED_EVENT)));
   expect(result.current.agentOptionValues.sandbox).toBe("cloud");
+});
+
+test("a daemon coming online cannot move a running conversation to another environment", () => {
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ locked }) => useAgentOptions(agents, "fast", undefined, "user", locked),
+    { initialProps: { locked: false } },
+  );
+  expect(result.current.agentOptionValues.sandbox).toBe("cloud");
+  rerender({ locked: true });
+  act(() => window.dispatchEvent(new Event(SANDBOX_ONLINE_CHANGED_EVENT)));
+  expect(result.current.agentOptionValues.sandbox).toBe("cloud");
+});
+
+test("a machine arriving during a workspace save cannot change the unconfirmed selection", async () => {
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => { finish = resolve; });
+  const save = vi.spyOn(workspaceApi, "saveSessionWorkspaceOptions").mockReturnValue(pending);
+  const agents = [{ id: "fast", options: {} }] as AgentInfo[];
+  const { result, rerender } = renderHook(
+    ({ online }) => {
+      const options = useAgentOptions(agents, "fast", online ? onlineStatus : undefined);
+      const actions = useWorkspaceOptionActions("saving", options.handleToggleAgentOption, vi.fn(), undefined, {
+        prepareChange: options.prepareAgentOptionChange,
+        markIntent: options.markWorkspaceIntent,
+      });
+      return { ...options, ...actions };
+    },
+    { initialProps: { online: false } },
+  );
+  act(() => { result.current.changeOption("sandbox", "local"); });
+  rerender({ online: true });
+  act(() => window.dispatchEvent(new Event(SANDBOX_ONLINE_CHANGED_EVENT)));
+  expect(result.current.agentOptionValues.sandbox).toBe("cloud");
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBeUndefined();
+  expect(save).toHaveBeenCalledWith("saving", { sandbox: "local" });
+  await act(async () => { finish(); await pending; });
+  expect(result.current.agentOptionValues.sandbox).toBe("local");
+  expect(result.current.agentOptionValues.sandbox_machine_id).toBeUndefined();
 });
 
 test("new conversations use an already online daemon, and reset old directory bindings", () => {

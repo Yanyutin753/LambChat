@@ -19,16 +19,16 @@ message"（2026-09-08 生产实例）。注入时顺带把历史中已被写乱�
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+import time
+from typing import TYPE_CHECKING, Annotated, Any, NotRequired
 
-from langchain.agents.middleware.types import AgentMiddleware
+from langchain.agents.middleware.types import AgentMiddleware, AgentState, PrivateStateAttr
 from langchain_core.messages import AIMessage, AnyMessage, RemoveMessage, ToolMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from src.agents.core.node_utils import build_human_message
 
 if TYPE_CHECKING:
-    from langchain.agents.middleware.types import AgentState
     from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
@@ -120,8 +120,14 @@ async def _persist_injected_steer_messages(
             )
 
 
-class SteerMiddleware(AgentMiddleware):
+class SteerState(AgentState):
+    _steer_applied: NotRequired[Annotated[dict[str, float], PrivateStateAttr]]
+
+
+class SteerMiddleware(AgentMiddleware[SteerState]):
     """把会话插话队列中的用户消息在下一次模型调用前注入图状态。"""
+
+    state_schema = SteerState
 
     def __init__(self, *, session_id: str, presenter: Any = None) -> None:
         super().__init__()
@@ -129,46 +135,52 @@ class SteerMiddleware(AgentMiddleware):
         self._presenter = presenter
 
     async def abefore_model(
-        self, state: AgentState, runtime: Runtime[Any]
+        self, state: SteerState, runtime: Runtime[Any]
     ) -> dict[str, Any] | None:  # noqa: ARG002
-        from src.infra.task.steer import get_steer_queue
+        from src.infra.task.steer import _STEER_TTL_SECONDS, get_steer_queue
 
         queue = get_steer_queue()
+        now = time.time()
+        applied = {
+            key: until for key, until in state.get("_steer_applied", {}).items() if until > now
+        }
+        receipts = await queue.list_receipts(self._session_id)
         pending = await queue.drain_items(self._session_id)
-        if not pending:
+        recoverable = [item for item in receipts if item.id not in applied]
+        items = {item.id: item for item in [*recoverable, *pending]}
+        if not items:
             return None
 
-        injected = [build_human_message(item.content, item.attachments) for item in pending]
+        injected = []
+        for item in items.values():
+            if item.id not in applied:
+                message = build_human_message(item.content, item.attachments)
+                message.id = f"steer:{item.id}"
+                injected.append(message)
         logger.info(
             "[Steer] session=%s injecting %d user message(s) before model call",
             self._session_id,
             len(injected),
         )
 
+        # Retain receipts before returning state; an uncertain ACK must stop this node.
+        if pending and not await queue.ack_items(self._session_id):
+            raise RuntimeError("Steer delivery lease lost before acknowledgement")
+
         # 注入时刻先写 steer:message 事件：事件先于本次调用的输出进入
         # Redis/MongoDB，插话在实时流与历史回放中均排在回答之前
         if self._session_id:
             await _persist_injected_steer_messages(
-                self._session_id, pending, presenter=self._presenter
+                self._session_id, list(items.values()), presenter=self._presenter
             )
 
-        # drain 即送达，随之释放 Redis lease 并清 inflight：否则 run 终态的
-        # emit_undelivered_steer_events（list_items 读 pending+inflight）会把
-        # 已送达的插话误报 steer:undelivered，前端补发流程会重复投递。ack
-        # 失败只记日志——注入语义已由下方 state 更新保证，不因清理失败而中断。
-        try:
-            await queue.ack_items(self._session_id)
-        except Exception:
-            logger.warning(
-                "[Steer] session=%s failed to ack drained steer items after injection",
-                self._session_id,
-                exc_info=True,
-            )
-
-        # 更新经 before_model 节点提交 checkpoint（先于模型节点），插话即
-        # 持久化送达；随后模型调用失败也不回队——新 run 从 state 续跑仍能
-        # 看到插话，回队反而会重复注入。
+        # Keep IDs outside messages: compaction must not make old receipts replay.
+        until = time.time() + _STEER_TTL_SECONDS
+        applied.update({item_id: until for item_id in items})
         reordered = _reorder_tool_response_adjacency(state.get("messages") or [])
         if reordered is None:
-            return {"messages": injected}
-        return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *reordered, *injected]}
+            return {"messages": injected, "_steer_applied": applied}
+        return {
+            "messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *reordered, *injected],
+            "_steer_applied": applied,
+        }

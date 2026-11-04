@@ -29,7 +29,7 @@ export function ComposerSandboxChip({
   const label = tierLabel || "";
   return (
     <ToolbarChip
-      icon={local ? <Monitor size={16} /> : <Cloud size={16} />}
+      icon={local ? <Monitor size={14} /> : <Cloud size={14} />}
       iconBadge={
         local ? (
           <span

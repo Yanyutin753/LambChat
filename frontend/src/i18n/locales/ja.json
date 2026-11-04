@@ -276,6 +276,8 @@
       "title": "実行設定",
       "section": "実行場所",
       "description": "実行場所と確認ポリシー",
+      "lockedWhileActive": "タスクの実行中、確認待ち、または継続目標が有効な間は、実行環境・端末・作業フォルダー・確認ポリシーを変更できません。先にタスクを停止するか、継続目標を一時停止してください。",
+      "saveUnconfirmed": "保存結果を確認できません。再試行で現在の実行環境を読み直してから、メッセージの送信や設定の変更を行ってください。",
       "options": {
         "cloud": "クラウドPC",
         "local": "ローカルPC"
@@ -1684,6 +1686,7 @@
     "steerCancel": "このステアリングをキャンセル",
     "steerFailed": "ステアリングメッセージの送信に失敗しました。もう一度お試しください",
     "steerFailedRetry": "送信未確認",
+    "steerCancelUnconfirmed": "取り消しを確認できません。もう一度取り消してください。",
     "steerNext": "タスク完了後に送信",
     "queuePausedAfterFailure": "送信未確認のため、キューを一時停止しました",
     "queuePausedByStop": "応答を中断したため、キューを一時停止しました",
@@ -4785,6 +4788,7 @@
     "toggleSidebar": "サイドバーを切り替え"
   },
   "workspacePanel": {
+    "noEnvironment": "この会話には実行環境が設定されていません。生成されたファイルは会話内で表示・ダウンロードできます。",
     "root": "ワークスペース",
     "searchFiles": "ファイルを検索",
     "selectFile": "ファイルを選択してプレビュー",

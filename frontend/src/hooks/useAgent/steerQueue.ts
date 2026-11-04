@@ -276,7 +276,7 @@ export function useSteerFollowUpPromotion(
       const result = await promoteSteerFollowUps(followUps, {
         sessionId: ownerSessionId,
         cancelSteer: (sessionId, content, messageId) =>
-          sessionApi.cancelSteer(sessionId, content, messageId),
+          sessionApi.cancelSteer(sessionId, content, messageId, false),
         sendMessage: async (content, attachments, onAccepted, messageId) => {
           let accepted = false;
           await sendMessageRef.current?.(content, attachments, {
@@ -418,13 +418,21 @@ export function useSteerQueue({
           : [...prev, item],
       );
       try {
-        await sessionApi.steer(
+        const response = await sessionApi.steer(
           currentSessionId,
           text,
           item.id,
           attachments,
           currentRunIdRef?.current ?? undefined,
         );
+        if (response?.outcome === "cancelled" || response?.outcome === "delivered") {
+          setSteerMessages(
+            (prev) => prev.filter((queued) => queued.id !== item.id),
+            currentSessionId,
+          );
+          return;
+        }
+        if (pending.cancelled) return;
         setSteerMessages(
           (prev) =>
             prev.map((queued) =>
@@ -505,9 +513,23 @@ export function useSteerQueue({
       removeDeferredSteer?.(content, messageId ?? removed?.id);
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
+        const itemId = messageId ?? removed?.id;
+        // Persist the uncertain state before DELETE: reload must not lose it.
+        if (removed && !removed.deferred) {
+          const retained = { ...removed, queued: false, status: "failed" as const, cancelFailed: true };
+          setSteerMessages((prev) => [...prev, retained], currentSessionId);
+        }
         sessionApi
-          .cancelSteer(currentSessionId, content, messageId)
-          .catch(() => {});
+          .cancelSteer(currentSessionId, content, itemId)
+          .then(() => {
+            setSteerMessages(
+              (prev) => prev.filter((item) => itemId ? item.id !== itemId : item.content !== content),
+              currentSessionId,
+            );
+          })
+          .catch(() => {
+            // The visible, persisted cancelFailed draft requires an explicit retry.
+          });
       }
     },
     [removeDeferredSteer, sessionIdRef, setSteerMessages],
@@ -556,6 +578,7 @@ export function useSteerQueue({
         );
         for (const item of items) {
           if (!delivered.has(item.message_id)) {
+            if (existing.get(item.message_id)?.cancelFailed) continue;
             existing.set(item.message_id, {
               id: item.message_id,
               content: item.content,
