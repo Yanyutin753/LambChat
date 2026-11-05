@@ -1513,3 +1513,19 @@ async def test_closed_graph_stream_still_delivers_child_cancellation(suspended):
     await processor.finalize_subagent_events(sessions)
     assert [e["event"] for e in presenter.emitted] == ["agent:call", "agent:result"]
     assert presenter.emitted[-1]["data"]["status"] == "cancelled"
+
+
+async def test_child_finalization_drains_buffers_even_when_result_delivery_fails():
+    from unittest.mock import AsyncMock
+
+    processor = AgentEventProcessor(FakePresenter())
+    processor._persistent_subagent_statuses["child"] = "queued"
+    record = {"subagent_id": "child", "status": "cancelled"}
+    sessions = SimpleNamespace(records={"child": record}, result=lambda key: record)
+    processor._presenter_emit = AsyncMock(side_effect=RuntimeError("delivery failed"))
+    processor.drain_activity_references = AsyncMock()
+    processor.flush = AsyncMock()
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        await processor.finalize_subagent_events(sessions)
+    processor.drain_activity_references.assert_awaited_once()
+    assert processor.flush.await_count == 2

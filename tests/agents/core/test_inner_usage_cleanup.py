@@ -9,7 +9,7 @@ import pytest
 
 
 @pytest.mark.parametrize("agent", ["search_agent", "team_agent"])
-@pytest.mark.parametrize("failure_stage", ["close", "flush", "finalize"])
+@pytest.mark.parametrize("failure_stage", ["close", "finalize"])
 @pytest.mark.parametrize("error_type", [RuntimeError, asyncio.CancelledError])
 async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
     agent, failure_stage, error_type
@@ -56,8 +56,6 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
         namespace["subagent_sessions"].close
         if failure_stage == "close"
         else namespace["event_processor"].finalize_subagent_events
-        if failure_stage == "finalize"
-        else namespace["event_processor"].flush
     )
     target.side_effect = error_type("interrupted cleanup")
     exec(

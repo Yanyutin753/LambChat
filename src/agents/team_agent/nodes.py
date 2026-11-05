@@ -911,11 +911,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         finally:
             try:
-                try:
-                    await event_processor.finalize_subagent_events(subagent_sessions)
-                finally:
-                    await event_processor.drain_activity_references()
-                    await event_processor.flush()
+                await event_processor.finalize_subagent_events(subagent_sessions)
             finally:
                 await emit_token_usage(
                     event_processor,
