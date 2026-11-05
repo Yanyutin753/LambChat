@@ -632,3 +632,23 @@ async def test_empty_stream_does_not_certify_zero_usage(monkeypatch, include_usa
     assert finish.await_args.kwargs["status"] == ("completed" if include_usage else "error")
     if not include_usage:
         assert str(finish.await_args.kwargs["error"]) == "No generations found in stream."
+
+
+def test_aux_model_call_skip_reason_classifies_rate_limit_quota_and_other():
+    import anthropic
+    import httpx
+
+    from src.kernel.errors import ErrorCode
+
+    request = httpx.Request("POST", "https://api.invalid/v1/messages")
+    rate_limit = anthropic.RateLimitError(
+        "rate limited",
+        response=httpx.Response(429, request=request),
+        body={"error": {"type": "1302", "message": "rate limited"}},
+    )
+    assert quota.aux_model_call_skip_reason(rate_limit) == "rate_limit"
+    assert (
+        quota.aux_model_call_skip_reason(AppError(ErrorCode.USAGE_QUOTA_EXCEEDED))
+        == "usage_quota_exceeded"
+    )
+    assert quota.aux_model_call_skip_reason(ValueError("boom")) is None
