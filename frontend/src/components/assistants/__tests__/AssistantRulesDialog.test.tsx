@@ -77,6 +77,11 @@ test("new rules default to observation and submit bounded parameters", async () 
   render(
     <AssistantRulesDialog assistant={assistant} canWrite onClose={() => {}} />,
   );
+  expect(screen.queryByLabelText("assistants.ruleName")).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  );
+  expect(screen.getByLabelText("assistants.ruleName")).toHaveFocus();
   fireEvent.change(screen.getByLabelText("assistants.ruleName"), {
     target: { value: "Research changes" },
   });
@@ -96,6 +101,9 @@ test("new rules default to observation and submit bounded parameters", async () 
         interval_seconds: 3600,
       }),
     ),
+  );
+  await waitFor(() =>
+    expect(screen.queryByLabelText("assistants.ruleName")).toBeNull(),
   );
 });
 
@@ -143,4 +151,106 @@ test("readers see wakeup budget and actual admission state without write control
     screen.getByRole("button", { name: "assistants.ruleHistory" }),
   );
   expect(navigate).toHaveBeenCalledWith("/scheduled-tasks/rule");
+});
+
+test("cancel returns focus to create action and clears the unsaved rule", async () => {
+  render(
+    <AssistantRulesDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  await screen.findByText("assistants.noRules");
+  fireEvent.click(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  );
+  fireEvent.change(screen.getByLabelText("assistants.ruleName"), {
+    target: { value: "Draft" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+  expect(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  ).toHaveFocus();
+  expect(api.createRule).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  );
+  expect(screen.getByLabelText("assistants.ruleName")).toHaveValue("");
+});
+
+test("a failed rule save keeps the draft visible for retry", async () => {
+  api.createRule.mockRejectedValue(new Error("Save unavailable"));
+  render(
+    <AssistantRulesDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  );
+  fireEvent.change(screen.getByLabelText("assistants.ruleName"), {
+    target: { value: "Draft" },
+  });
+  fireEvent.change(screen.getByLabelText("assistants.ruleInstructions"), {
+    target: { value: "Check sources" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  );
+  expect(await screen.findByText("Save unavailable")).toBeVisible();
+  expect(screen.getByLabelText("assistants.ruleName")).toHaveValue("Draft");
+  expect(screen.getByLabelText("assistants.ruleInstructions")).toHaveValue(
+    "Check sources",
+  );
+});
+
+test("editing opens the existing policy and cancel leaves the rule unchanged", async () => {
+  api.rules.mockResolvedValue({
+    total: 1,
+    rules: [
+      {
+        id: "rule",
+        name: "Research",
+        enabled: true,
+        status: "active",
+        trigger_config: { seconds: 300 },
+        input_payload: {
+          message: "Check sources",
+          assistant_rule: {
+            assistant_id: "helper",
+            mode: "observe",
+            timeout_seconds: 120,
+            max_wakeups: 3,
+          },
+        },
+      },
+    ],
+  });
+  render(
+    <AssistantRulesDialog
+      assistant={assistant}
+      canWrite
+      embedded
+      onClose={() => {}}
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.edit" }),
+  );
+  expect(screen.getByLabelText("assistants.ruleName")).toHaveFocus();
+  expect(screen.getByLabelText("assistants.ruleInstructions")).toHaveValue(
+    "Check sources",
+  );
+  expect(screen.getByLabelText("assistants.ruleWakeupLimit")).toHaveValue(3);
+  fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+  expect(
+    screen.getByRole("button", { name: "assistants.createRule" }),
+  ).toHaveFocus();
+  expect(await screen.findByText("Research")).toBeVisible();
+  expect(schedule.update).not.toHaveBeenCalled();
 });

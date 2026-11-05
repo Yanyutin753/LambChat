@@ -4,7 +4,7 @@ import { assistantApi } from "../../services/api/assistant";
 import { assistantConfiguration, type Assistant } from "../../types/assistant";
 import { Dialog } from "../common/Dialog";
 import { AgentAvatar } from "../common/AgentAvatar";
-import { Button, FormField, Input, Textarea } from "../common/ui";
+import { Button, FormField, Input, Select, Textarea } from "../common/ui";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
 
 export function AssistantGroupEditor({
@@ -156,36 +156,44 @@ export function AssistantGroupEditor({
           <p role="status">{t("common.loading")}</p>
         ) : (
           <fieldset disabled={busy} className="space-y-5">
-            <div
-              role="radiogroup"
-              aria-label={t("assistants.groupLeader")}
-              className="space-y-2"
-            >
-              <p className="text-13 text-theme-text-secondary">
-                {t("assistants.groupLeader")}
-              </p>
-              <div className="assistant-member-picker">
-                {bots.map((bot) => (
-                  <button
-                    key={bot.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={leader === bot.id}
-                    disabled={bot.status !== "active"}
-                    onClick={() => {
-                      setLeader(bot.id);
-                      setMembers((ids) => [
-                        bot.id,
-                        ...ids.filter((id) => id !== bot.id),
-                      ]);
-                    }}
-                  >
-                    <AgentAvatar seed={bot.name} size={28} />
-                    <span>{bot.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FormField label={t("assistants.name")}>
+              <Input
+                maxLength={80}
+                value={name}
+                placeholder={t("assistants.groupNameHint")}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </FormField>
+            <FormField label={t("assistants.groupPurpose")}>
+              <Textarea
+                rows={3}
+                maxLength={20000}
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+              />
+            </FormField>
+            <FormField label={t("assistants.groupLeader")}>
+              <Select
+                ariaLabel={t("assistants.groupLeader")}
+                value={leader}
+                placeholder={t("assistants.groupLeader")}
+                disabled={busy}
+                options={bots.map((bot) => ({
+                  value: bot.id,
+                  label: bot.name,
+                  disabled:
+                    bot.status !== "active" ||
+                    (!members.includes(bot.id) && members.length >= 12),
+                }))}
+                onChange={(id) => {
+                  setLeader(id);
+                  setMembers((ids) => [
+                    id,
+                    ...ids.filter((member) => member !== id),
+                  ]);
+                }}
+              />
+            </FormField>
             {leader && (
               <div
                 role="group"
@@ -236,22 +244,6 @@ export function AssistantGroupEditor({
                   {t("assistants.unavailableSelection")} · {t("common.remove")}
                 </Button>
               ))}
-            <FormField label={t("assistants.name")}>
-              <Input
-                maxLength={80}
-                value={name}
-                placeholder={t("assistants.groupNameHint")}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </FormField>
-            <FormField label={t("assistants.groupPurpose")}>
-              <Textarea
-                rows={3}
-                maxLength={20000}
-                value={instructions}
-                onChange={(event) => setInstructions(event.target.value)}
-              />
-            </FormField>
             <p className="text-12 text-theme-text-secondary">
               {t("assistants.groupPrivacyHint")}
             </p>

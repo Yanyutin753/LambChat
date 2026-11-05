@@ -541,3 +541,16 @@ test("an individual companion uses a role label rather than the workspace brand"
   expect(companion).toHaveTextContent("assistants.channelBinding");
   expect(companion).not.toHaveTextContent("assistants.title");
 });
+
+test("an auxiliary page returns directly to its companion conversation", async () => {
+  route.assistantId = "helper";
+  route.view = "tasks";
+  render(<AssistantsPanel />);
+  await screen.findByRole("button", { name: "assistants.newTask" });
+  fireEvent.click(
+    within(screen.getByRole("banner")).getByRole("button", {
+      name: "assistants.backToChat",
+    }),
+  );
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper");
+});

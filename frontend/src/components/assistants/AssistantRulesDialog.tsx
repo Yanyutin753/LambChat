@@ -1,6 +1,7 @@
+import { Plus } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
 import { EmptyState } from "../common/EmptyState";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { assistantApi } from "../../services/api/assistant";
@@ -48,6 +49,17 @@ export function AssistantRulesDialog({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const formId = useId();
+  const [creating, setCreating] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (creating) formRef.current?.querySelector("input")?.focus();
+    else if (returnFocus.current) {
+      document.getElementById(`${formId}-toggle`)?.focus();
+      returnFocus.current = false;
+    }
+  }, [creating, formId]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [refresh, setRefresh] = useState(0);
@@ -160,6 +172,7 @@ export function AssistantRulesDialog({
       setEditing(null);
       setDraft(initial);
       setEventTrigger(false);
+      setCreating(false);
     });
   const setMode = (rule: AssistantRule, mode: AssistantRuleMode) =>
     perform(async () => {
@@ -173,6 +186,23 @@ export function AssistantRulesDialog({
       if (mode !== "off" && rule.status === "paused")
         await scheduledTaskApi.resume(rule.id);
     });
+  const createAction = canWrite && !creating && (
+    <Button
+      id={`${formId}-toggle`}
+      variant="primary"
+      leftIcon={<Plus size={16} />}
+      aria-expanded={creating}
+      aria-controls={creating ? formId : undefined}
+      disabled={busy}
+      onClick={() => {
+        returnFocus.current = true;
+        setError("");
+        setCreating(true);
+      }}
+    >
+      {t("assistants.createRule")}
+    </Button>
+  );
   return (
     <AssistantSurface
       embedded={embedded}
@@ -204,15 +234,18 @@ export function AssistantRulesDialog({
           <PanelHeader
             className="!px-0"
             title={t("assistants.rules")}
-            subtitle={t("assistants.rulesHint")}
+            actions={createAction}
           />
         ) : (
-          <p className="text-12 text-theme-text-secondary">
-            {t("assistants.rulesHint")}
-          </p>
+          createAction
         )}
-        {canWrite && (
+        <p className="text-12 leading-relaxed text-theme-text-secondary">
+          {t("assistants.rulesHint")}
+        </p>
+        {canWrite && creating && (
           <form
+            id={formId}
+            ref={formRef}
             onSubmit={(event) => {
               event.preventDefault();
               void save();
@@ -337,21 +370,21 @@ export function AssistantRulesDialog({
               >
                 {t(editing ? "common.save" : "assistants.createRule")}
               </Button>
-              {editing && (
-                <Button
-                  onClick={() => {
-                    setEditing(null);
-                    setDraft(initial);
-                    setEventTrigger(false);
-                  }}
-                >
-                  {t("common.cancel")}
-                </Button>
-              )}
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setDraft(initial);
+                  setEventTrigger(false);
+                  setCreating(false);
+                  setError("");
+                }}
+              >
+                {t("common.cancel")}
+              </Button>
             </fieldset>
           </form>
         )}
-        {!data && !error ? (
+        {creating ? null : !data && !error ? (
           <PanelLoadingState />
         ) : data?.rules.length === 0 ? (
           <EmptyState
@@ -400,6 +433,9 @@ export function AssistantRulesDialog({
                       <Button
                         disabled={busy}
                         onClick={() => {
+                          returnFocus.current = true;
+                          setError("");
+                          setCreating(true);
                           setEditing(rule);
                           setDraft({
                             name: rule.name,
