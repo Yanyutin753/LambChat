@@ -494,3 +494,23 @@ test("Chief opens its actual persistent identity", async () => {
     expect(navigate).toHaveBeenCalledWith("/assistants/chief"),
   );
 });
+
+test("background records open over the current chat and close without navigating away", async () => {
+  route.assistantId = "helper";
+  route.view = "chat";
+  route.sessionId = "thread";
+  render(<AssistantsPanel />);
+  await screen.findByText("Real chat workspace");
+  fireEvent.click(screen.getByRole("button", { name: "common.moreOptions" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "assistants.workRecords" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  expect(
+    within(dialog).getAllByText("assistants.taskHint").length,
+  ).toBeGreaterThan(0);
+  expect(navigate).not.toHaveBeenCalled();
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(screen.getByText("Real chat workspace")).toBeTruthy();
+});

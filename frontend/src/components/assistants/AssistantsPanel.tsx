@@ -13,6 +13,8 @@ import {
   MessagesSquare,
   MoreHorizontal,
   Pencil,
+  Pause,
+  Play,
   Plus,
   RefreshCw,
   Users,
@@ -106,6 +108,8 @@ export function AssistantsPanel() {
   const canReadPersonas = hasPermission(Permission.PERSONA_PRESET_READ);
   const canReadTeams = hasPermission(Permission.TEAM_READ);
   const [collapsed, setCollapsed] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  useEffect(() => setTasksOpen(false), [assistantId]);
   const [headerActionsTarget, setHeaderActionsTarget] =
     useState<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -602,6 +606,7 @@ export function AssistantsPanel() {
           {assistant?.kind === "group" && (
             <Button
               variant="ghost"
+              className="assistant-workspace-group-trigger"
               aria-label={t("assistants.groupDetails")}
               onClick={() => setEditor(assistant)}
               disabled={!canWrite}
@@ -647,7 +652,8 @@ export function AssistantsPanel() {
                     ...navigation.slice(1).map(({ id, label, icon: Icon }) => ({
                       label: t(`assistants.${label}`),
                       icon: <Icon size={14} />,
-                      onClick: () => openView(id),
+                      onClick: () =>
+                        id === "tasks" ? setTasksOpen(true) : openView(id),
                     })),
                     ...(canWrite
                       ? [
@@ -663,6 +669,12 @@ export function AssistantsPanel() {
                                 ? "assistants.pause"
                                 : "assistants.resume",
                             ),
+                            icon:
+                              assistant.status === "active" ? (
+                                <Pause size={14} />
+                              ) : (
+                                <Play size={14} />
+                              ),
                             disabled: busy,
                             onClick: () =>
                               void act(
@@ -690,6 +702,13 @@ export function AssistantsPanel() {
             </>
           )}
         </ChatHeaderFrame>
+        {tasksOpen && assistant && (
+          <AssistantTasksDialog
+            assistant={assistant}
+            canWrite={canWrite}
+            onClose={() => setTasksOpen(false)}
+          />
+        )}
         {actionError && (
           <div className="panel-inset py-2">
             <ConfigPanelErrorCallout message={actionError} />

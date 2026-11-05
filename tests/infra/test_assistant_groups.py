@@ -49,6 +49,17 @@ async def test_group_runtime_keeps_actual_member_identity_and_private_memory(mon
     assert team.members[1].model_id == "review-model"
     assert "private" in team.team_instructions.lower()
     assert team.default_member_id == "a"
+    from src.agents.core.subagent_prompts import build_role_subagent_section
+    from src.agents.team_agent.prompt import build_team_router_system_prompt
+
+    router = build_team_router_system_prompt(team, default_role="Researcher")
+    member = build_role_subagent_section(
+        "Reviewer", "Check independently", team_instructions=team.team_instructions
+    )
+    for prompt in (router, member):
+        assert "Agreement between members is not proof" in prompt
+        assert "allowed changes" in prompt
+        assert "final saved artifact" in prompt
 
 
 def test_completed_work_does_not_require_acceptance():

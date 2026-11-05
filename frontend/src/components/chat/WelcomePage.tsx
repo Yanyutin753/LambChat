@@ -21,6 +21,7 @@ import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { NotificationBanner } from "../notification/NotificationBanner";
 import {
+  WELCOME_INPUT_CONTAINER_CLASS_NAME,
   getSelectedPersonaStarterPrompts,
   getSelectedTeamStarterPrompts,
   getWelcomePersonaCards,
@@ -480,7 +481,7 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[48rem] md:max-w-[52rem] lg:max-w-[56rem] xl:max-w-[58rem] 2xl:max-w-[60rem]">
+      <div className={WELCOME_INPUT_CONTAINER_CLASS_NAME}>
         <ChatInput
           key={chatInputProps.draftKey}
           {...chatInputProps}

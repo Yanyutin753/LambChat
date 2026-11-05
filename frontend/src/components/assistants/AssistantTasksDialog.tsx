@@ -157,7 +157,7 @@ export function AssistantTasksDialog({
       setCreating(false);
       document.getElementById(`${formId}-toggle`)?.focus();
       setPage(1);
-      if (embedded && result.session_id) {
+      if (result.session_id) {
         onClose();
         navigate(
           `/assistants/${encodeURIComponent(
@@ -171,9 +171,9 @@ export function AssistantTasksDialog({
     if (!task.session_id) return;
     onClose();
     navigate(
-      `${
-        embedded ? `/assistants/${encodeURIComponent(assistant.id)}` : ""
-      }/chat/${encodeURIComponent(task.session_id)}`,
+      `/assistants/${encodeURIComponent(
+        assistant.id,
+      )}/chat/${encodeURIComponent(task.session_id)}`,
     );
   };
 
@@ -241,6 +241,11 @@ export function AssistantTasksDialog({
             {taskAction}
           </div>
         )}
+        {!embedded && (
+          <p className="text-13 text-theme-text-secondary">
+            {t("assistants.taskHint")}
+          </p>
+        )}
         {canWrite && assistant.status === "active" && creating && (
           <form
             id={formId}
@@ -257,7 +262,6 @@ export function AssistantTasksDialog({
                   embedded ? "assistant-task-composer-description" : undefined
                 }
                 label={t("assistants.taskDescription")}
-                hint={embedded ? undefined : t("assistants.taskHint")}
               >
                 <Textarea
                   placeholder={
@@ -317,7 +321,6 @@ export function AssistantTasksDialog({
           <EmptyState
             illustration="panel-schedule"
             title={t("assistants.noTasks")}
-            description={t("assistants.taskHint")}
           />
         ) : (
           TASK_GROUPS.map((group) => {

@@ -61,7 +61,7 @@ test("completed work opens directly without manual acceptance", async () => {
   fireEvent.click(
     screen.getByRole("button", { name: "assistants.inspectTask" }),
   );
-  expect(navigate).toHaveBeenCalledWith("/chat/child");
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/child");
 });
 
 test("network retry keeps the task admission key and draft", async () => {
@@ -248,7 +248,7 @@ test("readers can inspect the real child conversation without write controls", a
   fireEvent.click(
     await screen.findByRole("button", { name: "assistants.inspectTask" }),
   );
-  expect(navigate).toHaveBeenCalledWith("/chat/child");
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/child");
   expect(
     screen.queryByRole("button", { name: "assistants.startTask" }),
   ).toBeNull();
@@ -271,7 +271,7 @@ test("long task requirements leave room for controls and open the full conversat
   fireEvent.click(
     screen.getByRole("button", { name: "assistants.inspectTask" }),
   );
-  expect(navigate).toHaveBeenCalledWith("/chat/child");
+  expect(navigate).toHaveBeenCalledWith("/assistants/helper/chat/child");
 });
 
 test("stopping a task submits the displayed run identity", async () => {

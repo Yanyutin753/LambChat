@@ -313,7 +313,8 @@ async def test_child_mail_arriving_during_parent_final_answer_gets_processed():
         {"messages": [HumanMessage(content="Continue")]}, {"configurable": {"thread_id": "parent"}}
     )
     assert result["messages"][-1].content == "Updated answer"
-    assert not any(message.content == "Outdated answer" for message in result["messages"])
+    assert any(message.content == "Outdated answer" for message in result["messages"])
+    assert any(message.content == "Outdated answer" for message in parent.calls[-1])
     assert any("Late progress" in str(message.content) for message in parent.calls[-1])
 
 
@@ -597,6 +598,9 @@ async def test_sdk_main_graph_exposes_background_task_schema():
         ]
     )
     child = _ScriptedChatModel(script=[AIMessage(content="child done")])
+
+    # A continuation is a new provider message, even when its text is unchanged.
+    model.script.append(AIMessage(content="done"))
 
     async def build(role, inbox):
         return create_agent(child, middleware=[inbox], checkpointer=saver)
@@ -968,7 +972,9 @@ async def test_subagent_status_changes_keep_system_prefix_and_append_checkpoint_
     state = {"messages": [HumanMessage(content="Review")], "subagent_sessions": {}}
     request = Request(state=state, system_message=None)
     first = await middleware.awrap_model_call(request, handler)
-    state["subagent_sessions"] = {"child": {"subagent_type": "reviewer", "status": "completed"}}
+    state["subagent_sessions"] = {
+        "child": {"subagent_type": "reviewer", "status": "completed", "collected": True}
+    }
     update = await middleware.abefore_model(state, None)
     state["messages"].extend(update["messages"])
     state["subagent_sessions"] = update["subagent_sessions"]

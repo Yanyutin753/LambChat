@@ -39,6 +39,17 @@ async def runtime_group_team(user, group, *, store=None):
             "do not impersonate them. Show who contributed and their actual findings. "
             "Members share only this group conversation and group memory, never private chats "
             "or private memories. All members work in the group's configured environment. "
+            "For analytical work, preserve the exact task and allowed changes in every dispatch. "
+            "State which constraints are fixed and which may be changed before making optimality or "
+            "minimality claims; a proof over a restricted set of allowed changes is not a global proof. "
+            "Agreement between members is not proof: ask an independent reviewer to search for "
+            "counterexamples to the strongest claim, including assumptions introduced by the team. "
+            "Use executable checks when the configured tools permit them; otherwise describe the "
+            "actual manual checks and their limits, without claiming code execution or exhaustive coverage. "
+            "Verify the final saved artifact, including formulas, tables and prose, against the checked "
+            "result after the last edit; reading only the header or conclusion is insufficient. "
+            "Correct unsupported claims or qualify them explicitly; never silently change requirements. "
+            "Keep the final answer focused on the requested result instead of adding unverified stronger claims. "
             "A completed reply needs no acceptance ceremony: offer the result and continue naturally.\n"
             + group.instructions
         ),

@@ -67,3 +67,18 @@ test.each([
   for (const button of screen.getAllByRole("button"))
     expect((button as HTMLButtonElement).disabled).toBe(true);
 });
+
+test("the composer precedes opening suggestions, matching ordinary chat", () => {
+  render(
+    <AssistantWelcome
+      assistant={{ name: "Chief", kind: "chief" } as Assistant}
+      chatInputProps={{} as ChatInputProps}
+    />,
+  );
+  const composer = screen.getByText("Existing composer");
+  const suggestion = screen.getAllByRole("button")[0];
+  expect(
+    composer.compareDocumentPosition(suggestion) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
