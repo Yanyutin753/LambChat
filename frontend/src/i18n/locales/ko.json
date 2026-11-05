@@ -2233,7 +2233,10 @@
     "noPermissionTitle": "접근 거부",
     "noPermissionToast": "이 페이지에 접근할 권한이 없습니다",
     "pageNotFound": "페이지를 찾을 수 없습니다",
-    "pageNotFoundDesc": "죄송합니다. 찾으시는 페이지가 존재하지 않거나 삭제되었습니다. URL을 확인하거나 홈으로 돌아가세요."
+    "pageNotFoundDesc": "죄송합니다. 찾으시는 페이지가 존재하지 않거나 삭제되었습니다. URL을 확인하거나 홈으로 돌아가세요.",
+    "providerQuotaExhaustedUntil": "모델 제공업체의 사용 한도를 모두 소진했습니다. 제공업체가 안내한 초기화 시각은 {{resetAt}}(제공업체 기준 시각)입니다. 초기화 후 이 채팅에서 계속하세요.",
+    "providerQuotaExhausted": "모델 제공업체의 사용 한도를 모두 소진했습니다. 한도가 초기화된 후 이 채팅에서 계속하세요.",
+    "providerRateLimited": "모델 제공업체에 요청이 너무 많이 전송되었습니다. 잠시 후 이 채팅에서 다시 시도하세요."
   },
   "featureMenu": {
     "enhance": "강화",

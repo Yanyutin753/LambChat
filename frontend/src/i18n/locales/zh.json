@@ -2233,7 +2233,10 @@
     "noPermissionTitle": "权限不足",
     "noPermissionToast": "您没有权限访问此页面",
     "pageNotFound": "页面未找到",
-    "pageNotFoundDesc": "抱歉，您访问的页面不存在或已被移除。请检查网址是否正确，或返回首页继续使用。"
+    "pageNotFoundDesc": "抱歉，您访问的页面不存在或已被移除。请检查网址是否正确，或返回首页继续使用。",
+    "providerQuotaExhaustedUntil": "模型服务额度已用尽。服务方提示将于 {{resetAt}} 恢复（服务方时间）；请届时在当前对话继续。",
+    "providerQuotaExhausted": "模型服务额度已用尽。请等待额度恢复后，在当前对话继续。",
+    "providerRateLimited": "模型服务请求过于频繁，请稍后在当前对话重试。"
   },
   "featureMenu": {
     "enhance": "增强",
