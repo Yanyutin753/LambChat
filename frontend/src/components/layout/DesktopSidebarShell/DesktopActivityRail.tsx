@@ -7,7 +7,7 @@ import { SparklesIcon } from "@animateicons/react/lucide/sparkles-icon";
 import { ServerIcon } from "@animateicons/react/lucide/server-icon";
 import { NetworkIcon } from "@animateicons/react/lucide/network-icon";
 import { BrainIcon } from "@animateicons/react/lucide/brain-icon";
-import { BotIcon } from "@animateicons/react/lucide/bot-icon";
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { EllipsisIcon } from "@animateicons/react/lucide/ellipsis-icon";
 import { ActivityRailButton } from "./ActivityRailButton";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -19,7 +19,6 @@ import { DesktopMoreMenu } from "../../panels/SidebarParts/DesktopMoreMenu";
 import { Permission } from "../../../types/auth";
 
 const navigationIcons: Record<string, typeof MessageCircleIcon> = {
-  "/assistants": BotIcon,
   "/files": FolderOpenIcon,
   "/scheduled-tasks": CalendarClockIcon,
   "/persona": UserRoundIcon,
@@ -94,13 +93,21 @@ export function DesktopActivityRail({
         {primaryItems.map((item) => (
           <ActivityRailButton
             key={item.path}
-            icon={navigationIcons[item.path] ?? EllipsisIcon}
+            icon={
+              item.path === "/assistants"
+                ? undefined
+                : navigationIcons[item.path] ?? EllipsisIcon
+            }
             className={buttonClass}
             title={item.label}
             aria-label={item.label}
             aria-pressed={pathname === item.path}
             onClick={() => navigate(item.path)}
-          />
+          >
+            {item.path === "/assistants" ? (
+              <AgentAvatar seed="LambChat" size={20} />
+            ) : undefined}
+          </ActivityRailButton>
         ))}
         {moreItems.length === 1 ? (
           <ActivityRailButton
