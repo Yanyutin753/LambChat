@@ -687,6 +687,7 @@ export const SessionSidebar = forwardRef<
         {isMobile ? (
           <SessionListContent
             {...sessionListProps}
+            isMobile
             onCollapse={() => {
               setIsCollapsed(true);
               onMobileClose?.();

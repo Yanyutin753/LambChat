@@ -143,7 +143,7 @@ async def update_assistant(
             "Update current-coordinator references; preserve unrelated duties and historical facts. "
             "If the purpose is coordinator-neutral, explicitly supply it unchanged.",
         )
-    values = current.model_dump(include=set(AssistantCreate.model_fields))
+    values = current.model_dump(include=set(AssistantCreate.model_fields), by_alias=True)
     for key, value in {
         "name": name,
         "instructions": instructions,

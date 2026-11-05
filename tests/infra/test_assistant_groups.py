@@ -62,6 +62,36 @@ async def test_group_runtime_keeps_actual_member_identity_and_private_memory(mon
         assert "final saved artifact" in prompt
 
 
+async def test_coordinator_switch_replaces_live_identity_without_rewriting_history(monkeypatch):
+    from src.infra.assistant.groups import runtime_group_team
+    from src.infra.assistant.service import AssistantService
+
+    group = assistant(
+        kind="group",
+        member_ids=["a", "b"],
+        leader_id="a",
+        instructions="The original plan was prepared by Researcher.",
+    )
+    members = {
+        "a": assistant().model_copy(update={"id": "a", "name": "Researcher"}),
+        "b": assistant().model_copy(update={"id": "b", "name": "Reviewer"}),
+    }
+    store = SimpleNamespace(get=AsyncMock(side_effect=lambda owner, identity: members[identity]))
+    monkeypatch.setattr(AssistantService, "validate_configuration", AsyncMock())
+    before = await runtime_group_team(user(), group, store=store)
+    after = await runtime_group_team(
+        user(), group.model_copy(update={"leader_id": "b"}), store=store
+    )
+    assert "Current coordinator: Researcher (member_id: a)." in before.team_instructions
+    assert "Current coordinator: Reviewer (member_id: b)." in after.team_instructions
+    assert "Current coordinator: Researcher" not in after.team_instructions
+    assert "historical summaries" in after.team_instructions
+    assert "prospectively" in after.team_instructions
+    assert "earlier report was misattributed" in after.team_instructions
+    assert group.instructions in after.team_instructions
+    assert [m.member_id for m in after.members] == ["a", "b"]
+
+
 def test_completed_work_does_not_require_acceptance():
     from src.infra.assistant.tasks import task_view
     from tests.infra.test_assistant_tasks import child, record
