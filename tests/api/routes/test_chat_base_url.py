@@ -563,7 +563,7 @@ async def test_assistant_task_followup_authorizes_bound_execution_before_dispatc
         "get",
         AsyncMock(
             return_value=SimpleNamespace(
-                id="helper", session_id="coordinator", memory_mode="private"
+                id="helper", session_id="coordinator", memory_mode="private", status="active"
             )
         ),
     )
