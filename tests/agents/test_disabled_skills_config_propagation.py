@@ -45,6 +45,9 @@ class _FakeEventProcessor:
     async def flush(self) -> None:
         return None
 
+    async def finalize_subagent_events(self, _sessions) -> None:
+        return None
+
     async def drain_activity_references(self) -> None:
         return None
 
