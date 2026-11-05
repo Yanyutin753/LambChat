@@ -4645,6 +4645,7 @@
     "resetLegacyConfirm": "将消耗 1 张通用卡，重置已用尽的额度；重置每周额度时也会重置 5 小时额度。",
     "tokensInputReported": "输入（报告值）",
     "historicalEstimate": "历史估算",
+    "partialPricedHint": "{{count}} 次部分计价，已计入已知费用",
     "partialCostHint": "仅含已知金额，其余费用未知。",
     "modelOrService": "模型 / 服务",
     "identityNotRecorded": "未记录",

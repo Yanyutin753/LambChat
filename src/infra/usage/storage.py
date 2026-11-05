@@ -14,6 +14,7 @@ from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.usage.cost_certainty import (
     COMPLETE_USAGE_CONDITION,
+    UNPRICED_USAGE_CONDITION,
     _boolean_condition,
     _cost_certainty_aggregates,
     _usage_cost_fields,
@@ -362,7 +363,15 @@ class UsageStorage:
                 cost_source="provider_settlement",
                 cost_units=usage_data.get("cost_units"),
                 actual_models=usage_data.get("actual_models", []),
-                model=usage_data.get("model") or "",
+                model=" / ".join(
+                    dict.fromkeys(
+                        item["model"]
+                        for item in usage_data.get("actual_models", [])
+                        if item.get("model")
+                    )
+                )
+                or usage_data.get("model")
+                or "",
                 model_id=usage_data.get("model_id") or "",
                 cost_rates=None,
             )
@@ -494,7 +503,7 @@ class UsageStorage:
         if assistant_id:
             query["assistant_id"] = assistant_id
         if model:
-            query["model"] = model
+            query["$or"] = [{"model": model}, {"actual_models.model": model}]
         if start_date or end_date:
             date_filter: Dict[str, Any] = {}
             if start_date:
@@ -548,7 +557,7 @@ class UsageStorage:
                                 **_cost_certainty_aggregates(),
                                 **_counter_availability_aggregates(),
                                 "unpriced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
+                                    "$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}
                                 },
                                 "priced_requests": {
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
@@ -614,7 +623,7 @@ class UsageStorage:
                                     "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
                                 },
                                 "unpriced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
+                                    "$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}
                                 },
                                 "usage_unknown_requests": {
                                     "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
@@ -707,7 +716,7 @@ class UsageStorage:
             **_cost_certainty_aggregates(),
             **_counter_availability_aggregates(),
             "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
-            "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
+            "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
             "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
             "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
             "cache_uncertified_requests": {
@@ -770,7 +779,7 @@ class UsageStorage:
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
                     **_cost_certainty_aggregates(),
                     **_counter_availability_aggregates(),
-                    "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
+                    "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
                     "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
                     "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
                     "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
@@ -945,6 +954,8 @@ class UsageStorage:
                     "total_tokens": _token_sum("total_tokens"),
                     "total_duration": {"$sum": "$duration"},
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
+                    "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
+                    "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
                     **_cost_certainty_aggregates(),
                     **_counter_availability_aggregates(),
                 }
@@ -954,6 +965,8 @@ class UsageStorage:
         summary: Dict[str, Any] = {
             "total_requests": total,
             "total_cost_usd": 0.0,
+            "priced_requests": 0,
+            "unpriced_requests": 0,
             **_format_cost_certainty({}),
             **_format_counter_availability({}),
         }
@@ -966,6 +979,8 @@ class UsageStorage:
                         "total_tokens": doc.get("total_tokens", 0),
                         "total_duration": doc.get("total_duration", 0.0),
                         "total_cost_usd": doc.get("total_cost_usd", 0.0),
+                        "priced_requests": doc.get("priced_requests", 0),
+                        "unpriced_requests": doc.get("unpriced_requests", 0),
                         **_format_cost_certainty(doc),
                         **_format_counter_availability(doc),
                     }

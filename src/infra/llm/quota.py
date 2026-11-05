@@ -16,7 +16,13 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables.config import var_child_runnable_config
 from pydantic import Field
 
-from src.infra.pricing.calculator import CostBreakdown, PriceRates, compute_cost
+from src.infra.pricing.calculator import (
+    CostBreakdown,
+    PartialCostBreakdown,
+    PriceRates,
+    compute_cost,
+    compute_partial_cost,
+)
 from src.infra.usage.quota import UsageQuota, usd_units, user_budgets
 from src.kernel.errors import AppError, ErrorCode
 
@@ -387,7 +393,9 @@ def usage_price_supported(model, messages, kwargs) -> bool:
     return True
 
 
-def message_cost_breakdown(message, rates: PriceRates) -> CostBreakdown | None:
+def message_cost_breakdown(
+    message, rates: PriceRates
+) -> CostBreakdown | PartialCostBreakdown | None:
     usage = getattr(message, "usage_metadata", None) or {}
     details = usage.get("input_token_details") or {}
     creation = details.get("cache_creation")
@@ -416,18 +424,22 @@ def message_cost_breakdown(message, rates: PriceRates) -> CostBreakdown | None:
     ):
         return CostBreakdown()
     # Provider-omitted counters count as zero; malformed supplied counters stay invalid.
-    return compute_cost(
+    counts = dict(
         input_tokens=0 if usage.get("input_tokens") is None else usage["input_tokens"],
         output_tokens=0 if usage.get("output_tokens") is None else usage["output_tokens"],
         cache_read_tokens=0 if details.get("cache_read") is None else details["cache_read"],
         cache_creation_tokens=0 if creation is None else creation,
-        rates=rates,
     )
+    complete = compute_cost(**counts, rates=rates)
+    if complete is not None:
+        return complete
+    partial = compute_partial_cost(**counts, rates=rates, input_includes_cache=True)
+    return partial if partial.total_usd > 0 else None
 
 
 def message_cost(message, rates: PriceRates) -> float | None:
     result = message_cost_breakdown(message, rates)
-    return result.total_usd if result else None
+    return result.total_usd if isinstance(result, CostBreakdown) else None
 
 
 class QuotaChatMixin:
@@ -504,6 +516,7 @@ class QuotaChatMixin:
             value=getattr(self, "model_name", None) or getattr(self, "model", None),
             provider=self.quota_provider,
             model_config_id=self.quota_model_config_id,
+            allow_partial=True,
         )
         rates = resolved.rates if resolved else PriceRates()
         if not usage_price_supported(self, messages, kwargs):
@@ -542,12 +555,16 @@ class QuotaChatMixin:
                 settlement = await quota.settle(
                     reservation,
                     cost.total_usd if cost is not None else None,
-                    **({"partial": True} if partial else {}),
+                    **(
+                        {"partial": True}
+                        if partial or isinstance(cost, PartialCostBreakdown)
+                        else {}
+                    ),
                 )
                 if (
                     isinstance(settlement, dict)
                     and not settlement["unknown"]
-                    and cost is not None
+                    and isinstance(cost, CostBreakdown)
                     and settlement["charged_units"] == usd_units(cost.total_usd)
                 ):
                     settlement = {

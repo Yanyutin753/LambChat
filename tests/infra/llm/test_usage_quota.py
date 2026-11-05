@@ -31,6 +31,36 @@ def test_missing_usage_and_cache_fields_default_to_zero():
     )
 
 
+async def test_missing_cache_tariff_still_settles_known_input_and_output():
+    rates = PriceRates(input=2, output=10)
+    message = AIMessage(
+        content="ok",
+        usage_metadata={
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "total_tokens": 110,
+            "input_token_details": {"cache_read": 80},
+        },
+    )
+    ledger = SimpleNamespace(
+        settle=AsyncMock(return_value={"charged_units": 140_000, "unknown": True})
+    )
+    owner = SimpleNamespace(record_usage_receipt=AsyncMock())
+    reservation = {"id": "call", "context": {"model": "fallback"}}
+    await QuotaChatMixin()._quota_finish((ledger, reservation, rates, owner), message)
+    ledger.settle.assert_awaited_once_with(reservation, 0.00014, partial=True)
+    assert owner.record_usage_receipt.await_args.args[0]["model"] == "fallback"
+
+
+async def test_no_tariff_cannot_become_a_known_zero_cost():
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 0, "unknown": True}))
+    owner = SimpleNamespace(record_usage_receipt=AsyncMock())
+    reservation = {"id": "call", "context": {}}
+    message = AIMessage(content="ok", usage_metadata=USAGE)
+    await QuotaChatMixin()._quota_finish((ledger, reservation, PriceRates(), owner), message)
+    assert ledger.settle.await_args.args == (reservation, None)
+
+
 def test_anthropic_ttl_cache_writes_are_not_charged_as_ordinary_input():
     rates = PriceRates(input=1, output=2, cache_read=0.1, cache_write=1.25)
     usage = {

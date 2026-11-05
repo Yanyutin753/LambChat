@@ -623,7 +623,7 @@ class EventPresenterMixin:
             data["model"] = model
         if settlement_usage is not None:
             units = settlement_usage["cost_units"]
-            if type(units) is not int or units < 0:
+            if not isinstance(units, int) or isinstance(units, bool) or units < 0:
                 raise ValueError("Invalid settled cost units")
             complete = settlement_usage.get("cost_complete") is True
             models = settlement_usage.get("actual_models", [])
@@ -652,7 +652,9 @@ class EventPresenterMixin:
                 data["model"] = models[0].get("model") or ""
                 data["model_id"] = models[0].get("model_id") or ""
             else:
-                data["model"] = "mixed" if models else ""
+                data["model"] = " / ".join(
+                    dict.fromkeys(item["model"] for item in models if item.get("model"))
+                )
                 data["model_id"] = ""
             return self._build_event("token:usage", data)
         # 金额字段仅在可计价时携带，前端据此区分「未计价」与「0 美元」

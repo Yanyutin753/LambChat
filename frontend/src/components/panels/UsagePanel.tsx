@@ -407,6 +407,11 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
               })}
               hint={
                 [
+                  (stats.partial_requests ?? 0) > 0
+                    ? t("usage.partialPricedHint", {
+                        count: fmt(stats.partial_requests ?? 0),
+                      })
+                    : undefined,
                   (stats.unpriced_requests ?? 0) > 0
                     ? t("usage.unpricedHint", {
                         count: fmt(stats.unpriced_requests ?? 0),
