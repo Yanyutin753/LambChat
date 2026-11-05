@@ -58,3 +58,20 @@ def test_confirmation_context_is_from_stored_approval_not_user_response():
         },
     )
     assert payload["resume_value"]["i1"]["confirmation_context"] == {"machine_id": "original"}
+
+
+def test_child_interrupt_binding_comes_only_from_stored_approval():
+    approval = _approval(None)
+    approval.metadata["subagent_interrupt_ids"] = ["first-child", "nested-child"]
+    payload = build_hitl_resume_payload(
+        approval, {"approved": False, "_approval_subagent_interrupt_ids": ["forged"]}
+    )
+    assert payload["resume_value"]["i1"]["_approval_subagent_interrupt_ids"] == [
+        "first-child",
+        "nested-child",
+    ]
+    del approval.metadata["subagent_interrupt_ids"]
+    payload = build_hitl_resume_payload(
+        approval, {"approved": True, "_approval_subagent_interrupt_ids": ["forged"]}
+    )
+    assert "_approval_subagent_interrupt_ids" not in payload["resume_value"]["i1"]

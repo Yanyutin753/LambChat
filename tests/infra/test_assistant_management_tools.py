@@ -48,11 +48,24 @@ async def test_create_tool_reuses_call_identity_and_returns_navigation(monkeypat
     assert create.call_args.kwargs["identity"] == first
 
 
-async def test_update_preserves_execution_settings_and_expected_revision(monkeypatch):
+@pytest.mark.parametrize("local", [False, True])
+async def test_update_preserves_execution_settings_and_expected_revision(monkeypatch, local):
     from src.infra.tool import assistant_tool as module
+    from src.kernel.schemas.project import ProjectWorkspace
 
     monkeypatch.setattr(module, "chief_context", AsyncMock(return_value=user()))
-    current = assistant(model_id="model", project_id="project", instructions="original")
+    workspace = (
+        ProjectWorkspace(id="local-" + "a" * 32, machineId="machine", path="/work/test")
+        if local
+        else None
+    )
+    current = assistant(
+        model_id="model",
+        project_id="project",
+        instructions="original",
+        sandbox="local" if local else None,
+        workspace=workspace,
+    )
     update = AsyncMock(return_value=current)
     monkeypatch.setattr(
         module,
@@ -64,6 +77,7 @@ async def test_update_preserves_execution_settings_and_expected_revision(monkeyp
     assert draft.revision == 7
     assert draft.model_id == "model" and draft.project_id == "project"
     assert draft.instructions == "original" and draft.name == "Renamed"
+    assert draft.workspace == workspace and draft.sandbox == current.sandbox
 
 
 async def test_management_rechecks_revoked_permissions(monkeypatch):
@@ -146,11 +160,22 @@ async def test_coordinator_change_requires_explicit_instructions_before_any_writ
         "",
     ],
 )
-async def test_coordinator_and_reviewed_purpose_use_one_versioned_update(monkeypatch, instructions):
+@pytest.mark.parametrize("local", [False, True])
+async def test_coordinator_and_reviewed_purpose_use_one_versioned_update(
+    monkeypatch, instructions, local
+):
     from src.infra.tool import assistant_tool as module
+    from src.kernel.schemas.project import ProjectWorkspace
 
     monkeypatch.setattr(module, "chief_context", AsyncMock(return_value=user()))
-    current = assistant(model_id="model").model_copy(
+    workspace = (
+        ProjectWorkspace(id="local-" + "b" * 32, machineId="machine", path="/work/group")
+        if local
+        else None
+    )
+    current = assistant(
+        model_id="model", sandbox="local" if local else None, workspace=workspace
+    ).model_copy(
         update={
             "kind": "group",
             "member_ids": ["writer", "reviewer"],
@@ -177,6 +202,7 @@ async def test_coordinator_and_reviewed_purpose_use_one_versioned_update(monkeyp
     draft = update.call_args.args[2]
     assert (draft.leader_id, draft.instructions, draft.revision) == ("reviewer", instructions, 7)
     assert draft.member_ids == current.member_ids and draft.model_id == "model"
+    assert draft.workspace == workspace and draft.sandbox == current.sandbox
 
 
 async def test_unchanged_coordinator_does_not_require_rewriting_purpose(monkeypatch):

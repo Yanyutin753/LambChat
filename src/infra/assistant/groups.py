@@ -32,7 +32,13 @@ async def runtime_group_team(user, group, *, store=None):
         name=group.name,
         default_member_id=group.leader_id,
         team_instructions=(
-            f"This is a persistent group chat coordinated by {leader.name}. "
+            f"Current coordinator: {leader.name} (member_id: {leader.id}). "
+            "This live configuration takes precedence over historical summaries and earlier role claims. "
+            "Attribute coordinator replies and new reports to the current coordinator; preserve historical "
+            "contributions and each delegated member's own identity. "
+            "Coordinator changes apply prospectively: never infer an earlier report was misattributed "
+            "solely from the current coordinator. Preserve roles held at the time; if the historical "
+            "role is unknown, say so instead of rewriting its attribution. "
             "Answer simple coordination messages yourself. For substantive work, use the "
             "named members' persistent subagent sessions; reuse a member's session on follow-up. "
             "When the user @mentions a member by name or @[id], dispatch to that member; "
