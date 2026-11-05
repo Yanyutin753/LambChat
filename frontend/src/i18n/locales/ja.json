@@ -2227,7 +2227,10 @@
     "noPermissionTitle": "アクセス拒否",
     "noPermissionToast": "このページにアクセスする権限がありません",
     "pageNotFound": "ページが見つかりません",
-    "pageNotFoundDesc": "申し訳ございません。お探しのページは存在しないか削除されました。URLを確認するか、ホームに戻ってください。"
+    "pageNotFoundDesc": "申し訳ございません。お探しのページは存在しないか削除されました。URLを確認するか、ホームに戻ってください。",
+    "providerQuotaExhaustedUntil": "モデル提供元の利用枠を使い切りました。提供元が示すリセット時刻は {{resetAt}}（提供元の時刻）です。回復後、このチャットで続けてください。",
+    "providerQuotaExhausted": "モデル提供元の利用枠を使い切りました。利用枠の回復後、このチャットで続けてください。",
+    "providerRateLimited": "モデル提供元へのリクエストが多すぎます。少し待って、このチャットで再試行してください。"
   },
   "featureMenu": {
     "enhance": "強化",

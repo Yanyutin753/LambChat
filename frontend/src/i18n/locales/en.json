@@ -2227,7 +2227,10 @@
     "noPermissionTitle": "Permission Denied",
     "noPermissionToast": "You don't have permission to access this page",
     "pageNotFound": "Page Not Found",
-    "pageNotFoundDesc": "Sorry, the page you are looking for doesn't exist or has been removed. Please check the URL or return to home."
+    "pageNotFoundDesc": "Sorry, the page you are looking for doesn't exist or has been removed. Please check the URL or return to home.",
+    "providerQuotaExhaustedUntil": "The model provider’s quota is exhausted. The provider reports a reset at {{resetAt}} (provider time); continue in this chat after it resets.",
+    "providerQuotaExhausted": "The model provider’s quota is exhausted. Continue in this chat after the quota resets.",
+    "providerRateLimited": "The model provider is rate limiting requests. Try again in this chat shortly."
   },
   "featureMenu": {
     "enhance": "Enhance",
