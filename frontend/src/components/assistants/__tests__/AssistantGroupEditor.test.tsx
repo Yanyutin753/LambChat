@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+import type { Assistant } from "../../../types/assistant";
 import { AssistantGroupEditor } from "../AssistantGroupEditor";
 const { api, t } = vi.hoisted(() => ({
   t: (key: string) => key,
@@ -29,7 +30,10 @@ test("group creation selects actual members and coordinator, then opens returned
   api.create.mockResolvedValue({ id: "group" });
   const saved = vi.fn();
   render(<AssistantGroupEditor onClose={() => {}} onSaved={saved} />);
-  fireEvent.click(await screen.findByRole("radio", { name: "Alice" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.groupLeader" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Alice" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Bob" }));
   fireEvent.click(
     screen.getByRole("button", { name: "assistants.createGroup" }),
@@ -57,7 +61,10 @@ test("failed save preserves selection and draft for retry", async () => {
   api.create.mockRejectedValue(new Error("Save unavailable"));
   const saved = vi.fn();
   render(<AssistantGroupEditor onClose={() => {}} onSaved={saved} />);
-  fireEvent.click(await screen.findByRole("radio", { name: "Alice" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.groupLeader" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Alice" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Bob" }));
   fireEvent.change(screen.getByPlaceholderText("assistants.groupNameHint"), {
     target: { value: "My group" },
@@ -77,4 +84,90 @@ test("failed save preserves selection and draft for retry", async () => {
     screen.getByRole("checkbox", { name: "Bob" }).getAttribute("aria-checked"),
   ).toBe("true");
   expect(saved).not.toHaveBeenCalled();
+});
+
+test("switching coordinator preserves purpose and the former coordinator as a member", async () => {
+  api.list.mockResolvedValue({
+    assistants: [
+      { id: "a", name: "Alice", status: "active" },
+      { id: "b", name: "Bob", status: "active" },
+    ],
+    total: 2,
+  });
+  api.update.mockResolvedValue({ id: "group" });
+  render(
+    <AssistantGroupEditor
+      value={
+        {
+          id: "group",
+          name: "Research",
+          instructions: "Compare sources",
+          member_ids: ["a", "b"],
+          leader_id: "a",
+          status: "active",
+          revision: 4,
+        } as Assistant
+      }
+      onClose={() => {}}
+      onSaved={() => {}}
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.groupLeader" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Bob" }));
+  expect(screen.getByRole("checkbox", { name: "Alice" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  expect(screen.getByLabelText("assistants.groupPurpose")).toHaveValue(
+    "Compare sources",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith(
+      "group",
+      expect.objectContaining({
+        leader_id: "b",
+        member_ids: ["b", "a"],
+        instructions: "Compare sources",
+        revision: 4,
+      }),
+    ),
+  );
+});
+
+test("coordinator choices respect paused members and the group member limit", async () => {
+  const bots = Array.from({ length: 13 }, (_, i) => ({
+    id: String(i),
+    name: `Bot ${i}`,
+    status: i === 1 ? "paused" : "active",
+  }));
+  api.list.mockResolvedValue({ assistants: bots, total: bots.length });
+  render(
+    <AssistantGroupEditor
+      value={
+        {
+          id: "group",
+          name: "Research",
+          member_ids: bots.slice(0, 12).map((bot) => bot.id),
+          leader_id: "0",
+        } as Assistant
+      }
+      onClose={() => {}}
+      onSaved={() => {}}
+    />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.groupLeader" }),
+  );
+  expect(
+    screen.getByRole("option", { name: "Bot 1", exact: true }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("option", { name: "Bot 12", exact: true }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("option", { name: "Bot 2", exact: true }),
+  ).toBeEnabled();
 });

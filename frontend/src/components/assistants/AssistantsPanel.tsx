@@ -413,7 +413,7 @@ export function AssistantsPanel() {
           </Button>
         </div>
         {canWrite && (
-          <div className="px-3 pb-5">
+          <div className="px-3 pb-2">
             <Button
               className="assistant-workspace-create"
               variant="ghost"
@@ -427,15 +427,17 @@ export function AssistantsPanel() {
         {canWrite && !archived && (
           <button
             type="button"
-            className="assistant-chief"
+            className="assistant-workspace-assistant assistant-chief"
             aria-current={assistant?.kind === "chief" ? "page" : undefined}
             disabled={busy}
             onClick={() => void openChief()}
           >
-            <AgentAvatar seed="Chief" size={48} />
-            <span>
-              <strong>Chief</strong>
-              <span>{t("assistants.chiefHint")}</span>
+            <AgentAvatar seed="Chief" size={32} />
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block truncate font-medium">Chief</span>
+              <span className="assistant-workspace-role block truncate">
+                {t("assistants.chiefHint")}
+              </span>
             </span>
           </button>
         )}
@@ -562,6 +564,16 @@ export function AssistantsPanel() {
             <h2 className="sr-only">
               {assistant?.name || t("assistants.title")}
             </h2>
+            {assistant && view !== "chat" && (
+              <Button
+                variant="ghost"
+                className="shrink-0"
+                leftIcon={<ArrowLeft size={16} />}
+                onClick={() => openView("chat")}
+              >
+                {t("assistants.backToChat")}
+              </Button>
+            )}
             {assistant &&
               (assistant.status !== "active" ||
                 !["chat", "tasks"].includes(view)) && (
