@@ -4,6 +4,7 @@ import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import { useCallback, useMemo, useState } from "react";
 import {
   Bell,
+  Bot,
   Search,
   FolderOpen,
   SquarePen,
@@ -356,7 +357,7 @@ export function SessionListContent({
           </div>
         </div>
       )}
-      {/* 桌面壳仅保留新建对话，其余入口由顶栏和最左侧导航承接。 */}
+      {/* 对话和长期助手共用主要入口，其余能力按需打开。 */}
       <div
         className={
           compactChrome
@@ -377,6 +378,19 @@ export function SessionListContent({
             {t("sidebar.newChatShortcut")}
           </kbd>
         </button>
+
+        {hasPermission(Permission.SESSION_READ) && (
+          <button
+            type="button"
+            onClick={() => navigate("/assistants")}
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
+          >
+            <InteractiveIcon>
+              <Bot size={16} />
+            </InteractiveIcon>
+            <span>{t("assistants.title")}</span>
+          </button>
+        )}
 
         {!compactChrome && (
           <button

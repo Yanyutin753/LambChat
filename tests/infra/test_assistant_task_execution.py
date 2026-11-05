@@ -136,10 +136,13 @@ def test_human_authorized_followup_has_its_own_deadline_but_preserves_original_c
 
 async def test_queued_assistant_task_cannot_use_a_revoked_project(monkeypatch):
     from src.api.routes import chat_agent_execution
+    from src.infra.assistant.store import AssistantStore
     from src.infra.folder.storage import ProjectStorage
     from src.infra.task import background_admission, background_tasks
+    from tests.infra.test_assistant_tasks import helper
 
-    record = {"assistant_id": "helper", "config": {"project_id": "revoked"}}
+    monkeypatch.setattr(AssistantStore, "get", AsyncMock(return_value=helper()))
+    record = {"user_id": "owner", "assistant_id": "helper", "config": {"project_id": "revoked"}}
     monkeypatch.setattr(
         background_admission, "validate_background_run_admission", AsyncMock(return_value=record)
     )

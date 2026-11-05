@@ -8,13 +8,15 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantTaskContext } from "../AssistantTaskContext";
-const { api, cancel, t } = vi.hoisted(() => ({
+const { api, cancel, navigate, t } = vi.hoisted(() => ({
   api: { task: vi.fn(), reviewTask: vi.fn() },
   cancel: vi.fn(),
+  navigate: vi.fn(),
   t: (key: string) => key,
 }));
 vi.mock("../../../services/api/assistant", () => ({ assistantApi: api }));
 vi.mock("../../../services/api/session", () => ({ sessionApi: { cancel } }));
+vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t }) }));
 const task = {
   id: "task",
@@ -91,4 +93,17 @@ test("focus refresh picks up completed work without a decision prompt", async ()
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
+});
+
+test("a work result returns to its originating Chief conversation", async () => {
+  api.task.mockResolvedValue({
+    ...task,
+    source_session_id: "chief-chat",
+    source_assistant_id: "chief",
+  });
+  render(<AssistantTaskContext {...props} />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.returnToSource" }),
+  );
+  expect(navigate).toHaveBeenCalledWith("/assistants/chief/chat/chief-chat");
 });

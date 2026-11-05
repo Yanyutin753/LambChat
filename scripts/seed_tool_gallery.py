@@ -369,6 +369,12 @@ def tool_cases():
             },
         ),
         (
+            "06 定时任务与角色",
+            "delegate_assistant_task",
+            {"assistant_id": "mock-assistant", "description": "复核交付计划中的约束与风险。"},
+            {"status": "queued", "assistant_id": "mock-assistant", "session_id": "mock-result"},
+        ),
+        (
             "07 确认表单与电脑",
             "ask_human",
             {

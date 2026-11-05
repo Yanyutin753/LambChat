@@ -215,3 +215,15 @@ test("selection keeps section context and one global count and cancel control", 
     "true",
   );
 });
+
+test("assistants is the next primary action after new chat", () => {
+  render(<Sidebar onDelete={vi.fn()} />);
+  const assistants = screen.getByRole("button", {
+    name: i18n.t("assistants.title"),
+  });
+  const create = within(assistants.parentElement!).getByRole("button", {
+    name: /^New chat/i,
+  });
+  expect(create.nextElementSibling).toBe(assistants);
+  expect(assistants).toBeEnabled();
+});

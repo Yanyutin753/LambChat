@@ -13,6 +13,28 @@ from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.assistant import AssistantTaskCreate, AssistantTaskReview
 
 
+async def validate_task_assistant(record, user_id):
+    """Queued work must still belong to active assistants at execution time."""
+    from src.infra.assistant.store import AssistantStore
+
+    if record.get("user_id") != user_id:
+        raise AppError(ErrorCode.FORBIDDEN)
+    store = AssistantStore()
+    target = await store.get(user_id, record["assistant_id"])
+    if target is None or target.status != "active":
+        raise AppError(ErrorCode.CONFLICT)
+    source_id = (record.get("authorization") or {}).get("source_assistant_id")
+    if source_id:
+        source = await store.for_session(user_id, record["parent_session_id"])
+        if (
+            not source
+            or source.id != source_id
+            or source.kind != "chief"
+            or source.status != "active"
+        ):
+            raise AppError(ErrorCode.FORBIDDEN)
+
+
 def task_view(record, session):
     owned = (
         session is not None
@@ -55,6 +77,11 @@ def task_view(record, session):
         "timeout_seconds": record.get("timeout_seconds"),
         "review_revision": record.get("review_revision", 0),
         "source_run_id": record.get("parent_run_id"),
+        "source_session_id": record.get("parent_session_id") if owned else None,
+        "source_assistant_id": (record.get("authorization") or {}).get("source_assistant_id")
+        if owned
+        else None,
+        "assistant_id": record.get("assistant_id") if owned else None,
         "authorization": record.get(
             "authorization", {"kind": "conversation", "run_id": record.get("parent_run_id")}
         ),
@@ -127,6 +154,8 @@ class AssistantTaskService:
         language="en",
         authorization=None,
         quiet=False,
+        source_session_id=None,
+        source_run_id=None,
     ):
         from src.api.routes.chat_request_config import resolve_persona_request
         from src.infra.backend.workspace_selection import resolve_workspace_options
@@ -134,6 +163,21 @@ class AssistantTaskService:
         assistant = await self.assistants.get(user, assistant_id)
         if assistant.status != "active":
             raise AppError(ErrorCode.CONFLICT)
+        source = None
+        if source_session_id:
+            from src.infra.assistant.store import AssistantStore
+
+            source = await AssistantStore().for_session(user.sub, source_session_id)
+            if (
+                not source
+                or source.user_id != user.sub
+                or source.kind != "chief"
+                or source.status != "active"
+                or source.session_id != source_session_id
+                or not source_run_id
+                or assistant.kind == "chief"
+            ):
+                raise AppError(ErrorCode.FORBIDDEN)
         await self.assistants.validate_configuration(user, assistant)
         request = AgentRequest(
             message=data.description,
@@ -148,16 +192,24 @@ class AssistantTaskService:
         options = await resolve_workspace_options(
             assistant_options(assistant), user.sub, project_id=assistant.project_id
         )
+        identity_scope = source.id if source else assistant.id
         identity = hashlib.sha256(
-            f"assistant-task\0{user.sub}\0{assistant.id}\0{data.request_id}".encode()
+            f"assistant-task\0{user.sub}\0{identity_scope}\0{data.request_id}".encode()
         ).hexdigest()
         task_input = data.model_dump(mode="json", exclude={"request_id"})
+        if source:
+            task_input.update(
+                source_session_id=source.session_id,
+                source_run_id=source_run_id,
+                assistant_id=assistant.id,
+            )
         record = await self.background.store.reserve(
             {
                 "_id": identity,
                 "user_id": user.sub,
-                "parent_session_id": assistant.session_id,
-                "parent_run_id": None,
+                "parent_session_id": source.session_id if source else assistant.session_id,
+                "assistant_source_session_id": assistant.session_id,
+                "parent_run_id": source_run_id if source else None,
                 "call_id": str(data.request_id),
                 "state": "reserved",
                 "session_id": str(uuid5(NAMESPACE_URL, f"background:{identity}")),
@@ -181,6 +233,9 @@ class AssistantTaskService:
                     "request_id": str(data.request_id),
                     "assistant_revision": assistant.revision,
                     **(authorization or {}),
+                    **(
+                        {"kind": "conversation", "source_assistant_id": source.id} if source else {}
+                    ),
                 },
                 "quiet": quiet,
                 "timeout_seconds": data.timeout_seconds,

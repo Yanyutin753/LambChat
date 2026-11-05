@@ -354,11 +354,14 @@ test("task results retain assistant identity without a second conversation mode"
   await screen.findByText("Real chat workspace");
   expect(screen.queryByText("assistants.taskConversation")).toBeNull();
   expect(
-    screen.getByRole("button", { name: "assistants.chatWith" }),
-  ).toBeVisible();
+    screen.queryByRole("button", { name: "assistants.chatWith" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("heading", { level: 2, name: helper.name }),
+  ).toHaveClass("sr-only");
 });
 
-test("bound role identity is shared by the assistant list and workspace header", async () => {
+test("role identity stays in the sidebar without duplication in the workspace header", async () => {
   const assistant = { ...helper, persona_preset_id: "role-1" };
   route.assistantId = helper.id;
   route.view = "tasks";
@@ -373,7 +376,12 @@ test("bound role identity is shared by the assistant list and workspace header",
         .every((avatar) => avatar.dataset.avatar === "/role.png"),
     ).toBe(true),
   );
-  expect(screen.getAllByText("Research role")).toHaveLength(2);
+  expect(screen.getAllByText("Research role")).toHaveLength(1);
+  const header = document.querySelector(".assistant-workspace-header")!;
+  expect(
+    within(header as HTMLElement).queryByTestId("assistant-avatar"),
+  ).toBeNull();
+  expect(screen.getAllByTestId("assistant-avatar")).toHaveLength(1);
 });
 
 test("team avatars take precedence over the role and failed metadata preserves navigation", async () => {
@@ -489,7 +497,7 @@ test("verified work shows status beside the real chat without requiring acceptan
 test("Chief opens its actual persistent identity", async () => {
   api.chief.mockResolvedValue({ ...helper, id: "chief", kind: "chief" });
   render(<AssistantsPanel />);
-  fireEvent.click(screen.getByRole("button", { name: /Chief/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Chief/ }));
   await waitFor(() =>
     expect(navigate).toHaveBeenCalledWith("/assistants/chief"),
   );
@@ -513,4 +521,16 @@ test("background records open over the current chat and close without navigating
   fireEvent.keyDown(dialog, { key: "Escape" });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(screen.getByText("Real chat workspace")).toBeTruthy();
+});
+
+test("the workspace starts with a Chief conversation rather than a configuration form", async () => {
+  api.chief.mockResolvedValue({ ...helper, id: "chief", kind: "chief" });
+  render(<AssistantsPanel />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.startWithChief" }),
+  );
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith("/assistants/chief"),
+  );
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

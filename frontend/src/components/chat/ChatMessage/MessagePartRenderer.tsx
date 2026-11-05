@@ -31,6 +31,7 @@ import {
   SubagentControlItem,
   CancelSubagentItem,
   StartBackgroundTaskItem,
+  DelegateAssistantTaskItem,
   ListSubagentsItem,
   MemoryRecallItem,
   MemoryStoreItem,
@@ -505,6 +506,20 @@ export function MessagePartRenderer({
           id={part.id}
           toolName={part.name}
           args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "delegate_assistant_task") {
+      return (
+        <DelegateAssistantTaskItem
+          id={part.id}
+          args={part.args}
           result={part.result}
           success={part.success}
           isPending={part.isPending}

@@ -200,7 +200,6 @@ export function AssistantsPanel() {
     (item.team_id ? canReadTeams : canReadPersonas)
       ? profiles[profileKey(item)]
       : undefined;
-  const currentProfile = assistant ? profileFor(assistant) : undefined;
 
   useEffect(() => {
     let active = true;
@@ -559,45 +558,24 @@ export function AssistantsPanel() {
           >
             <SidebarToggleIcon className="size-4" />
           </Button>
-          {assistant && (
-            <AgentAvatar
-              avatar={currentProfile?.avatar}
-              seed={currentProfile?.seed || assistant.name}
-              size={32}
-            />
-          )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="min-w-0 truncate text-14 font-medium">
-              {assistant ? (
-                <button
-                  type="button"
-                  className="max-w-full truncate rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
-                  aria-label={t("assistants.chatWith", {
-                    name: assistant.name,
-                  })}
-                  onClick={() => openView("chat")}
-                >
-                  {assistant.name}
-                </button>
-              ) : (
-                t("assistants.title")
-              )}
+            <h2 className="sr-only">
+              {assistant?.name || t("assistants.title")}
             </h2>
-            {assistant && (
-              <p className="assistant-workspace-role hidden max-w-[40%] truncate sm:block">
-                {assistant.status === "active" &&
-                ["chat", "tasks"].includes(view)
-                  ? currentProfile?.name
-                  : t(
-                      `assistants.${
-                        assistant.status !== "active"
-                          ? assistant.status
-                          : navigation.find((item) => item.id === view)
-                              ?.label || "conversation"
-                      }`,
-                    )}
-              </p>
-            )}
+            {assistant &&
+              (assistant.status !== "active" ||
+                !["chat", "tasks"].includes(view)) && (
+                <p className="assistant-workspace-role truncate">
+                  {t(
+                    `assistants.${
+                      assistant.status !== "active"
+                        ? assistant.status
+                        : navigation.find((item) => item.id === view)?.label ||
+                          "conversation"
+                    }`,
+                  )}
+                </p>
+              )}
           </div>
           <div
             ref={setHeaderActionsTarget}
@@ -729,10 +707,11 @@ export function AssistantsPanel() {
                 canWrite && (
                   <Button
                     variant="primary"
-                    leftIcon={<Plus size={16} />}
-                    onClick={() => setEditor("choose")}
+                    leftIcon={<MessageSquare size={16} />}
+                    disabled={busy}
+                    onClick={() => void openChief()}
                   >
-                    {t("assistants.create")}
+                    {t("assistants.startWithChief")}
                   </Button>
                 )
               }

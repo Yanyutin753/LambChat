@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Square } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, ChevronDown, Square } from "lucide-react";
 import { assistantApi } from "../../services/api/assistant";
 import { sessionApi } from "../../services/api/session";
 import type { AssistantTask } from "../../types/assistant";
@@ -21,6 +22,7 @@ export function AssistantTaskContext({
   canWrite: boolean;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [loaded, setLoaded] = useState<{
     key: string;
     task: AssistantTask;
@@ -118,7 +120,23 @@ export function AssistantTaskContext({
       {task ? (
         <>
           <div className="assistant-work-context-row">
-            <details className="min-w-0 flex-1">
+            {task.source_session_id && task.source_session_id !== sessionId && (
+              <Button
+                size="sm"
+                disabled={busy || !!error}
+                leftIcon={<ArrowLeft size={14} />}
+                onClick={() =>
+                  navigate(
+                    `/assistants/${encodeURIComponent(
+                      task.source_assistant_id || assistantId,
+                    )}/chat/${encodeURIComponent(task.source_session_id!)}`,
+                  )
+                }
+              >
+                {t("assistants.returnToSource")}
+              </Button>
+            )}
+            <details className="order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto">
               <summary className="assistant-work-context-summary">
                 <span className="truncate" title={task.description}>
                   {assistantTaskTitle(task.description)}

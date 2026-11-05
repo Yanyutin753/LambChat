@@ -410,3 +410,17 @@ test("failed admission retains the draft and does not navigate", async () => {
     "Keep this",
   );
 });
+
+test("Chief's delegated work opens in the receiving assistant workspace", async () => {
+  api.tasks.mockResolvedValue({
+    tasks: [{ ...task, assistant_id: "writer", state: "completed" }],
+    total: 1,
+  });
+  render(
+    <AssistantTasksDialog assistant={assistant} canWrite onClose={() => {}} />,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "assistants.inspectTask" }),
+  );
+  expect(navigate).toHaveBeenCalledWith("/assistants/writer/chat/child");
+});

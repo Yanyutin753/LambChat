@@ -4,7 +4,7 @@
     "taskConversation": "任务对话",
     "workspaceNavigation": "工作区导航",
     "workspaceTitle": "与助手一起，把事情做完",
-    "workspaceWelcome": "选择左侧的助手继续工作，或创建一个助手，持续跟进你的任务。",
+    "workspaceWelcome": "告诉 Chief 你想完成什么，他会帮你安排合适的助手。也可以选择已有助手继续。",
     "workspaceHint": "助手会保留上下文，你可以随时回来继续。",
     "backToChat": "返回聊天",
     "conversation": "主对话",
@@ -179,7 +179,8 @@
     "tools": {
       "list_assistants": "查看助手",
       "create_assistant": "创建助手或群聊",
-      "update_assistant": "调整助手或群聊"
+      "update_assistant": "调整助手或群聊",
+      "delegate_assistant_task": "委派给助手"
     },
     "groupPlaceholder": "发消息，输入 @ 点名成员",
     "starters": {
@@ -201,7 +202,9 @@
     },
     "chiefWelcome": "告诉我你想做什么，我会帮你安排合适的助手，或把他们组织成群。",
     "groupWelcome": "在这里一起讨论，输入 @ 点名成员。上下文保留在这个群聊中。",
-    "assistantWelcome": "告诉我你想推进的事情，我们从这里开始。"
+    "assistantWelcome": "告诉我你想推进的事情，我们从这里开始。",
+    "startWithChief": "告诉 Chief 你想做什么",
+    "returnToSource": "返回发起对话"
   },
   "sessionWorkspace": {
     "location": "文件位置",
