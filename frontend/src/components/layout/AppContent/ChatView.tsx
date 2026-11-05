@@ -1,3 +1,4 @@
+import { FeedbackProvider } from "../../chat/ChatMessage/FeedbackProvider";
 import { parseWorkspaceSelection } from "../../chat/workspaceSelection";
 import { WorkspaceMediaContext } from "../../../hooks/workspaceMediaContext";
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
@@ -84,6 +85,10 @@ export function ChatView({
   composerFocusRequest,
   currentRunId,
   isLoading,
+  workspaceLocked = false,
+  workspaceSaving = false,
+  workspaceUnconfirmed = false,
+  onRetryWorkspaceRead,
   isLoadingHistory,
   historyLoadGeneration,
   hasMoreHistoryTraces = false,
@@ -153,6 +158,7 @@ export function ChatView({
   onSupplementFollowUpMessage,
   onQueueFollowUpMessage,
   steerMessages,
+  queueControl,
   onCancelSteer,
   activeGoal,
   persistentGoal,
@@ -707,9 +713,18 @@ export function ChatView({
     onSupplement: onSupplementFollowUpMessage,
     onQueueFollowUp: onQueueFollowUpMessage,
     steerMessages,
+    queueControl,
     onCancelSteer,
     isLoading: sessionRunning,
-    sendBlocked: approvals.length > 0 || hasPendingAskHumanParts,
+    workspaceLocked,
+    workspaceSaving,
+    workspaceUnconfirmed,
+    onRetryWorkspaceRead,
+    sendBlocked:
+      approvals.length > 0 ||
+      hasPendingAskHumanParts ||
+      workspaceSaving ||
+      workspaceUnconfirmed,
     canSend:
       canSendMessage &&
       (!assistant ||
@@ -791,7 +806,7 @@ export function ChatView({
     ],
   );
 
-  return (
+  const content = (
     <WorkspaceMediaContext.Provider value={mediaWorkspace}>
       <SessionImageGalleryProvider messages={messages}>
         <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1011,5 +1026,8 @@ export function ChatView({
         </div>
       </SessionImageGalleryProvider>
     </WorkspaceMediaContext.Provider>
+  );
+  return (
+    <FeedbackProvider key={sessionId ?? "new"}>{content}</FeedbackProvider>
   );
 }

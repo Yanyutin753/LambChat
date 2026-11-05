@@ -22,6 +22,7 @@ import type {
 import type {
   ActiveGoalSpec,
   ChatSubmissionCallbacks,
+  FollowUpQueueControl,
 } from "../../../hooks/useAgent/types";
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
@@ -108,7 +109,7 @@ function resolveChatAssistantIdentity({
       currentPersonaAvatar ??
       (selectedPersonaName || selectedPersonaPresetId
         ? null
-        : agentIcon ?? null),
+        : (agentIcon ?? null)),
     seed: selectedPersonaPresetId || selectedPersonaName || currentAgent,
     name: selectedPersonaName ?? agentNameFallback,
   };
@@ -130,6 +131,10 @@ export interface ChatViewProps {
   composerFocusRequest?: number;
   currentRunId: string | null;
   isLoading: boolean;
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  onRetryWorkspaceRead?: () => Promise<boolean>;
   isLoadingHistory: boolean;
   historyLoadGeneration: number;
   /** 历史分页：是否还有更早的轮次可加载 */
@@ -232,12 +237,14 @@ export interface ChatViewProps {
   onSupplementFollowUpMessage?: (
     content: string,
     attachments?: MessageAttachment[],
+    queuedMessageId?: string,
   ) => void;
   onQueueFollowUpMessage?: (
     content: string,
     attachments?: MessageAttachment[],
   ) => void;
   steerMessages?: import("../../../utils/mergeSteers").SteerItem[];
+  queueControl?: FollowUpQueueControl;
   onCancelSteer?: (content: string, messageId?: string) => void;
   persistentGoal?: PersistentGoal | null;
   persistentGoalBusy?: boolean;

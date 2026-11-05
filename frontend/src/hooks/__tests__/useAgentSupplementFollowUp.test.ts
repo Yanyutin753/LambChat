@@ -4,7 +4,10 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const source = readFileSync(resolve(__dirname, "../useAgent.ts"), "utf8");
+const source = readFileSync(
+  resolve(__dirname, "../useAgent/queueActions.ts"),
+  "utf8",
+);
 
 test("supplementFollowUp interrupts the running turn before resending", () => {
   // 补充当前问题 = 先优雅停止当前 run（复用取消链路），再立即把补充

@@ -36,6 +36,7 @@ import {
   isLatestSessionLoad,
   shouldApplyRestoredModelSelection,
   withoutModelSelection,
+  isSessionWorkspaceLocked,
 } from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
@@ -182,6 +183,7 @@ export function ChatAppContent({
     queueFollowUp,
     supplementFollowUp,
     steerMessages,
+    queueControl,
     cancelSteer,
     applyRecommendQuestions,
     clearActiveGoal,
@@ -274,19 +276,28 @@ export function ChatAppContent({
     return availableModels.filter((m) => agentAllowedModelIds.includes(m.id));
   }, [availableModels, agentAllowedModelIds]);
   const sandboxStatus = useSandboxStatus();
+  const workspaceActive = isSessionWorkspaceLocked({
+    sessionId,
+    messages,
+    busy: isLoading || isLoadingHistory || persistentGoalBusy,
+    persistentGoal,
+    approvals,
+  });
   const {
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
+    workspaceActions,
     restoreAgentOptions,
     resetAgentOptionDefaults,
-  } = useAgentOptions(agents, currentAgent, sandboxStatus, user?.id);
+  } = useAgentOptions(agents, currentAgent, sandboxStatus, user?.id, workspaceActive);
 
-  const { changeOption, selectProject } = useWorkspaceOptionActions(
+  const { changeOption, selectProject, workspaceProps } = useWorkspaceOptionActions(
     sessionId,
     handleToggleAgentOption,
     setPendingProjectId,
     { agents, currentAgent, switchAgent, restoreAgentOptions },
+    { locked: workspaceActive, ...workspaceActions },
   );
 
   const {
@@ -847,6 +858,7 @@ export function ChatAppContent({
           composerFocusRequest={sessionId ? undefined : composerFocusRequest}
           currentRunId={currentRunId}
           isLoading={isLoading}
+          {...workspaceProps}
           isLoadingHistory={isLoadingHistory}
           historyLoadGeneration={historyLoadGeneration}
           hasMoreHistoryTraces={hasMoreHistoryTraces}
@@ -937,6 +949,7 @@ export function ChatAppContent({
           onSupplementFollowUpMessage={supplementFollowUp}
           onQueueFollowUpMessage={queueFollowUp}
           steerMessages={steerMessages}
+          queueControl={queueControl}
           onCancelSteer={cancelSteer}
           activeGoal={activeGoal}
           persistentGoal={persistentGoal}
@@ -951,20 +964,7 @@ export function ChatAppContent({
           onToggleGoalMode={setGoalModeEnabled}
           attachments={pageDragAttachments}
           onAttachmentsChange={setPageDragAttachments}
-          externalNavigationToken={externalNavigation.externalNavigationToken}
-          externalNavigationTargetFile={
-            externalNavigation.externalNavigationTargetFile
-          }
-          externalNavigationPreview={
-            externalNavigation.externalNavigationPreview
-          }
-          externalNavigationTargetRunId={
-            externalNavigation.externalNavigationTargetRunId
-          }
-          externalNavigationTargetRunPending={
-            externalNavigation.externalNavigationTargetRunPending
-          }
-          externalScrollToBottom={externalNavigation.externalScrollToBottom}
+          {...externalNavigation}
           outlineToggleRef={outlineToggleRef}
         />
         <BlockPreviewPortal />

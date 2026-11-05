@@ -6,6 +6,8 @@ ask_human interrupt 模式下图挂在 interrupt 上，插话永远等不到下�
 消息发送（复用未送达插话的补发机制）。
 """
 
+from uuid import uuid4
+
 from src.api.deps import TokenPayload
 from src.api.routes.hitl_interrupt_cleanup import (
     pending_interrupt_approvals,
@@ -13,10 +15,36 @@ from src.api.routes.hitl_interrupt_cleanup import (
 )
 from src.infra.logging import get_logger
 from src.infra.task.status import TaskStatus
+from src.infra.task.steer import CANCELLED_STEER, DELIVERED_STEER, SteerItem, SteerQueue
 from src.kernel.errors import AppError, ErrorCode
+from src.kernel.schemas.agent import SteerRequest
 from src.kernel.schemas.session import Session
 
 logger = get_logger(__name__)
+
+
+def steer_response(session_id: str, message_id: str, outcome: str, queued: int = 0) -> dict:
+    return {
+        # Keep status=queued for existing clients; outcome is the newer protocol field.
+        "status": "queued" if outcome == "accepted" else outcome,
+        "outcome": outcome,
+        "session_id": session_id,
+        "message_id": message_id,
+        "queued": queued,
+    }
+
+
+async def enqueue_steer(session_id: str, request: SteerRequest, queue: SteerQueue) -> dict:
+    message_id = request.message_id or f"steer-{uuid4().hex}"
+    attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
+    queued = await queue.enqueue_item(
+        session_id,
+        SteerItem(id=message_id, content=request.message.strip(), attachments=attachments),
+    )
+    if queued in {CANCELLED_STEER, DELIVERED_STEER}:
+        outcome = "cancelled" if queued == CANCELLED_STEER else "delivered"
+        return steer_response(session_id, message_id, outcome)
+    return steer_response(session_id, message_id, "accepted", queued)
 
 
 async def steer_interrupt_waiting_human(

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -19,6 +20,23 @@ from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
 _UNSET = object()
+_STEER_TTL_SECONDS = 86400
+CANCELLED_STEER = -1
+DELIVERED_STEER = -2
+_LIVE_RECEIPTS_LUA = """
+local function live_receipts(key, now)
+  local live = {}
+  for _, raw in ipairs(redis.call('LRANGE', key, 0, -1)) do
+    local ok, value = pcall(cjson.decode, raw)
+    if ok and tonumber(value['receipt_expires_at'] or 0) > now then
+      table.insert(live, raw)
+    else
+      redis.call('LREM', key, 1, raw)
+    end
+  end
+  return live
+end
+"""
 
 
 @dataclass(slots=True, frozen=True)
@@ -41,6 +59,9 @@ class SteerQueue:
         self._redis_disabled = redis is None
         self._redis_loop: asyncio.AbstractEventLoop | None = None
         self._lease_tokens: Dict[str, str] = {}
+        self._cancelled: dict[tuple[str, str], float] = {}
+        self._inflight: dict[str, list[SteerItem]] = {}
+        self._receipts: dict[str, dict[str, tuple[SteerItem, float]]] = {}
 
     def _key(self, session_id: str) -> str:
         return f"lambchat:steer:{session_id}"
@@ -50,6 +71,27 @@ class SteerQueue:
 
     def _lease_key(self, session_id: str) -> str:
         return f"{self._key(session_id)}:lease"
+
+    def _cancelled_key(self, session_id: str, message_id: str) -> str:
+        return f"{self._key(session_id)}:cancelled:{message_id}"
+
+    def _receipts_key(self, session_id: str) -> str:
+        return f"{self._key(session_id)}:receipts"
+
+    def _live_memory_receipts(self, session_id: str) -> dict[str, tuple[SteerItem, float]]:
+        now = time.time()
+        live = {
+            key: item for key, item in self._receipts.get(session_id, {}).items() if item[1] > now
+        }
+        if live:
+            self._receipts[session_id] = live
+        else:
+            self._receipts.pop(session_id, None)
+        return live
+
+    def _prune_cancelled(self) -> None:
+        now = time.monotonic()
+        self._cancelled = {key: until for key, until in self._cancelled.items() if until > now}
 
     @staticmethod
     def _encode(item: SteerItem) -> str:
@@ -107,15 +149,54 @@ class SteerQueue:
             session_id, SteerItem(id=f"steer-{uuid4().hex}", content=message)
         )
 
+    async def settled_outcome(self, session_id: str, message_id: str) -> str | None:
+        """Read an existing receipt/withdrawal without admitting or mutating a message."""
+        redis = await self._redis_or_none()
+        if redis is not None:
+            result = await redis.eval(
+                """
+                for _, raw in ipairs(redis.call('LRANGE', KEYS[1], 0, -1)) do
+                  local value = cjson.decode(raw)
+                  if value['id'] == ARGV[1]
+                    and tonumber(value['receipt_expires_at'] or 0) > tonumber(ARGV[2]) then
+                    return -2
+                  end
+                end
+                if redis.call('EXISTS', KEYS[2]) == 1 then return -1 end
+                return 0
+                """,
+                2,
+                self._receipts_key(session_id),
+                self._cancelled_key(session_id, message_id),
+                message_id,
+                str(time.time()),
+            )
+            return {DELIVERED_STEER: "delivered", CANCELLED_STEER: "cancelled"}.get(int(result))
+        async with self._lock:
+            receipt = self._receipts.get(session_id, {}).get(message_id)
+            if receipt is not None and receipt[1] > time.time():
+                return "delivered"
+            if self._cancelled.get((session_id, message_id), 0) > time.monotonic():
+                return "cancelled"
+            return None
+
     async def enqueue_item(self, session_id: str, item: SteerItem) -> int:
-        """入队；同一 ID 重试时保持幂等，不会重复注入。"""
+        """入队；未消费的同 ID 去重，已撤回的 ID 返回 CANCELLED_STEER。
+
+        撤回记录与队列共用 24 小时保留期；新的用户发送必须使用新 ID。
+        """
         redis = await self._redis_or_none()
         if redis is not None:
             try:
                 key = self._key(session_id)
                 encoded = self._encode(item)
                 result = await redis.eval(
-                    """
+                    _LIVE_RECEIPTS_LUA
+                    + """
+                    for _, raw in ipairs(live_receipts(KEYS[4], tonumber(ARGV[4]))) do
+                      if cjson.decode(raw)['id'] == ARGV[1] then return -2 end
+                    end
+                    if redis.call('EXISTS', KEYS[3]) == 1 then return -1 end
                     local entries = redis.call('LRANGE', KEYS[1], 0, -1)
                     local inflight = redis.call('LRANGE', KEYS[2], 0, -1)
                     for _, raw in ipairs(inflight) do
@@ -134,12 +215,15 @@ class SteerQueue:
                     redis.call('EXPIRE', KEYS[1], ARGV[3])
                     return #entries + 1
                     """,
-                    2,
+                    4,
                     key,
                     self._inflight_key(session_id),
+                    self._cancelled_key(session_id, item.id),
+                    self._receipts_key(session_id),
                     item.id,
                     encoded,
-                    "86400",
+                    str(_STEER_TTL_SECONDS),
+                    str(time.time()),
                 )
                 return int(result)
             except Exception:
@@ -147,6 +231,11 @@ class SteerQueue:
                 if not self._redis_disabled:
                     raise
         async with self._lock:
+            self._prune_cancelled()
+            if item.id in self._live_memory_receipts(session_id):
+                return DELIVERED_STEER
+            if (session_id, item.id) in self._cancelled:
+                return CANCELLED_STEER
             queue = self._pending.setdefault(session_id, [])
             if any(existing.id == item.id for existing in queue):
                 return len(queue)
@@ -159,7 +248,8 @@ class SteerQueue:
         items = await self.drain_items(session_id)
         # Legacy callers treat drain as consume-and-ack. The middleware uses
         # drain_items directly so it can requeue on model failure.
-        await self.ack_items(session_id)
+        if items and not await self.ack_items(session_id):
+            raise RuntimeError("Steer delivery lease lost before acknowledgement")
         return [item.content for item in items]
 
     async def drain_items(self, session_id: str) -> List[SteerItem]:
@@ -186,8 +276,9 @@ class SteerQueue:
                     end
                     if inflight == 0 and pending == 1 then
                       redis.call('RENAME', KEYS[1], KEYS[2])
-                      redis.call('EXPIRE', KEYS[2], ARGV[1])
                     end
+                    -- Payload must outlive an abandoned lease so another worker can recover it.
+                    redis.call('EXPIRE', KEYS[2], ARGV[3])
                     local result = {ARGV[2]}
                     for _, raw in ipairs(redis.call('LRANGE', KEYS[2], 0, -1)) do
                       table.insert(result, raw)
@@ -200,6 +291,7 @@ class SteerQueue:
                     self._lease_key(session_id),
                     "3600",
                     token,
+                    str(_STEER_TTL_SECONDS),
                 )
                 if not raw_items:
                     return []
@@ -215,8 +307,9 @@ class SteerQueue:
                 if not self._redis_disabled:
                     raise
         async with self._lock:
-            messages = self._pending.pop(session_id, [])
+            messages = self._inflight.get(session_id) or self._pending.pop(session_id, [])
             if messages:
+                self._inflight[session_id] = messages
                 logger.info("[Steer] session=%s draining %d message(s)", session_id, len(messages))
             return messages
 
@@ -240,7 +333,23 @@ class SteerQueue:
                 if not self._redis_disabled:
                     raise
         async with self._lock:
-            return list(self._pending.get(session_id, []))
+            return list(self._pending.get(session_id, [])) + list(
+                self._inflight.get(session_id, [])
+            )
+
+    async def list_receipts(self, session_id: str) -> list[SteerItem]:
+        """Retain acknowledged payloads until the graph can prove they are applied."""
+        redis = await self._redis_or_none()
+        if redis is not None:
+            raw = await redis.eval(
+                _LIVE_RECEIPTS_LUA + "return live_receipts(KEYS[1], tonumber(ARGV[1]))",
+                1,
+                self._receipts_key(session_id),
+                str(time.time()),
+            )
+            return [self._decode(item) for item in raw]
+        async with self._lock:
+            return [item for item, _ in self._live_memory_receipts(session_id).values()]
 
     async def requeue_front(self, session_id: str, messages: List[str]) -> None:
         """把消息放回队首（用于注入失败后恢复排队，保持 FIFO 送达顺序）。"""
@@ -279,7 +388,7 @@ class SteerQueue:
                     lease,
                     token,
                     json.dumps([self._encode(item) for item in messages]),
-                    "86400",
+                    str(_STEER_TTL_SECONDS),
                 )
                 if int(result) == 1:
                     self._lease_tokens.pop(session_id, None)
@@ -294,6 +403,7 @@ class SteerQueue:
                 if not self._redis_disabled:
                     raise
         async with self._lock:
+            self._inflight.pop(session_id, None)
             queue = self._pending.setdefault(session_id, [])
             queue[:0] = messages
             logger.info(
@@ -302,31 +412,55 @@ class SteerQueue:
                 len(messages),
             )
 
-    async def ack_items(self, session_id: str) -> None:
-        """确认本次模型调用成功，释放 Redis lease。"""
+    async def ack_items(self, session_id: str) -> bool:
+        """保留本次领取的 receipt；仅当前 owner 确认成功时返回 True。"""
         redis = await self._redis_or_none()
         if redis is not None:
             try:
                 token = self._lease_tokens.get(session_id)
                 if not token:
-                    return
+                    return False
                 result = await redis.eval(
-                    """
+                    _LIVE_RECEIPTS_LUA
+                    + """
                     if redis.call('GET', KEYS[2]) ~= ARGV[1] then return 0 end
+                    live_receipts(KEYS[3], tonumber(ARGV[2]))
+                    for _, raw in ipairs(redis.call('LRANGE', KEYS[1], 0, -1)) do
+                      local value = cjson.decode(raw)
+                      value['receipt_expires_at'] = tonumber(ARGV[2]) + tonumber(ARGV[3])
+                      redis.call('RPUSH', KEYS[3], cjson.encode(value))
+                    end
+                    redis.call('EXPIRE', KEYS[3], ARGV[3])
                     redis.call('DEL', KEYS[1], KEYS[2])
                     return 1
                     """,
-                    2,
+                    3,
                     self._inflight_key(session_id),
                     self._lease_key(session_id),
+                    self._receipts_key(session_id),
                     token,
+                    str(time.time()),
+                    str(_STEER_TTL_SECONDS),
                 )
                 if int(result) == 1:
                     self._lease_tokens.pop(session_id, None)
+                    return True
+                return False
             except Exception:
                 logger.warning("[Steer] Redis ack failed", exc_info=True)
                 if not self._redis_disabled:
                     raise
+            return False
+        async with self._lock:
+            items = self._inflight.pop(session_id, [])
+            if not items:
+                return False
+            receipts = self._live_memory_receipts(session_id)
+            for item in items:
+                receipts[item.id] = (item, time.time() + _STEER_TTL_SECONDS)
+            if receipts:
+                self._receipts[session_id] = receipts
+            return True
 
     async def clear_session(self, session_id: str) -> None:
         """清空该会话全部插话状态（pending / inflight / lease）。
@@ -353,6 +487,7 @@ class SteerQueue:
                     raise
         async with self._lock:
             self._pending.pop(session_id, None)
+            self._inflight.pop(session_id, None)
             self._lease_tokens.pop(session_id, None)
 
     def pending_count(self, session_id: str) -> int:
@@ -385,22 +520,44 @@ class SteerQueue:
                     return True
             return False
 
-    async def remove_by_id(self, session_id: str, message_id: str) -> bool:
-        """只取消指定 ID，保证相同文本的消息互不影响。"""
+    async def remove_by_id(
+        self, session_id: str, message_id: str, *, prevent_reenqueue: bool = True
+    ) -> bool:
+        """原子记录撤回并删除 pending；迟到 POST 不能复活它，已领取项不回撤。"""
         redis = await self._redis_or_none()
         if redis is not None:
             try:
                 key = self._key(session_id)
-                raw_items = await redis.lrange(key, 0, -1)
-                for raw in raw_items:
-                    if self._decode(raw).id == message_id:
-                        return bool(await redis.lrem(key, 1, raw))
-                return False
+                return bool(
+                    await redis.eval(
+                        """
+                        if ARGV[3] == '1' then
+                          redis.call('SET', KEYS[2], '1', 'EX', ARGV[2])
+                        end
+                        for _, raw in ipairs(redis.call('LRANGE', KEYS[1], 0, -1)) do
+                          local ok, value = pcall(cjson.decode, raw)
+                          if ok and value['id'] == ARGV[1] then
+                            return redis.call('LREM', KEYS[1], 1, raw)
+                          end
+                        end
+                        return 0
+                        """,
+                        2,
+                        key,
+                        self._cancelled_key(session_id, message_id),
+                        message_id,
+                        str(_STEER_TTL_SECONDS),
+                        "1" if prevent_reenqueue else "0",
+                    )
+                )
             except Exception:
                 logger.warning("[Steer] Redis ID remove failed", exc_info=True)
                 if not self._redis_disabled:
                     raise
         async with self._lock:
+            self._prune_cancelled()
+            if prevent_reenqueue:
+                self._cancelled[(session_id, message_id)] = time.monotonic() + _STEER_TTL_SECONDS
             queue = self._pending.get(session_id)
             if not queue:
                 return False

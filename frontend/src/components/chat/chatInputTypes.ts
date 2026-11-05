@@ -15,6 +15,7 @@ import type {
 import type {
   ActiveGoalSpec,
   ChatSubmissionCallbacks,
+  FollowUpQueueControl,
 } from "../../hooks/useAgent/types";
 
 export interface ChatInputProps {
@@ -34,15 +35,24 @@ export interface ChatInputProps {
   ) => void;
   onStop: () => void;
   /** 补充当前问题：打断本条回答，结合新内容并入这轮思考重新生成 */
-  onSupplement?: (content: string, attachments?: MessageAttachment[]) => void;
+  onSupplement?: (
+    content: string,
+    attachments?: MessageAttachment[],
+    queuedMessageId?: string,
+  ) => void;
   /** 追加提问（Codex Tab-queue）：不打断当前任务，本轮结束后自动作为新消息发送 */
   onQueueFollowUp?: (
     content: string,
     attachments?: MessageAttachment[],
   ) => void;
   steerMessages?: SteerItem[];
+  queueControl?: FollowUpQueueControl;
   onCancelSteer?: (content: string, messageId?: string) => void;
   isLoading: boolean;
+  workspaceLocked?: boolean;
+  workspaceSaving?: boolean;
+  workspaceUnconfirmed?: boolean;
+  onRetryWorkspaceRead?: () => Promise<boolean>;
   disabled?: boolean;
   /** Block sending while an ask-human interrupt is awaiting a response. */
   sendBlocked?: boolean;

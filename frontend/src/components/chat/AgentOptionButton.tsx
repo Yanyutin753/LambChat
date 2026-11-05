@@ -13,6 +13,7 @@ interface AgentOptionButtonProps {
   option: AgentOption;
   value: boolean | string | number;
   onChange: (value: boolean | string | number) => void;
+  disabled?: boolean;
   /** 面板内提示行（如沙箱本地档离线说明），渲染在描述下方。 */
   note?: string;
   /** 面板底部操作区（如沙箱离线时的下载引导），渲染在档位列表下方。 */
@@ -28,20 +29,23 @@ function AgentOptionRow({
   isActive,
   onSelect,
   sandbox = false,
+  disabled = false,
 }: {
   option: NonNullable<AgentOption["options"]>[number];
   isActive: boolean;
   onSelect: () => void;
   sandbox?: boolean;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const LocationIcon = option.value === "cloud" ? Cloud : Laptop;
   return (
     <button
       type="button"
+      disabled={disabled}
       aria-pressed={isActive}
       onClick={onSelect}
-      className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
+      className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-14 transition-colors text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-bg-hover focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] motion-reduce:transition-none${
         option.disabled ? " opacity-60" : ""
       }`}
       style={{
@@ -113,6 +117,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   option,
   value,
   onChange,
+  disabled = false,
   note,
   footer,
   belowOptions,
@@ -233,7 +238,9 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                   option={opt}
                   isActive={opt.value === value}
                   sandbox={optionKey === "sandbox"}
+                  disabled={disabled}
                   onSelect={() => {
+                    if (disabled) return;
                     onChange(opt.value);
                     if (optionKey !== "sandbox") setShowDropdown(false);
                   }}

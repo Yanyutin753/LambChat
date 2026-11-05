@@ -16,8 +16,13 @@ test("sendMessage owns its flags via a send sequence that stop/supersede bumps",
   expect(source).toContain("if (ownsSend()) {");
 });
 
+const queueActions = readFileSync(
+  resolve(__dirname, "../useAgent/queueActions.ts"),
+  "utf8",
+);
+
 test("stopGeneration takes over the send sequence before resetting flags", () => {
-  expect(source).toMatch(
+  expect(queueActions).toMatch(
     /sendSeqRef\.current \+= 1;\s*\n\s*submitInFlightRef\.current = false;/,
   );
 });
@@ -35,7 +40,7 @@ test("superseded sends still settle their own optimistic assistant bubble", () =
 test("supplementFollowUp defers only while the submit POST is in flight", () => {
   // isSendingRef 整个流式期间恒为 true，不能作为在途判定——只有 POST
   // 未被服务端受理时打断才会双提交
-  expect(source).toMatch(/if \(submitInFlightRef\.current\) \{/);
+  expect(queueActions).toMatch(/if \(submitInFlightRef\.current\) \{/);
   expect(source).toMatch(/const submitInFlightRef = useRef\(false\);/);
 });
 

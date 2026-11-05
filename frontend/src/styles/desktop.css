@@ -190,8 +190,11 @@ html:has([data-titlebar], [data-workspace-ui])
 }
 
 @media (min-width: 640px) {
-  html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar {
+  html:has([data-titlebar], [data-workspace-ui]) .chat-input-container {
     --composer-control-inset: 0.75rem;
+  }
+
+  html:has([data-titlebar], [data-workspace-ui]) .chat-input-toolbar {
     padding-inline: 0.75rem;
     margin: 0;
     gap: 0.625rem;
@@ -426,10 +429,14 @@ html[data-right-panel-presentation="docked"]:has(
 }
 
 @container composer (max-width: 320px) {
-  .chat-input-toolbar {
+  .composer-workspace-shell .chat-input-container
+    :is(.chat-input-toolbar, .chat-composer-editor-wrap) {
+    --composer-row-inset: 0.5rem;
+  }
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar {
     gap: 0;
   }
-  .chat-input-toolbar > div {
+  .composer-workspace-shell .chat-input-container .chat-input-toolbar > div {
     gap: 0;
   }
   .chat-input-toolbar [data-composer-run-modes] {

@@ -1,3 +1,4 @@
+import { useQueuePause } from "./useAgent/queuePause";
 /**
  * Main useAgent hook
  * Provides agent communication, message management, and SSE streaming
@@ -30,7 +31,7 @@ import {
   createScheduledTaskApprovalLookup,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
-import { settleRunMessages } from "./useAgent/settleStream";
+import { useQueueActions } from "./useAgent/queueActions";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
 import {
   connectToSSE,
@@ -218,8 +219,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     discardQuietSnapshot,
     options,
   );
+  const {
+    queuePaused,
+    queuePauseRevision,
+    setQueuePaused,
+    isQueuePaused,
+    queueControl,
+  } = useQueuePause(sessionIdRef, setError);
+  const stoppedSubmitSeqRef = useRef<number | null>(null);
   const steerQueue = useSteerQueue({
     sessionIdRef,
+    currentRunIdRef,
     removeDeferredSteer,
   });
   const {
@@ -610,7 +620,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             persistentGoalPromise,
           ]);
           if (isStaleHistoryLoad()) return null;
-          hydrateSteers(pendingSteersData.items);
+          hydrateSteers(
+            pendingSteersData.items,
+            reconstructedMessages
+              .filter((message) => message.metadata?.steer)
+              .map((message) => message.id),
+          );
           const streamRunId = resolveHistoryStreamRunId(
             eventsData.stream_run_id,
             supersedesSameSessionLoad ? undefined : targetChatRunId,
@@ -746,7 +761,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       },
       submissionCallbacks?: ChatSubmissionCallbacks,
     ) => {
-      if (!content.trim()) {
+      if (!content.trim() && !attachments?.length) {
         notifySubmissionRejected(submissionCallbacks);
         return;
       }
@@ -935,6 +950,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             requestTeamId,
             goalForRun,
             runOptions?.runModes?.includes("auto") || undefined,
+            submissionCallbacks?.followUpToRunId,
           ) as Promise<{
             session_id: string;
             run_id: string;
@@ -949,9 +965,29 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const newRunId = submitData.run_id;
         submissionAccepted = true;
         notifySubmissionAccepted(submissionCallbacks);
+        if (stoppedSubmitSeqRef.current === sendSeq) {
+          setQueuePaused(newSessionId, true, newRunId);
+          const stillViewingStoppedSend = sendSeqRef.current === sendSeq + 1;
+          if (stillViewingStoppedSend) {
+            if (!sessionId) {
+              bindSteerSession(newSessionId);
+              sessionIdRef.current = newSessionId;
+              setSessionId(newSessionId);
+            }
+            currentRunIdRef.current = newRunId;
+            setCurrentRunId(newRunId);
+          }
+          try {
+            await sessionApi.cancel(newSessionId, newRunId);
+          } catch {
+            if (stillViewingStoppedSend) setError(i18n.t("chat.requestFailed"));
+          }
+          return;
+        }
         // Leaving the view does not cancel an accepted server task. Its late
         // admission must not attach an SSE stream or mutate the next chat.
         if (!ownsSend()) return;
+        setQueuePaused(newSessionId, false);
         const projectId = pendingProjectIdRef.current;
         submitInFlightRef.current = false;
 
@@ -1194,6 +1230,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setPersistentGoal,
       setPersistentGoalBusy,
       bindSteerSession,
+      setQueuePaused,
       setActiveGoal,
       setConnectionStatus,
       setCurrentProjectId,
@@ -1224,9 +1261,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // stranded above the composer.（运行中探测/重试在 hook 内部，见
   // useSteerFollowUpPromotion）
   useSteerFollowUpPromotion({
+    queuePauseRevision,
+    isQueuePaused,
+    setQueuePaused,
     isLoading,
     isSendingRef,
     steerMessages: steerQueue.steerMessages,
+    markSteerFailed: steerQueue.markSteerFailed,
     clearSteer,
     cancelledSteerIdsRef,
     followUpSteerIdsRef,
@@ -1234,74 +1275,28 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sendMessageRef,
   });
 
-  const stopGeneration = useCallback(
-    async (requireCancellation = false) => {
-      // 用户停止即夺取发送所有权：在途 sendMessage 的 finally 不得再重置
-      // 共享标志（否则会把停止后新发送刚置好的状态抹掉）
-      sendSeqRef.current += 1;
-      submitInFlightRef.current = false;
-      isSendingRef.current = false;
-      setIsLoading(false);
-      setIsInitializingSandbox(false);
-      setSandboxError(null);
-
-      // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
-      options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
-
-      setMessages((previous) =>
-        settleRunMessages(previous, currentRunIdRef.current),
-      );
-
-      const currentSessionId = sessionIdRef.current;
-      if (currentSessionId) {
-        try {
-          await sessionApi.cancel(currentSessionId);
-        } catch (error) {
-          console.error(
-            "[stopGeneration] Failed to call backend cancel API:",
-            error,
-          );
-          if (requireCancellation) throw error;
-        }
-      }
-    },
-    [options, setIsInitializingSandbox, setIsLoading, setSandboxError],
-  );
-
-  // 补充当前问题：打断进行中的 run，把补充内容并入这轮思考重新生成
-  // （原问题与已生成部分保留在历史，新一轮自动携带完整上下文）
-  const supplementFollowUp = useCallback(
-    async (content: string, attachments?: MessageAttachment[]) => {
-      const text = content.trim();
-      if (!text && !attachments?.length) return;
-      // isSendingRef 在整个流式期间恒为 true，不能用它在途判定；只有
-      // POST 尚未被服务端受理时打断才会造成同会话双提交——仅该窗口转排队
-      if (submitInFlightRef.current) {
-        queueFollowUp(text, attachments);
-        return;
-      }
-      if (persistentGoal?.status === "active") {
-        await steerMessage(text, attachments);
-        return;
-      }
-      const targetSession = sessionIdRef.current;
-      const targetVersion = streamVersionRef.current;
-      const stopSequence = sendSeqRef.current + 1;
-      const isCurrentSupplement = () =>
-        sessionIdRef.current === targetSession &&
-        streamVersionRef.current === targetVersion &&
-        sendSeqRef.current === stopSequence;
-      try {
-        await stopGeneration(true);
-      } catch {
-        if (isCurrentSupplement()) queueFollowUp(text, attachments);
-        return;
-      }
-      if (!isCurrentSupplement()) return;
-      await sendMessageRef.current?.(text, attachments);
-    },
-    [queueFollowUp, stopGeneration, persistentGoal?.status, steerMessage],
-  );
+  const { stopGeneration, supplementFollowUp } = useQueueActions({
+    sessionIdRef,
+    currentRunIdRef,
+    submitInFlightRef,
+    isSendingRef,
+    sendSeqRef,
+    stoppedSubmitSeqRef,
+    streamVersionRef,
+    sendMessageRef,
+    setQueuePaused,
+    queuePaused,
+    queueFollowUp,
+    steerMessage,
+    clearSteer,
+    setIsLoading,
+    setIsInitializingSandbox,
+    setSandboxError,
+    setError,
+    setMessages,
+    persistentGoalStatus: persistentGoal?.status,
+    onClearApprovals: options?.onClearApprovals,
+  });
 
   const clearMessages = useCallback(() => {
     sendSeqRef.current += 1;
@@ -1422,10 +1417,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isLoading,
     canContinueInBackground: Boolean(
       isLoading &&
-        sessionId &&
-        currentRunId &&
-        !isLoadingHistory &&
-        !submitInFlightRef.current,
+      sessionId &&
+      currentRunId &&
+      !isLoadingHistory &&
+      !submitInFlightRef.current,
     ),
     isLoadingHistory,
     historyLoadGeneration,
@@ -1452,6 +1447,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     sandboxError,
     sendMessage,
     ...steerQueue,
+    queueControl,
     supplementFollowUp,
     applyRecommendQuestions,
     clearActiveGoal,

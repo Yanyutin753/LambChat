@@ -269,7 +269,10 @@ export function useAgentOptions(
     currentMachineId: string | null;
   },
   userId?: string,
+  workspaceLocked = false,
 ) {
+  const workspaceLockedRef = useRef(workspaceLocked);
+  workspaceLockedRef.current = workspaceLocked;
   const sandboxOnline = sandboxStatus?.online ?? false;
   const sandboxMachineId =
     sandboxStatus?.machines.find(
@@ -359,7 +362,7 @@ export function useAgentOptions(
 
   // 本机身份与在线状态异步到达，只补齐新草稿未指定的设备。
   useEffect(() => {
-    if (!sandboxMachineId) return;
+    if (!sandboxMachineId || workspaceLocked) return;
     setAgentOptionValues((prev) => {
       if (
         machineTouchedRef.current ||
@@ -382,6 +385,7 @@ export function useAgentOptions(
     userId,
     agentOptionValues.sandbox,
     agentOptionValues.sandbox_machine_id,
+    workspaceLocked,
   ]);
 
   useEffect(() => {
@@ -416,6 +420,7 @@ export function useAgentOptions(
   const sandboxTouchedRef = useRef(false);
   useEffect(() => {
     const handleSandboxOnline = () => {
+      if (workspaceLockedRef.current) return;
       setAgentOptionValues((prev) => {
         if (
           !shouldAdoptLocalOnOnline(
@@ -441,7 +446,7 @@ export function useAgentOptions(
     };
   }, []);
 
-  const handleToggleAgentOption = useCallback(
+  const prepareAgentOptionChange = useCallback(
     (key: string, value: boolean | string | number) => {
       if (
         key === "sandbox_machine_id" &&
@@ -457,6 +462,29 @@ export function useAgentOptions(
       ) {
         patch.sandbox_machine_id = sandboxMachineId;
       }
+      return patch;
+    },
+    [sandboxMachineId, agentOptionValues.sandbox_machine_id],
+  );
+  const markWorkspaceIntent = useCallback(() => {
+    sandboxTouchedRef.current = true;
+    machineTouchedRef.current = true;
+  }, []);
+  const restoreWorkspaceOptions = useCallback((values: Record<string, boolean | string | number>) => {
+    sandboxTouchedRef.current = true;
+    machineTouchedRef.current = true;
+    setAgentOptionValues((previous) => {
+      const next = { ...previous };
+      for (const key of WORKSPACE_OPTION_KEYS) {
+        delete next[key];
+        if (key in values) next[key] = values[key];
+      }
+      return next;
+    });
+  }, []);
+  const handleToggleAgentOption = useCallback(
+    (key: string, value: boolean | string | number) => {
+      const patch = prepareAgentOptionChange(key, value);
       if ("sandbox" in patch) {
         sandboxTouchedRef.current = true;
       }
@@ -472,7 +500,7 @@ export function useAgentOptions(
       setAgentOptionValues((prev) => ({ ...prev, ...patch }));
       return patch;
     },
-    [sandboxMachineId, agentOptionValues.sandbox_machine_id],
+    [prepareAgentOptionChange],
   );
 
   // Reset to agent defaults (for new session)
@@ -509,6 +537,14 @@ export function useAgentOptions(
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
+    prepareAgentOptionChange,
+    markWorkspaceIntent,
+    restoreWorkspaceOptions,
+    workspaceActions: {
+      prepareChange: prepareAgentOptionChange,
+      markIntent: markWorkspaceIntent,
+      restore: restoreWorkspaceOptions,
+    },
     restoreAgentOptions,
     resetAgentOptionDefaults,
   };

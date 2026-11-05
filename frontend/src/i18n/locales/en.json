@@ -480,6 +480,8 @@
       "title": "Runtime settings",
       "section": "Run location",
       "description": "Runtime and confirmation policy",
+      "lockedWhileActive": "Runtime, device, workspace and confirmation policy cannot change while a task is running, awaiting confirmation or an ongoing goal is active. Stop the task or pause the ongoing goal first.",
+      "saveUnconfirmed": "The save result is unconfirmed. Retry to read the current environment before sending messages or changing settings.",
       "options": {
         "cloud": "Cloud computer",
         "local": "Local computer"
@@ -1888,8 +1890,12 @@
     },
     "steerCancel": "Cancel this steering message",
     "steerFailed": "Failed to send the steering message, please try again",
-    "steerFailedRetry": "Failed to send, please try again",
+    "steerFailedRetry": "Delivery unconfirmed",
+    "steerCancelUnconfirmed": "Cancellation unconfirmed. Try cancelling again.",
     "steerNext": "Send when the task finishes",
+    "queuePausedAfterFailure": "Delivery unconfirmed. Queue paused.",
+    "queuePausedByStop": "Queue paused because you interrupted the response",
+    "queueResume": "Resume",
     "queueGuide": "Steer",
     "queueGuideHint": "Use this message in the current task",
     "queueDelete": "Delete queued message",

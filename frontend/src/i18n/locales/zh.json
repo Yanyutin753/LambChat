@@ -480,6 +480,8 @@
       "title": "运行设置",
       "section": "运行位置",
       "description": "运行位置与确认策略",
+      "lockedWhileActive": "运行、等待确认或持续目标活动期间，不能更改运行环境、设备、工作区或执行策略。请先停止任务或暂停持续目标。",
+      "saveUnconfirmed": "保存结果尚未确认。请重试读取当前环境，确认后再发送消息或更改设置。",
       "options": {
         "cloud": "云端电脑",
         "local": "本地电脑"
@@ -1888,8 +1890,12 @@
     },
     "steerCancel": "取消这条插话",
     "steerFailed": "插话发送失败，请稍后重试",
-    "steerFailedRetry": "发送失败，请重试",
+    "steerFailedRetry": "未确认送达",
+    "steerCancelUnconfirmed": "撤回未确认，请重试撤回",
     "steerNext": "任务结束后发送",
+    "queuePausedAfterFailure": "发送未确认，队列已暂停",
+    "queuePausedByStop": "由于你中断了当前响应，队列已暂停",
+    "queueResume": "继续",
     "queueGuide": "引导",
     "queueGuideHint": "将这条消息用于当前任务",
     "queueDelete": "删除这条排队消息",

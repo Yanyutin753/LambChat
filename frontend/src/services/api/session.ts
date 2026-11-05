@@ -26,7 +26,7 @@ export interface SessionReadScope {
 
 function getReadNotificationOwner() {
   const token = getAccessToken();
-  return token ? decodeToken(token)?.sub ?? token : null;
+  return token ? (decodeToken(token)?.sub ?? token) : null;
 }
 
 // Backend Session type (matches backend Session schema)
@@ -150,6 +150,7 @@ export function buildSubmitChatBody({
   teamId,
   goal,
   autoMode,
+  followUpToRunId,
 }: {
   message: string;
   sessionId?: string;
@@ -164,6 +165,7 @@ export function buildSubmitChatBody({
   teamId?: string | null;
   goal?: RunGoalSpec | null;
   autoMode?: boolean;
+  followUpToRunId?: string;
 }): Record<string, unknown> {
   const attachments = inputAttachments
     ? filterSendableAttachments(inputAttachments)
@@ -191,6 +193,7 @@ export function buildSubmitChatBody({
   if (goal) {
     body.goal = goal;
   }
+  if (followUpToRunId) body.follow_up_to_run_id = followUpToRunId;
   if (autoMode) {
     body.auto_mode = true;
   }
@@ -481,6 +484,8 @@ export const sessionApi = {
   ): Promise<{
     session_id: string;
     run_id?: string;
+    queue_paused?: boolean;
+    queue_pause_token?: string;
     status: string;
     error?: string;
   }> {
@@ -525,16 +530,29 @@ export const sessionApi = {
   },
 
   /**
-   * Cancel a queued (not yet delivered) steering message
+   * Resume only the observed pause on this run.
    */
+  async resumeQueue(
+    sessionId: string,
+    runId: string,
+    pauseToken: string,
+  ): Promise<{ queue_paused: boolean }> {
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/queue/resume?${new URLSearchParams({ run_id: runId, pause_token: pauseToken })}`,
+      { method: "POST" },
+    );
+  },
+
+  /** Cancel a queued (not yet delivered) steering message. */
   async cancelSteer(
     sessionId: string,
     message: string,
     messageId?: string,
+    preventReenqueue = true,
   ): Promise<{
     status: string;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer${preventReenqueue ? "" : "?prevent_reenqueue=false"}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -552,6 +570,7 @@ export const sessionApi = {
     message: string,
     messageId?: string,
     attachments?: MessageAttachment[],
+    expectedRunId?: string,
   ): Promise<{
     status: string;
     outcome?: string;
@@ -563,6 +582,7 @@ export const sessionApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
+        ...(expectedRunId ? { expected_run_id: expectedRunId } : {}),
         ...(messageId ? { message_id: messageId } : {}),
         attachments: stripLocalAttachmentFields(
           attachments ? filterSendableAttachments(attachments) : attachments,
@@ -616,6 +636,7 @@ export const sessionApi = {
     teamId?: string | null,
     goal?: RunGoalSpec | null,
     autoMode?: boolean,
+    followUpToRunId?: string,
   ): Promise<{
     session_id: string;
     run_id: string;
@@ -637,6 +658,7 @@ export const sessionApi = {
       teamId,
       goal,
       autoMode,
+      followUpToRunId,
     });
     return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
       method: "POST",

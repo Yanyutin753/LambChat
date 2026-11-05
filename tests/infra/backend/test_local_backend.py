@@ -2101,3 +2101,76 @@ async def test_selected_workspace_mutation_carries_actual_conversation_identity(
     backend._file_versions_supported = True
     await backend._afs_call("fs_write", {"path": "report.txt"})
     assert captured[0]["actor"] == {"session_id": "chat-a"}
+
+
+@pytest.mark.parametrize(
+    ("existing", "failure"),
+    [(False, None), (True, None), (False, "lost_create"), (False, "lost_append"), (False, "race")],
+)
+async def test_local_protected_history_archives_large_sections_without_losing_bytes(
+    monkeypatch, tmp_path, _legacy_file_protocol, existing, failure
+):
+    from deepagents.middleware.summarization import create_summarization_middleware
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from lambchat_sandbox import fsops
+    from src.infra.agent.middleware.summary_history import protect_summary_history
+    from src.infra.backend.resource_authority import (
+        AuthorizedCompositeBackend,
+        server_artifact_backend,
+    )
+
+    monkeypatch.setattr(
+        local_module.WorkspaceAliasBackend, "_supports_file_versions", _legacy_file_protocol
+    )
+
+    injected = False
+    competing = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    path = "/workspace/s1/conversation_history/session-a.md"
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        nonlocal injected
+        if failure == "race" and op == "fs_edit" and not injected:
+            injected = True
+            await competing.aread(path, limit=0)
+            result = await competing.aedit(
+                path, "# Conversation history\n\n", "# Conversation history\n\ncompeting history\n"
+            )
+            assert not result.error
+        result = fsops.handle_fs_op(op, payload, tmp_path)
+        if not injected and (
+            (failure == "lost_create" and op == "fs_write")
+            or (failure == "lost_append" and op == "fs_edit")
+        ):
+            assert not result.get("error")
+            injected = True
+            return {"result": {"error": "response lost after commit"}}
+        return {"result": result}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
+    local = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    artifact = server_artifact_backend(
+        AuthorizedCompositeBackend(
+            default=local, routes={}, user_id="u1", artifacts_root="/workspace/s1"
+        )
+    )
+    summary = protect_summary_history(
+        create_summarization_middleware(
+            GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
+        )
+    )
+    target = tmp_path / "s1/conversation_history/session-a.md"
+    original = "old decision\n" * 180000 if existing else ""
+    if existing:
+        target.parent.mkdir(parents=True)
+        target.write_text(original)
+    message = "retained original " + "长" * 750000
+    path = await summary._aoffload_to_backend(artifact, [HumanMessage(message)], "session-a")
+    assert path == "/workspace/s1/conversation_history/session-a.md"
+    saved = target.read_text()
+    assert saved.startswith(original)
+    assert saved.count(message) == 1
+    assert injected == (failure is not None)
+    if failure == "race":
+        assert saved.count("competing history") == 1
