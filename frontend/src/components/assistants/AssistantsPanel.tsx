@@ -500,7 +500,7 @@ export function AssistantsPanel() {
                             t(
                               item.team_id
                                 ? "assistants.team"
-                                : "assistants.title",
+                                : "assistants.channelBinding",
                             )}
                         </span>
                       </span>

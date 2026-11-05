@@ -5,10 +5,11 @@ import type { MessageCircleIcon } from "@animateicons/react/lucide/message-circl
 
 export function ActivityRailButton({
   icon: Icon,
+  children,
   onClick,
   title,
   ...props
-}: ComponentProps<"button"> & { icon: typeof MessageCircleIcon }) {
+}: ComponentProps<"button"> & { icon?: typeof MessageCircleIcon }) {
   const { ref, triggerProps } = useIconHover({ trigger: "both" });
   return (
     <Tooltip content={title ?? props["aria-label"]} placement="right">
@@ -23,13 +24,16 @@ export function ActivityRailButton({
         onFocus={() => ref.current?.startAnimation()}
         onBlur={() => ref.current?.stopAnimation()}
       >
-        <Icon
-          ref={ref}
-          size={19}
-          className="size-[1.1875rem] [&>svg]:size-full"
-          duration={0.7}
-          aria-hidden="true"
-        />
+        {children ??
+          (Icon && (
+            <Icon
+              ref={ref}
+              size={19}
+              className="size-[1.1875rem] [&>svg]:size-full"
+              duration={0.7}
+              aria-hidden="true"
+            />
+          ))}
       </button>
     </Tooltip>
   );

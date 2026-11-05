@@ -1,8 +1,8 @@
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import {
   SquarePen,
-  Bot,
   Search,
   CalendarClock,
   History,
@@ -118,9 +118,12 @@ export function SidebarRail({
               className={railBtn}
               aria-label={t("assistants.title")}
             >
-              <InteractiveIcon>
-                <Bot size={16} />
-              </InteractiveIcon>
+              <span
+                className="flex size-4 shrink-0 items-center justify-center"
+                aria-hidden="true"
+              >
+                <AgentAvatar seed="LambChat" size={20} />
+              </span>
             </button>
           </Tooltip>
         )}

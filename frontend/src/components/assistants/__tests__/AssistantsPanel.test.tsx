@@ -534,3 +534,10 @@ test("the workspace starts with a Chief conversation rather than a configuration
   );
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+test("an individual companion uses a role label rather than the workspace brand", async () => {
+  render(<AssistantsPanel />);
+  const companion = await screen.findByRole("button", { name: /Researcher/ });
+  expect(companion).toHaveTextContent("assistants.channelBinding");
+  expect(companion).not.toHaveTextContent("assistants.title");
+});
