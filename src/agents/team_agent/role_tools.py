@@ -9,6 +9,7 @@ _ROLE_EXCLUDED_TOOLS = {
     "list_assistants",
     "create_assistant",
     "update_assistant",
+    "delegate_assistant_task",
     "search_tools",
     "search_skills",
     "search_persona_presets",

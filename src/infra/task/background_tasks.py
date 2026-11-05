@@ -121,9 +121,11 @@ async def execute_background_stream(session_id, agent_id, message, user_id, **kw
     task_time_remaining(record)
     if record and record.get("assistant_id"):
         from src.infra.assistant.discussions import task_discussion
+        from src.infra.assistant.tasks import validate_task_assistant
         from src.infra.folder.storage import get_project_storage
         from src.infra.session.memory_scope import invalidate_memory_scope_caches
 
+        await validate_task_assistant(record, user_id)
         await task_discussion(record, user_id)
         project_id = record.get("config", {}).get("project_id")
         if project_id and await get_project_storage().get_by_id(project_id, user_id) is None:

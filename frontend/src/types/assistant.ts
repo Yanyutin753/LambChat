@@ -32,6 +32,9 @@ export interface Assistant extends AssistantConfiguration {
 
 export interface AssistantTask {
   id: string;
+  assistant_id?: string | null;
+  source_session_id?: string | null;
+  source_assistant_id?: string | null;
   description: string;
   session_id: string | null;
   run_id: string;

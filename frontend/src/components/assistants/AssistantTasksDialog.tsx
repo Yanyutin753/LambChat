@@ -172,7 +172,7 @@ export function AssistantTasksDialog({
     onClose();
     navigate(
       `/assistants/${encodeURIComponent(
-        assistant.id,
+        task.assistant_id || assistant.id,
       )}/chat/${encodeURIComponent(task.session_id)}`,
     );
   };

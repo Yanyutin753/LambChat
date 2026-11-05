@@ -4,7 +4,7 @@
     "taskConversation": "작업 대화",
     "workspaceNavigation": "작업 공간 탐색",
     "workspaceTitle": "어시스턴트와 함께 일하는 공간",
-    "workspaceWelcome": "어시스턴트를 선택해 계속하거나, 새로 만들어 작업을 맡기세요.",
+    "workspaceWelcome": "Chief에게 원하는 결과를 알려주면 적합한 어시스턴트에게 맡길 수 있습니다. 기존 어시스턴트와 대화를 이어가도 됩니다.",
     "workspaceHint": "어시스턴트가 맥락을 기억합니다. 언제든 돌아와 계속하세요.",
     "backToChat": "채팅으로 돌아가기",
     "conversation": "기본 대화",
@@ -179,7 +179,8 @@
     "tools": {
       "list_assistants": "어시스턴트 목록",
       "create_assistant": "어시스턴트 또는 그룹 만들기",
-      "update_assistant": "어시스턴트 또는 그룹 수정"
+      "update_assistant": "어시스턴트 또는 그룹 수정",
+      "delegate_assistant_task": "어시스턴트에게 위임"
     },
     "groupPlaceholder": "메시지를 보내세요. @로 멤버를 선택하세요.",
     "starters": {
@@ -201,7 +202,9 @@
     },
     "chiefWelcome": "하고 싶은 일을 알려주세요. 알맞은 도우미를 준비하거나 그룹으로 모아드릴게요.",
     "groupWelcome": "여기서 함께 이야기하세요. @로 멤버를 선택할 수 있습니다. 대화 맥락은 이 그룹에 유지됩니다.",
-    "assistantWelcome": "진행하고 싶은 일을 알려주세요. 여기서 시작해요."
+    "assistantWelcome": "진행하고 싶은 일을 알려주세요. 여기서 시작해요.",
+    "startWithChief": "Chief에게 할 일 알려주기",
+    "returnToSource": "원래 대화로 돌아가기"
   },
   "sessionWorkspace": {
     "location": "파일 위치",

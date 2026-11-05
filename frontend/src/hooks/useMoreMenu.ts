@@ -11,7 +11,6 @@ import {
   Sparkles,
   UserRound,
   Users,
-  Bot,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStickyDropdownPosition } from "./useStickyDropdownPosition";
@@ -43,12 +42,6 @@ export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
   const canReadTeam = hasAnyPermission([Permission.TEAM_READ]);
 
   const moreMenuFeatureItems = [
-    {
-      path: "/assistants",
-      label: t("assistants.title"),
-      icon: Bot,
-      show: hasAnyPermission([Permission.SESSION_READ]),
-    },
     {
       path: "/persona",
       label: t("personaPresets.title", "角色广场"),

@@ -27,9 +27,12 @@ def record(**changes):
 
 
 async def test_followup_restores_original_scope_and_keeps_additional_restrictions(monkeypatch):
+    from src.infra.assistant.store import AssistantStore
     from src.infra.assistant.task_turns import prepare_task_turn
     from src.infra.task.background_task_store import BackgroundTaskStore
+    from tests.infra.test_assistant_tasks import helper
 
+    monkeypatch.setattr(AssistantStore, "get", AsyncMock(return_value=helper()))
     collection = SimpleNamespace(find_one=AsyncMock(return_value=record()))
     monkeypatch.setattr(BackgroundTaskStore, "collection", property(lambda self: collection))
     request = AgentRequest(

@@ -25,12 +25,14 @@ function BackgroundConversationLink(props: ToolDetailProps) {
     !result.session_id.trim()
   )
     return null;
+  const assistantId =
+    typeof result.assistant_id === "string" && result.assistant_id.trim()
+      ? result.assistant_id
+      : workspace?.params.assistantId;
   return (
     <Link
       to={`${
-        workspace?.params.assistantId
-          ? `/assistants/${encodeURIComponent(workspace.params.assistantId)}`
-          : ""
+        assistantId ? `/assistants/${encodeURIComponent(assistantId)}` : ""
       }/chat/${encodeURIComponent(result.session_id)}`}
       className="inline-flex min-h-9 max-w-full items-center rounded px-1 text-12 text-theme-primary underline underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary"
     >
@@ -56,7 +58,7 @@ function BackgroundTaskDetail(props: ToolDetailProps) {
 }
 
 export const StartBackgroundTaskItem = memo(function StartBackgroundTaskItem(
-  props: ToolDetailProps & { id?: string },
+  props: ToolDetailProps & { id?: string; title?: string },
 ) {
   const { t } = useTranslation();
   const result = parseSubagentControlResult(props.result);
@@ -66,7 +68,7 @@ export const StartBackgroundTaskItem = memo(function StartBackgroundTaskItem(
     !props.cancelled &&
     !failed &&
     (result?.status === "queued" || result?.status === "running");
-  const title = t("chat.message.toolStartBackgroundTask");
+  const title = props.title || t("chat.message.toolStartBackgroundTask");
   const status = props.isPending
     ? "loading"
     : props.cancelled

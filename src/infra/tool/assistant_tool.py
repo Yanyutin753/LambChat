@@ -2,6 +2,8 @@
 
 from hashlib import sha256
 from typing import Literal
+from urllib.parse import quote
+from uuid import NAMESPACE_URL, uuid5
 
 from langchain.tools import ToolRuntime, tool
 
@@ -10,7 +12,7 @@ from src.infra.assistant.store import AssistantStore
 from src.infra.auth.tool_authority import resolve_tool_user
 from src.infra.tool.backend_utils import get_session_id_from_runtime, get_user_id_from_runtime
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.schemas.assistant import AssistantCreate, AssistantUpdate
+from src.kernel.schemas.assistant import AssistantCreate, AssistantTaskCreate, AssistantUpdate
 
 
 async def chief_context(runtime, permission):
@@ -158,5 +160,51 @@ async def update_assistant(
     return {"success": True, **public_assistant(saved)}
 
 
+@tool
+async def delegate_assistant_task(
+    assistant_id: str,
+    description: str,
+    runtime: ToolRuntime = None,  # type: ignore[assignment]
+) -> dict:
+    """Chief only: hand explicitly requested work to an existing assistant or group.
+    List assistants first and use its actual ID. Include the user's task, constraints and
+    required deliverable, not private chat history. Uses the target's saved configuration
+    in an independent conversation; returns immediately, not a completed result. Do not
+    send the same work twice. The user can follow the returned link and receives completion
+    notification. Paused/archived assistants and Chief itself cannot receive delegated work.
+    """
+    from src.infra.assistant.tasks import AssistantTaskService
+
+    user = await chief_context(runtime, "chat:write")
+    target = await AssistantService().get(user, assistant_id)
+    if target.kind == "chief" or target.status != "active":
+        raise AppError(ErrorCode.CONFLICT)
+    config = runtime.config.get("configurable") or {}
+    source = get_session_id_from_runtime(runtime)
+    run_id = config.get("run_id") or getattr(config.get("presenter"), "run_id", None)
+    if not source or not run_id or not runtime.tool_call_id:
+        raise AppError(ErrorCode.VALIDATION_ERROR)
+    result = await AssistantTaskService().create(
+        user,
+        target.id,
+        AssistantTaskCreate(
+            request_id=uuid5(
+                NAMESPACE_URL,
+                f"assistant-delegation:{user.sub}:{source}:{run_id}:{runtime.tool_call_id}",
+            ),
+            description=description,
+        ),
+        language=(runtime.config.get("metadata") or {}).get("language") or "en",
+        source_session_id=source,
+        source_run_id=run_id,
+    )
+    result = {**result, "assistant_id": target.id, "assistant_name": target.name}
+    if result.get("status") in {"queued", "running"} and result.get("session_id"):
+        result["url"] = (
+            f"/assistants/{quote(target.id, safe='')}/chat/{quote(result['session_id'], safe='')}"
+        )
+    return result
+
+
 def get_assistant_tools():
-    return [list_assistants, create_assistant, update_assistant]
+    return [list_assistants, create_assistant, update_assistant, delegate_assistant_task]

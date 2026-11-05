@@ -44,8 +44,13 @@ export function DesktopActivityRail({
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const menu = useMoreMenu({ isCollapsed: true, isMobile: false });
-  const primaryPaths = ["/assistants", "/persona", "/team", "/skills", "/mcp"];
+  const primaryPaths = ["/persona", "/team", "/skills", "/mcp"];
   const primaryItems = [
+    {
+      path: "/assistants",
+      label: t("assistants.title"),
+      show: collapsed && hasPermission(Permission.SESSION_READ),
+    },
     {
       path: "/files",
       label: t("fileLibrary.title"),

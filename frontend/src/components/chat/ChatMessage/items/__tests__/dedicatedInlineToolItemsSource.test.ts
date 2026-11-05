@@ -109,6 +109,7 @@ test("every backend internal tool ships a dedicated item route", () => {
     "create_agent_team",
     "create_assistant",
     "create_persona_preset",
+    "delegate_assistant_task",
     "document_parse",
     "env_var_delete",
     "env_var_delete_all",

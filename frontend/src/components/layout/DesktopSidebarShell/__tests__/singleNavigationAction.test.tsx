@@ -10,6 +10,7 @@ const access = vi.hoisted(() => ({
   channels: true,
   memory: false,
   persona: false,
+  assistants: false,
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -17,8 +18,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({
     user: null,
-    hasPermission: () => false,
+    hasPermission: (permission: string) =>
+      access.assistants && permission === Permission.SESSION_READ,
     hasAnyPermission: (permissions: string[]) =>
+      (access.assistants && permissions.includes(Permission.SESSION_READ)) ||
       (access.channels && permissions.includes(Permission.CHANNEL_READ)) ||
       (access.memory && permissions.includes(Permission.MEMORY_READ)) ||
       (access.persona && permissions.includes(Permission.PERSONA_PRESET_READ)),
@@ -35,6 +38,7 @@ afterEach(() => {
   access.channels = true;
   access.memory = false;
   access.persona = false;
+  access.assistants = false;
 });
 function Location() {
   return <output>{useLocation().pathname}</output>;
@@ -100,4 +104,33 @@ test("chat and channels use distinct navigation symbols", () => {
       .map((path) => path.getAttribute("d"))
       .join(" ");
   expect(shape("nav.channels")).not.toBe(shape("workspacePanel.viewChats"));
+});
+
+test("assistants has one fallback entry only when the chat sidebar is collapsed", () => {
+  access.assistants = true;
+  const view = render(
+    <MemoryRouter>
+      <DesktopActivityRail collapsed={false} onOpenChats={vi.fn()} />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole("button", { name: "assistants.title" })).toBeNull();
+  view.rerender(
+    <MemoryRouter>
+      <DesktopActivityRail collapsed onOpenChats={vi.fn()} />
+    </MemoryRouter>,
+  );
+  expect(
+    screen.getAllByRole("button", { name: "assistants.title" }),
+  ).toHaveLength(1);
+});
+
+test("assistants does not duplicate the dedicated sidebar entry in More", () => {
+  access.assistants = true;
+  access.channels = false;
+  render(
+    <MemoryRouter>
+      <SidebarNavigation />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole("button", { name: "assistants.title" })).toBeNull();
 });

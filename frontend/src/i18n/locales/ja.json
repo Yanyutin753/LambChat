@@ -4,7 +4,7 @@
     "taskConversation": "タスクの会話",
     "workspaceNavigation": "ワークスペースのナビゲーション",
     "workspaceTitle": "アシスタントと仕事を進める場所",
-    "workspaceWelcome": "左からアシスタントを選んで続けるか、新しく作成してタスクを任せましょう。",
+    "workspaceWelcome": "Chief に目的を伝えると、適切なアシスタントに依頼できます。既存のアシスタントとの会話も続けられます。",
     "workspaceHint": "アシスタントは文脈を保持します。いつでも作業を再開できます。",
     "backToChat": "チャットに戻る",
     "conversation": "メインの会話",
@@ -179,7 +179,8 @@
     "tools": {
       "list_assistants": "アシスタント一覧",
       "create_assistant": "アシスタント・グループを作成",
-      "update_assistant": "アシスタント・グループを更新"
+      "update_assistant": "アシスタント・グループを更新",
+      "delegate_assistant_task": "アシスタントに依頼"
     },
     "groupPlaceholder": "メッセージを送信。@ でメンバーを指定できます。",
     "starters": {
@@ -201,7 +202,9 @@
     },
     "chiefWelcome": "やりたいことを教えてください。助手の準備やグループの作成をお手伝いします。",
     "groupWelcome": "ここで一緒に話しましょう。@ でメンバーを指定できます。文脈はこのグループ内に保たれます。",
-    "assistantWelcome": "進めたいことを教えてください。ここから始めましょう。"
+    "assistantWelcome": "進めたいことを教えてください。ここから始めましょう。",
+    "startWithChief": "Chief にやりたいことを伝える",
+    "returnToSource": "元の会話に戻る"
   },
   "sessionWorkspace": {
     "location": "ファイルの場所",

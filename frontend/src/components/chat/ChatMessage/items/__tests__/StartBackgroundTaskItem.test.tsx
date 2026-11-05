@@ -92,3 +92,24 @@ test("work started from an assistant stays in that assistant workspace", () => {
     "/assistants/helper/chat/child",
   );
 });
+
+test("delegation links to the receiving assistant instead of the current Chief", () => {
+  const view = render(
+    <MemoryRouter initialEntries={["/assistants/chief/chat/parent"]}>
+      <I18nextProvider i18n={i18n}>
+        <StartBackgroundTaskItem
+          args={{}}
+          success
+          result={{
+            status: "queued",
+            assistant_id: "writer",
+            session_id: "child",
+          }}
+        />
+      </I18nextProvider>
+    </MemoryRouter>,
+  );
+  expect(view.getByRole("link").getAttribute("href")).toBe(
+    "/assistants/writer/chat/child",
+  );
+});

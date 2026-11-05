@@ -18,7 +18,9 @@ async def prepare_task_turn(request, user, metadata):
     if not record.get("assistant_id"):
         return None
     from src.infra.assistant.discussions import task_discussion
+    from src.infra.assistant.tasks import validate_task_assistant
 
+    await validate_task_assistant(record, user.sub)
     await task_discussion(record, user.sub)
     config = record["config"]
     project_id = config.get("project_id")

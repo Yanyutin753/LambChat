@@ -2,6 +2,7 @@ import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import {
   SquarePen,
+  Bot,
   Search,
   CalendarClock,
   History,
@@ -9,6 +10,7 @@ import {
   FolderOpen,
   Bookmark,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types/auth";
@@ -61,6 +63,7 @@ export function SidebarRail({
   unreadCount = 0,
 }: SidebarRailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const MoreIcon = singleMoreMenuItem?.icon ?? MoreHorizontal;
   const moreLabel = singleMoreMenuItem?.label ?? t("nav.more", "更多");
   const { hasPermission } = useAuth();
@@ -107,6 +110,20 @@ export function SidebarRail({
             </InteractiveIcon>
           </button>
         </Tooltip>
+        {hasPermission(Permission.SESSION_READ) && (
+          <Tooltip content={t("assistants.title")}>
+            <button
+              type="button"
+              onClick={() => navigate("/assistants")}
+              className={railBtn}
+              aria-label={t("assistants.title")}
+            >
+              <InteractiveIcon>
+                <Bot size={16} />
+              </InteractiveIcon>
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={t("sidebar.searchSessions")}>
           <button
             type="button"

@@ -13,6 +13,7 @@ from src.kernel.schemas.user import TokenPayload
 TOOL_PERMISSIONS = {
     "list_assistants": "session:read",
     "create_assistant": "chat:write",
+    "delegate_assistant_task": "chat:write",
     "update_assistant": "chat:write",
     "env_var_list": "envvar:read",
     "env_var_set": "envvar:write",

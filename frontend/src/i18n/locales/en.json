@@ -4,7 +4,7 @@
     "taskConversation": "Task conversation",
     "workspaceNavigation": "Workspace navigation",
     "workspaceTitle": "A place to work with your assistant",
-    "workspaceWelcome": "Choose an assistant to continue, or create one to follow through on your tasks.",
+    "workspaceWelcome": "Tell Chief what you want to accomplish and he will find the right assistant. Or continue with an existing assistant.",
     "workspaceHint": "Your assistants keep the context. Come back whenever you’re ready.",
     "backToChat": "Back to chat",
     "conversation": "Conversation",
@@ -179,7 +179,8 @@
     "tools": {
       "list_assistants": "List assistants",
       "create_assistant": "Create assistant or group",
-      "update_assistant": "Update assistant or group"
+      "update_assistant": "Update assistant or group",
+      "delegate_assistant_task": "Delegate to assistant"
     },
     "groupPlaceholder": "Message the group. Type @ to choose a member.",
     "starters": {
@@ -201,7 +202,9 @@
     },
     "chiefWelcome": "Tell me what you need. I can set up assistants or bring them together in a group.",
     "groupWelcome": "Talk together here. Type @ to choose a member. Context stays in this group.",
-    "assistantWelcome": "Tell me what you want to work on. We can start here."
+    "assistantWelcome": "Tell me what you want to work on. We can start here.",
+    "startWithChief": "Tell Chief what you need",
+    "returnToSource": "Back to original chat"
   },
   "sessionWorkspace": {
     "location": "File location",
