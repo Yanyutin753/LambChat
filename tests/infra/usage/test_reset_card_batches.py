@@ -246,6 +246,8 @@ async def test_batch_routes_validate_permission_payload_and_owner(batch_db, monk
         assert (await client.get(f"{path}/{key}")).status_code == 403
         assert (await client.post(f"{path}/{key}/advance")).status_code == 403
         actor.permissions = ["usage:admin"]
+        assert (await client.post(path, json=body)).status_code == 403
+        actor.permissions = ["usage:quota_manage"]
         assert (await client.post(path, json={"idempotency_key": key})).status_code == 422
         assert (await client.post(path, json={**body, "window": "all"})).status_code == 422
         assert (await client.post(path, json={**body, "user_ids": []})).status_code == 422

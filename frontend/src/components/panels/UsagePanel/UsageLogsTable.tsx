@@ -73,10 +73,10 @@ const _STATUS_PILL_STYLES: Record<
 function LogCost({ log, opts }: { log: UsageLog; opts: CostFormatOpts }) {
   const { t } = useTranslation();
   const amountOpts = { ...opts, ...usageCostOptions(log) };
-  const hint = historicalEstimateHint(
-    amountOpts,
-    t("usage.historicalEstimate"),
-  );
+  const hint = [
+    (log.partial_cost_usd ?? 0) > 0 ? t("usage.partialCostHint") : undefined,
+    historicalEstimateHint(amountOpts, t("usage.historicalEstimate")),
+  ].filter(Boolean).join(" · ");
   return (
     <span className="block min-w-0">
       <span>

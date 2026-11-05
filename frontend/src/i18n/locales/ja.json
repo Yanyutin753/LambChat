@@ -4434,6 +4434,7 @@
     "resetLegacyConfirm": "共通カードを1枚使用し、使い切った予算をリセットします。週間予算をリセットすると、5時間枠もリセットされます。",
     "tokensInputReported": "入力（報告値）",
     "historicalEstimate": "過去の概算",
+    "partialPricedHint": "{{count}} 件は一部計価済み（判明分を合算）",
     "partialCostHint": "判明している金額のみです。残りの費用は不明です。",
     "modelOrService": "モデル / サービス",
     "identityNotRecorded": "未記録",

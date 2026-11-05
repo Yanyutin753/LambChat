@@ -217,7 +217,7 @@ async def test_summary_only_carry_keeps_floor_without_certifying_unknown_calls()
     usage = processor.presenter.emit.call_args.args[0]["data"]
     assert usage["cost_units"] == 20
     assert usage["cost_complete"] is False
-    assert usage["model"] == "mixed"
+    assert usage["model"] == "primary / fallback"
     assert {item["model"] for item in usage["actual_models"]} == {"primary", "fallback"}
 
 
@@ -248,7 +248,8 @@ async def test_handoff_twice_preserves_final_receipt_and_unknown_old_identity():
         latest = resumed.presenter.emit.call_args.args[0]["data"]
         assert latest["cost_units"] == 22
         assert latest["cost_complete"] is False
-        assert latest["model"] != "fallback"
+        assert latest["model"] == "fallback"
+        assert latest["model_identity_complete"] is False
         assert latest["actual_models"] == [
             {"model": "fallback", "model_id": "fallback", "provider": "openai"}
         ]

@@ -4434,6 +4434,7 @@
     "resetLegacyConfirm": "This uses one legacy card to reset exhausted budgets. Resetting the weekly budget also resets the 5-hour budget.",
     "tokensInputReported": "Input (reported)",
     "historicalEstimate": "Historical estimate",
+    "partialPricedHint": "{{count}} partially priced; known costs included",
     "partialCostHint": "Known amount only; the remaining cost is unknown.",
     "modelOrService": "Model / service",
     "identityNotRecorded": "Not recorded",

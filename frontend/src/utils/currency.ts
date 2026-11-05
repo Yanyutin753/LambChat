@@ -129,7 +129,10 @@ export function formatUsageCost(
   const confirmed =
     available === true &&
     isCostAmount(usd) &&
-    !(unknown && opts.pricedRequests === 0);
+    !(
+      opts.pricedRequests === 0 &&
+      (unknown || (opts.estimatedRequests ?? 0) > 0)
+    );
   const partial =
     isCostAmount(opts.partialCostUsd) &&
     (opts.partialRequests === undefined || opts.partialRequests > 0);
