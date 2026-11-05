@@ -443,7 +443,7 @@ async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
     assert stats["total_requests"] == 1
     query = collection.count_queries[0]
     assert query["user_id"] == "user-1"
-    assert query["model"] == "openai/gpt-5"
+    assert query["$or"] == [{"model": "openai/gpt-5"}, {"actual_models.model": "openai/gpt-5"}]
     assert query["username"] == {"$regex": "ada", "$options": "i"}
     assert query["started_at"]["$gte"] == datetime(2026, 6, 1, tzinfo=timezone.utc)
     assert query["started_at"]["$lt"] == datetime(2026, 7, 1, tzinfo=timezone.utc)

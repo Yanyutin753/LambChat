@@ -4434,6 +4434,7 @@
     "resetLegacyConfirm": "공용 카드 1장을 사용하여 소진된 한도를 초기화합니다. 주간 한도를 초기화하면 5시간 한도도 초기화됩니다.",
     "tokensInputReported": "입력 (보고값)",
     "historicalEstimate": "과거 추정액",
+    "partialPricedHint": "{{count}}건 부분 가격 산정, 확인된 비용 포함",
     "partialCostHint": "확인된 금액만 포함하며 나머지 비용은 알 수 없습니다.",
     "modelOrService": "모델 / 서비스",
     "identityNotRecorded": "기록되지 않음",

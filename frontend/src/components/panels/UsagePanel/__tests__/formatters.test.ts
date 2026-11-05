@@ -143,7 +143,7 @@ describe("partial and historical cost display", () => {
       fmtCostUsd(0, true, {
         language: "en",
         pricedRequests: 0,
-        unpricedRequests: 2,
+        unpricedRequests: 0,
         estimatedRequests: 2,
         estimatedCostUsd: 0.4,
       }),

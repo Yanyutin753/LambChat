@@ -112,9 +112,10 @@ async def test_mixed_cost_certainties_reach_every_aggregate_without_recertifying
         for aggregate in aggregates:
             assert aggregate.get("total_cost_usd", aggregate.get("cost_usd")) == 1.0
             assert aggregate["partial_cost_usd"] == 0.25
-            assert aggregate["partial_requests"] == 2
+            assert aggregate["partial_requests"] == 1
             assert aggregate["estimated_cost_usd"] == 15.5
             assert aggregate["estimated_requests"] == 3
+            assert aggregate["unpriced_requests"] == len(records) - 1 - 1 - 3
         by_id = {item["trace_id"]: item for item in items}
         assert by_id["confirmed"]["partial_cost_usd"] is None
         assert by_id["legacy"]["estimated_cost_usd"] == 3.5

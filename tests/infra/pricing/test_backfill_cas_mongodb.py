@@ -265,19 +265,20 @@ async def test_usage_aggregates_only_certified_costs_and_keeps_free_zero(monkeyp
         )
         stats = await usage.get_usage_stats_only(user_id="cost-owner")
         assert stats["total_cost_usd"] == 0.2
-        assert stats["priced_requests"] == 2 and stats["unpriced_requests"] == 2
+        assert stats["priced_requests"] == 2 and stats["unpriced_requests"] == 0
+        assert stats["estimated_requests"] == 2
         assert stats["cache_unknown_requests"] == 2
         assert stats["usage_unknown_requests"] == 2
         dashboard = await usage.get_usage_dashboard(user_id="cost-owner")
         assert dashboard["summary"]["total_cost_usd"] == 0.2
-        assert dashboard["summary"]["unpriced_requests"] == 2
+        assert dashboard["summary"]["unpriced_requests"] == 0
         assert dashboard["top_models"][0]["cost_usd"] == 0.2
-        assert dashboard["top_models"][0]["unpriced_requests"] == 2
+        assert dashboard["top_models"][0]["unpriced_requests"] == 0
         assert dashboard["top_models"][0]["cache_read_share"] == 0.0
         assert dashboard["top_models"][0]["zero_cache_requests"] == 2
         assert dashboard["summary"]["cache_read_share"] == 0.0
         assert dashboard["daily"][0]["cost_usd"] == 0.2
-        assert dashboard["daily"][0]["unpriced_requests"] == 2
+        assert dashboard["daily"][0]["unpriced_requests"] == 0
     finally:
         await client[settings.MONGODB_DB].drop_collection(name)
         await client.close()
@@ -313,13 +314,14 @@ async def test_legacy_cost_certificate_is_required_by_every_cost_aggregate():
             await collection.insert_one(doc)
         stats = await usage.get_usage_stats_only()
         assert stats["total_cost_usd"] == 0.2
-        assert stats["priced_requests"] == 1 and stats["unpriced_requests"] == 3
+        assert stats["priced_requests"] == 1 and stats["unpriced_requests"] == 0
         listing = await usage.list_usage_logs()
         assert sum(row["cost_available"] for row in listing[0]) == 1
         dashboard = await usage.get_usage_dashboard()
         for row in [dashboard["summary"], *dashboard["daily"], *dashboard["top_models"]]:
             assert row.get("total_cost_usd", row.get("cost_usd")) == 0.2
-            assert row["unpriced_requests"] == 3
+            assert row["unpriced_requests"] == 0
+            assert row["estimated_requests"] == 3
     finally:
         await collection.drop()
         await client.close()
