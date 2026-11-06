@@ -740,7 +740,9 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
             },
             timeout=httpx.Timeout(15.0),
         ) as client:
-            async with unpriced_usage(operation="rerank", model=rerank_model):
+            async with unpriced_usage(
+                operation="rerank", model=rerank_model, api_base=api_base
+            ) as observe:
                 response = await client.post(
                     "/v1/rerank",
                     json={
@@ -751,7 +753,8 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
                     },
                 )
                 response.raise_for_status()
-            payload = response.json()
+                payload = response.json()
+                observe(payload)
     except Exception as exc:
         if is_quota_error(exc):
             raise
