@@ -290,3 +290,77 @@ async def test_unpriced_identity_and_exception_reach_projection(monkeypatch):
         "provider": "provider",
     }
     assert project.await_args.kwargs["error"] is error
+
+
+@pytest.mark.parametrize(
+    ("operation", "model", "base", "payload", "expected_cost", "tokens"),
+    [
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://api.siliconflow.cn",
+            {"usage": {"prompt_tokens": 100, "total_tokens": 100}},
+            0.000001,
+            100,
+        ),
+        (
+            "decision",
+            "apus-openjev-4b-5949",
+            "http://127.0.0.1:18001",
+            {"usage": {"input_tokens": 100, "output_tokens": 0}},
+            0.000001,
+            100,
+        ),
+        (
+            "decision",
+            "apus-openjev-4b-5949",
+            "http://127.0.0.1:18001",
+            {"usage": {"input_tokens": 0, "output_tokens": 0}},
+            None,
+            None,
+        ),
+        (
+            "rerank",
+            "BAAI/bge-reranker-v2-m3",
+            "https://api.siliconflow.cn",
+            {"meta": {"billed_units": {"input_tokens": 12, "output_tokens": 0}}},
+            0,
+            12,
+        ),
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://different.example",
+            {"usage": {"prompt_tokens": 100}},
+            None,
+            100,
+        ),
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://api.siliconflow.cn",
+            {"usage": {"prompt_tokens": True}},
+            None,
+            None,
+        ),
+    ],
+)
+async def test_raw_model_cost_uses_endpoint_tariff_and_reported_tokens(
+    monkeypatch, operation, model, base, payload, expected_cost, tokens
+):
+    project = AsyncMock()
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 0, "unknown": True}))
+    monkeypatch.setattr(auxiliary, "write_auxiliary_usage", project)
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "owner")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(quota, "_usage_owner", lambda: None)
+    monkeypatch.setattr(quota, "UsageQuota", lambda: ledger)
+    monkeypatch.setattr(quota, "_reserve_call", AsyncMock(return_value=reservation()))
+    monkeypatch.setattr(
+        "src.infra.pricing.auxiliary_models.get_fx_rates",
+        AsyncMock(return_value={"base": "USD", "rates": {"CNY": 7}}),
+    )
+    async with quota.unpriced_usage(operation=operation, model=model, api_base=base) as observe:
+        observe(payload)
+    assert ledger.settle.await_args.args[1] == expected_cost
+    assert project.await_args.args[1]["model_usage"]["input_tokens"] == tokens

@@ -340,3 +340,22 @@ async def test_receipt_does_not_attach_breakdown_to_a_different_settled_amount()
     assert usage["cost_units"] == 9
     assert "cost_breakdown" not in usage
     assert "cost_rates" not in usage
+
+
+async def test_raw_model_receipt_adds_tokens_once_across_resume():
+    processor = make_processor()
+    observed = {
+        **receipt("raw", 5),
+        "model_usage": {
+            "input_tokens": 12,
+            "output_tokens": 0,
+            "total_tokens": 12,
+            "cache_read_tokens": 0,
+            "cache_creation_tokens": 0,
+        },
+    }
+    await processor.record_usage_receipt(observed)
+    resumed = make_processor()
+    resumed.seed_usage(processor.usage_totals())
+    await resumed.record_usage_receipt(observed)
+    assert resumed.usage_totals()["input_tokens"] == 12
