@@ -993,8 +993,3 @@ class NativeMemoryBackend(MemoryBackend):
             logger.info(f"[NativeMemory] Embedding enabled: {api_base} ({model})")
         except ImportError:
             logger.warning("[NativeMemory] httpx not available, embedding disabled")
-
-
-# ---------------------------------------------------------------------------
-# Utility
-# ---------------------------------------------------------------------------
