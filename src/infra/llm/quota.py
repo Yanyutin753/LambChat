@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables.config import var_child_runnable_config
 from pydantic import Field
 
+from src.infra.pricing.auxiliary_models import input_cost_usd, model_counts
 from src.infra.pricing.calculator import (
     CostBreakdown,
     PartialCostBreakdown,
@@ -258,8 +259,10 @@ async def _reserve_call(ledger, user_id, budgets, amount, **kwargs):
 
 
 @asynccontextmanager
-async def unpriced_usage(*, operation="external_request", model=None, provider=None):
-    """Paid APIs without a reliable USD tariff cannot bypass a configured budget."""
+async def unpriced_usage(*, operation="external_request", model=None, provider=None, api_base=None):
+    """Reserve each external request and settle known model tariffs from its response."""
+    if api_base and api_base.rstrip("/") == "https://api.siliconflow.cn":
+        provider = "siliconflow"
     user_id = quota_user_id()
     if not user_id:
         raise AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE)
@@ -275,12 +278,25 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
     owner = _usage_owner()
     if owner is not None:
         owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
+    counts = model_counts(operation, None) if api_base else None
+
+    def observe(payload):
+        nonlocal counts
+        counts = model_counts(operation, payload)
+
     try:
-        yield
+        yield observe
     finally:
 
         async def settle_and_publish():
-            settlement = await ledger.settle(reservation, None)
+            cost = (
+                await input_cost_usd(operation, api_base, model, counts)
+                if counts is not None
+                else None
+            )
+            settlement = await ledger.settle(reservation, cost)
+            if counts is not None and isinstance(settlement, dict):
+                settlement = {**settlement, "model_usage": counts}
             if owner is not None and isinstance(settlement, dict):
                 await owner.record_usage_receipt(_receipt(reservation, settlement))
             elif isinstance(settlement, dict):

@@ -90,6 +90,10 @@ export function formatCostUsd(
     min = Math.min(min, max);
   }
   if (typeof opts.decimals === "number") min = max = opts.decimals;
+  // Keep two significant digits when the ordinary display would round a charge to zero.
+  if (value > 0 && value < 0.5 * 10 ** -max) {
+    max = Math.min(20, 1 - Math.floor(Math.log10(value)));
+  }
   try {
     return new Intl.NumberFormat(localeTag(language), {
       style: "currency",

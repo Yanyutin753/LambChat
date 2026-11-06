@@ -382,28 +382,25 @@ class UsageStorage:
         doc["cost_available"] = classified["cost_available"]
         doc["partial_cost_usd"] = classified["partial_cost_usd"]
 
+        query: dict[str, Any] = {
+            "trace_id": trace_id,
+            "$or": [
+                {"trace_event_revision": {"$exists": False}},
+                {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
+            ],
+        }
+        if doc["source"] == "auxiliary":
+            query["cost_complete"] = {"$ne": True}
+            if not doc["cost_complete"]:
+                query["cost_units"] = {"$not": {"$gt": doc.get("cost_units", 0)}}
         try:
-            auxiliary_fence: dict[str, Any] = {}
-            if doc["source"] == "auxiliary":
-                auxiliary_fence["cost_complete"] = {"$ne": True}
-                if not doc["cost_complete"]:
-                    auxiliary_fence["cost_units"] = {"$not": {"$gt": doc.get("cost_units", 0)}}
-            await self.collection.update_one(
-                {
-                    "trace_id": trace_id,
-                    **auxiliary_fence,
-                    "$or": [
-                        {"trace_event_revision": {"$exists": False}},
-                        {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
-                    ],
-                },
-                {"$set": doc},
-                upsert=True,
-            )
+            try:
+                await self.collection.update_one(query, {"$set": doc}, upsert=True)
+            except DuplicateKeyError:
+                # A concurrent first insert may still be older than this receipt.
+                result = await self.collection.update_one(query, {"$set": doc})
+                return bool(result.matched_count)
             return True
-        except DuplicateKeyError:
-            # A newer terminal snapshot won the unique trace_id upsert race.
-            return False
         except Exception as e:
             logger.error(f"Failed to upsert usage log for trace {trace_id}: {e}")
             return False
