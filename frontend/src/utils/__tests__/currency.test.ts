@@ -91,13 +91,18 @@ describe("formatCostUsd", () => {
     expect(out).toContain("2,700");
   });
 
-  test("maxDecimals caps precision for tiny amounts", () => {
+  test("mobile rounds ordinary costs but keeps small nonzero charges visible", () => {
     expect(formatCostUsd(0.0123, { language: "en", maxDecimals: 3 })).toBe(
       "$0.012",
     );
     expect(formatCostUsd(0.000123, { language: "en", maxDecimals: 3 })).toBe(
-      "$0.0",
+      "$0.00012",
     );
+  });
+
+  test("a settled one-token charge stays distinct from a free request", () => {
+    expect(formatCostUsd(0.000000011, { language: "en" })).toBe("$0.000000011");
+    expect(formatCostUsd(0, { language: "en" })).toBe("$0.00");
   });
 
   test("maxDecimals keeps 2-decimal formatting for normal amounts", () => {
