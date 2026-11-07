@@ -27,6 +27,7 @@ import {
   buildRevealArtifactBinaryFiles,
   buildRevealArtifactTree,
   collectRevealArtifacts,
+  getInlineRevealArtifacts,
   getRevealArtifactStats,
   type RevealArtifact,
   type RevealArtifactTreeDir,
@@ -228,13 +229,11 @@ function TreeFileRow({
 function TreeDirRow({
   node,
   depth,
-  defaultExpanded,
   onOpenPreview,
   onOpenImagePreview,
 }: {
   node: RevealArtifactTreeDir;
   depth: number;
-  defaultExpanded?: boolean;
   onOpenPreview?: (
     preview: RevealPreviewRequest,
     source?: RevealPreviewOpenSource,
@@ -242,7 +241,9 @@ function TreeDirRow({
   onOpenImagePreview?: (artifact: RevealArtifact & { kind: "file" }) => void;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
+  const [expanded, setExpanded] = useState(
+    node.children.length === 1 && node.children[0].kind === "dir",
+  );
   const [isDownloading, setIsDownloading] = useState(false);
   const FolderStateIcon = expanded ? FolderOpen : FolderIcon;
   const dirSize = expanded ? getTreeDirSize(node) : 0;
@@ -354,7 +355,6 @@ function TreeDirRow({
                 key={child.path || `d-${i}`}
                 node={child}
                 depth={depth + 1}
-                defaultExpanded={defaultExpanded}
                 onOpenPreview={onOpenPreview}
                 onOpenImagePreview={onOpenImagePreview}
               />
@@ -638,6 +638,9 @@ export function RevealArtifactsSummary({
   }
 
   const useSidePanel = artifacts.length >= 4;
+  const inlineArtifacts = useSidePanel
+    ? getInlineRevealArtifacts(parts, artifacts)
+    : artifacts;
   const FolderStateIcon = !useSidePanel && expanded ? FolderOpen : FolderIcon;
   const collapsedNames = artifacts
     .slice(0, 2)
@@ -695,7 +698,6 @@ export function RevealArtifactsSummary({
                         key={child.path || `d-${i}`}
                         node={child}
                         depth={0}
-                        defaultExpanded={false}
                         onOpenPreview={onOpenPreview}
                         onOpenImagePreview={handleOpenImagePreview}
                       />
@@ -785,7 +787,7 @@ export function RevealArtifactsSummary({
               </div>
             </div>
           )}
-          {!useSidePanel && (artifacts.length === 1 || expanded) && (
+          {(useSidePanel || artifacts.length === 1 || expanded) && (
             <div
               id={disclosureId}
               className={clsx(
@@ -793,7 +795,7 @@ export function RevealArtifactsSummary({
                 artifacts.length > 1 && "border-t border-[var(--theme-border)]",
               )}
             >
-              {artifacts.map((artifact) =>
+              {inlineArtifacts.map((artifact) =>
                 artifact.kind === "file" ? (
                   <TreeFileRow
                     key={artifact.id}
