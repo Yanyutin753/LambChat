@@ -14,6 +14,10 @@ from fastapi.responses import StreamingResponse
 from pymongo import ReturnDocument
 
 from src.api.deps import require_permissions
+from src.api.routes.memory_payload import _clean_tags as _clean_tags
+from src.api.routes.memory_payload import _clean_text as _clean_text
+from src.api.routes.memory_payload import _memory_projection as _memory_projection
+from src.infra.assistant.memory_management import authorize_memory_project, memory_management_query
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.memory.cleanup import vector_pending_fields
@@ -62,26 +66,6 @@ async def _write_vector_index(
         scope=doc.get("scope") or "user",
         project_id=doc.get("project_id"),
     )
-
-
-def _clean_tags(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    tags: list[str] = []
-    for tag in value:
-        text = str(tag).strip()
-        if text:
-            tags.append(text[:40])
-        if len(tags) >= 20:
-            break
-    return tags
-
-
-def _clean_text(value: Any, max_length: int | None = None) -> str:
-    text = str(value or "").strip()
-    if max_length is not None:
-        return text[:max_length]
-    return text
 
 
 def _get_memory_import_content_max_chars() -> int:
@@ -140,30 +124,6 @@ def _validate_memory_import_total_content_size(raw_memories: list[Any]) -> None:
         total_chars += len(str(raw.get("content") or "").strip())
         if total_chars > max_chars:
             raise AppError(ErrorCode.MEMORY_IMPORT_TOO_LARGE, args={"max": max_chars})
-
-
-def _memory_projection() -> dict[str, int]:
-    return {
-        "memory_id": 1,
-        "user_id": 1,
-        "title": 1,
-        "summary": 1,
-        "memory_type": 1,
-        "tags": 1,
-        "content": 1,
-        "content_storage_mode": 1,
-        "content_store_key": 1,
-        "context": 1,
-        "source": 1,
-        "created_at": 1,
-        "updated_at": 1,
-        "accessed_at": 1,
-        "access_count": 1,
-        "source_refs": 1,
-        "origin_session_ids": 1,
-        "scope": 1,
-        "project_id": 1,
-    }
 
 
 def _normalized_source_refs(raw_refs: Any) -> list[ConversationSourceRef]:
@@ -256,8 +216,11 @@ async def list_memories(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     user: TokenPayload = Depends(require_permissions("memory:read")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """List stored memories for the current user."""
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         return {"memories": [], "total": 0}
@@ -267,7 +230,7 @@ async def list_memories(
             ErrorCode.INVALID_MEMORY_TYPE, args={"allowed": ", ".join(sorted(_VALID_MEMORY_TYPES))}
         )
 
-    query_filter: dict = {"user_id": user.sub}
+    query_filter: dict = dict(management_query)
     if memory_type:
         query_filter["memory_type"] = memory_type
     if context:
@@ -339,12 +302,15 @@ async def list_memories(
 async def create_memory(
     payload: dict[str, Any] = Body(...),
     user: TokenPayload = Depends(require_permissions("memory:write")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Create a new memory."""
     from src.infra.memory.client.native.content import build_content_fields
     from src.infra.memory.client.native.summaries import build_index_label
     from src.infra.memory.staging import insert_content_memory
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
@@ -383,6 +349,7 @@ async def create_memory(
         "context": _clean_text(payload.get("context")),
         "tags": tags,
         "source": "manual",
+        **management_query,
         "embedding": embedding,
         "created_at": now,
         "updated_at": now,
@@ -417,6 +384,8 @@ async def update_memory(
     memory_id: str,
     payload: dict[str, Any] = Body(...),
     user: TokenPayload = Depends(require_permissions("memory:write")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Update an existing memory."""
     from src.infra.memory.client.native.content import (
@@ -425,12 +394,13 @@ async def update_memory(
     )
     from src.infra.memory.client.native.summaries import build_index_label
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     existing = await backend._collection.find_one(
-        {"user_id": user.sub, "memory_id": memory_id},
+        {**management_query, "memory_id": memory_id},
         {
             "title": 1,
             "summary": 1,
@@ -512,7 +482,7 @@ async def update_memory(
     update.update(vector_pending_fields(update["revision_id"]))
     try:
         write_result = await backend._collection.update_one(
-            {**content_commit_query(user.sub, memory_id, update), "user_id": user.sub},
+            {**content_commit_query(user.sub, memory_id, update), **management_query},
             content_update(user.sub, update) if content is not None else {"$set": update},
         )
     except (Exception, asyncio.CancelledError):
@@ -543,15 +513,18 @@ async def update_memory(
 @router.get("/export")
 async def export_memories(
     user: TokenPayload = Depends(require_permissions("memory:read", "memory:export")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Export all stored memories for the current user."""
     from src.infra.memory.client.native.content import hydrate_memory_texts
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
-    cursor = backend._collection.find({"user_id": user.sub}, _memory_projection())
+    cursor = backend._collection.find(management_query, _memory_projection())
     if hasattr(cursor, "sort"):
         cursor = cursor.sort("updated_at", -1)
 
@@ -615,6 +588,8 @@ async def import_memories(
     payload: dict[str, Any] = Body(...),
     user: TokenPayload = Depends(require_permissions("memory:write")),
     validate_only: bool = False,
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Import memories for the current user, overwriting matching memory IDs."""
     from src.infra.memory.cleanup import replacement_cleanup_expression
@@ -630,6 +605,7 @@ async def import_memories(
         remaining_content_stages,
     )
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
@@ -641,7 +617,6 @@ async def import_memories(
         raise AppError(ErrorCode.MEMORY_IMPORT_LIMIT)
     _validate_memory_import_total_content_size(raw_memories)
 
-    from src.infra.folder.storage import get_project_storage
     from src.infra.memory.scope import ScopeResolutionError, resolve_retain_scope
 
     prepared: list[dict[str, Any]] = []
@@ -663,14 +638,15 @@ async def import_memories(
             )
         try:
             scope, project_id = resolve_retain_scope(
-                scope=raw.get("scope"),
-                project_id=_clean_text(raw.get("project_id")) or None,
+                scope="project" if assistant_id is not None else raw.get("scope"),
+                project_id=management_query.get("project_id")
+                or _clean_text(raw.get("project_id"))
+                or None,
             )
         except ScopeResolutionError as exc:
             raise AppError(ErrorCode.VALIDATION_ERROR, message=str(exc)) from exc
         if scope == "project" and project_id and project_id not in authorized_projects:
-            if not await get_project_storage().get_by_id(project_id, user.sub):
-                raise AppError(ErrorCode.PROJECT_NOT_FOUND)
+            await authorize_memory_project(user.sub, project_id)
             authorized_projects.add(project_id)
         memory_type = _clean_text(raw.get("memory_type") or MemoryType.USER.value)
         if memory_type not in _VALID_MEMORY_TYPES:
@@ -735,6 +711,15 @@ async def import_memories(
         }
 
         prepared.append(doc)
+
+    if assistant_id is not None:
+        supplied_ids = [doc["memory_id"] for doc in prepared]
+        async for previous in backend._collection.find(
+            {"user_id": user.sub, "memory_id": {"$in": supplied_ids}},
+            {"scope": 1, "project_id": 1},
+        ):
+            if any(previous.get(key) != management_query[key] for key in ("scope", "project_id")):
+                raise AppError(ErrorCode.CONFLICT)
 
     if validate_only:
         return {
@@ -806,6 +791,15 @@ async def import_memories(
             query = content_commit_query(user.sub, memory_id, content_fields)
             if not staged and getattr(backend._collection, "database", None) is not None:
                 query = owned_content_query(user.sub, memory_id)
+            if assistant_id is not None:
+                query["$and"] = [
+                    {
+                        "$or": [
+                            {"scope": "project", "project_id": management_query["project_id"]},
+                            {"user_id": {"$exists": False}, "_content_stage_owner": user.sub},
+                        ]
+                    }
+                ]
             existing_doc = await backend._collection.find_one_and_update(
                 query,
                 [
@@ -874,16 +868,19 @@ async def import_memories(
 async def get_memory(
     memory_id: str,
     user: TokenPayload = Depends(require_permissions("memory:read")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Get full content of a specific memory."""
     from src.infra.memory.client.native.content import hydrate_memory_text
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     doc = await backend._collection.find_one(
-        {"user_id": user.sub, "memory_id": memory_id},
+        {**management_query, "memory_id": memory_id},
         _memory_projection(),
     )
     if not doc:
@@ -912,13 +909,20 @@ async def get_memory(
 async def delete_memory(
     memory_id: str,
     user: TokenPayload = Depends(require_permissions("memory:delete")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Delete a specific memory."""
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
-    result = await backend.delete(user.sub, memory_id)
+    result = (
+        await backend.delete_scoped(user.sub, memory_id, project_id=management_query["project_id"])
+        if assistant_id is not None
+        else await backend.delete(user.sub, memory_id)
+    )
     if not result.get("success"):
         raise AppError(ErrorCode.MEMORY_NOT_FOUND)
 
@@ -929,6 +933,8 @@ async def delete_memory(
 async def batch_delete_memories(
     request: Request,
     user: TokenPayload = Depends(require_permissions("memory:delete")),
+    assistant_id: str | None = None,
+    discussion_id: str | None = None,
 ):
     """Delete multiple memories at once."""
     body = await request.json()
@@ -939,13 +945,18 @@ async def batch_delete_memories(
     if len(memory_ids) > 100:
         raise AppError(ErrorCode.MEMORY_DELETE_LIMIT)
 
+    management_query = await memory_management_query(user.sub, assistant_id, discussion_id)
     backend = await _get_backend()
     if not backend:
         raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     deleted = 0
     for mid in memory_ids:
-        result = await backend.delete(user.sub, mid)
+        result = (
+            await backend.delete_scoped(user.sub, mid, project_id=management_query["project_id"])
+            if assistant_id is not None
+            else await backend.delete(user.sub, mid)
+        )
         if result.get("success"):
             deleted += 1
 

@@ -73,6 +73,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_task_agent_calls",
         "_task_model_calls",
         "_created_task_calls",
+        "_persistent_subagent_statuses",
         "thinking_ids",
         "_output_buffer",
         "total_input_tokens",
@@ -144,6 +145,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._task_agent_calls: dict[str, tuple[str, int, str]] = {}
         self._task_model_calls: dict[tuple[str | None, str], list[str]] = {}
         self._created_task_calls: set[str] = set()
+        self._persistent_subagent_statuses: dict[str, str | None] = {}
         if not base_url:
             base_url = settings.APP_BASE_URL.rstrip("/")
         self._base_url = base_url
@@ -515,6 +517,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._task_agent_calls.clear()
         self._task_model_calls.clear()
         self._created_task_calls.clear()
+        self._persistent_subagent_statuses.clear()
         self.thinking_ids.clear()
         self._agent_context_cache.clear()
         self._chunk_buffer.reset()

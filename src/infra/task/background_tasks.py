@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+from contextlib import aclosing
 from contextvars import ContextVar
+from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
 from src.infra.task.background_task_store import BackgroundTaskStore
@@ -115,11 +117,35 @@ async def execute_background_stream(session_id, agent_id, message, user_id, **kw
     run_id = getattr(presenter, "run_id", None)
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("Background execution requires its registered run ID")
-    await validate_background_run_admission(session_id, user_id, run_id)
+    record = await validate_background_run_admission(session_id, user_id, run_id)
+    task_time_remaining(record)
+    if record and record.get("assistant_id"):
+        from src.infra.assistant.discussions import task_discussion
+        from src.infra.assistant.tasks import validate_task_assistant
+        from src.infra.folder.storage import get_project_storage
+        from src.infra.session.memory_scope import invalidate_memory_scope_caches
+
+        await validate_task_assistant(record, user_id)
+        await task_discussion(record, user_id)
+        project_id = record.get("config", {}).get("project_id")
+        if project_id and await get_project_storage().get_by_id(project_id, user_id) is None:
+            raise AppError(ErrorCode.PROJECT_NOT_FOUND)
+        invalidate_memory_scope_caches(user_id=user_id, session_id=session_id)
     request = await validate_background_execution(
         session_id, agent_id, user_id, kwargs.get("agent_options") or {}
     )
     kwargs["agent_options"] = request.agent_options
+    request.persona_system_prompt = (
+        "\n\n".join(
+            part
+            for part in (
+                request.persona_system_prompt,
+                (record or {}).get("assistant_instructions"),
+            )
+            if part
+        )
+        or None
+    )
     for key in (
         "persona_system_prompt",
         "disabled_tools",
@@ -130,8 +156,37 @@ async def execute_background_stream(session_id, agent_id, message, user_id, **kw
         "team_id",
     ):
         kwargs[key] = getattr(request, key)
-    async for event in _execute_agent_stream(session_id, agent_id, message, user_id, **kwargs):
+    source = _execute_agent_stream(session_id, agent_id, message, user_id, **kwargs)
+    async for event in stream_with_task_deadline(source, record):
         yield event
+
+
+def task_time_remaining(record):
+    if not record or not record.get("timeout_seconds"):
+        return None
+    started = record.get("authorized_run_started_at") or record["created_at"]
+    deadline = started + timedelta(seconds=record["timeout_seconds"])
+    remaining = (deadline - utc_now()).total_seconds()
+    if remaining <= 0:
+        raise AppError(ErrorCode.ASSISTANT_TASK_DEADLINE)
+    return remaining
+
+
+async def stream_with_task_deadline(source, record):
+    async with aclosing(source):
+        while True:
+            timeout = asyncio.timeout(task_time_remaining(record))
+            try:
+                # Each pull may run in a different watchdog task; don't span a yield with a timeout.
+                async with timeout:
+                    event = await anext(source)
+            except StopAsyncIteration:
+                return
+            except TimeoutError:
+                if not timeout.expired():
+                    raise
+                raise AppError(ErrorCode.ASSISTANT_TASK_DEADLINE) from None
+            yield event
 
 
 class BackgroundTaskService:
@@ -184,6 +239,31 @@ class BackgroundTaskService:
             options = {**options, "model_id": model_id}
             options.pop("model", None)
         config = {key: metadata[key] for key in INHERITED_FIELDS if metadata.get(key) is not None}
+        assistant_snapshot = {}
+        if metadata.get("assistant_id"):
+            from src.infra.assistant.service import assistant_scope_session, conversation_assistant
+
+            assistant = await conversation_assistant(user_id, parent_session_id)
+            if (
+                not assistant
+                or assistant.id != metadata["assistant_id"]
+                or assistant.status != "active"
+            ):
+                raise AppError(ErrorCode.CONFLICT)
+            config["project_id"] = metadata.get("project_id")
+            assistant_snapshot = {
+                "assistant_id": assistant.id,
+                "assistant_source_session_id": await assistant_scope_session(
+                    user_id, parent_session_id
+                ),
+                "assistant_instructions": assistant.instructions,
+                "timeout_seconds": 1800,
+                "authorization": {
+                    "kind": "conversation",
+                    "run_id": parent_run_id,
+                    "assistant_revision": assistant.revision,
+                },
+            }
         if persona_preset_id:
             config["persona_preset_id"] = persona_preset_id
         record = await self.store.reserve(
@@ -203,10 +283,14 @@ class BackgroundTaskService:
                 "language": metadata.get("language") or "en",
                 "execution_mode": settings.TASK_BACKEND,
                 "created_at": utc_now(),
+                **assistant_snapshot,
             }
         )
+        return await self.submit_reserved(record)
+
+    async def submit_reserved(self, record):
         if record["state"] == "reserved":
-            claimed = await self.store.claim(identity)
+            claimed = await self.store.claim(record["_id"])
             if claimed:
                 return await self._dispatch(claimed)
         return self._result(record)
@@ -248,6 +332,10 @@ class BackgroundTaskService:
             "background_depth": 1,
             "background_execution_mode": record["execution_mode"],
         }
+        if record.get("assistant_id"):
+            metadata["background_assistant_id"] = record["assistant_id"]
+        if (record.get("authorization") or {}).get("kind") == "rule":
+            metadata["background_rule_id"] = record["authorization"]["rule_id"]
         if attention:
             metadata.update(task_status="failed", background_admission_state=record["state"])
         await self.sessions.storage.create(

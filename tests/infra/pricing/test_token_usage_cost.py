@@ -133,7 +133,7 @@ class TestUsageLogCost:
         fake = _FakeCollection()
         storage._collection = fake
 
-        async def _no_metadata(_session_id):
+        async def _no_metadata(_session_id, user_id=None):
             return {}
 
         storage._get_session_metadata = _no_metadata

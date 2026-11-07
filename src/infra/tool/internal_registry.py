@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool
 from src.infra.auth.tool_authority import TOOL_PERMISSIONS, resolve_tool_user
 from src.infra.mcp.storage import MCPStorage
 from src.infra.role.storage import RoleStorage
+from src.infra.tool.assistant_tool import get_assistant_tools
 from src.infra.tool.audio_transcribe_tool import get_audio_transcribe_tool
 from src.infra.tool.conversation_history_tool import get_conversation_history_tools
 from src.infra.tool.document_parse_tool import get_document_parse_tool
@@ -84,6 +85,7 @@ def build_internal_tools() -> list[BaseTool]:
     tools.extend(get_env_var_tools())
     tools.extend(get_persona_preset_tools())
     tools.extend(get_team_tools())
+    tools.extend(get_assistant_tools())
     tools.extend(get_conversation_history_tools())
 
     logger.info(

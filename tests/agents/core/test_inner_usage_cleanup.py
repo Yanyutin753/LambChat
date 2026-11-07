@@ -9,7 +9,7 @@ import pytest
 
 
 @pytest.mark.parametrize("agent", ["search_agent", "team_agent"])
-@pytest.mark.parametrize("failure_stage", ["close", "flush"])
+@pytest.mark.parametrize("failure_stage", ["close", "finalize"])
 @pytest.mark.parametrize("error_type", [RuntimeError, asyncio.CancelledError])
 async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
     agent, failure_stage, error_type
@@ -42,7 +42,9 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
         "asyncio": asyncio,
         "subagent_sessions": SimpleNamespace(close=AsyncMock()),
         "event_processor": SimpleNamespace(
-            drain_activity_references=AsyncMock(), flush=AsyncMock()
+            drain_activity_references=AsyncMock(),
+            flush=AsyncMock(),
+            finalize_subagent_events=AsyncMock(),
         ),
         "emit_token_usage": AsyncMock(),
         "presenter": object(),
@@ -53,7 +55,7 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
     target = (
         namespace["subagent_sessions"].close
         if failure_stage == "close"
-        else namespace["event_processor"].flush
+        else namespace["event_processor"].finalize_subagent_events
     )
     target.side_effect = error_type("interrupted cleanup")
     exec(
@@ -66,4 +68,7 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
     )
     with pytest.raises(error_type, match="interrupted cleanup"):
         await namespace["cleanup"]()
+    namespace["event_processor"].finalize_subagent_events.assert_awaited_once_with(
+        namespace["subagent_sessions"]
+    )
     namespace["emit_token_usage"].assert_awaited_once()

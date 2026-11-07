@@ -35,6 +35,16 @@ def _is_admin(user: TokenPayload) -> bool:
     return "usage:admin" in user.permissions
 
 
+async def _validate_assistant_filter(user: TokenPayload, assistant_id: str | None) -> None:
+    if assistant_id is None:
+        return
+    from src.infra.assistant.store import AssistantStore
+    from src.kernel.errors import AppError, ErrorCode
+
+    if await AssistantStore().get(user.sub, assistant_id) is None:
+        raise AppError(ErrorCode.NOT_FOUND)
+
+
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -172,6 +182,7 @@ async def list_usage_logs(
     start_date: Optional[str] = Query(None, description="开始日期 (ISO)"),
     end_date: Optional[str] = Query(None, description="结束日期 (ISO)"),
     search: Optional[str] = Query(None, description="搜索用户名"),
+    assistant_id: str | None = None,
     user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageLogListResponse:
     """
@@ -191,8 +202,13 @@ async def list_usage_logs(
         effective_search = search
     # 非管理员的 user_id 和 search 参数被忽略
 
+    await _validate_assistant_filter(user, assistant_id)
+    if assistant_id is not None:
+        effective_user_id = user.sub
+
     items, total, stats = await storage.list_usage_logs(
         user_id=effective_user_id,
+        **({"assistant_id": assistant_id} if assistant_id is not None else {}),
         model=model,
         start_date=start_date,
         end_date=end_date,
@@ -214,6 +230,7 @@ async def get_usage_stats(
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"
     ),
+    assistant_id: str | None = None,
     user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageStats:
     """
@@ -227,8 +244,13 @@ async def get_usage_stats(
 
     start = start_date or _compute_start_date(period or "all")
 
+    await _validate_assistant_filter(user, assistant_id)
+    if assistant_id is not None:
+        effective_user_id = user.sub
+
     stats = await storage.get_usage_stats_only(
         user_id=effective_user_id,
+        **({"assistant_id": assistant_id} if assistant_id is not None else {}),
         start_date=start,
     )
     return UsageStats(**stats)
@@ -243,6 +265,7 @@ async def get_usage_dashboard(
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"
     ),
+    assistant_id: str | None = None,
     user: TokenPayload = Depends(require_permissions("usage:read")),
 ) -> UsageDashboardResponse:
     """获取数字员工运营看板聚合数据。"""
@@ -254,8 +277,13 @@ async def get_usage_dashboard(
         effective_user_id = user_id
         effective_search = search
 
+    await _validate_assistant_filter(user, assistant_id)
+    if assistant_id is not None:
+        effective_user_id = user.sub
+
     data = await storage.get_usage_dashboard(
         user_id=effective_user_id,
+        **({"assistant_id": assistant_id} if assistant_id is not None else {}),
         start_date=start_date or _compute_start_date(period or "week"),
         model=model,
         search=effective_search,

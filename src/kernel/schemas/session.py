@@ -92,7 +92,10 @@ def clone_session_metadata(
     if not include_checkpoints:
         copied.pop("checkpoints", None)
     copied.pop("current_run_id", None)
+    copied.pop("assistant_id", None)
+    copied.pop("assistant_discussion_id", None)
+    copied.pop("channel_delivery", None)
     for key in list(copied):
-        if key.startswith("persistent_goal_"):
+        if key.startswith(("persistent_goal_", "background_")):
             copied.pop(key)
     return copied

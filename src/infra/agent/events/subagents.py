@@ -39,12 +39,14 @@ class SubagentEventMixin:
     _task_agent_calls: dict[str, tuple[str, int, str]]
     _task_model_calls: dict[tuple[str | None, str], list[str]]
     _created_task_calls: set[str]
+    _persistent_subagent_statuses: dict[str, str | None]
     _agent_context_cache: dict[str, tuple[str | None, int]]
     _subagent_display_names: dict[str, str]
     _subagent_avatars: dict[str, str]
     _presenter_emit: Any
     presenter: Any
     flush: Callable[[], Awaitable[None]]
+    drain_activity_references: Callable[[], Awaitable[None]]
 
     async def _handle_subagent_message(self, event: StreamEvent) -> None:
         data = cast(dict[str, Any], event.get("data", {}))
@@ -106,6 +108,26 @@ class SubagentEventMixin:
                     status=data.get("status"),
                 )
             )
+
+        self._persistent_subagent_statuses[subagent_id] = data.get("status")
+
+    async def finalize_subagent_events(self, sessions: Any) -> None:
+        try:
+            # close() emits after astream_events has ended, so forward undelivered states directly.
+            for subagent_id in sessions.records:
+                record = sessions.result(subagent_id)
+                status = record.get("status")
+                if (
+                    subagent_id in self._persistent_subagent_statuses
+                    and status in {"cancelled", "failed", "timed_out", "completed", "waiting_human"}
+                    and status != self._persistent_subagent_statuses[subagent_id]
+                ):
+                    await self._handle_persistent_subagent_event(
+                        cast(StreamEvent, {"data": {**record, "phase": "completed"}})
+                    )
+        finally:
+            await self.drain_activity_references()
+            await self.flush()
 
     def _get_checkpoint_ns(self, metadata: dict[str, Any]) -> str:
         return metadata.get("langgraph_checkpoint_ns") or metadata.get("checkpoint_ns", "")

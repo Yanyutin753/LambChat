@@ -23,6 +23,7 @@ class ErrorCode(Enum):
     METHOD_NOT_ALLOWED = ("method_not_allowed", 405, "Method not allowed")
     BAD_REQUEST = ("bad_request", 400, "Bad request")
     CONFLICT = ("conflict", 409, "Request conflict")
+    ASSISTANT_TASK_DEADLINE = ("assistant_task_deadline", 409, "The task deadline has been reached")
     CONVERSATION_HISTORY_SAVE_FAILED = (
         "conversation_history_save_failed",
         503,

@@ -20,6 +20,17 @@ from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.user import TokenPayload
 
 
+@pytest.fixture(autouse=True)
+def ordinary_assistant_lookup(monkeypatch):
+    from src.infra.assistant.store import AssistantStore
+
+    monkeypatch.setattr(AssistantStore, "for_session", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "src.infra.scheduler.results.append_result_context",
+        AsyncMock(side_effect=lambda message, *args: message),
+    )
+
+
 def _http_request(
     base_url: str = "https://chat.example.com/",
 ) -> SimpleNamespace:
@@ -97,7 +108,11 @@ class _Limiter:
 
 
 class _Executor:
+    def __init__(self):
+        self.session_calls = []
+
     async def ensure_session(self, *args: Any, **kwargs: Any) -> None:
+        self.session_calls.append(kwargs)
         return None
 
     async def _update_session_status(self, *args: Any, **kwargs: Any) -> None:
@@ -143,6 +158,8 @@ async def _invoke_chat(
     session_id: str | None = None,
     project_id: str | None = None,
     identity_build=None,
+    memory_permission=True,
+    disabled_tools=None,
 ) -> _TaskManager:
     limiter = _Limiter(limiter_result)
     task_manager = _TaskManager()
@@ -171,7 +188,9 @@ async def _invoke_chat(
     if memory_append is not None:
         monkeypatch.setattr(chat, "append_memory_context", memory_append)
 
-    request = AgentRequest(message="hello", session_id=session_id, project_id=project_id)
+    request = AgentRequest(
+        message="hello", session_id=session_id, project_id=project_id, disabled_tools=disabled_tools
+    )
     await chat.chat_stream(
         request,
         http_request or _http_request(),
@@ -179,10 +198,89 @@ async def _invoke_chat(
             sub="owner-1",
             username="owner",
             roles=["member"],
-            permissions=["chat:write", "session:read", "session:write", "file:read"],
+            permissions=[
+                "chat:write",
+                "session:read",
+                "session:write",
+                "file:read",
+                *(["memory:read"] if memory_permission else []),
+            ],
         ),
     )
     return task_manager
+
+
+@pytest.mark.parametrize(
+    "task_backend,limiter_result",
+    [
+        ("local", ConcurrencyResult.STARTED),
+        ("arq", ConcurrencyResult.STARTED),
+        ("local", ConcurrencyResult.QUEUED),
+    ],
+)
+@pytest.mark.parametrize("project_id", [None, "new-project"])
+async def test_assistant_persists_configuration_before_a_worker_can_start(
+    monkeypatch, task_backend, limiter_result, project_id
+):
+    from contextlib import asynccontextmanager
+
+    from src.infra.assistant.service import AssistantService
+    from src.infra.assistant.store import AssistantStore
+    from src.infra.session.manager import SessionManager
+    from src.infra.utils.datetime import utc_now
+    from src.kernel.schemas.assistant import Assistant
+
+    @asynccontextmanager
+    async def submission(*_args):
+        yield
+
+    monkeypatch.setattr(chat, "conversation_submission", submission)
+    assistant = Assistant(
+        id="helper",
+        session_id="assistant-session",
+        user_id="owner-1",
+        name="Researcher",
+        instructions="Verify sources",
+        status="active",
+        revision=1,
+        project_id=project_id,
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
+    monkeypatch.setattr(AssistantStore, "for_session", AsyncMock(return_value=assistant))
+    monkeypatch.setattr(AssistantService, "validate_configuration", AsyncMock())
+    monkeypatch.setattr(
+        SessionManager,
+        "get_session",
+        AsyncMock(return_value=SimpleNamespace(user_id="owner-1", metadata={})),
+    )
+    monkeypatch.setattr(
+        "src.infra.backend.workspace_selection.resolve_workspace_options",
+        AsyncMock(return_value={}),
+    )
+
+    async def memory_context(message, *args, **kwargs):
+        assert kwargs["project_id"] == "assistant-memory:helper", (
+            "Assistant memory must stay separate from personal and project history"
+        )
+        return message
+
+    manager = await _invoke_chat(
+        monkeypatch,
+        limiter_result=limiter_result,
+        task_backend=task_backend,
+        session_id="assistant-session",
+        memory_append=memory_context,
+    )
+    if limiter_result == ConcurrencyResult.QUEUED:
+        call = manager._executor.session_calls[0]
+    else:
+        call = (manager.submit_arq_calls if task_backend == "arq" else manager.submit_calls)[0]
+    metadata = call["session_metadata"]
+    assert metadata["executor_key"] == "assistant_stream"
+    assert metadata["assistant_id"] == "helper"
+    assert metadata["current_run_id"] == "run-1"
+    assert metadata["agent_options"] == {}
 
 
 async def test_chat_prepares_identity_and_model_context_concurrently_without_changing_payload(
@@ -407,3 +505,142 @@ async def test_chat_stream_passes_base_url_in_queued_task_context(
     assert limiter.acquire_calls, "应经过并发限制器"
     task_context = limiter.acquire_calls[0]["task_context"]
     assert task_context.get("base_url") == "https://chat.example.com"
+
+
+@pytest.mark.parametrize(
+    "task_backend,limiter_result",
+    [
+        ("local", ConcurrencyResult.STARTED),
+        ("arq", ConcurrencyResult.STARTED),
+        ("local", ConcurrencyResult.QUEUED),
+    ],
+)
+async def test_assistant_task_followup_authorizes_bound_execution_before_dispatch(
+    monkeypatch, task_backend, limiter_result
+):
+    from contextlib import asynccontextmanager
+
+    from src.infra.session.manager import SessionManager
+    from src.infra.task.background_task_store import BackgroundTaskStore
+    from src.infra.task.background_tasks import execute_background_stream
+    from src.infra.utils.datetime import utc_now
+
+    @asynccontextmanager
+    async def submission(*args):
+        yield
+
+    monkeypatch.setattr(chat, "conversation_submission", submission)
+    metadata = {"background_task_id": "task", "current_run_id": "old", "task_status": "completed"}
+    monkeypatch.setattr(
+        SessionManager,
+        "get_session",
+        AsyncMock(return_value=SimpleNamespace(user_id="owner-1", metadata=metadata)),
+    )
+    record = {
+        "_id": "task",
+        "user_id": "owner-1",
+        "session_id": "child",
+        "assistant_id": "helper",
+        "parent_session_id": "coordinator",
+        "run_id": "old",
+        "state": "submitted",
+        "agent_id": "search",
+        "agent_options": {"sandbox": "cloud"},
+        "config": {"project_id": None},
+        "assistant_instructions": "Keep evidence",
+        "created_at": utc_now(),
+        "timeout_seconds": 300,
+    }
+    collection = SimpleNamespace(
+        find_one=AsyncMock(return_value=record),
+        update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),
+    )
+    monkeypatch.setattr(BackgroundTaskStore, "collection", property(lambda self: collection))
+    from src.infra.assistant.store import AssistantStore
+
+    monkeypatch.setattr(
+        AssistantStore,
+        "get",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id="helper", session_id="coordinator", memory_mode="private", status="active"
+            )
+        ),
+    )
+
+    async def memory_context(message, *args, **kwargs):
+        assert kwargs["project_id"] == "assistant-memory:helper"
+        return message
+
+    manager = await _invoke_chat(
+        monkeypatch,
+        limiter_result=limiter_result,
+        task_backend=task_backend,
+        session_id="child",
+        memory_append=memory_context,
+    )
+    call = (
+        manager._executor.session_calls[0]
+        if limiter_result == ConcurrencyResult.QUEUED
+        else (manager.submit_arq_calls if task_backend == "arq" else manager.submit_calls)[0]
+    )
+    assert call["session_metadata"]["executor_key"] == "background_agent_stream"
+    assert call["session_metadata"]["background_task_id"] == "task"
+    assert call["session_metadata"]["project_id"] is None
+    if limiter_result != ConcurrencyResult.QUEUED:
+        assert call["persona_system_prompt"] == "Keep evidence"
+        if task_backend == "local":
+            assert call["executor"] is execute_background_stream
+    assert collection.update_one.call_args.args[1]["$set"]["authorized_run_id"] == "run-1"
+
+
+@pytest.mark.parametrize(
+    "memory_permission,disabled_tools", [(False, []), (True, ["memory_recall"])]
+)
+async def test_assistant_context_cannot_bypass_memory_permissions_or_disabled_tools(
+    monkeypatch, memory_permission, disabled_tools
+):
+    from contextlib import asynccontextmanager
+
+    from src.infra.assistant.service import AssistantService
+    from src.infra.assistant.store import AssistantStore
+    from src.infra.session.manager import SessionManager
+    from src.infra.utils.datetime import utc_now
+    from src.kernel.schemas.assistant import Assistant
+
+    @asynccontextmanager
+    async def submission(*_args):
+        yield
+
+    monkeypatch.setattr(chat, "conversation_submission", submission)
+    assistant = Assistant(
+        id="helper",
+        session_id="assistant-session",
+        user_id="owner-1",
+        name="Researcher",
+        status="active",
+        revision=1,
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
+    monkeypatch.setattr(AssistantStore, "for_session", AsyncMock(return_value=assistant))
+    monkeypatch.setattr(AssistantService, "validate_configuration", AsyncMock())
+    monkeypatch.setattr(
+        SessionManager,
+        "get_session",
+        AsyncMock(return_value=SimpleNamespace(user_id="owner-1", metadata={})),
+    )
+    monkeypatch.setattr(
+        "src.infra.backend.workspace_selection.resolve_workspace_options",
+        AsyncMock(return_value={}),
+    )
+    recall = AsyncMock(side_effect=lambda message, *args, **kwargs: message)
+    await _invoke_chat(
+        monkeypatch,
+        limiter_result=ConcurrencyResult.STARTED,
+        session_id="assistant-session",
+        memory_append=recall,
+        memory_permission=memory_permission,
+        disabled_tools=disabled_tools,
+    )
+    recall.assert_not_awaited()

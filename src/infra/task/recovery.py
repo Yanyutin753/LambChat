@@ -386,6 +386,9 @@ class TaskRecoveryService:
         _require_safe_recovery(session)
         session_metadata = getattr(session, "metadata", None) or {}
         executor_key = str(session_metadata.get("executor_key") or "agent_stream")
+        if executor_key == "assistant_stream":
+            from src.infra.assistant import execution  # noqa: F401
+
         executor_fn = get_registered_executor(executor_key)
         if executor_fn is None and executor_key in {
             "agent_stream",

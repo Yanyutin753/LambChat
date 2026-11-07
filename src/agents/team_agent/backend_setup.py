@@ -37,13 +37,16 @@ async def load_backend_bundle(
         if isinstance(sandbox_choice, str) and sandbox_choice in {"local", "cloud"}
         else settings.SANDBOX_PLATFORM.lower()
     )
+    sandbox_enabled = settings.ENABLE_SANDBOX and (
+        "sandbox" not in agent_options or sandbox_choice is not None
+    )
     env_overrides = (
         await resolve_channel_env_vars(context.user_id or "", agent_options)
-        if settings.ENABLE_SANDBOX
+        if sandbox_enabled
         else {}
     )
 
-    if not settings.ENABLE_SANDBOX:
+    if not sandbox_enabled:
         loaded_backend = create_persistent_backend(
             assistant_id=assistant_id,
             user_id=context.user_id,

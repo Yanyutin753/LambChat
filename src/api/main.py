@@ -24,6 +24,7 @@ from src.api.middleware.upload_isolation import UploadIsolationMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
 from src.api.routes import (
     agent,
+    assistants,
     auth,
     bookmark,
     channel_webhook,
@@ -810,6 +811,7 @@ def create_app() -> FastAPI:
         tags=["Persona Presets"],
     )
     app.include_router(team.router, prefix="/api/teams", tags=["Teams"])
+    app.include_router(assistants.router, prefix="/api/assistants", tags=["Assistants"])
     app.include_router(session.router, prefix="/api/sessions", tags=["Sessions"])
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])

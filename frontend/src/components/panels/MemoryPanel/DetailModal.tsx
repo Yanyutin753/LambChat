@@ -11,12 +11,16 @@ import { TYPE_STYLES, SOURCE_STYLES, SOURCE_DOTS } from "./constants";
 import { formatDateTime } from "../../../utils/datetime";
 
 export function DetailModal({
+  assistantId,
+  discussionId,
   memory: initialMemory,
   onClose,
   onDelete,
   onEdit,
   relativeTime,
 }: {
+  assistantId?: string;
+  discussionId?: string;
   memory: MemoryItem;
   onClose: () => void;
   onDelete?: (id: string) => void;
@@ -24,7 +28,11 @@ export function DetailModal({
   relativeTime: (dateStr: string | null) => string;
 }) {
   const { t } = useTranslation();
-  const { full, loading, error, retry } = useMemoryContent(initialMemory);
+  const { full, loading, error, retry } = useMemoryContent(
+    initialMemory,
+    assistantId,
+    discussionId,
+  );
   const memory = full ?? initialMemory;
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +108,24 @@ export function DetailModal({
             </p>
           )}
 
+          {!!memory.source_refs?.length && (
+            <div
+              className="flex flex-wrap gap-2"
+              aria-label={t("assistants.memorySources")}
+            >
+              {memory.source_refs.map((source, index) => (
+                <a
+                  key={`${source.session_id}:${source.run_id}`}
+                  className="text-12 text-theme-primary underline"
+                  href={`/chat/${encodeURIComponent(
+                    source.session_id,
+                  )}?run_id=${encodeURIComponent(source.run_id)}`}
+                >
+                  {t("assistants.memorySource", { number: index + 1 })}
+                </a>
+              ))}
+            </div>
+          )}
           {/* Tags */}
           {memory.tags.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">

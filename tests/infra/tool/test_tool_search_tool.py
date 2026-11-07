@@ -168,3 +168,17 @@ async def test_search_tools_formats_schema_for_injected_runtime_tools() -> None:
 
     assert '"url"' in result
     assert '"runtime"' not in result
+
+
+async def test_assistant_discovery_preserves_nested_prompt_and_workspace_definitions():
+    from src.infra.tool.assistant_tool import update_assistant
+
+    manager = DeferredToolManager(
+        all_deferred_tools=[], deferred_system_tools=[update_assistant], session_id="schema-test"
+    )
+    result = await ToolSearchTool(manager)._arun("select:update_assistant")
+    assert '"$defs"' in result
+    assert '"PersonaStarterPrompt"' in result
+    assert '"ProjectWorkspace"' in result
+    assert '"machineId"' in result
+    assert '"runtime"' not in result

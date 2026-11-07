@@ -1,3 +1,4 @@
+import type { Assistant } from "../../../types/assistant";
 import type { PersistentGoal } from "../../../services/api/session";
 import { useState, useEffect } from "react";
 import { teamApi } from "../../../services/api/team";
@@ -119,6 +120,11 @@ function resolveChatAssistantIdentity({
 // ---------------------------------------------------------------------------
 
 export interface ChatViewProps {
+  assistant?: Assistant | null;
+  onAssistantResolved?: (
+    sessionId: string,
+    assistant: Assistant | null,
+  ) => void;
   draftKey?: string;
   messages: Message[];
   sessionId: string | null;

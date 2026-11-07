@@ -58,6 +58,10 @@ def build_scope_clause(project_id: Optional[str]) -> dict[str, Any]:
     - 无项目会话：只见 user/reference（含 legacy 无 scope 文档）
     - 项目会话：user/reference + 本项目 project 记忆；其他项目一律不可见
     """
+    from src.infra.memory.scope import is_assistant_partition
+
+    if is_assistant_partition(project_id):
+        return {"scope": "project", "project_id": project_id}
     visible = {"$in": [None, "user", "reference"]}
     if project_id:
         return {

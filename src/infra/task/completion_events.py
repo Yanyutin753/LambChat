@@ -164,6 +164,62 @@ class TaskCompletionStore:
             raise RuntimeError("Completion event was not persisted")
         return _public(document), fresh
 
+    async def record_delivery(
+        self, user_id: str, dedupe_key: str, transport: str, recipients: int
+    ) -> None:
+        if type(recipients) is not int or recipients <= 0:
+            return
+        if transport not in {"websocket", "web_push", "channel"}:
+            raise ValueError("Unknown notification transport")
+        identity = str(uuid5(NAMESPACE_URL, f"{user_id}:{dedupe_key}"))
+        try:
+            await self.collection.update_one(
+                {"user_id": user_id, "id": identity},
+                {
+                    "$set": {
+                        f"delivery.{transport}": {
+                            "accepted_at": utc_now(),
+                            "recipients": recipients,
+                        }
+                    }
+                },
+            )
+        except Exception:
+            # Delivery already happened; never replay it to recover a missing receipt.
+            from src.infra.logging import get_logger
+
+            get_logger(__name__).warning(
+                "Notification receipt could not be persisted", exc_info=True
+            )
+
+    async def for_runs(self, user_id: str, run_ids: list[str]) -> dict:
+        if not run_ids:
+            return {}
+        rows = await (
+            await self.collection.aggregate(
+                [
+                    {"$match": {"user_id": user_id, "data.run_id": {"$in": run_ids}}},
+                    {"$sort": {"created_at": -1}},
+                    {
+                        "$group": {
+                            "_id": "$data.run_id",
+                            "recorded_at": {"$first": "$created_at"},
+                            "status": {"$first": "$data.status"},
+                            "delivery": {"$first": "$delivery"},
+                        }
+                    },
+                ]
+            )
+        ).to_list(length=len(run_ids))
+        return {
+            row["_id"]: {
+                "recorded_at": row["recorded_at"],
+                "status": row["status"],
+                "accepted_transports": list((row.get("delivery") or {}).keys()),
+            }
+            for row in rows
+        }
+
     async def list_for_user(
         self,
         user_id: str,

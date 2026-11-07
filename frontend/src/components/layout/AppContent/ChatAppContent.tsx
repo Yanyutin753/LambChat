@@ -52,8 +52,10 @@ import {
   useWorkspaceOptionActions,
 } from "./sessionToggleCallbacks";
 import type { ChatAppContentProps } from "./types";
+import { useAssistantContext } from "../../assistants/useAssistantContext";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
 export function ChatAppContent({
+  embedded = false,
   showProfileModal,
   onCloseProfileModal,
   sidebarCollapsed,
@@ -236,17 +238,11 @@ export function ChatAppContent({
     getPersonaSnapshot: () => sessionConfigRef.current.personaSnapshot,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     getAgentOptions: () => sessionConfigRef.current.agentOptions,
-    onSkillAdded: (
-      skillName: string,
-      _description: string,
-      filesCount: number,
-    ) => {
-      console.log(
-        `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
-      );
+    onSkillAdded: () => {
       setTimeout(() => fetchSkills(), 500);
     },
   });
+  const { assistant, onAssistantResolved } = useAssistantContext(sessionId);
   ensureResumeStreamRef.current = (runId, sourceSessionId) => {
     if (sourceSessionId && sourceSessionId !== sessionId) return;
     void reconnectSSE(runId);
@@ -317,11 +313,12 @@ export function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // 沙箱模式、选机或工作区绑定变化后，文件面板重新解析工作区。
   const workspaceModeForShell =
-    typeof agentOptionValues?.sandbox === "string"
-      ? agentOptionValues.sandbox
-      : null;
+    assistant && !assistant.sandbox && !assistant.project_id
+      ? "none"
+      : typeof agentOptionValues?.sandbox === "string"
+        ? agentOptionValues.sandbox
+        : null;
   const workspaceMachineForShell =
     typeof agentOptionValues?.sandbox_machine_id === "string"
       ? agentOptionValues.sandbox_machine_id
@@ -779,6 +776,7 @@ export function ChatAppContent({
 
   return (
     <AppShell
+      embedded={embedded}
       activeTab="chat"
       headerActions={
         <SessionWorkspaceButton
@@ -795,7 +793,7 @@ export function ChatAppContent({
       onShowProfile={onShowProfile}
       availableModels={filteredModels}
       currentModelId={currentModelId}
-      onSelectModel={handleSelectModel}
+      onSelectModel={assistant ? undefined : handleSelectModel}
       sessionId={sessionId}
       showOutlineButton={shouldShowMessageOutline(messages)}
       onToggleOutline={handleToggleOutline}
@@ -852,6 +850,8 @@ export function ChatAppContent({
         )}
 
         <ChatView
+          assistant={assistant}
+          onAssistantResolved={onAssistantResolved}
           draftKey={draftKey}
           messages={messages}
           sessionId={sessionId}
