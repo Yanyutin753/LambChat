@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 class ChannelRuntimeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, strict=True)
 
+    assistant_id: str | None = Field(default=None, min_length=1, max_length=128)
     sandbox: Literal["default", "local", "cloud"] = "default"
     sandbox_machine_id: str = Field(default="", max_length=256)
     enable_thinking: Literal["", "low", "medium", "high", "max"] = ""
@@ -76,7 +77,7 @@ async def build_channel_agent_options(config: dict, user_id: str) -> dict[str, A
             options[key] = value
     if runtime.enable_code_interpreter is not None:
         options["enable_code_interpreter"] = runtime.enable_code_interpreter
-    if config.get("model_id"):
+    if config.get("model_id") and not runtime.assistant_id:
         options["model_id"] = config["model_id"]
     if runtime.env_vars:
         if not config.get("channel_type") or not config.get("instance_id"):
@@ -85,7 +86,7 @@ async def build_channel_agent_options(config: dict, user_id: str) -> dict[str, A
             "channel_type": config["channel_type"],
             "instance_id": config["instance_id"],
         }
-    if config.get("project_id"):
+    if config.get("project_id") and not runtime.assistant_id:
         from src.infra.folder.storage import get_project_storage
 
         project = await get_project_storage().get_by_id(config["project_id"], user_id)

@@ -240,3 +240,38 @@ test("missing IDs use the existing UUID fallback when randomUUID is unavailable"
     vi.unstubAllGlobals();
   }
 });
+
+test("assistant restore keeps its partition on preflight and every write batch", async () => {
+  authFetch.mockImplementation(async (url: string, init: RequestInit) => {
+    const rows = JSON.parse(String(init.body)).memories;
+    expect(url).toContain("assistant_id=researcher");
+    return url.includes("validate_only=true")
+      ? { success: true, validated: rows.length, limits }
+      : {
+          success: true,
+          imported: rows.length,
+          created: rows.length,
+          overwritten: 0,
+        };
+  });
+  await memoryApi.importAll(backup(2), undefined, "researcher");
+  expect(authFetch).toHaveBeenCalledTimes(3);
+});
+
+test("discussion restore preserves the audience on preflight and all writes", async () => {
+  authFetch.mockImplementation(async (url: string, init: RequestInit) => {
+    const rows = JSON.parse(String(init.body)).memories;
+    expect(url).toContain("assistant_id=researcher");
+    expect(url).toContain("discussion_id=group-1");
+    return url.includes("validate_only=true")
+      ? { success: true, validated: rows.length, limits }
+      : {
+          success: true,
+          imported: rows.length,
+          created: rows.length,
+          overwritten: 0,
+        };
+  });
+  await memoryApi.importAll(backup(2), undefined, "researcher", "group-1");
+  expect(authFetch).toHaveBeenCalledTimes(3);
+});

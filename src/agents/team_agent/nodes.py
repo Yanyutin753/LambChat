@@ -89,6 +89,7 @@ from src.infra.agent.middleware.persona_subagent import (
     add_persona_discovery,
 )
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
+from src.infra.assistant.groups import resolve_group_for_session, team_member_snapshots
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.goal import (
     build_goal_input,
@@ -115,9 +116,15 @@ async def resolve_runtime_team(
     user_input: str,
 ):
     """Resolve an explicit team; no team means single-agent fallback."""
-    del user_input
     if not context.user_id:
         return None
+
+    if not team_id and getattr(context, "session_id", None):
+        group = await resolve_group_for_session(
+            context.user_id, context.session_id, user_input=user_input
+        )
+        if group is not None:
+            return group
 
     if team_id:
         try:
@@ -258,15 +265,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     if team and team.active_members:
         try:
-            from src.infra.persona_preset.manager import get_persona_preset_manager
-
-            preset_mgr = get_persona_preset_manager()
             members = team.active_members
-            preset_snapshots = await preset_mgr.use_presets(
-                [member.persona_preset_id for member in members],
-                user_id=context.user_id or "default",
-                is_admin=False,
-            )
+            preset_snapshots = await team_member_snapshots(team, context.user_id or "default")
             for member, preset_snapshot in zip(members, preset_snapshots, strict=True):
                 role_system_prompts[member.member_id] = preset_snapshot.system_prompt
                 role_skill_names = set(getattr(preset_snapshot, "skill_names", []) or [])
@@ -911,8 +911,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         finally:
             try:
-                await event_processor.drain_activity_references()
-                await event_processor.flush()
+                await event_processor.finalize_subagent_events(subagent_sessions)
             finally:
                 await emit_token_usage(
                     event_processor,

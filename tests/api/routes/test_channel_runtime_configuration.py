@@ -53,3 +53,39 @@ async def test_channel_lists_do_not_leak_runtime_secrets(monkeypatch, list_type)
     )
     assert "sensitive-value" not in result.model_dump_json()
     assert result.channels[0].runtime_config["env_vars"] == {"API_KEY": "***"}
+
+
+async def test_channel_assistant_binding_requires_an_owned_active_identity(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.assistant.store import AssistantStore
+
+    lookup = AsyncMock(return_value=SimpleNamespace(status="active"))
+    monkeypatch.setattr(AssistantStore, "get", lookup)
+    value = await validate_runtime_configuration({"assistant_id": "helper"}, "owner")
+    assert value["assistant_id"] == "helper"
+    lookup.assert_awaited_with("owner", "helper")
+    lookup.return_value = None
+    with pytest.raises(AppError):
+        await validate_runtime_configuration({"assistant_id": "foreign"}, "owner")
+
+
+async def test_assistant_binding_does_not_validate_an_unused_old_local_machine(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.assistant.store import AssistantStore
+
+    monkeypatch.setattr(
+        AssistantStore, "get", AsyncMock(return_value=SimpleNamespace(status="active"))
+    )
+    machines = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        "src.infra.sandbox.relay.registry.SandboxClientRegistry.list_machines", machines
+    )
+    runtime = await validate_runtime_configuration(
+        {"assistant_id": "helper", "sandbox": "local", "sandbox_machine_id": "retired"}, "owner"
+    )
+    assert runtime["sandbox_machine_id"] == "retired"
+    machines.assert_not_awaited()
+    with pytest.raises(AppError):
+        await validate_runtime_configuration({"assistant_id": None}, "owner", runtime)

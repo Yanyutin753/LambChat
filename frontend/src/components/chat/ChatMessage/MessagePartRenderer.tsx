@@ -1,3 +1,4 @@
+import { AssistantManageItem } from "./items/AssistantManageItem";
 import { clsx } from "clsx";
 import { ArrowRightLeft, RotateCcw, Square } from "lucide-react";
 import type { MessagePart } from "../../../types";
@@ -30,6 +31,7 @@ import {
   SubagentControlItem,
   CancelSubagentItem,
   StartBackgroundTaskItem,
+  DelegateAssistantTaskItem,
   ListSubagentsItem,
   MemoryRecallItem,
   MemoryStoreItem,
@@ -477,6 +479,25 @@ export function MessagePartRenderer({
       );
     }
     if (
+      part.name === "list_assistants" ||
+      part.name === "create_assistant" ||
+      part.name === "update_assistant"
+    ) {
+      return (
+        <AssistantManageItem
+          id={part.id}
+          toolName={part.name}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
       part.name === "search_persona_presets" ||
       part.name === "create_agent_team"
     ) {
@@ -485,6 +506,20 @@ export function MessagePartRenderer({
           id={part.id}
           toolName={part.name}
           args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "delegate_assistant_task") {
+      return (
+        <DelegateAssistantTaskItem
+          id={part.id}
+          args={part.args}
           result={part.result}
           success={part.success}
           isPending={part.isPending}

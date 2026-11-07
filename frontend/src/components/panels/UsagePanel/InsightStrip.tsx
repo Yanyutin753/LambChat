@@ -106,11 +106,11 @@ export function InsightStrip({
   ];
 
   return (
-    <div className="usage-insight-strip usage-surface grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
+    <div className="usage-insight-strip usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] overflow-hidden rounded-xl">
       {insights.map((item) => (
         <div
           key={item.label}
-          className="min-w-0 border-r border-b border-[var(--usage-border)] px-3.5 py-4 transition-colors duration-200 hover:bg-[var(--usage-surface-hover)] sm:px-4 sm:py-5 xl:border-b-0"
+          className="min-w-0 border-r border-b border-[var(--usage-border)] px-3.5 py-4 transition-colors duration-200 hover:bg-[var(--usage-surface-hover)] sm:px-4 sm:py-5"
         >
           <div className="mb-1 flex items-center gap-1.5 sm:gap-2">
             <item.icon

@@ -1,4 +1,6 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useContext, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { EmbeddedHeaderActionsContext } from "./EmbeddedHeaderActionsContext";
 import "../../../styles/desktop.css";
 import { Header } from "./Header";
 import type { TabType } from "./types";
@@ -10,6 +12,7 @@ const ProfileModal = lazy(() =>
 );
 
 export interface AppShellProps {
+  embedded?: boolean;
   activeTab: TabType;
   headerActions?: ReactNode;
   showProfileModal: boolean;
@@ -39,6 +42,7 @@ export interface AppShellProps {
 }
 
 export function AppShell({
+  embedded = false,
   activeTab,
   headerActions,
   showProfileModal,
@@ -55,10 +59,25 @@ export function AppShell({
   showOutlineButton,
   onToggleOutline,
 }: AppShellProps) {
+  const headerActionsTarget = useContext(EmbeddedHeaderActionsContext);
   const appSafeAreaTop =
     "var(--app-safe-area-top-active, max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px)))";
   const appSafeAreaBottom =
     "var(--app-safe-area-bottom-active, max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px)))";
+
+  if (embedded)
+    return (
+      <>
+        {headerActionsTarget ? (
+          createPortal(headerActions, headerActionsTarget)
+        ) : (
+          <div className="flex shrink-0 items-center justify-end px-4 py-1">
+            {headerActions}
+          </div>
+        )}
+        {children}
+      </>
+    );
 
   return (
     <>

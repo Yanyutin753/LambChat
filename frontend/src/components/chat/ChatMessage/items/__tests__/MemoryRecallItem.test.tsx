@@ -76,7 +76,11 @@ test("clicking a recalled card loads its full memory and opens read-only details
   expect(memoryApi.get).not.toHaveBeenCalled();
   fireEvent.click(card);
   expect(await screen.findByText(full.content)).toBeVisible();
-  expect(memoryApi.get).toHaveBeenCalledWith(full.memory_id);
+  expect(memoryApi.get).toHaveBeenCalledWith(
+    full.memory_id,
+    undefined,
+    undefined,
+  );
   expect(screen.getByText(`7 ${i18n.t("memory.accesses")}`)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: i18n.t("common.edit") }),

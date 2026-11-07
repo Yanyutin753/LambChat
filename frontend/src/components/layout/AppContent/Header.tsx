@@ -1,3 +1,4 @@
+import { ChatHeaderFrame } from "./ChatHeaderFrame";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { PageNavigationBar } from "../../common/PageNavigationBar";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
@@ -343,7 +344,7 @@ export function Header({
 
   return (
     <>
-      <header className="chat-header relative z-50 flex items-center px-3 sm:px-5 py-3 -mb-2 max-sm:h-12 max-sm:py-0 max-sm:mb-0 shrink-0 rounded-bl-xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-[linear-gradient(to_bottom,var(--theme-bg),transparent)]">
+      <ChatHeaderFrame>
         <div className="chat-header__identity flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
@@ -398,12 +399,21 @@ export function Header({
             </>
           ) : (
             <PageNavigationBar
-              title={t(`nav.${activeTab}`, { defaultValue: activeTab })}
+              title={t(
+                activeTab === "assistants"
+                  ? "assistants.title"
+                  : `nav.${activeTab}`,
+                { defaultValue: activeTab },
+              )}
               onBack={() => navigate(-1)}
               icon={
                 <SceneIllustration
                   scene={`panel-${
-                    activeTab === "scheduled-tasks" ? "schedule" : activeTab
+                    activeTab === "scheduled-tasks"
+                      ? "schedule"
+                      : activeTab === "assistants"
+                        ? "agents"
+                        : activeTab
                   }`}
                   className="panel-nav-avatar"
                 />
@@ -414,7 +424,7 @@ export function Header({
         </div>
 
         {activeTab === "chat" && actions}
-      </header>
+      </ChatHeaderFrame>
 
       {activeTab === "chat" &&
         scheduledSessionId === sessionId &&

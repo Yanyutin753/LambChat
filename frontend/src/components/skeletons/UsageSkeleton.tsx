@@ -8,7 +8,7 @@ import {
 /** Shared skeleton for a single insight item inside InsightStrip (border-r border-b grid item) */
 function InsightItemSkeleton() {
   return (
-    <div className="min-w-0 border-r border-b border-[var(--usage-border)] px-3.5 py-3 sm:px-4 sm:py-4 xl:border-b-0">
+    <div className="min-w-0 border-r border-b border-[var(--usage-border)] px-3.5 py-3 sm:px-4 sm:py-4">
       <div className="mb-1 flex items-center gap-1.5 sm:gap-2">
         <div className="skeleton-line size-[12px] rounded shrink-0" />
         <SkeletonLine width="w-8 sm:w-10" className="!h-[11px] !opacity-60" />
@@ -154,15 +154,21 @@ export function UsagePanelSkeleton() {
   return (
     <div className="glass-shell usage-panel flex h-full min-h-0 flex-col overflow-y-auto">
       {/* 1. PanelHeader with search, subtitle */}
-      <PanelHeaderSkeleton hasSearch hasSubtitle hasSearchAccessory hasSearchActions hasActions={false} />
+      <PanelHeaderSkeleton
+        hasSearch
+        hasSubtitle
+        hasSearchAccessory
+        hasSearchActions
+        hasActions={false}
+      />
 
-      {/* 2. KPI grid — 6 StatMetric cards in single usage-surface: grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 */}
+      {/* 2. KPI grid — same available-width layout as StatMetric */}
       <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-        <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-4 xl:grid-cols-7">
+        <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] overflow-hidden rounded-xl">
           {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}
-              className="group relative flex min-w-0 flex-col gap-2 border-r border-b border-[var(--usage-border)] px-3.5 py-3 sm:gap-2.5 sm:px-4 sm:py-4 xl:border-b-0"
+              className="group relative flex min-w-0 flex-col gap-2 border-r border-b border-[var(--usage-border)] px-3.5 py-3 sm:gap-2.5 sm:px-4 sm:py-4"
             >
               {/* Icon + label row */}
               <div className="flex items-center gap-2 sm:gap-2.5">
@@ -212,8 +218,8 @@ export function UsagePanelSkeleton() {
           </div>
         </div>
 
-        {/* 4. InsightStrip: 6 insight items in single surface — grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 */}
-        <div className="usage-insight-strip usage-surface mb-4 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
+        {/* 4. InsightStrip — same available-width layout as the loaded surface */}
+        <div className="usage-insight-strip usage-surface mb-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] overflow-hidden rounded-xl">
           {Array.from({ length: 6 }).map((_, i) => (
             <InsightItemSkeleton key={i} />
           ))}

@@ -26,6 +26,8 @@ import type { FeishuConfigStatus } from "./types";
 interface FeishuPanelFormProps {
   t: TFunction;
   runConfiguration?: ReactNode;
+  assistantBinding?: ReactNode;
+  assistantBound?: boolean;
   hasExistingConfig: boolean;
   status: FeishuConfigStatus | null;
   enabled: boolean;
@@ -81,6 +83,8 @@ interface FeishuPanelFormProps {
 export function FeishuPanelForm({
   t,
   runConfiguration,
+  assistantBinding,
+  assistantBound = false,
   hasExistingConfig,
   status,
   enabled,
@@ -631,8 +635,13 @@ export function FeishuPanelForm({
         </div>
       </div>
 
+      {assistantBinding}
       {/* Agent & Model */}
-      <fieldset disabled={isSaving || !canWrite} className="min-w-0 space-y-4">
+      <fieldset
+        hidden={assistantBound}
+        disabled={isSaving || !canWrite || assistantBound}
+        className="min-w-0 space-y-4"
+      >
         <div className="es-section">
           <ChannelAgentSelect value={agentId} onChange={onAgentIdChange} />
         </div>

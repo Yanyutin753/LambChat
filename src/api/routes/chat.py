@@ -18,6 +18,9 @@ from src.api.deps import guard_authenticated_stream, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_agent_execution import _execute_agent_stream
 from src.api.routes.chat_language import apply_response_language
+from src.api.routes.chat_model_access import (
+    validate_agent_model_access,  # noqa: F401 - public import compatibility
+)
 from src.api.routes.chat_queue_control import (
     queue_status,
     set_queue_paused,
@@ -70,9 +73,8 @@ from src.infra.writer.presenter_config import _extract_attachment_keys
 from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
-from src.kernel.exceptions import AuthorizationError, NotFoundError
+from src.kernel.exceptions import NotFoundError
 from src.kernel.schemas.agent import AgentRequest, SteerRequest
-from src.kernel.schemas.model import ModelConfig, effective_image_url_mode
 from src.kernel.schemas.session import Session
 from src.kernel.schemas.user import TokenPayload
 
@@ -92,111 +94,6 @@ def resolve_default_agent_id(agent_id: str | None) -> str:
     """Use the configured default and resolve legacy Fast Agent requests."""
     normalized = (agent_id or "").strip()
     return normalize_agent_id(normalized or settings.DEFAULT_AGENT)
-
-
-def _model_profile_dict(model: ModelConfig) -> dict | None:
-    if not model.profile:
-        return None
-    return (
-        model.profile.model_dump() if hasattr(model.profile, "model_dump") else dict(model.profile)
-    )
-
-
-def _safe_model_config_dict(model: ModelConfig) -> dict:
-    return model.model_copy(update={"api_key": None}).model_dump(mode="json")
-
-
-async def _attach_resolved_model_options(
-    agent_options: dict, model: ModelConfig, allowed_model_ids: list[str] | None
-) -> None:
-    """Attach runtime-only model details after checking the effective model scope."""
-    agent_options["model_id"] = model.id
-    agent_options["model"] = model.value
-    agent_options["_resolved_model_config"] = _safe_model_config_dict(model)
-    agent_options["_resolved_supports_vision"] = bool(
-        getattr(model.profile, "supports_vision", False)
-    )
-    agent_options["_resolved_image_url_mode"] = effective_image_url_mode(model.profile)
-    if model.api_key:
-        from src.infra.llm.models_service import set_cached_api_key
-
-        set_cached_api_key(model.value, model.api_key)
-
-    fallback_value = None
-    if model.fallback_model:
-        from src.infra.agent.model_storage import get_model_storage
-
-        try:
-            fallback = await get_model_storage().get(model.fallback_model)
-            if (
-                fallback
-                and fallback.enabled
-                and (
-                    allowed_model_ids is None
-                    or fallback.id in allowed_model_ids
-                    or fallback.value in allowed_model_ids
-                )
-            ):
-                fallback_value = fallback.value
-        except Exception as e:
-            logger.warning("Failed to resolve fallback model %s: %s", model.fallback_model, e)
-    agent_options["_resolved_fallback_model"] = fallback_value
-    agent_options["_resolved_model_profile"] = _model_profile_dict(model)
-
-
-async def validate_agent_model_access(
-    agent_options: dict | None,
-    user: TokenPayload,
-) -> None:
-    """Validate per-request model selection against enabled models and role access."""
-    if agent_options is None:
-        agent_options = {}
-    # Only the executor/recovery path may supply cumulative handoff accounting.
-    agent_options.pop("_handoff_usage", None)
-    for key in list(agent_options):
-        if key.startswith("_resolved_"):
-            agent_options.pop(key)
-
-    model_id = agent_options.get("model_id")
-    selected_model = agent_options.get("model")
-
-    from src.infra.agent.model_storage import get_model_storage
-
-    storage = get_model_storage()
-    from src.infra.agent.model_access import resolve_user_allowed_model_ids
-
-    allowed_model_ids = await resolve_user_allowed_model_ids(user)
-
-    if not model_id and not selected_model:
-        if allowed_model_ids is None:
-            return
-        # 批量解析 allowed 模型（一次 $in 查询），逐个 get/get_by_value 是 N+1
-        by_id, by_value = await storage.get_many_by_ids_and_values(allowed_model_ids)
-        for allowed_model_id in allowed_model_ids:
-            model = by_id.get(allowed_model_id)
-            if model is None:
-                model = by_value.get(allowed_model_id)
-            if model and model.enabled:
-                await _attach_resolved_model_options(agent_options, model, allowed_model_ids)
-                return
-        raise AuthorizationError("model_disabled")
-
-    model = None
-    if isinstance(model_id, str) and model_id:
-        model = await storage.get(model_id)
-    elif isinstance(selected_model, str) and selected_model:
-        model = await storage.get_by_value(selected_model)
-
-    if not model or not model.enabled:
-        raise AuthorizationError("model_not_found" if not model else "model_disabled")
-
-    allowed_model_set = set(allowed_model_ids or [])
-    if allowed_model_ids is not None and (
-        model.id not in allowed_model_set and model.value not in allowed_model_set
-    ):
-        raise AuthorizationError("model_not_allowed")
-
-    await _attach_resolved_model_options(agent_options, model, allowed_model_ids)
 
 
 async def _update_session_config(
@@ -285,18 +182,28 @@ async def _submit_chat(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
+    from src.infra.assistant.service import assistant_agent, prepare_assistant_request
+
+    existing_metadata = await fetch_workspace_metadata(request, user)
+    assistant = await prepare_assistant_request(request, user, existing_metadata)
+    from src.infra.assistant.task_turns import authorize_task_turn, prepare_task_turn
+
+    assistant_task = await prepare_task_turn(request, user, existing_metadata)
+    if assistant:
+        agent_id = assistant_agent(assistant)
+    elif assistant_task:
+        agent_id = assistant_task["agent_id"]
     agent_id = resolve_default_agent_id(agent_id)
     await validate_user_agent_access(agent_id, user)
     validate_team_agent_request(agent_id, request)
 
-    # 并行执行无数据依赖的 I/O 操作：session 查询 / persona 解析 / model 权限验证
+    # Assistant configuration must resolve before persona and model admission.
     if request.agent_options is None:
         request.agent_options = {}
 
     try:
         async with timed_server_phase("chat_prepare"):
-            existing_metadata, _, _ = await asyncio.gather(
-                fetch_workspace_metadata(request, user),
+            await asyncio.gather(
                 resolve_persona_request(request, user),
                 validate_agent_model_access(request.agent_options, user),
             )
@@ -304,6 +211,19 @@ async def _submit_chat(
         raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND) from None
     except AppError:
         raise
+
+    if assistant or assistant_task:
+        from src.infra.assistant.groups import assistant_instructions
+
+        instructions = (
+            assistant_instructions(assistant)
+            if assistant
+            else assistant_task.get("assistant_instructions")
+        )
+        request.persona_system_prompt = (
+            "\n\n".join(part for part in (request.persona_system_prompt, instructions) if part)
+            or None
+        )
 
     from src.infra.backend.workspace_selection import resolve_workspace_options
 
@@ -323,8 +243,14 @@ async def _submit_chat(
     )
 
     background_run = BACKGROUND_SUBMISSION_RUN.get()
-    executor_key = BACKGROUND_EXECUTOR_KEY if background_run else "agent_stream"
-    executor = execute_background_stream if background_run else _execute_agent_stream
+    executor_key = BACKGROUND_EXECUTOR_KEY if background_run or assistant_task else "agent_stream"
+    executor = (
+        execute_background_stream if background_run or assistant_task else _execute_agent_stream
+    )
+    if assistant:
+        from src.infra.assistant.execution import ASSISTANT_EXECUTOR_KEY, execute_assistant_stream
+
+        executor_key, executor = ASSISTANT_EXECUTOR_KEY, execute_assistant_stream
     from src.infra.task.background_tasks import (
         BACKGROUND_RESTRICTIONS,
         apply_background_restrictions,
@@ -333,6 +259,8 @@ async def _submit_chat(
     restrictions = BACKGROUND_RESTRICTIONS.get()
     if background_run and restrictions is not None:
         apply_background_restrictions(request, restrictions)
+    if assistant_task:
+        apply_background_restrictions(request, assistant_task["config"])
     from src.infra.scheduler.conversation import SCHEDULED_SUBMISSION
 
     scheduled = SCHEDULED_SUBMISSION.get()
@@ -346,6 +274,8 @@ async def _submit_chat(
     active_goal_data, run_id = await bind_submission_goal(
         request, existing_metadata, session_id, user.sub, run_id
     )
+    if assistant_task and not background_run:
+        await authorize_task_turn(assistant_task, run_id)
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
@@ -368,15 +298,35 @@ async def _submit_chat(
             include_timestamp=time_due,
             last_tc_signature=(existing_metadata or {}).get("prompt_turn_context_signature"),
         )
-        # Existing sessions resolve project scope from persisted metadata.
-        memory_project_id = request.project_id if not request.session_id else None
-        formatted = await append_memory_context(
-            formatted,
-            user.sub,
-            raw_query=build_memory_query(request.message, active_goal),
-            project_id=memory_project_id,
-            session_id=session_id,
+        allow_memory_context = not (assistant or assistant_task) or (
+            "memory:read" in user.permissions
+            and "memory_recall" not in (request.disabled_tools or [])
         )
+        if allow_memory_context:
+            # Existing sessions resolve project scope from persisted metadata.
+            if assistant or assistant_task:
+                from src.infra.assistant.discussions import is_discussion_session
+                from src.infra.assistant.memory import (
+                    assistant_memory_partition,
+                    session_assistant_partition,
+                )
+
+                memory_project_id = (
+                    await assistant_memory_partition(assistant)
+                    if assistant
+                    and not is_discussion_session(session_id)
+                    and not session_id.startswith("sch_conversation_")
+                    else await session_assistant_partition(session_id, user.sub, existing_metadata)
+                )
+            else:
+                memory_project_id = request.project_id if not request.session_id else None
+            formatted = await append_memory_context(
+                formatted,
+                user.sub,
+                raw_query=build_memory_query(request.message, active_goal),
+                project_id=memory_project_id,
+                session_id=session_id,
+            )
         from src.infra.scheduler.results import append_result_context
 
         formatted = await append_result_context(formatted, session_id, user.sub)
@@ -385,8 +335,10 @@ async def _submit_chat(
     async with timed_server_phase("chat_context"):
         context_task = asyncio.create_task(_prepare_context())
         try:
-            assistant_identity = await build_assistant_identity(
-                agent_id, request, user.sub, preferred_language
+            assistant_identity = (
+                {"seed": assistant.id, "name": assistant.name, "avatar": None}
+                if assistant
+                else await build_assistant_identity(agent_id, request, user.sub, preferred_language)
             )
             formatted_message, inject_turn_context = await context_task
         finally:
@@ -396,6 +348,8 @@ async def _submit_chat(
 
     # 本轮注入状态写回会话元数据（供后续轮次判定）
     prompt_state = {"prompt_turn_context_signature": tc_signature}
+    if assistant or assistant_task:
+        prompt_state["executor_key"] = executor_key
     if time_due:
         from src.infra.utils.datetime import utc_now
 
@@ -425,6 +379,29 @@ async def _submit_chat(
         )
     )
     trace_id = _pre_presenter.trace_id
+    assistant_metadata = None
+    if assistant or assistant_task:
+        assistant_metadata = {
+            **build_conversation_config(
+                run_id,
+                agent_id,
+                request,
+                preferred_language,
+                session_id=session_id,
+                trace_id=trace_id,
+            ),
+            **prompt_state,
+            "project_id": request.project_id,
+            **(
+                {"assistant_id": assistant.id}
+                if assistant
+                else {
+                    "background_task_id": assistant_task["_id"],
+                    "background_depth": 1,
+                    "background_restrictions": assistant_task["config"],
+                }
+            ),
+        }
 
     # Prepare attachments (needed for both queued and direct paths)
     attachments_data = (
@@ -523,7 +500,11 @@ async def _submit_chat(
                 )
             # Create session record immediately (don't wait for dequeue)
             await task_manager._executor.ensure_session(
-                session_id, agent_id, user.sub, project_id=request.project_id
+                session_id,
+                agent_id,
+                user.sub,
+                project_id=request.project_id,
+                session_metadata=assistant_metadata,
             )
             await task_manager._executor._update_session_status(
                 session_id, TaskStatus.QUEUED, run_id=run_id
@@ -611,6 +592,7 @@ async def _submit_chat(
                 message=formatted_message,
                 user_id=user.sub,
                 executor_key=executor_key,
+                session_metadata=assistant_metadata,
                 disabled_tools=request.disabled_tools,
                 agent_options=request.agent_options,
                 attachments=attachments_data,
@@ -645,6 +627,7 @@ async def _submit_chat(
                 message=formatted_message,
                 user_id=user.sub,
                 executor=executor,
+                session_metadata=assistant_metadata,
                 disabled_tools=request.disabled_tools,
                 agent_options=request.agent_options,
                 attachments=attachments_data,

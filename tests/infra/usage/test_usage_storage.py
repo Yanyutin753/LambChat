@@ -485,7 +485,7 @@ async def test_upsert_usage_log_enriches_operational_metadata(monkeypatch) -> No
     storage = UsageStorage()
     storage._collection = collection
 
-    async def fake_session_metadata(session_id):
+    async def fake_session_metadata(session_id, user_id=None):
         assert session_id == "session-1"
         return {
             "team_id": "team-1",
@@ -549,7 +549,7 @@ async def test_upsert_usage_log_resolves_team_name_when_missing(monkeypatch) -> 
     storage = UsageStorage()
     storage._collection = collection
 
-    async def fake_session_metadata(session_id):
+    async def fake_session_metadata(session_id, user_id=None):
         return {"team_id": "team-1"}
 
     async def fake_resolve_team_name(team_id):

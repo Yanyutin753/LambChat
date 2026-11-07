@@ -681,8 +681,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             )
         finally:
             try:
-                await event_processor.drain_activity_references()
-                await event_processor.flush()
+                await event_processor.finalize_subagent_events(subagent_sessions)
             finally:
                 await emit_token_usage(
                     event_processor,
@@ -804,7 +803,11 @@ async def _create_backend_and_prompt(
     # 获取 user_id
     user_id = context.user_id or "default"
 
-    if not settings.ENABLE_SANDBOX:
+    if not settings.ENABLE_SANDBOX or (
+        agent_options is not None
+        and "sandbox" in agent_options
+        and agent_options["sandbox"] is None
+    ):
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
         backend = create_persistent_backend(

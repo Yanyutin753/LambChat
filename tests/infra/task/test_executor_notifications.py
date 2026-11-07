@@ -17,7 +17,7 @@ def isolated_completion_storage(monkeypatch):
 
     monkeypatch.setattr(
         "src.infra.task.completion_events.TaskCompletionStore",
-        lambda: SimpleNamespace(record_once=record_once),
+        lambda: SimpleNamespace(record_once=record_once, record_delivery=AsyncMock()),
     )
     monkeypatch.setattr(
         "src.infra.task.completion_recovery.TaskCompletionOutbox",
@@ -123,7 +123,17 @@ async def test_task_notification_warns_when_no_websocket_delivery(
     fake_logger = _FakeLogger()
     monkeypatch.setattr("src.infra.websocket.get_connection_manager", lambda: ws_manager)
     monkeypatch.setattr("src.infra.session.manager.SessionManager", _FakeSessionManager)
-    monkeypatch.setattr("src.infra.task.executor.logger", fake_logger)
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("src.infra.task.completion_notifications.logger", fake_logger)
+    monkeypatch.setattr(
+        "src.infra.push.manager.PushManager",
+        lambda: SimpleNamespace(send_push_to_user=AsyncMock(return_value=0)),
+    )
+    monkeypatch.setattr(
+        "src.infra.channel.fallback.deliver_task_fallback", AsyncMock(return_value=False)
+    )
 
     executor = TaskExecutor(storage=None, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
 

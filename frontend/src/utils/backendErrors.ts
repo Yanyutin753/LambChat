@@ -131,6 +131,21 @@ const BACKEND_ERROR_PATTERNS: Array<{
   values?: (match: RegExpMatchArray) => Record<string, string>;
 }> = [
   {
+    pattern:
+      /^Error code:\s*429\b[\s\S]*\[1308\]\[Usage limit reached[^\]\r\n]*?Your limit will reset at (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?=\])/i,
+    key: "errors.providerQuotaExhaustedUntil",
+    values: (match) => ({ resetAt: match[1] }),
+  },
+  {
+    pattern: /^Error code:\s*429\b[\s\S]*\[1308\]\[Usage limit reached\b/i,
+    key: "errors.providerQuotaExhausted",
+  },
+  {
+    pattern:
+      /^Error code:\s*429\b[\s\S]*\[1302\]\[Rate limit reached for requests\]/i,
+    key: "errors.providerRateLimited",
+  },
+  {
     pattern: /^缺少权限: (.+)$/,
     key: "backendErrors.permissionMissing",
     values: (match) => ({ permission: match[1] }),
@@ -213,7 +228,7 @@ export function parseErrorDetail(errorData: unknown): ParsedErrorDetail {
 
 /**
  * 统一错误翻译入口，优先级：错误码 i18n > 原文映射/正则 > 原文。
- * internal_error 携带动态原文（str(exc) 透传）时不翻译，直接展示原文。
+ * internal_error 携带动态原文时走已知错误映射，未知错误保留原文。
  */
 export function translateApiError(
   code: string | undefined,

@@ -205,7 +205,6 @@ def create_feishu_message_handler(
             session_id = await _get_feishu_session_id(
                 chat_id, user_id=user_id, instance_id=instance_id
             )
-            session_id = delivery_session(session_id)
             task_manager = get_task_manager()
 
             # Resolve agent, model & project: use per-channel config if available
@@ -243,6 +242,26 @@ def create_feishu_message_handler(
                     channel_name = ch_config.get("name")
                     stream_reply = bool(ch_config.get("stream_reply", True))
 
+            from src.infra.assistant.channel_binding import (
+                channel_assistant_id,
+                channel_discussion_session,
+            )
+
+            session_id = delivery_session(
+                channel_discussion_session(session_id, ch_config, user_id)
+            )
+            if channel_assistant_id(ch_config):
+                from src.infra.assistant.channel_tasks import route_task_message
+
+                reply = await route_task_message(user_id, session_id, content, attachments)
+                if reply is not None:
+                    if not await manager.send_message(
+                        user_id, delivery_chat_id, reply, instance_id
+                    ):
+                        raise RuntimeError("Channel reply failed")
+                    return
+                persona_preset_id = None
+
             if persona_preset_id:
                 try:
                     from src.infra.persona_preset.manager import PersonaPresetManager
@@ -273,7 +292,7 @@ def create_feishu_message_handler(
                     )
 
             # Auto-create project by channel name if not manually configured
-            if not project_id and channel_name:
+            if not project_id and channel_name and not channel_assistant_id(ch_config):
                 try:
                     from src.infra.folder.storage import get_project_storage
 
@@ -356,6 +375,7 @@ def create_feishu_message_handler(
                     "channel_type": "feishu",
                     "channel_instance_id": instance_id,
                     "chat_id": delivery_chat_id,
+                    "sender_id": sender_id,
                     "enabled": True,
                     "send_on_success": True,
                 },

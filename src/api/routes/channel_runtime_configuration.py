@@ -13,7 +13,16 @@ async def validate_runtime_configuration(
         runtime = normalize_runtime_config(value, existing)
     except (ValueError, TypeError):
         raise AppError(ErrorCode.VALIDATION_ERROR) from None
-    if runtime.get("sandbox") == "local" and runtime.get("sandbox_machine_id"):
+    if runtime.get("assistant_id"):
+        from src.infra.assistant.store import AssistantStore
+
+        if await AssistantStore().get(user_id, runtime["assistant_id"]) is None:
+            raise AppError(ErrorCode.NOT_FOUND)
+    if (
+        not runtime.get("assistant_id")
+        and runtime.get("sandbox") == "local"
+        and runtime.get("sandbox_machine_id")
+    ):
         from src.infra.sandbox.relay.registry import SandboxClientRegistry
 
         machines = await SandboxClientRegistry().list_machines(user_id, include_offline=True)

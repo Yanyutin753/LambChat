@@ -297,3 +297,28 @@ test("rubric grader stays after the final answer in execution order", () => {
   expect(result.head).toEqual([]);
   expect(result.tail).toEqual([answer, grader]);
 });
+
+test("group member contributions stay visible before the final summary", () => {
+  const member = group(
+    {
+      type: "subagent",
+      agent_id: "a",
+      agent_name: "Alice",
+      input: "review",
+      result: "Actual member reply",
+    },
+    1,
+  );
+  const groups = [group(thinking(), 0), member, group(text("Summary"), 2)];
+  const result = splitRunTailGroups(groups, {
+    enabled: true,
+    preserveSubagents: true,
+  });
+  expect(result.head).toEqual([groups[0]]);
+  expect(result.tail).toEqual([member, groups[2]]);
+  const failed = splitRunTailGroups([groups[0], member], {
+    enabled: true,
+    preserveSubagents: true,
+  });
+  expect(failed.tail).toEqual([member]);
+});

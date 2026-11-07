@@ -789,7 +789,29 @@ class SubagentSessions:
                     if owner != waiter_id:
                         return {**self.result(subagent_id), "status": "waiting_human"}
                     # Re-raise in the parent graph, then route its approval back to the child IDs.
-                    resumes = {item.id: interrupt(item.value) for item in child_interrupts}
+                    resumes = {}
+                    for item in child_interrupts:
+                        call_id = (
+                            item.value.get("tool_call_id") if isinstance(item.value, dict) else None
+                        )
+                        payload = item.value
+                        if call_id:
+                            payload = {
+                                **payload,
+                                "subagent_interrupt_ids": [
+                                    *payload.get("subagent_interrupt_ids", []),
+                                    item.id,
+                                ],
+                            }
+                        while True:
+                            decision = interrupt(payload)
+                            # A replay starts at index zero even after the child advances to a new tool.
+                            if not call_id or (
+                                isinstance(decision, dict)
+                                and item.id in decision.get("_approval_subagent_interrupt_ids", [])
+                            ):
+                                resumes[item.id] = decision
+                                break
                     self.approval_waiters.pop(subagent_id, None)
                     self.records[subagent_id]["status"] = "queued"
                     self.jobs[subagent_id] = asyncio.create_task(

@@ -1,6 +1,7 @@
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { FolderOpen } from "lucide-react";
+import { EmptyState } from "../common/EmptyState";
 import { useTranslation } from "react-i18next";
 import {
   activateRightPanelByKey,
@@ -58,7 +59,7 @@ function WorkspaceButton(props: Props) {
           if (open && !active) activateRightPanelByKey(registryKey);
           else setOpen(!open);
         }}
-        className="flex size-11 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
+        className="flex size-9 sm:size-8 items-center justify-center rounded-lg text-theme-text-secondary hover:bg-theme-bg-hover aria-expanded:bg-theme-bg-subtle aria-expanded:text-theme-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-ring)]"
       >
         <InteractiveIcon>
           <FolderOpen size={16} />
@@ -80,11 +81,19 @@ function WorkspaceButton(props: Props) {
             }
             registryKey={registryKey}
           >
-            <WorkspacePanel
-              key={`${props.sandboxMode}|${props.machineId}|${props.workspaceSelection}`}
-              {...props}
-              headerActionsTarget={headerActionsTarget}
-            />
+            {props.sandboxMode === "none" ? (
+              <EmptyState
+                icon={<FolderOpen />}
+                title={t("workspacePanel.title")}
+                description={t("workspacePanel.noEnvironment")}
+              />
+            ) : (
+              <WorkspacePanel
+                key={`${props.sandboxMode}|${props.machineId}|${props.workspaceSelection}`}
+                {...props}
+                headerActionsTarget={headerActionsTarget}
+              />
+            )}
           </ToolResultPanel>
         </Suspense>
       )}

@@ -7,6 +7,7 @@ import { SparklesIcon } from "@animateicons/react/lucide/sparkles-icon";
 import { ServerIcon } from "@animateicons/react/lucide/server-icon";
 import { NetworkIcon } from "@animateicons/react/lucide/network-icon";
 import { BrainIcon } from "@animateicons/react/lucide/brain-icon";
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { EllipsisIcon } from "@animateicons/react/lucide/ellipsis-icon";
 import { ActivityRailButton } from "./ActivityRailButton";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -44,6 +45,11 @@ export function DesktopActivityRail({
   const menu = useMoreMenu({ isCollapsed: true, isMobile: false });
   const primaryPaths = ["/persona", "/team", "/skills", "/mcp"];
   const primaryItems = [
+    {
+      path: "/assistants",
+      label: t("assistants.title"),
+      show: collapsed && hasPermission(Permission.SESSION_READ),
+    },
     {
       path: "/files",
       label: t("fileLibrary.title"),
@@ -87,13 +93,21 @@ export function DesktopActivityRail({
         {primaryItems.map((item) => (
           <ActivityRailButton
             key={item.path}
-            icon={navigationIcons[item.path] ?? EllipsisIcon}
+            icon={
+              item.path === "/assistants"
+                ? undefined
+                : navigationIcons[item.path] ?? EllipsisIcon
+            }
             className={buttonClass}
             title={item.label}
             aria-label={item.label}
             aria-pressed={pathname === item.path}
             onClick={() => navigate(item.path)}
-          />
+          >
+            {item.path === "/assistants" ? (
+              <AgentAvatar seed="LambChat" size={20} />
+            ) : undefined}
+          </ActivityRailButton>
         ))}
         {moreItems.length === 1 ? (
           <ActivityRailButton

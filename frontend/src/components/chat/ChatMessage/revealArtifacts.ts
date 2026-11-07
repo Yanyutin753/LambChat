@@ -241,6 +241,21 @@ export function collectRevealArtifacts(
   return dedupeRevealArtifacts(artifacts);
 }
 
+export function getInlineRevealArtifacts(
+  parts: MessagePart[] | undefined,
+  artifacts: RevealArtifact[],
+): RevealArtifact[] {
+  const explicitKeys = new Set(
+    collectRevealArtifacts(parts?.filter((part) => part.type === "tool")).map(
+      getRevealArtifactDedupeKey,
+    ),
+  );
+  const explicit = artifacts.filter((artifact) =>
+    explicitKeys.has(getRevealArtifactDedupeKey(artifact)),
+  );
+  return (explicit.length ? explicit : artifacts).slice(-2);
+}
+
 function normalizeArtifactPath(path: string): string {
   return path
     .trim()
@@ -342,7 +357,9 @@ function dedupeRevealArtifacts(artifacts: RevealArtifact[]): RevealArtifact[] {
   const deduped = new Map<string, RevealArtifact>();
 
   for (const artifact of artifacts) {
-    deduped.set(getRevealArtifactDedupeKey(artifact), artifact);
+    const key = getRevealArtifactDedupeKey(artifact);
+    deduped.delete(key);
+    deduped.set(key, artifact);
   }
 
   return [...deduped.values()];

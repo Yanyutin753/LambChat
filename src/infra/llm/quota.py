@@ -200,6 +200,11 @@ def _receipt(reservation, settlement):
 
 def _usage_context():
     from src.infra.logging.context import TraceContext
+    from src.infra.usage.attribution import detached_usage_context
+
+    detached = detached_usage_context(quota_user_id())
+    if detached is not None:
+        return detached
 
     config = (var_child_runnable_config.get() or {}).get("configurable") or {}
     payer = quota_user_id()

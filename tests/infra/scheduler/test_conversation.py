@@ -8,6 +8,13 @@ import pytest
 from src.kernel.schemas.scheduled_task import ScheduledTaskCreate
 
 
+@pytest.fixture(autouse=True)
+def ordinary_conversation_identity(monkeypatch):
+    from src.infra.assistant.store import AssistantStore
+
+    monkeypatch.setattr(AssistantStore, "for_session", AsyncMock(return_value=None))
+
+
 def request(**fields):
     return ScheduledTaskCreate(
         name="Follow up",

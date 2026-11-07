@@ -218,3 +218,40 @@ async def test_cancelled_failure_flag_does_not_authorize_background_recovery(mon
     )
     with pytest.raises(TaskInterruptedError):
         await validate_background_run_admission(collection.session_id, "u", "old")
+
+
+@pytest.mark.parametrize("requested,allowed", [("followup", True), ("old", False)])
+async def test_explicit_assistant_followup_replaces_original_execution_authority(
+    monkeypatch, requested, allowed
+):
+    from src.infra.goal_runtime import GoalRunAdmissionError
+    from src.infra.task.background_admission import validate_background_run_admission
+
+    session = SimpleNamespace(
+        user_id="u",
+        metadata={
+            "background_task_id": "task",
+            "current_run_id": requested,
+            "task_status": "running",
+        },
+    )
+    record = {
+        "_id": "task",
+        "user_id": "u",
+        "session_id": "child",
+        "run_id": "old",
+        "state": "submitted",
+        "assistant_id": "helper",
+        "authorized_run_id": "followup",
+    }
+    monkeypatch.setattr(SessionManager, "get_session", AsyncMock(return_value=session))
+    monkeypatch.setattr(
+        BackgroundTaskStore,
+        "collection",
+        property(lambda self: SimpleNamespace(find_one=AsyncMock(return_value=record))),
+    )
+    if allowed:
+        assert await validate_background_run_admission("child", "u", requested) is record
+    else:
+        with pytest.raises(GoalRunAdmissionError):
+            await validate_background_run_admission("child", "u", requested)
