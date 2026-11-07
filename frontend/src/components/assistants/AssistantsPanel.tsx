@@ -1,8 +1,19 @@
+import { BrandLogo } from "../common/BrandLogo";
+import { BrandWordmark } from "../common/BrandWordmark";
+import { APP_NAME } from "../../constants";
+import {
+  OPEN_NOTIFICATIONS_EVENT,
+  DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT,
+  NOTIFICATION_COUNT_EVENT,
+} from "../layout/DesktopSidebarShell/desktopShellPlatform";
 import { ChatHeaderFrame } from "../layout/AppContent/ChatHeaderFrame";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  Bell,
+  Search,
   ArrowLeft,
   Archive,
   Brain,
@@ -28,6 +39,7 @@ import { getTeamFallbackAvatar } from "../team/teamAvatarUtils";
 import { assistantApi } from "../../services/api/assistant";
 import {
   assistantConfiguration,
+  assistantActivityPath,
   type Assistant,
   type AssistantStatus,
 } from "../../types/assistant";
@@ -39,14 +51,14 @@ import { SidebarToggleIcon } from "../common/SidebarToggleIcon";
 import { ResourceCardMenu } from "../common/ResourceCardMenu";
 import { Button } from "../common/ui";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
+import { AssistantActivitySummary } from "./AssistantActivitySummary";
 import { AssistantDataPage } from "./AssistantDataPage";
-import { Dialog } from "../common/Dialog";
+import { EditorSidebar } from "../common/EditorSidebar";
 import { AssistantGroupEditor } from "./AssistantGroupEditor";
 import { AssistantGroupContext } from "./AssistantGroupContext";
 import { AssistantEditor } from "./AssistantEditor";
 import { AssistantDiscussionsDialog } from "./AssistantDiscussionsDialog";
 import { AssistantRulesDialog } from "./AssistantRulesDialog";
-import { AssistantTaskContext } from "./AssistantTaskContext";
 import { AssistantTasksDialog } from "./AssistantTasksDialog";
 import { EmbeddedHeaderActionsContext } from "../layout/AppContent/EmbeddedHeaderActionsContext";
 import "../../styles/assistant-workspace.css";
@@ -67,6 +79,14 @@ const profileKey = (assistant: Assistant) =>
 type AssistantProfile = { name: string; avatar?: string | null; seed: string };
 
 export function AssistantsPanel() {
+  const workspaceHeader = useContext(EmbeddedHeaderActionsContext);
+  const [notificationCount, setNotificationCount] = useState(0);
+  useEffect(() => {
+    const update = (event: Event) =>
+      setNotificationCount((event as CustomEvent<number>).detail);
+    window.addEventListener(NOTIFICATION_COUNT_EVENT, update);
+    return () => window.removeEventListener(NOTIFICATION_COUNT_EVENT, update);
+  }, []);
   const { assistantId, sessionId, view: routeView } = useParams();
   const { pathname } = useLocation();
   const { t } = useTranslation();
@@ -99,9 +119,9 @@ export function AssistantsPanel() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [actionError, setActionError] = useState("");
-  const [editor, setEditor] = useState<
-    Assistant | "new" | "group" | "choose" | null
-  >(null);
+  const [editor, setEditor] = useState<Assistant | "new" | "group" | null>(
+    null,
+  );
   const [profiles, setProfiles] = useState<Record<string, AssistantProfile>>(
     {},
   );
@@ -109,10 +129,19 @@ export function AssistantsPanel() {
   const canReadTeams = hasPermission(Permission.TEAM_READ);
   const [collapsed, setCollapsed] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
-  useEffect(() => setTasksOpen(false), [assistantId]);
+  const [detailsView, setDetailsView] = useState<string | null>(null);
+  useEffect(() => {
+    setTasksOpen(false);
+    setDetailsView(null);
+  }, [assistantId]);
   const [headerActionsTarget, setHeaderActionsTarget] =
     useState<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const addAnchor = useRef<HTMLButtonElement>(null);
+  const [addMenuPosition, setAddMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState<{
     x: number;
@@ -183,7 +212,7 @@ export function AssistantsPanel() {
     setActionError("");
     try {
       const value = chief ?? (await assistantApi.chief());
-      navigate(`/assistants/${encodeURIComponent(value.id)}`);
+      navigate(assistantActivityPath(value));
       setRefresh((x) => x + 1);
     } catch (failure) {
       setActionError(
@@ -203,49 +232,52 @@ export function AssistantsPanel() {
 
   useEffect(() => {
     let active = true;
+    let pending = false;
     setLoading(true);
     setListError("");
-    void assistantApi
-      .list((page - 1) * PAGE_SIZE, PAGE_SIZE, archived)
-      .then((result) => {
+    const update = async () => {
+      if (pending || document.visibilityState === "hidden") return;
+      pending = true;
+      try {
+        const result = await assistantApi.list(
+          (page - 1) * PAGE_SIZE,
+          PAGE_SIZE,
+          archived,
+        );
         if (active) {
           setData(result.assistants);
           setTotal(result.total);
+          setListError("");
         }
-      })
-      .catch((failure: unknown) => {
-        if (active)
+      } catch (failure) {
+        if (active) {
           setListError(
             failure instanceof Error ? failure.message : t("common.loadFailed"),
           );
-      })
-      .finally(() => {
+          // Keep navigation usable without presenting stale runtime state as current.
+          setData(
+            (previous) =>
+              previous?.map((item) => ({ ...item, activity: null })) ?? null,
+          );
+        }
+      } finally {
+        pending = false;
         if (active) setLoading(false);
-      });
+      }
+    };
+    void update();
+    const timer = window.setInterval(() => void update(), 5000);
+    window.addEventListener("assistants:changed", update);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
     return () => {
       active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("assistants:changed", update);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
     };
   }, [page, archived, refresh, t]);
-
-  useEffect(() => {
-    let active = true;
-    const update = () => {
-      void assistantApi
-        .list((page - 1) * PAGE_SIZE, PAGE_SIZE, archived)
-        .then((result) => {
-          if (active) {
-            setData(result.assistants);
-            setTotal(result.total);
-          }
-        })
-        .catch(() => {});
-    };
-    window.addEventListener("assistants:changed", update);
-    return () => {
-      active = false;
-      window.removeEventListener("assistants:changed", update);
-    };
-  }, [page, archived]);
 
   useEffect(() => {
     let active = true;
@@ -278,9 +310,11 @@ export function AssistantsPanel() {
     };
     load();
     window.addEventListener("focus", load);
+    window.addEventListener("assistants:changed", load);
     return () => {
       active = false;
       window.removeEventListener("focus", load);
+      window.removeEventListener("assistants:changed", load);
     };
   }, [assistantId, refresh, t]);
 
@@ -374,13 +408,202 @@ export function AssistantsPanel() {
       ? [{ id: "usage", label: "usage", icon: ChartNoAxesCombined }]
       : []),
   ];
-  const taskConversation =
-    view === "chat" &&
-    verifiedSession?.key === `${assistantId}:${sessionId}` &&
-    verifiedSession.kind === "task";
   const openView = (id: string) =>
     navigate(id === "chat" ? base : `${base}/${id}`);
   const retry = () => setRefresh((old) => old + 1);
+  const workspaceActions = (
+    <>
+      <div
+        className="assistant-workspace-brand"
+        role="img"
+        aria-label={APP_NAME}
+      >
+        <BrandLogo alt="" className="relative -top-0.5 size-7 shrink-0" />
+        <BrandWordmark decorative className="h-6 w-auto min-w-0" />
+      </div>
+
+      <Button
+        className="assistant-workspace-desktop-toggle"
+        variant="ghost"
+        aria-label={t("assistants.toggleNavigation")}
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <SidebarToggleIcon className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        className="assistant-workspace-global-action relative"
+        aria-label={
+          t("nav.notifications") +
+          (notificationCount > 0 ? ` (${notificationCount})` : "")
+        }
+        title={t("nav.notifications")}
+        onClick={() =>
+          window.dispatchEvent(new Event(OPEN_NOTIFICATIONS_EVENT))
+        }
+      >
+        <Bell size={16} />
+        {notificationCount > 0 && (
+          <span className="count-badge count-badge--overlay" aria-hidden="true">
+            {Math.min(notificationCount, 99)}
+          </span>
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        className="assistant-workspace-global-action"
+        aria-label={t("sidebar.searchSessions")}
+        title={t("sidebar.searchSessions")}
+        onClick={() =>
+          window.dispatchEvent(new Event(DESKTOP_SIDEBAR_OPEN_SEARCH_EVENT))
+        }
+      >
+        <Search size={16} />
+      </Button>
+      {assistantId && (
+        <Button
+          className="assistant-workspace-mobile-back"
+          variant="ghost"
+          aria-label={t("assistants.title")}
+          onClick={() => navigate("/assistants")}
+        >
+          <ArrowLeft size={16} />
+        </Button>
+      )}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <h2 className="sr-only">{assistant?.name || t("assistants.title")}</h2>
+        {!assistantId && !canWrite && (
+          <span className="truncate text-14 font-medium">
+            {t("assistants.title")}
+          </span>
+        )}
+        {assistant && view !== "chat" && (
+          <Button
+            variant="ghost"
+            className="shrink-0"
+            leftIcon={<ArrowLeft size={16} />}
+            onClick={() => openView("chat")}
+          >
+            {t("assistants.backToChat")}
+          </Button>
+        )}
+        {assistant &&
+          (assistant.status !== "active" ||
+            !["chat", "tasks"].includes(view)) && (
+            <p className="assistant-workspace-role truncate">
+              {t(
+                `assistants.${
+                  assistant.status !== "active"
+                    ? assistant.status
+                    : navigation.find((item) => item.id === view)?.label ||
+                      "conversation"
+                }`,
+              )}
+            </p>
+          )}
+      </div>
+      {assistant && (
+        <>
+          <button
+            ref={menuAnchor}
+            type="button"
+            className="assistant-workspace-menu-trigger"
+            aria-label={t("common.moreOptions")}
+            aria-haspopup="menu"
+            aria-expanded={!!menuPosition}
+            aria-controls="assistant-workspace-menu"
+            onClick={() => {
+              const rect = menuAnchor.current!.getBoundingClientRect();
+              setMenuPosition(
+                menuPosition ? null : { x: rect.right, y: rect.bottom + 4 },
+              );
+            }}
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          {menuPosition && (
+            <ResourceCardMenu
+              id="assistant-workspace-menu"
+              title={assistant.name}
+              position={menuPosition}
+              anchorRef={menuAnchor}
+              onClose={(restore = true) => {
+                setMenuPosition(null);
+                if (restore) menuAnchor.current?.focus();
+              }}
+              actions={[
+                ...navigation.slice(1).map(({ id, label, icon: Icon }) => ({
+                  label: t(`assistants.${label}`),
+                  icon: <Icon size={14} />,
+                  onClick: () =>
+                    id === "tasks" ? setTasksOpen(true) : setDetailsView(id),
+                })),
+                ...(canWrite
+                  ? [
+                      {
+                        label: t("assistants.edit"),
+                        icon: <Pencil size={14} />,
+                        separatorBefore: true,
+                        onClick: () => setEditor(assistant),
+                      },
+                      {
+                        label: t(
+                          assistant.status === "active"
+                            ? "assistants.pause"
+                            : "assistants.resume",
+                        ),
+                        icon:
+                          assistant.status === "active" ? (
+                            <Pause size={14} />
+                          ) : (
+                            <Play size={14} />
+                          ),
+                        disabled: busy,
+                        onClick: () =>
+                          void act(
+                            assistant.status === "active" ? "paused" : "active",
+                          ),
+                      },
+                      ...(assistant.kind !== "chief" &&
+                      assistant.status !== "archived"
+                        ? [
+                            {
+                              label: t("assistants.archive"),
+                              icon: <Archive size={14} />,
+                              disabled: busy,
+                              onClick: () => void act("archived"),
+                            },
+                          ]
+                        : []),
+                    ]
+                  : []),
+              ]}
+            />
+          )}
+        </>
+      )}
+
+      <div
+        ref={setHeaderActionsTarget}
+        className="assistant-workspace-header-actions"
+      />
+      {assistant?.kind === "group" && (
+        <Button
+          variant="ghost"
+          className="assistant-workspace-group-trigger"
+          aria-label={t("assistants.groupDetails")}
+          title={t("assistants.groupCount", {
+            count: assistant.member_ids?.length ?? 0,
+          })}
+          onClick={() => setEditor(assistant)}
+          disabled={!canWrite}
+        >
+          <Users size={16} />
+        </Button>
+      )}
+    </>
+  );
 
   return (
     <div
@@ -394,36 +617,6 @@ export function AssistantsPanel() {
         className="assistant-workspace-sidebar"
         aria-label={t("assistants.title")}
       >
-        <div className="assistant-workspace-sidebar-top">
-          <Button
-            variant="ghost"
-            leftIcon={<ArrowLeft size={16} />}
-            onClick={() => navigate("/chat")}
-          >
-            {t("assistants.backToChat")}
-          </Button>
-          <Button
-            variant="ghost"
-            aria-label={t("common.refresh")}
-            title={t("common.refresh")}
-            disabled={loading}
-            onClick={retry}
-          >
-            <RefreshCw size={16} />
-          </Button>
-        </div>
-        {canWrite && (
-          <div className="px-3 pb-2">
-            <Button
-              className="assistant-workspace-create"
-              variant="ghost"
-              leftIcon={<Pencil size={16} />}
-              onClick={() => setEditor("choose")}
-            >
-              {t("assistants.newChat")}
-            </Button>
-          </div>
-        )}
         {canWrite && !archived && (
           <button
             type="button"
@@ -434,10 +627,10 @@ export function AssistantsPanel() {
           >
             <AgentAvatar seed="Chief" size={32} />
             <span className="min-w-0 flex-1 text-left">
-              <span className="block truncate font-medium">Chief</span>
-              <span className="assistant-workspace-role block truncate">
-                {t("assistants.chiefHint")}
-              </span>
+              <AssistantActivitySummary
+                assistant={chief}
+                fallback={t("assistants.chiefHint")}
+              />
             </span>
           </button>
         )}
@@ -446,6 +639,35 @@ export function AssistantsPanel() {
         )}
         <div className="assistant-workspace-sidebar-heading">
           <h1>{t(archived ? "assistants.archived" : "assistants.current")}</h1>
+          {canWrite && (
+            <Button
+              className="assistant-workspace-add"
+              variant="ghost"
+              aria-label={t("assistants.addCompanion")}
+              title={t("assistants.addCompanion")}
+              aria-haspopup="menu"
+              aria-expanded={!!addMenuPosition}
+              aria-controls={addMenuPosition ? "assistant-add-menu" : undefined}
+              onClick={(event) => {
+                addAnchor.current = event.currentTarget;
+                const rect = event.currentTarget.getBoundingClientRect();
+                setAddMenuPosition(
+                  addMenuPosition ? null : { x: rect.left, y: rect.bottom + 4 },
+                );
+              }}
+            >
+              <Plus size={16} />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            aria-label={t("common.refresh")}
+            title={t("common.refresh")}
+            disabled={loading}
+            onClick={retry}
+          >
+            <RefreshCw size={16} />
+          </Button>
           <Button
             variant="ghost"
             aria-label={t(
@@ -479,38 +701,31 @@ export function AssistantsPanel() {
                       aria-current={
                         item.id === assistantId ? "page" : undefined
                       }
-                      onClick={() =>
-                        navigate(`/assistants/${encodeURIComponent(item.id)}`)
-                      }
+                      onClick={() => navigate(assistantActivityPath(item))}
                       title={item.name}
                     >
                       <AgentAvatar
-                        avatar={profileFor(item)?.avatar}
+                        avatar={item.avatar || profileFor(item)?.avatar}
                         seed={profileFor(item)?.seed || item.name}
                         size={32}
                       />
                       <span className="min-w-0 flex-1 text-left">
-                        <span className="block truncate font-medium">
-                          {item.name}
-                        </span>
-                        <span className="assistant-workspace-role block truncate">
-                          {(item.kind === "group"
-                            ? t("assistants.groupCount", {
-                                count: item.member_ids?.length ?? 0,
-                              })
-                            : profileFor(item)?.name) ||
+                        <AssistantActivitySummary
+                          assistant={item}
+                          fallback={
+                            (item.kind === "group"
+                              ? t("assistants.groupCount", {
+                                  count: item.member_ids?.length ?? 0,
+                                })
+                              : profileFor(item)?.name) ||
                             t(
                               item.team_id
                                 ? "assistants.team"
                                 : "assistants.channelBinding",
-                            )}
-                        </span>
+                            )
+                          }
+                        />
                       </span>
-                      {item.status !== "active" && (
-                        <span className="text-11 text-theme-text-secondary">
-                          {t(`assistants.${item.status}`)}
-                        </span>
-                      )}
                     </button>
                   </li>
                 ))}
@@ -542,162 +757,57 @@ export function AssistantsPanel() {
         data-panel="assistants"
         data-workspace-content=""
       >
-        <ChatHeaderFrame className="assistant-workspace-header">
-          <Button
-            className="assistant-workspace-desktop-toggle"
-            variant="ghost"
-            aria-label={t("assistants.toggleNavigation")}
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            <SidebarToggleIcon className="size-4" />
-          </Button>
-          <Button
-            className="assistant-workspace-mobile-back"
-            variant="ghost"
-            aria-label={t("assistants.title")}
-            onClick={() => navigate("/assistants")}
-          >
-            <SidebarToggleIcon className="size-4" />
-          </Button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="sr-only">
-              {assistant?.name || t("assistants.title")}
-            </h2>
-            {assistant && view !== "chat" && (
-              <Button
-                variant="ghost"
-                className="shrink-0"
-                leftIcon={<ArrowLeft size={16} />}
-                onClick={() => openView("chat")}
-              >
-                {t("assistants.backToChat")}
-              </Button>
-            )}
-            {assistant &&
-              (assistant.status !== "active" ||
-                !["chat", "tasks"].includes(view)) && (
-                <p className="assistant-workspace-role truncate">
-                  {t(
-                    `assistants.${
-                      assistant.status !== "active"
-                        ? assistant.status
-                        : navigation.find((item) => item.id === view)?.label ||
-                          "conversation"
-                    }`,
-                  )}
-                </p>
-              )}
-          </div>
-          <div
-            ref={setHeaderActionsTarget}
-            className="assistant-workspace-header-actions"
-          />
-          {assistant?.kind === "group" && (
-            <Button
-              variant="ghost"
-              className="assistant-workspace-group-trigger"
-              aria-label={t("assistants.groupDetails")}
-              onClick={() => setEditor(assistant)}
-              disabled={!canWrite}
-              leftIcon={<Users size={16} />}
-            >
-              <span className="hidden sm:inline">
-                {t("assistants.groupCount", {
-                  count: assistant.member_ids?.length ?? 0,
-                })}
-              </span>
-            </Button>
-          )}
-          {assistant && (
-            <>
-              <button
-                ref={menuAnchor}
-                type="button"
-                className="assistant-workspace-menu-trigger"
-                aria-label={t("common.moreOptions")}
-                aria-haspopup="menu"
-                aria-expanded={!!menuPosition}
-                aria-controls="assistant-workspace-menu"
-                onClick={() => {
-                  const rect = menuAnchor.current!.getBoundingClientRect();
-                  setMenuPosition(
-                    menuPosition ? null : { x: rect.right, y: rect.bottom + 4 },
-                  );
-                }}
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {menuPosition && (
-                <ResourceCardMenu
-                  id="assistant-workspace-menu"
-                  title={assistant.name}
-                  position={menuPosition}
-                  anchorRef={menuAnchor}
-                  onClose={(restore = true) => {
-                    setMenuPosition(null);
-                    if (restore) menuAnchor.current?.focus();
-                  }}
-                  actions={[
-                    ...navigation.slice(1).map(({ id, label, icon: Icon }) => ({
-                      label: t(`assistants.${label}`),
-                      icon: <Icon size={14} />,
-                      onClick: () =>
-                        id === "tasks" ? setTasksOpen(true) : openView(id),
-                    })),
-                    ...(canWrite
-                      ? [
-                          {
-                            label: t("assistants.edit"),
-                            icon: <Pencil size={14} />,
-                            separatorBefore: true,
-                            onClick: () => setEditor(assistant),
-                          },
-                          {
-                            label: t(
-                              assistant.status === "active"
-                                ? "assistants.pause"
-                                : "assistants.resume",
-                            ),
-                            icon:
-                              assistant.status === "active" ? (
-                                <Pause size={14} />
-                              ) : (
-                                <Play size={14} />
-                              ),
-                            disabled: busy,
-                            onClick: () =>
-                              void act(
-                                assistant.status === "active"
-                                  ? "paused"
-                                  : "active",
-                              ),
-                          },
-                          ...(assistant.kind !== "chief" &&
-                          assistant.status !== "archived"
-                            ? [
-                                {
-                                  label: t("assistants.archive"),
-                                  icon: <Archive size={14} />,
-                                  disabled: busy,
-                                  onClick: () => void act("archived"),
-                                },
-                              ]
-                            : []),
-                        ]
-                      : []),
-                  ]}
-                />
-              )}
-            </>
-          )}
-        </ChatHeaderFrame>
+        {workspaceHeader ? (
+          createPortal(
+            <div className="assistant-workspace-header assistant-workspace-header--embedded">
+              {workspaceActions}
+            </div>,
+            workspaceHeader,
+          )
+        ) : (
+          <ChatHeaderFrame className="assistant-workspace-header">
+            {workspaceActions}
+          </ChatHeaderFrame>
+        )}
         {tasksOpen && assistant && (
           <AssistantTasksDialog
             assistant={assistant}
             canWrite={canWrite}
             onClose={() => setTasksOpen(false)}
           />
+        )}
+        {assistant && detailsView === "discussions" && (
+          <AssistantDiscussionsDialog
+            assistant={assistant}
+            onClose={() => setDetailsView(null)}
+          />
+        )}
+        {assistant &&
+          detailsView === "rules" &&
+          hasPermission(Permission.SCHEDULED_TASK_READ) && (
+            <AssistantRulesDialog
+              assistant={assistant}
+              canWrite={
+                canWrite && hasPermission(Permission.SCHEDULED_TASK_WRITE)
+              }
+              onClose={() => setDetailsView(null)}
+            />
+          )}
+        {assistant && (detailsView === "memory" || detailsView === "usage") && (
+          <EditorSidebar
+            open
+            width="wide"
+            title={t(`assistants.${detailsView}`)}
+            onClose={() => setDetailsView(null)}
+          >
+            <div className="flex h-full min-h-0 flex-col">
+              <AssistantDataPage
+                assistantId={assistant.id}
+                view={detailsView}
+                embedded
+              />
+            </div>
+          </EditorSidebar>
         )}
         {actionError && (
           <div className="panel-inset py-2">
@@ -738,15 +848,6 @@ export function AssistantsPanel() {
               (sessionId === assistant.session_id ||
                 verifiedSession?.key === `${assistant.id}:${sessionId}`) ? (
                 <AssistantGroupContext assistant={assistant}>
-                  {taskConversation && verifiedSession?.taskId && (
-                    <AssistantTaskContext
-                      key={`${assistant.id}:${sessionId}`}
-                      assistantId={assistant.id}
-                      taskId={verifiedSession.taskId}
-                      sessionId={sessionId}
-                      canWrite={canWrite}
-                    />
-                  )}
                   <EmbeddedHeaderActionsContext.Provider
                     value={headerActionsTarget}
                   >
@@ -809,35 +910,34 @@ export function AssistantsPanel() {
           </Suspense>
         )}
       </div>
-      {editor === "choose" && (
-        <Dialog
-          open
-          onClose={() => setEditor(null)}
-          title={t("assistants.newChat")}
-        >
-          <div className="space-y-2">
-            <Button
-              className="w-full justify-start"
-              variant="ghost"
-              leftIcon={<Plus size={16} />}
-              onClick={() => setEditor("new")}
-            >
-              {t("assistants.create")}
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant="ghost"
-              leftIcon={<Users size={16} />}
-              onClick={() => setEditor("group")}
-            >
-              {t("assistants.createGroup")}
-            </Button>
-          </div>
-        </Dialog>
+      {canWrite && addMenuPosition && (
+        <ResourceCardMenu
+          id="assistant-add-menu"
+          title={t("assistants.addCompanion")}
+          position={addMenuPosition}
+          anchorRef={addAnchor}
+          onClose={(restore = true) => {
+            setAddMenuPosition(null);
+            if (restore) addAnchor.current?.focus();
+          }}
+          actions={[
+            {
+              label: t("assistants.create"),
+              icon: <Plus size={16} />,
+              onClick: () => setEditor("new"),
+            },
+            {
+              label: t("assistants.createGroup"),
+              icon: <Users size={16} />,
+              onClick: () => setEditor("group"),
+            },
+          ]}
+        />
       )}
       {(editor === "group" ||
         (typeof editor === "object" && editor?.kind === "group")) && (
         <AssistantGroupEditor
+          key={typeof editor === "object" ? editor?.id : "new-group"}
           value={typeof editor === "object" ? editor ?? undefined : undefined}
           onClose={() => setEditor(null)}
           onSaved={(id) => {
@@ -848,10 +948,10 @@ export function AssistantsPanel() {
         />
       )}
       {editor &&
-        editor !== "choose" &&
         editor !== "group" &&
         (editor === "new" || editor.kind !== "group") && (
           <AssistantEditor
+            key={editor === "new" ? "new-assistant" : editor.id}
             value={editor === "new" ? undefined : editor}
             onClose={() => setEditor(null)}
             onSaved={(id) => {

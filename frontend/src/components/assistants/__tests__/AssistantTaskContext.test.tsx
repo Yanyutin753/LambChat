@@ -44,7 +44,7 @@ test("completed work offers its result without an acceptance ceremony", async ()
   render(<AssistantTaskContext {...props} />);
   expect(
     await screen.findByText("assistants.taskStates.completed"),
-  ).toBeVisible();
+  ).not.toBeVisible();
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
@@ -89,7 +89,7 @@ test("focus refresh picks up completed work without a decision prompt", async ()
   fireEvent(window, new Event("focus"));
   expect(
     await screen.findByText("assistants.taskStates.completed"),
-  ).toBeVisible();
+  ).not.toBeVisible();
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
@@ -106,4 +106,17 @@ test("a work result returns to its originating Chief conversation", async () => 
     await screen.findByRole("button", { name: "assistants.returnToSource" }),
   );
   expect(navigate).toHaveBeenCalledWith("/assistants/chief/chat/chief-chat");
+});
+
+test("completed task details stay collapsed until requested", async () => {
+  api.task.mockResolvedValue({ ...task, state: "completed" });
+  render(<AssistantTaskContext {...props} />);
+  const status = await screen.findByText("assistants.taskStates.completed");
+  expect(status.closest("details")).not.toHaveAttribute("open");
+  expect(status).not.toBeVisible();
+  const details = status.closest("details")!;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+  expect(status).toBeVisible();
+  expect(screen.getByText(task.description)).toBeVisible();
 });

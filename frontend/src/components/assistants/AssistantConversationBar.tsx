@@ -7,6 +7,7 @@ import { Permission } from "../../types/auth";
 import type { Assistant } from "../../types/assistant";
 import { assistantApi } from "../../services/api/assistant";
 import { Button } from "../common/ui";
+import { Tooltip } from "../common/Tooltip";
 import { AssistantGroupEditor } from "./AssistantGroupEditor";
 import { AssistantEditor } from "./AssistantEditor";
 import { AssistantTasksDialog } from "./AssistantTasksDialog";
@@ -58,9 +59,11 @@ export function AssistantConversationBar({
     };
     load();
     window.addEventListener("focus", load);
+    window.addEventListener("assistants:changed", load);
     return () => {
       active = false;
       window.removeEventListener("focus", load);
+      window.removeEventListener("assistants:changed", load);
     };
   }, [sessionId, refresh, t, onResolved]);
   if (current?.error)
@@ -81,48 +84,61 @@ export function AssistantConversationBar({
   if (pathname.startsWith("/assistants/")) return null;
   const contextSessionId = assistant.context_session_id || sessionId;
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-theme-border px-4 py-2">
-      <Bot size={18} className="shrink-0 text-theme-text-secondary" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap gap-2 text-14">
-          <strong className="break-words font-medium">{assistant.name}</strong>
-          <span className="text-theme-text-secondary">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-theme-border px-4 py-1.5">
+      <Tooltip
+        placement="bottom"
+        align="start"
+        content={t(
+          assistant.context_kind === "task"
+            ? "assistants.taskConfigurationHint"
+            : assistant.session_id === contextSessionId
+              ? "assistants.configurationHint"
+              : "assistants.discussionHint",
+        )}
+      >
+        <div
+          tabIndex={0}
+          className="flex min-w-0 max-w-full items-center gap-2 rounded-md py-1 text-14 outline-none focus-visible:ring-2 focus-visible:ring-theme-primary"
+        >
+          <Bot size={16} className="shrink-0 text-theme-text-secondary" />
+          <strong
+            className="min-w-0 truncate font-medium"
+            title={assistant.name}
+          >
+            {assistant.name}
+          </strong>
+          <span className="shrink-0 text-12 text-theme-text-secondary">
             {t(`assistants.${assistant.status}`)}
           </span>
         </div>
-        <p className="text-12 text-theme-text-secondary">
-          {t(
-            assistant.context_kind === "task"
-              ? "assistants.taskConfigurationHint"
-              : assistant.session_id === contextSessionId
-                ? "assistants.configurationHint"
-                : "assistants.discussionHint",
-          )}
-        </p>
+      </Tooltip>
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={() => setDialog("tasks")}>
+          {t("assistants.tasks")}
+        </Button>
+        {hasPermission(Permission.MEMORY_READ) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              navigate(
+                `/assistants/${encodeURIComponent(assistant.id)}/memory${
+                  assistant.session_id === contextSessionId
+                    ? ""
+                    : `?discussion=${encodeURIComponent(contextSessionId)}`
+                }`,
+              )
+            }
+          >
+            {t("assistants.memory")}
+          </Button>
+        )}
+        {canWrite && (
+          <Button variant="ghost" size="sm" onClick={() => setDialog("edit")}>
+            {t("assistants.edit")}
+          </Button>
+        )}
       </div>
-      <Button onClick={() => setDialog("tasks")}>
-        {t("assistants.tasks")}
-      </Button>
-      {hasPermission(Permission.MEMORY_READ) && (
-        <Button
-          onClick={() =>
-            navigate(
-              `/assistants/${encodeURIComponent(assistant.id)}/memory${
-                assistant.session_id === contextSessionId
-                  ? ""
-                  : `?discussion=${encodeURIComponent(contextSessionId)}`
-              }`,
-            )
-          }
-        >
-          {t("assistants.memory")}
-        </Button>
-      )}
-      {canWrite && (
-        <Button onClick={() => setDialog("edit")}>
-          {t("assistants.edit")}
-        </Button>
-      )}
       {dialog === "tasks" && (
         <AssistantTasksDialog
           key={assistant.id}
@@ -133,6 +149,7 @@ export function AssistantConversationBar({
       )}
       {dialog === "edit" && assistant.kind === "group" && (
         <AssistantGroupEditor
+          key={assistant.id}
           value={assistant}
           onClose={() => setDialog(null)}
           onSaved={() => {

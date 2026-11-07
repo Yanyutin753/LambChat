@@ -21,7 +21,10 @@ vi.mock("../../../hooks/useAuth", () => ({
       permission === "memory:read" && canReadMemory(),
   }),
 }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t }) }));
+vi.mock("react-i18next", async (original) => ({
+  ...(await original<typeof import("react-i18next")>()),
+  useTranslation: () => ({ t }),
+}));
 vi.mock("../AssistantEditor", () => ({
   AssistantEditor: () => <div role="dialog">editor</div>,
 }));
@@ -42,7 +45,16 @@ test("a stable assistant identity exposes task activity and configuration owners
   });
   render(<AssistantConversationBar sessionId="chat" />);
   expect(await screen.findByText("Researcher")).toBeInTheDocument();
-  expect(screen.getByText("assistants.configurationHint")).toBeInTheDocument();
+  expect(screen.queryByText("assistants.configurationHint")).toBeNull();
+  fireEvent.keyDown(document, { key: "Tab" });
+  fireEvent.focus(screen.getByText("Researcher").closest("[tabindex]")!);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "assistants.configurationHint",
+  );
+  fireEvent.keyDown(screen.getByText("Researcher").closest("[tabindex]")!, {
+    key: "Escape",
+  });
+  await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
   fireEvent.click(screen.getByRole("button", { name: "assistants.tasks" }));
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "assistants.edit" })).toBeNull();
@@ -115,5 +127,30 @@ test("publishes the current identity to the composer and refreshes it after focu
   fireEvent.focus(window);
   await waitFor(() =>
     expect(onResolved).toHaveBeenLastCalledWith("chat", null),
+  );
+});
+
+test("agent configuration changes refresh the resolved conversation identity", async () => {
+  const resolved = vi.fn();
+  api.forConversation.mockResolvedValue({
+    id: "helper",
+    session_id: "chat",
+    name: "Before",
+    status: "active",
+  });
+  render(<AssistantConversationBar sessionId="chat" onResolved={resolved} />);
+  await screen.findByText("Before");
+  api.forConversation.mockResolvedValue({
+    id: "helper",
+    session_id: "chat",
+    name: "After",
+    status: "active",
+    avatar: "🔎",
+  });
+  fireEvent(window, new Event("assistants:changed"));
+  await screen.findByText("After");
+  expect(resolved).toHaveBeenLastCalledWith(
+    "chat",
+    expect.objectContaining({ name: "After", avatar: "🔎" }),
   );
 });

@@ -1,8 +1,16 @@
+import { AssistantProfileFields } from "./AssistantProfileFields";
+import { AssistantConfigurationFields } from "./AssistantConfigurationFields";
+import "../../styles/assistant-workspace.css";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Users } from "lucide-react";
 import { assistantApi } from "../../services/api/assistant";
-import { assistantConfiguration, type Assistant } from "../../types/assistant";
-import { Dialog } from "../common/Dialog";
+import {
+  assistantConfiguration,
+  type Assistant,
+  type AssistantConfiguration,
+} from "../../types/assistant";
+import { EditorSidebar } from "../common/EditorSidebar";
 import { AgentAvatar } from "../common/AgentAvatar";
 import { Button, FormField, Input, Select, Textarea } from "../common/ui";
 import { ConfigPanelErrorCallout } from "../panels/ConfigPanelErrorCallout";
@@ -18,6 +26,11 @@ export function AssistantGroupEditor({
 }) {
   const { t } = useTranslation();
   const formId = useId();
+  const [saved, setSaved] = useState(value);
+  const [configuration, setConfiguration] = useState<AssistantConfiguration>(
+    () => ({ ...assistantConfiguration(value), kind: "group" }),
+  );
+  const [uploading, setUploading] = useState(false);
   const [bots, setBots] = useState<Assistant[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState(value?.name ?? "");
@@ -67,14 +80,15 @@ export function AssistantGroupEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, t]);
   const save = async () => {
-    if (guard.current || loading || !leader || members.length < 2) return;
+    if (guard.current || uploading || loading || !leader || members.length < 2)
+      return;
     guard.current = true;
     setBusy(true);
     setError("");
     try {
       const selected = bots.filter((bot) => members.includes(bot.id));
       const draft = {
-        ...assistantConfiguration(value),
+        ...configuration,
         kind: "group" as const,
         name:
           name.trim() ||
@@ -86,11 +100,11 @@ export function AssistantGroupEditor({
         member_ids: members,
         leader_id: leader,
       };
-      const result = value
-        ? await assistantApi.update(value.id, {
+      const result = saved
+        ? await assistantApi.update(saved.id, {
             ...draft,
-            status: value.status,
-            revision: value.revision,
+            status: saved.status,
+            revision: saved.revision,
           })
         : await assistantApi.create(draft);
       onSaved(result.id);
@@ -105,14 +119,39 @@ export function AssistantGroupEditor({
       setBusy(false);
     }
   };
+  const reload = async () => {
+    if (!saved || guard.current) return;
+    guard.current = true;
+    setBusy(true);
+    try {
+      const current = await assistantApi.get(saved.id);
+      setSaved(current);
+      setConfiguration(assistantConfiguration(current));
+      setName(current.name);
+      setInstructions(current.instructions);
+      setMembers(current.member_ids ?? []);
+      setLeader(current.leader_id ?? "");
+      setError("");
+      setRefresh((revision) => revision + 1);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : t("common.loadFailed"),
+      );
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  };
   return (
-    <Dialog
+    <EditorSidebar
       open
-      onClose={onClose}
+      onClose={() => {
+        if (!guard.current) onClose();
+      }}
       title={t(value ? "assistants.groupDetails" : "assistants.createGroup")}
-      dismissible={!busy}
+      icon={<Users size={16} aria-hidden="true" />}
       footer={
-        <>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button disabled={busy} onClick={onClose}>
             {t("common.cancel")}
           </Button>
@@ -122,6 +161,8 @@ export function AssistantGroupEditor({
             variant="primary"
             loading={busy}
             disabled={
+              uploading ||
+              (configuration.sandbox === "local" && !configuration.workspace) ||
               loading ||
               !leader ||
               members.length < 2 ||
@@ -133,12 +174,12 @@ export function AssistantGroupEditor({
           >
             {t(value ? "common.save" : "assistants.createGroup")}
           </Button>
-        </>
+        </div>
       }
     >
       <form
         id={formId}
-        className="space-y-5"
+        className="es-form assistant-editor-form"
         onSubmit={(event) => {
           event.preventDefault();
           void save();
@@ -147,6 +188,11 @@ export function AssistantGroupEditor({
         {error && (
           <>
             <ConfigPanelErrorCallout message={error} />
+            {saved && (
+              <Button disabled={busy} onClick={() => void reload()}>
+                {t("assistants.reloadSaved")}
+              </Button>
+            )}
             <Button disabled={busy} onClick={() => setRefresh((x) => x + 1)}>
               {t("common.refresh")}
             </Button>
@@ -164,6 +210,12 @@ export function AssistantGroupEditor({
                 onChange={(event) => setName(event.target.value)}
               />
             </FormField>
+            <AssistantProfileFields
+              key={saved?.revision ?? "new"}
+              draft={configuration}
+              setDraft={setConfiguration}
+              onUploadingChange={setUploading}
+            />
             <FormField label={t("assistants.groupPurpose")}>
               <Textarea
                 rows={3}
@@ -213,7 +265,8 @@ export function AssistantGroupEditor({
                         role="checkbox"
                         aria-checked={members.includes(bot.id)}
                         disabled={
-                          bot.status !== "active" ||
+                          (bot.status !== "active" &&
+                            !members.includes(bot.id)) ||
                           (!members.includes(bot.id) && members.length >= 12)
                         }
                         onClick={() =>
@@ -224,7 +277,11 @@ export function AssistantGroupEditor({
                           )
                         }
                       >
-                        <AgentAvatar seed={bot.name} size={28} />
+                        <AgentAvatar
+                          avatar={bot.avatar}
+                          seed={bot.name}
+                          size={28}
+                        />
                         <span>{bot.name}</span>
                       </button>
                     ))}
@@ -244,12 +301,16 @@ export function AssistantGroupEditor({
                   {t("assistants.unavailableSelection")} · {t("common.remove")}
                 </Button>
               ))}
+            <AssistantConfigurationFields
+              draft={configuration}
+              setDraft={setConfiguration}
+            />
             <p className="text-12 text-theme-text-secondary">
               {t("assistants.groupPrivacyHint")}
             </p>
           </fieldset>
         )}
       </form>
-    </Dialog>
+    </EditorSidebar>
   );
 }

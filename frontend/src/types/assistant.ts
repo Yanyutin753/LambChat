@@ -1,10 +1,14 @@
 import type { Project } from "./index";
+import type { PersonaStarterPrompt } from "./personaPreset";
 
 export interface AssistantConfiguration {
   kind?: "assistant" | "group" | "chief";
   member_ids?: string[];
   leader_id?: string | null;
   name: string;
+  description?: string;
+  avatar?: string | null;
+  starter_prompts?: PersonaStarterPrompt[];
   instructions: string;
   model_id: string | null;
   persona_preset_id: string | null;
@@ -17,7 +21,27 @@ export interface AssistantConfiguration {
 
 export type AssistantStatus = "active" | "paused" | "archived";
 
+export interface AssistantActivity {
+  state:
+    | "waiting_human"
+    | "running"
+    | "starting"
+    | "pending"
+    | "queued"
+    | "recovering"
+    | "cancelling"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "expired";
+  session_id: string;
+  preview?: string | null;
+  updated_at: string;
+  unread_count: number;
+}
+
 export interface Assistant extends AssistantConfiguration {
+  activity?: AssistantActivity | null;
   context_kind?: "conversation" | "task";
   context_session_id?: string | null;
   context_task_id?: string | null;
@@ -66,6 +90,9 @@ export function assistantConfiguration(
     member_ids: value?.member_ids ?? [],
     leader_id: value?.leader_id ?? null,
     name: value?.name ?? "",
+    description: value?.description ?? "",
+    avatar: value?.avatar ?? null,
+    starter_prompts: value?.starter_prompts ?? [],
     instructions: value?.instructions ?? "",
     model_id: value?.model_id ?? null,
     persona_preset_id: value?.persona_preset_id ?? null,
@@ -116,4 +143,11 @@ export interface AssistantRule {
     status: string;
     at: string;
   };
+}
+
+export function assistantActivityPath(assistant: Assistant) {
+  const base = `/assistants/${encodeURIComponent(assistant.id)}`;
+  return assistant.activity?.session_id
+    ? `${base}/chat/${encodeURIComponent(assistant.activity.session_id)}`
+    : base;
 }

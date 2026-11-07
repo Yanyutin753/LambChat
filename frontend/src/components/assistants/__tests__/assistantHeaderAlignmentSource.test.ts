@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 
 test("assistant navigation and chat use the same header height as docked panels", () => {
   const css = readFileSync("src/styles/assistant-workspace.css", "utf8");
-  for (const selector of ["sidebar-top", "header"]) {
+  for (const selector of ["header"]) {
     const rule = css.match(
       new RegExp(`\\.assistant-workspace-${selector} \\{([^}]+)\\}`),
     )?.[1];
@@ -35,4 +35,14 @@ test("assistant pages reuse the chat header frame and theme background", () => {
   expect(
     readFileSync("src/components/assistants/AssistantTasksDialog.tsx", "utf8"),
   ).toContain("<PanelHeader");
+});
+
+test("companion navigation separates the sidebar with a theme border", () => {
+  const css = readFileSync("src/styles/assistant-workspace.css", "utf8");
+  expect(css.match(/\.assistant-workspace-sidebar \{([^}]+)\}/)?.[1]).toContain(
+    "border-inline-end: 1px solid var(--theme-border)",
+  );
+  expect(css.match(/\.assistant-chief \{([^}]+)\}/)?.[1]).toContain(
+    "margin: 0.75rem;",
+  );
 });

@@ -20,7 +20,12 @@ export const assistantApi = {
   },
   members(id: string) {
     return authFetch<{
-      members: { id: string; name: string; status: string }[];
+      members: {
+        id: string;
+        name: string;
+        status: string;
+        avatar?: string | null;
+      }[];
     }>(`${resource(id)}/members`);
   },
   forConversation(sessionId: string) {

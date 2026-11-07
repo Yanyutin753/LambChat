@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssistantsPanel } from "../AssistantsPanel";
+import { EmbeddedHeaderActionsContext } from "../../layout/AppContent/EmbeddedHeaderActionsContext";
 
 const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
   api: {
@@ -21,6 +22,7 @@ const { api, profiles, navigate, canWrite, route, t } = vi.hoisted(() => ({
     openConversation: vi.fn(),
     forConversation: vi.fn(),
     tasks: vi.fn(),
+    discussions: vi.fn(),
     task: vi.fn(),
     reviewTask: vi.fn(),
   },
@@ -124,6 +126,7 @@ beforeEach(() => {
   api.get.mockResolvedValue(helper);
   api.openConversation.mockResolvedValue({ id: "thread" });
   api.tasks.mockResolvedValue({ tasks: [], total: 0 });
+  api.discussions.mockResolvedValue({ discussions: [], total: 0 });
   api.list.mockResolvedValue({ assistants: [helper], total: 1 });
 });
 afterEach(() => {
@@ -211,10 +214,10 @@ test("creating an assistant saves real configuration and closes only after succe
     .mockResolvedValueOnce(helper);
   render(<AssistantsPanel />);
   fireEvent.click(
-    screen.getAllByRole("button", { name: "assistants.newChat" })[0],
+    screen.getAllByRole("button", { name: "assistants.addCompanion" })[0],
   );
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
+    within(screen.getByRole("menu")).getByRole("menuitem", {
       name: "assistants.create",
     }),
   );
@@ -234,6 +237,9 @@ test("creating an assistant saves real configuration and closes only after succe
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(api.create).toHaveBeenLastCalledWith({
     name: "Researcher",
+    description: "",
+    avatar: null,
+    starter_prompts: [],
     kind: "assistant",
     member_ids: [],
     leader_id: null,
@@ -262,10 +268,10 @@ test("assistant configuration can select an owned collaboration team", async () 
   api.create.mockResolvedValue(helper);
   render(<AssistantsPanel />);
   fireEvent.click(
-    screen.getAllByRole("button", { name: "assistants.newChat" })[0],
+    screen.getAllByRole("button", { name: "assistants.addCompanion" })[0],
   );
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
+    within(screen.getByRole("menu")).getByRole("menuitem", {
       name: "assistants.create",
     }),
   );
@@ -451,9 +457,9 @@ test("permission revocation removes resolved role metadata immediately", async (
   );
 });
 
-test("secondary destinations have one entry in the workspace menu", async () => {
+test("secondary details open over the current chat without navigation", async () => {
   route.assistantId = "helper";
-  route.view = "tasks";
+  route.sessionId = "thread";
   render(<AssistantsPanel />);
   await screen.findByRole("button", { name: "common.moreOptions" });
   expect(
@@ -466,10 +472,12 @@ test("secondary destinations have one entry in the workspace menu", async () => 
   fireEvent.click(
     await screen.findByRole("menuitem", { name: "assistants.discussions" }),
   );
-  expect(navigate).toHaveBeenCalledWith("/assistants/helper/discussions");
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  expect(screen.getByText("Real chat workspace")).toBeInTheDocument();
+  expect(navigate).not.toHaveBeenCalled();
 });
 
-test("verified work shows status beside the real chat without requiring acceptance", async () => {
+test("verified work opens the real chat without an extra task bar", async () => {
   route.assistantId = "helper";
   route.sessionId = "task-thread";
   api.forConversation.mockResolvedValue({
@@ -485,10 +493,11 @@ test("verified work shows status beside the real chat without requiring acceptan
     run_id: "run-1",
   });
   render(<AssistantsPanel />);
+  expect(await screen.findByText("Real chat workspace")).toBeVisible();
+  expect(screen.queryByText("assistants.taskStates.completed")).toBeNull();
   expect(
-    await screen.findByText("assistants.taskStates.completed"),
-  ).toBeVisible();
-  expect(screen.getByText("Real chat workspace")).toBeVisible();
+    screen.queryByRole("region", { name: "assistants.workRecords" }),
+  ).toBeNull();
   expect(
     screen.queryByRole("button", { name: "assistants.acceptTask" }),
   ).toBeNull();
@@ -553,4 +562,157 @@ test("an auxiliary page returns directly to its companion conversation", async (
     }),
   );
   expect(navigate).toHaveBeenCalledWith("/assistants/helper");
+});
+
+test("waiting companions show their state and open the conversation needing attention", async () => {
+  api.list.mockResolvedValue({
+    assistants: [
+      {
+        ...helper,
+        activity: {
+          state: "waiting_human",
+          session_id: "approval-chat",
+          preview: "Review the revised plan",
+          updated_at: "2026-11-07T00:00:00Z",
+          unread_count: 1,
+        },
+      },
+    ],
+    total: 1,
+  });
+  render(<AssistantsPanel />);
+  const row = await screen.findByRole("button", { name: /Researcher/ });
+  expect(
+    within(row).getByText("assistants.activity.waiting_human"),
+  ).toBeTruthy();
+  expect(within(row).getByText("Review the revised plan")).toBeTruthy();
+  fireEvent.click(row);
+  expect(navigate).toHaveBeenCalledWith(
+    "/assistants/helper/chat/approval-chat",
+  );
+});
+
+test("idle companions do not claim to be online or working", async () => {
+  render(<AssistantsPanel />);
+  await screen.findByRole("button", { name: /Researcher/ });
+  expect(screen.queryByText("assistants.activity.running")).toBeNull();
+});
+
+test("refreshing activity preserves the open chat and clears stale state on failure", async () => {
+  route.assistantId = "helper";
+  route.sessionId = "thread";
+  api.forConversation.mockResolvedValue({
+    ...helper,
+    context_session_id: "thread",
+  });
+  api.list.mockResolvedValue({
+    assistants: [
+      {
+        ...helper,
+        activity: {
+          state: "running",
+          session_id: "thread",
+          updated_at: "2026-11-07T00:00:00Z",
+          unread_count: 0,
+        },
+      },
+    ],
+    total: 1,
+  });
+  render(<AssistantsPanel />);
+  await screen.findByText("assistants.activity.running");
+  await screen.findByText("Real chat workspace");
+  const opens = api.openConversation.mock.calls.length;
+  api.list.mockRejectedValueOnce(new Error("Connection lost"));
+  fireEvent(window, new Event("focus"));
+  await screen.findByText("Connection lost");
+  expect(screen.queryByText("assistants.activity.running")).toBeNull();
+  expect(screen.getByText("Real chat workspace")).toBeTruthy();
+  api.list.mockResolvedValue({
+    assistants: [
+      {
+        ...helper,
+        activity: {
+          state: "completed",
+          session_id: "thread",
+          updated_at: "2026-11-07T00:01:00Z",
+          unread_count: 1,
+        },
+      },
+    ],
+    total: 1,
+  });
+  fireEvent(window, new Event("assistants:changed"));
+  await screen.findByText("assistants.activity.completed");
+  expect(screen.queryByText("Connection lost")).toBeNull();
+  expect(api.openConversation.mock.calls.length).toBe(opens);
+});
+
+test("adding a companion opens a compact menu and Escape returns focus", async () => {
+  render(<AssistantsPanel />);
+  await screen.findByText("Researcher");
+  const trigger = screen.getByRole("button", {
+    name: "assistants.addCompanion",
+  });
+  fireEvent.click(trigger);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const menu = screen.getByRole("menu", { name: "assistants.addCompanion" });
+  expect(within(menu).getAllByRole("menuitem")).toHaveLength(2);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(trigger).toHaveFocus();
+});
+
+test("companion actions share the application header without a second header row", async () => {
+  const header = document.createElement("header");
+  document.body.append(header);
+  const result = render(
+    <EmbeddedHeaderActionsContext.Provider value={header}>
+      <AssistantsPanel />
+    </EmbeddedHeaderActionsContext.Provider>,
+  );
+  try {
+    await screen.findByText("Researcher");
+    expect(
+      within(header).getByRole("button", {
+        name: "assistants.toggleNavigation",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(header).queryByRole("button", { name: "assistants.addCompanion" }),
+    ).toBeNull();
+    const add = within(
+      screen.getByRole("complementary", { name: "assistants.title" }),
+    ).getByRole("button", { name: "assistants.addCompanion" });
+    expect(add.textContent).toBe("");
+    expect(result.container.querySelector("header")).toBeNull();
+    expect(screen.queryByRole("button", { name: "sidebar.chats" })).toBeNull();
+    expect(screen.getByRole("button", { name: "common.refresh" })).toBeTruthy();
+  } finally {
+    result.unmount();
+    header.remove();
+  }
+});
+
+test("companion workspace keeps brand, notifications and search in its header", async () => {
+  route.assistantId = "helper";
+  route.view = "chat";
+  const notifications = vi.fn();
+  const search = vi.fn();
+  window.addEventListener("lambchat:open-notifications", notifications);
+  window.addEventListener("lambchat:desktop-sidebar-open-search", search);
+  try {
+    render(<AssistantsPanel />);
+    expect(screen.getByRole("img", { name: "LambChat" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "nav.notifications" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.searchSessions" }),
+    );
+    expect(notifications).toHaveBeenCalledOnce();
+    expect(search).toHaveBeenCalledOnce();
+    await screen.findByRole("button", { name: /Researcher/ });
+  } finally {
+    window.removeEventListener("lambchat:open-notifications", notifications);
+    window.removeEventListener("lambchat:desktop-sidebar-open-search", search);
+  }
 });

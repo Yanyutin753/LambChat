@@ -11,6 +11,20 @@ from src.kernel.schemas.assistant import AssistantCreate
 from tests.infra.test_assistant_service import assistant, user
 
 
+def test_chief_finishes_verified_configuration_changes_without_memory_maintenance():
+    from src.infra.assistant.groups import assistant_instructions
+
+    prompt = assistant_instructions(assistant(kind="chief", instructions="Keep my preferences"))
+    assert "live assistant store" in prompt
+    assert "Do not mirror volatile configuration into memory" in prompt
+    assert "do not repair stale configuration memories" in prompt
+    assert "without a task list" in prompt
+    assert prompt.endswith("Keep my preferences")
+    assert (
+        assistant_instructions(assistant(instructions="Remember research")) == "Remember research"
+    )
+
+
 def test_group_requires_distinct_members_and_member_leader():
     for changes in (
         {"member_ids": ["a", "a"], "leader_id": "a"},
@@ -63,6 +77,7 @@ async def test_group_runtime_keeps_actual_member_identity_and_private_memory(mon
 
 
 async def test_coordinator_switch_replaces_live_identity_without_rewriting_history(monkeypatch):
+    from src.agents.team_agent.prompt import build_team_router_system_prompt
     from src.infra.assistant.groups import runtime_group_team
     from src.infra.assistant.service import AssistantService
 
@@ -90,6 +105,13 @@ async def test_coordinator_switch_replaces_live_identity_without_rewriting_histo
     assert "earlier report was misattributed" in after.team_instructions
     assert group.instructions in after.team_instructions
     assert [m.member_id for m in after.members] == ["a", "b"]
+    assert build_team_router_system_prompt(before, default_role="Researcher").startswith(
+        "You are Researcher, the current coordinator"
+    )
+    assert build_team_router_system_prompt(after, default_role="Reviewer").startswith(
+        "You are Reviewer, the current coordinator"
+    )
+    assert "You are Reviewer" not in after.team_instructions
 
 
 def test_completed_work_does_not_require_acceptance():
@@ -235,3 +257,20 @@ async def test_chief_no_environment_uses_persistent_history_backend(monkeypatch)
     )
     assert result[0] is backend
     assert result[3:] == (None, None)
+
+
+async def test_group_projection_uses_saved_group_and_member_avatars(monkeypatch):
+    from src.infra.assistant.groups import runtime_group_team
+    from src.infra.assistant.service import AssistantService
+
+    group = assistant(kind="group", member_ids=["a", "b"], leader_id="a", avatar="🧭")
+    members = [
+        assistant(avatar="🔎").model_copy(update={"id": "a"}),
+        assistant(avatar="📝").model_copy(update={"id": "b"}),
+    ]
+    monkeypatch.setattr(AssistantService, "validate_configuration", AsyncMock())
+    team = await runtime_group_team(
+        user(), group, store=SimpleNamespace(get=AsyncMock(side_effect=members))
+    )
+    assert team.avatar == "🧭"
+    assert [m.role_avatar for m in team.members] == ["🔎", "📝"]

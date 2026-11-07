@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from src.kernel.schemas.persona_preset import PersonaStarterPrompt
 from src.kernel.schemas.project import ProjectWorkspace
 
 AssistantName = Annotated[
@@ -18,6 +19,9 @@ class AssistantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: AssistantName
+    description: str = Field(default="", max_length=500)
+    avatar: str | None = None
+    starter_prompts: list[PersonaStarterPrompt] = Field(default_factory=list)
     kind: Literal["assistant", "group", "chief"] = "assistant"
     member_ids: list[ResourceId] = Field(default_factory=list, max_length=12)
     leader_id: ResourceId | None = None
@@ -55,7 +59,28 @@ class AssistantUpdate(AssistantCreate):
     status: Literal["active", "paused", "archived"] = "active"
 
 
+class AssistantActivity(BaseModel):
+    state: Literal[
+        "waiting_human",
+        "running",
+        "starting",
+        "pending",
+        "queued",
+        "recovering",
+        "cancelling",
+        "completed",
+        "failed",
+        "cancelled",
+        "expired",
+    ]
+    session_id: str
+    preview: str | None = None
+    updated_at: datetime
+    unread_count: int = 0
+
+
 class Assistant(AssistantCreate):
+    activity: AssistantActivity | None = None
     context_kind: Literal["conversation", "task"] = "conversation"
     context_session_id: str | None = None
     context_task_id: str | None = None

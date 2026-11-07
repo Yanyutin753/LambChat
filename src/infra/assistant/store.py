@@ -98,7 +98,11 @@ class AssistantStore:
             {"_id": assistant_id, "user_id": user_id, "revision": data.revision},
             {
                 "$set": {
-                    **data.model_dump(exclude={"revision"}, by_alias=True),
+                    **data.model_dump(
+                        exclude={"revision"}
+                        | ({"description", "avatar", "starter_prompts"} - data.model_fields_set),
+                        by_alias=True,
+                    ),
                     "updated_at": utc_now(),
                 },
                 "$inc": {"revision": 1},

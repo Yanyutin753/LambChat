@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from src.api import deps
 from src.api.error_handlers import register_error_handlers
 from src.infra.utils.datetime import utc_now
-from src.kernel.schemas.assistant import Assistant
+from src.kernel.schemas.assistant import Assistant, AssistantActivity
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -40,6 +40,20 @@ def api(monkeypatch):
         update=AsyncMock(return_value=value),
     )
     monkeypatch.setattr(assistants, "_service", lambda: service)
+    service.activity = AsyncMock(
+        return_value={
+            "a": AssistantActivity(
+                **{
+                    "state": "waiting_human",
+                    "session_id": "approval-chat",
+                    "preview": "Review plan",
+                    "updated_at": now,
+                    "unread_count": 1,
+                }
+            )
+        }
+    )
+    monkeypatch.setattr(assistants, "load_assistant_activity", service.activity, raising=False)
     service.task_collection = task_collection
     service.tasks = SimpleNamespace(
         list=AsyncMock(return_value={"tasks": [], "total": 0, "skip": 0, "limit": 20}),
@@ -277,3 +291,13 @@ async def test_background_task_identity_uses_owned_task_and_its_original_audienc
     )
     service.store.get.assert_awaited_once_with("owner", "a")
     discussion.assert_awaited_once()
+
+
+async def test_list_exposes_real_activity_for_only_the_visible_owned_assistants(api):
+    app, service, _ = api
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/assistants")
+    row = response.json()["assistants"][0]
+    assert row["activity"]["state"] == "waiting_human"
+    assert row["activity"]["session_id"] == "approval-chat"
+    service.activity.assert_awaited_once_with("owner", ["a"])

@@ -30,6 +30,7 @@ async def runtime_group_team(user, group, *, store=None):
         id=f"assistant-group:{group.id}",
         owner_user_id=user.sub,
         name=group.name,
+        avatar=group.avatar,
         default_member_id=group.leader_id,
         team_instructions=(
             f"Current coordinator: {leader.name} (member_id: {leader.id}). "
@@ -70,6 +71,7 @@ async def runtime_group_team(user, group, *, store=None):
                 member_id=member.id,
                 persona_preset_id=member.persona_preset_id or "",
                 role_name=member.name,
+                role_avatar=member.avatar,
                 model_id=member.model_id,
                 agent_id="search",
                 position=index,
@@ -132,6 +134,10 @@ def assistant_instructions(assistant):
         "When asked to create or manage assistants or group chats, discover and use "
         "list_assistants, create_assistant, update_assistant. List existing identities first; "
         "reuse suitable assistants rather than duplicating them. Use actual returned IDs and revisions. "
+        "Use avatar and structured starter_prompts for icons and localized opening suggestions; "
+        "never emulate UI suggestions by appending them to instructions. Management tools also "
+        "support model, persona/team, project, memory and environment settings using accessible IDs. "
+        "Read current configuration and preserve fields outside the requested change. "
         "For a group, choose at least two members and a coordinator from those members. "
         "Changing the coordinator includes keeping current-coordinator references in the group's "
         "instructions consistent: read the current purpose, then submit leader_id and the full reviewed "
@@ -139,6 +145,15 @@ def assistant_instructions(assistant):
         "not an extra change requiring permission. Preserve unrelated duties, constraints, and historical "
         "references; never globally replace a person's name. If the purpose is coordinator-neutral, "
         "explicitly resubmit it unchanged. Check the saved coordinator and purpose before reporting success. "
+        "The live assistant store is the source of truth for current configuration. "
+        "The memory index is historical reference, not a checklist or an instruction to maintain ledgers. "
+        "A successful configuration update and readback completes the administrative task; "
+        "historical memory entries do not create additional cleanup or synchronization work. "
+        "Do not mirror volatile configuration into memory or refresh ID/revision ledgers, and "
+        "do not repair stale configuration memories during an administrative change. "
+        "For a routine change, read, update, verify, then give the result without a task list or "
+        "step-by-step tool narration. Keep tool names, revisions and internal IDs out of the reply "
+        "unless needed to explain an unresolved error or explicitly requested by the user. "
         "When the user asks an existing assistant or group to do work, use delegate_assistant_task "
         "with that actual identity and the requested task. Reuse an existing suitable assistant; "
         "do not create a new one for every request. A queued/running receipt means work was assigned, "

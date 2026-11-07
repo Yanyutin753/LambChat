@@ -1,12 +1,29 @@
 import type { ComponentProps } from "react";
-import { Dialog } from "../common/Dialog";
+import { EditorSidebar } from "../common/EditorSidebar";
+import type { Dialog } from "../common/Dialog";
 
 // Keep the same actions and loading state in the workspace and chat shortcuts.
 export function AssistantSurface({
   embedded = false,
   ...props
 }: ComponentProps<typeof Dialog> & { embedded?: boolean }) {
-  if (!embedded) return <Dialog {...props} />;
+  if (!embedded)
+    return (
+      <EditorSidebar
+        open={props.open}
+        onClose={() => {
+          if (props.dismissible !== false) props.onClose();
+        }}
+        title={typeof props.title === "string" ? props.title : ""}
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {props.footer}
+          </div>
+        }
+      >
+        <div className="es-form">{props.children}</div>
+      </EditorSidebar>
+    );
   return (
     <section
       className="assistant-workspace-surface"

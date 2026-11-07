@@ -82,3 +82,28 @@ async def test_list_is_paginated_and_owner_scoped():
     cursor.limit.assert_called_once_with(20)
     with pytest.raises(ValueError):
         await AssistantStore(collection).list("owner", limit=10000)
+
+
+async def test_legacy_update_does_not_erase_agent_presentation():
+    from src.infra.assistant.store import AssistantStore
+    from src.kernel.schemas.assistant import AssistantUpdate
+
+    collection = SimpleNamespace(find_one_and_update=AsyncMock(return_value=None))
+    store = AssistantStore(collection)
+    await store.update("owner", "assistant", AssistantUpdate(name="New", revision=3))
+    saved = collection.find_one_and_update.call_args.args[1]["$set"]
+    assert "avatar" not in saved and "starter_prompts" not in saved
+    await store.update(
+        "owner",
+        "assistant",
+        AssistantUpdate(name="New", revision=3, avatar=None, starter_prompts=[]),
+    )
+    saved = collection.find_one_and_update.call_args.args[1]["$set"]
+    assert saved["avatar"] is None and saved["starter_prompts"] == []
+
+
+def test_assistant_starters_reuse_localized_text_validation():
+    from src.kernel.schemas.assistant import AssistantCreate
+
+    with pytest.raises(ValidationError):
+        AssistantCreate(name="Helper", starter_prompts=[{"text": {"zh": " "}}])

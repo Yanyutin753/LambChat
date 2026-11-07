@@ -5,7 +5,7 @@ import { AssistantWelcome } from "../AssistantWelcome";
 import type { Assistant } from "../../../types/assistant";
 import type { ChatInputProps } from "../../chat/ChatInput";
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "ja" } }),
 }));
 vi.mock("../../chat/ChatInput", () => ({
   ChatInput: (props: ChatInputProps) => (
@@ -82,3 +82,31 @@ test("the composer precedes opening suggestions, matching ordinary chat", () => 
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
+
+test.each(["assistant", "group"] as const)(
+  "%s uses saved localized starters and fills the composer",
+  (kind) => {
+    render(
+      <AssistantWelcome
+        assistant={
+          {
+            id: "helper",
+            name: "Helper",
+            kind,
+            starter_prompts: [
+              { icon: "🔎", text: { en: "Check sources", ja: "出典を確認" } },
+            ],
+          } as Assistant
+        }
+        chatInputProps={{} as ChatInputProps}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /出典を確認/ });
+    expect(button).toHaveTextContent("🔎");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    fireEvent.click(button);
+    expect(screen.getByTestId("suggested-input")).toHaveTextContent(
+      "出典を確認",
+    );
+  },
+);

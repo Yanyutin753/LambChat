@@ -123,8 +123,12 @@ export function AssistantTaskContext({
             {task.source_session_id && task.source_session_id !== sessionId && (
               <Button
                 size="sm"
+                variant="ghost"
+                className="assistant-work-context-action"
+                aria-label={t("assistants.returnToSource")}
+                title={t("assistants.returnToSource")}
                 disabled={busy || !!error}
-                leftIcon={<ArrowLeft size={14} />}
+                leftIcon={<ArrowLeft size={16} />}
                 onClick={() =>
                   navigate(
                     `/assistants/${encodeURIComponent(
@@ -136,30 +140,41 @@ export function AssistantTaskContext({
                 {t("assistants.returnToSource")}
               </Button>
             )}
-            <details className="order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto">
+            <details className="assistant-work-context-details">
               <summary className="assistant-work-context-summary">
                 <span className="truncate" title={task.description}>
                   {assistantTaskTitle(task.description)}
                 </span>
-                <ChevronDown size={14} aria-hidden="true" />
+                <ChevronDown size={16} aria-hidden="true" />
               </summary>
-              <p className="assistant-work-context-description">
-                {task.description}
-              </p>
+              <div className="assistant-work-context-description">
+                {task.state === "completed" && (
+                  <span className="text-12 text-theme-text-muted">
+                    {t("assistants.taskStates.completed")}
+                  </span>
+                )}
+                <p>{task.description}</p>
+              </div>
             </details>
-            <span
-              className="shrink-0 text-12 text-theme-text-secondary"
-              aria-live="polite"
-            >
-              {t(`assistants.taskStates.${task.state}`, {
-                defaultValue: task.state,
-              })}
-            </span>
+            {task.state !== "completed" && (
+              <span
+                className="assistant-work-context-state text-12 text-theme-text-secondary"
+                aria-live="polite"
+              >
+                {t(`assistants.taskStates.${task.state}`, {
+                  defaultValue: task.state,
+                })}
+              </span>
+            )}
             {canWrite && running && (
               <Button
                 size="sm"
                 disabled={busy || !!error}
-                leftIcon={<Square size={12} />}
+                variant="ghost"
+                className="assistant-work-context-action"
+                aria-label={t("assistants.stopTask")}
+                title={t("assistants.stopTask")}
+                leftIcon={<Square size={16} />}
                 onClick={() =>
                   void perform(() => sessionApi.cancel(sessionId, task.run_id))
                 }

@@ -273,7 +273,7 @@ export function AssistantRulesDialog({
                   }
                 />
               </FormField>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="assistant-rule-fields grid gap-3">
                 <FormField label={t("assistants.ruleMode")}>
                   <Select
                     ariaLabel={t("assistants.ruleMode")}

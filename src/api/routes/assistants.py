@@ -5,6 +5,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Query, Request
 
 from src.api.deps import require_permissions
+from src.infra.assistant.activity import load_assistant_activity
 from src.infra.assistant.service import AssistantService, conversation_assistant
 from src.kernel.schemas.assistant import (
     Assistant,
@@ -79,6 +80,10 @@ async def list_assistants(
         store.list(user.sub, skip=skip, limit=limit, archived=archived),
         store.count(user.sub, archived=archived),
     )
+    activity = await load_assistant_activity(user.sub, [item.id for item in assistants])
+    assistants = [
+        item.model_copy(update={"activity": activity.get(item.id)}) for item in assistants
+    ]
     return AssistantList(assistants=assistants, total=total, skip=skip, limit=limit)
 
 
@@ -105,7 +110,14 @@ async def get_group_members(
     for identity in group.member_ids:
         member = await _service().store.get(user.sub, identity)
         if member:
-            members.append({"id": member.id, "name": member.name, "status": member.status})
+            members.append(
+                {
+                    "id": member.id,
+                    "name": member.name,
+                    "status": member.status,
+                    "avatar": member.avatar,
+                }
+            )
     return {"members": members}
 
 

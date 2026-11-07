@@ -33,7 +33,7 @@ export function AssistantMentionPopup({
               index === highlightedIndex ? "bg-theme-bg-hover" : ""
             }`}
           >
-            <AgentAvatar seed={member.name} size={24} />
+            <AgentAvatar avatar={member.avatar} seed={member.name} size={24} />
             <span className="truncate">{member.name}</span>
           </button>
         ))

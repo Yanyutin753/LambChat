@@ -9,7 +9,12 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../common/ui";
 import { assistantApi } from "../../services/api/assistant";
 import type { Assistant } from "../../types/assistant";
-export type GroupMember = { id: string; name: string; status: string };
+export type GroupMember = {
+  id: string;
+  name: string;
+  status: string;
+  avatar?: string | null;
+};
 const Context = createContext<GroupMember[] | null>(null);
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAssistantGroupMembers = () => useContext(Context);

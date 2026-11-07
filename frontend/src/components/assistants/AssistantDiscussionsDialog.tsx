@@ -126,11 +126,9 @@ export function AssistantDiscussionsDialog({
                 <Button
                   onClick={() =>
                     open(
-                      `${
-                        embedded
-                          ? `/assistants/${encodeURIComponent(assistant.id)}`
-                          : ""
-                      }/chat/${encodeURIComponent(discussion.session_id)}`,
+                      `/assistants/${encodeURIComponent(
+                        assistant.id,
+                      )}/chat/${encodeURIComponent(discussion.session_id)}`,
                     )
                   }
                 >
