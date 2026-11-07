@@ -304,6 +304,15 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                 **receipt,
                 "charged_units": max(previous["charged_units"], receipt["charged_units"]),
             }
+        counts = receipt.get("model_usage")
+        if counts is not None and (previous or {}).get("model_usage") is None:
+            self._usage_observed = True
+            for field, value in counts.items():
+                if value is None:
+                    self._usage_unknown_fields.add(field)
+                else:
+                    counter = field if field == "total_tokens" else f"total_{field}"
+                    setattr(self, counter, getattr(self, counter) + value)
         self._cost_receipts[receipt["call_id"]] = receipt
         self._token_usage_emitted = False
         await self._publish_settlement_usage()

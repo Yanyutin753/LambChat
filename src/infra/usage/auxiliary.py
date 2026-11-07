@@ -54,6 +54,7 @@ async def write_auxiliary_usage(
             "cache_read_tokens": details.get("cache_read"),
             "cache_creation_tokens": details.get("cache_creation"),
         }
+        counts = settlement.get("model_usage", counts)
         unknown = [key for key, value in counts.items() if type(value) is not int or value < 0]
         data = {
             **{key: value if key not in unknown else 0 for key, value in counts.items()},
