@@ -96,7 +96,7 @@ test("all tool result headers keep title and context on one baseline with full t
   expect(source).toMatch(/title=\{subtitle\}\s*>\s*\{subtitle\}\s*<\/span>/s);
 });
 
-test("tool result header icons have no background or border decoration", () => {
+test("tool result header status has no background or border decoration", () => {
   const source = readFileSync(
     new URL("../ToolResultPanel.tsx", import.meta.url),
     "utf8",
@@ -106,7 +106,7 @@ test("tool result header icons have no background or border decoration", () => {
     "utf8",
   );
   const iconClasses = source.match(
-    /className=.[^\n]*tool-console-header-icon[^\n]*/,
+    /className=.[^\n]*tool-console-status[^\n]*/,
   )?.[0];
   expect(iconClasses).toBeTruthy();
   expect(iconClasses).not.toMatch(/rounded|cfg\.bg|border|bg-/);

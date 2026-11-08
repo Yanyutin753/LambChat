@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -13,6 +14,7 @@ interface MoreMenuItem {
 
 interface DesktopMoreMenuProps {
   featureItems?: MoreMenuItem[];
+  itemButtonProps?: (path: string) => ComponentProps<"button">;
   isOpen: boolean;
   onClose: () => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
@@ -21,6 +23,7 @@ interface DesktopMoreMenuProps {
 
 export function DesktopMoreMenu({
   featureItems = [],
+  itemButtonProps,
   isOpen,
   onClose,
   menuRef,
@@ -36,6 +39,7 @@ export function DesktopMoreMenu({
   const renderItem = (item: MoreMenuItem) => (
     <button
       key={item.path}
+      {...itemButtonProps?.(item.path)}
       type="button"
       className={`sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors ${
         (item.matchPaths ?? [item.path]).includes(location.pathname)
@@ -57,12 +61,18 @@ export function DesktopMoreMenu({
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+      className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-y-auto animate-scale-in"
       style={{
         top: position.top,
         left: position.left,
+        maxHeight: `calc(100dvh - ${position.top + 8}px)`,
         backgroundColor: "var(--theme-bg-card)",
         borderColor: "var(--theme-border)",
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onClose();
+        }
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >

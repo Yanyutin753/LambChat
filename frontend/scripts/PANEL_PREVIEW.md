@@ -173,3 +173,5 @@ PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由
 整套控件走查：`/chat/preview-report?ui-polish=1&theme=light` 在真实会话流中显示本地 PDF 附件、简短回答和输入框，可同时检查左侧交互图标及菜单。附件复用已有本地 PDF 样例；不上传或修改真实文件。
 
 消息详情回看：`/chat/preview-report?theme=dark&ui-polish=1&detail-review=1&artifacts=few` 加入长思考、读取2个文件、搜索2次、执行1条命令和160行工具输出，用于检查原有卡片、全文展开、复制、日志卡内滚动和窄屏对齐。仅本地只读模拟事件，不运行命令。
+
+助手侧栏：`/assistant-sidebar-preview?theme=light|dark` 使用真实群聊编辑器，展示长成员名称、头像、协调者和固定保存区。列表与保存仅使用此入口的内存 fixture，不调用真实助手 API；刷新后恢复初始数据。

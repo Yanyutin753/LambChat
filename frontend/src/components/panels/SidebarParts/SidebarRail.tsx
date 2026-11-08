@@ -97,19 +97,6 @@ export function SidebarRail({
         className="mt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center w-full space-y-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <Tooltip content={t("sidebar.newChat")}>
-          <button
-            type="button"
-            disabled={!hasPermission(Permission.SESSION_WRITE)}
-            onClick={onNewSession}
-            className={railBtn}
-            aria-label={t("sidebar.newChat")}
-          >
-            <InteractiveIcon>
-              <SquarePen size={16} />
-            </InteractiveIcon>
-          </button>
-        </Tooltip>
         {hasPermission(Permission.SESSION_READ) && (
           <Tooltip content={t("assistants.title")}>
             <button
@@ -127,6 +114,19 @@ export function SidebarRail({
             </button>
           </Tooltip>
         )}
+        <Tooltip content={t("sidebar.newChat")}>
+          <button
+            type="button"
+            disabled={!hasPermission(Permission.SESSION_WRITE)}
+            onClick={onNewSession}
+            className={railBtn}
+            aria-label={t("sidebar.newChat")}
+          >
+            <InteractiveIcon>
+              <SquarePen size={16} />
+            </InteractiveIcon>
+          </button>
+        </Tooltip>
         <Tooltip content={t("sidebar.searchSessions")}>
           <button
             type="button"

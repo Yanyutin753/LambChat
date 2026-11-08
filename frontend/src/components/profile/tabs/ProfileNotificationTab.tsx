@@ -51,7 +51,7 @@ export function ProfileNotificationTab() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="profile-notifications">
       {/* Browser Notification Setting */}
       <div className="profile-notification">
         <div className="flex items-start justify-between gap-3">

@@ -105,7 +105,7 @@ export function SandboxMachinesCard() {
   };
 
   return (
-    <div className="mt-3 border-t border-theme-border dark:border-stone-600/50 pt-3.5">
+    <div className="profile-machines">
       <div className="flex items-center gap-1.5">
         <Laptop
           size={13}
@@ -119,15 +119,15 @@ export function SandboxMachinesCard() {
         {t("profile.localSandbox.machinesDesc")}
       </p>
 
-      {/* 当前服务器：label-value 行（同设置行语言，mono 值右对齐截断）；
+      {/* 当前服务器：label-value 行（同设置行语言，mono 值允许换行）；
           运行时配置优先，构建期烘焙兜底 */}
-      <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="profile-setting-row profile-detail-row">
         <span className="flex shrink-0 items-center gap-1.5 text-14 text-theme-text dark:text-stone-200">
           <Link2 size={13} className="opacity-50" />
           {t("profile.localSandbox.currentServer")}
         </span>
         <span
-          className="min-w-0 truncate font-mono text-12 text-theme-text-secondary dark:text-stone-400"
+          className="min-w-0 [overflow-wrap:anywhere] font-mono text-12 text-theme-text-secondary dark:text-stone-400"
           data-sandbox-server-url
         >
           {serverUrl}
@@ -148,7 +148,7 @@ export function SandboxMachinesCard() {
           return (
             <div
               key={machine.machine_id}
-              className={`flex items-center gap-2 rounded-lg px-1.5 py-2 transition-colors hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover ${
+              className={`profile-machine transition-colors hover:bg-theme-bg-hover ${
                 machineOnline ? "" : "opacity-60"
               }`}
               data-sandbox-machine={machine.machine_id}
@@ -196,7 +196,7 @@ export function SandboxMachinesCard() {
                 </span>
               ) : (
                 <>
-                  <span className="min-w-0 flex-1 truncate text-14 font-medium text-theme-text dark:text-stone-100">
+                  <span className="profile-machine-name min-w-0 text-14 font-medium text-theme-text dark:text-stone-100">
                     {machine.name}
                     {isDefault && (
                       <span className="ml-1.5 whitespace-nowrap rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-10 font-medium text-amber-700 dark:text-amber-400">
@@ -204,7 +204,7 @@ export function SandboxMachinesCard() {
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-12 text-theme-text-secondary dark:text-stone-400">
+                  <span className="profile-machine-meta text-12 text-theme-text-secondary">
                     {machinePlatformLabel(machine.platform, t)}
                     {machine.version ? ` · v${machine.version}` : ""}
                     {!machineOnline && (

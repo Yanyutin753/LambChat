@@ -20,7 +20,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.3.2", # MCP integration
     "langgraph>=1.2.15",
     "langsmith>=0.14.8",
-    "deepagents>=0.7.25,<0.8", # 0.7 系列最新子代理与运行时修复
+    "deepagents>=0.7.34,<0.8", # 0.7 系列子代理、摘要与运行时修复
     "deepagents-backends>=0.2.0",
     "tiktoken>=0.14.0",
     # Async & Streaming

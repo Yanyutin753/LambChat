@@ -75,3 +75,75 @@ test("history stack removes the exact invocation without removing its parallel s
     { agent_id: "worker", agent_call_id: "first", depth: 1, message_id: "m" },
   ]);
 });
+
+test.each([false, true])(
+  "a newer confirmed restart revives a cancelled child without replaying old calls (history: %s)",
+  (history) => {
+    const message: Message = {
+      id: "m",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(0),
+      parts: [],
+    };
+    const replay = new HistoryPartReplay();
+    const emit = (type: string, data: Record<string, unknown>) => {
+      const event = {
+        agent_id: "worker",
+        agent_call_id: "same-call",
+        depth: 1,
+        ...data,
+      };
+      if (history) {
+        replay.replay(message, type, event);
+        replay.flush(message);
+      } else
+        message.parts = processMessageEvent(
+          type,
+          event,
+          message.parts || [],
+          "",
+          [],
+          1,
+          [],
+          true,
+        ).parts;
+    };
+    emit("agent:call", {
+      status: "running",
+      timestamp: "2026-11-07T00:00:00Z",
+      input: "Original assignment",
+    });
+    emit("agent:result", {
+      status: "cancelled",
+      success: false,
+      error: "Cancelled",
+      timestamp: "2026-11-07T00:01:00Z",
+    });
+    emit("agent:call", {
+      status: "running",
+      timestamp: "2026-11-07T00:00:00Z",
+    });
+    expect(message.parts?.[0]).toMatchObject({
+      status: "cancelled",
+      isPending: false,
+    });
+    emit("agent:call", { status: "running" });
+    expect(message.parts?.[0]).toMatchObject({
+      status: "cancelled",
+      isPending: false,
+    });
+    emit("agent:call", {
+      status: "running",
+      timestamp: "2026-11-07T00:02:00Z",
+    });
+    expect(message.parts).toHaveLength(1);
+    expect(message.parts?.[0]).toMatchObject({
+      status: "running",
+      isPending: true,
+      input: "Original assignment",
+      error: undefined,
+      completedAt: undefined,
+    });
+  },
+);

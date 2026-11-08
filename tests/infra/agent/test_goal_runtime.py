@@ -715,10 +715,13 @@ async def test_replaced_goal_keeps_old_human_run_fenced_during_recovery():
 
 async def test_old_goal_stream_has_no_elapsed_time_deadline(monkeypatch):
     from datetime import datetime, timedelta, timezone
+    from unittest.mock import AsyncMock
 
     from src.infra.goal_runtime import guarded_goal_stream
 
     service, kwargs = await _runtime_goal(monkeypatch)
+    enqueue = AsyncMock()
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", enqueue)
     service.store.value["started_at"] = (
         datetime.now(timezone.utc) - timedelta(days=30)
     ).isoformat()
@@ -730,6 +733,7 @@ async def test_old_goal_stream_has_no_elapsed_time_deadline(monkeypatch):
     events = [event async for event in guarded_goal_stream(source(), **kwargs)]
     assert events[0]["data"]["content"] == "still running"
     assert (await service.get("s", "u")).status == "active"
+    enqueue.assert_awaited_once()
 
 
 async def test_provider_timeout_remains_execution_failure_not_goal_time_budget(monkeypatch):

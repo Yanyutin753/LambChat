@@ -71,3 +71,20 @@ async def test_default_list_does_not_filter_on_pin(
     assert collection.find_queries, "find() must be called"
     assert "metadata.is_pinned" not in collection.find_queries[0]
     assert "metadata.is_pinned" not in collection.count_queries[0]
+
+
+async def test_companion_filter_applies_before_pagination_and_count(monkeypatch):
+    collection = _QueryRecordingCollection()
+    storage = _make_storage(monkeypatch, collection)
+    await storage.list_sessions(user_id="owner", skip=20, limit=20, exclude_assistants=True)
+    for query in [*collection.find_queries, *collection.count_queries]:
+        assert query["user_id"] == "owner"
+        assert query["metadata.assistant_id"] == {"$in": [None, ""]}
+        assert query["metadata.assistant_discussion_id"] == {"$in": [None, ""]}
+
+
+async def test_global_search_and_explicit_collections_keep_companion_sessions(monkeypatch):
+    collection = _QueryRecordingCollection()
+    storage = _make_storage(monkeypatch, collection)
+    await storage.list_sessions(user_id="owner", search="Chief", favorites_only=True)
+    assert "metadata.assistant_id" not in collection.find_queries[0]

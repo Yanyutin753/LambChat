@@ -210,6 +210,34 @@ async def test_memory_retain_forwards_source_refs(monkeypatch):
     assert seen["kwargs"]["source_refs"] == [{"session_id": "session-1", "run_id": "run-1"}]
 
 
+@pytest.mark.parametrize("retryable", [False, True, None])
+async def test_memory_retain_explains_final_rejection_without_retry_or_deletion(
+    monkeypatch, retryable
+):
+    from src.infra.memory import tools as memory_tools
+
+    class Backend:
+        async def retain(self, *args, **kwargs):
+            return {"success": False, "error": "Not durable", "retryable": retryable}
+
+    async def backend():
+        return Backend()
+
+    monkeypatch.setattr(memory_tools, "_get_backend", backend)
+    result = json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "Current coordinator revision", runtime=_Runtime("u1")
+        )
+    )
+    assert result["success"] is False
+    assert result["error"] == "Not durable"
+    if retryable is False:
+        assert "Do not retry or rephrase" in result["guidance"]
+        assert "does not authorize deleting" in result["guidance"]
+    else:
+        assert "guidance" not in result
+
+
 def test_memory_recall_context_param_documents_family_prefix():
     from src.infra.memory.tools import memory_recall
 

@@ -1,3 +1,4 @@
+import { AgentAvatar } from "../../../common/AgentAvatar";
 import { TagBadge } from "../../../common/TagBadge";
 import { memo, useMemo } from "react";
 import { Search, Wrench } from "lucide-react";
@@ -82,10 +83,7 @@ function ToolSearchDetail({ args, result }: ToolDetailProps) {
               className="tool-result-card rounded-xl bg-theme-bg border border-theme-border px-3.5 py-3 space-y-1.5 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Wrench
-                  size={13}
-                  className="shrink-0 text-sky-500 dark:text-sky-400"
-                />
+                <AgentAvatar seed={match.name} size={36} />
                 <span className="text-14 font-semibold text-theme-text font-mono truncate">
                   {match.name}
                 </span>
@@ -218,10 +216,7 @@ const ToolSearchItem = memo(function ToolSearchItem({
                     key={match.name}
                     className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border"
                   >
-                    <Wrench
-                      size={11}
-                      className="shrink-0 text-sky-500 dark:text-sky-400 opacity-70"
-                    />
+                    <AgentAvatar seed={match.name} size={20} />
                     <span className="text-12 text-theme-text font-medium font-mono min-w-0 truncate flex-1">
                       {match.name}
                     </span>
