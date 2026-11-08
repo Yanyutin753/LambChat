@@ -79,7 +79,7 @@ Impeccable 更新命令已尝试；当前环境未安装 skill folders，因此�
 
 分享复制走查：会话与项目分享管理列表各提供一个只读演示链接 `preview-report`，可组合 `failure=clipboard` 检查首次失败与重试。不会创建新分享，创建、更新与删除请求仍返回405；创建成功但复制失败的路径由组件测试覆盖。
 
-成果文件走查：`/chat/preview-report?artifacts=single` 显示单文件，`artifacts=few` 显示三个文件，`artifacts=many` 显示六个文件及紧凑汇总入口；`artifacts=mixed`（兼容 `artifacts=1`）显示两个文件和一个内联文本项目。1–3 个成果直接显示文件／项目行，保留预览、复制与单文件下载；四个及以上打开文件树与 ZIP 下载面板。可组合 `theme=dark` / `sepia`、`chat-state=streaming` 与 `failure=clipboard`，检查长文件名、键盘和窄屏。这些都是本机只读 mock，不写入真实对话、不连接真实 API 或执行项目代码。
+成果文件走查：`/chat/preview-report?artifacts=single` 显示单文件，`artifacts=few` 显示三个文件，`artifacts=many` 显示六个文件及紧凑汇总入口；`artifacts=duplicates` 为六个文件各追加一个代理 URL 回显，汇总、文件树与 ZIP 仍应只有六个文件；`artifacts=mixed`（兼容 `artifacts=1`）显示两个文件和一个内联文本项目。1–3 个成果直接显示文件／项目行，保留预览、复制与单文件下载；四个及以上打开文件树与 ZIP 下载面板。可组合 `theme=dark` / `sepia`、`chat-state=streaming` 与 `failure=clipboard`，检查长文件名、键盘和窄屏。这些都是本机只读 mock，不写入真实对话、不连接真实 API 或执行项目代码。
 
 图片走查：`/chat/preview-report?images=1` 添加已有桌面/手机截图及一个固定404的图片到实际 `reveal_file` 画廊，可检查键盘打开、失败重试、切换恢复、缩放旋转与下载。404保持失败；同一图片重试成功由组件测试覆盖。图片来自仓库已有公开演示资产，不创建或上传真实文件。
 

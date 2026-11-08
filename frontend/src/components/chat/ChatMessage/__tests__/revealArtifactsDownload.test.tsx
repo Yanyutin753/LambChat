@@ -667,3 +667,32 @@ test("collection folder icon follows its expanded state", () => {
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(toggle.querySelector(".lucide-folder-open")).toBeNull();
 });
+
+test("all-files panel and ZIP include one row per object across path and URL echoes", async () => {
+  const path = "/workspace/report.pdf";
+  const url = "/api/upload/file/revealed/report.pdf";
+  openAllFilesPanel([
+    filePart({ id: "original", name: "report.pdf", path, signedUrl: url }),
+    filePart({
+      id: "echo",
+      name: "report.pdf",
+      path: url + "?file_token=echo",
+      signedUrl: url,
+    }),
+  ]);
+  fireEvent.click(
+    screen.getByRole("button", { name: "workspace", exact: true }),
+  );
+  expect(
+    screen.getAllByRole("button", { name: "report.pdf", exact: true }),
+  ).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Download all" }));
+  await waitFor(() =>
+    expect(mocks.exportProjectZip).toHaveBeenCalledWith(
+      {},
+      "All files",
+      { "workspace/report.pdf": url },
+      { failOnBinaryError: true },
+    ),
+  );
+});

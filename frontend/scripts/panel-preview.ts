@@ -3407,7 +3407,8 @@ const server = await createServer({
                 ? 1
                 : artifactFixture === "few"
                   ? 3
-                  : artifactFixture === "many"
+                  : artifactFixture === "many" ||
+                      artifactFixture === "duplicates"
                     ? 6
                     : 2,
             );
@@ -3420,6 +3421,9 @@ const server = await createServer({
               preview: {
                 kind: "file",
                 previewKey: name,
+                ...(artifactFixture === "duplicates"
+                  ? { s3Key: `revealed/${name}` }
+                  : {}),
                 filePath: name,
                 signedUrl,
               },
@@ -3429,6 +3433,15 @@ const server = await createServer({
               0,
               ...[
                 ...artifacts,
+                ...(artifactFixture === "duplicates"
+                  ? artifacts.map((artifact) => ({
+                      ...artifact,
+                      id: `${artifact.id}:echo`,
+                      path: `/api/upload/file/${encodeURIComponent(
+                        artifact.preview.s3Key!,
+                      )}?file_token=preview`,
+                    }))
+                  : []),
                 ...(artifactFixture === "1" || artifactFixture === "mixed"
                   ? [
                       {
