@@ -12,6 +12,7 @@ import src.infra.tool.web_search_providers as wsp
 @pytest.fixture(autouse=True)
 def _reset_web_fetch_state(monkeypatch):
     monkeypatch.setattr(wfp.settings, "DEEPSEEK_API_KEYS", "")
+    monkeypatch.setattr(wfp.settings, "ANYSEARCH_API_KEYS", "")
     wsp._reset_web_search_state()
     wfp._reset_web_fetch_state()
     yield

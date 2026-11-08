@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { createElement } from "react";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
@@ -119,24 +119,26 @@ test("updates tool panel chrome from durable data while its message row is off-s
   render(createElement(PersistentToolPanelHost));
 
   expect(
-    document.querySelector(".tool-console-header-icon .text-theme-success"),
+    document.querySelector(".tool-console-status.text-theme-success"),
   ).toBeNull();
 
-  toolCallPanelStore.set({
-    toolCallId: "tool-live",
-    toolName: "shell",
-    formattedToolName: "Shell",
-    args: { command: "printf done" },
-    result: "done",
-    success: true,
-    isPending: false,
-    completedAt: "2026-08-09T10:00:01.000Z",
-    status: "success",
+  act(() => {
+    toolCallPanelStore.set({
+      toolCallId: "tool-live",
+      toolName: "shell",
+      formattedToolName: "Shell",
+      args: { command: "printf done" },
+      result: "done",
+      success: true,
+      isPending: false,
+      completedAt: "2026-08-09T10:00:01.000Z",
+      status: "success",
+    });
   });
 
   await waitFor(() => {
     expect(
-      document.querySelector(".tool-console-header-icon .text-theme-success"),
+      document.querySelector(".tool-console-status.text-theme-success"),
     ).not.toBeNull();
   });
 });

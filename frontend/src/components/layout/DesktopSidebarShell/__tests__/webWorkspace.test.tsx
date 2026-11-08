@@ -200,11 +200,7 @@ test("activity navigation remains available when the list is collapsed", () => {
   expect(
     screen.getByRole("button", { name: "fileLibrary.title" }),
   ).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "nav.more" }));
-  expect(screen.getByRole("button", { name: "nav.more" })).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
+  expect(screen.queryByRole("button", { name: "nav.more" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "tester" }));
   expect(profile).toHaveBeenCalledOnce();
 });
@@ -263,7 +259,7 @@ vi.mock("../../../../contexts/SettingsContext", () => ({
   useSettingsContext: () => ({ enableMemory: true }),
 }));
 
-test("activity rail exposes creation tools and keeps only secondary features in More", () => {
+test("activity rail exposes all permitted features when space is available", () => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1200,
@@ -286,7 +282,7 @@ test("activity rail exposes creation tools and keeps only secondary features in 
     fireEvent.click(button);
     expect(button).toHaveAttribute("aria-pressed", "true");
   }
-  fireEvent.click(within(rail).getByRole("button", { name: "nav.more" }));
+  expect(within(rail).queryByRole("button", { name: "nav.more" })).toBeNull();
   expect(screen.getByRole("button", { name: "nav.channels" })).toBeVisible();
   expect(screen.getByRole("button", { name: "nav.memory" })).toBeVisible();
   expect(screen.getAllByRole("button", { name: "nav.skills" })).toHaveLength(1);

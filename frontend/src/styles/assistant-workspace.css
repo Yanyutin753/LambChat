@@ -573,3 +573,14 @@
     min-height: 2.25rem;
   }
 }
+
+/* The mobile conversation keeps local controls; account actions remain in the sidebar. */
+@media (max-width: 639px) {
+  .chat-header:has([data-assistant-selected]) > .chat-header__actions {
+    display: none;
+  }
+  [data-assistant-selected]
+    :is(.assistant-workspace-brand, .assistant-workspace-global-action) {
+    display: none;
+  }
+}

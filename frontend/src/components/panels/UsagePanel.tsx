@@ -329,7 +329,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
       {/* KPI Cards */}
       {stats && (
         <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-          <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] overflow-hidden rounded-xl">
+          <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] overflow-hidden rounded-xl">
             <StatMetric
               icon={Zap}
               label={t("usage.totalRequests")}
@@ -462,7 +462,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
 
         {/* Chart + Rankings */}
         {dashboard && (
-          <div className="mb-5 grid gap-5 sm:mb-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
+          <div className="usage-overview-grid mb-5 grid gap-5 sm:mb-6">
             <MiniTrend points={dashboard.daily} />
             <div className="grid gap-5 xl:grid-cols-1">
               <RankingList
@@ -487,7 +487,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
 
         {/* Bottom grid */}
         {dashboard && (
-          <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+          <div className="usage-breakdown-grid mb-5 grid gap-5 sm:mb-6">
             <RankingList
               title={agentRankingTitle}
               icon={Bot}

@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from src.agents.core.base import get_agent_class
 from src.api.deps import get_current_user_optional, get_current_user_required
 from src.infra.agent.config_storage import get_agent_config_storage
+from src.infra.agent.model_storage import get_model_storage
 from src.infra.folder.storage import get_project_storage
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer import get_dual_writer
@@ -237,6 +238,14 @@ def _build_project_session_item(
     )
 
 
+async def _shared_model_name(model: str | None) -> str | None:
+    if not model:
+        return None
+    storage = get_model_storage()
+    config = await storage.get(model) or await storage.get_by_value(model)
+    return config.label if config else None
+
+
 async def _build_session_content(
     share,
     event_limit: int | None = None,
@@ -287,6 +296,7 @@ async def _build_session_content(
     catalog = await get_agent_config_storage().get_catalog_config()
     agent_catalog = next((item for item in catalog if item.id == session.agent_id), None)
     session_info = _build_safe_session_info(session, agent_catalog)
+    session_info["model_name"] = await _shared_model_name(session_info["model"])
     await _attach_shared_team_metadata(session_info, session, share)
 
     return SharedContentResponse(

@@ -379,7 +379,7 @@ export function SharedPage({
 
     const metaParts: string[] = [];
     if (agentName) metaParts.push(agentName);
-    if (data.session.model) metaParts.push(data.session.model);
+    if (data.session.model_name) metaParts.push(data.session.model_name);
     if (messages.length > 0) metaParts.push(`${messages.length} messages`);
 
     const conversationPreview =
@@ -552,175 +552,176 @@ export function SharedPage({
 
       {/* Scrollable article area */}
       <main className="chat-view-content-region relative flex-1 overflow-x-hidden scroll-smooth">
-        <AgentDisplayCatalogProvider agents={sharedAgentEntry ? [sharedAgentEntry] : []}>
-        <SessionImageGalleryProvider messages={messages}>
-          <article className="w-full">
-            {/* Editorial hero */}
-            <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0">
-              {/* Overline label */}
-              <div className="text-center mb-3 sm:mb-5">
-                <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-theme-text-secondary">
-                  {t("share.sharedConversation")}
-                </span>
-              </div>
-
-              {/* Title */}
-              <h1 className="px-4 text-balance [overflow-wrap:anywhere] text-[1.75rem] sm:text-36 lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
-                {sessionTitle}
-              </h1>
-
-              {/* Author + meta strip */}
-              <div className="mt-6 sm:mt-10 flex flex-col items-center gap-4 sm:gap-5 px-4 sm:px-6 font-serif">
-                {/* Author */}
-                <div
-                  data-share-author
-                  className="flex min-w-0 max-w-full items-center gap-3"
-                >
-                  {data.owner.avatar_url ? (
-                    <ImageWithSkeleton
-                      src={
-                        getFullUrl(data.owner.avatar_url) ??
-                        data.owner.avatar_url
-                      }
-                      alt={data.owner.username}
-                      skipUrlResolve
-                      inline
-                      className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border"
-                      style={{ objectFit: "cover", filter: "grayscale(20%)" }}
-                      errorFallback={
-                        <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
-                      }
-                    />
-                  ) : (
-                    <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
-                  )}
-                  <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
-                    <div className="text-13 font-semibold text-theme-text">
-                      {data.owner.username}
-                    </div>
-                    {data.session.created_at && (
-                      <div className="text-11 text-theme-text-secondary mt-0.5">
-                        {formatDateTimeShort(data.session.created_at)}
-                      </div>
-                    )}
-                  </div>
+        <AgentDisplayCatalogProvider
+          agents={sharedAgentEntry ? [sharedAgentEntry] : []}
+        >
+          <SessionImageGalleryProvider messages={messages}>
+            <article className="w-full">
+              {/* Editorial hero */}
+              <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0">
+                {/* Overline label */}
+                <div className="text-center mb-3 sm:mb-5">
+                  <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-theme-text-secondary">
+                    {t("share.sharedConversation")}
+                  </span>
                 </div>
 
-                {/* Metadata */}
-                <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-2">
-                  {messages.length > 0 && (
-                    <span className={metadataClassName}>
-                      <MessageSquare size={11} />
-                      {messages.length} {t("share.messages")}
-                    </span>
-                  )}
-                  {agentName && (
-                    <span className={metadataClassName}>{agentName}</span>
-                  )}
-                  {data.session.persona_preset_name && (
-                    <span className={metadataClassName}>
-                      <AgentAvatar
-                        avatar={data.session.persona_avatar}
-                        seed={data.session.persona_preset_name}
-                        size={14}
-                      />
-                      {data.session.persona_preset_name}
-                    </span>
-                  )}
-                  {data.session.team_name && (
-                    <span className={metadataClassName}>
-                      {data.session.team_name}
-                    </span>
-                  )}
-                  {data.session.model && (
-                    <span className={metadataClassName}>
-                      <ModelIconImg
-                        model={data.session.model}
-                        provider={
-                          (data.session as Record<string, unknown>).provider as
-                            | string
-                            | undefined
+                {/* Title */}
+                <h1 className="px-4 text-balance [overflow-wrap:anywhere] text-[1.75rem] sm:text-36 lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
+                  {sessionTitle}
+                </h1>
+
+                {/* Author + meta strip */}
+                <div className="mt-6 sm:mt-10 flex flex-col items-center gap-4 sm:gap-5 px-4 sm:px-6 font-serif">
+                  {/* Author */}
+                  <div
+                    data-share-author
+                    className="flex min-w-0 max-w-full items-center gap-3"
+                  >
+                    {data.owner.avatar_url ? (
+                      <ImageWithSkeleton
+                        src={
+                          getFullUrl(data.owner.avatar_url) ??
+                          data.owner.avatar_url
                         }
-                        size={14}
+                        alt={data.owner.username}
+                        skipUrlResolve
+                        inline
+                        className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border"
+                        style={{ objectFit: "cover", filter: "grayscale(20%)" }}
+                        errorFallback={
+                          <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
+                        }
                       />
-                      {data.session.model}
-                    </span>
-                  )}
-                  <span className={metadataClassName}>{readingTime}</span>
+                    ) : (
+                      <BrandLogo className="size-10 rounded-full flex-shrink-0 ring-2 ring-theme-border" />
+                    )}
+                    <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
+                      <div className="text-13 font-semibold text-theme-text">
+                        {data.owner.username}
+                      </div>
+                      {data.session.created_at && (
+                        <div className="text-11 text-theme-text-secondary mt-0.5">
+                          {formatDateTimeShort(data.session.created_at)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                    {messages.length > 0 && (
+                      <span className={metadataClassName}>
+                        <MessageSquare size={11} />
+                        {messages.length} {t("share.messages")}
+                      </span>
+                    )}
+                    {agentName && (
+                      <span className={metadataClassName}>{agentName}</span>
+                    )}
+                    {data.session.persona_preset_name && (
+                      <span className={metadataClassName}>
+                        <AgentAvatar
+                          avatar={data.session.persona_avatar}
+                          seed={data.session.persona_preset_name}
+                          size={14}
+                        />
+                        {data.session.persona_preset_name}
+                      </span>
+                    )}
+                    {data.session.team_name && (
+                      <span className={metadataClassName}>
+                        {data.session.team_name}
+                      </span>
+                    )}
+                    {data.session.model_name && (
+                      <span className={metadataClassName}>
+                        <ModelIconImg
+                          model={data.session.model || data.session.model_name}
+                          provider={
+                            (data.session as Record<string, unknown>)
+                              .provider as string | undefined
+                          }
+                          size={14}
+                        />
+                        {data.session.model_name}
+                      </span>
+                    )}
+                    <span className={metadataClassName}>{readingTime}</span>
+                  </div>
                 </div>
+
+                {/* Status badge */}
+                {data.session.task_status &&
+                  data.session.task_status !== "completed" && (
+                    <div className="mt-5 flex justify-center">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-11 font-medium ${
+                          data.session.task_status === "failed"
+                            ? "bg-red-50 dark:bg-red-950/30 text-red-500"
+                            : data.session.task_status === "running"
+                              ? "bg-sky-50 dark:bg-sky-950/30 text-sky-500"
+                              : "bg-stone-100 dark:bg-stone-800 text-stone-500"
+                        }`}
+                      >
+                        {data.session.task_status === "running" && (
+                          <LoadingSpinner color="text-current" size={10} />
+                        )}
+                        {data.session.task_status === "failed" && (
+                          <XCircle size={10} />
+                        )}
+                        {data.session.task_status === "running" &&
+                          t("share.taskRunning")}
+                        {data.session.task_status === "failed" &&
+                          t("share.taskFailed")}
+                        {data.session.task_status === "pending" &&
+                          t("share.taskPending")}
+                      </span>
+                    </div>
+                  )}
+              </header>
+
+              {/* Conversation divider */}
+              <div
+                data-share-conversation-divider
+                className="flex items-center gap-3 px-4 py-6 sm:px-6 sm:py-10"
+              >
+                <div className="flex-1 h-px bg-theme-border" />
+                <span className="flex-shrink-0 text-11 font-medium tracking-[0.12em] uppercase text-theme-text-secondary font-mono tabular-nums select-none">
+                  {t("share.conversationHistory")}
+                </span>
+                <div className="flex-1 h-px bg-theme-border" />
               </div>
 
-              {/* Status badge */}
-              {data.session.task_status &&
-                data.session.task_status !== "completed" && (
-                  <div className="mt-5 flex justify-center">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-11 font-medium ${
-                        data.session.task_status === "failed"
-                          ? "bg-red-50 dark:bg-red-950/30 text-red-500"
-                          : data.session.task_status === "running"
-                            ? "bg-sky-50 dark:bg-sky-950/30 text-sky-500"
-                            : "bg-stone-100 dark:bg-stone-800 text-stone-500"
-                      }`}
-                    >
-                      {data.session.task_status === "running" && (
-                        <LoadingSpinner color="text-current" size={10} />
-                      )}
-                      {data.session.task_status === "failed" && (
-                        <XCircle size={10} />
-                      )}
-                      {data.session.task_status === "running" &&
-                        t("share.taskRunning")}
-                      {data.session.task_status === "failed" &&
-                        t("share.taskFailed")}
-                      {data.session.task_status === "pending" &&
-                        t("share.taskPending")}
-                    </span>
-                  </div>
-                )}
-            </header>
-
-            {/* Conversation divider */}
-            <div
-              data-share-conversation-divider
-              className="flex items-center gap-3 px-4 py-6 sm:px-6 sm:py-10"
-            >
-              <div className="flex-1 h-px bg-theme-border" />
-              <span className="flex-shrink-0 text-11 font-medium tracking-[0.12em] uppercase text-theme-text-secondary font-mono tabular-nums select-none">
-                {t("share.conversationHistory")}
-              </span>
-              <div className="flex-1 h-px bg-theme-border" />
-            </div>
-
-            {/* Messages */}
-            {messages.length === 0 ? (
-              <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
-                <SceneIllustration scene="message" className="mx-auto mb-4" />
-                <p className="text-theme-text-secondary text-14 font-serif">
-                  {t("share.noMessages")}
-                </p>
-              </div>
-            ) : (
-              <div className="pb-8 sm:pb-12">
-                {messages.map((message, index) => (
-                  <div key={message.id}>
-                    <ChatMessage
-                      message={message}
-                      sessionId={data.session.id}
-                      runId={data.run_ids?.[0]}
-                      isLastMessage={index === messages.length - 1}
-                      activePreview={activePreview}
-                      latestAutoPreview={latestAutoPreview}
-                      onOpenPreview={handleOpenPreview}
-                      showFeedbackAndShareActions={false}
-                      isFirst={index === 0}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-        </SessionImageGalleryProvider>
+              {/* Messages */}
+              {messages.length === 0 ? (
+                <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
+                  <SceneIllustration scene="message" className="mx-auto mb-4" />
+                  <p className="text-theme-text-secondary text-14 font-serif">
+                    {t("share.noMessages")}
+                  </p>
+                </div>
+              ) : (
+                <div className="pb-8 sm:pb-12">
+                  {messages.map((message, index) => (
+                    <div key={message.id}>
+                      <ChatMessage
+                        message={message}
+                        sessionId={data.session.id}
+                        runId={data.run_ids?.[0]}
+                        isLastMessage={index === messages.length - 1}
+                        activePreview={activePreview}
+                        latestAutoPreview={latestAutoPreview}
+                        onOpenPreview={handleOpenPreview}
+                        showFeedbackAndShareActions={false}
+                        isFirst={index === 0}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          </SessionImageGalleryProvider>
         </AgentDisplayCatalogProvider>
       </main>
 

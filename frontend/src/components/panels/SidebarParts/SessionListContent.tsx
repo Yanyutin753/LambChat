@@ -151,7 +151,6 @@ export function SessionListContent({
   onImgError: _onImgError,
   onCollapse,
   compactChrome = false,
-  isMobile = false,
   onNewSession,
   onOpenSearch,
   onShowProfile,
@@ -383,7 +382,7 @@ export function SessionListContent({
             : "flex flex-col gap-0 sm:gap-px px-1 mb-2 space-y-0 sm:space-y-1"
         }
       >
-        {isMobile && companionsEntry}
+        {companionsEntry}
         <button
           disabled={!hasPermission(Permission.SESSION_WRITE)}
           onClick={onNewSession}
@@ -397,8 +396,6 @@ export function SessionListContent({
             {t("sidebar.newChatShortcut")}
           </kbd>
         </button>
-
-        {!isMobile && companionsEntry}
 
         {!compactChrome && (
           <button

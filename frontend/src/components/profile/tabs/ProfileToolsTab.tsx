@@ -187,7 +187,7 @@ export function ProfileToolsTab() {
               <div key={serverName} className="profile-tool-group">
                 {/* Server header */}
                 <div className="profile-tool-heading">
-                  <span className="text-12 font-semibold text-theme-text-secondary dark:text-stone-300 truncate">
+                  <span className="text-12 font-semibold text-theme-text-secondary dark:text-stone-300 [overflow-wrap:anywhere]">
                     {serverName}
                   </span>
                   <span className="text-10 text-theme-text-tertiary dark:text-stone-500 tabular-nums shrink-0 ml-2">
@@ -249,7 +249,7 @@ export function ProfileToolsTab() {
                         </button>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <code className="text-12 font-medium text-theme-text dark:text-stone-200 truncate">
+                            <code className="text-12 font-medium text-theme-text dark:text-stone-200 [overflow-wrap:anywhere]">
                               {baseName}
                             </code>
                           </div>

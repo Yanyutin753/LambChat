@@ -4,7 +4,7 @@ import { Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { parseSubagentControlResult } from "../subagentPanelState";
-import { ToolResultContent } from "./McpBlockPreview";
+import { AssistantToolResult } from "./AssistantToolResult";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -32,13 +32,36 @@ export function AssistantManageItem(
       : props.success === false || result?.error
         ? "error"
         : "idle";
+  const assistants =
+    status === "idle" && Array.isArray(result?.assistants)
+      ? result.assistants
+      : undefined;
+  const description = assistants
+    ?.slice(0, 3)
+    .map((item: unknown) =>
+      item &&
+      typeof item === "object" &&
+      "name" in item &&
+      typeof item.name === "string"
+        ? item.name
+        : "",
+    )
+    .filter(Boolean)
+    .join(" ");
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <CollapsiblePill
         status={status}
         variant="tool"
         icon={<Users size={12} className="opacity-50" />}
-        label={title}
+        label={[
+          title,
+          assistants &&
+            t("chat.message.toolAssistantCount", { count: assistants.length }),
+          description,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         animatedDots={props.isPending}
         expandable
         onPanelOpen={() =>
@@ -47,11 +70,17 @@ export function AssistantManageItem(
             title,
             status,
             icon: <Users size={16} />,
-            fallback: <ToolResultContent result={props.result} />,
+            fallback: (
+              <div className="tool-panel-content min-w-0 p-3">
+                <AssistantToolResult result={props.result} />
+              </div>
+            ),
             buildDetail: (data) => (
-              <ToolResultContent
-                result={toolDetailPropsFromPanelData(data).result}
-              />
+              <div className="tool-panel-content min-w-0 p-3">
+                <AssistantToolResult
+                  result={toolDetailPropsFromPanelData(data).result}
+                />
+              </div>
             ),
           })
         }

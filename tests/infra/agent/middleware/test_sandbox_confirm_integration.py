@@ -218,7 +218,7 @@ async def test_decline_rejects_whole_batch(recorder_install) -> None:
         resume_map = await expand_sandbox_confirm_resume(
             graph,
             config,
-            {"x": {"approved": False, "values": {}}},
+            {"x": {"approved": False, "values": {"reason": "Keep both files; no deletion."}}},
             message=intrs[0]["message"],
         )
         await _run(graph, Command(resume=resume_map), config)
@@ -230,6 +230,7 @@ async def test_decline_rejects_whole_batch(recorder_install) -> None:
         ]
         declined = [m for m in tool_msgs if "declined_by_user" in str(m.content)]
         assert len(declined) == 2
+        assert all("Keep both files; no deletion." in str(m.content) for m in declined)
     finally:
         hitl_interrupt_supported.reset(token)
 

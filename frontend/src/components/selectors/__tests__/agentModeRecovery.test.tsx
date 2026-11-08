@@ -101,3 +101,30 @@ test("a successful empty catalog remains visible and its close action returns to
   await userEvent.keyboard("{Escape}");
   expect(screen.getByRole("button", { name: "Modes" })).toHaveFocus();
 });
+
+test("mode artwork is limited to the header and options retain their avatars", () => {
+  render(
+    <AgentModeSelector
+      agents={["search", "quick", "team", "custom"].map((id) => ({
+        id,
+        name: id,
+        description: "Description",
+      }))}
+      currentAgent="search"
+      isOpen
+      onOpenChange={vi.fn()}
+      onSelectAgent={vi.fn()}
+    />,
+  );
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.querySelectorAll(".scene-illustration")).toHaveLength(1);
+  expect(dialog.querySelector(".scene-illustration")).toHaveAttribute(
+    "src",
+    "/images/illustrations/lamb-avatar.png",
+  );
+  for (const button of screen
+    .getAllByRole("button", { pressed: false })
+    .concat(screen.getAllByRole("button", { pressed: true }))) {
+    expect(button.querySelector(".scene-illustration")).toBeNull();
+  }
+});

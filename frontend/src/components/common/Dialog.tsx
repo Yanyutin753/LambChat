@@ -10,10 +10,11 @@ import { ModalSurface } from "./ModalSurface";
  * 中/表单未保存等不允许关闭的场景。
  */
 
-const SIZE_CLASSES: Record<"sm" | "md" | "lg", string> = {
+const SIZE_CLASSES: Record<"sm" | "md" | "lg" | "wide", string> = {
   sm: "sm:max-w-sm",
   md: "sm:max-w-md",
   lg: "sm:max-w-lg",
+  wide: "sm:max-w-5xl",
 };
 
 interface DialogProps {
@@ -22,7 +23,7 @@ interface DialogProps {
   title?: ReactNode;
   /** 标题左侧图标（可选） */
   icon?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "wide";
   /** false：隐藏关闭按钮，ESC 与背景点击不关闭 */
   dismissible?: boolean;
   /** 页脚操作区（按钮组）；无 footer 时不渲染页脚条 */

@@ -326,7 +326,7 @@ function ProfileInfoContent() {
               </div>
             </form>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="profile-detail-row">
               <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
                 {t("profile.username")}
               </span>
@@ -350,7 +350,7 @@ function ProfileInfoContent() {
           )}
         </div>
 
-        <div className="flex items-center justify-between py-3.5 border-b border-theme-border-subtle dark:border-stone-700/60 gap-3">
+        <div className="profile-setting-row profile-detail-row">
           <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
             {t("profile.email")}
           </span>
@@ -359,7 +359,7 @@ function ProfileInfoContent() {
           </span>
         </div>
         {user?.roles && user.roles.length > 0 && (
-          <div className="flex items-center justify-between py-3.5 gap-3">
+          <div className="profile-setting-row profile-detail-row">
             <span className="text-14 text-theme-text-secondary dark:text-stone-400 shrink-0">
               {t("profile.roles")}
             </span>

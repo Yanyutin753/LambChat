@@ -238,6 +238,18 @@ async def test_channel_registers_machine_identity(fake_registry, monkeypatch):
     reg = _Reg()
     monkeypatch.setattr(sandbox_route, "_registry", lambda: reg)
     monkeypatch.setattr(sandbox_route, "_redis", lambda: _NoopRedis())
+    stream_redis = SimpleNamespace(aclose=AsyncMock())
+    monkeypatch.setattr(sandbox_route, "create_redis_client", lambda **kwargs: stream_redis)
+    channel_frames = sandbox_route.channel_frames
+
+    async def hello_only(*args, **kwargs):
+        frames = channel_frames(*args, **kwargs)
+        try:
+            yield await anext(frames)
+        finally:
+            await frames.aclose()
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", hello_only)
 
     app = FastAPI()
     app.include_router(sandbox_route.router, prefix="/api/sandbox")

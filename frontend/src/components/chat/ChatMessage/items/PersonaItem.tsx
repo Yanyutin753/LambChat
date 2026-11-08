@@ -220,18 +220,29 @@ const PersonaItem = memo(function PersonaItem({
     if (!text) return null;
     try {
       const raw = JSON.parse(text);
-      if (raw?.preset && typeof raw.preset === "object") return raw.preset;
       return raw;
     } catch {
       return null;
     }
   }, [result]);
 
-  const displayName = parsed?.name || personaName;
-  const description = parsed?.description || "";
-  const avatar = parsed?.avatar || (args.avatar as string) || "";
-  const tags: string[] = parsed?.tags || (args.tags as string[]) || [];
-  const skillNames: string[] = parsed?.skill_names || [];
+  const preset =
+    parsed?.preset && typeof parsed.preset === "object"
+      ? parsed.preset
+      : parsed;
+  const actionLabel =
+    !isPending && !cancelled && success !== false && parsed?.success === true
+      ? parsed.action === "created"
+        ? t("chat.message.toolPersonaCreated")
+        : parsed.action === "updated"
+          ? t("chat.message.toolPersonaUpdated")
+          : t("chat.message.toolPersonaPreset")
+      : t("chat.message.toolPersonaPreset");
+  const displayName = preset?.name || personaName;
+  const description = preset?.description || "";
+  const avatar = preset?.avatar || (args.avatar as string) || "";
+  const tags: string[] = preset?.tags || (args.tags as string[]) || [];
+  const skillNames: string[] = preset?.skill_names || [];
 
   const canExpand =
     !!displayName || !!description || tags.length > 0 || !!result;
@@ -261,7 +272,13 @@ const PersonaItem = memo(function PersonaItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${t("chat.message.toolPersonaPreset")} ${displayName || ""}`,
+    [
+      actionLabel,
+      displayName,
+      typeof description === "string" ? description : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
     args,
     { isPending, result },
   );

@@ -80,6 +80,12 @@ async def test_summary_reuses_native_system_tools_and_history_without_execution(
     assert "do not execute tools" in current_instructions
     assert "identifiers" in current_instructions
     assert (
+        "Distinguish explicit user requirements from prior assistant plans" in current_instructions
+    )
+    assert (
+        "do not turn assistant-initiated bookkeeping into user requirements" in current_instructions
+    )
+    assert (
         "Decision: preserve data"
         in response.command.update["_summarization_event"]["summary_message"].content
     )
@@ -109,6 +115,13 @@ async def test_native_summary_recovers_with_original_summary_path(tmp_path, fail
     fallback_instructions = model.calls[1][0][-1].content.split("</messages>")[-1]
     assert "do not execute tools" in fallback_instructions
     assert "identifiers" in fallback_instructions
+    assert (
+        "Distinguish explicit user requirements from prior assistant plans" in fallback_instructions
+    )
+    assert (
+        "do not turn assistant-initiated bookkeeping into user requirements"
+        in fallback_instructions
+    )
     assert (
         "Safe conventional summary"
         in result.command.update["_summarization_event"]["summary_message"].content

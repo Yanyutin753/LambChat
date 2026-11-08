@@ -1111,3 +1111,48 @@ async def test_child_sandbox_approval_passes_parent_recovery_guard(
     assert third["messages"][-1].content == "parent done"
     assert effects == ["written"] * (2 if second_approved else 1)
     assert child.i == 3
+
+
+async def test_parent_approval_pauses_running_child_without_claiming_cancellation():
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    saver = InMemorySaver()
+    entered = asyncio.Event()
+    paused = True
+
+    class SlowModel(_ScriptedChatModel):
+        async def _agenerate(self, messages, **kwargs):
+            if paused:
+                entered.set()
+                await asyncio.Event().wait()
+            return await super()._agenerate(messages, **kwargs)
+
+    model = SlowModel(script=[AIMessage(content="Recovered original assignment")])
+
+    async def build(role, inbox):
+        return create_agent(model, middleware=[inbox], checkpointer=saver)
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+    )
+    started = await sessions.start(
+        "reviewer", "Keep original work", call_id="pause", config={}, background=True
+    )
+    child = started["subagent_id"]
+    await asyncio.wait_for(entered.wait(), 3)
+    saved = sessions.snapshot()
+    try:
+        await sessions.close(parent_interrupted=True)
+        assert sessions.result(child)["status"] == "waiting_human"
+        assert sessions.jobs[child].done()
+        paused = False
+        restored = SubagentSessions(
+            session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+        )
+        restored.restore(saved)
+        result = await restored.wait(child, config={})
+        assert result["status"] == "completed"
+        assert result["result"] == "Recovered original assignment"
+        assert model.i == 1
+    finally:
+        await sessions.close(preserve_approvals=False)
