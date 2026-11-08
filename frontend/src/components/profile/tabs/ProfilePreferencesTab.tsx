@@ -364,7 +364,11 @@ function PreferencesContent() {
   };
 
   return (
-    <div ref={contentRef} tabIndex={-1} className="space-y-4 outline-hidden">
+    <div
+      ref={contentRef}
+      tabIndex={-1}
+      className="profile-preferences outline-hidden"
+    >
       <div className="profile-section">
         <div className="space-y-0">
           {enableMemory && (

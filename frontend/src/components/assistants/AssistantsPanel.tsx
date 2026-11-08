@@ -472,7 +472,9 @@ export function AssistantsPanel() {
         </Button>
       )}
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <h2 className="sr-only">{assistant?.name || t("assistants.title")}</h2>
+        <h2 className="assistant-workspace-title min-w-0 truncate text-14 font-medium sm:sr-only">
+          {assistant?.name || t("assistants.title")}
+        </h2>
         {!assistantId && !canWrite && (
           <span className="truncate text-14 font-medium">
             {t("assistants.title")}
@@ -759,7 +761,10 @@ export function AssistantsPanel() {
       >
         {workspaceHeader ? (
           createPortal(
-            <div className="assistant-workspace-header assistant-workspace-header--embedded">
+            <div
+              data-assistant-selected={assistantId ? "" : undefined}
+              className="assistant-workspace-header assistant-workspace-header--embedded"
+            >
               {workspaceActions}
             </div>,
             workspaceHeader,

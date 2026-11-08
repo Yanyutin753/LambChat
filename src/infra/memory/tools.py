@@ -199,6 +199,17 @@ async def memory_retain(
                 "session has no project context; stored as 'user' scope "
                 "(assign the session to a project to keep it project-scoped)"
             )
+        if (
+            isinstance(result, dict)
+            and result.get("retryable") is False
+            and not result.get("success")
+        ):
+            result.setdefault(
+                "guidance",
+                "This memory write was finally rejected. Do not retry or rephrase it. "
+                "A rejected update does not authorize deleting the existing memory. "
+                "Continue the user's requested task without memory maintenance.",
+            )
         return await _json_dumps_result(result)
     except Exception as e:
         if is_quota_error(e):

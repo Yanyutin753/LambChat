@@ -79,6 +79,10 @@ def _reuse_summary_prefix(
         "Preserve exact user constraints, important identifiers, decisions, evidence references, "
         "artifact paths and unresolved work. Refer to saved artifacts instead of repeating "
         "full source code, datasets or tool logs."
+        " Distinguish explicit user requirements from prior assistant plans and actions; "
+        "do not turn assistant-initiated bookkeeping into user requirements or future obligations. "
+        "Preserve who requested each unresolved task, and identify obsolete plans superseded "
+        "by the user's latest instructions."
     )
     original_summary = middleware._acreate_summary
     original_wrap = middleware.awrap_model_call

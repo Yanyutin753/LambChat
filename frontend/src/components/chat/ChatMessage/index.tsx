@@ -40,6 +40,7 @@ import { ToolCallGroup } from "./ToolCallGroup";
 import {
   countRunSteps,
   groupConsecutiveTools,
+  buildToolGroupSummary,
   getRunElapsedMs,
   getRunStartedAtMs,
   splitRunTailGroups,
@@ -760,6 +761,7 @@ export const ChatMessage = memo(function ChatMessage({
           key={`tools-${group.key}`}
           count={group.count}
           category={group.category}
+          summary={buildToolGroupSummary(group.tools)}
           isPending={group.tools.some(
             (tool) =>
               tool.type === "single" &&

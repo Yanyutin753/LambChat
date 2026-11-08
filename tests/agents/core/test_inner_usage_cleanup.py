@@ -11,8 +11,9 @@ import pytest
 @pytest.mark.parametrize("agent", ["search_agent", "team_agent"])
 @pytest.mark.parametrize("failure_stage", ["close", "finalize"])
 @pytest.mark.parametrize("error_type", [RuntimeError, asyncio.CancelledError])
+@pytest.mark.parametrize("parent_interrupted", [False, True])
 async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
-    agent, failure_stage, error_type
+    agent, failure_stage, error_type, parent_interrupted
 ):
     source = Path(__file__).parents[3] / "src" / "agents" / agent / "nodes.py"
     tree = ast.parse(source.read_text())
@@ -51,6 +52,7 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
         "run_started_at": 0,
         "model_id": "model",
         "selected_model": "model",
+        "parent_interrupted": parent_interrupted,
     }
     target = (
         namespace["subagent_sessions"].close
@@ -72,3 +74,6 @@ async def test_actual_inner_cleanup_emits_usage_even_when_cleanup_fails(
         namespace["subagent_sessions"]
     )
     namespace["emit_token_usage"].assert_awaited_once()
+    namespace["subagent_sessions"].close.assert_awaited_once_with(
+        preserve_approvals=True, parent_interrupted=parent_interrupted
+    )

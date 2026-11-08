@@ -364,7 +364,7 @@ test("task results retain assistant identity without a second conversation mode"
   ).toBeNull();
   expect(
     screen.getByRole("heading", { level: 2, name: helper.name }),
-  ).toHaveClass("sr-only");
+  ).toHaveClass("sm:sr-only");
 });
 
 test("role identity stays in the sidebar without duplication in the workspace header", async () => {

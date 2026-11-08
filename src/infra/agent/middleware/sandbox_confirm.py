@@ -301,17 +301,10 @@ class SandboxConfirmMiddleware(AgentMiddleware):
                 tool_call_id=str(tool_call.get("id", "")),
                 status="error",
             )
-        return await self._run(request, handler, approved)
-
-    async def _run(
-        self,
-        request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Any]],
-        approved: bool,
-    ) -> ToolMessage | Any:
         if approved:
             return await handler(request)
-        return self._declined(request)
+        feedback = resume_value.get("values") if isinstance(resume_value, dict) else None
+        return self._declined(request, feedback if isinstance(feedback, dict) else None)
 
     def _error_tool_message(
         self, request: ToolCallRequest, exc: AppError | SandboxInitializationError
@@ -324,13 +317,18 @@ class SandboxConfirmMiddleware(AgentMiddleware):
             status="error",
         )
 
-    def _declined(self, request: ToolCallRequest) -> ToolMessage:
+    def _declined(self, request: ToolCallRequest, feedback: dict | None = None) -> ToolMessage:
         tool_call = request.tool_call
+        content = (
+            "Execution declined by user (declined_by_user). "
+            "Do not retry the same operation unless the user explicitly asks."
+        )
+        if feedback:
+            content += "\nUser feedback on this declined request: " + json.dumps(
+                feedback, ensure_ascii=False
+            )
         return ToolMessage(
-            content=(
-                "Execution declined by user (declined_by_user). "
-                "Do not retry the same operation unless the user explicitly asks."
-            ),
+            content=content,
             tool_call_id=str(tool_call.get("id", "") or ""),
             name=str(tool_call.get("name", "")),
             status="error",

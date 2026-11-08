@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from "react";
 import { useAssistantGroupMembers } from "../../assistants/AssistantGroupContext";
-import { MarkdownContent } from "./MarkdownContent";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
@@ -294,11 +293,6 @@ export function SubagentBlock({
           </span>
         </span>
       </button>
-      {inGroup && result && (
-        <div className="px-3.5 pb-3 text-14">
-          <MarkdownContent content={result} />
-        </div>
-      )}
     </div>
   );
 }

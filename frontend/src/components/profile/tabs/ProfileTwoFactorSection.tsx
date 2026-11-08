@@ -83,7 +83,7 @@ export function ProfileTwoFactorSection() {
       aria-labelledby={`${id}-title`}
     >
       <div className="flex flex-wrap justify-between gap-2">
-        <h3 id={`${id}-title`} className="profile-section-heading">
+        <h3 id={`${id}-title`} className="profile-section-heading font-serif">
           {t("twoFactor.title")}
         </h3>
         <span className="text-14 text-theme-text-secondary">

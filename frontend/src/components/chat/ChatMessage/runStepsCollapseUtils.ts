@@ -198,6 +198,41 @@ export interface ConsecutiveToolGroup {
   tools: RunPartGroup[];
 }
 
+export function buildToolGroupSummary(groups: RunPartGroup[]): string {
+  const targets = groups.flatMap((group) => {
+    if (group.type !== "single" || group.part.type !== "tool") return [];
+    const args = group.part.args;
+    const target = [args.query, args.pattern, args.file_path, args.tag].find(
+      (value) => typeof value === "string" && value.trim(),
+    );
+    if (typeof target === "string") return [target.trim()];
+    if (group.part.name !== "search_persona_presets") return [];
+    try {
+      const result =
+        typeof group.part.result === "string"
+          ? JSON.parse(group.part.result)
+          : group.part.result;
+      if (!result || result.error || result.success === false) return [];
+      const items = Array.isArray(result)
+        ? result
+        : result.presets ?? result.items;
+      return Array.isArray(items)
+        ? items.flatMap((item: unknown) =>
+            item &&
+            typeof item === "object" &&
+            "name" in item &&
+            typeof item.name === "string"
+              ? [item.name]
+              : [],
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(targets)].join(" ");
+}
+
 function toolGroupKey(name: string): string | null {
   if (name === "read_file") return name;
   if (name === "grep" || name === "glob") return "local-search";

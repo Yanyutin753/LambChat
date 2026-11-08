@@ -66,7 +66,7 @@ export function ThemeScheduleSection() {
       </button>
 
       {schedule.enabled && (
-        <div className="space-y-1 pb-3">
+        <div className="profile-schedule">
           <div className="flex items-center gap-1.5 pb-1 text-12 text-theme-text-secondary dark:text-stone-400">
             <Clock size={12} className="text-theme-text-tertiary" />
             <span>
@@ -81,7 +81,7 @@ export function ThemeScheduleSection() {
               })}
             </span>
           </div>
-          <label className="flex w-full items-center justify-between py-2 text-left">
+          <label className="profile-setting-row profile-select-row">
             <span className="text-14 text-theme-text dark:text-stone-200">
               {t("profile.themeScheduleStart")}
             </span>
@@ -93,7 +93,7 @@ export function ThemeScheduleSection() {
               className="max-sm:min-h-11 [@media(pointer:coarse)]:min-h-11 rounded-lg border border-theme-border bg-theme-bg-card px-2 py-1 text-13 text-theme-text dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
             />
           </label>
-          <label className="flex w-full items-center justify-between py-2 text-left">
+          <label className="profile-setting-row profile-select-row">
             <span className="text-14 text-theme-text dark:text-stone-200">
               {t("profile.themeScheduleEnd")}
             </span>

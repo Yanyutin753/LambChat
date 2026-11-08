@@ -278,7 +278,7 @@ export function LocalSandboxSection({
             />
           ) : online ? (
             <>
-              <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
+              <div className="sandbox-status-row">
                 <span className="flex min-w-0 items-center gap-2 text-14 text-theme-text dark:text-stone-200">
                   <span
                     className="h-2 w-2 rounded-full shrink-0 bg-theme-success"
@@ -556,7 +556,7 @@ export function LocalSandboxSection({
             focusTargetRef={sectionRef}
           />
         ) : (
-          <div className="flex w-full items-center justify-between gap-2 py-3 first:pt-2 last:pb-0 text-left">
+          <div className="sandbox-status-row">
             {connectionLoading || connectionFailed ? (
               <div className="min-w-0 flex-1">
                 <CatalogStatus

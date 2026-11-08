@@ -1,7 +1,7 @@
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
-import { GitBranch, Clock, X } from "lucide-react";
+import { GitBranch, Clock, X, Zap, Target } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
@@ -12,7 +12,6 @@ import { getUserMessageActionButtonVisibilityClass } from "./userMessageBubbleSt
 import { CopyButton } from "../../common/CopyButton";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { SkillChip } from "../SkillChip";
-import { RunModeChip } from "../richComposer/RunModeChip";
 import { splitUserMessageFileReferences } from "./userMessageFileReferences";
 import { cancelSteeredMessage } from "../steerCancelStore";
 
@@ -35,7 +34,7 @@ export function UserMessageBubble({
   onFork?: () => void;
   isLastMessage?: boolean;
   enabledSkills?: string[];
-  /** 发送时激活的运行模式（自动 / 目标），在消息内回显 chip */
+  /** 发送时激活的运行模式（自动 / 目标），在消息操作栏回显图标 */
   runModes?: Array<"auto" | "goal">;
   /** 运行中插话的排队态：送达前置灰 + 时钟角标，可取消 */
   queued?: boolean;
@@ -162,14 +161,6 @@ export function UserMessageBubble({
                 className="user-message-inline-markdown leading-relaxed"
                 style={{ color: "var(--theme-text-secondary)" }}
               >
-                {/* Run-mode chips - inline with content, ahead of skill chips */}
-                {runModes && runModes.length > 0 && (
-                  <span className="skill-chip-row align-baseline">
-                    {runModes.map((modeKey) => (
-                      <RunModeChip key={modeKey} modeKey={modeKey} readOnly />
-                    ))}
-                  </span>
-                )}
                 {/* Skill chips - inline with content */}
                 {leadingSkills.length > 0 && (
                   <span className="skill-chip-row align-baseline">
@@ -210,6 +201,21 @@ export function UserMessageBubble({
                 </InteractiveIcon>
               </button>
             )}
+            {runModes?.map((modeKey) => (
+              <span
+                key={modeKey}
+                role="img"
+                aria-label={t(`mode.${modeKey}`)}
+                title={t(`mode.${modeKey}`)}
+                className="inline-flex w-8 shrink-0 items-center justify-center text-theme-text-tertiary max-sm:w-9 pointer-coarse:w-9"
+              >
+                {modeKey === "auto" ? (
+                  <Zap size={16} aria-hidden="true" />
+                ) : (
+                  <Target size={16} aria-hidden="true" />
+                )}
+              </span>
+            ))}
             {extraActions}
             {copyText.trim() && (
               <CopyButton

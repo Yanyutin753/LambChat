@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   groupConsecutiveTools,
+  buildToolGroupSummary,
   type RunPartGroup,
 } from "../runStepsCollapseUtils";
 const tool = (partIndex: number, overrides = {}): RunPartGroup => ({
@@ -267,6 +268,15 @@ test("streamed reads group while waiting and keep the same key through completio
   ).toMatchObject([
     { type: "tools", key: "read-1", category: "read", count: 2 },
   ]);
+  expect(
+    buildToolGroupSummary(
+      parts.map((part, partIndex) => ({
+        type: "single",
+        part,
+        partIndex,
+      })),
+    ),
+  ).toBe("/notes.md /other.md");
   dispatch("tool:start", {
     tool: "read_file",
     tool_call_id: "read-3",
@@ -304,4 +314,40 @@ test("streamed reads group while waiting and keep the same key through completio
     type: "thinking",
     content: "First second",
   });
+});
+
+test("tool group summaries retain unique search targets and file paths", () => {
+  expect(
+    buildToolGroupSummary([
+      tool(1, { name: "web_search", args: { query: "  数据中心  " } }),
+      tool(2, { name: "web_search", args: { query: "数据中心" } }),
+      tool(3, { name: "grep", args: { pattern: "TODO" } }),
+      tool(4, { args: { file_path: "/src/app.ts" } }),
+    ]),
+  ).toBe("数据中心 TODO /src/app.ts");
+});
+
+test("tool group summaries ignore unfinished or malformed arguments", () => {
+  expect(
+    buildToolGroupSummary([
+      tool(1, { args: { partial: '{"query":', query: 5 } }),
+      tool(2),
+    ]),
+  ).toBe("");
+});
+
+test("unfiltered persona groups preview returned names and tolerate errors", () => {
+  expect(
+    buildToolGroupSummary([
+      tool(1, {
+        name: "search_persona_presets",
+        result: JSON.stringify({ presets: [{ name: "Editor" }, null] }),
+      }),
+      tool(2, {
+        name: "search_persona_presets",
+        result: { presets: [{ name: "Reviewer" }] },
+      }),
+      tool(3, { result: "unavailable" }),
+    ]),
+  ).toBe("Editor Reviewer");
 });

@@ -2,10 +2,12 @@
  * Session management hooks
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import i18n from "i18next";
 import { sessionApi, type BackendSession } from "../services/api";
+
+import { isCompanionSession } from "../utils/sessionScope";
 
 const PAGE_SIZE = 20;
 
@@ -143,6 +145,7 @@ export function useFilteredSessionList(
           status: "active",
           favorites_only: filter.favoritesOnly,
           pinned_only: filter.pinnedOnly,
+          exclude_assistants: filter.projectId === "none",
         });
 
         const fetchedSessions =
@@ -227,6 +230,7 @@ export function useFilteredSessionList(
         status: "active",
         favorites_only: filter.favoritesOnly,
         pinned_only: filter.pinnedOnly,
+        exclude_assistants: filter.projectId === "none",
       });
       const newSessions =
         "sessions" in response
@@ -271,8 +275,16 @@ export function useFilteredSessionList(
     setSessions((prev) => prev.map((s) => (s.id === session.id ? session : s)));
   }, []);
 
+  const visibleSessions = useMemo(
+    () =>
+      filter.projectId === "none"
+        ? sessions.filter((session) => !isCompanionSession(session))
+        : sessions,
+    [sessions, filter.projectId],
+  );
+
   return {
-    sessions,
+    sessions: visibleSessions,
     isLoading,
     isLoadingMore,
     hasMore,
