@@ -1104,3 +1104,21 @@ async def test_auxiliary_identity_survives_storage_and_api_schema():
     assert log.operation == "embedding"
     assert log.provider == "openai"
     assert log.duration == 1.5
+
+
+async def test_display_only_acceptance_trace_does_not_create_unpriced_usage():
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    trace = {
+        "trace_id": "trace-artifact-acceptance-example",
+        "status": "completed",
+        "metadata": {"acceptance_fixture": True},
+    }
+    assert not await storage.upsert_usage_log_from_trace_metadata(trace, {})
+    assert not collection.update_calls
+    assert await storage.upsert_usage_log_from_trace_metadata(
+        trace, {"input_tokens": 10, "output_tokens": 2}
+    )
+    assert len(collection.update_calls) == 1
