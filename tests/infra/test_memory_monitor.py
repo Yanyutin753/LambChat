@@ -358,6 +358,7 @@ async def test_reset_baseline_publishes_fresh_instance_snapshot(
         "history_size": 1,
         "growth_bytes": 0,
         "suspected_leak": False,
+        "alerts_24h": 0,
         "heavy_diagnostics_enabled": True,
         "tracemalloc_tracing": False,
         "sample_interval_seconds": 45.0,
@@ -458,6 +459,7 @@ async def test_sample_once_publishes_current_snapshot_when_no_alert(
         "history_size": 1,
         "growth_bytes": 0,
         "suspected_leak": False,
+        "alerts_24h": 0,
         "heavy_diagnostics_enabled": True,
         "tracemalloc_tracing": False,
         "sample_interval_seconds": 60.0,
@@ -581,6 +583,7 @@ async def test_sample_once_publishes_last_alert_snapshot_when_alert_fires(
         "history_size": 2,
         "growth_bytes": 120 * 1024 * 1024,
         "suspected_leak": True,
+        "alerts_24h": 1,
         "heavy_diagnostics_enabled": True,
         "tracemalloc_tracing": False,
         "sample_interval_seconds": 60.0,
@@ -969,3 +972,94 @@ async def test_start_returns_without_waiting_for_initial_baseline(
 
     release_loop.set()
     await monitor.stop()
+
+
+@pytest.mark.asyncio
+async def test_alert_log_and_summary_track_rolling_24h_alert_count(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#1217：每条报警与 summary 携带滚动 24h 报警数，供巡检与 agent 活动量对账。"""
+    from src.infra.monitoring.memory import MemoryMonitor
+    from src.infra.utils.datetime import utc_now
+
+    rss_values = iter([100, 150, 230, 260])
+    started = utc_now()
+    timestamps = iter(
+        [
+            started,
+            started + timedelta(minutes=10),
+            started + timedelta(minutes=20),
+            started + timedelta(minutes=30),
+        ]
+    )
+
+    monitor = MemoryMonitor(
+        interval_seconds=60.0,
+        history_limit=10,
+        leak_threshold_bytes=64 * 1024 * 1024,
+        min_samples_for_alert=3,
+        alert_cooldown_seconds=0.0,
+        heavy_diagnostics_enabled=False,
+    )
+
+    def _fake_process_sample() -> dict[str, object]:
+        return {
+            "timestamp": next(timestamps),
+            "rss_bytes": next(rss_values) * 1024 * 1024,
+            "vms_bytes": 400 * 1024 * 1024,
+            "thread_count": 12,
+            "open_file_count": 3,
+        }
+
+    monitor._collect_process_sample = _fake_process_sample  # type: ignore[method-assign]
+    monitor._build_distributed_snapshot_locked = lambda: asyncio.sleep(0, result=None)  # type: ignore[method-assign]
+
+    with caplog.at_level("WARNING", logger="src.infra.monitoring.memory"):
+        await monitor._sample_once()
+        await monitor._sample_once()
+        await monitor._sample_once()
+
+    assert "alerts_24h=1" in caplog.text
+
+    await monitor._sample_once()
+
+    assert "alerts_24h=2" in caplog.text
+    summary = await monitor.get_summary()
+    assert summary["alerts_24h"] == 2
+
+
+@pytest.mark.asyncio
+async def test_alert_count_window_drops_entries_older_than_24h() -> None:
+    from src.infra.monitoring.memory import MemoryMonitor
+    from src.infra.utils.datetime import utc_now
+
+    monitor = MemoryMonitor(heavy_diagnostics_enabled=False)
+    now = utc_now()
+    monitor._alert_timestamps.append(now - timedelta(hours=25))
+    monitor._alert_timestamps.append(now - timedelta(hours=1))
+    monitor._alert_timestamps.append(now)
+
+    assert monitor._count_recent_alerts(now) == 2
+
+
+@pytest.mark.asyncio
+async def test_reset_baseline_clears_rolling_alert_count() -> None:
+    from src.infra.monitoring.memory import MemoryMonitor
+    from src.infra.utils.datetime import utc_now
+
+    monitor = MemoryMonitor(heavy_diagnostics_enabled=False)
+
+    def _fake_process_sample() -> dict[str, object]:
+        return {
+            "rss_bytes": 100 * 1024 * 1024,
+            "vms_bytes": 200 * 1024 * 1024,
+            "thread_count": 4,
+            "open_file_count": 5,
+        }
+
+    monitor._collect_process_sample = _fake_process_sample  # type: ignore[method-assign]
+    monitor._alert_timestamps.append(utc_now())
+
+    await monitor.reset_baseline()
+
+    assert monitor._count_recent_alerts(utc_now()) == 0
