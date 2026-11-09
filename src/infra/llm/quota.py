@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import sys
+import re
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -187,15 +187,29 @@ def _usage_owner():
     return getattr(presenter, "_usage_accounting_owner", None)
 
 
-def _receipt(reservation, settlement):
+def _receipt(reservation, settlement, *, status="running", error=None):
     context = reservation.get("context") or {}
-    return {
+    receipt = {
         "call_id": reservation["id"],
         "model": context.get("model") or "",
         "model_id": context.get("model_config_id") or "",
         "provider": context.get("provider") or "",
+        "operation": context.get("operation") or "",
+        "status": status,
         **settlement,
     }
+    response = getattr(error, "response", None)
+    http_status = getattr(error, "status_code", None)
+    if http_status is None:
+        http_status = getattr(response, "status_code", None)
+    if type(http_status) is int and 100 <= http_status <= 599:
+        receipt["http_status"] = http_status
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        request_id = headers.get("x-oneapi-request-id") or headers.get("request-id")
+        if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id):
+            receipt["provider_request_id"] = request_id
+    return receipt
 
 
 def _usage_context():
@@ -289,8 +303,12 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
         nonlocal counts
         counts = model_counts(operation, payload)
 
+    error = None
     try:
         yield observe
+    except BaseException as exc:
+        error = exc
+        raise
     finally:
 
         async def settle_and_publish():
@@ -303,13 +321,14 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
             if counts is not None and isinstance(settlement, dict):
                 settlement = {**settlement, "model_usage": counts}
             if owner is not None and isinstance(settlement, dict):
-                await owner.record_usage_receipt(_receipt(reservation, settlement))
+                await owner.record_usage_receipt(
+                    _receipt(reservation, settlement, status=status, error=error)
+                )
             elif isinstance(settlement, dict):
                 from src.infra.usage.auxiliary import write_auxiliary_usage
 
                 await write_auxiliary_usage(reservation, settlement, status=status, error=error)
 
-        error = sys.exception()
         status = (
             "cancelled"
             if isinstance(error, (asyncio.CancelledError, GeneratorExit))
@@ -590,7 +609,9 @@ class QuotaChatMixin:
                     }
                 # Native model-end callbacks may never arrive after cancellation.
                 if owner is not None and isinstance(settlement, dict):
-                    await owner.record_usage_receipt(_receipt(reservation, settlement))
+                    await owner.record_usage_receipt(
+                        _receipt(reservation, settlement, status=status, error=error)
+                    )
                 elif isinstance(settlement, dict):
                     from src.infra.usage.auxiliary import write_auxiliary_usage
 
@@ -616,6 +637,7 @@ class QuotaChatMixin:
         raw_token = _raw_usage.set(observation)
         message = None
         completed = False
+        error = None
         try:
             result = await super()._agenerate(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
@@ -624,6 +646,9 @@ class QuotaChatMixin:
                 message = result.generations[0].message
             completed = True
             return result
+        except BaseException as exc:
+            error = exc
+            raise
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
@@ -631,11 +656,11 @@ class QuotaChatMixin:
                 ticket,
                 message,
                 usage_valid=message is not None and observation[0] is not False,
-                error=sys.exception(),
+                error=error,
                 status="completed"
                 if completed
                 else "cancelled"
-                if isinstance(sys.exception(), (asyncio.CancelledError, GeneratorExit))
+                if isinstance(error, (asyncio.CancelledError, GeneratorExit))
                 else "error",
             )
 
@@ -656,6 +681,7 @@ class QuotaChatMixin:
         message = None
         completed = False
         received_chunk = False
+        error = None
         try:
             async for chunk in super()._astream(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
@@ -666,6 +692,9 @@ class QuotaChatMixin:
                     message = usage if message is None else message + usage
                 yield chunk
             completed = True
+        except BaseException as exc:
+            error = exc
+            raise
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
@@ -673,7 +702,6 @@ class QuotaChatMixin:
             message = anthropic_usage.get(
                 "message", message or anthropic_usage.get("partial_message")
             )
-            error = sys.exception()
             if completed and not received_chunk:
                 # LangChain raises this after our iterator closes; retain it in detached logs.
                 error = ValueError("No generations found in stream.")

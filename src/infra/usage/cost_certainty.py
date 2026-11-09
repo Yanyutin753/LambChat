@@ -301,9 +301,23 @@ UNPRICED_USAGE_CONDITION = {
 
 
 def _cost_certainty_aggregates() -> dict[str, Any]:
+    successful = {
+        "$and": [
+            {"$eq": ["$status", "completed"]},
+            {"$not": [_boolean_condition("acceptance_fixture", True)]},
+        ]
+    }
+    counts = {
+        "priced_requests": PRICED_USAGE_CONDITION,
+        "partial_requests": PARTIAL_USAGE_CONDITION,
+        "estimated_requests": ESTIMATED_USAGE_CONDITION,
+        "unpriced_requests": UNPRICED_USAGE_CONDITION,
+    }
     return {
         "partial_cost_usd": {"$sum": {"$cond": [PARTIAL_USAGE_CONDITION, "$partial_cost_usd", 0]}},
-        "partial_requests": {"$sum": {"$cond": [PARTIAL_USAGE_CONDITION, 1, 0]}},
         "estimated_cost_usd": {"$sum": {"$cond": [ESTIMATED_USAGE_CONDITION, "$cost_usd", 0]}},
-        "estimated_requests": {"$sum": {"$cond": [ESTIMATED_USAGE_CONDITION, 1, 0]}},
+        **{
+            field: {"$sum": {"$cond": [{"$and": [successful, condition]}, 1, 0]}}
+            for field, condition in counts.items()
+        },
     }

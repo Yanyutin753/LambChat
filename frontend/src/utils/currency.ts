@@ -130,23 +130,24 @@ export function formatUsageCost(
   opts: UsageCostFormatOpts,
 ): string {
   const unknown = (opts.unpricedRequests ?? 0) > 0;
+  const estimated =
+    isCostAmount(opts.estimatedCostUsd) &&
+    (opts.estimatedCostUsd > 0 ||
+      opts.estimatedRequests === undefined ||
+      opts.estimatedRequests > 0);
   const confirmed =
     available === true &&
     isCostAmount(usd) &&
-    !(
-      opts.pricedRequests === 0 &&
-      (unknown || (opts.estimatedRequests ?? 0) > 0)
-    );
+    !(usd === 0 && opts.pricedRequests === 0 && (unknown || estimated));
   const partial =
     isCostAmount(opts.partialCostUsd) &&
-    (opts.partialRequests === undefined || opts.partialRequests > 0);
+    (opts.partialCostUsd > 0 ||
+      opts.partialRequests === undefined ||
+      opts.partialRequests > 0);
   if (confirmed || partial) {
     const amount = (confirmed ? usd : 0) + (partial ? opts.partialCostUsd! : 0);
     return `${formatCostUsd(amount, opts)}${unknown || partial ? "+" : ""}`;
   }
-  const estimated =
-    isCostAmount(opts.estimatedCostUsd) &&
-    (opts.estimatedRequests === undefined || opts.estimatedRequests > 0);
   return estimated ? `≈${formatCostUsd(opts.estimatedCostUsd!, opts)}` : "—";
 }
 
@@ -173,7 +174,10 @@ export function historicalEstimateHint(
   opts: UsageCostFormatOpts,
   label: string,
 ): string | undefined {
-  if (!isCostAmount(opts.estimatedCostUsd) || opts.estimatedRequests === 0)
+  if (
+    !isCostAmount(opts.estimatedCostUsd) ||
+    (opts.estimatedCostUsd === 0 && opts.estimatedRequests === 0)
+  )
     return undefined;
   return `${label}: ≈${formatCostUsd(opts.estimatedCostUsd, opts)}`;
 }
