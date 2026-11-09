@@ -797,3 +797,26 @@ async def test_anthropic_gateway_raw_response_captures_wire_receipt(monkeypatch)
 
     assert observed["gateway_request_id"] == "anthropic-gateway"
     assert observed["http_status"] == 200
+
+
+async def test_anthropic_gateway_error_captures_response_before_sdk_translation(monkeypatch):
+    import httpx
+    from langchain_anthropic import ChatAnthropic
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    request = httpx.Request("POST", "https://example.test")
+    response = httpx.Response(429, headers={"X-Oneapi-Request-ID": "anthropic-error"})
+    error = httpx.HTTPStatusError("rate limited", request=request, response=response)
+    monkeypatch.setattr(ChatAnthropic, "_acreate", AsyncMock(side_effect=error))
+    model = LambChatAnthropicChatModel(model="glm-5.3", api_key="test")
+    observed = {}
+    token = quota._wire_receipt.set(observed)
+    try:
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await model._acreate({"stream": True})
+        assert exc_info.value is error
+    finally:
+        quota._wire_receipt.reset(token)
+    assert observed["gateway_request_id"] == "anthropic-error"
+    assert observed["http_status"] == 429

@@ -112,7 +112,12 @@ class LambChatAnthropicChatModel(QuotaChatMixin, ChatAnthropic):
     enable_prompt_cache: bool = Field(default=True, exclude=True)
 
     async def _acreate(self, payload: dict) -> Any:
-        response = await super()._acreate(payload)
+        try:
+            response = await super()._acreate(payload)
+        except Exception as error:
+            # LangChain may replace the SDK error and discard its response.
+            await observe_model_http_response(getattr(error, "response", None))
+            raise
         await observe_model_http_response(response.http_response)
         return response
 
