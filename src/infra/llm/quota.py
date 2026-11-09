@@ -207,8 +207,8 @@ def _receipt(reservation, settlement, *, status="running", error=None):
     return receipt
 
 
-def _response_receipt(response, *, error=None, request_id=None):
-    receipt = {}
+def _response_receipt(response, *, error=None, request_id=None) -> dict[str, str | int]:
+    receipt: dict[str, str | int] = {}
     http_status = getattr(response, "status_code", None)
     if http_status is None:
         http_status = getattr(error, "status_code", None)
