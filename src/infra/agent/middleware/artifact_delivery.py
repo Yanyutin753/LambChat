@@ -218,6 +218,14 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             if had_pending_artifacts or found_artifacts_during_drain:
                 return {"messages": []}
             return None
+        except Exception:
+            # #1220：投递阶段异常只降级不判死——主流程已成功的任务不得因产物
+            # 投递整体报废（伪 URL 来源由 _safe_urlparse 的 warning 留痕）。
+            logger.exception(
+                "Artifact delivery failed after agent finished; "
+                "task continues without artifact delivery"
+            )
+            return None
         finally:
             if self._runs.get(key) is run:
                 self._runs.pop(key, None)

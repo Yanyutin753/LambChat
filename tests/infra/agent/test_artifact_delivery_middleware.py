@@ -2095,3 +2095,22 @@ async def test_artifact_delivery_disabled_skips_snapshots_staging_and_delivery(
     assert backend.calls == []
     assert reveal_calls == []
     assert update is None
+
+
+@pytest.mark.asyncio
+async def test_aafter_agent_degrades_when_delivery_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#1220：投递阶段异常只降级不判死——主流程已成功的任务不得因产物投递整体报废。"""
+    middleware = ArtifactDeliveryMiddleware()
+    monkeypatch.setattr(artifact_delivery.settings, "ENABLE_ARTIFACT_DELIVERY", True)
+
+    def _boom(run: Any, state: Any) -> None:
+        raise ValueError("Invalid IPv6 URL")
+
+    monkeypatch.setattr(middleware, "_auto_stage_from_state", _boom)
+    update = await middleware.aafter_agent({"messages": []}, SimpleNamespace(config={}))
+
+    assert update is None
+    # finally 清理路径不受降级影响，run 状态不残留
+    assert middleware._runs == {}
