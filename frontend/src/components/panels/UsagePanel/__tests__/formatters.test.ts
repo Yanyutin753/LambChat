@@ -176,6 +176,17 @@ describe("partial and historical cost display", () => {
       }),
     ).toBe("$0.5+");
   });
+  test("preserves known spending from attempts outside successful request counts", () => {
+    expect(
+      fmtCostUsd(0.3, true, {
+        language: "en",
+        pricedRequests: 0,
+        unpricedRequests: 1,
+        partialRequests: 0,
+        partialCostUsd: 0.2,
+      }),
+    ).toBe("$0.5+");
+  });
   test("invalid amounts remain unknown", () => {
     expect(
       fmtCostUsd(null, false, {

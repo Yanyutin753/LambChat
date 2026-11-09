@@ -14,7 +14,6 @@ from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.usage.cost_certainty import (
     COMPLETE_USAGE_CONDITION,
-    UNPRICED_USAGE_CONDITION,
     _boolean_condition,
     _cost_certainty_aggregates,
     _usage_cost_fields,
@@ -214,6 +213,14 @@ class UsageStorage:
             return False
 
         metadata = trace_doc.get("metadata", {}) or {}
+        # Display-only acceptance traces have no provider call to account for.
+        if (
+            metadata.get("acceptance_fixture") is True
+            and trace_doc.get("status") == "completed"
+            and not usage_data
+            and not error_data
+        ):
+            return False
         session_metadata = await self._get_session_metadata(
             str(trace_doc.get("session_id") or ""), user_id=trace_doc.get("user_id")
         )
@@ -553,12 +560,6 @@ class UsageStorage:
                                 },
                                 **_cost_certainty_aggregates(),
                                 **_counter_availability_aggregates(),
-                                "unpriced_requests": {
-                                    "$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}
-                                },
-                                "priced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
-                                },
                                 "usage_unknown_requests": {
                                     "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
                                 },
@@ -616,12 +617,6 @@ class UsageStorage:
                                 },
                                 **_cost_certainty_aggregates(),
                                 **_counter_availability_aggregates(),
-                                "priced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
-                                },
-                                "unpriced_requests": {
-                                    "$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}
-                                },
                                 "usage_unknown_requests": {
                                     "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
                                 },
@@ -712,8 +707,6 @@ class UsageStorage:
             "cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
             **_cost_certainty_aggregates(),
             **_counter_availability_aggregates(),
-            "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
-            "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
             "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
             "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
             "cache_uncertified_requests": {
@@ -776,8 +769,6 @@ class UsageStorage:
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
                     **_cost_certainty_aggregates(),
                     **_counter_availability_aggregates(),
-                    "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
-                    "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
                     "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
                     "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
                     "cache_uncertified_requests": {
@@ -951,8 +942,6 @@ class UsageStorage:
                     "total_tokens": _token_sum("total_tokens"),
                     "total_duration": {"$sum": "$duration"},
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
-                    "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
-                    "unpriced_requests": {"$sum": {"$cond": [UNPRICED_USAGE_CONDITION, 1, 0]}},
                     **_cost_certainty_aggregates(),
                     **_counter_availability_aggregates(),
                 }
