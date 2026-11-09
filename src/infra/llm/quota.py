@@ -32,6 +32,7 @@ _active: ContextVar[tuple | None] = ContextVar("usage_quota_call", default=None)
 _raw_usage: ContextVar[list[bool | None] | None] = ContextVar(
     "usage_quota_raw_counts", default=None
 )
+_wire_receipt: ContextVar[dict | None] = ContextVar("quota_wire_receipt", default=None)
 _anthropic_stream_usage: ContextVar[dict | None] = ContextVar(
     "quota_anthropic_stream_usage", default=None
 )
@@ -196,20 +197,39 @@ def _receipt(reservation, settlement, *, status="running", error=None):
         "provider": context.get("provider") or "",
         "operation": context.get("operation") or "",
         "status": status,
-        **settlement,
     }
-    response = getattr(error, "response", None)
-    http_status = getattr(error, "status_code", None)
+    receipt.update(
+        {
+            **_response_receipt(getattr(error, "response", None), error=error),
+            **settlement,
+        }
+    )
+    return receipt
+
+
+def _response_receipt(response, *, error=None, request_id=None) -> dict[str, str | int]:
+    receipt: dict[str, str | int] = {}
+    http_status = getattr(response, "status_code", None)
     if http_status is None:
-        http_status = getattr(response, "status_code", None)
+        http_status = getattr(error, "status_code", None)
     if type(http_status) is int and 100 <= http_status <= 599:
         receipt["http_status"] = http_status
     headers = getattr(response, "headers", None)
     if headers is not None:
-        request_id = headers.get("x-oneapi-request-id") or headers.get("request-id")
-        if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id):
-            receipt["provider_request_id"] = request_id
+        gateway_id = headers.get("x-oneapi-request-id")
+        if isinstance(gateway_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", gateway_id):
+            receipt["gateway_request_id"] = gateway_id
+        request_id = headers.get("x-request-id") or headers.get("request-id") or request_id
+        request_id = request_id or gateway_id
+    if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id):
+        receipt["provider_request_id"] = request_id
     return receipt
+
+
+async def observe_model_http_response(response):
+    receipt = _wire_receipt.get()
+    if receipt is not None:
+        receipt.update(_response_receipt(response))
 
 
 def _usage_context():
@@ -299,9 +319,24 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
         owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
     counts = model_counts(operation, None) if api_base else None
 
-    def observe(payload):
-        nonlocal counts
-        counts = model_counts(operation, payload)
+    response_receipt: dict = {}
+    request_cost = None
+
+    def observe(payload=None, *, response=None, result_count=None, request_id=None):
+        nonlocal counts, request_cost
+        if response is None:
+            counts = model_counts(operation, payload)
+            return
+        response_receipt.update(_response_receipt(response, request_id=request_id))
+        if result_count is not None:
+            response_receipt["result_count"] = result_count
+        if provider == "deepseek" and operation == "web_search":
+            status = response.status_code
+            # DeepSeek charges $0.75 per 1,000 HTTP 200 searches with nonempty results.
+            if status == 200 and result_count is not None:
+                request_cost = 0.00075 if result_count else 0
+            elif 400 <= status <= 599:
+                request_cost = 0
 
     error = None
     try:
@@ -315,9 +350,11 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
             cost = (
                 await input_cost_usd(operation, api_base, model, counts)
                 if counts is not None
-                else None
+                else request_cost
             )
             settlement = await ledger.settle(reservation, cost)
+            if isinstance(settlement, dict):
+                settlement = {**settlement, **response_receipt}
             if counts is not None and isinstance(settlement, dict):
                 settlement = {**settlement, "model_usage": counts}
             if owner is not None and isinstance(settlement, dict):
@@ -579,7 +616,15 @@ class QuotaChatMixin:
         return quota, reservation, rates, owner
 
     async def _quota_finish(
-        self, ticket, message, *, usage_valid=True, partial=False, status="completed", error=None
+        self,
+        ticket,
+        message,
+        *,
+        usage_valid=True,
+        partial=False,
+        status="completed",
+        error=None,
+        response_receipt=None,
     ):
         if ticket is not None:
             quota, reservation, rates = ticket[:3]
@@ -596,6 +641,8 @@ class QuotaChatMixin:
                         else {}
                     ),
                 )
+                if isinstance(settlement, dict) and response_receipt:
+                    settlement = {**settlement, **response_receipt}
                 if (
                     isinstance(settlement, dict)
                     and not settlement["unknown"]
@@ -635,6 +682,8 @@ class QuotaChatMixin:
         token = _active.set(identity)
         observation: list[bool | None] = [None]
         raw_token = _raw_usage.set(observation)
+        response_receipt: dict = {}
+        wire_token = _wire_receipt.set(response_receipt)
         message = None
         completed = False
         error = None
@@ -652,11 +701,13 @@ class QuotaChatMixin:
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
+            _wire_receipt.reset(wire_token)
             await self._quota_finish(
                 ticket,
                 message,
                 usage_valid=message is not None and observation[0] is not False,
                 error=error,
+                **({"response_receipt": response_receipt} if response_receipt else {}),
                 status="completed"
                 if completed
                 else "cancelled"
@@ -676,6 +727,8 @@ class QuotaChatMixin:
         token = _active.set(identity)
         observation: list[bool | None] = [None]
         raw_token = _raw_usage.set(observation)
+        response_receipt: dict = {}
+        wire_token = _wire_receipt.set(response_receipt)
         anthropic_usage: dict[str, Any] = {}
         anthropic_token = _anthropic_stream_usage.set(anthropic_usage)
         message = None
@@ -698,6 +751,7 @@ class QuotaChatMixin:
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
+            _wire_receipt.reset(wire_token)
             _anthropic_stream_usage.reset(anthropic_token)
             message = anthropic_usage.get(
                 "message", message or anthropic_usage.get("partial_message")
@@ -710,6 +764,7 @@ class QuotaChatMixin:
                 message,
                 usage_valid=message is not None and observation[0] is not False,
                 error=error,
+                **({"response_receipt": response_receipt} if response_receipt else {}),
                 **({"partial": True} if not completed and message is not None else {}),
                 status="completed"
                 if completed and error is None

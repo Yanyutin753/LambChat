@@ -692,3 +692,131 @@ async def test_failed_attempt_receipt_preserves_outcome_without_assuming_zero_co
     assert receipt["operation"] == "llm"
     assert receipt["unknown"] is True
     assert "private provider response body" not in repr(receipt)
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "expected_cost"),
+    [
+        (200, {"results": [{"url": "https://example.test"}]}, 0.00075),
+        (200, {"results": []}, 0),
+        (200, {"unexpected": []}, None),
+        (429, {}, 0),
+    ],
+)
+async def test_deepseek_search_settles_each_http_attempt(monkeypatch, status, body, expected_cost):
+    import httpx
+
+    from src.infra.tool.web_search_providers import ProviderRequestError, deepseek_search
+
+    reservation = {"id": "search-attempt", "context": {"provider": "deepseek"}}
+    ledger = SimpleNamespace(
+        reserve=AsyncMock(return_value=reservation),
+        settle=AsyncMock(return_value={"charged_units": 0, "unknown": expected_cost is None}),
+    )
+    owner = SimpleNamespace(begin_usage_receipt=lambda _: None, record_usage_receipt=AsyncMock())
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "user")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock())
+    monkeypatch.setattr(quota, "UsageQuota", lambda: ledger)
+    monkeypatch.setattr(quota, "_usage_owner", lambda: owner)
+
+    def respond(request):
+        return httpx.Response(status, json=body, headers={"X-Request-ID": "search-123"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        if status != 200 or "results" not in body:
+            with pytest.raises(ProviderRequestError):
+                await deepseek_search(client, "key", "test", 3, None)
+        else:
+            await deepseek_search(client, "key", "test", 3, None)
+
+    assert ledger.settle.await_args.args == (reservation, expected_cost)
+    receipt = owner.record_usage_receipt.await_args.args[0]
+    assert receipt["http_status"] == status
+    assert receipt["provider_request_id"] == "search-123"
+
+
+async def test_model_retry_keeps_each_gateway_receipt(monkeypatch):
+    import httpx
+
+    from src.infra.llm.retry import ainvoke_with_retry
+
+    attempts = iter((429, 200))
+
+    class Source:
+        async def ainvoke(self, prompt, **kwargs):
+            return await self._agenerate(prompt)
+
+        async def _agenerate(self, messages, **kwargs):
+            status = next(attempts)
+            request = httpx.Request("POST", "https://example.test")
+            response = httpx.Response(
+                status, request=request, headers={"X-Oneapi-Request-ID": f"gateway-{status}"}
+            )
+            await quota.observe_model_http_response(response)
+            response.raise_for_status()
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="ok"))])
+
+    class Model(QuotaChatMixin, Source):
+        pass
+
+    model = Model()
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 0, "unknown": True}))
+    owner = SimpleNamespace(record_usage_receipt=AsyncMock())
+    monkeypatch.setattr(
+        model,
+        "_quota_begin",
+        AsyncMock(
+            side_effect=[(ledger, {"id": call}, RATES, owner) for call in ("first", "retry")]
+        ),
+    )
+    await ainvoke_with_retry(model, [], max_retries=1, retry_delay=0, retry_if=lambda _: True)
+    receipts = [call.args[0] for call in owner.record_usage_receipt.await_args_list]
+    assert [(r["call_id"], r["status"], r["gateway_request_id"]) for r in receipts] == [
+        ("first", "error", "gateway-429"),
+        ("retry", "completed", "gateway-200"),
+    ]
+
+
+async def test_anthropic_gateway_raw_response_captures_wire_receipt(monkeypatch):
+    import httpx
+    from langchain_anthropic import ChatAnthropic
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    raw = SimpleNamespace(
+        http_response=httpx.Response(200, headers={"X-Oneapi-Request-ID": "anthropic-gateway"})
+    )
+    monkeypatch.setattr(ChatAnthropic, "_acreate", AsyncMock(return_value=raw))
+    model = LambChatAnthropicChatModel(model="glm-5.3", api_key="test")
+    observed = {}
+    token = quota._wire_receipt.set(observed)
+    try:
+        assert await model._acreate({"stream": True}) is raw
+    finally:
+        quota._wire_receipt.reset(token)
+
+    assert observed["gateway_request_id"] == "anthropic-gateway"
+    assert observed["http_status"] == 200
+
+
+async def test_anthropic_gateway_error_captures_response_before_sdk_translation(monkeypatch):
+    import httpx
+    from langchain_anthropic import ChatAnthropic
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    request = httpx.Request("POST", "https://example.test")
+    response = httpx.Response(429, headers={"X-Oneapi-Request-ID": "anthropic-error"})
+    error = httpx.HTTPStatusError("rate limited", request=request, response=response)
+    monkeypatch.setattr(ChatAnthropic, "_acreate", AsyncMock(side_effect=error))
+    model = LambChatAnthropicChatModel(model="glm-5.3", api_key="test")
+    observed = {}
+    token = quota._wire_receipt.set(observed)
+    try:
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await model._acreate({"stream": True})
+        assert exc_info.value is error
+    finally:
+        quota._wire_receipt.reset(token)
+    assert observed["gateway_request_id"] == "anthropic-error"
+    assert observed["http_status"] == 429

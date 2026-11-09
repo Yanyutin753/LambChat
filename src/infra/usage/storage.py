@@ -359,6 +359,10 @@ class UsageStorage:
             "step_count": _as_int(metadata.get("step_count", 0)),
             "tool_calls": _as_int(metadata.get("tool_calls", 0)),
         }
+        if metadata.get("source") == "auxiliary":
+            for key in ("http_status", "gateway_request_id", "provider_request_id", "result_count"):
+                if key in usage_data:
+                    doc[key] = usage_data[key]
         partial_cost = usage_data.get("partial_cost_usd")
         doc["partial_cost_usd"] = (
             float(partial_cost)
