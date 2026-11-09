@@ -775,3 +775,25 @@ async def test_model_retry_keeps_each_gateway_receipt(monkeypatch):
         ("first", "error", "gateway-429"),
         ("retry", "completed", "gateway-200"),
     ]
+
+
+async def test_anthropic_gateway_raw_response_captures_wire_receipt(monkeypatch):
+    import httpx
+    from langchain_anthropic import ChatAnthropic
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    raw = SimpleNamespace(
+        http_response=httpx.Response(200, headers={"X-Oneapi-Request-ID": "anthropic-gateway"})
+    )
+    monkeypatch.setattr(ChatAnthropic, "_acreate", AsyncMock(return_value=raw))
+    model = LambChatAnthropicChatModel(model="glm-5.3", api_key="test")
+    observed = {}
+    token = quota._wire_receipt.set(observed)
+    try:
+        assert await model._acreate({"stream": True}) is raw
+    finally:
+        quota._wire_receipt.reset(token)
+
+    assert observed["gateway_request_id"] == "anthropic-gateway"
+    assert observed["http_status"] == 200
