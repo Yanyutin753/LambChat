@@ -180,12 +180,13 @@ async def anysearch_search(
     max_results: int,
     time_range: str | None,
 ) -> dict[str, Any]:
-    async with unpriced_usage(operation="web_search", provider="anysearch"):
+    async with unpriced_usage(operation="web_search", provider="anysearch") as observe:
         response = await client.post(
             ANYSEARCH_SEARCH_URL,
             json={"query": query, "max_results": max(1, min(int(max_results), 10))},
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
+        observe(response=response)
         try:
             _raise_for_status(response)
         except ProviderRequestError as exc:
@@ -193,19 +194,22 @@ async def anysearch_search(
             raise ProviderRequestError(
                 exc.status_code, "AnySearch request failed", exc.retry_after
             ) from None
-    try:
-        body = response.json()
-    except ValueError:
-        raise ProviderRequestError(502, "Invalid AnySearch response") from None
-    data = body.get("data") if isinstance(body, dict) else None
-    if (
-        not isinstance(body, dict)
-        or type(body.get("code")) is not int
-        or body["code"] != 0
-        or not isinstance(data, dict)
-        or not isinstance(data.get("results"), list)
-    ):
-        raise ProviderRequestError(502, "Invalid AnySearch response")
+        try:
+            body = response.json()
+        except ValueError:
+            raise ProviderRequestError(502, "Invalid AnySearch response") from None
+        data = body.get("data") if isinstance(body, dict) else None
+        if (
+            not isinstance(body, dict)
+            or type(body.get("code")) is not int
+            or body["code"] != 0
+            or not isinstance(data, dict)
+            or not isinstance(data.get("results"), list)
+        ):
+            raise ProviderRequestError(502, "Invalid AnySearch response")
+        observe(
+            response=response, result_count=len(data["results"]), request_id=body.get("request_id")
+        )
     results = [
         {
             "title": _clean(item.get("title")) or "",
@@ -239,7 +243,7 @@ async def deepseek_search(
         search_query = f"{query} after:{after}"
     if not search_query.strip() or len(search_query) > 128:
         raise ProviderRequestError(400, "DeepSeek query must contain 1 to 128 characters")
-    async with unpriced_usage(operation="web_search", provider="deepseek"):
+    async with unpriced_usage(operation="web_search", provider="deepseek") as observe:
         response = await client.post(
             DEEPSEEK_SEARCH_URL,
             json={
@@ -249,18 +253,20 @@ async def deepseek_search(
             },
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
+        observe(response=response)
         try:
             _raise_for_status(response)
         except ProviderRequestError as exc:
             raise ProviderRequestError(
                 exc.status_code, "DeepSeek request failed", exc.retry_after
             ) from None
-    try:
-        body = response.json()
-    except ValueError:
-        raise ProviderRequestError(502, "Invalid DeepSeek response") from None
-    if not isinstance(body, dict) or not isinstance(body.get("results"), list):
-        raise ProviderRequestError(502, "Invalid DeepSeek response")
+        try:
+            body = response.json()
+        except ValueError:
+            raise ProviderRequestError(502, "Invalid DeepSeek response") from None
+        if not isinstance(body, dict) or not isinstance(body.get("results"), list):
+            raise ProviderRequestError(502, "Invalid DeepSeek response")
+        observe(response=response, result_count=len(body["results"]))
     results = []
     for item in body["results"]:
         if not isinstance(item, dict):
@@ -309,15 +315,20 @@ async def tavily_search(
     if time_range:
         body["time_range"] = time_range
 
-    async with unpriced_usage(operation="web_search", provider="tavily"):
+    async with unpriced_usage(operation="web_search", provider="tavily") as observe:
         response = await client.post(
             TAVILY_SEARCH_URL,
             json=body,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
+        observe(response=response)
         _raise_for_status(response)
-    data = response.json()
+        data = response.json()
 
+        observe(
+            response=response,
+            result_count=len(data["results"]) if isinstance(data.get("results"), list) else None,
+        )
     results = [
         {
             "title": _clean(item.get("title")) or "",
@@ -367,16 +378,21 @@ async def brave_search(
     if time_range:
         params["freshness"] = _BRAVE_FRESHNESS[time_range]
 
-    async with unpriced_usage(operation="web_search", provider="brave"):
+    async with unpriced_usage(operation="web_search", provider="brave") as observe:
         response = await client.get(
             BRAVE_SEARCH_URL,
             params=params,
             headers={"Accept": "application/json", "X-Subscription-Token": api_key},
         )
+        observe(response=response)
         _raise_for_status(response)
-    data = response.json()
+        data = response.json()
 
-    web = data.get("web") or {}
+        web = data.get("web") or {}
+        observe(
+            response=response,
+            result_count=len(web["results"]) if isinstance(web.get("results"), list) else None,
+        )
     results = [
         {
             "title": _clean(item.get("title")) or "",
