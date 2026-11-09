@@ -150,6 +150,25 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, urgent=True)
 
 
+def _already_delivered(run: _ArtifactRunState, url: str) -> bool:
+    """URL 本身或其代理 storage key 已在本轮交付过 → 跳过（同文件双卡）。"""
+    if url in run.delivered_reveal_keys:
+        return True
+    proxy_key = _extract_upload_proxy_key(url)
+    return proxy_key is not None and proxy_key in run.delivered_reveal_keys
+
+
+def _record_delivered_keys(run: _ArtifactRunState, parsed: dict[str, Any] | None) -> None:
+    if not isinstance(parsed, dict):
+        return
+    for value in (parsed.get("key"), parsed.get("url")):
+        if isinstance(value, str) and value:
+            run.delivered_reveal_keys.add(value)
+            proxy_key = _extract_upload_proxy_key(value)
+            if proxy_key:
+                run.delivered_reveal_keys.add(proxy_key)
+
+
 def _normalize_path(path: str) -> str:
     parsed = _safe_urlparse(path.strip())
     if parsed is not None and parsed.scheme in {"http", "https"} and parsed.netloc:

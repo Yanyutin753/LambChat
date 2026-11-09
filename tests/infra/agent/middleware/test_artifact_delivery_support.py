@@ -44,8 +44,5 @@ def test_should_skip_auto_artifact_tolerates_malformed_ipv6() -> None:
 
 
 def test_extract_file_urls_from_text_skips_malformed_ipv6() -> None:
-    text = (
-        "结果见 http://[::1:8080/report.pdf 与 "
-        "https://example.com/report.png 两个文件"
-    )
+    text = "结果见 http://[::1:8080/report.pdf 与 https://example.com/report.png 两个文件"
     assert _extract_file_urls_from_text(text) == ["https://example.com/report.png"]

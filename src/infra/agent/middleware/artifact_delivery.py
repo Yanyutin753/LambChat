@@ -23,18 +23,19 @@ from src.infra.agent.middleware._artifact_delivery_support import (
     _EXECUTE_SNAPSHOT_MAX_CHANGED_FILES,
     RevealTool,
     StagedArtifact,
+    _already_delivered,
     _ArtifactRunState,
     _coerce_int,
     _coerce_str,
     _content_to_text,
     _extract_file_urls_from_text,
-    _extract_upload_proxy_key,
     _file_info_value,
     _json_dumps_result,
     _list_backend_files,
     _normalize_path,
     _parse_jsonish,
     _path_from_reveal_result,
+    _record_delivered_keys,
     _reveal_error,
     _runtime_with_graph_config,
     _should_skip_auto_artifact,
@@ -263,7 +264,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             if not content:
                 continue
             for url in _extract_file_urls_from_text(content):
-                if self._already_delivered(run, url):
+                if _already_delivered(run, url):
                     continue
                 self._stage_path(
                     run,
@@ -272,25 +273,6 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                     description="External file linked by the agent",
                     priority="intermediate",
                 )
-
-    @staticmethod
-    def _already_delivered(run: _ArtifactRunState, url: str) -> bool:
-        """URL 本身或其代理 storage key 已在本轮交付过 → 跳过（同文件双卡）。"""
-        if url in run.delivered_reveal_keys:
-            return True
-        proxy_key = _extract_upload_proxy_key(url)
-        return proxy_key is not None and proxy_key in run.delivered_reveal_keys
-
-    @staticmethod
-    def _record_delivered_keys(run: _ArtifactRunState, parsed: dict[str, Any] | None) -> None:
-        if not isinstance(parsed, dict):
-            return
-        for value in (parsed.get("key"), parsed.get("url")):
-            if isinstance(value, str) and value:
-                run.delivered_reveal_keys.add(value)
-                proxy_key = _extract_upload_proxy_key(value)
-                if proxy_key:
-                    run.delivered_reveal_keys.add(proxy_key)
 
     @staticmethod
     def _explicit_path(args: dict[str, Any]) -> str | None:
@@ -378,7 +360,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return False
 
         normalized_path = _normalize_path(path)
-        self._record_delivered_keys(run, parsed)
+        _record_delivered_keys(run, parsed)
         run.artifact_generations[normalized_path] = (
             run.artifact_generations.get(normalized_path, 0) + 1
         )
@@ -771,7 +753,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                 delivered = self._failed_artifact_payload(artifact, error)
                 status = "error"
             else:
-                self._record_delivered_keys(run, parsed if isinstance(parsed, dict) else None)
+                _record_delivered_keys(run, parsed if isinstance(parsed, dict) else None)
                 delivered = self._artifact_payload_from_reveal_content(artifact, content, args)
                 status = "success"
         except Exception as exc:
