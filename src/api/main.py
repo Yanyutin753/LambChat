@@ -61,6 +61,7 @@ from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
 from src.api.routes.agent import model as agent_model
 from src.api.routes.auth import pat as auth_pat
+from src.api.startup_dependency import run_startup_step_with_retry
 from src.api.startup_indexes import get_startup_index_initializers as _startup_index_initializers
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.async_utils import run_blocking_io
@@ -430,7 +431,7 @@ async def lifespan(app: FastAPI):
         from src.infra.role.storage import RoleStorage
 
         role_storage = RoleStorage()
-        await role_storage.init_default_roles()
+        await run_startup_step_with_retry("default roles init", role_storage.init_default_roles)
         logger.info("Default roles initialized")
     except Exception as e:
         logger.error("Failed to initialize default roles: %s", e)
@@ -458,7 +459,7 @@ async def lifespan(app: FastAPI):
     access_logger.addHandler(access_handler)
 
     # 从数据库初始化设置
-    await initialize_settings()
+    await run_startup_step_with_retry("settings init", initialize_settings)
     logger.info("Settings initialized from database")
 
     validate_distributed_runtime_settings(settings)
