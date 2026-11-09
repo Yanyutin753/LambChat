@@ -657,8 +657,38 @@ async def test_empty_stream_does_not_certify_zero_usage(monkeypatch, include_usa
     finish = AsyncMock()
     monkeypatch.setattr(model, "_quota_begin", AsyncMock(return_value="ticket"))
     monkeypatch.setattr(model, "_quota_finish", finish)
-    _ = [chunk async for chunk in model._astream([])]
+    # A fallback can run inside the primary's exception handler.
+    try:
+        raise RuntimeError("primary failed")
+    except RuntimeError:
+        _ = [chunk async for chunk in model._astream([])]
     assert finish.await_args.kwargs["usage_valid"] is include_usage
     assert finish.await_args.kwargs["status"] == ("completed" if include_usage else "error")
     if not include_usage:
         assert str(finish.await_args.kwargs["error"]) == "No generations found in stream."
+
+
+async def test_failed_attempt_receipt_preserves_outcome_without_assuming_zero_cost():
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 0, "unknown": True}))
+    owner = SimpleNamespace(record_usage_receipt=AsyncMock())
+    reservation = {"id": "attempt", "context": {"model": "primary", "operation": "llm"}}
+    from httpx import HTTPStatusError, Request, Response
+
+    request = Request("POST", "https://example.test/messages")
+    response = Response(429, headers={"X-Oneapi-Request-Id": "gateway-attempt-1"})
+    error = HTTPStatusError("private provider response body", request=request, response=response)
+    await QuotaChatMixin()._quota_finish(
+        (ledger, reservation, PriceRates(), owner),
+        None,
+        usage_valid=False,
+        status="error",
+        error=error,
+    )
+    ledger.settle.assert_awaited_once_with(reservation, None)
+    receipt = owner.record_usage_receipt.await_args.args[0]
+    assert receipt["status"] == "error"
+    assert receipt["http_status"] == 429
+    assert receipt["provider_request_id"] == "gateway-attempt-1"
+    assert receipt["operation"] == "llm"
+    assert receipt["unknown"] is True
+    assert "private provider response body" not in repr(receipt)
