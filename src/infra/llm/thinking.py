@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from src.infra.llm.providers import (
     _parse_provider,
@@ -19,6 +19,26 @@ from src.infra.llm.providers import (
     is_zhipu_thinking_model as _is_zhipu_thinking_model,
 )
 from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
+
+
+class _TemperatureOmit:
+    """Sentinel：强制省略 temperature 字段（完全不发送）。
+
+    effort 时代（4.7+/5）模型对非默认采样参数一律拒绝；CC Max 池类中转
+    （如 luban 网关）更对 temperature 字段本身即 400——即使默认值 1.0 也不行。
+    省略对官方等价默认 1.0，是两端唯一安全形态。区别于 None 的「沿用调用方
+    取值」语义。
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return "TEMPERATURE_OMIT"
+
+
+TEMPERATURE_OMIT = _TemperatureOmit()
+
+TemperatureOverride = Union[float, _TemperatureOmit]
 
 # Maximum-compatibility policy: every model family only receives thinking
 # parameters documented as supported by its provider; unverified combinations
@@ -125,15 +145,17 @@ def _resolve_zhipu_thinking_body(
 def _resolve_anthropic_thinking(
     model_name: str,
     thinking: Optional[dict[str, Any]],
-) -> tuple[Optional[dict[str, Any]], Optional[str], Optional[float]]:
+) -> tuple[Optional[dict[str, Any]], Optional[str], Optional[TemperatureOverride]]:
     """Resolve (thinking_param, effort_param, temperature_override) for Claude.
 
     Family eras: legacy (<= claude-3-5) and the 4.6 gap accept nothing;
     manual era (3.7 ~ 4.5) uses thinking+budget_tokens with temperature=1;
     effort era (4.7+/5) uses effort only — manual "enabled" is rejected there
     (and triggers a client-side ValueError for claude-opus-5*). Without a
-    thinking config, 4.7+/5 still forces temperature=1 (they reject
-    non-default sampling parameters, #1218); other families send nothing.
+    thinking config, 4.7+/5 still suppresses the temperature field entirely
+    (TEMPERATURE_OMIT): they reject non-default sampling parameters (#1218),
+    and CC-Max style relays 400 on the field itself even at the default 1.0,
+    while omitting equals the default for the official API.
     """
     if is_deepseek_thinking_model(model_name):
         if not thinking:
@@ -145,11 +167,12 @@ def _resolve_anthropic_thinking(
     if not thinking:
         # 未配置思考的调用方（标题生成/记忆压缩等）不注入思考参数；但 4.7+/5
         # 系拒绝非默认采样参数，辅助调用的 0.1/0.3 温度不得透传（#1218），
-        # 回落默认 temperature=1.0；老家族保持原行为。
+        # 一律省略 temperature 字段（官方等价默认 1.0，中转对字段本身即 400）；
+        # 老家族保持原行为。
         if match is not None:
             version = _version_tuple(match)
             if version[0] >= 5 or version >= (4, 7):
-                return None, None, 1.0
+                return None, None, TEMPERATURE_OMIT
         return None, None, None
     # GLM 思考系挂在 Anthropic 协议渠道（zai 等）：注入 Claude Code 同款 thinking
     # 体（智谱 Anthropic 兼容端点直接接受）。5.2/5.3 同时传 output_config.effort；
@@ -166,8 +189,9 @@ def _resolve_anthropic_thinking(
     if version[0] >= 5 or version >= (4, 7):
         level = str(thinking.get("level") or "low")
         effort = _EFFORT_BY_LEVEL.get(level, "low")
-        # Newest models also reject non-default sampling parameters outright.
-        return None, effort, 1.0
+        # Newest models reject non-default sampling parameters outright, and
+        # CC-Max style relays reject the temperature field itself — omit it.
+        return None, effort, TEMPERATURE_OMIT
     if version == (4, 6):
         # Manual thinking returns 400 and adaptive thinking is only accepted
         # on 4.7+/Sonnet 5 — no verified combination, send nothing.
