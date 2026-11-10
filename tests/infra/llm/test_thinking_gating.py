@@ -272,12 +272,31 @@ def test_claude_4_6_gap_sends_nothing() -> None:
 
 
 def test_claude_effort_era_receives_effort_only() -> None:
-    for model_name in ("claude-opus-5", "claude-sonnet-5", "claude-opus-4-7"):
+    for model_name in (
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-opus-4-7",
+        "claude-opus-5-5",
+        "claude-fable-5-2",
+    ):
         model = _anthropic_model(model_name, ENABLED("low"))
         assert model.thinking is None, model_name
         assert model.reasoning_effort == "low", model_name
-        # newest models also reject non-default sampling parameters
-        assert model.temperature == 1.0, model_name
+        # newest models reject non-default sampling parameters; omitting the
+        # field equals the default (1.0) and is the only form CC-Max style
+        # relays accept, so the field must not be sent at all
+        assert model.temperature is None, model_name
+
+
+def test_claude_effort_era_omits_temperature_for_relay_gateways() -> None:
+    # CC Max 池类中转（luban 网关）对 temperature 字段本身即 400
+    # （"`temperature` is deprecated for this model"），即使默认值 1.0 也不行；
+    # 官方对省略等价默认 1.0 —— effort 时代一律省略，调用方温度不得透传。
+    for temperature in (None, 0.7, 0.1):
+        for model_name in ("claude-opus-5-5", "claude-fable-5-2", "claude-sonnet-5"):
+            model = _anthropic_model(model_name, ENABLED("medium"), temperature=temperature)
+            assert model.temperature is None, (model_name, temperature)
+            assert model.reasoning_effort == "medium", model_name
 
 
 def test_claude_effort_era_max_maps_to_high() -> None:
@@ -285,14 +304,15 @@ def test_claude_effort_era_max_maps_to_high() -> None:
     assert model.reasoning_effort == "high"
 
 
-def test_anthropic_without_thinking_new_claude_forces_default_temperature() -> None:
+def test_anthropic_without_thinking_new_claude_omits_temperature() -> None:
     # #1218：4.7+/5 系拒绝非默认采样参数——未配置思考的辅助调用
-    # （标题生成/记忆压缩等传 0.1/0.3）不得透传，回落 temperature=1
+    # （标题生成/记忆压缩等传 0.1/0.3）不得透传；回落方式为完全省略字段
+    # （等价默认 1.0，且 CC Max 池类中转对 temperature 字段本身即 400）
     for model_name in ("claude-opus-5", "claude-sonnet-5", "claude-opus-4-7"):
         model = _anthropic_model(model_name, None)
         assert model.thinking is None, model_name
         assert model.reasoning_effort is None, model_name
-        assert model.temperature == 1.0, model_name
+        assert model.temperature is None, model_name
 
 
 def test_anthropic_without_thinking_old_models_keep_caller_temperature() -> None:

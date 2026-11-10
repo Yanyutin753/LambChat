@@ -47,6 +47,7 @@ from src.infra.llm.providers import (
     normalize_provider,
 )
 from src.infra.llm.thinking import (
+    TEMPERATURE_OMIT,
     _resolve_anthropic_thinking,
     _resolve_gemini_thinking_level,
     _resolve_reasoning_effort,
@@ -300,7 +301,9 @@ class LLMClient:
             anthropic_kwargs: dict[str, Any] = {
                 "model_name": model_name,
                 "temperature": (
-                    temperature_override if temperature_override is not None else temperature
+                    None
+                    if temperature_override is TEMPERATURE_OMIT
+                    else (temperature_override if temperature_override is not None else temperature)
                 ),
                 "max_tokens": effective_max_tokens,
                 "thinking": anthropic_thinking,
