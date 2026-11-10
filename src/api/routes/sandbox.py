@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator, Optional
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
+from starlette.requests import ClientDisconnect
 
 from src.api.deps import require_pat_only, require_pat_scope
 from src.infra.auth.pat import PATStorage
@@ -402,21 +403,21 @@ async def sandbox_result_stream(
                     await _push_stream_frame(redis, key, _frames.encode_frame(ftype, payload))
     except AppError:
         raise
-    except ValueError:
-        # 帧超限（try_parse_frame 的载荷上限）：哨兵补齐后按 413 拒绝
+    except ValueError:  # 帧超限（try_parse_frame 载荷上限）：哨兵补齐后按 413 拒绝
         await _push_stream_error(redis, key, "sandbox_payload_too_large")
         raise AppError(ErrorCode.SANDBOX_PAYLOAD_TOO_LARGE) from None
+    except ClientDisconnect:  # 客户端断开=预期运维事件：补哨兵后静默返回不刷未处理 ERROR
+        await _push_stream_error(redis, key, "stream_interrupted")
+        return {"status": "ok"}
     except (Exception, asyncio.CancelledError):
         # 包含滚动停机的取消：保留中断哨兵，让消费端及时结束等待。
         await asyncio.shield(_push_stream_error(redis, key, "stream_interrupted"))
         raise
     if buffer:
         await _push_stream_error(redis, key, "stream_interrupted")
-    elif saw_eof:
-        # HTTP body 读完才发布成功，不能把仍在途的传输提前提交。
+    elif saw_eof:  # body 读完才发布成功，不能把仍在途的传输提前提交
         await _push_stream_frame(redis, key, _frames.encode_frame(_frames.FRAME_EOF))
-    else:
-        # body 结束但没有 eof 帧（daemon 断连/中途崩溃）
+    else:  # body 结束但没有 eof 帧（daemon 断连/中途崩溃）
         await _push_stream_error(redis, key, "stream_interrupted")
     return {"status": "ok"}
 
