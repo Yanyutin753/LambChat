@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import ParseResult, unquote, urlparse
 
 from langchain_core.messages import ToolMessage
 
@@ -117,11 +118,26 @@ class _ArtifactRunState:
 
 _UPLOAD_PROXY_KEY_PREFIX = "/api/upload/file/"
 
+logger = logging.getLogger(__name__)
+
+
+def _safe_urlparse(value: str) -> ParseResult | None:
+    """urlparse 对伪 URL（未闭合 IPv6 方括号/裸 ] 等）抛 ValueError: Invalid IPv6 URL。
+
+    #1220：按「非目标形态」语义容错返回 None，调用方各自回落默认分支（与
+    #1032 分享页 urlsplit 容错同族）；warning 不记录可能含凭据的 URL。
+    """
+    try:
+        return urlparse(value)
+    except ValueError:
+        logger.warning("Malformed URL ignored during artifact scan")
+        return None
+
 
 def _extract_upload_proxy_key(url: str) -> str | None:
     """提取本站上传代理 URL（/api/upload/file/<key>）的 storage key；非该形态返回 None。"""
-    parsed = urlparse(url.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    parsed = _safe_urlparse(url.strip())
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return None
     path = unquote(parsed.path or "")
     if _UPLOAD_PROXY_KEY_PREFIX not in path:
@@ -134,9 +150,28 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
     return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, urgent=True)
 
 
+def _already_delivered(run: _ArtifactRunState, url: str) -> bool:
+    """URL 本身或其代理 storage key 已在本轮交付过 → 跳过（同文件双卡）。"""
+    if url in run.delivered_reveal_keys:
+        return True
+    proxy_key = _extract_upload_proxy_key(url)
+    return proxy_key is not None and proxy_key in run.delivered_reveal_keys
+
+
+def _record_delivered_keys(run: _ArtifactRunState, parsed: dict[str, Any] | None) -> None:
+    if not isinstance(parsed, dict):
+        return
+    for value in (parsed.get("key"), parsed.get("url")):
+        if isinstance(value, str) and value:
+            run.delivered_reveal_keys.add(value)
+            proxy_key = _extract_upload_proxy_key(value)
+            if proxy_key:
+                run.delivered_reveal_keys.add(proxy_key)
+
+
 def _normalize_path(path: str) -> str:
-    parsed = urlparse(path.strip())
-    if parsed.scheme in {"http", "https"} and parsed.netloc:
+    parsed = _safe_urlparse(path.strip())
+    if parsed is not None and parsed.scheme in {"http", "https"} and parsed.netloc:
         return path.strip()
     return path.strip().replace("\\", "/").replace("//", "/").rstrip("/")
 
@@ -175,8 +210,10 @@ def _coerce_str(value: Any) -> str | None:
 
 
 def _should_skip_auto_artifact(path: str) -> bool:
-    parsed = urlparse(path.strip())
-    normalized = unquote(parsed.path if parsed.scheme in {"http", "https"} else path)
+    parsed = _safe_urlparse(path.strip())
+    normalized = unquote(
+        parsed.path if parsed is not None and parsed.scheme in {"http", "https"} else path
+    )
     normalized = normalized.replace("\\", "/")
     parts = [part for part in normalized.split("/") if part]
     if any(part in _IGNORED_PATH_PARTS for part in parts):
@@ -204,8 +241,8 @@ def _content_to_text(content: Any) -> str:
 
 
 def _is_auto_deliverable_url(url: str) -> bool:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    parsed = _safe_urlparse(url)
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return False
     clean_path = unquote(parsed.path)
     extension = os.path.splitext(clean_path)[1].lower()
