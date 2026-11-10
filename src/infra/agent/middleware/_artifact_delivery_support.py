@@ -125,12 +125,12 @@ def _safe_urlparse(value: str) -> ParseResult | None:
     """urlparse 对伪 URL（未闭合 IPv6 方括号/裸 ] 等）抛 ValueError: Invalid IPv6 URL。
 
     #1220：按「非目标形态」语义容错返回 None，调用方各自回落默认分支（与
-    #1032 分享页 urlsplit 容错同族）；warning 留下 URL 原文，便于定位产出源。
+    #1032 分享页 urlsplit 容错同族）；warning 不记录可能含凭据的 URL。
     """
     try:
         return urlparse(value)
     except ValueError:
-        logger.warning("Malformed URL ignored during artifact scan: %r", value)
+        logger.warning("Malformed URL ignored during artifact scan")
         return None
 
 
