@@ -309,6 +309,6 @@ def test_model_config_normalizes_provider_slug() -> None:
 
 
 def test_model_supports_thinking_normalized_provider() -> None:
-    from src.infra.llm.client import model_supports_thinking
+    from src.infra.llm.thinking import model_supports_thinking
 
     assert model_supports_thinking("ZAI", "glm-5.3-flash") is True

@@ -3,8 +3,9 @@ from copy import deepcopy
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from src.infra.llm.client import LLMClient, model_supports_thinking
+from src.infra.llm.client import LLMClient
 from src.infra.llm.reasoning_patch import apply_reasoning_patches
+from src.infra.llm.thinking import model_supports_thinking
 
 
 def history():

@@ -116,8 +116,8 @@ async def list_available_models(
 
     logger.info(f"[Model] Found {len(models)} visible models for user_id={user.sub}")
 
-    from src.infra.llm.client import model_supports_thinking
     from src.infra.llm.models_service import select_default_model
+    from src.infra.llm.thinking import model_supports_thinking
 
     default_model = select_default_model([m.model_dump() for m in models])
 

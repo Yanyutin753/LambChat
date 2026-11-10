@@ -1755,3 +1755,29 @@ async def test_results_stream_rejects_frames_after_eof_without_publishing_succes
     stored = redis.lists["sandbox:stream:u1:call-s1"]
     assert all(try_parse_frame(frame)[0] != FRAME_EOF for frame in stored)
     assert try_parse_frame(stored[-1])[0] == FRAME_ERROR
+
+
+async def test_results_stream_client_disconnect_pushes_sentinel_quietly(monkeypatch):
+    """daemon 回传中断开（关窗/断网重试）：ClientDisconnect 是预期运维事件，
+    必须推 stream_interrupted 哨兵且静默返回——不再以未处理 ERROR 刷全局
+    错误日志（生产 4 分钟 5 条实测）。"""
+    from starlette.requests import ClientDisconnect
+
+    from src.infra.sandbox.relay._frames import FRAME_ERROR, try_parse_frame
+
+    redis = _FakeRedis()
+    _stream_app(monkeypatch, redis)
+
+    class DisconnectedRequest:
+        async def stream(self):
+            raise ClientDisconnect
+            yield b""
+
+    result = await sandbox_route.sandbox_result_stream(
+        call_id="call-s1", request=DisconnectedRequest(), machine_id="", user=_fake_user()
+    )
+    assert result == {"status": "ok"}
+    stored = redis.lists["sandbox:stream:u1:call-s1"]
+    frame, body, _ = try_parse_frame(stored[-1])
+    assert frame == FRAME_ERROR
+    assert json.loads(body)["error"] == "stream_interrupted"
