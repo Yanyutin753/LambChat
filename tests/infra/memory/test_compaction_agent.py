@@ -1745,3 +1745,48 @@ async def test_minimum_skip_reports_why_without_starting_a_model(monkeypatch):
         "reason": "below_minimum",
     }
     agent._get_compaction_model.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_after_write_done_logs_skip_not_error_on_rate_limit(caplog):
+    import logging
+
+    import anthropic
+    import httpx
+
+    request = httpx.Request("POST", "https://api.invalid/v1/messages")
+    rate_limit = anthropic.RateLimitError(
+        "rate limited",
+        response=httpx.Response(429, request=request),
+        body={},
+    )
+
+    async def failing() -> dict:
+        raise rate_limit
+
+    agent = MemoryCompactionAgent()
+    task = asyncio.create_task(failing())
+    await asyncio.sleep(0)
+
+    with caplog.at_level(logging.INFO, logger="src.infra.memory.compaction_agent"):
+        agent._after_write_compaction_done("u1", task)  # type: ignore[arg-type]
+
+    assert "after-write skipped: u1 (rate_limit)" in caplog.text
+    assert "after-write background failed" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_after_write_done_still_errors_on_unclassified_failure(caplog):
+    import logging
+
+    async def failing() -> dict:
+        raise RuntimeError("boom")
+
+    agent = MemoryCompactionAgent()
+    task = asyncio.create_task(failing())
+    await asyncio.sleep(0)
+
+    with caplog.at_level(logging.INFO, logger="src.infra.memory.compaction_agent"):
+        agent._after_write_compaction_done("u2", task)  # type: ignore[arg-type]
+
+    assert "after-write background failed" in caplog.text

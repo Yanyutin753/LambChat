@@ -20,7 +20,7 @@ from pymongo import UpdateOne
 
 from src.infra.agent.middleware.retry import create_retry_middleware
 from src.infra.async_utils import run_blocking_io
-from src.infra.llm.quota import bind_quota_user
+from src.infra.llm.quota import aux_model_call_skip_reason, bind_quota_user
 from src.infra.logging import get_logger
 from src.infra.memory.compaction_policy import (
     _COMPACTION_EXCLUDED_SOURCES,
@@ -43,6 +43,8 @@ from src.infra.session.conversation_history_index import merge_source_refs
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+
+_COMPACT_LOCK_SKIP_REASONS = {"lock_not_acquired", "lock_unavailable"}
 
 _memory_compaction_agent: MemoryCompactionAgent | None = None
 
@@ -203,10 +205,7 @@ class MemoryCompactionAgent:
     ) -> dict[str, Any]:
         with tracing_context(parent=False):
             result = await self.compact_user_memories(backend, user_id)
-            if not (
-                result.get("skipped")
-                and result.get("reason") in {"lock_not_acquired", "lock_unavailable"}
-            ):
+            if not (result.get("skipped") and result.get("reason") in _COMPACT_LOCK_SKIP_REASONS):
                 await self._mark_attempt(user_id)
         logger.info(
             "[MemoryCompactionAgent] after-write background completed for %s: %s",
@@ -231,7 +230,10 @@ class MemoryCompactionAgent:
             return
         try:
             result = task.result()
-        except Exception:
+        except Exception as exc:
+            if (reason := aux_model_call_skip_reason(exc)) is not None:
+                logger.info("[MemoryCompactionAgent] after-write skipped: %s (%s)", user_id, reason)
+                return
             logger.exception(
                 "[MemoryCompactionAgent] after-write background failed for %s", user_id
             )

@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables.config import var_child_runnable_config
 from pydantic import Field
 
+from src.infra.llm.retry import is_rate_limit_model_error
 from src.infra.pricing.auxiliary_models import input_cost_usd, model_counts
 from src.infra.pricing.calculator import (
     CostBreakdown,
@@ -160,6 +161,18 @@ def quota_preflight_skip_reason(error: BaseException) -> str | None:
     if isinstance(error, AppError) and error.error_code is ErrorCode.UNAUTHORIZED:
         return "user_inactive"
     return None
+
+
+def aux_model_call_skip_reason(error: BaseException) -> str | None:
+    """后台辅助模型调用（记忆压缩 after-write 等）的异常归类；None = 原样上抛。
+
+    detach 的 after-write 压缩无重试包装，上游 429[1302] 限流窗口首调即败，
+    每次都以 ERROR+Traceback 落日志（生产 3 次/2 用户实测）；归类后调用方走
+    INFO skip 路径，压缩随下次写入自然重试。
+    """
+    if is_rate_limit_model_error(error):
+        return "rate_limit"
+    return quota_preflight_skip_reason(error)
 
 
 def bind_quota_user(function):
