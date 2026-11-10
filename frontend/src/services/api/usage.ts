@@ -181,6 +181,7 @@ export interface UsageLogsParams {
   skip?: number;
   limit?: number;
   user_id?: string;
+  assistant_id?: string;
   model?: string;
   start_date?: string;
   end_date?: string;
@@ -189,6 +190,7 @@ export interface UsageLogsParams {
 
 export interface UsageStatsParams {
   user_id?: string;
+  assistant_id?: string;
   period?: "today" | "week" | "month" | "all";
   /** ISO 起始时间（含时区），优先于 period 推导；今日按客户端本地 0 点传 */
   start_date?: string;
@@ -347,6 +349,8 @@ export const usageApi = {
     if (params.limit !== undefined)
       searchParams.append("limit", params.limit.toString());
     if (params.user_id) searchParams.append("user_id", params.user_id);
+    if (params.assistant_id)
+      searchParams.append("assistant_id", params.assistant_id);
     if (params.model) searchParams.append("model", params.model);
     if (params.start_date) searchParams.append("start_date", params.start_date);
     if (params.end_date) searchParams.append("end_date", params.end_date);
@@ -363,6 +367,8 @@ export const usageApi = {
   async getStats(params: UsageStatsParams = {}): Promise<UsageStats> {
     const searchParams = new URLSearchParams();
     if (params.user_id) searchParams.append("user_id", params.user_id);
+    if (params.assistant_id)
+      searchParams.append("assistant_id", params.assistant_id);
     if (params.period && params.period !== "all")
       searchParams.append("period", params.period);
     if (params.start_date) searchParams.append("start_date", params.start_date);
@@ -378,6 +384,8 @@ export const usageApi = {
   ): Promise<UsageDashboardResponse> {
     const searchParams = new URLSearchParams();
     if (params.user_id) searchParams.append("user_id", params.user_id);
+    if (params.assistant_id)
+      searchParams.append("assistant_id", params.assistant_id);
     if (params.period) searchParams.append("period", params.period);
     if (params.model) searchParams.append("model", params.model);
     if (params.search) searchParams.append("search", params.search);

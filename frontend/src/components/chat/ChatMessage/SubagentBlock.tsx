@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { useAssistantGroupMembers } from "../../assistants/AssistantGroupContext";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
@@ -125,6 +126,7 @@ export function SubagentBlock({
     status,
   });
   const { t } = useTranslation();
+  const inGroup = useAssistantGroupMembers() !== null;
   const roleIconMeta = getSubagentRoleIconMeta(agent_name);
   const fallbackIcon =
     roleIconMeta.kind === "general" ? undefined : roleIconMeta.icon;
@@ -133,6 +135,7 @@ export function SubagentBlock({
   // 这里只负责自动开启判定，不再直接写 store——组件卸载不应冻结/清空侧边栏。
 
   useEffect(() => {
+    if (inGroup) return;
     if (isPersistentToolPanelOpen(panelKey)) {
       // 状态/页脚由 PersistentToolPanelHost 订阅 store 实时刷新
       return;
@@ -173,6 +176,7 @@ export function SubagentBlock({
       });
     }
   }, [
+    inGroup,
     agent_id,
     agent_name,
     input,

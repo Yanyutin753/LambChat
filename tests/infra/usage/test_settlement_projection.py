@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from bson import BSON, Int64
 
 from src.infra.pricing import backfill
 from src.infra.usage.cost_certainty import _usage_cost_fields
@@ -14,8 +15,9 @@ from src.kernel.schemas.usage import UsageLog
 
 @pytest.mark.parametrize("complete", [True, False])
 @pytest.mark.parametrize("mixed", [True, False])
+@pytest.mark.parametrize("units", [123, 8_345_754_000, Int64(123)])
 async def test_settlement_projection_preserves_amount_and_actual_models(
-    monkeypatch, complete, mixed
+    monkeypatch, complete, mixed, units
 ):
     models = [{"model": "fallback", "model_id": "b", "provider": "openai"}]
     if mixed:
@@ -24,17 +26,20 @@ async def test_settlement_projection_preserves_amount_and_actual_models(
         model="selected",
         model_id="selected-id",
         unknown_usage_fields=["input_tokens"],
-        settlement_usage={"cost_units": 123, "cost_complete": complete, "actual_models": models},
+        settlement_usage={"cost_units": units, "cost_complete": complete, "actual_models": models},
     )["data"]
     assert data["cost_source"] == "provider_settlement"
     assert "cost_rates" not in data
-    assert data["model"] == ("mixed" if mixed else "fallback")
+    assert data["model"] == ("fallback / primary" if mixed else "fallback")
     assert data["model_id"] == ("" if mixed else "b")
     field = "cost_usd" if complete else "partial_cost_usd"
-    assert data[field] == 123 / 1_000_000_000
+    assert data[field] == units / 1_000_000_000
     storage = UsageStorage()
     storage._collection = SimpleNamespace(update_one=AsyncMock())
     monkeypatch.setattr(storage, "_get_session_metadata", AsyncMock(return_value={}))
+    persisted = BSON.encode(data).decode()
+    if mixed:
+        persisted["model"] = "mixed"
     await storage.upsert_usage_log_from_trace_metadata(
         {
             "trace_id": "t",
@@ -44,7 +49,7 @@ async def test_settlement_projection_preserves_amount_and_actual_models(
             "event_revision": 5,
             "metadata": {"model": "selected", "model_id": "selected-id"},
         },
-        data,
+        persisted,
     )
     query, mutation = storage.collection.update_one.await_args.args
     doc = mutation["$set"]
@@ -57,7 +62,7 @@ async def test_settlement_projection_preserves_amount_and_actual_models(
     assert doc["cost_rates"] is None
     assert doc["actual_models"] == models
     assert query["$or"][1]["trace_event_revision"]["$lte"] == 5
-    assert UsageLog(**doc).cost_units == 123
+    assert UsageLog(**doc).cost_units == units
     assert _usage_cost_fields(doc)["cost_available"] is complete
 
 
@@ -98,7 +103,7 @@ def test_known_new_model_does_not_relabel_unknown_historical_models():
             "model_identity_complete": False,
         },
     )["data"]
-    assert data["model"] == "mixed"
+    assert data["model"] == "new"
     assert data["model_id"] == ""
     assert data["actual_models"] == models
     assert data["model_identity_complete"] is False
@@ -116,3 +121,33 @@ def test_usage_event_retains_call_receipts_for_restart_deduplication():
     )["data"]
     for key, value in carry.items():
         assert data[key] == value
+
+
+def test_zero_unresolved_settlement_is_not_a_known_zero_price():
+    fields = _usage_cost_fields(
+        {"cost_source": "provider_settlement", "cost_units": 0, "cost_complete": False}
+    )
+    assert fields["partial_cost_usd"] is None
+    assert fields["cost_available"] is False
+
+
+@pytest.mark.parametrize("units", [True, False, -1, 1.5, "123"])
+def test_invalid_settlement_units_stay_rejected(units):
+    with pytest.raises(ValueError, match="Invalid settled cost units"):
+        create_presenter(session_id="s", agent_id="a").present_token_usage(
+            settlement_usage={"cost_units": units, "cost_complete": True}
+        )
+    assert (
+        _usage_cost_fields(
+            {"cost_source": "provider_settlement", "cost_units": units, "cost_complete": False}
+        )["partial_cost_usd"]
+        is None
+    )
+
+
+def test_model_filter_includes_actual_fallback_models():
+    query = UsageStorage()._build_query(model="fallback", user_id="owner")
+    assert query == {
+        "user_id": "owner",
+        "$or": [{"model": "fallback"}, {"actual_models.model": "fallback"}],
+    }

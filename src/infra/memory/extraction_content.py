@@ -244,3 +244,20 @@ def parse_stage_one_output(text: str) -> dict[str, Any] | None:
         "tags": tags[:5],
         "context": str(payload.get("context") or "").strip(),
     }
+
+
+def _fallback_index_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """索引字段兜底：模板要求模型直出，缺失时从 raw_memory 头部推导（避免二次
+    LLM 调用；与旧 auto-retain 的 _fallback_enrich 同思路）。"""
+    from src.infra.memory.client.native.summaries import _fallback_enrich
+
+    enriched = _fallback_enrich(payload["raw_memory"])
+    context = payload.get("context") or ""
+    if context not in {"user", "feedback", "project", "reference"}:
+        context = "project"
+    return {
+        "title": payload.get("title") or enriched["title"],
+        "summary": payload.get("summary") or enriched["summary"],
+        "tags": payload.get("tags") or enriched["tags"],
+        "context": context,
+    }

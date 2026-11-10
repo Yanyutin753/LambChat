@@ -313,7 +313,8 @@ async def test_child_mail_arriving_during_parent_final_answer_gets_processed():
         {"messages": [HumanMessage(content="Continue")]}, {"configurable": {"thread_id": "parent"}}
     )
     assert result["messages"][-1].content == "Updated answer"
-    assert not any(message.content == "Outdated answer" for message in result["messages"])
+    assert any(message.content == "Outdated answer" for message in result["messages"])
+    assert any(message.content == "Outdated answer" for message in parent.calls[-1])
     assert any("Late progress" in str(message.content) for message in parent.calls[-1])
 
 
@@ -597,6 +598,9 @@ async def test_sdk_main_graph_exposes_background_task_schema():
         ]
     )
     child = _ScriptedChatModel(script=[AIMessage(content="child done")])
+
+    # A continuation is a new provider message, even when its text is unchanged.
+    model.script.append(AIMessage(content="done"))
 
     async def build(role, inbox):
         return create_agent(child, middleware=[inbox], checkpointer=saver)
@@ -968,7 +972,9 @@ async def test_subagent_status_changes_keep_system_prefix_and_append_checkpoint_
     state = {"messages": [HumanMessage(content="Review")], "subagent_sessions": {}}
     request = Request(state=state, system_message=None)
     first = await middleware.awrap_model_call(request, handler)
-    state["subagent_sessions"] = {"child": {"subagent_type": "reviewer", "status": "completed"}}
+    state["subagent_sessions"] = {
+        "child": {"subagent_type": "reviewer", "status": "completed", "collected": True}
+    }
     update = await middleware.abefore_model(state, None)
     state["messages"].extend(update["messages"])
     state["subagent_sessions"] = update["subagent_sessions"]
@@ -977,3 +983,176 @@ async def test_subagent_status_changes_keep_system_prefix_and_append_checkpoint_
     assert '"subagent_id": "child"' in state["messages"][-1].content
     assert '"status": "completed"' in state["messages"][-1].content
     assert await middleware.abefore_model(state, None) is None
+
+
+@pytest.mark.parametrize("control", ["task", "wait_subagent", "send_subagent_message"])
+@pytest.mark.parametrize("second_approved", [False, True])
+@pytest.mark.parametrize("reuse_call_id", [False, True])
+async def test_child_sandbox_approval_passes_parent_recovery_guard(
+    control, second_approved, reuse_call_id
+):
+    from langchain.tools import ToolRuntime
+    from langgraph.types import Command, interrupt
+
+    from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
+    from src.infra.agent.recovery_guard import guard_graph_recovery
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    saver = InMemorySaver()
+    second_call_id = "child-write" if reuse_call_id else "child-write-2"
+    effects = []
+    context = {"scope": ["owner", "parent", "machine", "/workspace"], "versions": {}}
+
+    @tool
+    def write_once(runtime: ToolRuntime) -> str:
+        """Write after the sandbox approval."""
+        decision = interrupt(
+            {
+                "tool_call_id": runtime.tool_call_id,
+                "origin": "sandbox_confirm",
+                "message": "Write the test report",
+                "confirmation_context": {**context, "batch": runtime.tool_call_id},
+            }
+        )
+        assert decision["confirmation_context"] == {**context, "batch": runtime.tool_call_id}
+        if decision["approved"]:
+            effects.append("written")
+        return "saved" if decision["approved"] else "rejected"
+
+    child = _ScriptedChatModel(
+        script=[
+            AIMessage(
+                content="", tool_calls=[{"name": "write_once", "id": "child-write", "args": {}}]
+            ),
+            AIMessage(
+                content="", tool_calls=[{"name": "write_once", "id": second_call_id, "args": {}}]
+            ),
+            AIMessage(content="child done"),
+        ]
+    )
+
+    async def build(role, inbox):
+        return create_agent(child, tools=[write_once], middleware=[inbox], checkpointer=saver)
+
+    def sessions():
+        return SubagentSessions(
+            session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+        )
+
+    initial = {}
+    args = {"subagent_type": "reviewer", "description": "work"}
+    if control != "task":
+        prior = sessions()
+        started = await prior.start(
+            "reviewer", "work", call_id="original", config={}, background=True
+        )
+        await prior.jobs[started["subagent_id"]]
+        initial["subagent_sessions"] = prior.snapshot()
+        await prior.close()
+        args = {"subagent_id": started["subagent_id"]}
+        if control == "send_subagent_message":
+            args["message"] = "Continue the same task"
+
+    parent = _ScriptedChatModel(
+        script=[
+            AIMessage(
+                content="", tool_calls=[{"name": control, "id": "parent-control", "args": args}]
+            ),
+            AIMessage(content="parent done"),
+        ]
+    )
+
+    def main():
+        current = sessions()
+        current.restore(initial.get("subagent_sessions", {}))
+        return create_agent(
+            parent, middleware=[SubagentSessionMiddleware(current)], checkpointer=saver
+        )
+
+    config = {"configurable": {"thread_id": "parent"}}
+    first = await main().ainvoke({"messages": [HumanMessage(content="go")]}, config)
+    assert first.get("__interrupt__"), str([m.content for m in first["messages"]])
+    assert len(first["__interrupt__"]) == 1
+    restored = main()
+    await guard_graph_recovery(restored, config)
+    payload = first["__interrupt__"][0].value
+    assert payload["tool_call_id"] == "child-write"
+    assert payload["confirmation_context"] == {**context, "batch": "child-write"}
+    legacy = await restored.ainvoke(Command(resume={"approved": True}), config)
+    assert legacy["__interrupt__"]
+    assert effects == []
+    restored = main()
+    await guard_graph_recovery(restored, config)
+    second = await restored.ainvoke(
+        Command(
+            resume={
+                "approved": True,
+                "confirmation_context": {**context, "batch": "child-write"},
+                "_approval_subagent_interrupt_ids": payload["subagent_interrupt_ids"],
+            }
+        ),
+        config,
+    )
+    assert len(second["__interrupt__"]) == 1
+    restored_again = main()
+    await guard_graph_recovery(restored_again, config)
+    third = await restored_again.ainvoke(
+        Command(
+            resume={
+                "approved": second_approved,
+                "confirmation_context": {**context, "batch": second_call_id},
+                "_approval_subagent_interrupt_ids": second["__interrupt__"][0].value[
+                    "subagent_interrupt_ids"
+                ],
+            }
+        ),
+        config,
+    )
+    assert third["messages"][-1].content == "parent done"
+    assert effects == ["written"] * (2 if second_approved else 1)
+    assert child.i == 3
+
+
+async def test_parent_approval_pauses_running_child_without_claiming_cancellation():
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    saver = InMemorySaver()
+    entered = asyncio.Event()
+    paused = True
+
+    class SlowModel(_ScriptedChatModel):
+        async def _agenerate(self, messages, **kwargs):
+            if paused:
+                entered.set()
+                await asyncio.Event().wait()
+            return await super()._agenerate(messages, **kwargs)
+
+    model = SlowModel(script=[AIMessage(content="Recovered original assignment")])
+
+    async def build(role, inbox):
+        return create_agent(model, middleware=[inbox], checkpointer=saver)
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+    )
+    started = await sessions.start(
+        "reviewer", "Keep original work", call_id="pause", config={}, background=True
+    )
+    child = started["subagent_id"]
+    await asyncio.wait_for(entered.wait(), 3)
+    saved = sessions.snapshot()
+    try:
+        await sessions.close(parent_interrupted=True)
+        assert sessions.result(child)["status"] == "waiting_human"
+        assert sessions.jobs[child].done()
+        paused = False
+        restored = SubagentSessions(
+            session_id="parent", user_id="owner", build_graph=build, checkpointer=saver
+        )
+        restored.restore(saved)
+        result = await restored.wait(child, config={})
+        assert result["status"] == "completed"
+        assert result["result"] == "Recovered original assignment"
+        assert model.i == 1
+    finally:
+        await sessions.close(preserve_approvals=False)

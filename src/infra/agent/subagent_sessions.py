@@ -486,7 +486,8 @@ class SubagentSessions:
                         await self._persist_terminal_outcome(subagent_id)
                         await self._emit(subagent_id, "completed")
         except asyncio.CancelledError:
-            record["status"] = "cancelled"
+            if record["status"] != "waiting_human":
+                record["status"] = "cancelled"
             await self._emit(subagent_id, "completed")
             raise
         except Exception:
@@ -728,7 +729,9 @@ class SubagentSessions:
             if value.get("verification_required")
             else "Read pending parent messages before waiting again."
             if value.get("messages_pending")
-            else "Still active. Use a longer bounded wait or do independent work; wait for the final result before synthesis."
+            else "Still active. Use a longer bounded wait or independent work that needs no approval. "
+            "Defer optional approval-gated operations until the child finishes: parent approval suspends "
+            "active children and can restart their unfinished model requests. Wait for the final result before synthesis."
         )
         return value
 
@@ -789,7 +792,29 @@ class SubagentSessions:
                     if owner != waiter_id:
                         return {**self.result(subagent_id), "status": "waiting_human"}
                     # Re-raise in the parent graph, then route its approval back to the child IDs.
-                    resumes = {item.id: interrupt(item.value) for item in child_interrupts}
+                    resumes = {}
+                    for item in child_interrupts:
+                        call_id = (
+                            item.value.get("tool_call_id") if isinstance(item.value, dict) else None
+                        )
+                        payload = item.value
+                        if call_id:
+                            payload = {
+                                **payload,
+                                "subagent_interrupt_ids": [
+                                    *payload.get("subagent_interrupt_ids", []),
+                                    item.id,
+                                ],
+                            }
+                        while True:
+                            decision = interrupt(payload)
+                            # A replay starts at index zero even after the child advances to a new tool.
+                            if not call_id or (
+                                isinstance(decision, dict)
+                                and item.id in decision.get("_approval_subagent_interrupt_ids", [])
+                            ):
+                                resumes[item.id] = decision
+                                break
                     self.approval_waiters.pop(subagent_id, None)
                     self.records[subagent_id]["status"] = "queued"
                     self.jobs[subagent_id] = asyncio.create_task(
@@ -847,14 +872,18 @@ class SubagentSessions:
             await self._emit(subagent_id, "completed")
         return self.result(subagent_id)
 
-    async def close(self, *, preserve_approvals: bool = True) -> None:
+    async def close(
+        self, *, preserve_approvals: bool = True, parent_interrupted: bool = False
+    ) -> None:
         jobs = [job for job in self.jobs.values() if not job.done()]
         cancelled = []
         for key, record in self.records.items():
             if record["status"] in {"queued", "running"} or (
                 record["status"] == "waiting_human" and not preserve_approvals
             ):
-                record["status"] = "cancelled"
+                record["status"] = (
+                    "waiting_human" if parent_interrupted and preserve_approvals else "cancelled"
+                )
                 cancelled.append(key)
         for job in jobs:
             job.cancel()

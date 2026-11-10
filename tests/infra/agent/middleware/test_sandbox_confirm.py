@@ -98,6 +98,25 @@ async def test_declined_returns_error_tool_message_without_executing(policy, int
     assert result.status == "error"
 
 
+async def test_decline_preserves_user_feedback_without_authorizing_execution(
+    policy, interrupt, supported
+):
+    interrupt["raise"] = False
+    interrupt["resume"] = {
+        "approved": False,
+        "values": {"reason": "Only write inside the selected workspace; no /tmp backup."},
+    }
+    rec = _Recorder()
+    result = await SandboxConfirmMiddleware(user_id="u1").awrap_tool_call(
+        _request("execute", {"command": "cp result.json /tmp/backup.json"}), rec.handler
+    )
+    assert rec.handled == []
+    assert result.status == "error"
+    assert "declined_by_user" in result.content
+    assert "Only write inside the selected workspace; no /tmp backup." in result.content
+    assert "Do not retry the same operation" in result.content
+
+
 async def test_parallel_batch_each_call_interrupts_with_identical_payload(
     policy, interrupt, supported
 ):

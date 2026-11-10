@@ -166,11 +166,17 @@ def _format_tool_result(result: ToolSearchResult) -> str:
         except Exception:
             # 原始模型含 InjectedToolArg 注入参数（ToolRuntime → CallableSchema）
             # 时 model_json_schema() 必抛 PydanticInvalidForJsonSchema；退回公开
-            # schema（langchain 已过滤注入参数，返回拍平的 properties 映射），
+            # schema（langchain 已过滤注入参数，保留嵌套类型定义），
             # 保证搜索结果仍带参数契约而非空 Schema（#815）。
-            args = getattr(tool, "args", None)
-            if isinstance(args, dict):
-                schema = {"type": "object", "properties": args}
+            public_schema = getattr(tool, "tool_call_schema", None)
+            if isinstance(public_schema, dict):
+                schema = public_schema
+            elif public_schema is not None:
+                schema = public_schema.model_json_schema()
+            else:
+                args = getattr(tool, "args", None)
+                if isinstance(args, dict):
+                    schema = {"type": "object", "properties": args}
 
     callable_schema = {
         key: _compact_schema_value(schema[key]) for key in _CALLABLE_SCHEMA_KEYS if key in schema

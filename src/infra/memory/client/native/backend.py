@@ -976,21 +976,20 @@ class NativeMemoryBackend(MemoryBackend):
             )
 
             async def embed_fn(text: str) -> list[float]:
-                async with unpriced_usage(operation="embedding", model=model):
+                async with unpriced_usage(
+                    operation="embedding", model=model, api_base=api_base
+                ) as observe:
                     resp = await client.post(
                         "/v1/embeddings",
                         json={"input": text, "model": model},
                     )
                     resp.raise_for_status()
-                return resp.json()["data"][0]["embedding"]
+                    payload = resp.json()
+                    observe(payload)
+                return payload["data"][0]["embedding"]
 
             self._embedding_fn = embed_fn
             self._httpx_client = client
             logger.info(f"[NativeMemory] Embedding enabled: {api_base} ({model})")
         except ImportError:
             logger.warning("[NativeMemory] httpx not available, embedding disabled")
-
-
-# ---------------------------------------------------------------------------
-# Utility
-# ---------------------------------------------------------------------------

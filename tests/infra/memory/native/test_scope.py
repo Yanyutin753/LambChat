@@ -734,7 +734,7 @@ async def test_resolve_session_project_id_returns_metadata_project(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_resolve_session_project_id_degrades_to_none_on_error(monkeypatch):
+async def test_resolve_session_project_id_fails_closed_on_error(monkeypatch):
     from src.infra.memory import scope as scope_module
 
     class BrokenSessions:
@@ -744,7 +744,8 @@ async def test_resolve_session_project_id_degrades_to_none_on_error(monkeypatch)
     monkeypatch.setattr(scope_module, "_get_sessions_collection", lambda: BrokenSessions())
     scope_module._SESSION_PROJECT_CACHE.clear()
 
-    assert await scope_module.resolve_session_project_id("s-broken") is None
+    with pytest.raises(scope_module.ScopeResolutionError):
+        await scope_module.resolve_session_project_id("s-broken")
 
 
 @pytest.mark.asyncio

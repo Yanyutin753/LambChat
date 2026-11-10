@@ -359,7 +359,7 @@ export function createSubagentPart(
   status?: string,
   agentCallId?: string,
 ): SubagentPart {
-  const startedAt = timestamp ? parseDate(timestamp).getTime() : Date.now();
+  const startedAt = timestamp ? parseDate(timestamp).getTime() : undefined;
   return {
     type: "subagent",
     ...(agentCallId ? { agent_call_id: agentCallId } : {}),
@@ -611,6 +611,13 @@ function findAndMergeInSubagent(
         if (
           !(p.status === "queued" && part.status === "running") &&
           !(
+            p.status === "cancelled" &&
+            part.status === "running" &&
+            part.startedAt !== undefined &&
+            p.completedAt !== undefined &&
+            part.startedAt > p.completedAt
+          ) &&
+          !(
             p.status === "waiting_human" &&
             (part.status === "queued" || part.status === "running")
           )
@@ -621,6 +628,8 @@ function findAndMergeInSubagent(
         updated[i] = {
           ...p,
           status: part.status,
+          isPending: true,
+          cancelled: undefined,
           startedAt: part.startedAt,
           result: undefined,
           success: undefined,

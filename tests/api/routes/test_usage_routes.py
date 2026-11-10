@@ -470,3 +470,47 @@ async def test_get_usage_stats_does_not_fetch_items(monkeypatch) -> None:
     assert all(call[0] == "stats_only" for call in storage.calls)
     kwargs = storage.calls[0][1]
     assert "skip" not in kwargs and "limit" not in kwargs
+
+
+async def test_assistant_usage_filter_never_expands_to_other_owners_for_admin(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.assistant.store import AssistantStore
+    from src.kernel.errors import AppError
+
+    storage = _FakeUsageStorage()
+    monkeypatch.setattr(usage_routes, "get_usage_storage", lambda: storage)
+    lookup = AsyncMock(return_value=SimpleNamespace(id="helper"))
+    monkeypatch.setattr(AssistantStore, "get", lookup)
+    user = TokenPayload(
+        sub="owner", username="owner", roles=[], permissions=["usage:read", "usage:admin"]
+    )
+    await usage_routes.list_usage_logs(
+        skip=0,
+        limit=20,
+        user_id="other",
+        model=None,
+        start_date=None,
+        end_date=None,
+        search=None,
+        assistant_id="helper",
+        user=user,
+    )
+    assert storage.calls[0]["user_id"] == "owner"
+    assert storage.calls[0]["assistant_id"] == "helper"
+    lookup.assert_awaited_once_with("owner", "helper")
+    lookup.return_value = None
+    with pytest.raises(AppError):
+        await usage_routes.list_usage_logs(
+            skip=0,
+            limit=20,
+            user_id="other",
+            model=None,
+            start_date=None,
+            end_date=None,
+            search=None,
+            assistant_id="foreign",
+            user=user,
+        )
+    assert len(storage.calls) == 1

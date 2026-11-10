@@ -22,7 +22,7 @@ async def test_delayed_older_finalizer_cannot_overwrite_newer_usage():
     entered, release = asyncio.Event(), asyncio.Event()
     calls = 0
 
-    async def session_metadata(session_id):
+    async def session_metadata(session_id, user_id=None):
         nonlocal calls
         calls += 1
         if calls == 1:

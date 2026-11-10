@@ -333,7 +333,7 @@ async def test_local_mongo_overview_recall_delivers_recent_context(
 
         @asynccontextmanager
         async def simulated_unpriced_usage(**kwargs):
-            yield
+            yield lambda payload: None
 
         monkeypatch.setattr(search, "unpriced_usage", simulated_unpriced_usage)
 

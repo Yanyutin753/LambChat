@@ -14,7 +14,7 @@ vi.mock("../../services/api", () => ({
   },
 }));
 
-import { useFilteredSessionList } from "../useSession";
+import { useFilteredSessionList, useProjectSessionList } from "../useSession";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -76,4 +76,51 @@ test("does not load a disabled session surface until it becomes visible", async 
 
   rerender({ enabled: true });
   await waitFor(() => expect(listSessions).toHaveBeenCalledTimes(1));
+});
+
+test("recent chats exclude companion sessions on fetch, refresh and live insertion", async () => {
+  listSessions.mockResolvedValue({
+    sessions: [],
+    total: 0,
+    skip: 0,
+    limit: 20,
+    has_more: false,
+  });
+  const { result } = renderHook(() => useProjectSessionList("none"));
+  await waitFor(() => expect(listSessions).toHaveBeenCalledTimes(1));
+  expect(listSessions.mock.calls[0][0]).toMatchObject({
+    exclude_assistants: true,
+  });
+  const base = {
+    agent_id: "search",
+    created_at: "",
+    updated_at: "",
+    is_active: true,
+  };
+  act(() => {
+    result.current.prependSession({ ...base, id: "normal", metadata: {} });
+    result.current.prependSession({
+      ...base,
+      id: "chief",
+      metadata: { assistant_id: "chief" },
+    });
+    result.current.prependSession({
+      ...base,
+      id: "discussion",
+      metadata: { assistant_discussion_id: "group" },
+    });
+  });
+  expect(result.current.sessions.map((item) => item.id)).toEqual(["normal"]);
+  act(() =>
+    result.current.updateSession({
+      ...base,
+      id: "normal",
+      metadata: { assistant_id: "converted" },
+    }),
+  );
+  expect(result.current.sessions).toEqual([]);
+  await act(() => result.current.softRefresh());
+  expect(listSessions.mock.lastCall?.[0]).toMatchObject({
+    exclude_assistants: true,
+  });
 });

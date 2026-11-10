@@ -126,7 +126,11 @@ export function ProfileModal({
             />
           </div>
           <div ref={contentRef} className="profile-content panel-scroll">
-            <div key={activeTab} className="profile-page">
+            <div
+              key={activeTab}
+              className="profile-page"
+              data-profile-tab={activeTab}
+            >
               <h2 className="profile-page-title font-serif">
                 {tabs.find((tab) => tab.key === activeTab)?.label}
               </h2>

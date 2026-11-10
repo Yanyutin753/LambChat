@@ -123,12 +123,15 @@ class MemoryRecallIndexMiddleware(AgentMiddleware):
     async def abefore_agent(self, state, runtime):
         index_context = ""
         if self._recall_available:
-            from src.infra.memory.scope import resolve_session_project_id
+            from src.infra.memory.scope import ScopeResolutionError, resolve_session_project_id
 
-            project_id = await resolve_session_project_id(self._session_id)
-            index_context = await build_memory_recall_index_context(
-                self._user_id, session_id=self._session_id, project_id=project_id
-            )
+            try:
+                project_id = await resolve_session_project_id(self._session_id)
+                index_context = await build_memory_recall_index_context(
+                    self._user_id, session_id=self._session_id, project_id=project_id
+                )
+            except ScopeResolutionError:
+                logger.warning("Memory navigation unavailable: scope lookup failed")
         context = "\n\n".join(
             part
             for part in (

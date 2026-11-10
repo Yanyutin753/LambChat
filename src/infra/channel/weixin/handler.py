@@ -167,7 +167,6 @@ def create_weixin_message_handler(
             session_id = await _get_weixin_session_id(
                 chat_id, user_id=user_id, instance_id=instance_id
             )
-            session_id = delivery_session(session_id)
             task_manager = get_task_manager()
 
             # 渠道实例级配置（agent/model/persona/project）
@@ -191,6 +190,25 @@ def create_weixin_message_handler(
                     project_id = ch_config.get("project_id")
                     team_id = ch_config.get("team_id")
                     persona_preset_id = ch_config.get("persona_preset_id")
+
+            from src.infra.assistant.channel_binding import (
+                channel_assistant_id,
+                channel_discussion_session,
+            )
+
+            session_id = delivery_session(
+                channel_discussion_session(session_id, ch_config, user_id)
+            )
+            if channel_assistant_id(ch_config):
+                from src.infra.assistant.channel_tasks import route_task_message
+
+                reply = await route_task_message(
+                    user_id, session_id, content, metadata.get("attachments")
+                )
+                if reply is not None:
+                    await send(reply)
+                    return
+                persona_preset_id = None
 
             persona_system_prompt: str | None = None
             enabled_skills: list[str] | None = None
@@ -269,6 +287,7 @@ def create_weixin_message_handler(
                     "channel_type": "weixin",
                     "channel_instance_id": instance_id,
                     "chat_id": chat_id,
+                    "sender_id": sender_id,
                     "enabled": True,
                     "send_on_success": True,
                 },

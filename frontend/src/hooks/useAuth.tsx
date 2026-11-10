@@ -30,6 +30,9 @@ import {
 import { Permission } from "../types";
 import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 import i18n from "../i18n";
+import { WifiOff } from "lucide-react";
+import { EmptyState } from "../components/common/EmptyState";
+import { Button } from "../components/common/ui";
 
 export { SIDEBAR_COLLAPSED_STORAGE_KEY };
 
@@ -78,6 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(getAccessToken());
   const [isLoading, setIsLoading] = useState(true);
+  const [initializationFailed, setInitializationFailed] = useState(false);
+  const [initializationAttempt, setInitializationAttempt] = useState(0);
   // 存储从 API 获取的动态权限
   const [dynamicPermissions, setDynamicPermissions] = useState<Permission[]>(
     [],
@@ -98,9 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 权限列表：从 API 动态获取
   const permissions = dynamicPermissions;
 
-  // 初始化：检查现有 token 并获取用户信息
+  // A temporary outage must not discard credentials or redirect to login.
   useEffect(() => {
+    let active = true;
+    const request = ++refreshRequest.current;
+    const isCurrent = () => active && request === refreshRequest.current;
     const initAuth = async () => {
+      setIsLoading(true);
+      setInitializationFailed(false);
       const accessToken = getAccessToken();
 
       if (!accessToken) {
@@ -116,12 +126,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshToken && !isTokenExpired(refreshToken)) {
           try {
             const tokenResponse = await authApi.refreshToken();
+            if (!isCurrent()) return;
             validToken = tokenResponse.access_token;
-          } catch {
-            // 刷新失败，需要重新登录
-            authApi.logout();
-            setToken(null);
-            setUser(null);
+          } catch (error) {
+            if (!isCurrent()) return;
+            if ((error as Error & { status?: number })?.status === 401) {
+              authApi.logout();
+              setToken(null);
+              setUser(null);
+            } else {
+              setInitializationFailed(true);
+            }
             setIsLoading(false);
             return;
           }
@@ -140,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 尝试获取用户信息（带重试）
       try {
         const currentUser = await authApi.getCurrentUser();
+        if (!isCurrent()) return;
         setUser(currentUser);
         applyUserMetadata(currentUser.metadata);
         // 更新动态权限
@@ -150,24 +166,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ),
           );
         }
-      } catch (err) {
-        // Only treat 401 as auth failure — network errors / server restarts
-        // should NOT clear auth state during development.
-        // authFetch already handles 401 by calling redirectToLogin internally,
-        // so this catch only fires for non-401 errors.
-        console.warn("[useAuth] Failed to fetch current user:", err);
+      } catch {
+        if (!isCurrent()) return;
+        // authFetch clears rejected credentials through auth:logout.
+        if (getAccessToken()) setInitializationFailed(true);
       }
 
       setIsLoading(false);
     };
 
     initAuth();
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [initializationAttempt]);
 
   // 监听登出事件
   useEffect(() => {
     const handleLogout = () => {
       refreshRequest.current += 1;
+      setIsLoading(false);
+      setInitializationFailed(false);
       setDynamicPermissions([]);
       setToken(null);
       setUser(null);
@@ -362,7 +381,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasAllPermissions,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {initializationFailed ? (
+        <div
+          role="alert"
+          className="safe-area-viewport-padding flex min-h-[calc(100dvh-var(--titlebar-inset,0px))] items-center justify-center bg-theme-bg-primary p-6"
+        >
+          <EmptyState
+            icon={<WifiOff size={20} />}
+            title={i18n.t("backendErrors.serviceUnavailable")}
+            action={
+              <Button
+                variant="primary"
+                onClick={() =>
+                  setInitializationAttempt((attempt) => attempt + 1)
+                }
+              >
+                {i18n.t("common.retry")}
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        children
+      )}
+    </AuthContext.Provider>
+  );
 }
 
 // useAuth Hook

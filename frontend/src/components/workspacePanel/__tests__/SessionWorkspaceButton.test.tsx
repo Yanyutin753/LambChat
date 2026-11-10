@@ -125,7 +125,9 @@ test("files and previews share width, including resize then return", async () =>
     .getByRole("separator")
     .getAttribute("aria-valuenow");
   const previewWidth = width();
-  fireEvent.click(within(preview).getByRole("tab", { name: "workspacePanel.title" }));
+  fireEvent.click(
+    within(preview).getByRole("tab", { name: "workspacePanel.title" }),
+  );
   await waitFor(() => expect(files).toBeVisible());
   expect(within(files).getByRole("separator")).toHaveAttribute(
     "aria-valuenow",
@@ -172,7 +174,6 @@ test.each([390, 768, 1440])(
   },
 );
 
-
 test("the workspace launcher restores a collapsed tab instead of closing it", async () => {
   render(<SessionWorkspaceButton sessionId="collapse" />);
   const launcher = screen.getByRole("button", { name: "workspacePanel.title" });
@@ -183,4 +184,13 @@ test("the workspace launcher restores a collapsed tab instead of closing it", as
   fireEvent.click(launcher);
   expect(await screen.findByText("files for collapse")).toBeVisible();
   expect(screen.getAllByRole("tab")).toHaveLength(1);
+});
+
+test("an assistant without a sandbox shows the shared empty state without loading cloud or local files", async () => {
+  render(
+    <SessionWorkspaceButton sessionId="storage-only" sandboxMode="none" />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "workspacePanel.title" }));
+  expect(await screen.findByText("workspacePanel.noEnvironment")).toBeVisible();
+  expect(screen.queryByText("files for storage-only")).toBeNull();
 });

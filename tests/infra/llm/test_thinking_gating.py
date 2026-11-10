@@ -8,7 +8,8 @@ The "off" level has been retired — thinking is always enabled, only the
 intensity (low/medium/high/max) varies.
 """
 
-from src.infra.llm.client import LLMClient, model_supports_thinking
+from src.infra.llm.client import LLMClient
+from src.infra.llm.thinking import model_supports_thinking
 
 _BUDGETS = {"low": 1024, "medium": 8192, "high": 32768, "max": 65536}
 ENABLED = lambda level: {"type": "enabled", "level": level, "budget_tokens": _BUDGETS[level]}  # noqa: E731
@@ -284,12 +285,29 @@ def test_claude_effort_era_max_maps_to_high() -> None:
     assert model.reasoning_effort == "high"
 
 
-def test_anthropic_without_thinking_config_keeps_current_behaviour() -> None:
-    # 未配置思考的调用方（标题生成/推荐等）不应被注入任何参数
-    model = _anthropic_model("claude-opus-5", None)
-    assert model.thinking is None
-    assert model.reasoning_effort is None
-    assert model.temperature == 0.7
+def test_anthropic_without_thinking_new_claude_forces_default_temperature() -> None:
+    # #1218：4.7+/5 系拒绝非默认采样参数——未配置思考的辅助调用
+    # （标题生成/记忆压缩等传 0.1/0.3）不得透传，回落 temperature=1
+    for model_name in ("claude-opus-5", "claude-sonnet-5", "claude-opus-4-7"):
+        model = _anthropic_model(model_name, None)
+        assert model.thinking is None, model_name
+        assert model.reasoning_effort is None, model_name
+        assert model.temperature == 1.0, model_name
+
+
+def test_anthropic_without_thinking_old_models_keep_caller_temperature() -> None:
+    # 老家族及第三方模型无思考时不注入参数，调用方 temperature 原样保留
+    for model_name in (
+        "claude-3-5-sonnet-latest",
+        "claude-opus-4-1-20250805",
+        "claude-sonnet-4-5",
+        "claude-opus-4-6",
+        "kimi-k2-instruct",
+    ):
+        model = _anthropic_model(model_name, None)
+        assert model.thinking is None, model_name
+        assert model.reasoning_effort is None, model_name
+        assert model.temperature == 0.7, model_name
 
 
 def test_anthropic_protocol_third_party_models_receive_nothing() -> None:

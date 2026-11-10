@@ -109,6 +109,7 @@ async def test_rate_limit_reaches_usage_context_with_service_identity(monkeypatc
         "operation": "decision",
         "provider": "systemone",
         "model": "von-1.1.0",
+        "api_base": "http://von.local",
         "status_code": 429,
     }
 

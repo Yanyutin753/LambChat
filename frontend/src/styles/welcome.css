@@ -619,12 +619,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .welcome-root *,
-  .welcome-root *::before {
+  .welcome-root *::before,
+  .welcome-suggestions-grid *,
+  .welcome-suggestions-grid *::before {
     animation: none !important;
     transition: none !important;
   }
   .welcome-root button:active,
-  .welcome-root button:hover * {
+  .welcome-root button:hover *,
+  .welcome-suggestions-grid button:active,
+  .welcome-suggestions-grid button:hover * {
     transform: none !important;
   }
   .welcome-persona-gallery {

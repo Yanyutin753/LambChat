@@ -12,7 +12,9 @@ import { LazyRevealPreviewHost } from "../../chat/ChatMessage/items/LazyRevealPr
 import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImageGallery";
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
+import { AssistantConversationBar } from "../../assistants/AssistantConversationBar";
 import { SessionTodoDock } from "../../chat/SessionTodoDock";
+import { AssistantWelcome } from "../../assistants/AssistantWelcome";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
@@ -78,6 +80,8 @@ export function ChatView({
   draftKey,
   messages,
   sessionId,
+  assistant,
+  onAssistantResolved,
   composerFocusRequest,
   currentRunId,
   isLoading,
@@ -674,8 +678,8 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler((content, messageId) =>
-      onCancelSteer?.(content, messageId),
+    setSteerCancelHandler(
+      (content, messageId) => onCancelSteer?.(content, messageId),
     );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
@@ -716,8 +720,17 @@ export function ChatView({
     workspaceSaving,
     workspaceUnconfirmed,
     onRetryWorkspaceRead,
-    sendBlocked: approvals.length > 0 || hasPendingAskHumanParts || workspaceSaving || workspaceUnconfirmed,
-    canSend: canSendMessage,
+    sendBlocked:
+      approvals.length > 0 ||
+      hasPendingAskHumanParts ||
+      workspaceSaving ||
+      workspaceUnconfirmed,
+    canSend:
+      canSendMessage &&
+      (!assistant ||
+        assistant.context_kind === "task" ||
+        assistant.status === "active"),
+    configurationLocked: Boolean(assistant),
     tools,
     onToggleTool,
     onToggleCategory,
@@ -797,6 +810,13 @@ export function ChatView({
     <WorkspaceMediaContext.Provider value={mediaWorkspace}>
       <SessionImageGalleryProvider messages={messages}>
         <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
+          {sessionId && (
+            <AssistantConversationBar
+              key={sessionId}
+              sessionId={sessionId}
+              onResolved={onAssistantResolved}
+            />
+          )}
           <main
             ref={messagesContainerRef}
             className="relative flex-1 min-h-0 overflow-hidden"
@@ -814,6 +834,11 @@ export function ChatView({
               !hasPendingApproval &&
               (isLoading ? (
                 <ChatSkeleton count={8} />
+              ) : assistant ? (
+                <AssistantWelcome
+                  assistant={assistant}
+                  chatInputProps={chatInputProps}
+                />
               ) : (
                 <WelcomePage
                   greeting={greeting}

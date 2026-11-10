@@ -110,8 +110,14 @@ async def build_memory_index(backend, user_id: str, project_id: Optional[str] = 
     }
     # Reserve candidates for this project before newer personal memories can
     # exhaust the scan budget; each scope remains bounded and user-isolated.
-    scope_clauses = [build_scope_clause(None)]
-    if project_id:
+    from src.infra.memory.scope import is_assistant_partition
+
+    scope_clauses = (
+        [build_scope_clause(project_id)]
+        if is_assistant_partition(project_id)
+        else [build_scope_clause(None)]
+    )
+    if project_id and not is_assistant_partition(project_id):
         scope_clauses.append({"scope": "project", "project_id": project_id})
     docs = []
     for scope_clause in scope_clauses:

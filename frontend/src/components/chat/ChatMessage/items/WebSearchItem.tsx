@@ -344,14 +344,17 @@ const WebSearchItem = memo(function WebSearchItem({
         : "error";
 
   const titleLabel = t("chat.message.toolWebSearch");
-  const pillLabel = `${titleLabel} ${query ? `"${query}"` : ""}`.trim();
-  // 结果数走 suffix 徽章，pill 主标签保持干净
-  const countSuffix =
-    summary && summary.results.length > 0 ? (
-      <span className="count-badge">
-        {Math.min(summary.results.length, 99)}
-      </span>
-    ) : undefined;
+  const pillLabel = [
+    titleLabel,
+    query,
+    !isPending && !cancelled && success !== false && summary
+      ? t("chat.message.toolWebSearchResults", {
+          count: summary.results.length,
+        })
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // 进行中：标签平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
@@ -397,7 +400,6 @@ const WebSearchItem = memo(function WebSearchItem({
         status={status}
         icon={<Globe size={12} className="shrink-0 opacity-50" />}
         label={label}
-        suffix={countSuffix}
         animatedDots={isStreamingLabel}
         variant="tool"
         formatLabel={false}

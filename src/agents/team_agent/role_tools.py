@@ -6,6 +6,10 @@ from src.agents.core.tool_filter import filter_mcp_tools_by_server_whitelist
 from src.infra.tool.deferred_manager import DeferredToolManager
 
 _ROLE_EXCLUDED_TOOLS = {
+    "list_assistants",
+    "create_assistant",
+    "update_assistant",
+    "delegate_assistant_task",
     "search_tools",
     "search_skills",
     "search_persona_presets",

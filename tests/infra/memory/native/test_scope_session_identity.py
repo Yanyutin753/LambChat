@@ -28,7 +28,12 @@ async def test_project_lookup_accepts_normal_ids_without_overriding_custom_ident
 
     class Sessions:
         async def find_one(self, query, projection):
-            assert projection == {"metadata.project_id": 1}
+            assert projection == {
+                "metadata.project_id": 1,
+                "metadata.assistant_id": 1,
+                "metadata.background_task_id": 1,
+                "user_id": 1,
+            }
             if query == {"session_id": session_id}:
                 return custom_document
             assert query == {"_id": mongo_id}

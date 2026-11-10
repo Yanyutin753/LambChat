@@ -113,6 +113,7 @@ export function RecentChatsDialog({
       try {
         const response = await sessionApi.list({
           limit: PAGE_SIZE,
+          exclude_assistants: true,
           skip: reset ? 0 : current.skip,
         });
         const list = Array.isArray(response) ? response : response.sessions;

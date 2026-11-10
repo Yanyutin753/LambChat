@@ -1,3 +1,4 @@
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
 import {
@@ -9,6 +10,7 @@ import {
   FolderOpen,
   Bookmark,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types/auth";
@@ -61,6 +63,7 @@ export function SidebarRail({
   unreadCount = 0,
 }: SidebarRailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const MoreIcon = singleMoreMenuItem?.icon ?? MoreHorizontal;
   const moreLabel = singleMoreMenuItem?.label ?? t("nav.more", "更多");
   const { hasPermission } = useAuth();
@@ -94,6 +97,23 @@ export function SidebarRail({
         className="mt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center w-full space-y-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
+        {hasPermission(Permission.SESSION_READ) && (
+          <Tooltip content={t("assistants.title")}>
+            <button
+              type="button"
+              onClick={() => navigate("/assistants")}
+              className={railBtn}
+              aria-label={t("assistants.title")}
+            >
+              <span
+                className="flex size-4 shrink-0 items-center justify-center"
+                aria-hidden="true"
+              >
+                <AgentAvatar seed="LambChat" size={20} />
+              </span>
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={t("sidebar.newChat")}>
           <button
             type="button"

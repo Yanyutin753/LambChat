@@ -54,6 +54,7 @@ src/
 │   └── deps.py        # 依赖注入
 ├── infra/             # 基础设施层：40+ 按业务域命名的包，常用的有
 │   ├── agent/         # Agent 事件处理（events/processor.py）、任务管理
+│   ├── assistant/     # 长期助手身份、配置与租户隔离存储
 │   ├── auth/          # 认证授权
 │   ├── chat/          # 会话消息处理
 │   ├── llm/           # LLM 客户端（多 provider、多协议、请求头策略）

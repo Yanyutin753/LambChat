@@ -77,6 +77,11 @@ test("historical estimates are labelled in every responsive layout", () => {
   expect(screen.getAllByText("≈$0.4")).toHaveLength(3);
   expect(screen.getAllByText(/usage.historicalEstimate/)).toHaveLength(3);
 });
+test("known partial fees remain visible with an explanation in every layout", () => {
+  show({ cost_available: false, partial_cost_usd: 8.34 });
+  expect(screen.getAllByText("$8.34+")).toHaveLength(3);
+  expect(screen.getAllByText("usage.partialCostHint")).toHaveLength(3);
+});
 test("partial zero remains visible alongside a separate historical estimate", () => {
   show({ cost_available: false, partial_cost_usd: 0, estimated_cost_usd: 0.4 });
   expect(screen.getAllByText("$0.00+")).toHaveLength(3);

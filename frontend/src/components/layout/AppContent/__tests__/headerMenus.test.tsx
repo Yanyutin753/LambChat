@@ -295,3 +295,25 @@ test("wide-screen header opener dispatches the sidebar toggle event", () => {
     });
   }
 });
+
+test("new chat header does not duplicate sidebar branding and global actions", async () => {
+  render(
+    <MemoryRouter>
+      <Header
+        activeTab="chat"
+        setMobileSidebarOpen={vi.fn()}
+        onNewSession={vi.fn()}
+        onShowProfile={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole("img", { name: "LambChat" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "nav.notifications" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "sidebar.searchSessions" }),
+  ).toBeNull();
+  expect(screen.getByRole("button", { name: "common.menu" })).toBeVisible();
+  await act(async () => {});
+});

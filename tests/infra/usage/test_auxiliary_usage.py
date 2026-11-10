@@ -290,3 +290,159 @@ async def test_unpriced_identity_and_exception_reach_projection(monkeypatch):
         "provider": "provider",
     }
     assert project.await_args.kwargs["error"] is error
+
+
+@pytest.mark.parametrize(
+    ("operation", "model", "base", "payload", "expected_cost", "tokens"),
+    [
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://api.siliconflow.cn",
+            {"usage": {"prompt_tokens": 100, "total_tokens": 100}},
+            0.000001,
+            100,
+        ),
+        (
+            "decision",
+            "apus-openjev-4b-5949",
+            "http://127.0.0.1:18001",
+            {"usage": {"input_tokens": 100, "output_tokens": 0}},
+            0.000001,
+            100,
+        ),
+        (
+            "decision",
+            "apus-openjev-4b-5949",
+            "http://127.0.0.1:18001",
+            {"usage": {"input_tokens": 0, "output_tokens": 0}},
+            None,
+            None,
+        ),
+        (
+            "rerank",
+            "BAAI/bge-reranker-v2-m3",
+            "https://api.siliconflow.cn",
+            {"meta": {"billed_units": {"input_tokens": 12, "output_tokens": 0}}},
+            0,
+            12,
+        ),
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://different.example",
+            {"usage": {"prompt_tokens": 100}},
+            None,
+            100,
+        ),
+        (
+            "embedding",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "https://api.siliconflow.cn",
+            {"usage": {"prompt_tokens": True}},
+            None,
+            None,
+        ),
+    ],
+)
+async def test_raw_model_cost_uses_endpoint_tariff_and_reported_tokens(
+    monkeypatch, operation, model, base, payload, expected_cost, tokens
+):
+    project = AsyncMock()
+    ledger = SimpleNamespace(settle=AsyncMock(return_value={"charged_units": 0, "unknown": True}))
+    monkeypatch.setattr(auxiliary, "write_auxiliary_usage", project)
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "owner")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(quota, "_usage_owner", lambda: None)
+    monkeypatch.setattr(quota, "UsageQuota", lambda: ledger)
+    monkeypatch.setattr(quota, "_reserve_call", AsyncMock(return_value=reservation()))
+    monkeypatch.setattr(
+        "src.infra.pricing.auxiliary_models.get_fx_rates",
+        AsyncMock(return_value={"base": "USD", "rates": {"CNY": 7}}),
+    )
+    async with quota.unpriced_usage(operation=operation, model=model, api_base=base) as observe:
+        observe(payload)
+    assert ledger.settle.await_args.args[1] == expected_cost
+    assert project.await_args.args[1]["model_usage"]["input_tokens"] == tokens
+
+
+@pytest.mark.skipif(os.environ.get("TEST_MEMORY_MONGODB") != "1", reason="Explicit MongoDB opt-in")
+async def test_three_model_clients_charge_same_amount_as_logs_in_both_windows(monkeypatch):
+    from functools import partial
+    from uuid import uuid4
+
+    import httpx
+    from pymongo import AsyncMongoClient
+
+    from src.infra.decision.client import judge_noul
+    from src.infra.memory.client.native.backend import NativeMemoryBackend
+    from src.infra.memory.client.native.search import rerank_candidates
+    from src.infra.storage.mongodb import build_mongo_connection_string
+    from src.kernel.config import settings
+
+    mongo = AsyncMongoClient(build_mongo_connection_string(), tz_aware=True)
+    db = mongo[settings.MONGODB_DB]
+    suffix = uuid4().hex
+    ledger = quota.UsageQuota(db[f"test_raw_ledger_{suffix}"])
+    storage = UsageStorage()
+    storage._collection = db[f"test_raw_logs_{suffix}"]
+    monkeypatch.setattr(quota, "quota_user_id", lambda: "metering-test")
+    monkeypatch.setattr(quota, "user_budgets", AsyncMock(return_value=(1, 2)))
+    monkeypatch.setattr(quota, "UsageQuota", lambda: ledger)
+    monkeypatch.setattr(auxiliary, "get_usage_storage", lambda: storage)
+    monkeypatch.setattr(
+        "src.infra.pricing.auxiliary_models.get_fx_rates",
+        AsyncMock(return_value={"base": "USD", "rates": {"CNY": 7}}),
+    )
+    for prefix, base, model in (
+        ("NATIVE_MEMORY_EMBEDDING", "https://api.siliconflow.cn", "Qwen/Qwen3-Embedding-0.6B"),
+        ("NATIVE_MEMORY_RERANK", "https://api.siliconflow.cn", "BAAI/bge-reranker-v2-m3"),
+        ("SYSTEMONE", "http://127.0.0.1:18001", "apus-openjev-4b-5949"),
+    ):
+        monkeypatch.setattr(settings, prefix + "_API_BASE", base)
+        monkeypatch.setattr(settings, prefix + "_API_KEY", "synthetic")
+        monkeypatch.setattr(settings, prefix + "_MODEL", model)
+
+    responses = {
+        "/v1/embeddings": {
+            "usage": {"prompt_tokens": 4, "total_tokens": 4},
+            "data": [{"embedding": [1.0]}],
+        },
+        "/v1/rerank": {
+            "meta": {"billed_units": {"input_tokens": 12, "output_tokens": 0}},
+            "results": [{"index": 1}],
+        },
+        "/v1/systemone": {
+            "usage": {"input_tokens": 87, "output_tokens": 0},
+            "answers": {"q": {"noul": 0.9}},
+        },
+    }
+    transport = httpx.MockTransport(lambda req: httpx.Response(200, json=responses[req.url.path]))
+    monkeypatch.setattr(httpx, "AsyncClient", partial(httpx.AsyncClient, transport=transport))
+    backend = NativeMemoryBackend()
+    try:
+        backend._setup_embedding_fn()
+        assert await backend._maybe_embed("blue") == [1.0]
+        assert await rerank_candidates("blue", [{"text": "red"}, {"text": "blue"}], 1) == [
+            {"text": "blue"}
+        ]
+        assert await judge_noul("blue", "Is the state blue?", transport=transport) == 0.9
+        rows = {
+            d["operation"]: (d["input_tokens"], d["cost_units"], d["cost_complete"])
+            async for d in storage.collection.find({})
+        }
+        assert rows == {
+            "embedding": (4, 40, True),
+            "rerank": (12, 0, True),
+            "decision": (87, 870, True),
+        }
+        account = await ledger.collection.find_one({"_id": "metering-test"})
+        for name in ("five_hour", "weekly"):
+            window = account["periods"][account[name]["key"]]
+            assert (window["used"], window["unknown"]) == (910, 0)
+    finally:
+        if backend._httpx_client is not None:
+            await backend._httpx_client.aclose()
+        await ledger.collection.drop()
+        await storage.collection.drop()
+        await mongo.close()

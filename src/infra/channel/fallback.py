@@ -37,7 +37,10 @@ async def deliver_task_fallback(
 
         session = await SessionManager().get_session(session_id)
         metadata = getattr(session, "metadata", None) if session else None
-        if isinstance(metadata, dict) and metadata.get("channel_delivery"):
+        if isinstance(metadata, dict) and any(
+            metadata.get(key)
+            for key in ("channel_delivery", "assistant_id", "background_assistant_id")
+        ):
             return False
 
         target = await _resolve_fallback_target(user_id)

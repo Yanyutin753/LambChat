@@ -719,7 +719,11 @@ async def test_session_indexes_are_initialized_once_across_instances() -> None:
         SessionStorage._indexes_done = original_done
         SessionStorage._indexes_lock = original_lock
 
-    assert len(shared_collection.created_indexes) == 9
+    assert len(shared_collection.created_indexes) == 11
+    names = [kwargs["name"] for _, kwargs in shared_collection.created_indexes]
+    assert len(names) == len(set(names))
+    assert "user_assistant_updated_idx" in names
+    assert "user_background_assistant_updated_idx" in names
     # 列表排序 (metadata.is_pinned desc, updated_at desc) 的组合索引
     (keys, kwargs) = shared_collection.created_indexes[0]
     assert list(keys) == [

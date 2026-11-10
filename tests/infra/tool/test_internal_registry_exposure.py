@@ -83,6 +83,7 @@ async def test_conversation_history_tools_default_to_deferred_exposure(monkeypat
     monkeypatch.setattr(internal_registry, "get_env_var_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_assistant_tools", lambda: [])
 
     async def no_policies():
         return {}
@@ -115,6 +116,7 @@ async def test_env_var_tools_default_to_deferred_exposure(monkeypatch) -> None:
     monkeypatch.setattr(internal_registry.settings, "ENABLE_WEB_FETCH", False)
     monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "get_assistant_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_conversation_history_tools", lambda: [])
 
     async def no_policies():

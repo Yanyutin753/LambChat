@@ -13,6 +13,7 @@ import { RefreshCw, Sparkles, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
+import { WelcomeSuggestions } from "./WelcomeSuggestions";
 import { Button } from "../common/ui/Button";
 import { SceneIllustration } from "../common/SceneIllustration";
 import type { ChatInputProps } from "./ChatInput";
@@ -20,6 +21,7 @@ import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { NotificationBanner } from "../notification/NotificationBanner";
 import {
+  WELCOME_INPUT_CONTAINER_CLASS_NAME,
   getSelectedPersonaStarterPrompts,
   getSelectedTeamStarterPrompts,
   getWelcomePersonaCards,
@@ -27,7 +29,6 @@ import {
   getWelcomePersonaSkeletonCount,
   getWelcomeTeamCards,
   getWelcomeSuggestionsContainerClass,
-  getWelcomeSuggestionButtonClass,
 } from "./welcomeLayout";
 import { PersonaAvatarWithLoading } from "../persona/PersonaAvatarWithLoading";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -480,7 +481,7 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[48rem] md:max-w-[52rem] lg:max-w-[56rem] xl:max-w-[58rem] 2xl:max-w-[60rem]">
+      <div className={WELCOME_INPUT_CONTAINER_CLASS_NAME}>
         <ChatInput
           key={chatInputProps.draftKey}
           {...chatInputProps}
@@ -777,38 +778,10 @@ export const WelcomePage = memo(function WelcomePage({
               </div>
             )}
             {(showStarterPrompts || showTeamStarterPrompts) && (
-              <div className="welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3">
-                {activeStarterPrompts.map((suggestion, i) => (
-                  <button
-                    key={suggestion.text}
-                    onClick={() => handleSuggestionClick(suggestion.text)}
-                    className={getWelcomeSuggestionButtonClass(i)}
-                    style={{
-                      backgroundColor: "var(--theme-bg-card)",
-                      borderColor: "var(--theme-border)",
-                      animationDelay: `${i * 60}ms`,
-                    }}
-                  >
-                    {/* Hover shimmer layer */}
-                    <span className="welcome-card-shimmer" aria-hidden="true" />
-                    <span
-                      className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-13 sm:text-15 xl:text-18 2xl:text-18 shrink-0 transition-transform duration-300 group-hover:scale-110"
-                      style={{
-                        backgroundColor: "var(--theme-primary-light)",
-                        color: "var(--theme-primary)",
-                      }}
-                    >
-                      {suggestion.icon || "✨"}
-                    </span>
-                    <span
-                      className="relative text-12.5 sm:text-13.5 leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"
-                      style={{ color: "var(--theme-text-secondary)" }}
-                    >
-                      {suggestion.text}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <WelcomeSuggestions
+                suggestions={activeStarterPrompts}
+                onSelect={handleSuggestionClick}
+              />
             )}
           </div>
         </div>

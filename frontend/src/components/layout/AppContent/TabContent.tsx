@@ -26,6 +26,11 @@ const SkillsHubPanel = lazy(() =>
     default: m.SkillsHubPanel,
   })),
 );
+const AssistantsPanel = lazy(() =>
+  import("../../assistants/AssistantsPanel").then((module) => ({
+    default: module.AssistantsPanel,
+  })),
+);
 const UsersPanel = lazy(() =>
   import("../../panels/UsersPanel").then((m) => ({ default: m.UsersPanel })),
 );
@@ -98,6 +103,7 @@ const panelMap: Record<
   string,
   React.LazyExoticComponent<React.ComponentType>
 > = {
+  assistants: AssistantsPanel,
   skills: SkillsHubPanel,
   marketplace: SkillsHubPanel,
   users: UsersPanel,

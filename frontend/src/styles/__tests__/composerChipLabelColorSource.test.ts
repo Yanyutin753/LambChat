@@ -12,3 +12,12 @@ test("toolbar label tuning keeps chip label color intact", () => {
   expect(rule?.[0]).not.toMatch(/font-size/);
   expect(rule?.[0]).not.toMatch(/^\s*color:/m);
 });
+
+test("composer labels preserve their explicit serif typography", () => {
+  const css = readFileSync(new URL("../chat.css", import.meta.url), "utf8");
+  const rule = css.match(
+    /\.chat-input-toolbar\s+:is\([^}]+\)\s*\{[^}]*\}/,
+  )?.[0];
+  expect(rule).toBeDefined();
+  expect(rule).not.toContain("font-family:");
+});

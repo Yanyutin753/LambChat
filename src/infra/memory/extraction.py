@@ -35,6 +35,9 @@ from src.infra.memory.extraction_content import (
     _clip_transcript as _clip_transcript,
 )
 from src.infra.memory.extraction_content import (
+    _fallback_index_fields as _fallback_index_fields,
+)
+from src.infra.memory.extraction_content import (
     load_session_transcript,
     parse_stage_one_output,
     redact_secrets,
@@ -232,6 +235,8 @@ async def find_candidate_sessions(
                     "updated_at": 1,
                     "metadata.agent_id": 1,
                     "metadata.project_id": 1,
+                    "metadata.assistant_id": 1,
+                    "metadata.background_task_id": 1,
                 }
             },
         ]
@@ -431,23 +436,6 @@ async def _get_extraction_model() -> Any:
     return await LLMClient.get_model(**model_kwargs)
 
 
-def _fallback_index_fields(payload: dict[str, Any]) -> dict[str, Any]:
-    """索引字段兜底：模板要求模型直出，缺失时从 raw_memory 头部推导（避免二次
-    LLM 调用；与旧 auto-retain 的 _fallback_enrich 同思路）。"""
-    from src.infra.memory.client.native.summaries import _fallback_enrich
-
-    enriched = _fallback_enrich(payload["raw_memory"])
-    context = payload.get("context") or ""
-    if context not in {"user", "feedback", "project", "reference"}:
-        context = "project"
-    return {
-        "title": payload.get("title") or enriched["title"],
-        "summary": payload.get("summary") or enriched["summary"],
-        "tags": payload.get("tags") or enriched["tags"],
-        "context": context,
-    }
-
-
 @bind_quota_user
 async def extract_session_memory(
     backend,
@@ -482,6 +470,9 @@ async def extract_session_memory(
         return ExtractionOutcome("failed", error="transcript_unavailable")
 
     metadata = session_doc.get("metadata") or {}
+    from src.infra.assistant.memory import session_assistant_partition
+
+    assistant_partition = await session_assistant_partition(session_id, user_id, metadata)
     agent_id = str(metadata.get("agent_id") or "")
     system_prompt = load_stage_one_system_prompt()
     user_prompt = render_stage_one_input(str(session_doc.get("name") or ""), agent_id, turns)
@@ -494,6 +485,7 @@ async def extract_session_memory(
                 "input": user_prompt,
                 "run_ids": [turn.get("run_id") for turn in turns],
                 "project_id": metadata.get("project_id"),
+                "assistant_memory_partition": assistant_partition,
                 "forgotten_before": watermark.isoformat() if watermark is not None else None,
                 "model": getattr(settings, "NATIVE_MEMORY_MODEL", ""),
                 "max_tokens": getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 0),
@@ -599,7 +591,9 @@ async def extract_session_memory(
     ][-20:]
     # 项目归属继承源会话（metadata.project_id）：拿不到可靠归属时 retain 侧
     # 自动降级 user scope，不猜测
-    session_project_id = str((metadata or {}).get("project_id") or "").strip() or None
+    session_project_id = (
+        assistant_partition or str((metadata or {}).get("project_id") or "").strip() or None
+    )
     retained_count = 0
     for index, memory in enumerate(memories[start_index:], start=start_index):
         index_fields = _fallback_index_fields(memory)
@@ -613,7 +607,11 @@ async def extract_session_memory(
         from src.infra.memory.extraction_gate import log_context_second_opinion
 
         await log_context_second_opinion(session_id, index_fields, memory["raw_memory"])
-        memory_scope = "user" if index_fields["context"] == "user" else None
+        memory_scope = (
+            "project"
+            if assistant_partition
+            else ("user" if index_fields["context"] == "user" else None)
+        )
         try:
             result = await backend.retain(
                 user_id,
@@ -624,7 +622,7 @@ async def extract_session_memory(
                 tags=index_fields["tags"],
                 source_refs=source_refs,
                 scope=memory_scope,
-                project_id=session_project_id if memory_scope is None else None,
+                project_id=session_project_id if memory_scope != "user" else None,
                 source="auto_retained",
                 origin_session_id=session_id,
                 write_guard=check_write_claim,
@@ -776,15 +774,18 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
                 raise RuntimeError("extraction_claim_lost")
 
         try:
-            outcome = await extract_session_memory(
-                backend,
-                db,
-                user_id,
-                session_doc,
-                previous_input_fingerprint=job.get("input_fingerprint"),
-                resume_state=job.get("resume_state"),
-                save_resume_state=save_resume_state,
-            )
+            from src.infra.usage.attribution import usage_attribution
+
+            with usage_attribution(user_id, session_id):
+                outcome = await extract_session_memory(
+                    backend,
+                    db,
+                    user_id,
+                    session_doc,
+                    previous_input_fingerprint=job.get("input_fingerprint"),
+                    resume_state=job.get("resume_state"),
+                    save_resume_state=save_resume_state,
+                )
         except Exception as exc:
             logger.warning("[MemoryExtraction] unexpected failure for %s: %s", session_id, exc)
             quota_denied = is_quota_error(exc)

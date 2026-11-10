@@ -33,3 +33,15 @@ test("subagent sidebar timestamp is rendered in the panel footer", () => {
     /subtitle,\s*\n\s*panelKey,\s*\n\s*children: <SubagentPanelContent/,
   );
 });
+
+test("group contributions stay compact and open full details only on demand", () => {
+  expect(source).toContain(
+    "const inGroup = useAssistantGroupMembers() !== null",
+  );
+  expect(source).toContain("if (inGroup) return");
+  expect(source).not.toContain("<MarkdownContent");
+  expect(source).toContain("onClick={handleOpenInPanel}");
+  expect(source).toContain(
+    "children: <DeferredSubagentPanelContent agentId={agent_id} />",
+  );
+});

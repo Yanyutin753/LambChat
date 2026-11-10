@@ -195,6 +195,11 @@ class ScheduledTaskRunner:
                 if not slot_claimed:
                     return {"skipped": True, "reason": "slot_contended"}
 
+        if "assistant_rule" in task.input_payload:
+            from src.infra.assistant.rules import run_assistant_rule
+
+            return await run_assistant_rule(task, trigger_type, storage)
+
         if task.execution_mode == "conversation":
             record = await storage.enqueue_conversation(task, trigger_type)
             from src.infra.scheduler.conversation import dispatch_pending

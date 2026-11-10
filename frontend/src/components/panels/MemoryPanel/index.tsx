@@ -51,7 +51,10 @@ import { MemoryEditor } from "./MemoryEditor";
 import { DetailModal } from "./DetailModal";
 import { DeleteModal } from "./DeleteModal";
 
-export function MemoryPanel() {
+export function MemoryPanel({
+  assistantId,
+  discussionId,
+}: { assistantId?: string; discussionId?: string } = {}) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission(Permission.MEMORY_WRITE);
@@ -114,13 +117,22 @@ export function MemoryPanel() {
 
   useEffect(() => {
     setCheckedIds(new Set());
-  }, [filterType, filterSource, debouncedSearch, page]);
+  }, [
+    assistantId,
+    discussionId,
+    filterType,
+    filterSource,
+    debouncedSearch,
+    page,
+  ]);
 
   const fetchMemories = useCallback(async () => {
     setIsLoading(true);
     setLoadError(false);
     try {
       const res = await memoryApi.list({
+        assistant_id: assistantId,
+        discussion_id: discussionId,
         memory_type: filterType || undefined,
         source: filterSource || undefined,
         search: debouncedSearch || undefined,
@@ -134,7 +146,14 @@ export function MemoryPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, page]);
+  }, [
+    assistantId,
+    discussionId,
+    filterType,
+    filterSource,
+    debouncedSearch,
+    page,
+  ]);
 
   useEffect(() => {
     fetchMemories();
@@ -143,7 +162,7 @@ export function MemoryPanel() {
   const handleDelete = async () => {
     if (!canDelete || !deleteId) return;
     try {
-      await memoryApi.delete(deleteId);
+      await memoryApi.delete(deleteId, assistantId, discussionId);
       toast.success(t("memory.deleted"));
       if (selected?.memory_id === deleteId) setSelected(null);
       fetchMemories();
@@ -157,7 +176,11 @@ export function MemoryPanel() {
     if (!canDelete || checkedIds.size === 0) return;
     setBatchLoading(true);
     try {
-      const res = await memoryApi.batchDelete(Array.from(checkedIds));
+      const res = await memoryApi.batchDelete(
+        Array.from(checkedIds),
+        assistantId,
+        discussionId,
+      );
       toast.success(t("memory.batchDeleted", { count: res.deleted }));
       setCheckedIds(new Set());
       fetchMemories();
@@ -172,7 +195,7 @@ export function MemoryPanel() {
     if (!canExport) return;
     setExportLoading(true);
     try {
-      const data = await memoryApi.export();
+      const data = await memoryApi.export(assistantId, discussionId);
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
       });
@@ -207,7 +230,12 @@ export function MemoryPanel() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      const result = await memoryApi.importAll(data, setImportProgress);
+      const result = await memoryApi.importAll(
+        data,
+        setImportProgress,
+        assistantId,
+        discussionId,
+      );
       toast.success(
         t("memory.importSuccess", {
           imported: result.imported,
@@ -512,6 +540,8 @@ export function MemoryPanel() {
       {/* Detail modal */}
       {selected && (
         <DetailModal
+          assistantId={assistantId}
+          discussionId={discussionId}
           key={selected.memory_id}
           memory={selected}
           onClose={() => setSelected(null)}
@@ -531,6 +561,8 @@ export function MemoryPanel() {
       {/* Memory editor (create / edit) */}
       {canWrite && editingMemory !== undefined && (
         <MemoryEditor
+          assistantId={assistantId}
+          discussionId={discussionId}
           key={editingMemory?.memory_id ?? "new"}
           memory={editingMemory}
           onClose={() => setEditingMemory(undefined)}

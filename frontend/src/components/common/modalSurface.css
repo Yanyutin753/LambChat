@@ -86,6 +86,9 @@
   .modal-size-lg {
     width: min(512px, 100%);
   }
+  .modal-size-wide {
+    width: min(1024px, 100%);
+  }
   .modal-wide {
     width: min(1200px, 100%);
   }

@@ -126,11 +126,12 @@ test("运行模式 chip 与相邻内容保留呼吸间距", () => {
   expect(css).toMatch(/\.run-mode-chip-node\s*\{[^}]*margin/);
 });
 
-test("发送后的用户消息携带运行模式 chip", () => {
+test("发送后的用户消息以只读图标显示运行模式", () => {
   const bubble = readRepoFile(
     "src/components/chat/ChatMessage/UserMessageBubble.tsx",
   );
-  expect(bubble).toMatch(/RunModeChip/);
+  expect(bubble).toMatch(/runModes\?\.map/);
+  expect(bubble).toMatch(/role="img"/);
   // 只读展示：不渲染交互语义（role=button）
   expect(bubble).not.toMatch(/role="button"/);
 

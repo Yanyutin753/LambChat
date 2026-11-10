@@ -143,7 +143,7 @@ describe("partial and historical cost display", () => {
       fmtCostUsd(0, true, {
         language: "en",
         pricedRequests: 0,
-        unpricedRequests: 2,
+        unpricedRequests: 0,
         estimatedRequests: 2,
         estimatedCostUsd: 0.4,
       }),
@@ -173,6 +173,17 @@ describe("partial and historical cost display", () => {
         partialCostUsd: 0.2,
         estimatedRequests: 1,
         estimatedCostUsd: 9,
+      }),
+    ).toBe("$0.5+");
+  });
+  test("preserves known spending from attempts outside successful request counts", () => {
+    expect(
+      fmtCostUsd(0.3, true, {
+        language: "en",
+        pricedRequests: 0,
+        unpricedRequests: 1,
+        partialRequests: 0,
+        partialCostUsd: 0.2,
       }),
     ).toBe("$0.5+");
   });

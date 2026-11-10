@@ -341,6 +341,40 @@ def tool_cases():
             },
         ),
         (
+            "06 定时任务与角色",
+            "list_assistants",
+            {"skip": 0},
+            {
+                "assistants": [{"id": "mock-assistant", "name": "资料员（Mock）", "revision": 1}],
+                "total": 1,
+                "skip": 0,
+            },
+        ),
+        (
+            "06 定时任务与角色",
+            "create_assistant",
+            {"name": "资料员（Mock）", "instructions": "整理证据并注明来源。"},
+            {"success": True, "id": "mock-assistant", "name": "资料员（Mock）", "revision": 1},
+        ),
+        (
+            "06 定时任务与角色",
+            "update_assistant",
+            {"assistant_id": "mock-assistant", "revision": 1, "status": "paused"},
+            {
+                "success": True,
+                "id": "mock-assistant",
+                "name": "资料员（Mock）",
+                "revision": 2,
+                "status": "paused",
+            },
+        ),
+        (
+            "06 定时任务与角色",
+            "delegate_assistant_task",
+            {"assistant_id": "mock-assistant", "description": "复核交付计划中的约束与风险。"},
+            {"status": "queued", "assistant_id": "mock-assistant", "session_id": "mock-result"},
+        ),
+        (
             "07 确认表单与电脑",
             "ask_human",
             {

@@ -17,9 +17,14 @@ async def submit_channel_task(
     manager: Any, *, channel_delivery: dict | None = None, **kwargs: Any
 ) -> tuple[str, str]:
     if channel_delivery:
+        from src.infra.assistant.channel_binding import prepare_channel_assistant
+
+        kwargs = await prepare_channel_assistant(channel_delivery, kwargs)
         kwargs["session_metadata"] = {
             **(kwargs.get("session_metadata") or {}),
-            "channel_delivery": channel_delivery,
+            "channel_delivery": {
+                key: value for key, value in channel_delivery.items() if key != "sender_id"
+            },
         }
     context = current_delivery.get()
     if context:
@@ -99,7 +104,11 @@ async def submit_channel_task(
         )
     if settings.TASK_BACKEND == "arq":
         kwargs.pop("executor", None)
-        result = await manager.submit_arq(executor_key="agent_stream", **kwargs)
+        result = await manager.submit_arq(
+            executor_key=(kwargs.get("session_metadata") or {}).get("executor_key")
+            or "agent_stream",
+            **kwargs,
+        )
     else:
         result = await manager.submit(**kwargs)
     if context:

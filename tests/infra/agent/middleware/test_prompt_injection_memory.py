@@ -127,6 +127,10 @@ async def test_memory_index_guides_todo_and_scope_separation(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_memory_index_middleware_persists_index_without_changing_tools(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.memory.scope.resolve_session_project_id", mock.AsyncMock(return_value=None)
+    )
+
     async def fake_index(
         user_id: str, *, session_id: str | None = None, project_id: str | None = None
     ) -> str:
@@ -198,6 +202,9 @@ async def test_memory_index_skips_build_when_recall_tool_is_unavailable(monkeypa
 
 @pytest.mark.asyncio
 async def test_memory_index_middleware_is_stable_for_same_session(monkeypatch):
+    monkeypatch.setattr(
+        "src.infra.memory.scope.resolve_session_project_id", mock.AsyncMock(return_value=None)
+    )
     calls = 0
 
     async def fake_index(

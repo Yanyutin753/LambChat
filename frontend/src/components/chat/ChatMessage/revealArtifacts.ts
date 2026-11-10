@@ -1,5 +1,6 @@
 import type { MessagePart, ToolPart } from "../../../types";
 import { getFullUrl } from "../../../services/api/config";
+import { getOwnUploadFileUrl } from "../../../services/api/uploadFileUrl";
 import {
   parseProjectRevealSummary,
   type ParsedProjectRevealData,
@@ -115,6 +116,7 @@ function parseFileRevealPart(part: ToolPart): ParsedFileReveal | null {
         : null;
     const filePath =
       (typeof meta?.path === "string" && meta.path) ||
+      (typeof part.args.path === "string" && part.args.path) ||
       (typeof parsed.name === "string" ? parsed.name : "");
     if (!filePath) return null;
 
@@ -241,6 +243,21 @@ export function collectRevealArtifacts(
   return dedupeRevealArtifacts(artifacts);
 }
 
+export function getInlineRevealArtifacts(
+  parts: MessagePart[] | undefined,
+  artifacts: RevealArtifact[],
+): RevealArtifact[] {
+  const explicitKeys = new Set(
+    collectRevealArtifacts(parts?.filter((part) => part.type === "tool")).map(
+      getRevealArtifactDedupeKey,
+    ),
+  );
+  const explicit = artifacts.filter((artifact) =>
+    explicitKeys.has(getRevealArtifactDedupeKey(artifact)),
+  );
+  return (explicit.length ? explicit : artifacts).slice(-2);
+}
+
 function normalizeArtifactPath(path: string): string {
   return path
     .trim()
@@ -339,13 +356,73 @@ function getRevealArtifactDedupeKey(artifact: RevealArtifact): string {
 }
 
 function dedupeRevealArtifacts(artifacts: RevealArtifact[]): RevealArtifact[] {
-  const deduped = new Map<string, RevealArtifact>();
+  const deduped = new Map<RevealArtifact, Set<string>>();
+  const aliases = new Map<string, RevealArtifact>();
 
   for (const artifact of artifacts) {
-    deduped.set(getRevealArtifactDedupeKey(artifact), artifact);
+    const keys = new Set([getRevealArtifactDedupeKey(artifact)]);
+    if (artifact.kind === "file") {
+      for (const value of [
+        artifact.preview.s3Key,
+        artifact.preview.previewKey,
+      ]) {
+        if (value) keys.add(`file:object:${value}`);
+      }
+      for (const value of [artifact.path, artifact.preview.signedUrl]) {
+        const url = getOwnUploadFileUrl(value);
+        if (!url) continue;
+        try {
+          keys.add(
+            `file:object:${decodeURIComponent(
+              url.pathname.slice("/api/upload/file/".length),
+            )}`,
+          );
+        } catch {
+          // Malformed legacy URL: retain its exact identity instead.
+        }
+      }
+    }
+    let latest = artifact;
+    for (const key of keys) {
+      const previous = aliases.get(key);
+      if (!previous || !deduped.has(previous)) continue;
+      for (const alias of deduped.get(previous)!) keys.add(alias);
+      deduped.delete(previous);
+      if (latest.kind === "file" && previous.kind === "file") {
+        // A URL echo must not replace a newer workspace version or its source path.
+        if (
+          (getOwnUploadFileUrl(latest.path) ||
+            /^https?:\/\//i.test(latest.path)) &&
+          !getOwnUploadFileUrl(previous.path) &&
+          !/^https?:\/\//i.test(previous.path)
+        ) {
+          const incomingUrl = getOwnUploadFileUrl(latest.preview.signedUrl);
+          const previousUrl = getOwnUploadFileUrl(previous.preview.signedUrl);
+          latest =
+            incomingUrl && incomingUrl.pathname === previousUrl?.pathname
+              ? {
+                  ...previous,
+                  preview: {
+                    ...previous.preview,
+                    signedUrl: latest.preview.signedUrl,
+                  },
+                }
+              : previous;
+        } else if (!latest.path.includes("/") && previous.path.includes("/")) {
+          latest = {
+            ...latest,
+            path: previous.path,
+            name: previous.name,
+            preview: { ...latest.preview, filePath: previous.path },
+          };
+        }
+      }
+    }
+    deduped.set(latest, keys);
+    for (const key of keys) aliases.set(key, latest);
   }
 
-  return [...deduped.values()];
+  return [...deduped.keys()];
 }
 
 function updateTreeCounts(node: RevealArtifactTreeDir): {

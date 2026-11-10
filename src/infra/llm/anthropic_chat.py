@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import Field
 
-from src.infra.llm.quota import QuotaChatMixin
+from src.infra.llm.quota import QuotaChatMixin, observe_model_http_response
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 _CACHE_CONTROL = {"type": "ephemeral"}
@@ -110,6 +110,16 @@ class LambChatAnthropicChatModel(QuotaChatMixin, ChatAnthropic):
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
     # Inject Anthropic prompt-cache breakpoints (system prefix + final message).
     enable_prompt_cache: bool = Field(default=True, exclude=True)
+
+    async def _acreate(self, payload: dict) -> Any:
+        try:
+            response = await super()._acreate(payload)
+        except Exception as error:
+            # LangChain may replace the SDK error and discard its response.
+            await observe_model_http_response(getattr(error, "response", None))
+            raise
+        await observe_model_http_response(response.http_response)
+        return response
 
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any

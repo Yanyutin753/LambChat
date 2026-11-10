@@ -88,11 +88,11 @@ def create_team_subagent_resolver(
             if member is None:
                 raise ValueError("Subagent role is no longer available")
             from src.agents.team_agent.role_tools import build_role_tool_scope
-            from src.infra.persona_preset.manager import get_persona_preset_manager
+            from src.infra.assistant.groups import group_member_snapshot
             from src.infra.skill.skill_search_tool import SkillSearchTool
 
-            current_preset = await get_persona_preset_manager().use_preset(
-                member.persona_preset_id, user_id=context.user_id or "default", is_admin=False
+            current_preset = await group_member_snapshot(
+                current_team, member, context.user_id or "default"
             )
             current_agent_id = await resolve_member_agent(member.agent_id, user_id=context.user_id)
             current_model = await resolve_member_model(member.model_id, user_id=context.user_id)

@@ -408,3 +408,47 @@ async def test_uncertain_admission_does_not_overwrite_running_child_status(monke
     await publish_background_attention(record, "uncertain", sessions)
     assert "task_status" not in sessions.update_session_metadata.await_args.args[1]
     assert journal.record_once.await_args.args[1]["status"] == "waiting_human"
+
+
+async def test_assistant_delegation_keeps_instructions_scope_and_finite_deadline(monkeypatch):
+    from src.infra.assistant.store import AssistantStore
+
+    svc, submit, sessions = service()
+    parent = await sessions.get_session("parent")
+    parent.metadata.update(assistant_id="helper", project_id="project")
+    assistant = SimpleNamespace(
+        id="helper", status="active", instructions="Cite evidence", revision=4
+    )
+    lookup = AsyncMock(return_value=assistant)
+    monkeypatch.setattr(AssistantStore, "for_session", lookup)
+    await start(svc)
+    record = next(iter(svc.store.records.values()))
+    assert record["assistant_instructions"] == "Cite evidence"
+    assert record["config"]["project_id"] == "project"
+    assert record["timeout_seconds"] == 1800
+    assert record["authorization"] == {
+        "kind": "conversation",
+        "run_id": "parent-run",
+        "assistant_revision": 4,
+    }
+    lookup.assert_awaited_once_with("u", "parent")
+    assert submit.await_count == 1
+
+
+@pytest.mark.parametrize("status", ["paused", None])
+async def test_paused_or_unregistered_assistant_cannot_delegate(monkeypatch, status):
+    from src.infra.assistant.store import AssistantStore
+    from src.kernel.errors import AppError
+
+    svc, submit, sessions = service()
+    parent = await sessions.get_session("parent")
+    parent.metadata["assistant_id"] = "helper"
+    monkeypatch.setattr(
+        AssistantStore,
+        "for_session",
+        AsyncMock(return_value=SimpleNamespace(id="helper", status=status) if status else None),
+    )
+    with pytest.raises(AppError):
+        await start(svc)
+    assert svc.store.records == {}
+    submit.assert_not_awaited()

@@ -790,3 +790,17 @@ async def emit_token_usage(
         )
     except Exception as e:
         logger.warning(f"Failed to emit token:usage event: {e}")
+
+
+async def inspect_parent_approval(graph, config):
+    """Inspect pending approval before suspending persistent child sessions."""
+    try:
+        snapshot = await graph.aget_state(config)
+        return snapshot, bool(snapshot and any(task.interrupts for task in snapshot.tasks))
+    except Exception:
+        from src.infra.logging import get_logger
+
+        get_logger(__name__).warning(
+            "Failed to inspect parent approval before closing children", exc_info=True
+        )
+        return None, False

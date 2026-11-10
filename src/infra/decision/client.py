@@ -59,14 +59,15 @@ async def system_one(
             transport=transport,
         ) as client:
             async with unpriced_usage(
-                operation="decision", provider="systemone", model=cfg["model"]
-            ):
+                operation="decision", provider="systemone", model=cfg["model"], api_base=cfg["base"]
+            ) as observe:
                 response = await client.post(
                     "/v1/systemone",
                     json={"state": state, "model": cfg["model"], "questions": questions},
                 )
                 response.raise_for_status()
-            payload = response.json()
+                payload = response.json()
+                observe(payload)
     except Exception as exc:
         if is_quota_error(exc):
             raise

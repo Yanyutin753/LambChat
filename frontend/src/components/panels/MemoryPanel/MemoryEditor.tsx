@@ -24,11 +24,15 @@ import {
 } from "./constants";
 
 export function MemoryEditor({
+  assistantId,
+  discussionId,
   memory,
   onClose,
   onSaved,
   relativeTime,
 }: {
+  assistantId?: string;
+  discussionId?: string;
   memory?: MemoryItem | null;
   onClose: () => void;
   onSaved: () => void;
@@ -51,7 +55,7 @@ export function MemoryEditor({
     loading: loadingContent,
     error: loadError,
     retry,
-  } = useMemoryContent(memory);
+  } = useMemoryContent(memory, assistantId, discussionId);
   const content = contentDraft ?? full?.content ?? "";
   const summary = summaryDraft ?? full?.summary ?? memory?.summary ?? "";
   const contentRef = useRef<HTMLDivElement>(null);
@@ -79,23 +83,32 @@ export function MemoryEditor({
         .filter(Boolean);
 
       if (isEdit && memory) {
-        await memoryApi.update(memory.memory_id, {
-          title: title.trim() || undefined,
-          content: content.trim(),
-          summary: summary.trim() || undefined,
-          memory_type: memoryType,
-          tags,
-          source,
-        });
+        await memoryApi.update(
+          memory.memory_id,
+          {
+            title: title.trim() || undefined,
+            content: content.trim(),
+            summary: summary.trim() || undefined,
+            memory_type: memoryType,
+            tags,
+            source,
+          },
+          assistantId,
+          discussionId,
+        );
         toast.success(t("memory.updateSuccess"));
       } else {
-        await memoryApi.create({
-          title: title.trim() || undefined,
-          content: content.trim(),
-          summary: summary.trim() || undefined,
-          memory_type: memoryType,
-          tags,
-        });
+        await memoryApi.create(
+          {
+            title: title.trim() || undefined,
+            content: content.trim(),
+            summary: summary.trim() || undefined,
+            memory_type: memoryType,
+            tags,
+          },
+          assistantId,
+          discussionId,
+        );
         toast.success(t("memory.createSuccess"));
       }
       onSaved();

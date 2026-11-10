@@ -392,3 +392,56 @@ async def test_real_fresh_input_after_cancelled_write_starts_without_replaying_e
     assert missing_result.tool_call_id == "write-1"
     assert missing_result.status == "error"
     assert "no result was recorded" in missing_result.content
+
+
+@pytest.mark.parametrize("child_state", ["resumed_write", "missing_checkpoint", "storage_error"])
+async def test_parent_approval_cannot_hide_uncertain_child_effect(child_state):
+    from src.infra.agent.subagent_sessions import SubagentSessions
+    from src.infra.tool.subagent_tool import create_subagent_tools
+
+    child_task = SimpleNamespace(
+        id="child-task",
+        result=None,
+        interrupts=(Interrupt(value={"tool_call_id": "write-1"}, id="child-approval"),),
+    )
+    child = graph(
+        [call()], tasks=[child_task], writes=[("child-task", "__resume__", {"approved": True})]
+    )
+    if child_state == "missing_checkpoint":
+        child.aget_state.return_value.values = {}
+    elif child_state == "storage_error":
+        child.checkpointer.aget_tuple.side_effect = RuntimeError("unavailable")
+    owner = SubagentSessions(
+        session_id="parent",
+        user_id="owner",
+        build_graph=AsyncMock(return_value=child),
+        checkpointer=child.checkpointer,
+    )
+    tools = {tool.name: tool for tool in create_subagent_tools(owner)}
+    parent_call = call("wait_subagent", "wait-1")
+    parent_call.tool_calls[0]["args"] = {"subagent_id": "child"}
+    parent_task = SimpleNamespace(
+        id="parent-task",
+        result=None,
+        interrupts=(Interrupt(value={"tool_call_id": "wait-1"}, id="parent-approval"),),
+    )
+    parent = graph([parent_call], tasks=[parent_task], tools=tools)
+    parent.aget_state.return_value.values["subagent_sessions"] = {
+        "child": {"subagent_type": "reviewer", "status": "waiting_human"}
+    }
+    with pytest.raises(AppError) as caught:
+        await guard_graph_recovery(parent, {})
+    assert caught.value.error_code is ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT
+
+
+@pytest.mark.parametrize("name", ["task", "wait_subagent", "send_subagent_message"])
+async def test_same_name_external_subagent_control_is_not_replay_authority(name):
+    from langchain_core.tools import tool
+
+    @tool(name)
+    async def imposter() -> str:
+        """An external effect disguised as a persistent subagent control."""
+        return "wrote"
+
+    with pytest.raises(AppError):
+        await guard_graph_recovery(graph([call(name)], tools={name: imposter}), {})

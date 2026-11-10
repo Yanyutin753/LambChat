@@ -26,13 +26,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderReader() {
+function renderReader(modelName?: string) {
   return render(
     <MemoryRouter>
       <LanguagePreferenceProvider>
         <SharedPage
           initialData={{
-            session: { id: "demo", name: "Reading sample", agent_id: "fast" },
+            session: {
+              id: "demo",
+              name: "Reading sample",
+              agent_id: "fast",
+              model: "internal-model-uuid",
+              model_name: modelName,
+            },
             events: [],
             owner: { username: "Demo" },
             share_type: "full",
@@ -101,3 +107,18 @@ test("reader scroll shortcuts respect reduced motion", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Scroll to bottom" }));
   expect(scroll).toHaveBeenCalledWith({ top: 2000, behavior: "instant" });
 });
+
+test.each(["Friendly Model", undefined])(
+  "reader shows only the resolved model display name (%s)",
+  async (modelName) => {
+    renderReader(modelName);
+    await screen.findByRole("heading", { name: "Reading sample" });
+    expect(screen.queryByText("internal-model-uuid")).toBeNull();
+    if (modelName) expect(screen.getByText(modelName)).toBeInTheDocument();
+    expect(
+      document
+        .querySelector('meta[name="description"]')
+        ?.getAttribute("content"),
+    ).not.toContain("internal-model-uuid");
+  },
+);

@@ -271,6 +271,15 @@ function TeamPage() {
   return <AppContent key="team" activeTab="team" />;
 }
 
+function AssistantsPage() {
+  useSEO({
+    title: "assistants.title",
+    description: "assistants.subtitle",
+    path: "/assistants",
+  });
+  return <AppContent key="assistants" activeTab="assistants" />;
+}
+
 function PersonaPage() {
   useSEO({
     title: "seo.persona.title",
@@ -594,6 +603,56 @@ function App() {
                       permissions={[Permission.PERSONA_PRESET_READ]}
                     >
                       <PersonaPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants/:assistantId/usage"
+                  element={
+                    <ProtectedRoute
+                      permissions={[
+                        Permission.SESSION_READ,
+                        Permission.USAGE_READ,
+                      ]}
+                    >
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants/:assistantId/memory"
+                  element={
+                    <ProtectedRoute
+                      permissions={[
+                        Permission.SESSION_READ,
+                        Permission.MEMORY_READ,
+                      ]}
+                    >
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants/:assistantId/chat/:sessionId"
+                  element={
+                    <ProtectedRoute permissions={[Permission.SESSION_READ]}>
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants/:assistantId/:view?"
+                  element={
+                    <ProtectedRoute permissions={[Permission.SESSION_READ]}>
+                      <AssistantsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assistants"
+                  element={
+                    <ProtectedRoute permissions={[Permission.SESSION_READ]}>
+                      <AssistantsPage />
                     </ProtectedRoute>
                   }
                 />

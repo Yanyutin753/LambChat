@@ -1,3 +1,4 @@
+import type { MessagePart } from "../../../../types";
 import {
   buildRevealArtifactBinaryFiles,
   buildRevealArtifactTree,
@@ -326,5 +327,105 @@ test("builds stable nested artifact tree metadata", () => {
     fileCount: 2,
     projectCount: 0,
     totalCount: 2,
+  });
+});
+
+function deliveredFile(
+  path: string,
+  key: string,
+  url = `/api/upload/file/${key}`,
+): MessagePart {
+  return {
+    type: "artifact",
+    success: true,
+    artifact: {
+      kind: "file",
+      id: `file:${key}`,
+      name: "report.pdf",
+      path,
+      preview: {
+        kind: "file",
+        previewKey: key,
+        filePath: path,
+        s3Key: key,
+        signedUrl: url,
+      },
+    },
+  };
+}
+
+test("all-files merges workspace, tool and URL deliveries of the same object", () => {
+  const parts: MessagePart[] = [
+    deliveredFile("/workspace/report.pdf", "revealed/report.pdf"),
+    {
+      type: "tool",
+      name: "reveal_file",
+      args: {},
+      success: true,
+      result: {
+        key: "revealed/report.pdf",
+        url: "/api/upload/file/revealed/report.pdf?file_token=one",
+        name: "report.pdf",
+      },
+    },
+    deliveredFile(
+      "/api/upload/file/revealed/report.pdf?file_token=two",
+      "url-echo",
+    ),
+  ];
+  const artifacts = collectRevealArtifacts(parts);
+  expect(artifacts).toHaveLength(1);
+  expect(artifacts[0]).toMatchObject({ path: "/workspace/report.pdf" });
+});
+
+test("all-files retains aliases after replacing a file version", () => {
+  const artifacts = collectRevealArtifacts([
+    deliveredFile("/workspace/report.pdf", "old"),
+    deliveredFile("/workspace/report.pdf", "new"),
+    deliveredFile("/api/upload/file/old", "old"),
+  ]);
+  expect(artifacts).toHaveLength(1);
+  expect(artifacts[0].preview.previewKey).toBe("new");
+});
+
+test("all-files preserves different files with the same basename and foreign URLs", () => {
+  expect(
+    collectRevealArtifacts([
+      deliveredFile("/one/report.pdf", "one"),
+      deliveredFile("/two/report.pdf", "two"),
+      deliveredFile(
+        "https://other.example/api/upload/file/one",
+        "foreign",
+        "https://other.example/api/upload/file/one",
+      ),
+    ]),
+  ).toHaveLength(3);
+});
+
+test("URL-only deliveries retain the latest download capability", () => {
+  const path = "/api/upload/file/revealed/report.pdf";
+  const artifacts = collectRevealArtifacts([
+    deliveredFile(path, "key", path + "?file_token=expired"),
+    deliveredFile(path, "key", path + "?file_token=fresh"),
+  ]);
+  expect(artifacts).toHaveLength(1);
+  expect(artifacts[0].preview).toMatchObject({
+    signedUrl: path + "?file_token=fresh",
+  });
+});
+
+test("URL echoes refresh the same object's capability without losing its workspace path", () => {
+  const url = "/api/upload/file/revealed/report.pdf";
+  const artifacts = collectRevealArtifacts([
+    deliveredFile(
+      "/workspace/report.pdf",
+      "revealed/report.pdf",
+      url + "?file_token=expired",
+    ),
+    deliveredFile(url, "revealed/report.pdf", url + "?file_token=fresh"),
+  ]);
+  expect(artifacts[0]).toMatchObject({
+    path: "/workspace/report.pdf",
+    preview: { signedUrl: url + "?file_token=fresh" },
   });
 });

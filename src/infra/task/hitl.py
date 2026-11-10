@@ -165,10 +165,15 @@ async def materialize_ask_human_approvals(
     # 映射回全部同批中断）；各中断的 tool_call_id 预聚合进该卡 metadata，
     # approval_resolved 回执据此批量终结执行工具卡
     sandbox_batch_tool_call_ids: dict[str, list[str]] = {}
+    sandbox_batch_child_ids: dict[str, list[str]] = {}
     for payload in payloads:
         if payload.get("origin") != "sandbox_confirm":
             continue
         batch_ids = sandbox_batch_tool_call_ids.setdefault(str(payload.get("message", "")), [])
+        child_ids = sandbox_batch_child_ids.setdefault(str(payload.get("message", "")), [])
+        for child_id in payload.get("subagent_interrupt_ids", []):
+            if child_id not in child_ids:
+                child_ids.append(child_id)
         payload_tool_call_id = str(payload.get("tool_call_id") or "")
         if payload_tool_call_id and payload_tool_call_id not in batch_ids:
             batch_ids.append(payload_tool_call_id)
@@ -204,6 +209,13 @@ async def materialize_ask_human_approvals(
         batch_ids = sandbox_batch_tool_call_ids.get(message) or []
         if payload.get("origin") == "sandbox_confirm" and batch_ids:
             metadata["tool_call_ids"] = list(batch_ids)
+        child_ids = (
+            sandbox_batch_child_ids.get(message, [])
+            if payload.get("origin") == "sandbox_confirm"
+            else payload.get("subagent_interrupt_ids", [])
+        )
+        if child_ids:
+            metadata["subagent_interrupt_ids"] = child_ids
         origin = payload.get("origin")
         if origin:
             metadata["origin"] = str(origin)
@@ -392,9 +404,22 @@ def build_hitl_resume_payload(
     sandbox_confirm_message = (
         str(approval.message) if approval_metadata.get("origin") == "sandbox_confirm" else None
     )
-    resume_value = {k: v for k, v in resume_value.items() if k != "confirmation_context"}
+    resume_value = {
+        k: v
+        for k, v in resume_value.items()
+        if k
+        not in {
+            "confirmation_context",
+            "_approval_tool_call_ids",
+            "_approval_subagent_interrupt_ids",
+        }
+    }
     if isinstance(approval_metadata.get("confirmation_context"), dict):
         resume_value["confirmation_context"] = approval_metadata["confirmation_context"]
+    if approval_metadata.get("subagent_interrupt_ids"):
+        resume_value["_approval_subagent_interrupt_ids"] = approval_metadata[
+            "subagent_interrupt_ids"
+        ]
     command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
     return {
         "approval_id": approval.id,
@@ -489,6 +514,9 @@ async def submit_hitl_resume_run(
         from .concurrency import get_registered_executor
 
         executor_key = str(metadata.get("executor_key") or "agent_stream")
+        if executor_key == "assistant_stream":
+            from src.infra.assistant import execution  # noqa: F401
+
         executor_fn = get_registered_executor(executor_key)
         if executor_fn is None and executor_key == "agent_stream":
             from importlib import import_module

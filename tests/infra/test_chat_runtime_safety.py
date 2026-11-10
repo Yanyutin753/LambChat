@@ -109,8 +109,6 @@ def handler_dependencies(monkeypatch):
         "project_id": "project",
         "team_id": "team",
     }
-    storage = AsyncMock()
-    storage.get_config.return_value = config
     redis = AsyncMock()
     redis.get.return_value = None
     task_manager = AsyncMock()
@@ -129,7 +127,10 @@ def handler_dependencies(monkeypatch):
         for event in events:
             yield event
 
-    monkeypatch.setattr("src.infra.channel.chat_handler.ChannelStorage", lambda: storage)
+    monkeypatch.setattr(
+        "src.infra.channel.channel_storage.ChannelStorage.get_config",
+        AsyncMock(return_value=config),
+    )
     monkeypatch.setattr("src.infra.channel.chat_handler.RedisStorage", lambda: redis)
     monkeypatch.setattr(
         "src.infra.session.dual_writer.get_dual_writer",
@@ -239,8 +240,11 @@ async def test_cancelling_handler_preserves_recoverable_background_run(
             user_id="owner", sender_id="sender", chat_id="chat", content="hello", metadata={}
         )
     )
-    await reading.wait()
-    task.cancel()
+    try:
+        await asyncio.wait_for(reading.wait(), 1)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
     with pytest.raises(asyncio.CancelledError):
         await task
     deps.manager.cancel_run.assert_not_awaited()

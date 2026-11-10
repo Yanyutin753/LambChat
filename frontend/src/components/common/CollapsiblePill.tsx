@@ -107,7 +107,7 @@ export function CollapsiblePill({
         </span>
         <span
           className={clsx(
-            "pill-btn__label min-w-0 flex-1 truncate overflow-hidden",
+            "pill-btn__label min-w-0 truncate overflow-hidden",
             description && "flex items-center gap-2",
             animatedDots &&
               !description &&

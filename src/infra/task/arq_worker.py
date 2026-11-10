@@ -130,6 +130,10 @@ async def worker_shutdown(ctx: dict[str, Any]) -> None:
 
 
 def _resolve_executor(executor_key: str) -> Any:
+    if executor_key == "assistant_stream":
+        from src.infra.assistant.execution import execute_assistant_stream
+
+        return execute_assistant_stream
     if executor_key == "scheduled_agent_stream":
         from src.infra.scheduler.runner import execute_standalone_schedule
 

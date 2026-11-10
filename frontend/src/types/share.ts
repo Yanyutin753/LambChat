@@ -90,6 +90,7 @@ export interface SharedContentResponse {
     agent_id: string;
     agent_meta?: SharedAgentMeta;
     model?: string;
+    model_name?: string | null;
     created_at?: string;
     updated_at?: string;
     task_status?: string | null;

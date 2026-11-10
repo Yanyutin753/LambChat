@@ -657,6 +657,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     )
 
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
+    parent_snapshot = None
+    parent_interrupted = False
     try:
         async with isolated_nested_graph_run(presenter=presenter):
             from src.infra.agent.recovery_guard import guard_graph_recovery
@@ -673,16 +675,22 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     await event_processor.process_event(event)
             finally:
                 hitl_interrupt_supported.reset(token_supported)
+        if interrupt_supported:
+            from src.agents.core.node_utils import inspect_parent_approval
+
+            parent_snapshot, parent_interrupted = await inspect_parent_approval(
+                inner_graph, inner_config
+            )
     finally:
         current_task = asyncio.current_task()
         try:
             await subagent_sessions.close(
-                preserve_approvals=current_task is None or not current_task.cancelling()
+                preserve_approvals=current_task is None or not current_task.cancelling(),
+                parent_interrupted=parent_interrupted,
             )
         finally:
             try:
-                await event_processor.drain_activity_references()
-                await event_processor.flush()
+                await event_processor.finalize_subagent_events(subagent_sessions)
             finally:
                 await emit_token_usage(
                     event_processor,
@@ -698,7 +706,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # （工具内零副作用，对齐 deepagents 官方 HITL，重放不会重复创建）
     if interrupt_supported:
         try:
-            snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
+            snapshot = parent_snapshot
+            if snapshot is None:
+                snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
             if isinstance(inner_config, dict):
                 cast(dict[str, Any], inner_config)["_recommendation_state_snapshot"] = snapshot
             if snapshot is not None and snapshot.next:
@@ -804,7 +814,11 @@ async def _create_backend_and_prompt(
     # 获取 user_id
     user_id = context.user_id or "default"
 
-    if not settings.ENABLE_SANDBOX:
+    if not settings.ENABLE_SANDBOX or (
+        agent_options is not None
+        and "sandbox" in agent_options
+        and agent_options["sandbox"] is None
+    ):
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
         backend = create_persistent_backend(

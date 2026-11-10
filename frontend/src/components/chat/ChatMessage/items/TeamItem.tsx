@@ -372,7 +372,20 @@ const TeamItem = memo(function TeamItem({
         ? "success"
         : "error";
 
-  const labelSuffix = isSearch ? query : resultTeamName || teamName || "";
+  const labelSuffix = isSearch
+    ? [query, typeof args.tag === "string" ? args.tag : ""]
+        .filter(Boolean)
+        .join(" ")
+    : resultTeamName || teamName || "";
+  const hasSearchResults =
+    isSearch &&
+    !isPending &&
+    !cancelled &&
+    success !== false &&
+    !parsed?.error &&
+    (Array.isArray(parsed) ||
+      Array.isArray(parsed?.items) ||
+      Array.isArray(parsed?.presets));
 
   // ── Panel detail content ──
 
@@ -393,7 +406,22 @@ const TeamItem = memo(function TeamItem({
 
   // 进行中：标签学「思考中」，平滑流出正在生成的参数尾部
   const { label, isStreamingLabel } = useToolStreamingLabel(
-    `${actionLabel}${labelSuffix ? ` ${labelSuffix}` : ""}`,
+    [
+      actionLabel,
+      labelSuffix,
+      hasSearchResults &&
+        t("chat.message.toolPersonaCount", { count: personas.length }),
+      hasSearchResults &&
+        personas
+          .slice(0, 3)
+          .map((persona) =>
+            typeof persona?.name === "string" ? persona.name : "",
+          )
+          .filter(Boolean)
+          .join(" "),
+    ]
+      .filter(Boolean)
+      .join(" "),
     args,
     { isPending, result },
   );

@@ -1,3 +1,4 @@
+import { ChatHeaderFrame } from "./ChatHeaderFrame";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { PageNavigationBar } from "../../common/PageNavigationBar";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
@@ -22,6 +23,7 @@ import {
   Share2,
   CalendarClock,
   MoreHorizontal,
+  Settings2,
   SquarePen,
   Bell,
   Languages,
@@ -63,6 +65,7 @@ const SessionScheduledTasksPanel = lazy(() =>
 
 interface HeaderProps {
   activeTab: TabType;
+  workspaceHeaderRef?: (element: HTMLDivElement | null) => void;
   headerActions?: ReactNode;
   setMobileSidebarOpen: (open: boolean) => void;
   onNewSession: () => void;
@@ -85,6 +88,7 @@ interface HeaderProps {
 
 export function Header({
   activeTab,
+  workspaceHeaderRef,
   headerActions,
   setMobileSidebarOpen,
   onNewSession,
@@ -298,7 +302,11 @@ export function Header({
 
   const actions = (
     /* Right */
-    <div className="chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0">
+    <div
+      className={`chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0 ${
+        workspaceHeaderRef ? "ml-1 sm:ml-2" : ""
+      }`}
+    >
       {/* Overflow menu (unified for all screen sizes) */}
       <div className="relative">
         <button
@@ -316,7 +324,11 @@ export function Header({
           title={t("common.menu")}
         >
           <InteractiveIcon>
-            <MoreHorizontal size={16} />
+            {workspaceHeaderRef ? (
+              <Settings2 size={16} />
+            ) : (
+              <MoreHorizontal size={16} />
+            )}
           </InteractiveIcon>
         </button>
         {menu && (
@@ -343,8 +355,12 @@ export function Header({
 
   return (
     <>
-      <header className="chat-header relative z-50 flex items-center px-3 sm:px-5 py-3 -mb-2 max-sm:h-12 max-sm:py-0 max-sm:mb-0 shrink-0 rounded-bl-xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-[linear-gradient(to_bottom,var(--theme-bg),transparent)]">
-        <div className="chat-header__identity flex min-w-0 flex-1 items-center gap-2">
+      <ChatHeaderFrame>
+        <div
+          className={`chat-header__identity flex min-w-0 flex-1 items-center ${
+            workspaceHeaderRef ? "gap-1 sm:gap-2" : "gap-2"
+          }`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -360,7 +376,12 @@ export function Header({
           >
             <SidebarToggleIcon className="size-4 max-sm:dark:text-stone-300" />
           </button>
-          {activeTab === "chat" ? (
+          {workspaceHeaderRef ? (
+            <div
+              ref={workspaceHeaderRef}
+              className="flex min-w-0 flex-1 items-center"
+            />
+          ) : activeTab === "chat" ? (
             <>
               {onSelectModel && (modelsLoading || modelsError) && (
                 <ToolbarIconButton
@@ -398,12 +419,21 @@ export function Header({
             </>
           ) : (
             <PageNavigationBar
-              title={t(`nav.${activeTab}`, { defaultValue: activeTab })}
+              title={t(
+                activeTab === "assistants"
+                  ? "assistants.title"
+                  : `nav.${activeTab}`,
+                { defaultValue: activeTab },
+              )}
               onBack={() => navigate(-1)}
               icon={
                 <SceneIllustration
                   scene={`panel-${
-                    activeTab === "scheduled-tasks" ? "schedule" : activeTab
+                    activeTab === "scheduled-tasks"
+                      ? "schedule"
+                      : activeTab === "assistants"
+                        ? "agents"
+                        : activeTab
                   }`}
                   className="panel-nav-avatar"
                 />
@@ -413,8 +443,8 @@ export function Header({
           )}
         </div>
 
-        {activeTab === "chat" && actions}
-      </header>
+        {(activeTab === "chat" || workspaceHeaderRef) && actions}
+      </ChatHeaderFrame>
 
       {activeTab === "chat" &&
         scheduledSessionId === sessionId &&

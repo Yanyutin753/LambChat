@@ -26,6 +26,8 @@ import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 
+import { isCompanionSession } from "../../utils/sessionScope";
+
 const PAGE_SIZE = 30;
 
 interface SearchResult {
@@ -330,6 +332,11 @@ export function SearchDialog({
                       >
                         {getSessionTitle(session, t)}
                       </span>
+                      {isCompanionSession(session) && (
+                        <span className="mt-0.5 block text-12 text-theme-text-tertiary">
+                          {t("assistants.title")}
+                        </span>
+                      )}
                       {searchMatch && (
                         <span
                           title={searchMatch}

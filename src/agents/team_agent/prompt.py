@@ -66,7 +66,7 @@ def build_team_router_system_prompt(
     team_instructions_section = (
         f"## Team Instructions\n{team_instructions}" if team_instructions else ""
     )
-    return TEAM_ROUTER_SYSTEM_PROMPT.format(
+    prompt = TEAM_ROUTER_SYSTEM_PROMPT.format(
         team_members_description=build_team_members_description(
             team,
             role_summaries=role_summaries,
@@ -75,6 +75,18 @@ def build_team_router_system_prompt(
         default_role=default_role,
         tool_progress_guide=TOOL_PROGRESS_GUIDE.strip(),
     )
+    if team.id.startswith("assistant-group:"):
+        coordinator = next(
+            member for member in team.active_members if member.member_id == team.default_member_id
+        )
+        return (
+            f"You are {coordinator.role_name}, the current coordinator of {team.name}. "
+            "Use this identity for this turn, even when earlier replies or summaries use another role. "
+            "Do not impersonate another member or present your own work as their independent review. "
+            "Delegate a named member's independent contribution to that member's session.\n\n"
+            + prompt
+        )
+    return prompt
 
 
 def build_team_subagent_display_names(team) -> dict[str, str]:

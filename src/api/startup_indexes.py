@@ -139,7 +139,21 @@ def get_startup_index_initializers() -> list[tuple[str, Callable[[], Awaitable[N
         await PATStorage().ensure_indexes()
         logger.info("PATStorage indexes initialized")
 
+    async def _init_assistant_storage() -> None:
+        from src.infra.assistant.discussions import DiscussionStore
+        from src.infra.assistant.store import AssistantStore
+
+        await AssistantStore().ensure_indexes()
+        await DiscussionStore().ensure_indexes()
+        from src.infra.task.background_task_store import BackgroundTaskStore
+
+        for field in ("parent_session_id", "assistant_id"):
+            await BackgroundTaskStore().collection.create_index(
+                [("user_id", 1), (field, 1), ("created_at", -1), ("_id", -1)]
+            )
+
     return [
+        ("assistant_storage", _init_assistant_storage),
         ("agent_config_storage", _init_agent_config_storage),
         ("model_storage", _init_model_storage),
         ("channel_storage", _init_channel_storage),

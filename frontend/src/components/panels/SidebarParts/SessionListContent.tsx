@@ -1,3 +1,4 @@
+import { AgentAvatar } from "../../common/AgentAvatar";
 import { OPEN_NOTIFICATIONS_EVENT } from "../../layout/DesktopSidebarShell/desktopShellPlatform";
 import { InteractiveIcon } from "../../common/InteractiveIcon";
 import { SidebarToggleIcon } from "../../common/SidebarToggleIcon";
@@ -91,6 +92,7 @@ interface SessionListContentProps {
    * ActivityRail 承接，二级面板只保留列表主体（列表区顶部补回 padding）。
    */
   compactChrome?: boolean;
+  isMobile?: boolean;
   onNewSession: () => void;
   onOpenSearch: () => void;
   onShowProfile: () => void;
@@ -296,6 +298,22 @@ export function SessionListContent({
     </Tooltip>
   );
 
+  const companionsEntry = hasPermission(Permission.SESSION_READ) && (
+    <button
+      type="button"
+      onClick={() => navigate("/assistants")}
+      className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
+    >
+      <span
+        className="flex size-4 shrink-0 items-center justify-center"
+        aria-hidden="true"
+      >
+        <AgentAvatar seed="LambChat" size={20} />
+      </span>
+      <span>{t("assistants.title")}</span>
+    </button>
+  );
+
   return (
     <>
       {/* Header（桌面双栏模式下品牌与折叠由 ActivityRail 承接，不渲染） */}
@@ -356,7 +374,7 @@ export function SessionListContent({
           </div>
         </div>
       )}
-      {/* 桌面壳仅保留新建对话，其余入口由顶栏和最左侧导航承接。 */}
+      {/* 对话和长期助手共用主要入口，其余能力按需打开。 */}
       <div
         className={
           compactChrome
@@ -364,6 +382,7 @@ export function SessionListContent({
             : "flex flex-col gap-0 sm:gap-px px-1 mb-2 space-y-0 sm:space-y-1"
         }
       >
+        {companionsEntry}
         <button
           disabled={!hasPermission(Permission.SESSION_WRITE)}
           onClick={onNewSession}

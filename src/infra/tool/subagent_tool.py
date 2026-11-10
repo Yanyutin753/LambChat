@@ -150,7 +150,9 @@ def create_subagent_tools(sessions):
         """Use an event-driven bounded wait for the child, normally 120 seconds (10–300).
         Completion or parent mail wakes it immediately. wait_timed_out=true means the wait
         expired, not the child. Prefer longer waits to repeated status polling; do other
-        independent work when appropriate. Collected final reports are not repeated.
+        independent work that needs no approval. Defer optional approval-gated operations
+        until the child finishes: parent approval suspends active children and can restart
+        their unfinished model requests. Collected final reports are not repeated.
         terminal=true means stop waiting. Missing IDs require list_subagents, not retries.
         Read messages_pending before waiting again; pending human approval uses the normal flow."""
         sessions.restore(runtime.state.get("subagent_sessions", {}))

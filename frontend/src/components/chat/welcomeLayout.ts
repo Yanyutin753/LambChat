@@ -189,3 +189,6 @@ function getSelectedStarterPrompts<T extends WelcomeTeamLike>(
 
   return prompts.length > 0 ? prompts : fallbackPrompts;
 }
+
+export const WELCOME_INPUT_CONTAINER_CLASS_NAME =
+  "welcome-input flex w-full flex-col mx-auto sm:max-w-[48rem] md:max-w-[52rem] lg:max-w-[56rem] xl:max-w-[58rem] 2xl:max-w-[60rem]";

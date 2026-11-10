@@ -23,6 +23,7 @@ import { EmptyState } from "../common/EmptyState";
 import { ChannelIcon } from "./channel/ChannelIcon";
 import { localizeChannelMetadata } from "./channel/channelMetadata";
 import { WeixinQrLogin } from "./channel/weixin/WeixinQrLogin";
+import { ChannelAssistantSelect } from "./channel/ChannelAssistantSelect";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { ChannelModelSelect } from "./channel/ChannelModelSelect";
 import { ChannelPersonaSelect } from "./channel/ChannelPersonaSelect";
@@ -649,9 +650,19 @@ export function ChannelPanel({
           {/* Dynamic Fields */}
           {metadata.config_fields.map(renderField)}
 
+          {isChatCapable && (
+            <ChannelAssistantSelect
+              value={runtimeConfig.assistant_id}
+              disabled={isSaving || !canWrite}
+              onChange={(assistant_id) =>
+                setRuntimeConfig({ ...runtimeConfig, assistant_id })
+              }
+            />
+          )}
           {/* Agent Selector */}
           <fieldset
-            disabled={isSaving || !canWrite}
+            hidden={isChatCapable && !!runtimeConfig.assistant_id}
+            disabled={isSaving || !canWrite || !!runtimeConfig.assistant_id}
             className="min-w-0 space-y-4"
           >
             <ChannelAgentSelect

@@ -89,6 +89,7 @@ from src.infra.agent.middleware.persona_subagent import (
     add_persona_discovery,
 )
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
+from src.infra.assistant.groups import resolve_group_for_session, team_member_snapshots
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.goal import (
     build_goal_input,
@@ -115,9 +116,15 @@ async def resolve_runtime_team(
     user_input: str,
 ):
     """Resolve an explicit team; no team means single-agent fallback."""
-    del user_input
     if not context.user_id:
         return None
+
+    if not team_id and getattr(context, "session_id", None):
+        group = await resolve_group_for_session(
+            context.user_id, context.session_id, user_input=user_input
+        )
+        if group is not None:
+            return group
 
     if team_id:
         try:
@@ -165,11 +172,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     attachments = state.get("attachments", [])
 
-    # 多租户隔离
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
 
-    # ── 团队解析 ──
     user_input = state.get("input", "")
     team = await resolve_runtime_team(
         team_id=configurable.get("team_id"),
@@ -177,7 +182,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         user_input=user_input,
     )
 
-    # ── 系统提示 ──
     # In explicit team mode the main agent is only the router/synthesizer.
     # Role persona and skills are injected into the matching member subagents.
     persona_sections = (
@@ -258,15 +262,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     if team and team.active_members:
         try:
-            from src.infra.persona_preset.manager import get_persona_preset_manager
-
-            preset_mgr = get_persona_preset_manager()
             members = team.active_members
-            preset_snapshots = await preset_mgr.use_presets(
-                [member.persona_preset_id for member in members],
-                user_id=context.user_id or "default",
-                is_admin=False,
-            )
+            preset_snapshots = await team_member_snapshots(team, context.user_id or "default")
             for member, preset_snapshot in zip(members, preset_snapshots, strict=True):
                 role_system_prompts[member.member_id] = preset_snapshot.system_prompt
                 role_skill_names = set(getattr(preset_snapshot, "skill_names", []) or [])
@@ -306,7 +303,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     mode_prompt = build_no_team_fallback_system_prompt(sandbox_active=sandbox_backend is not None)
     system_prompt = f"{mode_prompt}\n\n{system_prompt}" if team else mode_prompt
 
-    # 过滤工具（懒加载 MCP 工具）
     if context.deferred_manager is not None:
         context.deferred_manager.discover_attachment_tools(attachments)
 
@@ -325,7 +321,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     graph_compile_start = time.time()
 
-    # ── 子代理配置 ──
     subagent_base_url = configurable.get("base_url", "")
     session_id = state.get("session_id")
     active_goal = configurable.get("active_goal")
@@ -419,7 +414,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     )
 
     if team and team.active_members:
-        # ── 多角色子代理 ──
         try:
             subagent_display_names = build_team_subagent_display_names(team)
             subagent_avatars = build_team_subagent_avatars(team)
@@ -615,7 +609,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             },
         ]
 
-    # ── 主代理中间件栈 ──
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
     user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
@@ -833,7 +826,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
-    # 构建传入的新消息（包含附件）
     recommendation_input = configurable.get("recommendation_input") or user_input
     # HITL 恢复运行（issue #218）：以 Command(resume=...) 从挂起断点继续，
     # 不注入新的用户消息。
@@ -868,7 +860,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             new_message, active_goal, rubric_middleware=rubric_middleware
         )
 
-    # 创建事件处理器
     logger.info("[TeamAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(
         presenter,
@@ -887,6 +878,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     )
 
     interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
+    parent_snapshot = None
+    parent_interrupted = False
     try:
         async with isolated_nested_graph_run(presenter=presenter):
             from src.infra.agent.recovery_guard import guard_graph_recovery
@@ -903,16 +896,22 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     await event_processor.process_event(event)
             finally:
                 hitl_interrupt_supported.reset(token_supported)
+        if interrupt_supported:
+            from src.agents.core.node_utils import inspect_parent_approval
+
+            parent_snapshot, parent_interrupted = await inspect_parent_approval(
+                inner_graph, inner_config
+            )
     finally:
         current_task = asyncio.current_task()
         try:
             await subagent_sessions.close(
-                preserve_approvals=current_task is None or not current_task.cancelling()
+                preserve_approvals=current_task is None or not current_task.cancelling(),
+                parent_interrupted=parent_interrupted,
             )
         finally:
             try:
-                await event_processor.drain_activity_references()
-                await event_processor.flush()
+                await event_processor.finalize_subagent_events(subagent_sessions)
             finally:
                 await emit_token_usage(
                     event_processor,
@@ -928,7 +927,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     # （工具内零副作用，对齐 deepagents 官方 HITL，重放不会重复创建）
     if interrupt_supported:
         try:
-            snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
+            snapshot = parent_snapshot
+            if snapshot is None:
+                snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
             if isinstance(inner_config, dict):
                 cast(dict[str, Any], inner_config)["_recommendation_state_snapshot"] = snapshot
             if snapshot is not None and snapshot.next:

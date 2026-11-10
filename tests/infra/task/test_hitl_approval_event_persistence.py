@@ -122,3 +122,44 @@ async def test_materialize_persists_original_desktop_confirmation_context(monkey
 
 async def _no_pending(**kwargs: Any) -> list:
     return []
+
+
+async def test_parallel_child_approvals_keep_every_interrupt_binding(monkeypatch, dual_writer):
+    from unittest.mock import AsyncMock
+
+    from src.infra.task.hitl import build_hitl_resume_payload
+
+    snapshot = _snapshot_with_ask_human()
+    first = snapshot.tasks[0].interrupts[0]
+    first.value.update(
+        origin="sandbox_confirm",
+        tool_call_id="same-call",
+        subagent_interrupt_ids=["nested", "child-a"],
+    )
+    snapshot.tasks[0].interrupts.append(
+        SimpleNamespace(
+            id="intr-2", value={**first.value, "subagent_interrupt_ids": ["nested", "child-b"]}
+        )
+    )
+    create = AsyncMock(
+        return_value=SimpleNamespace(id="a", message="confirm", type="form", metadata={})
+    )
+    monkeypatch.setattr("src.api.routes.human.create_approval", create)
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_approval_storage",
+        lambda: SimpleNamespace(list_pending=_no_pending),
+    )
+    assert (
+        await materialize_ask_human_approvals(snapshot, session_id="s", run_id="r", user_id="u")
+        == 1
+    )
+    metadata = create.call_args.kwargs["metadata"]
+    assert metadata["subagent_interrupt_ids"] == ["nested", "child-a", "child-b"]
+    decision = build_hitl_resume_payload(
+        SimpleNamespace(id="a", message="confirm", metadata=metadata), {"approved": False}
+    )
+    assert decision["resume_value"]["intr-1"]["_approval_subagent_interrupt_ids"] == [
+        "nested",
+        "child-a",
+        "child-b",
+    ]

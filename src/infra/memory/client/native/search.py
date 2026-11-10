@@ -58,6 +58,10 @@ def build_scope_clause(project_id: Optional[str]) -> dict[str, Any]:
     - 无项目会话：只见 user/reference（含 legacy 无 scope 文档）
     - 项目会话：user/reference + 本项目 project 记忆；其他项目一律不可见
     """
+    from src.infra.memory.scope import is_assistant_partition
+
+    if is_assistant_partition(project_id):
+        return {"scope": "project", "project_id": project_id}
     visible = {"$in": [None, "user", "reference"]}
     if project_id:
         return {
@@ -740,7 +744,9 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
             },
             timeout=httpx.Timeout(15.0),
         ) as client:
-            async with unpriced_usage(operation="rerank", model=rerank_model):
+            async with unpriced_usage(
+                operation="rerank", model=rerank_model, api_base=api_base
+            ) as observe:
                 response = await client.post(
                     "/v1/rerank",
                     json={
@@ -751,7 +757,8 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
                     },
                 )
                 response.raise_for_status()
-            payload = response.json()
+                payload = response.json()
+                observe(payload)
     except Exception as exc:
         if is_quota_error(exc):
             raise

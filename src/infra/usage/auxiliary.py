@@ -54,6 +54,7 @@ async def write_auxiliary_usage(
             "cache_read_tokens": details.get("cache_read"),
             "cache_creation_tokens": details.get("cache_creation"),
         }
+        counts = settlement.get("model_usage", counts)
         unknown = [key for key, value in counts.items() if type(value) is not int or value < 0]
         data = {
             **{key: value if key not in unknown else 0 for key, value in counts.items()},
@@ -77,6 +78,12 @@ async def write_auxiliary_usage(
             else 0.0,
             "actual_models": [identity] if any(identity.values()) else [],
         }
+        from src.infra.llm.quota import _receipt
+
+        receipt = _receipt(reservation, settlement, status=status, error=error)
+        for key in ("http_status", "gateway_request_id", "provider_request_id", "result_count"):
+            if key in receipt:
+                data[key] = receipt[key]
         username = ""
         try:
             user = await UserStorage().get_by_id(reservation["user_id"])

@@ -105,8 +105,8 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
   return (
     <div className="usage-surface usage-chart-card overflow-hidden rounded-xl">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--usage-border)] px-4 pt-4 pb-3.5 sm:px-5">
-        <div className="flex items-center gap-2.5">
+      <div className="usage-trend-header flex flex-wrap items-start justify-between gap-3 border-b border-[var(--usage-border)] px-4 pt-4 pb-3.5 sm:px-5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className="usage-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] sm:h-9 sm:w-9">
             <LineChart size={15} strokeWidth={2} />
           </div>
@@ -119,7 +119,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             </p>
           </div>
         </div>
-        <div className="hidden flex-wrap justify-end gap-1.5 text-10 sm:flex">
+        <div className="usage-trend-summary flex flex-wrap gap-1.5 text-10">
           <span className="usage-soft-pill">
             {t("usage.trend.scheduledSuffix", { count: totalScheduled })}
           </span>
@@ -202,7 +202,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
                 tickLine={false}
                 axisLine={false}
                 dx={-4}
-                width={36}
+                width={54}
                 tickFormatter={(v: number) => fmt(v)}
               />
 
@@ -268,7 +268,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
       </div>
 
       {/* Summary — Mobile (3 cols) */}
-      <div className="grid grid-cols-3 gap-1.5 border-t border-[var(--usage-border)] px-3 py-2.5 sm:hidden">
+      <div className="usage-trend-mobile grid grid-cols-3 gap-1.5 border-t border-[var(--usage-border)] px-3 py-2.5">
         <div className="flex flex-col">
           <span className="text-9 font-medium uppercase tracking-wide text-theme-text-tertiary">
             {t("usage.trend.tokens")}
@@ -296,7 +296,7 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
       </div>
 
       {/* Summary — Desktop (4 cols with icons) */}
-      <div className="hidden grid-cols-4 gap-2 border-t border-[var(--usage-border)] px-4 py-3 sm:grid">
+      <div className="usage-trend-desktop grid-cols-4 gap-2 border-t border-[var(--usage-border)] px-4 py-3">
         {[
           {
             icon: Zap,

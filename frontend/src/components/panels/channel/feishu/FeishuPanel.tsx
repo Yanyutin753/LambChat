@@ -20,6 +20,7 @@ import {
   PREDEFINED_EMOJIS,
 } from "./constants";
 import { FeishuPanelForm } from "./FeishuPanelForm";
+import { ChannelAssistantSelect } from "../ChannelAssistantSelect";
 import { ChannelRunConfigFields } from "../ChannelRunConfigFields";
 import {
   defaultChannelRuntime,
@@ -720,6 +721,16 @@ export function FeishuPanel({
   ) : (
     <FeishuPanelForm
       t={t}
+      assistantBound={!!runtimeConfig.assistant_id}
+      assistantBinding={
+        <ChannelAssistantSelect
+          value={runtimeConfig.assistant_id}
+          disabled={isSaving || !canWrite}
+          onChange={(assistant_id) =>
+            setRuntimeConfig({ ...runtimeConfig, assistant_id })
+          }
+        />
+      }
       runConfiguration={
         <ChannelRunConfigFields
           value={runtimeConfig}

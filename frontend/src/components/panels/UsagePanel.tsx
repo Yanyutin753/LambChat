@@ -70,7 +70,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // ── Main Component ─────────────────────────────────────
 
-export function UsagePanel() {
+export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
   const { t, i18n } = useTranslation();
   const fxRates = useFxRates();
   const { hasPermission } = useAuth();
@@ -80,7 +80,7 @@ export function UsagePanel() {
     [availableModels],
   );
   const agents = useAgentCatalog();
-  const isAdmin = hasPermission(Permission.USAGE_ADMIN);
+  const isAdmin = !assistantId && hasPermission(Permission.USAGE_ADMIN);
 
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [stats, setStats] = useState<UsageStats | null>(null);
@@ -158,6 +158,7 @@ export function UsagePanel() {
     const search = isAdmin && debouncedSearch ? debouncedSearch : undefined;
     const response = await usageApi.list({
       skip,
+      assistant_id: assistantId,
       limit: pageSize,
       search,
       ...dateRange,
@@ -165,7 +166,7 @@ export function UsagePanel() {
     setLogs(response.items);
     setTotal(response.total);
     setStats(response.stats);
-  }, [skip, period, debouncedSearch, isAdmin, computeDateRange]);
+  }, [skip, period, debouncedSearch, isAdmin, computeDateRange, assistantId]);
 
   // Fetch dashboard independently (silent failure)
   const fetchDashboard = useCallback(async () => {
@@ -174,6 +175,7 @@ export function UsagePanel() {
       // 与日志列表共用同一时间窗（今日为客户端本地 0 点），保证 KPI 与看板口径一致
       const dateRange = computeDateRange(period);
       const data = await usageApi.getDashboard({
+        assistant_id: assistantId,
         period: period as "today" | "week" | "month" | "all",
         search,
         ...dateRange,
@@ -182,7 +184,7 @@ export function UsagePanel() {
     } catch {
       setDashboard(null);
     }
-  }, [period, debouncedSearch, isAdmin, computeDateRange]);
+  }, [period, debouncedSearch, isAdmin, computeDateRange, assistantId]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -327,7 +329,7 @@ export function UsagePanel() {
       {/* KPI Cards */}
       {stats && (
         <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-          <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-4 xl:grid-cols-7">
+          <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] overflow-hidden rounded-xl">
             <StatMetric
               icon={Zap}
               label={t("usage.totalRequests")}
@@ -405,6 +407,11 @@ export function UsagePanel() {
               })}
               hint={
                 [
+                  (stats.partial_requests ?? 0) > 0
+                    ? t("usage.partialPricedHint", {
+                        count: fmt(stats.partial_requests ?? 0),
+                      })
+                    : undefined,
                   (stats.unpriced_requests ?? 0) > 0
                     ? t("usage.unpricedHint", {
                         count: fmt(stats.unpriced_requests ?? 0),
@@ -455,7 +462,7 @@ export function UsagePanel() {
 
         {/* Chart + Rankings */}
         {dashboard && (
-          <div className="mb-5 grid gap-5 sm:mb-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
+          <div className="usage-overview-grid mb-5 grid gap-5 sm:mb-6">
             <MiniTrend points={dashboard.daily} />
             <div className="grid gap-5 xl:grid-cols-1">
               <RankingList
@@ -480,7 +487,7 @@ export function UsagePanel() {
 
         {/* Bottom grid */}
         {dashboard && (
-          <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+          <div className="usage-breakdown-grid mb-5 grid gap-5 sm:mb-6">
             <RankingList
               title={agentRankingTitle}
               icon={Bot}

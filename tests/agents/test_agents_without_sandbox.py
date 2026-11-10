@@ -25,6 +25,12 @@ def execution_account(monkeypatch):
     from src.kernel.schemas.model import ModelConfig
     from src.kernel.schemas.user import TokenPayload
 
+    monkeypatch.setattr(
+        "src.agents.team_agent.nodes.resolve_group_for_session", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.deferred_manager.restore_discovered_tools", AsyncMock(return_value=[])
+    )
     user = TokenPayload(
         sub="user",
         username="runner",

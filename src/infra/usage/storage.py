@@ -122,6 +122,9 @@ class UsageStorage:
                 name="trace_id_unique_idx",
             )
             await self.collection.create_index([("user_id", 1), ("started_at", -1)])
+            await self.collection.create_index(
+                [("user_id", 1), ("assistant_id", 1), ("started_at", -1)]
+            )
             await self.collection.create_index([("started_at", -1)])
             await self.collection.create_index([("model", 1), ("started_at", -1)])
             await self.collection.create_index([("team_id", 1), ("started_at", -1)])
@@ -131,21 +134,12 @@ class UsageStorage:
         except Exception as e:
             logger.error(f"Failed to create usage logs indexes: {e}")
 
-    async def _get_session_metadata(self, session_id: str) -> Dict[str, Any]:
-        if not session_id:
-            return {}
-        try:
-            from src.infra.session.storage import SessionStorage
+    async def _get_session_metadata(
+        self, session_id: str, user_id: str | None = None
+    ) -> Dict[str, Any]:
+        from src.infra.usage.attribution import session_usage_metadata
 
-            doc = await SessionStorage().collection.find_one(
-                {"session_id": session_id},
-                {"_id": 0, "metadata": 1},
-            )
-            metadata = (doc or {}).get("metadata") or {}
-            return metadata if isinstance(metadata, dict) else {}
-        except Exception as e:
-            logger.debug("Failed to load session metadata for usage log %s: %s", session_id, e)
-            return {}
+        return await session_usage_metadata(session_id, user_id)
 
     async def _resolve_team_name(self, team_id: str) -> str:
         if not team_id:
@@ -219,7 +213,17 @@ class UsageStorage:
             return False
 
         metadata = trace_doc.get("metadata", {}) or {}
-        session_metadata = await self._get_session_metadata(str(trace_doc.get("session_id") or ""))
+        # Display-only acceptance traces have no provider call to account for.
+        if (
+            metadata.get("acceptance_fixture") is True
+            and trace_doc.get("status") == "completed"
+            and not usage_data
+            and not error_data
+        ):
+            return False
+        session_metadata = await self._get_session_metadata(
+            str(trace_doc.get("session_id") or ""), user_id=trace_doc.get("user_id")
+        )
         usage_data = usage_data or {}
         input_tokens = _as_int(usage_data.get("input_tokens", 0))
         output_tokens = _as_int(usage_data.get("output_tokens", 0))
@@ -294,6 +298,8 @@ class UsageStorage:
             "persona_preset_name": _merge_metadata_value(
                 metadata, session_metadata, "persona_preset_name"
             ),
+            "assistant_id": _merge_metadata_value(metadata, session_metadata, "assistant_id")
+            or _merge_metadata_value(metadata, session_metadata, "background_assistant_id"),
             "source": _merge_metadata_value(metadata, session_metadata, "source") or "chat",
             "scheduled_task_id": _merge_metadata_value(
                 metadata, session_metadata, "scheduled_task_id"
@@ -353,6 +359,10 @@ class UsageStorage:
             "step_count": _as_int(metadata.get("step_count", 0)),
             "tool_calls": _as_int(metadata.get("tool_calls", 0)),
         }
+        if metadata.get("source") == "auxiliary":
+            for key in ("http_status", "gateway_request_id", "provider_request_id", "result_count"):
+                if key in usage_data:
+                    doc[key] = usage_data[key]
         partial_cost = usage_data.get("partial_cost_usd")
         doc["partial_cost_usd"] = (
             float(partial_cost)
@@ -364,7 +374,15 @@ class UsageStorage:
                 cost_source="provider_settlement",
                 cost_units=usage_data.get("cost_units"),
                 actual_models=usage_data.get("actual_models", []),
-                model=usage_data.get("model") or "",
+                model=" / ".join(
+                    dict.fromkeys(
+                        item["model"]
+                        for item in usage_data.get("actual_models", [])
+                        if item.get("model")
+                    )
+                )
+                or usage_data.get("model")
+                or "",
                 model_id=usage_data.get("model_id") or "",
                 cost_rates=None,
             )
@@ -373,28 +391,25 @@ class UsageStorage:
         doc["cost_available"] = classified["cost_available"]
         doc["partial_cost_usd"] = classified["partial_cost_usd"]
 
+        query: dict[str, Any] = {
+            "trace_id": trace_id,
+            "$or": [
+                {"trace_event_revision": {"$exists": False}},
+                {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
+            ],
+        }
+        if doc["source"] == "auxiliary":
+            query["cost_complete"] = {"$ne": True}
+            if not doc["cost_complete"]:
+                query["cost_units"] = {"$not": {"$gt": doc.get("cost_units", 0)}}
         try:
-            auxiliary_fence: dict[str, Any] = {}
-            if doc["source"] == "auxiliary":
-                auxiliary_fence["cost_complete"] = {"$ne": True}
-                if not doc["cost_complete"]:
-                    auxiliary_fence["cost_units"] = {"$not": {"$gt": doc.get("cost_units", 0)}}
-            await self.collection.update_one(
-                {
-                    "trace_id": trace_id,
-                    **auxiliary_fence,
-                    "$or": [
-                        {"trace_event_revision": {"$exists": False}},
-                        {"trace_event_revision": {"$lte": doc["trace_event_revision"]}},
-                    ],
-                },
-                {"$set": doc},
-                upsert=True,
-            )
+            try:
+                await self.collection.update_one(query, {"$set": doc}, upsert=True)
+            except DuplicateKeyError:
+                # A concurrent first insert may still be older than this receipt.
+                result = await self.collection.update_one(query, {"$set": doc})
+                return bool(result.matched_count)
             return True
-        except DuplicateKeyError:
-            # A newer terminal snapshot won the unique trace_id upsert race.
-            return False
         except Exception as e:
             logger.error(f"Failed to upsert usage log for trace {trace_id}: {e}")
             return False
@@ -403,6 +418,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         model: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -430,6 +446,7 @@ class UsageStorage:
 
         query = self._build_query(
             user_id=user_id,
+            assistant_id=assistant_id,
             model=model,
             start_date=start_date,
             end_date=end_date,
@@ -458,6 +475,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         start_date: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Stats-only 查询路径：跳过 items 分页 find，只做计数 + 聚合。
@@ -465,7 +483,7 @@ class UsageStorage:
         /stats 路由只需要聚合统计；走 list_usage_logs 全链路会白做一次
         items 查询。返回结构与 _empty_stats()/stats_dict 完全一致。
         """
-        query = self._build_query(user_id=user_id, start_date=start_date)
+        query = self._build_query(user_id=user_id, assistant_id=assistant_id, start_date=start_date)
         try:
             _, stats = await self._count_and_stats(query)
             return stats
@@ -480,6 +498,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         model: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -489,8 +508,10 @@ class UsageStorage:
 
         if user_id:
             query["user_id"] = user_id
+        if assistant_id:
+            query["assistant_id"] = assistant_id
         if model:
-            query["model"] = model
+            query["$or"] = [{"model": model}, {"actual_models.model": model}]
         if start_date or end_date:
             date_filter: Dict[str, Any] = {}
             if start_date:
@@ -506,6 +527,7 @@ class UsageStorage:
         self,
         *,
         user_id: Optional[str] = None,
+        assistant_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         model: Optional[str] = None,
@@ -514,6 +536,7 @@ class UsageStorage:
         """Aggregate usage logs into an operations dashboard."""
         query = self._build_query(
             user_id=user_id,
+            assistant_id=assistant_id,
             model=model,
             start_date=start_date,
             end_date=end_date,
@@ -541,12 +564,6 @@ class UsageStorage:
                                 },
                                 **_cost_certainty_aggregates(),
                                 **_counter_availability_aggregates(),
-                                "unpriced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
-                                },
-                                "priced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
-                                },
                                 "usage_unknown_requests": {
                                     "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
                                 },
@@ -604,12 +621,6 @@ class UsageStorage:
                                 },
                                 **_cost_certainty_aggregates(),
                                 **_counter_availability_aggregates(),
-                                "priced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}
-                                },
-                                "unpriced_requests": {
-                                    "$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}
-                                },
                                 "usage_unknown_requests": {
                                     "$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}
                                 },
@@ -700,8 +711,6 @@ class UsageStorage:
             "cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
             **_cost_certainty_aggregates(),
             **_counter_availability_aggregates(),
-            "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
-            "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
             "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
             "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
             "cache_uncertified_requests": {
@@ -764,8 +773,6 @@ class UsageStorage:
                     "total_cost_usd": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, "$cost_usd", 0]}},
                     **_cost_certainty_aggregates(),
                     **_counter_availability_aggregates(),
-                    "unpriced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 0, 1]}},
-                    "priced_requests": {"$sum": {"$cond": [PRICED_USAGE_CONDITION, 1, 0]}},
                     "usage_unknown_requests": {"$sum": {"$cond": [COMPLETE_USAGE_CONDITION, 0, 1]}},
                     "cache_unknown_requests": {"$sum": {"$cond": [CACHE_METRICS_CONDITION, 0, 1]}},
                     "cache_uncertified_requests": {
@@ -948,6 +955,8 @@ class UsageStorage:
         summary: Dict[str, Any] = {
             "total_requests": total,
             "total_cost_usd": 0.0,
+            "priced_requests": 0,
+            "unpriced_requests": 0,
             **_format_cost_certainty({}),
             **_format_counter_availability({}),
         }
@@ -960,6 +969,8 @@ class UsageStorage:
                         "total_tokens": doc.get("total_tokens", 0),
                         "total_duration": doc.get("total_duration", 0.0),
                         "total_cost_usd": doc.get("total_cost_usd", 0.0),
+                        "priced_requests": doc.get("priced_requests", 0),
+                        "unpriced_requests": doc.get("unpriced_requests", 0),
                         **_format_cost_certainty(doc),
                         **_format_counter_availability(doc),
                     }

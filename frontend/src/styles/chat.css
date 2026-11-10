@@ -103,7 +103,6 @@
     .composer-run-mode-label,
     .composer-usage-amount
   ) {
-  font-family: var(--chat-font-family);
   font-weight: 500;
   top: 0;
 }
@@ -1119,16 +1118,14 @@ html[data-mobile-keyboard="true"]
   );
   border: 1px solid color-mix(in srgb, var(--theme-primary) 10%, transparent);
   overflow: hidden;
-  box-shadow: 0 1px 4px -1px
-    color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--theme-primary) 12%, transparent);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .mention-popup-item:hover .mention-popup-avatar {
-  box-shadow: 0 2px 8px -2px
-    color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 18%, transparent);
   transform: scale(1.04);
 }
 
@@ -1646,7 +1643,9 @@ html[data-mobile-keyboard="true"]
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
   .chat-composer-editor-wrap {
-  padding-inline: calc(var(--composer-row-inset) + var(--composer-control-inset));
+  padding-inline: calc(
+    var(--composer-row-inset) + var(--composer-control-inset)
+  );
 }
 .composer-workspace-shell
   .chat-input-container:not([data-composer-expanded])
@@ -1657,7 +1656,12 @@ html[data-mobile-keyboard="true"]
 
 /* Context rows share spacing and scale; wrapped content may increase height. */
 .composer-context-panel
-  :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row, .composer-workspace-strip) {
+  :is(
+    .composer-queue-row,
+    .composer-queue-pause,
+    .composer-goal-row,
+    .composer-workspace-strip
+  ) {
   min-height: 2.75rem;
   padding-block: 0;
 }
@@ -1670,12 +1674,16 @@ html[data-mobile-keyboard="true"]
   width: 0.875rem;
   height: 0.875rem;
 }
-.composer-context-panel :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row) button {
+.composer-context-panel
+  :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row)
+  button {
   min-width: 2rem;
   min-height: 2rem;
 }
 @media (pointer: coarse), (max-width: 639px) {
-  .composer-context-panel :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row) button {
+  .composer-context-panel
+    :is(.composer-queue-row, .composer-queue-pause, .composer-goal-row)
+    button {
     min-width: 2.25rem;
     min-height: 2.25rem;
   }
@@ -1699,6 +1707,8 @@ html[data-mobile-keyboard="true"]
 
 /* Categorized tools share LambChat's disclosure layout and theme tokens. */
 .chat-tool-category .chat-tool-call-group {
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   border: 1px solid
     color-mix(in srgb, var(--theme-border-subtle) 65%, transparent);
@@ -1731,7 +1741,8 @@ html[data-mobile-keyboard="true"]
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-height: 2.375rem;
   padding: 0.5rem 0.75rem;
 }
@@ -1808,7 +1819,7 @@ html[data-mobile-keyboard="true"]
   );
 }
 .chat-tool-call-group__rows .pill-btn > .pill-btn__label {
-  flex: 1 1 0%;
+  flex: 0 1 auto;
 }
 .chat-tool-call-group__rows .pill-btn:focus-visible {
   outline-offset: -2px;

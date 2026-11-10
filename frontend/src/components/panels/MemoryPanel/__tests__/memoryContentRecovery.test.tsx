@@ -132,6 +132,8 @@ test("memory editor cannot save a failed read and retry retains metadata edits b
         content: full.content,
         summary: full.summary,
       }),
+      undefined,
+      undefined,
     ),
   );
   expect(saved).toHaveBeenCalledTimes(1);

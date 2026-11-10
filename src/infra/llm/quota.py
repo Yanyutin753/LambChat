@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import sys
+import re
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -17,7 +17,14 @@ from langchain_core.runnables.config import var_child_runnable_config
 from pydantic import Field
 
 from src.infra.llm.retry import is_rate_limit_model_error
-from src.infra.pricing.calculator import CostBreakdown, PriceRates, compute_cost
+from src.infra.pricing.auxiliary_models import input_cost_usd, model_counts
+from src.infra.pricing.calculator import (
+    CostBreakdown,
+    PartialCostBreakdown,
+    PriceRates,
+    compute_cost,
+    compute_partial_cost,
+)
 from src.infra.usage.quota import UsageQuota, usd_units, user_budgets
 from src.kernel.errors import AppError, ErrorCode
 
@@ -26,6 +33,7 @@ _active: ContextVar[tuple | None] = ContextVar("usage_quota_call", default=None)
 _raw_usage: ContextVar[list[bool | None] | None] = ContextVar(
     "usage_quota_raw_counts", default=None
 )
+_wire_receipt: ContextVar[dict | None] = ContextVar("quota_wire_receipt", default=None)
 _anthropic_stream_usage: ContextVar[dict | None] = ContextVar(
     "quota_anthropic_stream_usage", default=None
 )
@@ -193,19 +201,57 @@ def _usage_owner():
     return getattr(presenter, "_usage_accounting_owner", None)
 
 
-def _receipt(reservation, settlement):
+def _receipt(reservation, settlement, *, status="running", error=None):
     context = reservation.get("context") or {}
-    return {
+    receipt = {
         "call_id": reservation["id"],
         "model": context.get("model") or "",
         "model_id": context.get("model_config_id") or "",
         "provider": context.get("provider") or "",
-        **settlement,
+        "operation": context.get("operation") or "",
+        "status": status,
     }
+    receipt.update(
+        {
+            **_response_receipt(getattr(error, "response", None), error=error),
+            **settlement,
+        }
+    )
+    return receipt
+
+
+def _response_receipt(response, *, error=None, request_id=None) -> dict[str, str | int]:
+    receipt: dict[str, str | int] = {}
+    http_status = getattr(response, "status_code", None)
+    if http_status is None:
+        http_status = getattr(error, "status_code", None)
+    if type(http_status) is int and 100 <= http_status <= 599:
+        receipt["http_status"] = http_status
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        gateway_id = headers.get("x-oneapi-request-id")
+        if isinstance(gateway_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", gateway_id):
+            receipt["gateway_request_id"] = gateway_id
+        request_id = headers.get("x-request-id") or headers.get("request-id") or request_id
+        request_id = request_id or gateway_id
+    if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id):
+        receipt["provider_request_id"] = request_id
+    return receipt
+
+
+async def observe_model_http_response(response):
+    receipt = _wire_receipt.get()
+    if receipt is not None:
+        receipt.update(_response_receipt(response))
 
 
 def _usage_context():
     from src.infra.logging.context import TraceContext
+    from src.infra.usage.attribution import detached_usage_context
+
+    detached = detached_usage_context(quota_user_id())
+    if detached is not None:
+        return detached
 
     config = (var_child_runnable_config.get() or {}).get("configurable") or {}
     payer = quota_user_id()
@@ -265,8 +311,10 @@ async def _reserve_call(ledger, user_id, budgets, amount, **kwargs):
 
 
 @asynccontextmanager
-async def unpriced_usage(*, operation="external_request", model=None, provider=None):
-    """Paid APIs without a reliable USD tariff cannot bypass a configured budget."""
+async def unpriced_usage(*, operation="external_request", model=None, provider=None, api_base=None):
+    """Reserve each external request and settle known model tariffs from its response."""
+    if api_base and api_base.rstrip("/") == "https://api.siliconflow.cn":
+        provider = "siliconflow"
     user_id = quota_user_id()
     if not user_id:
         raise AppError(ErrorCode.USAGE_QUOTA_UNAVAILABLE)
@@ -282,20 +330,55 @@ async def unpriced_usage(*, operation="external_request", model=None, provider=N
     owner = _usage_owner()
     if owner is not None:
         owner.begin_usage_receipt(_receipt(reservation, {"charged_units": 0, "unknown": True}))
+    counts = model_counts(operation, None) if api_base else None
+
+    response_receipt: dict = {}
+    request_cost = None
+
+    def observe(payload=None, *, response=None, result_count=None, request_id=None):
+        nonlocal counts, request_cost
+        if response is None:
+            counts = model_counts(operation, payload)
+            return
+        response_receipt.update(_response_receipt(response, request_id=request_id))
+        if result_count is not None:
+            response_receipt["result_count"] = result_count
+        if provider == "deepseek" and operation == "web_search":
+            status = response.status_code
+            # DeepSeek charges $0.75 per 1,000 HTTP 200 searches with nonempty results.
+            if status == 200 and result_count is not None:
+                request_cost = 0.00075 if result_count else 0
+            elif 400 <= status <= 599:
+                request_cost = 0
+
+    error = None
     try:
-        yield
+        yield observe
+    except BaseException as exc:
+        error = exc
+        raise
     finally:
 
         async def settle_and_publish():
-            settlement = await ledger.settle(reservation, None)
+            cost = (
+                await input_cost_usd(operation, api_base, model, counts)
+                if counts is not None
+                else request_cost
+            )
+            settlement = await ledger.settle(reservation, cost)
+            if isinstance(settlement, dict):
+                settlement = {**settlement, **response_receipt}
+            if counts is not None and isinstance(settlement, dict):
+                settlement = {**settlement, "model_usage": counts}
             if owner is not None and isinstance(settlement, dict):
-                await owner.record_usage_receipt(_receipt(reservation, settlement))
+                await owner.record_usage_receipt(
+                    _receipt(reservation, settlement, status=status, error=error)
+                )
             elif isinstance(settlement, dict):
                 from src.infra.usage.auxiliary import write_auxiliary_usage
 
                 await write_auxiliary_usage(reservation, settlement, status=status, error=error)
 
-        error = sys.exception()
         status = (
             "cancelled"
             if isinstance(error, (asyncio.CancelledError, GeneratorExit))
@@ -395,7 +478,9 @@ def usage_price_supported(model, messages, kwargs) -> bool:
     return True
 
 
-def message_cost_breakdown(message, rates: PriceRates) -> CostBreakdown | None:
+def message_cost_breakdown(
+    message, rates: PriceRates
+) -> CostBreakdown | PartialCostBreakdown | None:
     usage = getattr(message, "usage_metadata", None) or {}
     details = usage.get("input_token_details") or {}
     creation = details.get("cache_creation")
@@ -424,18 +509,22 @@ def message_cost_breakdown(message, rates: PriceRates) -> CostBreakdown | None:
     ):
         return CostBreakdown()
     # Provider-omitted counters count as zero; malformed supplied counters stay invalid.
-    return compute_cost(
+    counts = dict(
         input_tokens=0 if usage.get("input_tokens") is None else usage["input_tokens"],
         output_tokens=0 if usage.get("output_tokens") is None else usage["output_tokens"],
         cache_read_tokens=0 if details.get("cache_read") is None else details["cache_read"],
         cache_creation_tokens=0 if creation is None else creation,
-        rates=rates,
     )
+    complete = compute_cost(**counts, rates=rates)
+    if complete is not None:
+        return complete
+    partial = compute_partial_cost(**counts, rates=rates, input_includes_cache=True)
+    return partial if partial.total_usd > 0 else None
 
 
 def message_cost(message, rates: PriceRates) -> float | None:
     result = message_cost_breakdown(message, rates)
-    return result.total_usd if result else None
+    return result.total_usd if isinstance(result, CostBreakdown) else None
 
 
 class QuotaChatMixin:
@@ -512,6 +601,7 @@ class QuotaChatMixin:
             value=getattr(self, "model_name", None) or getattr(self, "model", None),
             provider=self.quota_provider,
             model_config_id=self.quota_model_config_id,
+            allow_partial=True,
         )
         rates = resolved.rates if resolved else PriceRates()
         if not usage_price_supported(self, messages, kwargs):
@@ -539,7 +629,15 @@ class QuotaChatMixin:
         return quota, reservation, rates, owner
 
     async def _quota_finish(
-        self, ticket, message, *, usage_valid=True, partial=False, status="completed", error=None
+        self,
+        ticket,
+        message,
+        *,
+        usage_valid=True,
+        partial=False,
+        status="completed",
+        error=None,
+        response_receipt=None,
     ):
         if ticket is not None:
             quota, reservation, rates = ticket[:3]
@@ -550,12 +648,18 @@ class QuotaChatMixin:
                 settlement = await quota.settle(
                     reservation,
                     cost.total_usd if cost is not None else None,
-                    **({"partial": True} if partial else {}),
+                    **(
+                        {"partial": True}
+                        if partial or isinstance(cost, PartialCostBreakdown)
+                        else {}
+                    ),
                 )
+                if isinstance(settlement, dict) and response_receipt:
+                    settlement = {**settlement, **response_receipt}
                 if (
                     isinstance(settlement, dict)
                     and not settlement["unknown"]
-                    and cost is not None
+                    and isinstance(cost, CostBreakdown)
                     and settlement["charged_units"] == usd_units(cost.total_usd)
                 ):
                     settlement = {
@@ -565,7 +669,9 @@ class QuotaChatMixin:
                     }
                 # Native model-end callbacks may never arrive after cancellation.
                 if owner is not None and isinstance(settlement, dict):
-                    await owner.record_usage_receipt(_receipt(reservation, settlement))
+                    await owner.record_usage_receipt(
+                        _receipt(reservation, settlement, status=status, error=error)
+                    )
                 elif isinstance(settlement, dict):
                     from src.infra.usage.auxiliary import write_auxiliary_usage
 
@@ -589,8 +695,11 @@ class QuotaChatMixin:
         token = _active.set(identity)
         observation: list[bool | None] = [None]
         raw_token = _raw_usage.set(observation)
+        response_receipt: dict = {}
+        wire_token = _wire_receipt.set(response_receipt)
         message = None
         completed = False
+        error = None
         try:
             result = await super()._agenerate(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
@@ -599,18 +708,23 @@ class QuotaChatMixin:
                 message = result.generations[0].message
             completed = True
             return result
+        except BaseException as exc:
+            error = exc
+            raise
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
+            _wire_receipt.reset(wire_token)
             await self._quota_finish(
                 ticket,
                 message,
                 usage_valid=message is not None and observation[0] is not False,
-                error=sys.exception(),
+                error=error,
+                **({"response_receipt": response_receipt} if response_receipt else {}),
                 status="completed"
                 if completed
                 else "cancelled"
-                if isinstance(sys.exception(), (asyncio.CancelledError, GeneratorExit))
+                if isinstance(error, (asyncio.CancelledError, GeneratorExit))
                 else "error",
             )
 
@@ -626,11 +740,14 @@ class QuotaChatMixin:
         token = _active.set(identity)
         observation: list[bool | None] = [None]
         raw_token = _raw_usage.set(observation)
+        response_receipt: dict = {}
+        wire_token = _wire_receipt.set(response_receipt)
         anthropic_usage: dict[str, Any] = {}
         anthropic_token = _anthropic_stream_usage.set(anthropic_usage)
         message = None
         completed = False
         received_chunk = False
+        error = None
         try:
             async for chunk in super()._astream(  # type: ignore[misc]
                 messages, stop=stop, run_manager=run_manager, **kwargs
@@ -641,14 +758,17 @@ class QuotaChatMixin:
                     message = usage if message is None else message + usage
                 yield chunk
             completed = True
+        except BaseException as exc:
+            error = exc
+            raise
         finally:
             _active.reset(token)
             _raw_usage.reset(raw_token)
+            _wire_receipt.reset(wire_token)
             _anthropic_stream_usage.reset(anthropic_token)
             message = anthropic_usage.get(
                 "message", message or anthropic_usage.get("partial_message")
             )
-            error = sys.exception()
             if completed and not received_chunk:
                 # LangChain raises this after our iterator closes; retain it in detached logs.
                 error = ValueError("No generations found in stream.")
@@ -657,6 +777,7 @@ class QuotaChatMixin:
                 message,
                 usage_valid=message is not None and observation[0] is not False,
                 error=error,
+                **({"response_receipt": response_receipt} if response_receipt else {}),
                 **({"partial": True} if not completed and message is not None else {}),
                 status="completed"
                 if completed and error is None

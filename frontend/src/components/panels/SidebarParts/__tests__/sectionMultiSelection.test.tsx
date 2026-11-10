@@ -63,15 +63,18 @@ afterEach(() => {
 function Sidebar({
   onDelete,
   recent = false,
+  isMobile = false,
 }: {
   onDelete: (ids: string[]) => void;
   recent?: boolean;
+  isMobile?: boolean;
 }) {
   const [mode, setMode] = useState(false);
   const [selected, setSelected] = useState(new Set<string>());
   return (
     <MemoryRouter>
       <SessionListContent
+        isMobile={isMobile}
         user={null}
         imgError={false}
         onImgError={noop}
@@ -214,4 +217,30 @@ test("selection keeps section context and one global count and cancel control", 
     "aria-checked",
     "true",
   );
+});
+
+test("assistants precedes new chat in desktop reading and keyboard order", () => {
+  render(<Sidebar onDelete={vi.fn()} />);
+  const assistants = screen.getByRole("button", {
+    name: i18n.t("assistants.title"),
+  });
+  const create = within(assistants.parentElement!).getByRole("button", {
+    name: /^New chat/i,
+  });
+  expect(assistants.nextElementSibling).toBe(create);
+  expect(assistants).toBeEnabled();
+});
+
+test("mobile companions precedes new chat in reading and keyboard order", () => {
+  render(<Sidebar onDelete={vi.fn()} isMobile />);
+  const companions = screen.getByRole("button", {
+    name: i18n.t("assistants.title"),
+  });
+  const create = within(companions.parentElement!).getByRole("button", {
+    name: /^New chat/i,
+  });
+  expect(companions.nextElementSibling).toBe(create);
+  expect(
+    screen.getAllByRole("button", { name: i18n.t("assistants.title") }),
+  ).toHaveLength(1);
 });

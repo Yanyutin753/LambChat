@@ -26,7 +26,7 @@ export interface SessionReadScope {
 
 function getReadNotificationOwner() {
   const token = getAccessToken();
-  return token ? (decodeToken(token)?.sub ?? token) : null;
+  return token ? decodeToken(token)?.sub ?? token : null;
 }
 
 // Backend Session type (matches backend Session schema)
@@ -352,6 +352,7 @@ export const sessionApi = {
     search?: string;
     favorites_only?: boolean;
     pinned_only?: boolean;
+    exclude_assistants?: boolean;
   }): Promise<SessionListResponse | BackendSession[]> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set("status", params.status);
@@ -361,6 +362,8 @@ export const sessionApi = {
     if (params?.search) searchParams.set("search", params.search);
     if (params?.favorites_only) searchParams.set("favorites_only", "true");
     if (params?.pinned_only) searchParams.set("pinned_only", "true");
+    if (params?.exclude_assistants)
+      searchParams.set("exclude_assistants", "true");
 
     const url = `${API_BASE}/api/sessions${
       searchParams.toString() ? `?${searchParams}` : ""
@@ -538,7 +541,9 @@ export const sessionApi = {
     pauseToken: string,
   ): Promise<{ queue_paused: boolean }> {
     return authFetch(
-      `${API_BASE}/api/chat/sessions/${sessionId}/queue/resume?${new URLSearchParams({ run_id: runId, pause_token: pauseToken })}`,
+      `${API_BASE}/api/chat/sessions/${sessionId}/queue/resume?${new URLSearchParams(
+        { run_id: runId, pause_token: pauseToken },
+      )}`,
       { method: "POST" },
     );
   },
@@ -552,14 +557,19 @@ export const sessionApi = {
   ): Promise<{
     status: string;
   }> {
-    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer${preventReenqueue ? "" : "?prevent_reenqueue=false"}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        ...(messageId ? { message_id: messageId } : {}),
-      }),
-    });
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/steer${
+        preventReenqueue ? "" : "?prevent_reenqueue=false"
+      }`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          ...(messageId ? { message_id: messageId } : {}),
+        }),
+      },
+    );
   },
 
   /**

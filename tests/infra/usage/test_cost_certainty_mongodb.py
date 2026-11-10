@@ -21,6 +21,7 @@ async def test_mixed_cost_certainties_reach_every_aggregate_without_recertifying
     collection = client[settings.MONGODB_DB][f"test_cost_certainty_{uuid4().hex}"]
     storage._collection = collection
     common = dict(
+        status="completed",
         user_id="user",
         username="User",
         agent_name="Agent",
@@ -53,6 +54,22 @@ async def test_mixed_cost_certainties_reach_every_aggregate_without_recertifying
             input_includes_cache=True,
             usage_incomplete=True,
             cost_available=False,
+        ),
+        dict(trace_id="failed", status="error"),
+        dict(trace_id="running", status="running"),
+        dict(
+            trace_id="cancelled-partial",
+            status="cancelled",
+            partial_cost_usd=0.5,
+            input_includes_cache=True,
+        ),
+        dict(
+            trace_id="failed-settled",
+            status="error",
+            cost_source="provider_settlement",
+            cost_units=250000000,
+            cost_usd=0.25,
+            cost_complete=True,
         ),
         dict(trace_id="legacy", cost_usd=3.5, cost_available=True),
         dict(
@@ -110,11 +127,13 @@ async def test_mixed_cost_certainties_reach_every_aggregate_without_recertifying
             assert len(dashboard[field]) == 1
             aggregates.extend(dashboard[field])
         for aggregate in aggregates:
-            assert aggregate.get("total_cost_usd", aggregate.get("cost_usd")) == 1.0
-            assert aggregate["partial_cost_usd"] == 0.25
-            assert aggregate["partial_requests"] == 2
+            assert aggregate.get("total_cost_usd", aggregate.get("cost_usd")) == 1.25
+            assert aggregate["partial_cost_usd"] == 0.75
+            assert aggregate["partial_requests"] == 1
+            assert aggregate["priced_requests"] == 1
             assert aggregate["estimated_cost_usd"] == 15.5
             assert aggregate["estimated_requests"] == 3
+            assert aggregate["unpriced_requests"] == len(records) - 4 - 1 - 1 - 3
         by_id = {item["trace_id"]: item for item in items}
         assert by_id["confirmed"]["partial_cost_usd"] is None
         assert by_id["legacy"]["estimated_cost_usd"] == 3.5

@@ -10,7 +10,7 @@ test("chat header does not display a project badge", () => {
 test("header orders more, workspace and avatar with responsive spacing", () => {
   const right = source.slice(source.indexOf("/* Right */"));
   expect(right).toContain(
-    'className="chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0"',
+    "chat-header__actions flex items-center gap-1 sm:gap-2 flex-shrink-0",
   );
   expect(right.indexOf("<MoreHorizontal")).toBeLessThan(
     right.indexOf("{headerActions}"),

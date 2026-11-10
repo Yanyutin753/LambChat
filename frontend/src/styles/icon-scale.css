@@ -152,4 +152,10 @@
   :where(svg.lucide)[height="48"] {
     height: 3rem;
   }
+  :where(svg.lucide)[width="64"] {
+    width: 4rem;
+  }
+  :where(svg.lucide)[height="64"] {
+    height: 4rem;
+  }
 }

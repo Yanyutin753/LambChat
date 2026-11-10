@@ -67,3 +67,10 @@ test("panel content respects the reduced motion setting", () => {
     /\.tool-panel-content[\s\S]*animation: none !important/,
   );
 });
+
+test("tool header keeps the semantic icon separate from execution status", () => {
+  const panel = source("ToolResultPanel");
+  expect(panel).not.toContain("AgentAvatar");
+  expect(panel).toContain("tool-console-status");
+  expect(panel).not.toContain("cfg.icon || icon");
+});

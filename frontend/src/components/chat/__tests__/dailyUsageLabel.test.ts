@@ -54,12 +54,12 @@ test("appends a plus suffix when some requests are unpriced", () => {
   ).toBe("¥3.600+");
 });
 
-test("rounds sub-unit amounts to three decimal places", () => {
+test("rounds sub-unit amounts without hiding a nonzero daily cost", () => {
   expect(
     buildDailyUsageAmount(stats({ total_cost_usd: 0.000123 }), {
       language: "en",
     }),
-  ).toBe("$0.000");
+  ).toBe("$0.00012");
 });
 
 test("rounds the converted amount to three decimals before the plus suffix", () => {

@@ -210,7 +210,6 @@ test("folder downloads are real buttons and do not toggle the folder", () => {
     }),
   ]);
 
-  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
   const folderDownload = screen.getByRole("button", {
     name: "Export ZIP: folder",
   });
@@ -236,7 +235,7 @@ test("folder rows use the shared monochrome folder icon", () => {
     .querySelector("svg");
   expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
   expect(icon).toHaveAttribute("width", "16");
-  expect(icon).toHaveClass("lucide-folder");
+  expect(icon).toHaveClass("lucide-folder-open");
   expect(icon).toHaveAttribute("fill", "none");
 });
 
@@ -250,7 +249,6 @@ test("folder download appears immediately before the expansion chevron", () => {
     }),
   ]);
 
-  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
   const folderButton = screen.getByRole("button", { name: "folder" });
   const folderDownload = screen.getByRole("button", {
     name: "Export ZIP: folder",
@@ -279,7 +277,6 @@ test("keeps long nested folder rows inside the panel width boundary", () => {
     }),
   ]);
 
-  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
   const folderButton = screen.getByRole("button", { name: longFolderName });
   const folderRow = folderButton.parentElement;
   const folderNode = folderRow?.parentElement;
@@ -294,7 +291,7 @@ test("keeps long nested folder rows inside the panel width boundary", () => {
   expect(folderNode).toHaveClass("min-w-0", "max-w-full");
   expect(folderRow).toHaveClass("min-w-0", "max-w-full", "overflow-hidden");
 
-  fireEvent.click(folderButton);
+  expect(folderButton).toHaveAttribute("aria-expanded", "true");
   expect(folderRow?.nextElementSibling).toHaveClass("min-w-0", "max-w-full");
   expect(
     screen.getByRole("button", { name: `Export ZIP: ${longFolderName}` }),
@@ -314,7 +311,6 @@ test("folder expansion chevron toggles the folder", () => {
     }),
   ]);
 
-  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
   fireEvent.click(
     screen.getByRole("button", {
       name: "Expand: folder",
@@ -341,7 +337,6 @@ test("does not offer ZIP actions when revealed files have no signed URL", () => 
   expect(
     screen.queryByRole("button", { name: "Download all" }),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
   expect(
     screen.queryByRole("button", { name: "Export ZIP: folder" }),
   ).not.toBeInTheDocument();
@@ -431,7 +426,8 @@ test.each([1, 2, 3])(
   },
 );
 
-test("four files open the side panel directly without expanding inline", () => {
+test("large collections expose the two latest deliveries and keep all files accessible", () => {
+  const open = vi.fn();
   const parts = Array.from({ length: 4 }, (_, index) =>
     filePart({
       id: `file:${index}`,
@@ -439,15 +435,106 @@ test("four files open the side panel directly without expanding inline", () => {
       path: `/workspace/report-${index}.md`,
     }),
   );
-  const view = render(<RevealArtifactsSummary parts={parts} />);
+  const revised = filePart({
+    id: "revised",
+    name: "report-0.md",
+    path: "/workspace/report-0.md",
+    signedUrl: "/revised.md",
+  });
+  const view = render(
+    <RevealArtifactsSummary parts={[...parts, revised]} onOpenPreview={open} />,
+  );
   expect(view.container.querySelector("button[aria-controls]")).toBeNull();
   expect(
-    screen.queryByRole("button", { name: "report-0.md", exact: true }),
+    screen.queryByRole("button", { name: "report-1.md", exact: true }),
   ).not.toBeInTheDocument();
+  expect(
+    view.container.querySelectorAll("[data-inline-attachment]"),
+  ).toHaveLength(2);
+  for (const name of ["report-3.md", "report-0.md"]) {
+    fireEvent.click(screen.getByRole("button", { name, exact: true }));
+  }
+  expect(open).toHaveBeenLastCalledWith(
+    expect.objectContaining({ signedUrl: "/revised.md" }),
+    "manual",
+  );
+  expect(mocks.openPersistentToolPanel).not.toHaveBeenCalled();
   fireEvent.click(
     screen.getByRole("button", { name: "All files", exact: true }),
   );
   expect(mocks.openPersistentToolPanel).toHaveBeenCalledOnce();
+});
+
+test("all-files opens single-directory ancestors and preserves manual collapse", () => {
+  openAllFilesPanel([
+    filePart({
+      id: "report",
+      name: "report.md",
+      path: "/workspace/.selected/local-123/delivery/report.md",
+    }),
+  ]);
+  for (const name of ["workspace", ".selected", "local-123"]) {
+    expect(screen.getByText(name).closest("button")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  }
+  const delivery = screen.getByText("delivery").closest("button")!;
+  expect(delivery).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(delivery);
+  expect(
+    screen.getByRole("button", { name: "report.md", exact: true }),
+  ).toBeVisible();
+  const root = screen.getByText("workspace").closest("button")!;
+  fireEvent.click(root);
+  expect(root).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByText("delivery")).not.toBeInTheDocument();
+});
+
+test("explicit delivery stays prominent when automatic handoff reports arrive later", () => {
+  const open = vi.fn();
+  render(
+    <RevealArtifactsSummary
+      onOpenPreview={open}
+      parts={[
+        {
+          type: "tool",
+          name: "reveal_file",
+          args: {},
+          success: true,
+          result: {
+            key: "review",
+            url: "/original.md",
+            name: "review.md",
+            _meta: { path: "/workspace/review.md" },
+          },
+        },
+        filePart({
+          id: "updated-review",
+          name: "review.md",
+          path: "/workspace/review.md",
+          signedUrl: "/updated.md",
+        }),
+        ...["a", "b", "c"].map((id) =>
+          filePart({
+            id,
+            name: `handoff-${id}.md`,
+            path: `/workspace/handoff-${id}.md`,
+          }),
+        ),
+      ]}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "review.md", exact: true }),
+  );
+  expect(open).toHaveBeenCalledWith(
+    expect.objectContaining({ signedUrl: "/updated.md" }),
+    "manual",
+  );
+  expect(
+    screen.queryByRole("button", { name: "handoff-c.md", exact: true }),
+  ).not.toBeInTheDocument();
 });
 
 test("small collections preserve direct project preview", () => {
@@ -579,4 +666,33 @@ test("collection folder icon follows its expanded state", () => {
   fireEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(toggle.querySelector(".lucide-folder-open")).toBeNull();
+});
+
+test("all-files panel and ZIP include one row per object across path and URL echoes", async () => {
+  const path = "/workspace/report.pdf";
+  const url = "/api/upload/file/revealed/report.pdf";
+  openAllFilesPanel([
+    filePart({ id: "original", name: "report.pdf", path, signedUrl: url }),
+    filePart({
+      id: "echo",
+      name: "report.pdf",
+      path: url + "?file_token=echo",
+      signedUrl: url,
+    }),
+  ]);
+  fireEvent.click(
+    screen.getByRole("button", { name: "workspace", exact: true }),
+  );
+  expect(
+    screen.getAllByRole("button", { name: "report.pdf", exact: true }),
+  ).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Download all" }));
+  await waitFor(() =>
+    expect(mocks.exportProjectZip).toHaveBeenCalledWith(
+      {},
+      "All files",
+      { "workspace/report.pdf": url },
+      { failOnBinaryError: true },
+    ),
+  );
 });

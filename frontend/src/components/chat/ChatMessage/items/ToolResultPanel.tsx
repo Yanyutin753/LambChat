@@ -105,7 +105,6 @@ export function ToolResultPanel({
   title = "",
   path,
   fileType,
-  icon,
   status = "idle",
   subtitle,
   children,
@@ -163,7 +162,6 @@ export function ToolResultPanel({
     title: tabTitle,
     path,
     fileType,
-    icon,
     registryKey,
     kind: "content",
     automatic: automatic && !userInteracted,
@@ -455,20 +453,20 @@ export function ToolResultPanel({
                 />
               )}
 
-              {/* Status + Icon */}
-              <div className="tool-console-header-icon flex items-center justify-center size-4 shrink-0">
+              <span
+                className={`tool-console-status ${cfg.color}`}
+                aria-hidden="true"
+              >
                 {status === "loading" ? (
                   <LoadingSpinner
                     size="sm"
                     className="shrink-0"
-                    color={cfg.color || "text-[var(--theme-primary)]"}
+                    color={cfg.color}
                   />
                 ) : (
-                  <span className={cfg.color || "text-[var(--theme-primary)]"}>
-                    {cfg.icon || icon}
-                  </span>
+                  cfg.icon
                 )}
-              </div>
+              </span>
 
               {/* Title */}
               {title && (

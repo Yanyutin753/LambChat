@@ -219,7 +219,7 @@
 
 /* Base pill hover/transition */
 .pill-btn {
-  @apply flex w-full max-w-full items-center gap-2 rounded-xl px-3 py-1 font-normal leading-6;
+  @apply flex w-fit max-w-full items-center gap-2 rounded-xl px-3 py-1 font-normal leading-6;
   font-family: var(--chat-font-family);
   font-size: var(--tool-font-size);
   min-height: 2.375rem;
@@ -298,11 +298,10 @@
 }
 @media (max-width: 639px), (pointer: coarse) {
   .pill-btn {
-    width: 100%;
     min-height: 2.75rem;
   }
   .pill-btn > .pill-btn__label {
-    flex: 1 1 0%;
+    flex: 0 1 auto;
   }
 }
 

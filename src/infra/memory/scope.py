@@ -28,6 +28,16 @@ _SESSION_PROJECT_CACHE_MAX_SIZE = 4096
 _SESSION_PROJECT_CACHE: dict[str, tuple[float, Optional[str]]] = {}
 
 
+def is_assistant_partition(value: Optional[str]) -> bool:
+    # Reserved storage partitions are not project records or the owner's personal bank.
+    return bool(
+        value
+        and value.startswith(
+            ("assistant-memory:", "assistant-project-memory:", "assistant-discussion-memory:")
+        )
+    )
+
+
 class ScopeResolutionError(ValueError):
     """retain 的 scope 参数无法解析为合法归属。"""
 
@@ -57,6 +67,8 @@ def resolve_retain_scope(
             f"Invalid scope '{scope}'; expected one of {', '.join(MEMORY_SCOPES)}"
         )
     pid = (project_id or "").strip() or None
+    if is_assistant_partition(pid):
+        return "project", pid
     if scope == "project" and pid is None:
         raise ScopeResolutionError(
             "scope='project' requires a project_id (no project context on this session)"
@@ -88,10 +100,7 @@ def _get_sessions_collection():
 
 
 async def resolve_session_project_id(session_id: Optional[str]) -> Optional[str]:
-    """反查会话归属项目（sessions.metadata.project_id），带 TTL 缓存与降级。
-
-    任何失败 → None（按无项目行为继续），绝不阻塞调用方。
-    """
+    """Resolve memory ownership; a failed lookup never widens to personal memory."""
     if not session_id:
         return None
     now = time.monotonic()
@@ -102,12 +111,31 @@ async def resolve_session_project_id(session_id: Optional[str]) -> Optional[str]
     project_id: Optional[str] = None
     try:
         collection = _get_sessions_collection()
-        doc = await collection.find_one({"session_id": session_id}, {"metadata.project_id": 1})
+        projection = {
+            "metadata.project_id": 1,
+            "metadata.assistant_id": 1,
+            "metadata.background_task_id": 1,
+            "user_id": 1,
+        }
+        doc = await collection.find_one({"session_id": session_id}, projection)
         if doc is None and ObjectId.is_valid(session_id):
-            doc = await collection.find_one(
-                {"_id": ObjectId(session_id)}, {"metadata.project_id": 1}
-            )
+            doc = await collection.find_one({"_id": ObjectId(session_id)}, projection)
         metadata = (doc or {}).get("metadata") or {}
+        from src.infra.assistant.discussions import is_discussion_session
+
+        if (
+            session_id.startswith("sch_conversation_")
+            or is_discussion_session(session_id)
+            or metadata.get("assistant_id")
+            or metadata.get("background_task_id")
+        ):
+            from src.infra.assistant.memory import session_assistant_partition
+
+            partition = await session_assistant_partition(
+                session_id, (doc or {}).get("user_id"), metadata
+            )
+            if partition:
+                return partition
         project_id = str(metadata.get("project_id") or "").strip() or None
     except Exception as exc:
         logger.debug(
@@ -115,7 +143,7 @@ async def resolve_session_project_id(session_id: Optional[str]) -> Optional[str]
             session_id,
             type(exc).__name__,
         )
-        project_id = None
+        raise ScopeResolutionError("Memory ownership is unavailable") from exc
 
     if len(_SESSION_PROJECT_CACHE) >= _SESSION_PROJECT_CACHE_MAX_SIZE:
         _SESSION_PROJECT_CACHE.clear()

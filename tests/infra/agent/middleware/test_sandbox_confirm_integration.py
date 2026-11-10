@@ -218,7 +218,7 @@ async def test_decline_rejects_whole_batch(recorder_install) -> None:
         resume_map = await expand_sandbox_confirm_resume(
             graph,
             config,
-            {"x": {"approved": False, "values": {}}},
+            {"x": {"approved": False, "values": {"reason": "Keep both files; no deletion."}}},
             message=intrs[0]["message"],
         )
         await _run(graph, Command(resume=resume_map), config)
@@ -230,6 +230,7 @@ async def test_decline_rejects_whole_batch(recorder_install) -> None:
         ]
         declined = [m for m in tool_msgs if "declined_by_user" in str(m.content)]
         assert len(declined) == 2
+        assert all("Keep both files; no deletion." in str(m.content) for m in declined)
     finally:
         hitl_interrupt_supported.reset(token)
 
@@ -447,3 +448,106 @@ def authorized_sandbox_operator(monkeypatch):
         "src.infra.agent.middleware.sandbox_confirm.has_tool_permission",
         AsyncMock(return_value=True),
     )
+
+
+@pytest.mark.parametrize("backend_kind", ["local", "cloud", "lazy_cloud"])
+@pytest.mark.parametrize("changed_while_waiting", [False, True])
+async def test_file_edit_after_approval_rebuild_keeps_original_version(
+    tmp_path, monkeypatch, backend_kind, changed_while_waiting
+):
+    from pathlib import Path
+    from unittest.mock import AsyncMock
+
+    from src.infra.agent.middleware.sandbox_confirm import create_sandbox_confirm_middleware
+    from src.infra.backend.guarded_sandbox import GuardedSandboxBackend
+    from src.infra.backend.lazy_sandbox import LazySandboxBackend
+    from src.infra.backend.local import WorkspaceAliasBackend
+    from tests.infra.backend.test_guarded_sandbox import FilesystemBackend
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[4] / "client"))
+    from lambchat_sandbox.fsops import handle_fs_op
+
+    root = tmp_path / "s"
+    root.mkdir()
+    target = root / "note.txt"
+    target.write_text("old text\n")
+    path = "/workspace/s/note.txt" if backend_kind != "cloud" else str(target)
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        return {"result": handle_fs_op(op, payload, tmp_path)}
+
+    monkeypatch.setattr("src.infra.backend.local.dispatch_local_call", dispatch)
+
+    def backend():
+        if backend_kind == "local":
+            return WorkspaceAliasBackend(
+                user_id="user-1", session_id="s", machine_id="machine-1", platform_hint="darwin"
+            )
+        guarded = GuardedSandboxBackend(FilesystemBackend(root), user_id="user-1", session_id="s")
+        if backend_kind == "cloud":
+            return guarded
+        lazy = LazySandboxBackend(
+            user_id="user-1",
+            session_id="s",
+            presenter=SimpleNamespace(),
+            manager_factory=lambda: None,
+        )
+
+        async def initialize():
+            lazy._delegate = guarded
+            lazy._actual_work_dir = str(root)
+            return guarded
+
+        monkeypatch.setattr(lazy, "_ensure_ready", initialize)
+        return lazy
+
+    checkpoint = InMemorySaver()
+
+    def graph(storage, messages):
+        confirm = create_sandbox_confirm_middleware("user-1", storage, "machine-1")
+        confirm._policy_resolver = AsyncMock(return_value="all")
+        return create_deep_agent(
+            model=ScriptedModel(messages=iter(messages)),
+            backend=storage,
+            middleware=[confirm],
+            checkpointer=checkpoint,
+        )
+
+    first = graph(
+        backend(),
+        [
+            _tool_call("read_file", {"file_path": path}, "read-original"),
+            _tool_call(
+                "edit_file",
+                {"file_path": path, "old_string": "old", "new_string": "new"},
+                "edit-original",
+            ),
+        ],
+    )
+    config = {"configurable": {"thread_id": "file-approval"}}
+    token = hitl_interrupt_supported.set(True)
+    try:
+        await _run(first, {"messages": [HumanMessage("Update the file after approval")]}, config)
+        interrupts = _interrupts(await first.aget_state(config))
+        assert len(interrupts) == 1
+        assert target.read_text() == "old text\n"
+        if changed_while_waiting:
+            target.write_text("someone else's text\n")
+        restored = graph(backend(), [AIMessage(content="done")])
+        await _run(
+            restored,
+            Command(
+                resume={
+                    interrupts[0]["interrupt_id"]: {
+                        "approved": True,
+                        "confirmation_context": interrupts[0].get("confirmation_context"),
+                    }
+                }
+            ),
+            config,
+        )
+        assert target.read_text() == (
+            "someone else's text\n" if changed_while_waiting else "new text\n"
+        )
+    finally:
+        hitl_interrupt_supported.reset(token)

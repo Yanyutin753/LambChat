@@ -28,7 +28,7 @@ export function SelectRow<T extends string>({
   const { t } = useTranslation();
   return (
     <>
-      <div className="profile-setting-row">
+      <div className="profile-setting-row profile-select-row">
         <span className="text-14 text-theme-text">{label}</span>
         <Select
           open={open}

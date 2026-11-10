@@ -15,6 +15,7 @@
   justify-content: flex-end;
   align-items: flex-end;
   padding: 0;
+  background: transparent;
 }
 
 /* Reserve workspace for the single active docked right-panel lane. */

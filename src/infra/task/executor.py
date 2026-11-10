@@ -14,7 +14,6 @@ from src.infra.goal_runtime import GoalRunAdmissionError, with_goal_run_lease
 from src.infra.logging import get_logger
 from src.infra.sandbox.idle_pause import schedule_idle_pause
 from src.infra.session.dual_writer import get_dual_writer
-from src.infra.session.favorites import is_session_favorite
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.presenter_events import derive_user_message_run_modes
@@ -675,6 +674,18 @@ class TaskExecutor(TaskSessionStatusMixin):
             await self._record_uncertain_effect(session_id, run_id, error)
         elif is_quota_error(error):
             await self._record_quota_error(session_id, run_id, error)
+        elif isinstance(error, AppError) and error.error_code is ErrorCode.ASSISTANT_TASK_DEADLINE:
+            await self._storage.update_metadata_for_run(
+                session_id,
+                run_id,
+                self._state_machine.build_metadata(
+                    TaskStatus.FAILED,
+                    run_id=run_id,
+                    error=error_msg,
+                    error_code=error.error_code.code,
+                    recoverable=False,
+                ),
+            )
         else:
             await self._update_session_status(
                 session_id, TaskStatus.FAILED, error_msg, run_id=run_id
@@ -759,163 +770,11 @@ class TaskExecutor(TaskSessionStatusMixin):
         *,
         prepared_completion: dict[str, Any] | None = None,
     ) -> bool:
-        """Return whether notification finalization can be acknowledged."""
-        try:
-            from src.infra.websocket import get_connection_manager
+        from src.infra.task.completion_notifications import send_task_notification
 
-            notification: dict[str, Any] = {
-                "type": "task:complete",
-                "data": {
-                    "session_id": session_id,
-                    "run_id": run_id,
-                    "status": status.value,
-                },
-            }
-            if message:
-                notification["data"]["message"] = message
-
-            # 附带最新的 unread_count，让前端实时更新侧边栏
-            session_metadata = {}
-            try:
-                from src.infra.session.manager import SessionManager
-
-                session = await SessionManager().get_session(session_id)
-                if session:
-                    session_metadata = session.metadata or {}
-                    favorites_project_id = None
-                    if session.user_id:
-                        from src.infra.folder.storage import get_project_storage
-
-                        favorites_project = await get_project_storage().get_by_type(
-                            session.user_id,
-                            "favorites",
-                        )
-                        favorites_project_id = favorites_project.id if favorites_project else None
-                    notification["data"]["unread_count"] = getattr(session, "unread_count", 0)
-                    notification["data"]["project_id"] = (
-                        session.metadata.get("project_id") if session.metadata else None
-                    )
-                    notification["data"]["scheduled_task_id"] = (
-                        session.metadata.get("scheduled_task_id") if session.metadata else None
-                    )
-                    notification["data"]["is_favorite"] = is_session_favorite(
-                        session.metadata,
-                        favorites_project_id,
-                    )
-            except Exception:
-                pass
-
-            if run_id.startswith("scheduled-") or session_metadata.get("scheduled_task_id"):
-                from src.infra.scheduler.conversation import completion_context
-
-                scheduled_task_id, quiet = await completion_context(
-                    session_id, run_id, status.value
-                )
-                if quiet or (
-                    session_metadata.get("scheduled_target_session_id")
-                    and status == TaskStatus.COMPLETED
-                ):
-                    return True
-                if scheduled_task_id:
-                    notification["data"]["scheduled_task_id"] = scheduled_task_id
-
-            from src.infra.task.completion_events import TaskCompletionStore, prepare_completion
-
-            completion = (
-                dict(prepared_completion)
-                if prepared_completion is not None
-                else prepare_completion(notification["data"], session_metadata)
-            )
-            if completion is None:
-                return True
-            from src.infra.task.completion_recovery import TaskCompletionOutbox
-
-            notification["data"] = completion
-            outbox = TaskCompletionOutbox()
-            try:
-                await outbox.stage(session_id, user_id, completion)
-            except Exception as error:
-                logger.warning("Failed to stage task completion: %s", error)
-            try:
-                notification["data"], fresh = await TaskCompletionStore().record_once(
-                    user_id, completion
-                )
-            except Exception as error:
-                logger.warning("Failed to persist task completion: %s", error)
-                return False
-            try:
-                await outbox.clear(session_id, user_id, completion["dedupe_key"])
-            except Exception as error:
-                logger.warning("Failed to clear delivered completion marker: %s", error)
-            if not fresh:
-                return True
-            manager = get_connection_manager()
-            delivered_count = await manager.send_to_user_with_broadcast(user_id, notification)
-            if delivered_count <= 0:
-                logger.warning(
-                    "Task notification had no active WebSocket delivery: "
-                    "user_id=%s, session=%s, status=%s, delivered=%s",
-                    user_id,
-                    session_id,
-                    status.value,
-                    delivered_count,
-                )
-                # Web Push fallback when WebSocket has no active connection
-                push_delivered = 0
-                try:
-                    from src.infra.push.manager import PushManager
-
-                    push_mgr = PushManager()
-                    push_payload = {
-                        "title": "LambChat",
-                        "body": notification["data"].get("message")
-                        or f"Task {notification['data']['status']}",
-                        "url": (
-                            f"/scheduled-tasks/{completion['scheduled_task_id']}"
-                            if completion.get("notification_kind")
-                            in {"scheduled_failure", "scheduled_model_unavailable"}
-                            and completion.get("scheduled_task_id")
-                            else f"/chat/{session_id}"
-                        ),
-                    }
-                    push_delivered = await push_mgr.send_push_to_user(user_id, push_payload)
-                    if push_delivered > 0:
-                        logger.info(
-                            "Push notification delivered as fallback: user_id=%s, count=%s",
-                            user_id,
-                            push_delivered,
-                        )
-                except Exception as push_err:
-                    logger.warning("Failed to send push notification fallback: %s", push_err)
-                # 渠道兜底：WS 与 Web Push 均未送达时，把结果推到用户配置的
-                # IM 渠道（push 已送达则不再双推手机）
-                if push_delivered <= 0:
-                    try:
-                        from src.infra.channel.fallback import deliver_task_fallback
-
-                        await deliver_task_fallback(
-                            user_id=user_id,
-                            session_id=session_id,
-                            run_id=run_id,
-                            status_value=notification["data"]["status"],
-                            message=notification["data"].get("message"),
-                        )
-                    except Exception as channel_err:
-                        logger.warning(
-                            "Failed to send channel fallback notification: %s", channel_err
-                        )
-            else:
-                logger.info(
-                    "Task notification delivered: user_id=%s, session=%s, status=%s, delivered=%s",
-                    user_id,
-                    session_id,
-                    status.value,
-                    delivered_count,
-                )
-        except Exception as e:
-            logger.warning(f"Failed to send task notification: {e}")
-            return False
-        return True
+        return await send_task_notification(
+            session_id, run_id, status, user_id, message, prepared_completion=prepared_completion
+        )
 
     def _schedule_idle_pause_check(self, session_id: str) -> None:
         """终态后解析 user 并调度空闲暂停检查（含宽限期）。

@@ -25,7 +25,8 @@ test("sidebar brand header exposes notifications with a count and opens the exis
 
 test("sidebar navigation glyphs share the header's 16px size", () => {
   for (const file of ["../SessionListContent.tsx", "../SidebarRail.tsx"]) {
-    const source = read(file);
+    // Avatars are artwork; line navigation glyphs retain the shared 16px size.
+    const source = read(file).replace(/<AgentAvatar\b[^>]*\/>/g, "");
     expect(source).not.toContain("size={20}");
     expect(source).not.toContain("compactChrome ? 19 : 20");
     for (const icon of [

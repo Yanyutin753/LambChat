@@ -1790,3 +1790,45 @@ async def test_unparseable_output_is_not_retried(monkeypatch):
     # attempts=1 < max_attempts=3，但确定性失败直接终态，不进退避重试
     assert jobs.docs["j1"]["status"] == "exhausted"
     assert jobs.docs["j1"]["next_retry_at"] is None
+
+
+async def test_assistant_extraction_keeps_personal_facts_inside_its_partition(monkeypatch):
+    import json
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_MODE", "off")
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_SYSTEMONE_CONTEXT_SHADOW", False)
+    monkeypatch.setattr(extraction, "_get_extraction_model", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        "src.infra.llm.retry.ainvoke_with_retry",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                content=json.dumps(
+                    {
+                        "rollout_summary": "Private preference",
+                        "rollout_slug": "private-preference",
+                        "memories": [
+                            {
+                                "raw_memory": "The user privately prefers concise Chinese reports.",
+                                "context": "user",
+                            }
+                        ],
+                    }
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "src.infra.assistant.memory.session_assistant_partition",
+        AsyncMock(return_value="assistant-memory:helper"),
+    )
+    backend = FakeBackend()
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db([_trace_doc("r1", "Private preference", "Recorded")]),
+        "u1",
+        {"session_id": "s1", "metadata": {"assistant_id": "helper"}},
+    )
+    assert outcome.status == "succeeded"
+    assert backend.retain_calls[0]["scope"] == "project"
+    assert backend.retain_calls[0]["project_id"] == "assistant-memory:helper"

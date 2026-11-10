@@ -60,7 +60,8 @@ def _has_complete_cost_receipt(doc: dict[str, Any]) -> bool:
     if doc.get("cost_source") == "provider_settlement":
         return (
             doc.get("cost_complete") is True
-            and type(doc.get("cost_units")) is int
+            and isinstance(doc.get("cost_units"), int)
+            and not isinstance(doc.get("cost_units"), bool)
             and doc["cost_units"] >= 0
             and _valid_cost(doc.get("cost_usd"))
             and doc["cost_usd"] == doc["cost_units"] / 1_000_000_000
@@ -116,7 +117,7 @@ def _usage_cost_fields(doc: dict[str, Any]) -> dict[str, Any]:
             "cost_available": complete,
             "cost_complete": complete,
             "partial_cost_usd": units / 1_000_000_000
-            if not complete and type(units) is int and units >= 0
+            if not complete and isinstance(units, int) and not isinstance(units, bool) and units > 0
             else None,
             "estimated_cost_usd": None,
         }
@@ -129,7 +130,10 @@ def _usage_cost_fields(doc: dict[str, Any]) -> dict[str, Any]:
     partial = doc.get("partial_cost_usd")
     partial = (
         float(partial)
-        if not confirmed and doc.get("input_includes_cache") is True and _valid_cost(partial)
+        if not confirmed
+        and doc.get("input_includes_cache") is True
+        and _valid_cost(partial)
+        and partial > 0
         else None
     )
     raw_cost = doc.get("cost_usd")
@@ -280,6 +284,7 @@ PARTIAL_USAGE_CONDITION = {
         {"$not": [PRICED_USAGE_CONDITION]},
         {"$or": [SETTLEMENT_CONDITION, _boolean_condition("input_includes_cache", True)]},
         _amount_condition("partial_cost_usd"),
+        {"$gt": ["$partial_cost_usd", 0]},
     ]
 }
 ESTIMATED_USAGE_CONDITION = {
@@ -290,12 +295,29 @@ ESTIMATED_USAGE_CONDITION = {
         _amount_condition("cost_usd"),
     ]
 }
+UNPRICED_USAGE_CONDITION = {
+    "$not": [{"$or": [PRICED_USAGE_CONDITION, PARTIAL_USAGE_CONDITION, ESTIMATED_USAGE_CONDITION]}]
+}
 
 
 def _cost_certainty_aggregates() -> dict[str, Any]:
+    successful = {
+        "$and": [
+            {"$eq": ["$status", "completed"]},
+            {"$not": [_boolean_condition("acceptance_fixture", True)]},
+        ]
+    }
+    counts = {
+        "priced_requests": PRICED_USAGE_CONDITION,
+        "partial_requests": PARTIAL_USAGE_CONDITION,
+        "estimated_requests": ESTIMATED_USAGE_CONDITION,
+        "unpriced_requests": UNPRICED_USAGE_CONDITION,
+    }
     return {
         "partial_cost_usd": {"$sum": {"$cond": [PARTIAL_USAGE_CONDITION, "$partial_cost_usd", 0]}},
-        "partial_requests": {"$sum": {"$cond": [PARTIAL_USAGE_CONDITION, 1, 0]}},
         "estimated_cost_usd": {"$sum": {"$cond": [ESTIMATED_USAGE_CONDITION, "$cost_usd", 0]}},
-        "estimated_requests": {"$sum": {"$cond": [ESTIMATED_USAGE_CONDITION, 1, 0]}},
+        **{
+            field: {"$sum": {"$cond": [{"$and": [successful, condition]}, 1, 0]}}
+            for field, condition in counts.items()
+        },
     }

@@ -5,7 +5,7 @@ from src.infra.session.manager import SessionManager
 from src.infra.task.background_task_store import BackgroundTaskStore
 
 
-async def validate_background_run_admission(session_id: str, user_id: str, run_id: str) -> None:
+async def validate_background_run_admission(session_id: str, user_id: str, run_id: str) -> dict:
     session = await SessionManager().get_session(session_id)
     metadata = (session.metadata or {}) if session else {}
     task_id = metadata.get("background_task_id")
@@ -32,10 +32,11 @@ async def validate_background_run_admission(session_id: str, user_id: str, run_i
         not record
         or record.get("session_id") != session_id
         or record.get("user_id") != user_id
-        or record.get("run_id") != run_id
+        or (record.get("authorized_run_id") or record.get("run_id")) != run_id
         or record.get("state") not in {"submitting", "submitted", "uncertain"}
     ):
         raise GoalRunAdmissionError("Background task registration no longer authorizes this run")
+    return record
 
 
 async def validate_background_resume(storage, session_id: str, user_id: str, run_id: str) -> bool:
@@ -53,7 +54,7 @@ async def validate_background_resume(storage, session_id: str, user_id: str, run
     record = await BackgroundTaskStore().collection.find_one(
         {"_id": task_id, "session_id": session_id, "user_id": user_id}
     )
-    if record and record.get("run_id") != run_id:
+    if record and (record.get("authorized_run_id") or record.get("run_id")) != run_id:
         return False
     await validate_background_run_admission(session_id, user_id, run_id)
     return True

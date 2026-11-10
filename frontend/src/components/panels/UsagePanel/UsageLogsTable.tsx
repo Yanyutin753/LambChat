@@ -73,10 +73,12 @@ const _STATUS_PILL_STYLES: Record<
 function LogCost({ log, opts }: { log: UsageLog; opts: CostFormatOpts }) {
   const { t } = useTranslation();
   const amountOpts = { ...opts, ...usageCostOptions(log) };
-  const hint = historicalEstimateHint(
-    amountOpts,
-    t("usage.historicalEstimate"),
-  );
+  const hint = [
+    (log.partial_cost_usd ?? 0) > 0 ? t("usage.partialCostHint") : undefined,
+    historicalEstimateHint(amountOpts, t("usage.historicalEstimate")),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <span className="block min-w-0">
       <span>
@@ -171,7 +173,7 @@ function DesktopTable({
     "min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 tabular-nums text-theme-text-secondary";
 
   return (
-    <div className="hidden lg:block">
+    <div className="usage-logs-desktop">
       <div className="usage-surface overflow-x-auto rounded-xl">
         <div className="min-w-[1130px]">
           <div
@@ -627,7 +629,7 @@ export function UsageLogsTable({
       />
 
       {/* Tablet rows */}
-      <div className="hidden sm:block lg:hidden">
+      <div className="usage-logs-tablet">
         <div className="space-y-4">
           {logs.map((log) => (
             <TabletRow
@@ -642,7 +644,7 @@ export function UsageLogsTable({
       </div>
 
       {/* Mobile cards */}
-      <div className="space-y-4 pb-5 sm:hidden">
+      <div className="usage-logs-mobile space-y-4 pb-5">
         {logs.map((log) => (
           <MobileCard
             key={log.trace_id}

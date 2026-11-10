@@ -165,7 +165,10 @@ def _acquire_pooled_http_async_client(
             client = retired.client
             _httpx_pool_cache[key] = client
         else:
+            from src.infra.llm.quota import observe_model_http_response
+
             client = httpx.AsyncClient(
+                event_hooks={"response": [observe_model_http_response]},
                 timeout=httpx.Timeout(timeout=600.0, connect=5.0),
                 limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100),
             )

@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
 import i18n from "../../i18n";
 
 import { AgentIcon } from "../agent/AgentIcon";
+import { SceneIllustration } from "../common/SceneIllustration";
 import { CatalogStatus } from "../common/CatalogStatus";
 import {
   resolveAgentDescription,
@@ -64,12 +64,7 @@ export function AgentModeSelector({
     <SelectorModalShell className="!min-h-0 sm:!w-full">
       <SelectorModalHeader
         className="relative"
-        icon={
-          <Bot
-            size={16}
-            className="text-stone-500 dark:text-amber-400 sm:w-[1.125rem] sm:h-[1.125rem]"
-          />
-        }
+        icon={<SceneIllustration scene="avatar" className="!h-10 !w-10" />}
         title={t("agent.selectMode", "选择模式")}
         subtitle={t("agent.selectModeDesc", "切换智能体模式")}
         subtitleClassName="text-12 text-stone-500 dark:text-stone-400"
@@ -109,7 +104,7 @@ export function AgentModeSelector({
               type="button"
               disabled={isLoading || error}
               aria-pressed={isActive}
-              className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-colors duration-200 disabled:opacity-50 ${
+              className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-colors duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-theme-primary disabled:opacity-50 ${
                 isActive
                   ? "bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15"
                   : "hover:bg-theme-bg-hover dark:hover:bg-theme-bg-hover active:bg-stone-100/80 dark:active:bg-stone-600/40"
@@ -122,7 +117,7 @@ export function AgentModeSelector({
               <AgentIcon icon={agent.icon} seed={agent.id} size={36} />
               <div className="flex-1 min-w-0">
                 <span
-                  className={`text-13 sm:text-14 font-medium font-serif truncate block ${
+                  className={`text-13 sm:text-14 font-medium font-serif block [overflow-wrap:anywhere] ${
                     isActive
                       ? "text-amber-700 dark:text-amber-400"
                       : "text-stone-700 dark:text-stone-200"

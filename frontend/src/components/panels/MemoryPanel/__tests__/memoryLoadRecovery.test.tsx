@@ -72,3 +72,13 @@ test("a failed refresh keeps the previous memories available through named butto
 vi.mock("../../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));
+
+test("assistant management requests only the selected assistant bank", async () => {
+  list.mockResolvedValue({ memories: [], total: 0 });
+  render(<MemoryPanel assistantId="researcher" />);
+  await waitFor(() =>
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ assistant_id: "researcher" }),
+    ),
+  );
+});

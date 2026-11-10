@@ -144,7 +144,13 @@ test("keeps the persona gallery wider than the composer without inner horizontal
   expect(personaClass).not.toMatch(/(?:^|\s)max-w-\[/);
   expect(personaClass).toContain("px-4 sm:px-0");
   expect(personaClass).not.toContain("sm:px-10");
-  for (const source of [welcomePageSource, chatSkeletonsSource]) {
+  expect(welcomePageSource).toContain(
+    "className={WELCOME_INPUT_CONTAINER_CLASS_NAME}",
+  );
+  for (const source of [
+    welcomeLayout.WELCOME_INPUT_CONTAINER_CLASS_NAME,
+    chatSkeletonsSource,
+  ]) {
     expect(source).toMatch(
       /welcome-input[^"\n]*sm:max-w-\[48rem\] md:max-w-\[52rem\] lg:max-w-\[56rem\] xl:max-w-\[58rem\] 2xl:max-w-\[60rem\]/,
     );

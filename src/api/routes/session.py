@@ -95,6 +95,7 @@ async def list_sessions(
     search: Optional[str] = Query(None, description="搜索关键词，模糊匹配会话名称"),
     favorites_only: bool = Query(False, description="仅返回已收藏会话"),
     pinned_only: bool = Query(False, description="仅返回已置顶会话"),
+    exclude_assistants: bool = Query(False, description="Exclude companion conversations"),
     user: TokenPayload = Depends(require_permissions("session:read")),
 ):
     """
@@ -141,6 +142,7 @@ async def list_sessions(
                 favorites_only=favorites_only,
                 pinned_only=pinned_only,
                 favorites_project_id=favorites_project_id,
+                exclude_assistants=exclude_assistants,
             )
         else:
             favorites_project_id, list_result = await asyncio.gather(
@@ -155,6 +157,7 @@ async def list_sessions(
                     favorites_only=favorites_only,
                     pinned_only=pinned_only,
                     favorites_project_id=None,
+                    exclude_assistants=exclude_assistants,
                 ),
             )
             sessions, total = list_result
@@ -958,7 +961,6 @@ async def move_session(
     favorites_project_id = await _get_favorites_project_id(user.sub)
     was_favorite = is_session_favorite(session.metadata, favorites_project_id)
 
-    # Get project_id from body
     project_id = body.get("project_id")
 
     # If project_id provided (not null), verify project exists and belongs to user

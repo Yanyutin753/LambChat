@@ -1,5 +1,6 @@
 export type TabType =
   | "chat"
+  | "assistants"
   | "persona"
   | "skills"
   | "marketplace"
@@ -19,6 +20,7 @@ export type TabType =
   | "usage";
 
 export interface ChatAppContentProps {
+  embedded?: boolean;
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
   sidebarCollapsed: boolean;

@@ -92,6 +92,15 @@ class ScheduledTaskService:
         await self._validate_conversation(
             request.execution_mode, request.target_session_id, owner_id, request.agent_id
         )
+        from src.infra.assistant.rules import validate_rule_definition
+
+        await validate_rule_definition(
+            owner_id,
+            request.input_payload,
+            execution_mode=request.execution_mode,
+            delivery=request.delivery,
+            max_retries=request.max_retries,
+        )
         # Validate trigger config
         self._build_trigger(request.trigger_type, request.trigger_config, request.timezone)
 
@@ -178,6 +187,21 @@ class ScheduledTaskService:
             if trigger_type == TriggerType.DATE:
                 updates["run_on_start"] = False
 
+        from src.infra.assistant.rules import validate_rule_definition
+
+        await validate_rule_definition(
+            task.owner_id,
+            updates.get("input_payload", task.input_payload),
+            execution_mode=updates.get("execution_mode", task.execution_mode),
+            delivery=updates.get("delivery", task.delivery),
+            max_retries=updates.get("max_retries", task.max_retries),
+        )
+        if (
+            "assistant_rule" in task.input_payload
+            and "input_payload" in updates
+            and "assistant_rule" not in updates["input_payload"]
+        ):
+            raise ValueError("An assistant rule cannot become an unbounded ordinary schedule")
         if not updates:
             return task
 

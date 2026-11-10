@@ -1,5 +1,6 @@
 """Stop graph recovery when a prior external tool result cannot be confirmed."""
 
+import hashlib
 from inspect import getclosurevars
 from types import CodeType
 from typing import Any
@@ -82,6 +83,51 @@ def _uncertain(calls=()) -> AppError:
         ErrorCode.TASK_RECOVERY_UNCERTAIN_EFFECT,
         args={"tool_calls": [{"id": call.get("id"), "name": call.get("name")} for call in calls]},
     )
+
+
+async def _guard_subagent(tool: Any, call: dict, records: dict, config: Any) -> bool:
+    from src.agents.core.node_utils import isolated_nested_graph_run
+    from src.infra.agent.subagent_sessions import SubagentSessions
+    from src.infra.tool.subagent_tool import create_subagent_tools
+
+    if tool is None or tool.name not in {"task", "wait_subagent", "send_subagent_message"}:
+        return False
+    coroutine = getattr(tool, "coroutine", None)
+    if not callable(coroutine):
+        return False
+    code = getattr(coroutine, "__code__", None)
+    if code not in _nested_codes(create_subagent_tools.__code__) or code.co_name != tool.name:
+        return False
+    owner = getclosurevars(coroutine).nonlocals.get("sessions")
+    if not isinstance(owner, SubagentSessions):
+        raise _uncertain([call])
+    args = call.get("args", {})
+    child_id = (
+        "subagent-" + hashlib.sha256(call["id"].encode()).hexdigest()[:24]
+        if tool.name == "task"
+        else args.get("subagent_id")
+    )
+    record = records.get(child_id) or owner.records.get(child_id)
+    if record is None and tool.name == "task":
+        record = {"subagent_type": args["subagent_type"]}
+    if not record:
+        raise _uncertain([call])
+    # A parent wait can span several approvals; only the child's durable state proves replay safety.
+    child = SubagentSessions(
+        session_id=owner.session_id,
+        user_id=owner.user_id,
+        build_graph=owner.build_graph,
+        checkpointer=owner.checkpointer,
+        fork_types=owner.fork_types,
+    )
+    child.restore({child_id: record})
+    async with isolated_nested_graph_run():
+        await child._prepare(child_id, config)
+        child_graph, child_config = child.graphs[child_id], child.configs[child_id]
+        if not (await child_graph.aget_state(child_config)).values:
+            raise _uncertain([call])
+        await guard_graph_recovery(child_graph, child_config)
+    return True
 
 
 async def guard_graph_recovery(graph: Any, config: Any) -> None:
@@ -167,12 +213,16 @@ async def guard_graph_recovery(graph: Any, config: Any) -> None:
 
         tool_node = graph.builder.nodes.get("tools")
         tools = getattr(getattr(tool_node, "runnable", None), "tools_by_name", {})
-        unsafe = [
-            call
-            for identity, calls in pending.items()
-            for call in calls
-            if identity not in fresh_approvals and not _readonly(tools.get(call.get("name")))
-        ]
+        unsafe = []
+        for identity, calls in pending.items():
+            for pending_call in calls:
+                tool = tools.get(pending_call.get("name"))
+                if len(calls) == 1 and await _guard_subagent(
+                    tool, pending_call, snapshot.values.get("subagent_sessions", {}), config
+                ):
+                    continue
+                if identity not in fresh_approvals and not _readonly(tool):
+                    unsafe.append(pending_call)
         if unsafe:
             raise _uncertain(unsafe)
     except AppError as error:

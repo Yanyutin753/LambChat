@@ -443,7 +443,7 @@ async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
     assert stats["total_requests"] == 1
     query = collection.count_queries[0]
     assert query["user_id"] == "user-1"
-    assert query["model"] == "openai/gpt-5"
+    assert query["$or"] == [{"model": "openai/gpt-5"}, {"actual_models.model": "openai/gpt-5"}]
     assert query["username"] == {"$regex": "ada", "$options": "i"}
     assert query["started_at"]["$gte"] == datetime(2026, 6, 1, tzinfo=timezone.utc)
     assert query["started_at"]["$lt"] == datetime(2026, 7, 1, tzinfo=timezone.utc)
@@ -485,7 +485,7 @@ async def test_upsert_usage_log_enriches_operational_metadata(monkeypatch) -> No
     storage = UsageStorage()
     storage._collection = collection
 
-    async def fake_session_metadata(session_id):
+    async def fake_session_metadata(session_id, user_id=None):
         assert session_id == "session-1"
         return {
             "team_id": "team-1",
@@ -549,7 +549,7 @@ async def test_upsert_usage_log_resolves_team_name_when_missing(monkeypatch) -> 
     storage = UsageStorage()
     storage._collection = collection
 
-    async def fake_session_metadata(session_id):
+    async def fake_session_metadata(session_id, user_id=None):
         return {"team_id": "team-1"}
 
     async def fake_resolve_team_name(team_id):
@@ -1104,3 +1104,21 @@ async def test_auxiliary_identity_survives_storage_and_api_schema():
     assert log.operation == "embedding"
     assert log.provider == "openai"
     assert log.duration == 1.5
+
+
+async def test_display_only_acceptance_trace_does_not_create_unpriced_usage():
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    trace = {
+        "trace_id": "trace-artifact-acceptance-example",
+        "status": "completed",
+        "metadata": {"acceptance_fixture": True},
+    }
+    assert not await storage.upsert_usage_log_from_trace_metadata(trace, {})
+    assert not collection.update_calls
+    assert await storage.upsert_usage_log_from_trace_metadata(
+        trace, {"input_tokens": 10, "output_tokens": 2}
+    )
+    assert len(collection.update_calls) == 1

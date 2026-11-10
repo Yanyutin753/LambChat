@@ -102,3 +102,22 @@ test("tool groups support keyboard expansion and only render contents when opene
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   expect(screen.queryByText("Expanded tools")).toBeNull();
 });
+
+test("collapsed group includes its targets inline and preserves them when expanded", () => {
+  const view = render(
+    <ToolCallGroup
+      category="search"
+      count={3}
+      stateKey="summary"
+      summary="数据中心 半导体 科技股"
+      renderExpanded={() => <div>Results</div>}
+    />,
+  );
+  const button = screen.getByRole("button");
+  expect(button).toHaveTextContent(
+    "chat.message.toolGroupSearch 3 数据中心 半导体 科技股",
+  );
+  fireEvent.click(button);
+  expect(button).toHaveTextContent("数据中心 半导体 科技股");
+  expect(view.getByText("Results")).toBeVisible();
+});

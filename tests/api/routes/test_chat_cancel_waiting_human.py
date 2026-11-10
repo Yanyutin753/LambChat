@@ -229,3 +229,25 @@ async def test_cancel_running_session_without_approvals_unchanged(monkeypatch) -
     assert harness.approval_updates == []
     assert harness.written_events == []
     assert harness.expired_streams == []
+
+
+async def test_cancel_from_task_list_refuses_a_replaced_run(monkeypatch):
+    import pytest
+
+    from src.kernel.errors import AppError, ErrorCode
+
+    harness = _CancelHarness()
+    harness.wire(monkeypatch, [_interrupt_approval()])
+    with pytest.raises(AppError) as caught:
+        await cancel_session("session-1", user=_user(), run_id="old-run")
+    assert caught.value.error_code is ErrorCode.CONFLICT
+    assert harness.cancel_calls == []
+    assert harness.approval_updates == []
+
+
+async def test_cancel_from_task_list_stops_only_the_observed_current_run(monkeypatch):
+    harness = _CancelHarness()
+    harness.wire(monkeypatch, [_interrupt_approval()])
+    result = await cancel_session("session-1", user=_user(), run_id="run-9")
+    assert result["success"] is True
+    assert harness.cancel_calls == [("session-1", "user-1")]

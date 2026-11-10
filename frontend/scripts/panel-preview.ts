@@ -858,6 +858,49 @@ function response(
   chatState = "completed",
 ): unknown {
   const path = url.pathname.replace(/\/$/, "");
+  const companion = (id: string, name: string, kind = "assistant") => ({
+    id,
+    name,
+    kind,
+    user_id: user.id,
+    session_id: "preview-report",
+    revision: 1,
+    status: "active",
+    description: "一起整理资料、核验结论并完成交付。",
+    instructions: "核对来源并保留独立复核。",
+    avatar: null,
+    starter_prompts: [],
+    model_id: null,
+    persona_preset_id: null,
+    team_id: null,
+    project_id: null,
+    memory_mode: "private",
+    sandbox: null,
+    workspace: null,
+    member_ids: kind === "group" ? ["preview-helper", "preview-reviewer"] : [],
+    leader_id: kind === "group" ? "preview-helper" : null,
+    created_at: now,
+    updated_at: now,
+  });
+  const companions = [
+    companion("preview-chief", "Chief", "chief"),
+    companion("preview-group", "跨团队研究与独立复核协作空间", "group"),
+    companion("preview-helper", "资料研究员"),
+    companion("preview-reviewer", "独立复核员"),
+  ];
+  if (path === "/api/assistants")
+    return {
+      assistants: scenario === "empty" ? [] : companions,
+      total: scenario === "empty" ? 0 : companions.length,
+      skip: 0,
+      limit: 20,
+    };
+  if (path === "/api/assistants/conversation/preview-report")
+    return companions[1];
+  if (path === "/api/assistants/preview-group/members")
+    return { members: companions.slice(2) };
+  if (path.startsWith("/api/assistants/"))
+    return companions.find((item) => item.id === path.split("/")[3]);
   const q = url.searchParams;
   const pageSize = Number(q.get("limit") ?? q.get("page_size") ?? 20);
   const skip = Number(
@@ -1810,6 +1853,14 @@ const server = await createServer({
         }
       },
       transformIndexHtml(html, context) {
+        if (
+          context.originalUrl?.split("?")[0] === "/assistant-sidebar-preview"
+        ) {
+          html = html.replace(
+            "/src/main.tsx",
+            "/scripts/assistant-sidebar-preview.tsx",
+          );
+        }
         if (context.originalUrl?.split("?")[0] === "/controls-preview") {
           html = html.replace("/src/main.tsx", "/scripts/controls-preview.tsx");
         }
@@ -1832,7 +1883,7 @@ const server = await createServer({
         }
         return html.replace(
           "<head>",
-          `<head><script>const params=new URLSearchParams(location.search);if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
+          `<head><script>const params=new URLSearchParams(location.search);const safeTop=Number(params.get("safe-top"));if(Number.isFinite(safeTop)&&safeTop>0&&safeTop<=100){document.documentElement.style.setProperty("--app-native-safe-area-top",safeTop+"px");}if(params.has("guest")){localStorage.removeItem("access_token");localStorage.removeItem("refresh_token");}else{localStorage.setItem("access_token",${JSON.stringify(
             token,
           )});}localStorage.setItem("lambchat-theme",params.get("theme")||"light");if(params.get("failure")==="clipboard"&&navigator.clipboard){const write=navigator.clipboard.writeText.bind(navigator.clipboard);let failed=false;navigator.clipboard.writeText=(text)=>{if(!failed){failed=true;return Promise.reject(new DOMException("Preview clipboard unavailable","NotAllowedError"));}return write(text);};}</script>`,
         );
@@ -3356,7 +3407,8 @@ const server = await createServer({
                 ? 1
                 : artifactFixture === "few"
                   ? 3
-                  : artifactFixture === "many"
+                  : artifactFixture === "many" ||
+                      artifactFixture === "duplicates"
                     ? 6
                     : 2,
             );
@@ -3369,6 +3421,9 @@ const server = await createServer({
               preview: {
                 kind: "file",
                 previewKey: name,
+                ...(artifactFixture === "duplicates"
+                  ? { s3Key: `revealed/${name}` }
+                  : {}),
                 filePath: name,
                 signedUrl,
               },
@@ -3378,6 +3433,15 @@ const server = await createServer({
               0,
               ...[
                 ...artifacts,
+                ...(artifactFixture === "duplicates"
+                  ? artifacts.map((artifact) => ({
+                      ...artifact,
+                      id: `${artifact.id}:echo`,
+                      path: `/api/upload/file/${encodeURIComponent(
+                        artifact.preview.s3Key!,
+                      )}?file_token=preview`,
+                    }))
+                  : []),
                 ...(artifactFixture === "1" || artifactFixture === "mixed"
                   ? [
                       {

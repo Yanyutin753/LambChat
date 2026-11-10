@@ -21,12 +21,14 @@ const labels = {
 export function ToolCallGroup({
   count,
   category,
+  summary,
   stateKey,
   isPending = false,
   renderExpanded,
 }: {
   count: number;
   category: ToolGroupCategory;
+  summary?: string;
   stateKey: string;
   isPending?: boolean;
   renderExpanded: () => ReactNode;
@@ -37,7 +39,11 @@ export function ToolCallGroup({
   const Icon = icons[category];
   return (
     <div className="chat-tool-category">
-      <div className="chat-tool-call-group" data-category={category}>
+      <div
+        className="chat-tool-call-group"
+        data-category={category}
+        data-expanded={expanded}
+      >
         <div className="chat-tool-call-group__header">
           <button
             type="button"
@@ -52,11 +58,12 @@ export function ToolCallGroup({
                 <Icon size={16} />
               </InteractiveIcon>
             </span>
-            <span className="min-w-0 flex-1 truncate text-left">
+            <span className="min-w-0 truncate text-left">
               {t(
                 `chat.message.${labels[category]}${isPending ? "Pending" : ""}`,
                 { count },
               )}
+              {summary ? ` ${summary}` : ""}
             </span>
             <span className="chat-tool-call-group__chevron" aria-hidden="true">
               <ChevronRight

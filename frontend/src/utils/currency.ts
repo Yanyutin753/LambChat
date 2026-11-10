@@ -90,6 +90,10 @@ export function formatCostUsd(
     min = Math.min(min, max);
   }
   if (typeof opts.decimals === "number") min = max = opts.decimals;
+  // Keep two significant digits when the ordinary display would round a charge to zero.
+  if (value > 0 && value < 0.5 * 10 ** -max) {
+    max = Math.min(20, 1 - Math.floor(Math.log10(value)));
+  }
   try {
     return new Intl.NumberFormat(localeTag(language), {
       style: "currency",
@@ -126,20 +130,24 @@ export function formatUsageCost(
   opts: UsageCostFormatOpts,
 ): string {
   const unknown = (opts.unpricedRequests ?? 0) > 0;
+  const estimated =
+    isCostAmount(opts.estimatedCostUsd) &&
+    (opts.estimatedCostUsd > 0 ||
+      opts.estimatedRequests === undefined ||
+      opts.estimatedRequests > 0);
   const confirmed =
     available === true &&
     isCostAmount(usd) &&
-    !(unknown && opts.pricedRequests === 0);
+    !(usd === 0 && opts.pricedRequests === 0 && (unknown || estimated));
   const partial =
     isCostAmount(opts.partialCostUsd) &&
-    (opts.partialRequests === undefined || opts.partialRequests > 0);
+    (opts.partialCostUsd > 0 ||
+      opts.partialRequests === undefined ||
+      opts.partialRequests > 0);
   if (confirmed || partial) {
     const amount = (confirmed ? usd : 0) + (partial ? opts.partialCostUsd! : 0);
     return `${formatCostUsd(amount, opts)}${unknown || partial ? "+" : ""}`;
   }
-  const estimated =
-    isCostAmount(opts.estimatedCostUsd) &&
-    (opts.estimatedRequests === undefined || opts.estimatedRequests > 0);
   return estimated ? `≈${formatCostUsd(opts.estimatedCostUsd!, opts)}` : "—";
 }
 
@@ -166,7 +174,10 @@ export function historicalEstimateHint(
   opts: UsageCostFormatOpts,
   label: string,
 ): string | undefined {
-  if (!isCostAmount(opts.estimatedCostUsd) || opts.estimatedRequests === 0)
+  if (
+    !isCostAmount(opts.estimatedCostUsd) ||
+    (opts.estimatedCostUsd === 0 && opts.estimatedRequests === 0)
+  )
     return undefined;
   return `${label}: ≈${formatCostUsd(opts.estimatedCostUsd, opts)}`;
 }

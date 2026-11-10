@@ -28,6 +28,10 @@ def lean_settings(monkeypatch):
     from src.kernel.schemas.user import TokenPayload
 
     monkeypatch.setattr(
+        "src.infra.tool.deferred_manager.restore_discovered_tools", AsyncMock(return_value=[])
+    )
+
+    monkeypatch.setattr(
         "src.infra.auth.tool_authority.resolve_tool_user",
         AsyncMock(
             side_effect=lambda user_id: (
@@ -345,3 +349,41 @@ async def test_team_context_omits_search_skills_for_empty_inventory(
     await context.setup()
 
     assert "search_skills" not in {tool.name for tool in context.tools}
+
+
+@pytest.mark.parametrize(
+    "module,context_type", [(search_context, SearchAgentContext), (team_context, TeamAgentContext)]
+)
+@pytest.mark.parametrize("mcp_enabled", [False, True])
+async def test_internal_discovery_survives_next_turn_without_large_mcp_catalog(
+    monkeypatch, lean_settings, module, context_type, mcp_enabled
+):
+    from src.infra.tool import deferred_manager
+
+    monkeypatch.setattr(module.settings, "ENABLE_MCP", mcp_enabled)
+    monkeypatch.setattr(module.settings, "DEFERRED_TOOL_THRESHOLD", 100)
+    listed = _FakeTool(name="list_assistants")
+    updated = _FakeTool(name="update_assistant")
+    blocked = _FakeTool(name="create_assistant")
+    monkeypatch.setattr(
+        module,
+        "get_internal_tools_by_exposure_for_user",
+        AsyncMock(return_value=([], [listed, updated, blocked])),
+    )
+    monkeypatch.setattr(
+        module,
+        "get_global_mcp_tools",
+        AsyncMock(return_value=([], SimpleNamespace(_server_tool_policies={}))),
+    )
+    monkeypatch.setattr(module, "get_db_disabled_mcp_tool_names", AsyncMock(return_value=set()))
+    restore = AsyncMock(
+        return_value=["update_assistant", "removed_tool", "list_assistants", "create_assistant"]
+    )
+    monkeypatch.setattr(deferred_manager, "restore_discovered_tools", restore)
+    context = context_type(
+        session_id="chief-session", user_id="user-1", disabled_tools=["create_assistant"]
+    )
+    await context.setup()
+    await context.get_tools()
+    assert context.deferred_manager.discovered_names == ["update_assistant", "list_assistants"]
+    restore.assert_awaited_once_with("chief-session")

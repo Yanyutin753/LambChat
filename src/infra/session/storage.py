@@ -14,6 +14,7 @@ from src.infra.session.favorites import (
     is_session_favorite,
     normalize_session_metadata,
 )
+from src.infra.session.indexes import SESSION_INDEX_SPEC as _SESSION_INDEX_SPEC
 from src.infra.session.search_index import (
     SESSION_SEARCH_INDEX_VERSION,
     append_message_to_search_index,
@@ -34,41 +35,6 @@ from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 
 SESSION_BATCH_LOOKUP_LIMIT = 100
 SESSION_LIST_LOOKUP_LIMIT = 100
-
-
-# 会话集合索引清单（单一定义点）：(keys, name, 额外 kwargs)
-_SESSION_INDEX_SPEC: list[tuple[list[tuple[str, int]], str, dict[str, Any]]] = [
-    # 列表排序 (is_pinned desc, updated_at desc)：等值前缀 + 排序后缀，避免大列表内存排序
-    (
-        [("user_id", 1), ("is_active", 1), ("metadata.is_pinned", -1), ("updated_at", -1)],
-        "user_status_pinned_updated_idx",
-        {},
-    ),
-    ([("user_id", 1), ("is_active", 1), ("updated_at", -1)], "user_status_updated_idx", {}),
-    (
-        [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1)],
-        "user_project_updated_idx",
-        {},
-    ),
-    (
-        [("user_id", 1), ("metadata.project_id", 1), ("updated_at", -1), ("_id", -1)],
-        "user_project_updated_id_idx",
-        {},
-    ),
-    ([("session_id", 1)], "session_id_idx", {"sparse": True}),
-    (
-        [("user_id", 1), ("search_terms", 1), ("updated_at", -1)],
-        "user_search_terms_updated_idx",
-        {},
-    ),
-    ([("search_index_version", 1), ("updated_at", -1)], "search_index_version_updated_idx", {}),
-    ([("search_index_updated_at", 1)], "search_index_updated_at_idx", {"sparse": True}),
-    (
-        [("metadata.scheduled_task_id", 1), ("updated_at", -1)],
-        "scheduled_task_sessions_idx",
-        {"sparse": True},
-    ),
-]
 
 
 class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
@@ -373,6 +339,7 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
         favorites_only: bool = False,
         pinned_only: bool = False,
         favorites_project_id: str | None = None,
+        exclude_assistants: bool = False,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)
 
@@ -387,6 +354,9 @@ class SessionStorage(SessionAttachmentOperationsMixin, SessionRunMetadataMixin):
         limit = min(max(int(limit or 1), 1), SESSION_LIST_LOOKUP_LIMIT)
         query: dict[str, Any] = {}
         query["metadata.hidden_from_conversation_list"] = {"$ne": True}
+        if exclude_assistants:
+            query["metadata.assistant_id"] = {"$in": [None, ""]}
+            query["metadata.assistant_discussion_id"] = {"$in": [None, ""]}
         if user_id is not None:
             # 严格匹配用户ID，空字符串也会被当作过滤条件
             query["user_id"] = user_id

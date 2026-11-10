@@ -22,12 +22,27 @@ export type RunPartGroup =
  */
 export function splitRunTailGroups<T extends RunPartGroup>(
   groups: T[],
-  opts: { enabled: boolean },
+  opts: { enabled: boolean; preserveSubagents?: boolean },
 ): { head: T[]; tail: T[] } {
   if (!opts.enabled) {
     return { head: [], tail: groups };
   }
 
+  const splitAt = (index: number) => {
+    const head: T[] = [];
+    const tail: T[] = [];
+    groups.forEach((group, position) => {
+      if (
+        position >= index ||
+        (opts.preserveSubagents &&
+          group.type === "single" &&
+          group.part.type === "subagent")
+      )
+        tail.push(group);
+      else head.push(group);
+    });
+    return { head, tail };
+  };
   let lastTextIndex = -1;
   for (let i = groups.length - 1; i >= 0; i--) {
     const group = groups[i];
@@ -42,10 +57,7 @@ export function splitRunTailGroups<T extends RunPartGroup>(
   }
 
   if (lastTextIndex >= 0) {
-    return {
-      head: groups.slice(0, lastTextIndex),
-      tail: groups.slice(lastTextIndex),
-    };
+    return splitAt(lastTextIndex);
   }
 
   let tailStart = groups.length;
@@ -60,7 +72,7 @@ export function splitRunTailGroups<T extends RunPartGroup>(
     tailStart--;
   }
 
-  return { head: groups.slice(0, tailStart), tail: groups.slice(tailStart) };
+  return splitAt(tailStart);
 }
 
 /** 折叠摘要中统计的"步骤"类型（不含不可见锚点与纯文本）。 */
@@ -184,6 +196,41 @@ export interface ConsecutiveToolGroup {
   category: ToolGroupCategory;
   count: number;
   tools: RunPartGroup[];
+}
+
+export function buildToolGroupSummary(groups: RunPartGroup[]): string {
+  const targets = groups.flatMap((group) => {
+    if (group.type !== "single" || group.part.type !== "tool") return [];
+    const args = group.part.args;
+    const target = [args.query, args.pattern, args.file_path, args.tag].find(
+      (value) => typeof value === "string" && value.trim(),
+    );
+    if (typeof target === "string") return [target.trim()];
+    if (group.part.name !== "search_persona_presets") return [];
+    try {
+      const result =
+        typeof group.part.result === "string"
+          ? JSON.parse(group.part.result)
+          : group.part.result;
+      if (!result || result.error || result.success === false) return [];
+      const items = Array.isArray(result)
+        ? result
+        : result.presets ?? result.items;
+      return Array.isArray(items)
+        ? items.flatMap((item: unknown) =>
+            item &&
+            typeof item === "object" &&
+            "name" in item &&
+            typeof item.name === "string"
+              ? [item.name]
+              : [],
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(targets)].join(" ");
 }
 
 function toolGroupKey(name: string): string | null {

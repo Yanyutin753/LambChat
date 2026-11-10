@@ -1407,3 +1407,125 @@ async def test_persistent_subagent_events_preserve_specific_lifecycle_status(pha
     assert presenter.emitted[-1]["event"] == (
         "agent:call" if phase in {"queued", "started"} else "agent:result"
     )
+
+
+@pytest.mark.parametrize("initial", ["queued", "running"])
+@pytest.mark.parametrize(
+    "status", ["cancelled", "failed", "timed_out", "completed", "waiting_human"]
+)
+async def test_cleanup_forwards_unconsumed_child_state_once(initial, status):
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    record = {
+        "subagent_id": "child",
+        "subagent_type": "reviewer",
+        "agent_call_id": "call",
+        "status": initial,
+    }
+    await processor.process_event(
+        {
+            "event": "on_custom_event",
+            "name": "lambchat_subagent",
+            "data": {**record, "phase": "queued" if initial == "queued" else "started"},
+            "metadata": {},
+        }
+    )
+    record.update(status=status, result="retained evidence", error="reason")
+    sessions = SimpleNamespace(records={"child": record}, result=lambda key: record)
+    await processor.finalize_subagent_events(sessions)
+    await processor.finalize_subagent_events(sessions)
+    results = [e["data"] for e in presenter.emitted if e["event"] == "agent:result"]
+    assert len(results) == 1
+    assert results[0]["agent_id"] == "child"
+    assert results[0]["status"] == status
+    assert results[0]["result"] == "retained evidence"
+    assert results[0]["success"] is (status == "completed")
+
+
+async def test_cleanup_does_not_replay_historical_or_already_delivered_children():
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    record = {"subagent_id": "child", "status": "completed", "result": "done"}
+    await processor.process_event(
+        {
+            "event": "on_custom_event",
+            "name": "lambchat_subagent",
+            "data": {**record, "phase": "completed"},
+            "metadata": {},
+        }
+    )
+    records = {"child": record, "old": {"subagent_id": "old", "status": "cancelled"}}
+    sessions = SimpleNamespace(records=records, result=lambda key: records[key])
+    await processor.finalize_subagent_events(sessions)
+    assert len(presenter.emitted) == 1
+    processor.clear()
+    await processor.finalize_subagent_events(sessions)
+    assert len(presenter.emitted) == 1
+
+
+@pytest.mark.parametrize("suspended", [False, True])
+async def test_closed_graph_stream_still_delivers_child_cancellation(suspended):
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.types import interrupt
+
+    from src.infra.agent.subagent_sessions import SubagentSessions
+
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    saver = InMemorySaver()
+
+    async def unused_builder(role, inbox):
+        raise AssertionError("No model should run in this lifecycle regression")
+
+    sessions = SubagentSessions(
+        session_id="parent", user_id="owner", build_graph=unused_builder, checkpointer=saver
+    )
+
+    async def node(state, config):
+        sessions.records["child"] = {
+            "subagent_type": "reviewer",
+            "agent_call_id": "call",
+            "status": "queued",
+            "description": "Keep assignment",
+            "pending": [],
+        }
+        sessions.configs["child"] = config
+        await sessions._emit("child", "queued")
+        if suspended:
+            interrupt({"message": "Approve local file write"})
+        raise RuntimeError("provider unavailable")
+
+    builder = StateGraph(dict)
+    builder.add_node("work", node)
+    builder.add_edge(START, "work")
+    builder.add_edge("work", END)
+    graph = builder.compile(checkpointer=saver)
+    try:
+        async for event in graph.astream_events(
+            {}, {"configurable": {"thread_id": "parent"}}, version="v2"
+        ):
+            await processor.process_event(event)
+    except RuntimeError as error:
+        assert not suspended and str(error) == "provider unavailable"
+    await sessions.close()
+    assert [e["event"] for e in presenter.emitted] == ["agent:call"]
+    await processor.finalize_subagent_events(sessions)
+    assert [e["event"] for e in presenter.emitted] == ["agent:call", "agent:result"]
+    assert presenter.emitted[-1]["data"]["status"] == "cancelled"
+
+
+async def test_child_finalization_drains_buffers_even_when_result_delivery_fails():
+    from unittest.mock import AsyncMock
+
+    processor = AgentEventProcessor(FakePresenter())
+    processor._persistent_subagent_statuses["child"] = "queued"
+    record = {"subagent_id": "child", "status": "cancelled"}
+    sessions = SimpleNamespace(records={"child": record}, result=lambda key: record)
+    processor._presenter_emit = AsyncMock(side_effect=RuntimeError("delivery failed"))
+    processor.drain_activity_references = AsyncMock()
+    processor.flush = AsyncMock()
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        await processor.finalize_subagent_events(sessions)
+    processor.drain_activity_references.assert_awaited_once()
+    assert processor.flush.await_count == 2

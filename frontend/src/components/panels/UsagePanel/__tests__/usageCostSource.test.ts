@@ -82,6 +82,7 @@ test("usage cost labels are available in every locale", () => {
       "unpricedHint",
       "historicalEstimate",
       "partialCostHint",
+      "partialPricedHint",
     ]) {
       expect(typeof messages[key]).toBe("string");
       expect(messages[key].trim()).not.toBe("");

@@ -455,6 +455,7 @@ class SessionManager:
         favorites_only: bool = False,
         pinned_only: bool = False,
         favorites_project_id: str | None = None,
+        exclude_assistants: bool = False,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)"""
         return await self.storage.list_sessions(
@@ -467,6 +468,7 @@ class SessionManager:
             favorites_only,
             pinned_only,
             favorites_project_id,
+            exclude_assistants=exclude_assistants,
         )
 
     async def increment_unread_count(self, session_id: str) -> bool:

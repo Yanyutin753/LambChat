@@ -1,3 +1,4 @@
+import { StructuredToolResult } from "./StructuredToolResult";
 import { InteractiveIcon } from "../../../common/InteractiveIcon";
 import {
   ChevronDown,
@@ -537,7 +538,7 @@ function JsonFallback({
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const str = JSON.stringify(data, null, 2);
+  const str = JSON.stringify(data, null, 2) ?? "";
   const needsTruncation = str.length > MAX_JSON_COLLAPSED;
   const display =
     needsTruncation && !expanded
@@ -558,27 +559,35 @@ function JsonFallback({
           <CopyButton text={str} size={14} className="tool-result-copy" />
         )}
       </div>
-      <pre className="px-3 py-3 text-12 leading-relaxed text-theme-text-secondary overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0">
-        {display}
-      </pre>
-      {needsTruncation && (
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="flex items-center gap-1 mx-3 mb-3 text-12 text-theme-text-tertiary hover:text-theme-text transition-colors"
-        >
-          {expanded ? (
-            <InteractiveIcon>
-              <ChevronUp size={12} />
-            </InteractiveIcon>
-          ) : (
-            <InteractiveIcon>
-              <ChevronDown size={12} />
-            </InteractiveIcon>
-          )}
-          {expanded ? t("chat.message.collapse") : t("chat.message.expandAll")}
-        </button>
-      )}
+      <div className="tool-structured-result">
+        <StructuredToolResult data={data} />
+      </div>
+      <details className="tool-result-raw">
+        <summary>{t("chat.message.toolResultRaw")}</summary>
+        <pre className="px-3 py-3 text-12 leading-relaxed text-theme-text-secondary overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0">
+          {display}
+        </pre>
+        {needsTruncation && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="flex items-center gap-1 mx-3 mb-3 text-12 text-theme-text-tertiary hover:text-theme-text transition-colors"
+          >
+            {expanded ? (
+              <InteractiveIcon>
+                <ChevronUp size={12} />
+              </InteractiveIcon>
+            ) : (
+              <InteractiveIcon>
+                <ChevronDown size={12} />
+              </InteractiveIcon>
+            )}
+            {expanded
+              ? t("chat.message.collapse")
+              : t("chat.message.expandAll")}
+          </button>
+        )}
+      </details>
     </div>
   );
 }

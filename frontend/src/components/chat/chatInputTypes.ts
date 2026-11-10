@@ -19,6 +19,7 @@ import type {
 } from "../../hooks/useAgent/types";
 
 export interface ChatInputProps {
+  configurationLocked?: boolean;
   /** Account/server/conversation-scoped storage key. Remount when it changes. */
   draftKey?: string;
   sessionId?: string | null;
