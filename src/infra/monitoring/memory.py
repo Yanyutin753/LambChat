@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - dependency is expected to be installed
 logger = get_logger(__name__)
 
 _BLOCKING_SAMPLE_TIMEOUT_SECONDS = 10.0
+_ALERT_AGGREGATION_WINDOW_SECONDS = 24 * 3600.0
 
 
 def _format_trace_location(trace: tracemalloc.Frame) -> str:
@@ -103,6 +104,7 @@ class MemoryMonitor:
         self._started_tracemalloc = False
         self._last_alert: dict[str, Any] | None = None
         self._last_alert_at: datetime | None = None
+        self._alert_timestamps: deque[datetime] = deque()
         self._last_error: str | None = None
 
     async def _run_monitor_blocking(
@@ -198,9 +200,12 @@ class MemoryMonitor:
                                 _BLOCKING_SAMPLE_TIMEOUT_SECONDS,
                             )
                     self._last_alert_at = now
+                    # #1217：报警自带滚动 24h 计数，巡检可与 agent 活动量对账
+                    self._alert_timestamps.append(now)
                     alert_parts = [
                         f"rss={_format_bytes_as_mb(sample['rss_bytes'])}",
                         f"growth={_format_bytes_as_mb(self._growth_bytes())}",
+                        f"alerts_24h={self._count_recent_alerts(now)}",
                     ]
                     growth_summary = self._format_growth_summary(self._last_alert)
                     if growth_summary is not None:
@@ -270,6 +275,7 @@ class MemoryMonitor:
             self._history = deque([sample], maxlen=max(1, self.history_limit))
             self._last_alert = None
             self._last_alert_at = None
+            self._alert_timestamps.clear()
             distributed_snapshot = await self._build_distributed_snapshot_locked()
 
         await self._publish_distributed_snapshot(distributed_snapshot)
@@ -374,6 +380,13 @@ class MemoryMonitor:
         elapsed = (now - self._last_alert_at).total_seconds()
         return elapsed >= self.alert_cooldown_seconds
 
+    def _count_recent_alerts(self, now: datetime) -> int:
+        """滚动 24h 窗口内的报警次数（丢弃窗口外记录，哨兵自身可对账）。"""
+        cutoff = now.timestamp() - _ALERT_AGGREGATION_WINDOW_SECONDS
+        while self._alert_timestamps and self._alert_timestamps[0].timestamp() < cutoff:
+            self._alert_timestamps.popleft()
+        return len(self._alert_timestamps)
+
     def _get_summary_locked(self) -> dict[str, Any]:
         if not settings.MEMORY_MONITOR_ENABLED:
             return {"available": False, "reason": "disabled"}
@@ -404,6 +417,7 @@ class MemoryMonitor:
             "history_size": len(self._history),
             "growth_bytes": self._growth_bytes(),
             "suspected_leak": self._is_suspicious_growth(latest["timestamp"]),
+            "alerts_24h": self._count_recent_alerts(latest["timestamp"]),
             "heavy_diagnostics_enabled": self.heavy_diagnostics_enabled,
             "tracemalloc_tracing": tracemalloc.is_tracing(),
             "sample_interval_seconds": self.interval_seconds,
