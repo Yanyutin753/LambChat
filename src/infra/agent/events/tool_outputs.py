@@ -69,6 +69,13 @@ def _message_display_content(message: Any) -> Any:
     else:
         content = getattr(message, "content", None)
         metadata = getattr(message, "additional_kwargs", {})
+    name = message.get("name") if isinstance(message, dict) else getattr(message, "name", None)
+    artifact = (
+        message.get("artifact") if isinstance(message, dict) else getattr(message, "artifact", None)
+    )
+    # Goal metadata is for the UI; its ToolMessage content stays concise for the model.
+    if name == "get_goal" and isinstance(artifact, dict):
+        return artifact
     # Model handoff references must not replace the user's original reply.
     if isinstance(metadata, dict) and metadata.get("lambchat_original_content") is not None:
         return metadata["lambchat_original_content"]

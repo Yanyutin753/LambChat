@@ -1461,6 +1461,8 @@
     },
     "features": "기능",
     "goal": {
+      "auditPending": "확인 대기",
+      "auditRecorded": "자체 검토가 제출되었습니다. 이번 턴이 끝나면 목표 상태가 업데이트됩니다.",
       "turnEnded": "이번 턴 종료",
       "active": "목표",
       "clear": "목표 지우기",

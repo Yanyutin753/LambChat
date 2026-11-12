@@ -106,9 +106,9 @@ def build_goal_prompt_section(goal: dict | GoalSpec | None) -> str:
 
     self_audit = (
         "\nThis is a persistent Goal. You, the main agent, perform the completion audit; "
-        "there is no independent grader. Call get_goal for the full frozen requirements. "
-        "Before ending with completion, call update_goal(status=complete) and cite current "
-        "original evidence for EVERY returned requirement. Check referenced specifications "
+        "there is no independent grader. Use get_goal if you need the full frozen requirements. "
+        "Before ending with completion, verify every requirement and call update_goal(status=complete). "
+        "No explanation or evidence JSON is needed for completion. Check referenced specifications "
         "and the user's latest messages, not just what you happened to implement. "
         "After any execute/write, re-read final sources; stale IDs are not proof. "
         "An accepted audit is provisional until turn end. If new input arrives or you change "

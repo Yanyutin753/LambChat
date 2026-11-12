@@ -3115,6 +3115,27 @@ const server = await createServer({
             }
           }
           if (
+            url.pathname === "/api/chat/sessions/preview-report/goal" &&
+            previewParams.has("goal")
+          ) {
+            data = {
+              goal: {
+                id: "preview-goal",
+                session_id: "preview-report",
+                user_id: user.id,
+                objective: "整理研究资料，核对结论并交付最终报告。",
+                rubric: "报告包含来源与验证结果。",
+                status:
+                  previewParams.get("goal") === "paused" ? "paused" : "active",
+                version: 1,
+                revision: 1,
+                accounting: { turns: 2, tokens: 12000 },
+                created_at: now,
+                updated_at: now,
+              },
+            };
+          }
+          if (
             url.pathname === "/api/sessions/preview-report/events" &&
             previewParams.has("tool-gallery")
           ) {

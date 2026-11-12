@@ -50,18 +50,7 @@ async def audit(monkeypatch):
 
 async def complete(audit):
     middleware, runtime, *_ = audit
-    get, update = middleware.tools
-    current = await get.coroutine(runtime=runtime)
-    criteria = [
-        {"requirement_id": item["id"], "evidence_ids": ["proof"]}
-        for item in current["requirements"]
-    ]
-    return await update.coroutine(
-        status="complete",
-        explanation="All requirements verified",
-        criteria=criteria,
-        runtime=runtime,
-    )
+    return await middleware.tools[1].coroutine(status="complete", runtime=runtime)
 
 
 async def test_persistent_goal_self_audits_without_a_grader_and_preserves_legacy_nodes(audit):
@@ -79,19 +68,10 @@ async def test_persistent_goal_self_audits_without_a_grader_and_preserves_legacy
     assert middleware._grader is None
 
 
-async def test_missing_requirement_or_forged_evidence_cannot_complete(audit):
+async def test_blocked_requires_an_explicit_reason(audit):
     middleware, runtime, presenter, *_ = audit
-    get, update = middleware.tools
-    current = await get.coroutine(runtime=runtime)
-    criteria = [
-        {"requirement_id": item["id"], "evidence_ids": ["proof"]}
-        for item in current["requirements"]
-    ]
-    for invalid in (criteria[:-1], [{**item, "evidence_ids": ["invented"]} for item in criteria]):
-        result = await update.coroutine(
-            status="complete", explanation="done", criteria=invalid, runtime=runtime
-        )
-        assert result["status"] == "error"
+    result = await middleware.tools[1].coroutine(status="blocked", runtime=runtime)
+    assert result["status"] == "error"
     assert not getattr(presenter, "goal_verdict", None)
 
 
@@ -203,6 +183,10 @@ async def test_compiled_graph_persists_tool_audit_and_never_invokes_grader(audit
         responses=[
             AIMessage(
                 content="",
+                tool_calls=[{"name": "get_goal", "id": "read-goal", "args": {}}],
+            ),
+            AIMessage(
+                content="",
                 tool_calls=[
                     {
                         "name": "update_goal",
@@ -228,6 +212,13 @@ async def test_compiled_graph_persists_tool_audit_and_never_invokes_grader(audit
     assert presenter.goal_verdict["result"] == "satisfied"
     snapshot = await graph.aget_state(config)
     assert snapshot.values["_goal_audit"]["verdict"]["result"] == "satisfied"
+    from langchain_core.messages.utils import convert_to_openai_messages
+
+    wire_messages = convert_to_openai_messages(snapshot.values["messages"])
+    read_result = next(item for item in wire_messages if item.get("tool_call_id") == "read-goal")
+    assert "Verify totals" in read_result["content"]
+    assert "tokens_used" not in read_result["content"]
+    assert "artifact" not in read_result
     assert middleware._grader is None
 
 
@@ -309,3 +300,74 @@ async def test_explicit_user_pause_can_be_reported_by_main_agent_without_claimin
     assert value.status == "paused"
     assert value.stop_reason == "user_paused"
     assert value.current_run_id is None
+
+
+async def test_completion_needs_only_status_and_keeps_server_evidence_checks(audit, monkeypatch):
+    from src.infra.persistent_goal import advance_goal
+
+    middleware, runtime, presenter, _, service, _ = audit
+    update = middleware.tools[1]
+    assert "criteria" not in update.args
+    result = await update.coroutine(status="complete", runtime=runtime)
+    runtime.state.update(result.update)
+    await middleware.aafter_agent(runtime.state, runtime)
+    value = await service.get("s", "u")
+    finished = advance_goal(
+        value,
+        usage=1,
+        verdict=presenter.goal_verdict,
+        tools=1,
+        evidence_ready=presenter.goal_evidence_ready,
+        evidence_ids=presenter.goal_evidence_ids,
+    )
+    assert finished.status == "completed"
+    assert not presenter.goal_verdict.get("criteria")
+    monkeypatch.setattr(
+        "src.infra.agent.evidence.load_grader_evidence", AsyncMock(return_value=("", set()))
+    )
+    rejected = await update.coroutine(status="complete", runtime=runtime)
+    assert rejected["status"] == "error"
+
+
+async def test_get_goal_gives_model_plain_text_and_ui_structured_artifact(audit):
+    middleware, runtime, *_ = audit
+    get = middleware.tools[0]
+    assert get.response_format == "content_and_artifact"
+    content, artifact = await get.coroutine(runtime=runtime)
+    assert "Deliver report" in content
+    assert "Verify totals" in content
+    assert "tokens_used" not in content
+    assert '"requirements"' not in content
+    assert artifact["objective"] == "Deliver report"
+
+
+async def test_goal_artifact_is_displayed_without_changing_model_content(audit):
+    import json
+
+    from langchain_core.messages import ToolMessage
+
+    from src.infra.agent.events.tool_outputs import extract_tool_output, process_messages
+
+    middleware, runtime, *_ = audit
+    content, artifact = await middleware.tools[0].coroutine(runtime=runtime)
+    message = ToolMessage(content=content, artifact=artifact, name="get_goal", tool_call_id="read")
+    assert extract_tool_output(message) == artifact
+    assert json.loads(process_messages([message])) == artifact
+    assert message.content == content
+
+
+@pytest.mark.parametrize("ready,refs", [(False, ["proof"]), (True, []), (True, ["forged"])])
+async def test_host_rejects_self_audit_without_current_evidence(audit, ready, refs):
+    from src.infra.persistent_goal import advance_goal
+
+    *_, service, _ = audit
+    value = await service.get("s", "u")
+    result = advance_goal(
+        value,
+        usage=1,
+        tools=1,
+        evidence_ready=ready,
+        evidence_ids=["proof"],
+        verdict={"result": "satisfied", "self_audit": True, "evidence_ids": refs},
+    )
+    assert result.status == "active"

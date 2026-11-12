@@ -1461,6 +1461,8 @@
     },
     "features": "Features",
     "goal": {
+      "auditPending": "Awaiting validation",
+      "auditRecorded": "Self-audit recorded. The goal status will update after this turn.",
       "turnEnded": "Turn ended",
       "active": "Goal",
       "clear": "Clear goal",

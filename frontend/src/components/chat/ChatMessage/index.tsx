@@ -21,6 +21,7 @@ import type {
   TokenUsagePart,
 } from "../../../types";
 import { useTranslation } from "react-i18next";
+import { GoalSummary } from "./GoalSummary";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
@@ -534,27 +535,7 @@ function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
               "border border-theme-border",
             )}
           >
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <span
-                className="text-12 font-medium"
-                style={{ color: "var(--theme-primary)" }}
-              >
-                {t("chat.goal.active")}
-              </span>
-              <span
-                className="text-12 px-1.5 py-0.5 rounded-full font-medium"
-                style={{
-                  color: "var(--theme-primary)",
-                  backgroundColor:
-                    "var(--theme-primary-bg, rgba(245,158,11,0.08))",
-                }}
-              >
-                {statusLabel}
-              </span>
-            </div>
-            <p className="text-14 text-theme-text leading-relaxed break-words">
-              {goal.objective}
-            </p>
+            <GoalSummary objective={goal.objective} statusLabel={statusLabel} />
             {durationText && (
               <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-2">
                 <span className="text-12 text-theme-text-secondary">

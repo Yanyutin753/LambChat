@@ -175,3 +175,5 @@ PDF 格式走查：`/files` 第一组新增“研究与交付计划.pdf”，由
 消息详情回看：`/chat/preview-report?theme=dark&ui-polish=1&detail-review=1&artifacts=few` 加入长思考、读取2个文件、搜索2次、执行1条命令和160行工具输出，用于检查原有卡片、全文展开、复制、日志卡内滚动和窄屏对齐。仅本地只读模拟事件，不运行命令。
 
 助手侧栏：`/assistant-sidebar-preview?theme=light|dark` 使用真实群聊编辑器，展示长成员名称、头像、协调者和固定保存区。列表与保存仅使用此入口的内存 fixture，不调用真实助手 API；刷新后恢复初始数据。
+
+Goal 走查：`/chat/preview-report?goal=active` 或 `?goal=paused` 使用原版紧凑目标条；可展开、进入编辑及取消草稿，保存、暂停和继续仍返回 405，不修改真实目标。可与 `tool-gallery` 组合检查目标读取与自审详情。
