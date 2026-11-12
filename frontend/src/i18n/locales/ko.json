@@ -1844,6 +1844,8 @@
       "computerUseTitle": "컴퓨터 제어",
       "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요.",
       "toolCancelSubagent": "하위 에이전트 취소",
+      "toolGetGoal": "목표 확인",
+      "toolUpdateGoal": "목표 자체 검토 제출",
       "toolStartBackgroundTask": "백그라운드 작업 시작",
       "toolBackgroundTaskSubmitted": "백그라운드에 제출됨",
       "toolBackgroundTaskOpen": "작업 대화 열기",

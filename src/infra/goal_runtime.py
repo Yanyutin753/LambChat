@@ -87,6 +87,11 @@ class GoalRunMetrics:
             if identity and identity not in self.seen_tools:
                 self.seen_tools.add(identity)
                 self.tool_count += 1
+            if self.tool_inputs.get(identity, {}).get("tool", data.get("tool")) in {
+                "get_goal",
+                "update_goal",
+            }:
+                return
             from src.infra.agent.events.tool_outputs import detect_tool_error
 
             result = _normalize_observation(data.get("result"))
@@ -705,11 +710,7 @@ async def _guarded_goal_stream(
                 and (evidence_clock.token, evidence_clock.generation)
                 == getattr(presenter, "goal_evidence_clock_snapshot", None)
             )
-            finished = await service.finish(
-                session_id,
-                user_id,
-                version,
-                run_id,
+            finish_kwargs = dict(
                 usage=None if metrics.unknown_model_usage else metrics.tokens,
                 verdict=getattr(presenter, "goal_verdict", None),
                 tools=metrics.tool_count,
@@ -719,6 +720,34 @@ async def _guarded_goal_stream(
                 and bool(getattr(presenter, "goal_evidence_ready", False)),
                 evidence_ids=getattr(presenter, "goal_evidence_ids", []) if current_proof else [],
             )
+            if hasattr(presenter, "goal_audit_steer_ids"):
+                from src.infra.agent.middleware.goal_self_audit import audit_has_pending_input
+                from src.infra.scheduler.conversation import (
+                    ConversationBusyError,
+                    conversation_submission,
+                )
+
+                # Serialize the last input check and completion with user submissions/steer.
+                try:
+                    async with conversation_submission(session_id, user_id, allow_busy=True):
+                        finish_kwargs["pending_input"] = await audit_has_pending_input(
+                            session_id, presenter.goal_audit_steer_ids
+                        )
+                        finished = await service.finish(
+                            session_id, user_id, version, run_id, **finish_kwargs
+                        )
+                except (AppError, ConversationBusyError) as error:
+                    if isinstance(error, AppError) and error.error_code != ErrorCode.CONFLICT:
+                        raise
+                    # A competing user submission owns admission; never complete ahead of it.
+                    finish_kwargs["pending_input"] = True
+                    finished = await service.finish(
+                        session_id, user_id, version, run_id, **finish_kwargs
+                    )
+            else:
+                finished = await service.finish(
+                    session_id, user_id, version, run_id, **finish_kwargs
+                )
             if finished:
                 await publish_goal(finished, presenter)
                 if finished.status == "active":

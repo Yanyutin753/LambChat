@@ -164,6 +164,8 @@ class EvidenceMiddleware(AgentMiddleware):
 
     async def awrap_tool_call(self, request, handler):
         call = request.tool_call
+        if call["name"] in {"get_goal", "update_goal"}:
+            return await handler(request)
         state = getattr(request, "state", {})
         records = self.clock.invalidate_old(state.get("evidence", []))
         state["evidence"] = records

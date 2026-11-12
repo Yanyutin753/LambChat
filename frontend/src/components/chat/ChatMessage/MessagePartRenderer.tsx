@@ -34,6 +34,7 @@ import {
   DelegateAssistantTaskItem,
   ListSubagentsItem,
   MemoryRecallItem,
+  GoalItem,
   MemoryStoreItem,
   AskHumanItem,
   ToolSearchItem,
@@ -579,6 +580,21 @@ export function MessagePartRenderer({
     ) {
       return (
         <SubagentControlItem
+          id={part.id}
+          toolName={part.name}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "get_goal" || part.name === "update_goal") {
+      return (
+        <GoalItem
           id={part.id}
           toolName={part.name}
           args={toolArgs}

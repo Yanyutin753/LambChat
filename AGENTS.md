@@ -63,7 +63,7 @@ src/
 │   ├── skill/         # 技能加载与市场（内置技能在这里，仓库已无 src/skills/）
 │   ├── storage/       # MongoDB、S3、checkpointer
 │   ├── task/          # arq 后台任务队列
-│   ├── goal.py        # 单轮 Goal 评分；persistent_goal.py / goal_runtime.py / goal_continuation.py 承载会话目标与续跑
+│   ├── goal.py        # 单轮 Goal 评分；持久 Goal 由 goal_self_audit 中间件自审，persistent_goal.py / goal_runtime.py / goal_continuation.py 承载状态与续跑
 │   └── …              # session、user、role、upload、search、notification、memory、share 等
 └── kernel/            # 共享内核（不依赖 src/ 其他层）
     ├── config.py      # 全局配置定义

@@ -689,6 +689,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         presenter=presenter,
         backend=backend,
         session_id=str(state.get("session_id") or ""),
+        user_id=context.user_id or "",
         goal=active_goal,
         fallback_model=fallback_model_value,
         thinking=thinking_config,
@@ -827,8 +828,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     }
 
     recommendation_input = configurable.get("recommendation_input") or user_input
-    # HITL 恢复运行（issue #218）：以 Command(resume=...) 从挂起断点继续，
-    # 不注入新的用户消息。
+    # HITL 从挂起断点继续，不注入新的用户消息（issue #218）。
     hitl_resume = configurable.get("hitl_resume")
     # HITL 恢复沿用原 run 的墙钟起点与先前分段累计用量：token:usage 的
     # duration 与 token 数跨恢复累计，否则只记审批恢复后的最后一段

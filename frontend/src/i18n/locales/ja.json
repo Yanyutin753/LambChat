@@ -1844,6 +1844,8 @@
       "computerUseTitle": "コンピュータ操作",
       "computerUsePermissionHint": "システム設定 → プライバシーとセキュリティで LambChat.app に「補助機能」と「画面収録」を一度だけ許可してから再試行してください。",
       "toolCancelSubagent": "サブエージェントをキャンセル",
+      "toolGetGoal": "目標を確認",
+      "toolUpdateGoal": "目標の自己検証を提出",
       "toolStartBackgroundTask": "バックグラウンドタスクを開始",
       "toolBackgroundTaskSubmitted": "バックグラウンドに送信済み",
       "toolBackgroundTaskOpen": "タスクの会話を開く",
