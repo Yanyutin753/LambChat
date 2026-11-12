@@ -130,9 +130,7 @@ function EmbeddedGoalBar({
       </span>
 
       {durationLabel && durationText && (
-        <span className="shrink-0 tabular-nums">
-          {durationText}
-        </span>
+        <span className="shrink-0 tabular-nums">{durationText}</span>
       )}
 
       {onClear && (
@@ -241,17 +239,19 @@ function PersistentGoalStrip({
     ? formatElapsedCompact(elapsedSeconds)
     : "—";
   const buttonClass =
-    "flex size-9 sm:size-8 shrink-0 items-center justify-center rounded-md text-theme-text-secondary transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40";
+    "flex size-9 sm:size-8 shrink-0 items-center justify-center rounded-md text-theme-text-tertiary transition-colors hover:text-theme-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-theme-primary disabled:cursor-not-allowed disabled:opacity-40";
   if (goal.status === "cleared") return null;
   return (
     <div
-      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-14 leading-5 ${
-        embedded ? "composer-goal-row" : "mx-auto w-full max-w-[52rem] py-2"
+      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-3 text-13 leading-5 ${
+        embedded
+          ? "composer-goal-row composer-goal-card"
+          : "mx-auto w-full max-w-[52rem] py-2"
       } ${className}`}
     >
-      <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-2 font-normal text-theme-text-secondary">
+      <span className="col-start-1 row-start-1 inline-flex min-h-10 items-center gap-1.5 font-medium text-theme-text-secondary">
         <Target
-          className="size-3.5 shrink-0 text-theme-text-secondary"
+          className="size-3.5 shrink-0 text-theme-text-tertiary"
           aria-hidden="true"
         />
         {t("chat.goalPersistent.label", "Goal")}
@@ -269,9 +269,9 @@ function PersistentGoalStrip({
       >
         {goal.objective}
       </span>
-      <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-1">
+      <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-0.5">
         <span
-          className="hidden h-9 min-w-8 items-center justify-end pr-1 text-14 tabular-nums text-theme-text-secondary sm:flex sm:h-8"
+          className="hidden h-9 min-w-8 items-center justify-end pr-1 text-12 tabular-nums text-theme-text-tertiary sm:flex sm:h-8"
           title={t("chat.goal.duration")}
           aria-label={`${t("chat.goal.duration")}: ${duration}`}
         >

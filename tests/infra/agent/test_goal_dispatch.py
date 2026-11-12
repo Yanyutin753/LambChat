@@ -263,7 +263,7 @@ async def test_scanner_uncertain_finished_run_publishes_durable_blocked_goal(mon
     assert observed[0].status == "blocked"
 
 
-def test_continuation_prompt_carries_remaining_gaps_and_budget():
+def test_continuation_prompt_carries_gaps_without_repeating_goal_or_internal_json():
     from src.infra.goal_continuation import build_continuation_prompt
     from src.kernel.schemas.persistent_goal import PersistentGoal
 
@@ -273,8 +273,9 @@ def test_continuation_prompt_carries_remaining_gaps_and_budget():
     goal.last_verdict = {"criteria": [{"passed": False, "gap": "Check the example command"}]}
     prompt = build_continuation_prompt(goal)
     assert "Check the example command" in prompt
-    assert '"turn": 3' in prompt
-    assert "1250" in prompt
+    assert '"turn"' not in prompt
+    assert "1250" not in prompt
+    assert "finish docs" not in prompt
     assert "Do not repeat" in prompt
 
 

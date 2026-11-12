@@ -92,13 +92,27 @@ def advance_goal(
         evidence_ready
         and verdict
         and verdict.get("result") == "satisfied"
-        and verdict.get("criteria")
-        and all(
-            c.get("passed") is True
-            and c.get("evidence_ids")
-            and isinstance(c["evidence_ids"], list)
-            and all(isinstance(ref, str) and ref in evidence_ids for ref in c["evidence_ids"])
-            for c in verdict["criteria"]
+        and (
+            (
+                verdict.get("self_audit") is True
+                and isinstance(verdict.get("evidence_ids"), list)
+                and bool(verdict["evidence_ids"])
+                and all(
+                    isinstance(ref, str) and ref in evidence_ids for ref in verdict["evidence_ids"]
+                )
+            )
+            or (
+                verdict.get("criteria")
+                and all(
+                    c.get("passed") is True
+                    and c.get("evidence_ids")
+                    and isinstance(c["evidence_ids"], list)
+                    and all(
+                        isinstance(ref, str) and ref in evidence_ids for ref in c["evidence_ids"]
+                    )
+                    for c in verdict["criteria"]
+                )
+            )
         )
     ):
         result.status = "completed"

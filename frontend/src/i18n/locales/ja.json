@@ -1461,6 +1461,8 @@
     },
     "features": "機能",
     "goal": {
+      "auditPending": "確認待ち",
+      "auditRecorded": "自己評価を送信しました。このターンの終了後に目標の状態が更新されます。",
       "turnEnded": "このターンは終了しました",
       "active": "目標",
       "clear": "目標をクリア",
