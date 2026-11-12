@@ -81,24 +81,20 @@ class GoalSelfAuditMiddleware(RubricMiddleware):
             "blocked_turns": current.blocked_turns,
         }
 
-    async def propose(self, status, explanation, criteria, runtime):
+    async def propose(self, status, explanation, runtime):
         from src.infra.agent.evidence import load_grader_evidence
 
         current = await self.current_goal()
         if current is None:
             return {"status": "error", "error": "Goal is paused, superseded or outside this run"}
-        if not explanation.strip():
-            return {"status": "error", "error": "An audit explanation is required"}
+        if status == "blocked" and not explanation.strip():
+            return {
+                "status": "error",
+                "error": "Give one short explanation of the external blocker",
+            }
         ready: set[str] = set()
         snapshot = (self.clock.token, self.clock.generation)
-        required = self.requirements(current, runtime.state)
         if status == "complete":
-            ids = [item["requirement_id"] for item in criteria]
-            if len(ids) != len(set(ids)) or set(ids) != {item["id"] for item in required}:
-                return {
-                    "status": "error",
-                    "error": "Audit every requirement from get_goal exactly once",
-                }
             if self.backend is not None:
                 _, ready = await load_grader_evidence(
                     runtime.state.get("evidence", []),
@@ -107,29 +103,18 @@ class GoalSelfAuditMiddleware(RubricMiddleware):
                     scope_version=evidence_scope(self.goal),
                     current_clock=self.clock,
                 )
-            if not ready or any(
-                not item["evidence_ids"] or not set(item["evidence_ids"]) <= ready
-                for item in criteria
-            ):
+            if not ready:
                 return {
                     "status": "error",
-                    "error": "Cite current readable original evidence for every requirement",
+                    "error": "Verify the result with current readable original evidence before completing",
                 }
-        names = {item["id"]: item["text"] for item in required}
         audit = {
             "result": "satisfied" if status == "complete" else status,
             "explanation": explanation.strip(),
-            "criteria": [
-                {
-                    "name": names[item["requirement_id"]],
-                    "passed": True,
-                    "evidence_ids": item["evidence_ids"],
-                }
-                for item in criteria
-            ]
-            if status == "complete"
-            else [],
         }
+        if status == "complete":
+            audit["self_audit"] = True
+            audit["evidence_ids"] = sorted(ready)
         return Command(
             update={
                 "_goal_audit": {

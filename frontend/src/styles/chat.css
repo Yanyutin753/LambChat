@@ -1619,6 +1619,11 @@ html[data-mobile-keyboard="true"]
 .composer-goal-row {
   padding: 0 var(--composer-row-inset, 0.75rem);
 }
+.composer-context-panel:has(> .composer-goal-card) {
+  background: var(--theme-bg-card);
+  background: color-mix(in srgb, var(--theme-bg-card) 85%, var(--theme-bg));
+  border-color: var(--theme-border-subtle);
+}
 .composer-context-panel > :is(.composer-queue, .composer-goal-row) {
   border-bottom: 1px solid var(--theme-border-subtle);
 }

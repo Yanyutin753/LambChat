@@ -223,6 +223,7 @@ def tool_cases():
             {
                 "status": "active",
                 "objective": "核对交付文件与测试结果",
+                "rubric": "交付文件可读取，测试结果通过。",
                 "requirements": [{"id": "r0", "text": "核对交付文件与测试结果"}],
                 "turn": 2,
                 "tokens_used": 12000,
