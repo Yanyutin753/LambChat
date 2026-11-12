@@ -50,6 +50,7 @@ class PersistentGoal(BaseModel):
     current_run_id: str | None = None
     continuation_sequence: int = 0
     stagnant_turns: int = 0
+    blocked_turns: int = 0
     last_progress_signature: str = ""
     last_verdict: dict[str, Any] | None = None
     intent_submitted: bool = False

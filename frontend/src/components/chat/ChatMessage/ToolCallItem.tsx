@@ -497,3 +497,5 @@ export { ListSubagentsItem } from "./items/ListSubagentsItem";
 export { AssistantManageItem } from "./items/AssistantManageItem";
 
 export { DelegateAssistantTaskItem } from "./items/DelegateAssistantTaskItem";
+
+export { GoalItem } from "./items/GoalItem";

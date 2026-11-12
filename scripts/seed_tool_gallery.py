@@ -218,6 +218,28 @@ def tool_cases():
         ),
         (
             "05 记忆与环境",
+            "get_goal",
+            {},
+            {
+                "status": "active",
+                "objective": "核对交付文件与测试结果",
+                "requirements": [{"id": "r0", "text": "核对交付文件与测试结果"}],
+                "turn": 2,
+                "tokens_used": 12000,
+            },
+        ),
+        (
+            "05 记忆与环境",
+            "update_goal",
+            {
+                "status": "complete",
+                "explanation": "已读取最终交付文件并核对测试结果。",
+                "criteria": [{"requirement_id": "r0", "evidence_ids": ["mock-evidence"]}],
+            },
+            {"status": "proposed", "result": "satisfied"},
+        ),
+        (
+            "05 记忆与环境",
             "memory_recall",
             {"query": "交付偏好"},
             {
