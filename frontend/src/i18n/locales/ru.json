@@ -1856,6 +1856,8 @@
       "computerUseTitle": "Управление компьютером",
       "computerUsePermissionHint": "Выдайте LambChat.app разрешения «Универсальный доступ» и «Запись экрана» в Настройки → Конфиденциальность (один раз), затем повторите.",
       "toolCancelSubagent": "Отменить подагента",
+      "toolGetGoal": "Просмотр цели",
+      "toolUpdateGoal": "Отправка самопроверки цели",
       "toolStartBackgroundTask": "Запустить фоновую задачу",
       "toolBackgroundTaskSubmitted": "Отправлено в фоновый режим",
       "toolBackgroundTaskOpen": "Открыть диалог задачи",

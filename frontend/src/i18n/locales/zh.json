@@ -1844,6 +1844,8 @@
       "computerUseTitle": "电脑控制",
       "computerUsePermissionHint": "需要在系统设置 → 隐私与安全性中给 LambChat.app 授予「辅助功能」与「屏幕录制」权限(仅需一次),授权后重试。",
       "toolCancelSubagent": "取消子代理",
+      "toolGetGoal": "读取目标",
+      "toolUpdateGoal": "提交目标自审",
       "toolStartBackgroundTask": "启动后台任务",
       "toolBackgroundTaskSubmitted": "已提交到后台",
       "toolBackgroundTaskOpen": "打开后台任务会话",

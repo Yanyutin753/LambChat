@@ -1848,6 +1848,8 @@
       "computerUseTitle": "Computer Use",
       "computerUsePermissionHint": "Grant Accessibility & Screen Recording to LambChat.app once in System Settings → Privacy & Security, then retry.",
       "toolCancelSubagent": "Cancel subagent",
+      "toolGetGoal": "Read goal",
+      "toolUpdateGoal": "Submit goal audit",
       "toolStartBackgroundTask": "Start background task",
       "toolBackgroundTaskSubmitted": "Submitted in background",
       "toolBackgroundTaskOpen": "Open background conversation",

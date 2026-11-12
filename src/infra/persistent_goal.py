@@ -43,6 +43,7 @@ def advance_goal(
     progress_signature: str = "",
     evidence_ids: Sequence[str] = (),
     main_output_limited: bool = False,
+    pending_input: bool = False,
 ) -> PersistentGoal:
     result = goal.model_copy(deep=True)
     if result.current_run_id:
@@ -64,14 +65,30 @@ def advance_goal(
         result.accounting.tokens = (
             previous + usage if previous is not None and usage is not None else None
         )
+    if pending_input:
+        verdict = None
+    result.blocked_turns = (
+        goal.blocked_turns + 1
+        if verdict
+        and verdict.get("result") == "blocked"
+        and goal.last_verdict
+        and goal.last_verdict.get("result") == "blocked"
+        and goal.last_verdict.get("explanation") == verdict.get("explanation")
+        else 1
+        if verdict and verdict.get("result") == "blocked"
+        else 0
+    )
     result.last_verdict = verdict
     # Invocation counts include failures and repeated polling; only changed
     # successful observations demonstrate progress.
     progress = bool(progress_signature and progress_signature != goal.last_progress_signature)
-    result.stagnant_turns = 0 if progress else result.stagnant_turns + 1
+    result.stagnant_turns = 0 if progress or pending_input else result.stagnant_turns + 1
     if progress_signature:
         result.last_progress_signature = progress_signature
-    if (
+    if verdict and verdict.get("result") == "paused":
+        result.status = "paused"
+        result.stop_reason = "user_paused"
+    elif (
         evidence_ready
         and verdict
         and verdict.get("result") == "satisfied"
@@ -89,7 +106,8 @@ def advance_goal(
     elif (
         main_output_limited
         and not progress
-        or result.stagnant_turns >= 3
+        or result.blocked_turns >= 3
+        or (result.stagnant_turns >= 3 and not (verdict and verdict.get("result") == "blocked"))
         or (verdict and verdict.get("result") == "failed")
     ):
         result.status = "blocked"
@@ -190,6 +208,7 @@ class GoalService:
         value.intent_submitted = False
         value.dispatch_token = None
         value.dispatch_expires_at = None
+        value.blocked_turns = 0
         value.stagnant_turns = 0
         value.last_progress_signature = ""
         value.last_verdict = None
@@ -248,6 +267,8 @@ class GoalService:
                 value.dispatch_expires_at = None
             if action == "resume":
                 value.stagnant_turns = 0
+                value.blocked_turns = 0
+                value.last_verdict = None
             saved = await self._save(value)
             if saved is not None:
                 return saved

@@ -104,6 +104,24 @@ def build_goal_prompt_section(goal: dict | GoalSpec | None) -> str:
     if spec is None:
         return ""
 
+    self_audit = (
+        "\nThis is a persistent Goal. You, the main agent, perform the completion audit; "
+        "there is no independent grader. Call get_goal for the full frozen requirements. "
+        "Before ending with completion, call update_goal(status=complete) and cite current "
+        "original evidence for EVERY returned requirement. Check referenced specifications "
+        "and the user's latest messages, not just what you happened to implement. "
+        "After any execute/write, re-read final sources; stale IDs are not proof. "
+        "An accepted audit is provisional until turn end. If new input arrives or you change "
+        "the result, address it and audit again. Never shrink the goal or stop merely because "
+        "this turn is long. If incomplete, make concrete progress and leave it active. "
+        "A live job's polling timeout is a verified wait, not failure: poll the same handle. "
+        "For a genuine external blocker report update_goal(status=blocked) with the same "
+        "explanation each turn; the host requires three consecutive blocked turns. "
+        "Only an explicit user request permits update_goal(status=paused); stop Goal work then. "
+        "Never pause on your own or resume a Goal; user controls remain authoritative."
+        if isinstance(goal, dict) and goal.get("_persistent_id")
+        else ""
+    )
     return (
         "## Active Goal\n"
         f"Objective: {spec.objective}\n\n"
@@ -112,7 +130,7 @@ def build_goal_prompt_section(goal: dict | GoalSpec | None) -> str:
         "Work toward this goal across turns until the rubric is satisfied. "
         "Every explicit requirement must be checked against current evidence. "
         "Do not mark the goal complete unless the available evidence proves the "
-        "objective and rubric are satisfied."
+        "objective and rubric are satisfied." + self_audit
     )
 
 
@@ -451,9 +469,10 @@ def create_goal_rubric_middleware(
     presenter: Any = None,
     backend: Any = None,
     session_id: str = "",
+    user_id: str = "",
     evidence_clock: Any = None,
 ):
-    """Create RubricMiddleware when the installed DeepAgents version supports it.
+    """Use main-agent self-audit for persistent Goals; grade ordinary run rubrics.
 
     The grader sub-agent receives the same ``ModelRetryMiddleware`` +
     ``ModelFallbackMiddleware`` stack as the main agent so that transient
@@ -463,6 +482,19 @@ def create_goal_rubric_middleware(
     spec = coerce_goal_spec(goal)
     if spec is None:
         return None
+
+    if isinstance(goal, dict) and goal.get("_persistent_id"):
+        from src.infra.agent.middleware.goal_self_audit import GoalSelfAuditMiddleware
+
+        return GoalSelfAuditMiddleware(
+            model=model,
+            goal=goal,
+            presenter=presenter,
+            backend=backend,
+            session_id=session_id,
+            user_id=user_id,
+            evidence_clock=evidence_clock,
+        )
 
     middleware_cls = _load_rubric_middleware_class()
     if middleware_cls is None:
@@ -510,6 +542,10 @@ def build_goal_input(
     """Build DeepAgent input, adding rubric only when middleware will consume it."""
     payload: dict[str, object] = {"messages": [new_message]}
     spec = coerce_goal_spec(goal)
-    if spec is not None and rubric_middleware is not None:
+    if (
+        spec is not None
+        and rubric_middleware is not None
+        and not (isinstance(goal, dict) and goal.get("_persistent_id"))
+    ):
         payload["rubric"] = spec.rubric
     return payload

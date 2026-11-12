@@ -924,3 +924,40 @@ async def test_reasoning_only_output_limit_stops_only_unrecovered_main_goal(monk
         enqueue.assert_not_awaited()
     else:
         assert saved.status == "active" and saved.stop_reason != "model_output_limit"
+
+
+async def test_user_submission_lock_contention_defers_audit_instead_of_failing(monkeypatch):
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+
+    from src.infra.goal_runtime import guarded_goal_stream
+    from src.kernel.errors import AppError, ErrorCode
+
+    service, kwargs = await _runtime_goal(monkeypatch)
+    presenter = kwargs["presenter"]
+    presenter.goal_audit_steer_ids = []
+    presenter.goal_verdict = {
+        "result": "satisfied",
+        "criteria": [{"passed": True, "evidence_ids": ["proof"]}],
+    }
+    presenter.goal_evidence_ready = True
+    presenter.goal_evidence_ids = ["proof"]
+
+    @asynccontextmanager
+    async def busy(*args, **kwargs):
+        raise AppError(ErrorCode.CONFLICT)
+        yield
+
+    monkeypatch.setattr("src.infra.scheduler.conversation.conversation_submission", busy)
+    monkeypatch.setattr("src.infra.goal_runtime.enqueue_goal", AsyncMock())
+
+    async def source():
+        yield {"event": "token:usage", "data": {"total_tokens": 10}}
+
+    async for _ in guarded_goal_stream(source(), **kwargs):
+        pass
+    goal = await service.get("s", "u")
+    assert goal.status == "active"
+    assert goal.current_run_id is None
+    assert goal.last_verdict is None
+    assert goal.accounting.tokens == 10
