@@ -136,7 +136,18 @@ class ToolEventMixin:
         if tool_name == "write_todos":
             if isinstance(inp, dict):
                 todos = inp.get("todos", [])
-                if isinstance(todos, list) and todos:
+                # Tool-start arrives before argument validation; do not publish invalid plans.
+                if (
+                    isinstance(todos, list)
+                    and todos
+                    and all(
+                        isinstance(item, dict)
+                        and isinstance(item.get("content"), str)
+                        and item.get("status")
+                        in ("pending", "in_progress", "completed", "cancelled")
+                        for item in todos
+                    )
+                ):
                     await self._presenter_emit(
                         self.presenter.present_todo(
                             todos,
