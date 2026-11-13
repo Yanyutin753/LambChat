@@ -148,7 +148,11 @@ export function TodoItemRow({
   wrap?: boolean;
 }) {
   const { t } = useTranslation();
-  const config = statusConfig[item.status];
+  // Historical tool events can contain todos rejected by tool validation.
+  const status = Object.hasOwn(statusConfig, item.status)
+    ? item.status
+    : "pending";
+  const config = statusConfig[status];
   const Icon = config.icon;
 
   return (
@@ -168,7 +172,7 @@ export function TodoItemRow({
           {item.content}
           <span className="sr-only left-0 top-0">
             {" "}
-            — {t(`chat.todo.${item.status}`)}
+            — {t(`chat.todo.${status}`)}
           </span>
         </p>
       </div>
