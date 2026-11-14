@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $root = Join-Path $env:TEMP ('lambchat-upgrade-test-' + [guid]::NewGuid())
 New-Item -ItemType Directory $root | Out-Null
 $owned = $null
+$helper = $null
 try {
     $Hooks = (Resolve-Path $Hooks).Path
     $legacy = @'
@@ -18,7 +19,8 @@ SilentUnInstall silent
 !include "LogicLib.nsh"
 Section
 SetOutPath $INSTDIR
-File /oname=lambchat-daemon.exe "$%WINDIR%\System32\ping.exe"
+File /oname=lambchat-daemon.exe "$%WINDIR%\System32\cmd.exe"
+File /oname=locked-helper.exe "$%WINDIR%\System32\ping.exe"
 FileOpen $0 "$INSTDIR\legacy.txt" w
 FileWrite $0 "old"
 FileClose $0
@@ -30,6 +32,7 @@ SetErrorLevel 7
 Quit
 ${EndIf}
 Delete "$INSTDIR\lambchat-daemon.exe"
+Delete "$INSTDIR\locked-helper.exe"
 Delete "$INSTDIR\legacy.txt"
 Delete "$INSTDIR\uninstall.exe"
 RMDir "$INSTDIR"
@@ -95,11 +98,20 @@ SectionEnd
     Set-Content $data 'keep-me'
     $p = Start-Process (Join-Path $root 'legacy.exe') -ArgumentList @('/S', "/D=$install") -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw 'Legacy fixture install failed' }
-    $owned = Start-Process (Join-Path $install 'lambchat-daemon.exe') -ArgumentList '127.0.0.1 -t' -WindowStyle Hidden -PassThru
+    $owned = Start-Process (Join-Path $install 'lambchat-daemon.exe') -ArgumentList '/d /c locked-helper.exe 127.0.0.1 -t' -WorkingDirectory $install -WindowStyle Hidden -PassThru
     Start-Sleep -Milliseconds 500
     if ($owned.HasExited) { throw 'Locked daemon fixture exited prematurely' }
+    $child = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $($owned.Id)" |
+        Where-Object { $_.Name -eq 'locked-helper.exe' })
+    if ($child.Count -ne 1) { throw 'Expected one locked helper child' }
+    $helper = Get-Process -Id $child[0].ProcessId
+
     $p = Start-Process (Join-Path $root 'candidate.exe') -ArgumentList @('/S', "/D=$install") -Wait -PassThru
     $owned.Refresh()
+    $helper.Refresh()
+    if (-not $helper.HasExited -or (Test-Path (Join-Path $install 'locked-helper.exe'))) {
+        throw 'Upgrade left a child process holding an installed file'
+    }
     if ($p.ExitCode -ne 0 -or -not $owned.HasExited -or (Test-Path (Join-Path $install 'legacy.txt')) -or -not (Test-Path (Join-Path $install 'new.txt'))) {
         $remaining = Get-Process -Id $owned.Id -ErrorAction SilentlyContinue
         Write-Output "Daemon observation: pid=$($owned.Id), remaining=$([bool]$remaining), name=$($remaining.ProcessName), path=$($remaining.Path)"
@@ -120,6 +132,7 @@ SectionEnd
     if ($p.ExitCode -eq 0 -or (Test-Path (Join-Path $failureInstall 'new.txt'))) { throw 'Failed uninstall was ignored' }
     Write-Output 'PASS: locked daemon upgrade, old files removed, data preserved, reinstall, failed uninstall aborts'
 } finally {
+    if ($helper -and -not $helper.HasExited) { Stop-Process -InputObject $helper -Force }
     if ($owned -and -not $owned.HasExited) { Stop-Process -InputObject $owned -Force }
     Remove-Item -LiteralPath $root -Recurse -Force
 }
