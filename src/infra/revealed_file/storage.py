@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.parse import unquote, urlparse
 
+from pymongo.errors import DuplicateKeyError
+
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import to_iso, utc_now
 from src.kernel.config import settings
@@ -97,6 +99,12 @@ class RevealedFileStorage:
 
             if "user_key_source_unique_idx" in existing_indexes:
                 await c.drop_index("user_key_source_unique_idx")
+
+            # Legacy trace-scoped unique key conflicts with the dedupe model:
+            # same file_key + trace under a different dedupe_key gets rejected
+            # as E11000 duplicate on insert, silently losing the record.
+            if "user_key_trace_unique_idx" in existing_indexes:
+                await c.drop_index("user_key_trace_unique_idx")
 
             await c.update_many(
                 {"dedupe_key": {"$exists": False}},
@@ -259,15 +267,17 @@ class RevealedFileStorage:
                 if k not in self._PROTECTED_FIELDS:
                     set_fields[k] = v
 
-            await self.collection.update_one(
-                {
-                    "user_id": user_id,
-                    "dedupe_key": dedupe_key,
-                    "source": source,
-                },
-                {"$set": set_fields},
-                upsert=True,
-            )
+            upsert_query = {
+                "user_id": user_id,
+                "dedupe_key": dedupe_key,
+                "source": source,
+            }
+            try:
+                await self.collection.update_one(upsert_query, {"$set": set_fields}, upsert=True)
+            except DuplicateKeyError:
+                # 并发同键 upsert 竞态：后到者的插入被唯一索引拒绝，
+                # 重试一次时赢家文档已存在，必然走更新路径。
+                await self.collection.update_one(upsert_query, {"$set": set_fields}, upsert=True)
         except Exception as e:
             logger.warning(f"Failed to upsert revealed file record by name: {e}")
 
