@@ -24,6 +24,9 @@ _ARTIFACT_DELIVERY_CONCURRENCY = 4
 _FILE_URL_PATTERN = re.compile(r"https?://[^\s<>\]\"']+", re.IGNORECASE)
 _AUTO_DELIVERABLE_URL_EXTENSIONS = frozenset(
     {
+        # 注意：不放 .htm/.html——新闻站 CMS（independent.co.uk 等）的文章
+        # URL 普遍以 .html 结尾，是内容页而非文件；按扩展名投递会把回复
+        # 参考链接区里的新闻误投成 0 字节「HTML 文件」卡挂在对话末尾。
         ".avif",
         ".bmp",
         ".csv",
@@ -31,8 +34,6 @@ _AUTO_DELIVERABLE_URL_EXTENSIONS = frozenset(
         ".docx",
         ".gif",
         ".gz",
-        ".htm",
-        ".html",
         ".jpeg",
         ".jpg",
         ".json",

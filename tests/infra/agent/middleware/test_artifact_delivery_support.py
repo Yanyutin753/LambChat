@@ -46,3 +46,32 @@ def test_should_skip_auto_artifact_tolerates_malformed_ipv6() -> None:
 def test_extract_file_urls_from_text_skips_malformed_ipv6() -> None:
     text = "结果见 http://[::1:8080/report.pdf 与 https://example.com/report.png 两个文件"
     assert _extract_file_urls_from_text(text) == ["https://example.com/report.png"]
+
+
+def test_is_auto_deliverable_url_rejects_webpage_suffixes() -> None:
+    """新闻站 CMS 的 .html/.htm 后缀是内容页链接，不是文件产物，不自动投递。
+
+    实况（#DHTBetB3yAbD 分享对话）：日报回复的参考链接区含
+    independent.co.uk 的 .html 文章链接，被按扩展名误判为文件，在 run
+    尾部投成一张 0 字节的「HTML 文件」卡挂在对话末尾。
+    """
+    assert (
+        _is_auto_deliverable_url(
+            "https://www.independent.co.uk/news/world/middle-east/"
+            "trump-netanyahu-call-iran-war-shouting-match-b3083649.html"
+        )
+        is False
+    )
+    assert _is_auto_deliverable_url("https://example.com/docs/index.htm") is False
+
+
+def test_extract_file_urls_from_text_skips_webpage_html_links() -> None:
+    """参考链接区混有 .html 新闻页时，只提取真正的文件 URL。"""
+    text = (
+        "参考链接：\n"
+        "1. BBC — https://www.bbc.com/news/world-68345121\n"
+        "2. Independent — https://www.independent.co.uk/news/world/middle-east/"
+        "trump-netanyahu-call-iran-war-shouting-match-b3083649.html\n"
+        "3. 报告 — https://cdn.example.com/reports/daily.pdf\n"
+    )
+    assert _extract_file_urls_from_text(text) == ["https://cdn.example.com/reports/daily.pdf"]
