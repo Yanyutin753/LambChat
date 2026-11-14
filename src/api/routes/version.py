@@ -89,6 +89,10 @@ async def download_release_asset(
     elif tag:
         release = await github_client.get_release_by_tag(tag)
         asset = _find_asset(release, asset_name)
+        if asset is None and release is not None:
+            # Baking releases gain assets after the tag snapshot was cached.
+            release = await github_client.get_release_by_tag(tag, force_refresh=True)
+            asset = _find_asset(release, asset_name)
     else:
         release = await github_client.get_latest_release()
         asset = _find_asset(release, asset_name)
