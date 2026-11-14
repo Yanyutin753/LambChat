@@ -17,10 +17,9 @@
 //! 检测序：AppImage 扩展名 → `dpkg -S` / `rpm -qf` 包归属反查（权威）→
 //! 系统前缀 + 本机包管理器启发式（保守，双装/都没有判 unknown）。
 
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::release_signature::{verify_package, verify_release, SignedAsset, MAX_MANIFEST_BYTES};
@@ -506,18 +505,27 @@ where
     Ok((path, true))
 }
 
-/// 调起安装器（argv[0] 为程序名：pkcon 直接跑，apt/dnf 等由 pkexec 拉起）。
-///
-/// stderr 由独立线程持续排空（dnf 进度输出可超管道缓冲，不排空会写阻塞
-/// → 安装挂死）；stdout 丢弃（GUI 壳无处展示）。超时**按进程组** kill：
-/// pkexec 拉起的 root 目标命令是孙进程，只杀 pkcon/pkexec 本体会让 root
-/// apt/dnf 变孤儿——与下一级回退并发抢包管理器锁，报出费解的锁冲突。
+/// 调起安装器；stderr 写入私有临时文件，避免子进程继承管道后阻塞收尾。
 fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
     use command_group::CommandGroup;
+    let log_path =
+        std::env::temp_dir().join(format!("lambchat-installer-{}.log", uuid::Uuid::new_v4()));
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let _cleanup = PartialDownload(log_path.clone());
+    let mut log = options
+        .open(&log_path)
+        .map_err(|e| format!("installer log: {e}"))?;
+    let stderr = log.try_clone().map_err(|e| format!("installer log: {e}"))?;
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::from(stderr))
         .group_spawn()
         .map_err(|e| {
             format!(
@@ -527,20 +535,6 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
             )
         })?;
 
-    // stderr 排空线程：try_wait 轮询期间子进程的输出不能积压在管道里
-    let mut stderr_pipe = child.inner().stderr.take().expect("stderr piped above");
-    let stderr_buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
-    let buf_clone = Arc::clone(&stderr_buf);
-    let drain = std::thread::spawn(move || {
-        let mut chunk = [0u8; 4096];
-        loop {
-            match stderr_pipe.read(&mut chunk) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => buf_clone.lock().unwrap().extend_from_slice(&chunk[..n]),
-            }
-        }
-    });
-
     let deadline = Instant::now() + INSTALL_TIMEOUT;
     let status = loop {
         match child.try_wait() {
@@ -549,7 +543,6 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
                 if Instant::now() >= deadline {
                     let _ = child.kill();
                     let _ = child.wait();
-                    let _ = drain.join();
                     return Err(format!(
                         "installer timed out after {}s（polkit 授权未完成？），请重试或手动安装",
                         INSTALL_TIMEOUT.as_secs()
@@ -560,13 +553,16 @@ fn run_pkexec_installer(argv: &[String]) -> Result<(), String> {
             Err(e) => return Err(format!("wait installer failed: {e}")),
         }
     };
-    let _ = drain.join();
     if status.success() {
         return Ok(());
     }
-    let stderr = String::from_utf8_lossy(&stderr_buf.lock().unwrap())
-        .trim()
-        .to_string();
+    log.seek(SeekFrom::Start(0))
+        .map_err(|e| format!("installer log: {e}"))?;
+    let mut bytes = Vec::new();
+    log.take(64 * 1024)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("installer log: {e}"))?;
+    let stderr = String::from_utf8_lossy(&bytes).trim().to_string();
     if stderr.is_empty() {
         Err(format!(
             "installer exited with {status}（polkit 授权被取消？）"
@@ -1137,6 +1133,20 @@ mod tests {
             "failed download must not leave a finalized package"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn installer_exit_does_not_wait_for_inherited_stderr() {
+        let started = Instant::now();
+        let error = run_pkexec_installer(&[
+            "/bin/sh".into(),
+            "-c".into(),
+            "sleep 3 & echo installer-failed >&2; exit 1".into(),
+        ])
+        .unwrap_err();
+        assert!(error.contains("installer-failed"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     /// e2e（scripts/e2e_linux_update.py）专用：打印本机检测结果供人工核对。

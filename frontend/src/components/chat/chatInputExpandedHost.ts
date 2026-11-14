@@ -31,7 +31,23 @@ export function useExpandedComposerHost(
     const target = expanded ? document.body : slotRef.current;
     // React can replace the slot during a layout change or hot update.
     // Reattach the existing editor, preserving its draft and undo history.
-    if (target && host.parentNode !== target) target.appendChild(host);
+    if (target && host.parentNode !== target) {
+      const active = document.activeElement;
+      const focused = active instanceof HTMLElement && host.contains(active);
+      const selection = focused ? window.getSelection() : null;
+      const anchor = selection?.anchorNode;
+      const focus = selection?.focusNode;
+      const anchorOffset = selection?.anchorOffset ?? 0;
+      const focusOffset = selection?.focusOffset ?? 0;
+      target.appendChild(host);
+      // Reparenting blurs the editor and clears the browser selection.
+      if (focused) {
+        active.focus({ preventScroll: true });
+        if (anchor && focus && host.contains(anchor) && host.contains(focus)) {
+          selection?.setBaseAndExtent(anchor, anchorOffset, focus, focusOffset);
+        }
+      }
+    }
   });
   useLayoutEffect(() => () => host?.remove(), [host]);
   useEffect(() => {

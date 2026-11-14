@@ -239,7 +239,7 @@ test("update flow is single-flight: downloads guarded by in-flight flag, re-chec
   expect(hook).toMatch(/const downloadInFlightRef = useRef\(false\)/);
   const guards =
     hook.match(/if \(downloadInFlightRef\.current\) return/g) ?? [];
-  expect(guards.length).toBe(4); // desktop, pending install, Linux package, Android APK
+  expect(guards.length).toBe(5); // desktop, pending install, Linux package, Android APK, skip
   // 后台下载卫兵 = pending(已完成) + inFlight(进行中) 双查——单查完成标志
   // 会在下载中放行第二条下载（多进度条/并发下载根因）
   expect(hook).toMatch(
