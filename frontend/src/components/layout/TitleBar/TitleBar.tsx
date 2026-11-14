@@ -17,7 +17,6 @@ import {
   queryWindowMaximized,
   subscribeWindowResized,
   toggleMaximizeWindow,
-  startDraggingWindow,
 } from "../../../services/tauri/windowControls";
 import type { UpdateState } from "../../../types";
 import { DESKTOP_SIDEBAR_TOGGLE_EVENT } from "../DesktopSidebarShell/desktopShellPlatform";
@@ -234,13 +233,7 @@ export function TitleBar({
       </TitleIconButton>
 
       {/* 拖拽区：flex 弹性占位（双击最大化由 Tauri 运行时处理） */}
-      <div
-        data-tauri-drag-region
-        className="h-full flex-1 cursor-default"
-        onPointerDown={(event) => {
-          if (event.button === 0) void startDraggingWindow();
-        }}
-      />
+      <div data-tauri-drag-region className="h-full flex-1 cursor-default" />
 
       <UpdateTitlebarIndicator
         state={updateState}

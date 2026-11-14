@@ -93,16 +93,9 @@ export function isLinuxDesktopEnvironment(
   return uaIsLinux || /linux/i.test(platform);
 }
 
-export function formatUpdateError(error: unknown, platform: string): string {
+export function formatUpdateError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? "");
-  const detail = raw.trim() || "更新失败";
-  if (
-    platform === "tauri" &&
-    /permission|access denied|拒绝访问|权限|replace|rename/i.test(detail)
-  ) {
-    return `${detail}。Linux 请确认 AppImage 所在目录可写，并从用户目录运行；如果安装的是 .deb/.rpm，请手动安装新版安装包。`;
-  }
-  return detail;
+  return raw.trim() || i18n.t("updateError");
 }
 
 /** Debounce delay (ms) before checking for updates on startup */
@@ -237,7 +230,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   const manualCheckInFlightRef = useRef(false);
   const lastCheckedAtRef = useRef(0);
   const notifiedVersionRef = useRef<string | null>(null);
-  /** 已后台下载完成的 Tauri 更新对象（待用户确认安装重启） */
+  /** 已下载的安装目标，或安装完成后仅待重启的目标。 */
   const pendingUpdateRef = useRef<{
     install: () => Promise<void>;
     close?: () => Promise<void>;
@@ -407,8 +400,14 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         },
         { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS },
       );
+      let installed = false;
       pendingUpdateRef.current = {
-        install: () => update.install(),
+        install: async () => {
+          // A successful install consumes the native bytes; a restart can still fail.
+          if (installed) return;
+          await update.install();
+          installed = true;
+        },
         close: () => update.close(),
       };
       downloadInFlightRef.current = false;
@@ -739,22 +738,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
   /** Start the update process */
   const startUpdate = useCallback(async () => {
     if (platform === "tauri") {
-      // Linux 桌面（含 AppImage/unknown——updater 已无 Linux 产物，统一
-      // 引导下载页换装 deb）；其余桌面走 updater 替换重启
-      const linuxSource = await ensureLinuxSource();
-      if (linuxSource) {
-        if (linuxSource === "deb" || linuxSource === "rpm") {
-          await installLinuxPackageUpdate(linuxSource);
-        } else {
-          openDownloadPage();
-        }
-        return;
-      }
       const pending = pendingUpdateRef.current;
       if (pending) {
         if (downloadInFlightRef.current) return;
         downloadInFlightRef.current = true;
         setUpdateBusy(true);
+        setState((prev) => ({ ...prev, downloading: true, error: null }));
         // 后台已下载完成：直接安装 + 重启
         try {
           await pending.install();
@@ -765,8 +754,20 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           setUpdateBusy(false);
           setState((prev) => ({
             ...prev,
-            error: formatUpdateError(err, platform),
+            downloading: false,
+            error: formatUpdateError(err),
           }));
+        }
+        return;
+      }
+      // Linux 桌面（含 AppImage/unknown——updater 已无 Linux 产物，统一
+      // 引导下载页换装 deb）；其余桌面走 updater 替换重启
+      const linuxSource = await ensureLinuxSource();
+      if (linuxSource) {
+        if (linuxSource === "deb" || linuxSource === "rpm") {
+          await installLinuxPackageUpdate(linuxSource);
+        } else {
+          openDownloadPage();
         }
         return;
       }
@@ -808,6 +809,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           linuxDownloadedRef.current = target.name;
         }
         await installLinuxPackage(target.name, source);
+        // The installer clears its cache; retries must only restart the app.
+        pendingUpdateRef.current = { install: async () => {} };
         setState((prev) => ({ ...prev, downloading: false, progress: 100 }));
         const { relaunch } = await import("@tauri-apps/plugin-process");
         await relaunch();
@@ -817,7 +820,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         setState((prev) => ({
           ...prev,
           downloading: false,
-          error: formatUpdateError(err, platform),
+          error: formatUpdateError(err),
         }));
       }
     },
@@ -880,7 +883,8 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
         { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS },
       );
 
-      // Download and install complete, relaunch
+      // Installation is complete even if the following restart fails.
+      pendingUpdateRef.current = { install: async () => {} };
       await relaunch();
     } catch (err) {
       downloadInFlightRef.current = false;
@@ -888,12 +892,12 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
       setState((prev) => ({
         ...prev,
         downloading: false,
-        error: formatUpdateError(err, platform),
+        error: formatUpdateError(err),
       }));
     } finally {
       await update?.close?.().catch(() => {});
     }
-  }, [platform]);
+  }, []);
 
   /** Download APK and trigger Android install intent */
   const installAndroidUpdate = useCallback(async () => {
@@ -1202,6 +1206,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
    * 桌面端同步熄灭标题栏指示器并丢弃已下载的待安装包（Linux 缓存文件
    * 保留——体积换切换成本，下个版本下载时自动清掉） */
   const skipThisVersion = useCallback(() => {
+    if (downloadInFlightRef.current) return;
     const version = stateRef.current.version;
     if (version) {
       persistSkippedVersion(window.localStorage, version);

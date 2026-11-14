@@ -269,6 +269,33 @@ jobs:
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test-shards.result }}
         run: test "$FRONTEND_TEST_RESULT" = success
 
+  linux-native-updates:
+    name: Linux Native Updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install desktop libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: linux-native-updates-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+      - name: Prepare unit-test web assets
+        run: |
+          mkdir -p frontend/.ci-native-fixture
+          echo '<!doctype html><title>Native unit tests</title>' > frontend/.ci-native-fixture/index.html
+      - name: Verify native update termination and signature boundaries
+        env:
+          TAURI_CONFIG: '{"build":{"frontendDist":"../.ci-native-fixture"},"bundle":{"externalBin":[],"resources":[],"icon":["../public/favicon.ico"]}}'
+        run: python3 scripts/run_validation.py cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml -j1 --lib -- --test-threads=1
+
   windows-file-transfers:
     name: Windows File Transfers
     runs-on: windows-latest
@@ -317,4 +344,5 @@ jobs:
           Expand-Archive $archive $directory
           $compiler = Get-ChildItem $directory -Filter makensis.exe -Recurse | Select-Object -First 1
           if (-not $compiler) { throw 'NSIS compiler missing' }
-          ./scripts/test_windows_installer_hooks.ps1 -MakeNsis $compiler.FullName
+          python scripts/run_validation.py powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test_windows_installer_hooks.ps1 -MakeNsis $compiler.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

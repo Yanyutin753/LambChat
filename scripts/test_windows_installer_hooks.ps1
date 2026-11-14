@@ -7,6 +7,7 @@ $root = Join-Path $env:TEMP ('lambchat-upgrade-test-' + [guid]::NewGuid())
 New-Item -ItemType Directory $root | Out-Null
 $owned = $null
 $helper = $null
+$unrelated = $null
 try {
     $Hooks = (Resolve-Path $Hooks).Path
     $legacy = @'
@@ -105,11 +106,18 @@ SectionEnd
         Where-Object { $_.Name -eq 'locked-helper.exe' })
     if ($child.Count -ne 1) { throw 'Expected one locked helper child' }
     $helper = Get-Process -Id $child[0].ProcessId
+    $otherInstall = Join-Path $root 'other-install'
+    New-Item -ItemType Directory $otherInstall | Out-Null
+    Copy-Item "$env:WINDIR\System32\ping.exe" (Join-Path $otherInstall 'lambchat-daemon.exe')
+    $unrelated = Start-Process (Join-Path $otherInstall 'lambchat-daemon.exe') -ArgumentList '127.0.0.1 -t' -WindowStyle Hidden -PassThru
 
     $p = Start-Process (Join-Path $root 'candidate.exe') -ArgumentList @('/S', "/D=$install") -Wait -PassThru
     $owned.Refresh()
     $helper.Refresh()
+    if ($unrelated.HasExited) { throw 'Upgrade stopped a different installation' }
     if (-not $helper.HasExited -or (Test-Path (Join-Path $install 'locked-helper.exe'))) {
+        Write-Output "Upgrade diagnostic: exit=$($p.ExitCode), daemonExited=$($owned.HasExited), helperExited=$($helper.HasExited), helperExists=$(Test-Path (Join-Path $install 'locked-helper.exe'))"
+        Get-CimInstance Win32_Process -Filter "ProcessId = $($helper.Id)" | Select-Object ProcessId,ParentProcessId,ExecutablePath | Format-List | Out-String | Write-Output
         throw 'Upgrade left a child process holding an installed file'
     }
     if ($p.ExitCode -ne 0 -or -not $owned.HasExited -or (Test-Path (Join-Path $install 'legacy.txt')) -or -not (Test-Path (Join-Path $install 'new.txt'))) {
@@ -132,6 +140,7 @@ SectionEnd
     if ($p.ExitCode -eq 0 -or (Test-Path (Join-Path $failureInstall 'new.txt'))) { throw 'Failed uninstall was ignored' }
     Write-Output 'PASS: locked daemon upgrade, old files removed, data preserved, reinstall, failed uninstall aborts'
 } finally {
+    if ($unrelated -and -not $unrelated.HasExited) { Stop-Process -InputObject $unrelated -Force }
     if ($helper -and -not $helper.HasExited) { Stop-Process -InputObject $helper -Force }
     if ($owned -and -not $owned.HasExited) { Stop-Process -InputObject $owned -Force }
     Remove-Item -LiteralPath $root -Recurse -Force

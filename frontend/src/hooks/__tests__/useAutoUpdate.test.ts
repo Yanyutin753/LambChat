@@ -3,6 +3,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  formatUpdateError,
   FOCUS_CHECK_MIN_INTERVAL_MS,
   PERIODIC_CHECK_INTERVAL_MS,
   isLinuxDesktopEnvironment,
@@ -64,4 +65,10 @@ describe("isLinuxDesktopEnvironment", () => {
       }),
     ).toBe(false);
   });
+});
+
+test("replacement errors retain the native detail without unrelated Linux instructions", () => {
+  expect(
+    formatUpdateError(new Error("Access denied: cannot replace file")),
+  ).toBe("Access denied: cannot replace file");
 });

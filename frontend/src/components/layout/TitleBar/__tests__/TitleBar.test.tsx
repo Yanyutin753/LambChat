@@ -135,12 +135,12 @@ test("drag region spans the flexible middle area", () => {
   expect(drag?.className).toContain("flex-1");
 });
 
-test("dragging the titlebar invokes the native window drag API", async () => {
+test("titlebar leaves mouse dragging to Tauri without a duplicate pointer drag", () => {
   renderTitleBar("windows");
   fireEvent.pointerDown(document.querySelector("[data-tauri-drag-region]")!, {
     button: 0,
   });
-  await waitFor(() => expect(mocks.startDraggingWindow).toHaveBeenCalledOnce());
+  expect(mocks.startDraggingWindow).not.toHaveBeenCalled();
 });
 
 test("mac titlebar keeps navigation centered without CSS position compensation", () => {

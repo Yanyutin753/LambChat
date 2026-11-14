@@ -167,3 +167,35 @@ for (const expanded of [false, true]) {
     expect(root.textContent).toBe(original);
   });
 }
+
+test("blur recovers an interrupted IME session without losing the visible text", async () => {
+  render(<Composer expanded={false} />);
+  const root = screen.getByRole("textbox", { name: "message" });
+  const editor = select(root, from, from + selected.length);
+  await act(async () => {
+    fireEvent.compositionStart(root, { data: "" });
+  });
+  expect(editor.isComposing()).toBe(true);
+  const text = root.querySelector("[data-lexical-text]")!.firstChild as Text;
+  await act(async () => {
+    text.replaceData(from, selected.length, "跟");
+    fireEvent.input(root, {
+      inputType: "insertCompositionText",
+      data: "跟",
+      isComposing: true,
+    });
+  });
+  await act(async () => {
+    fireEvent.blur(root);
+  });
+  expect(editor.isComposing()).toBe(false);
+  expect(root.textContent).toBe(expected);
+  expect(editor.getEditorState().read(() => $getRoot().getTextContent())).toBe(
+    expected,
+  );
+  await act(async () => {
+    fireEvent.focus(root);
+    fireEvent.compositionEnd(root, { data: "跟" });
+  });
+  expect(root.textContent).toBe(expected);
+});
