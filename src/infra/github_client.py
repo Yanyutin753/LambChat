@@ -124,7 +124,9 @@ class GitHubClient:
         elapsed = datetime.now(UTC) - self._cache_time
         return elapsed < timedelta(seconds=CACHE_TTL_SECONDS)
 
-    async def get_release_by_tag(self, tag: str) -> Optional[GitHubRelease]:
+    async def get_release_by_tag(
+        self, tag: str, force_refresh: bool = False
+    ) -> Optional[GitHubRelease]:
         """按 tag 查 release（下载代理把清单锁到具体版本时用）。
 
         更新器下载端点会扇出到这里：不缓存的话 GitHub 匿名 API 限流
@@ -135,7 +137,11 @@ class GitHubClient:
         if not key:
             return None
         cached = self._tag_cache.get(key)
-        if cached and datetime.now(UTC) - cached[1] < timedelta(seconds=CACHE_TTL_SECONDS):
+        if (
+            not force_refresh
+            and cached
+            and datetime.now(UTC) - cached[1] < timedelta(seconds=CACHE_TTL_SECONDS)
+        ):
             return cached[0]
         release = await self._fetch_release(GITHUB_TAG_RELEASE_URL.format(tag=key))
         if release:

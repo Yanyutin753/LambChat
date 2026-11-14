@@ -52,7 +52,7 @@ class _FakeClient:
             return _release(["app.tar.gz", "deb"])
         return _release(["app.tar.gz", "deb", "latest.json"])
 
-    async def get_release_by_tag(self, tag):
+    async def get_release_by_tag(self, tag, force_refresh=False):
         return _release(["latest.json"])
 
     async def open_asset_stream(self, url):
@@ -78,7 +78,7 @@ async def test_tag_path_does_not_force_refresh(monkeypatch: pytest.MonkeyPatch):
     class _TagClient:
         refreshed = False
 
-        async def get_release_by_tag(self, tag):
+        async def get_release_by_tag(self, tag, force_refresh=False):
             return _release(["latest.json"])
 
         async def get_latest_release(self, force_refresh=False):
@@ -136,7 +136,7 @@ async def test_updater_fallback_does_not_change_other_asset_or_tag_downloads(
         async def get_latest_release(self, force_refresh=False):
             return _release([])
 
-        async def get_release_by_tag(self, tag):
+        async def get_release_by_tag(self, tag, force_refresh=False):
             return _release([])
 
         async def get_latest_updater_release(self):
@@ -146,3 +146,22 @@ async def test_updater_fallback_does_not_change_other_asset_or_tag_downloads(
     with pytest.raises(AppError) as error:
         await download_release_asset(asset_name, tag=tag)
     assert error.value.error_code == ErrorCode.RELEASE_ASSET_NOT_FOUND
+
+
+@pytest.mark.parametrize("asset_name", ["latest.json", "release-security.json", "app.tar.gz"])
+async def test_tagged_asset_refreshes_same_release_after_late_upload(monkeypatch, asset_name):
+    from src.api.routes import version as version_module
+
+    class TaggedClient(_FakeClient):
+        async def get_release_by_tag(self, tag, force_refresh=False):
+            self.calls.append((tag, force_refresh))
+            return _release([asset_name] if force_refresh else [])
+
+        async def get_latest_release(self, force_refresh=False):
+            raise AssertionError("A pinned download must never change releases")
+
+    fake = TaggedClient()
+    monkeypatch.setattr(version_module, "github_client", fake)
+    response = await download_release_asset(asset_name, tag="v2.11.0")
+    assert response.status_code == 200
+    assert fake.calls == [("v2.11.0", False), ("v2.11.0", True)]
