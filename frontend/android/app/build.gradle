@@ -7,8 +7,8 @@ android {
         applicationId "com.lambchat.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21508999
-        versionName "2.15.8"
+        versionCode 21509999
+        versionName "2.15.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

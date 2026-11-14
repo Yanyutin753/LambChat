@@ -5,9 +5,11 @@ import { useAutoUpdate } from "../useAutoUpdate";
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
+  relaunch: vi.fn(),
   backend: vi.fn(),
   linuxInfo: vi.fn(),
   linuxDownload: vi.fn(),
+  linuxInstall: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   loading: vi.fn(),
@@ -23,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   deleteFile: vi.fn(),
 }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mocks.check }));
+vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: mocks.relaunch }));
 vi.mock("../../services/api", () => ({
   versionApi: { checkForUpdates: mocks.backend },
   buildReleaseAssetDownloadUrl: (name: string) => `/assets/${name}`,
@@ -47,6 +50,7 @@ vi.mock("../../services/tauri/linuxUpdate", () => ({
   getLinuxInstallInfo: mocks.linuxInfo,
   subscribeLinuxUpdateProgress: async () => () => {},
   downloadLinuxPackage: mocks.linuxDownload,
+  installLinuxPackage: mocks.linuxInstall,
 }));
 vi.mock("react-hot-toast", () => ({ toast: mocks }));
 
@@ -611,3 +615,146 @@ test("channel switch discards a stale native check before it can download", asyn
     setUpdateChannel("stable");
   });
 });
+
+test("restart retry does not reinstall a consumed native download", async () => {
+  const install = vi.fn().mockResolvedValue(undefined);
+  const close = vi.fn().mockResolvedValue(undefined);
+  mocks.check.mockResolvedValue({
+    available: true,
+    version: "9.0.0",
+    download: async () => {},
+    install,
+    close,
+  });
+  mocks.relaunch
+    .mockRejectedValueOnce(new Error("restart failed"))
+    .mockResolvedValue(undefined);
+  const { result } = renderHook(() => useAutoUpdate());
+  await act(async () => {
+    await result.current.checkNow();
+  });
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(result.current.state.error).toContain("restart failed");
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(install).toHaveBeenCalledOnce();
+  expect(mocks.relaunch).toHaveBeenCalledTimes(2);
+});
+
+test("installing a cached update prevents skipping or duplicate installation", async () => {
+  let finish!: () => void;
+  const install = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const close = vi.fn().mockResolvedValue(undefined);
+  mocks.check.mockResolvedValue({
+    available: true,
+    version: "9.0.0",
+    download: async () => {},
+    install,
+    close,
+  });
+  mocks.relaunch.mockResolvedValue(undefined);
+  const { result } = renderHook(() => useAutoUpdate());
+  await act(async () => {
+    await result.current.checkNow();
+  });
+  let installing!: Promise<void>;
+  await act(async () => {
+    installing = result.current.startUpdate();
+  });
+  expect(result.current.state.downloading).toBe(true);
+  await act(async () => {
+    result.current.skipThisVersion();
+    await result.current.startUpdate();
+  });
+  expect(close).not.toHaveBeenCalled();
+  expect(result.current.state.available).toBe(true);
+  expect(install).toHaveBeenCalledOnce();
+  await act(async () => {
+    finish();
+    await installing;
+  });
+});
+
+test("failed native replacement remains retryable and releases installation busy state", async () => {
+  const install = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("replace failed"))
+    .mockResolvedValue(undefined);
+  mocks.check.mockResolvedValue({
+    available: true,
+    version: "9.0.0",
+    download: async () => {},
+    install,
+    close: vi.fn().mockResolvedValue(undefined),
+  });
+  mocks.relaunch.mockResolvedValue(undefined);
+  const { result } = renderHook(() => useAutoUpdate());
+  await act(async () => {
+    await result.current.checkNow();
+  });
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(result.current.state.downloading).toBe(false);
+  expect(result.current.state.readyToInstall).toBe(true);
+  expect(mocks.relaunch).not.toHaveBeenCalled();
+  await act(async () => {
+    await result.current.startUpdate();
+  });
+  expect(install).toHaveBeenCalledTimes(2);
+  expect(result.current.state.error).toBeNull();
+  expect(mocks.relaunch).toHaveBeenCalledOnce();
+});
+
+test.each(["linux", "foreground"])(
+  "%s restart retry never repeats a successful installation",
+  async (mode) => {
+    const install = vi.fn().mockResolvedValue(undefined);
+    if (mode === "linux") {
+      Object.defineProperty(navigator, "platform", {
+        configurable: true,
+        value: "Linux x86_64",
+      });
+      mocks.linuxInfo.mockResolvedValue({ source: "deb", arch: "x86_64" });
+      mocks.linuxDownload.mockResolvedValue(true);
+      mocks.linuxInstall.mockImplementation(install);
+      mocks.backend.mockResolvedValue({
+        has_update: true,
+        latest_version: "9.0.0",
+        release_assets: [{ name: "LambChat-v9.0.0-Linux-x86_64.deb" }],
+      });
+    } else {
+      mocks.check.mockResolvedValue({
+        available: true,
+        version: "9.0.0",
+        download: vi.fn().mockRejectedValue(new Error("background failed")),
+        downloadAndInstall: install,
+        close: vi.fn().mockResolvedValue(undefined),
+      });
+    }
+    mocks.relaunch
+      .mockRejectedValueOnce(new Error("restart failed"))
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useAutoUpdate());
+    await act(async () => {
+      await result.current.checkNow();
+    });
+    await act(async () => {
+      await result.current.startUpdate();
+    });
+    expect(result.current.state.error).toContain("restart failed");
+    await act(async () => {
+      await result.current.startUpdate();
+    });
+    expect(install).toHaveBeenCalledOnce();
+    expect(mocks.relaunch).toHaveBeenCalledTimes(2);
+  },
+);

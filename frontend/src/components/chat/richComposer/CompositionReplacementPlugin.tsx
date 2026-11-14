@@ -5,6 +5,8 @@ import {
   $isRangeSelection,
   $isTextNode,
   $setCompositionKey,
+  BLUR_COMMAND,
+  COMPOSITION_END_COMMAND,
   COMMAND_PRIORITY_HIGH,
   COMPOSITION_START_COMMAND,
   COMPOSITION_START_TAG,
@@ -13,6 +15,25 @@ import { useEffect } from "react";
 
 export function CompositionReplacementPlugin() {
   const [editor] = useLexicalComposerContext();
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        BLUR_COMMAND,
+        () => {
+          // Finish interrupted composition from the DOM before it can suppress later key events.
+          if (editor.isComposing()) {
+            editor.dispatchCommand(
+              COMPOSITION_END_COMMAND,
+              new CompositionEvent("compositionend", { data: "" }),
+            );
+          }
+          return false;
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor],
+  );
 
   useEffect(
     () =>
