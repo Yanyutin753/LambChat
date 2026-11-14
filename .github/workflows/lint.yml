@@ -293,7 +293,7 @@ jobs:
           echo '<!doctype html><title>Native unit tests</title>' > frontend/.ci-native-fixture/index.html
       - name: Verify native update termination and signature boundaries
         env:
-          TAURI_CONFIG: '{"build":{"frontendDist":"../.ci-native-fixture"},"bundle":{"externalBin":[],"resources":[],"icon":["../public/favicon.ico"]}}'
+          TAURI_CONFIG: '{"build":{"frontendDist":"../.ci-native-fixture"},"bundle":{"externalBin":[],"resources":[]}}'
         run: python3 scripts/run_validation.py cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml -j1 --lib -- --test-threads=1
 
   windows-file-transfers:
