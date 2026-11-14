@@ -226,3 +226,19 @@ async def test_dev_cache_avoids_polling_github_every_minute(monkeypatch):
     client._dev_cache = (release, datetime.now(UTC) - timedelta(minutes=5))
     _install(monkeypatch, {})
     assert await client.get_channel_release("dev") is release
+
+
+async def test_tag_refresh_replaces_only_requested_cached_release(monkeypatch):
+    responses = {TAG_URL: _FakeResponse(payload=PAYLOAD)}
+    _install(monkeypatch, responses)
+    client = GitHubClient()
+    cached = await client.get_release_by_tag("v2.6.0")
+    client._tag_cache["v2.5.0"] = (cached, datetime.now(UTC))
+    responses[TAG_URL] = _FakeResponse(payload={**PAYLOAD, "assets": []})
+
+    refreshed = await client.get_release_by_tag("v2.6.0", force_refresh=True)
+
+    assert refreshed.assets == []
+    assert await client.get_release_by_tag("v2.6.0") is refreshed
+    assert await client.get_release_by_tag("v2.5.0") is cached
+    assert _FakeAsyncClient.all_requests == [TAG_URL, TAG_URL]
