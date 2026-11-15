@@ -1,3 +1,4 @@
+import type { PersistentGoal } from "../../services/api/session";
 import type { Message } from "../../types";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 
@@ -34,4 +35,10 @@ export function shouldShowGoalDetailsForMessage(
   if (!goal?.started_at || !message.timestamp) return false;
   if (goal.runId || message.runId) return messageMatchesGoalRun(goal, message);
   return new Date(message.timestamp) >= new Date(goal.started_at);
+}
+
+export function hasVisiblePersistentGoal(
+  goal: Pick<PersistentGoal, "status"> | null | undefined,
+): boolean {
+  return Boolean(goal && !["cleared", "completed"].includes(goal.status));
 }

@@ -83,16 +83,82 @@ def test_linux_scroll_rejects_a_range_that_ignores_writes(monkeypatch):
         cua_linux.scroll_element(bar, "down", 1)
 
 
-def test_linux_capture_uses_x11_without_pyautogui(monkeypatch):
-    from PIL import Image, ImageGrab
+@pytest.fixture
+def window_capture(monkeypatch):
+    import sys
+    from types import ModuleType
+    from unittest.mock import MagicMock
 
-    calls = []
-    monkeypatch.setenv("DISPLAY", ":97")
-    monkeypatch.setattr(
-        ImageGrab, "grab", lambda **kw: calls.append(kw) or Image.new("RGB", (640, 480))
+    from PIL import ImageGrab
+
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(ImageGrab, "grab", lambda **kw: pytest.fail("screen includes toolbar"))
+    connection = MagicMock()
+    root = connection.screen.return_value.root
+    root.id = 1
+    root.get_full_property.return_value.value = [42]
+    root.translate_coords.return_value = SimpleNamespace(x=10, y=20)
+    window = connection.create_resource_object.return_value
+    window.id = 42
+    window.get_geometry.return_value = SimpleNamespace(width=2, height=2, border_width=0, depth=24)
+    window.get_attributes.return_value = SimpleNamespace(visual=3)
+    pixmap = window.composite_name_window_pixmap.return_value
+    pixmap.get_image.return_value = SimpleNamespace(data=bytes([0, 0, 255, 0]) * 4)
+    connection.has_extension.return_value = True
+    connection.display.info = SimpleNamespace(
+        image_byte_order=0,
+        pixmap_formats=[SimpleNamespace(depth=24, bits_per_pixel=32, scanline_pad=32)],
     )
-    assert cua_linux.screenshot([10, 20, 640, 480]).size == (640, 480)
-    assert calls == [{"bbox": (10, 20, 650, 500), "xdisplay": ":97"}]
+    connection.screen.return_value.allowed_depths = [
+        SimpleNamespace(
+            visuals=[
+                SimpleNamespace(visual_id=3, red_mask=0xFF0000, green_mask=0xFF00, blue_mask=0xFF)
+            ]
+        )
+    ]
+    xlib = ModuleType("Xlib")
+    xlib.X = SimpleNamespace(AnyPropertyType=0, ZPixmap=2, LSBFirst=0)
+    xlib.display = SimpleNamespace(Display=lambda: connection)
+    extension = ModuleType("Xlib.ext")
+    extension.composite = SimpleNamespace(RedirectAutomatic=0)
+    monkeypatch.setitem(sys.modules, "Xlib", xlib)
+    monkeypatch.setitem(sys.modules, "Xlib.ext", extension)
+    return connection, pixmap
+
+
+def test_linux_capture_reads_window_pixmap_not_overlaid_screen(window_capture):
+    connection, pixmap = window_capture
+    image = cua_linux.screenshot([10, 20, 2, 2])
+    assert image.size == (2, 2)
+    assert image.getpixel((1, 1)) == (255, 0, 0)
+    pixmap.free.assert_called_once()
+    connection.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "failure", ["no_composite", "outside_window", "focus_changed", "pixel_read"]
+)
+def test_linux_capture_fails_closed_and_releases_resources(window_capture, failure):
+    connection, pixmap = window_capture
+    root = connection.screen.return_value.root
+    window = connection.create_resource_object.return_value
+    if failure == "no_composite":
+        connection.has_extension.return_value = False
+    elif failure == "outside_window":
+        window.get_geometry.return_value.width = 1
+        window.query_tree.return_value.parent = root
+    elif failure == "focus_changed":
+        root.get_full_property.side_effect = [
+            SimpleNamespace(value=[42]),
+            SimpleNamespace(value=[99]),
+        ]
+    else:
+        pixmap.get_image.side_effect = RuntimeError("native capture failed")
+    with pytest.raises(RuntimeError):
+        cua_linux.screenshot([10, 20, 2, 2])
+    connection.close.assert_called_once()
+    if failure in {"focus_changed", "pixel_read"}:
+        pixmap.free.assert_called_once()
 
 
 def test_native_chord_releases_pressed_keys_when_injection_fails(monkeypatch):

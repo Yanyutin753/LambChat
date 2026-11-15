@@ -105,7 +105,7 @@ async def _index_revealed_file(
     file_name: str,
     file_category: FileCategory,
     mime_type: str,
-    file_size: int,
+    file_size: int | None,
     url: str,
     file_key: str,
     description: str,
@@ -297,13 +297,13 @@ async def reveal_file(
         filename = _get_filename_from_path(file_path)
         mime_type = get_mime_type(filename)
         file_category = get_file_category(mime_type)
-        remote_result = {
+        remote_result: dict[str, Any] = {
             "key": file_path,
             "url": file_path,
             "name": filename,
             "type": file_category,
             "mime_type": mime_type,
-            "size": 0,
+            "size": None,
             "_meta": {
                 "path": file_path,
                 "description": description or "",
@@ -315,7 +315,7 @@ async def reveal_file(
         index_file_name = filename
         index_file_key: str = file_path
         index_original_path = file_path
-        index_file_size = 0
+        index_file_size: int | None = None
         index_url = file_path
         index_mime_type = mime_type
         origin_row = await _reverse_map_self_upload_row(_reveal_user_id(runtime), file_path)
@@ -343,15 +343,40 @@ async def reveal_file(
             row_mime = origin_row.get("mime_type")
             if isinstance(row_mime, str) and row_mime:
                 index_mime_type = row_mime
+        if self_upload_key and self_upload_key.startswith("cua_screenshots/"):
+            from src.infra.upload.file_record import get_file_record_storage
+
+            owner = _reveal_user_id(runtime)
+            session = get_session_id_from_runtime(runtime)
+            # Do not use an unscoped storage HEAD to disclose private metadata.
+            index_file_size = None
+            if owner and session:
+                try:
+                    record = await get_file_record_storage().require_private_access(
+                        self_upload_key, owner, session
+                    )
+                    size = record.get("size")
+                    if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
+                        index_file_size = size
+                except AppError:
+                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "[reveal_file] Private capture metadata unavailable: %s", type(exc).__name__
+                    )
         if (
-            not index_file_size
+            index_file_size is None
             and self_upload_key is not None
             and not self_upload_key.startswith(("cua_screenshots/", "tool_binaries/"))
         ):
             try:
                 storage = await _get_storage()
                 file_size = await storage.get_size(self_upload_key)
-                if isinstance(file_size, int) and not isinstance(file_size, bool) and file_size > 0:
+                if (
+                    isinstance(file_size, int)
+                    and not isinstance(file_size, bool)
+                    and file_size >= 0
+                ):
                     index_file_size = file_size
             except Exception as e:
                 logger.debug("[reveal_file] Could not read upload size: %s", e)

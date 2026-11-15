@@ -1,8 +1,8 @@
 import { memo, useMemo } from "react";
-import { MousePointerClick } from "lucide-react";
+import { MousePointerClick, Smartphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CollapsiblePill } from "../../../common";
+import { CollapsiblePill, formatFileSize } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
 import {
@@ -69,6 +69,18 @@ function ComputerUseDetail({
     screenshot.error === "screen_recording_denied" ||
     data.accessibility === "denied" ||
     data.screen_recording === "denied";
+  const problem =
+    error || String(screenshot.error || screenshot.upload_error || "");
+  const hint = (
+    {
+      desktop_control_paused: "pausedHint",
+      desktop_control_unavailable: "unavailableHint",
+      foreground_required: "foregroundHint",
+      stale_state: "staleHint",
+      observation_required: "staleHint",
+      element_unavailable: "staleHint",
+    } as Record<string, string>
+  )[problem];
   const offline = error === "dispatch_failed" && /offline/i.test(text);
   const state =
     typeof data.state === "string"
@@ -165,6 +177,11 @@ function ComputerUseDetail({
                 : t(`${key}.noResult`)}
           {error && <span className="ml-2 font-mono">{error}</span>}
         </div>
+      )}
+      {hint && (
+        <p role="status" className="text-12 text-theme-text-secondary">
+          {t(`desktopControl.${hint}`)}
+        </p>
       )}
       {(needsPermission || offline) && (
         <p className="text-12 text-theme-text-secondary" role="status">
@@ -266,6 +283,9 @@ function ComputerUseDetail({
           </button>
           <figcaption className="text-12 text-theme-text-tertiary">
             {t(`${key}.screenshot`)}
+            {typeof screenshot.size === "number" &&
+              screenshot.size > 0 &&
+              ` · ${formatFileSize(screenshot.size)}`}
             {typeof screenshot.width === "number" &&
               typeof screenshot.height === "number" &&
               ` · ${screenshot.width} × ${screenshot.height}`}
@@ -380,7 +400,13 @@ const ComputerUseItem = memo(function ComputerUseItem({
   return (
     <CollapsiblePill
       status={status}
-      icon={<MousePointerClick size={12} className="shrink-0 opacity-50" />}
+      icon={
+        parsed.data.platform === "android" ? (
+          <Smartphone size={12} className="shrink-0 opacity-50" />
+        ) : (
+          <MousePointerClick size={12} className="shrink-0 opacity-50" />
+        )
+      }
       label={label}
       animatedDots={isStreamingLabel}
       variant="tool"
@@ -391,7 +417,12 @@ const ComputerUseItem = memo(function ComputerUseItem({
         openToolLivePanel({
           id,
           title: titleLabel,
-          icon: <MousePointerClick size={16} />,
+          icon:
+            parsed.data.platform === "android" ? (
+              <Smartphone size={16} />
+            ) : (
+              <MousePointerClick size={16} />
+            ),
           status,
           subtitle: actionLabel(action, t),
           fallback: <ComputerUseDetail {...props} />,

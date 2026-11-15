@@ -123,8 +123,6 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
     onControlPersistentGoal,
     onUpdatePersistentGoal,
     onClearActiveGoal,
-    goalLabel,
-    goalDurationLabel,
     goalClearLabel,
     showHelpMenu,
     helpMenuClassName,
@@ -602,8 +600,6 @@ export const ChatInput = memo(function ChatInput(rawProps: ChatInputProps) {
       onUpdatePersistentGoal={onUpdatePersistentGoal}
       onPause={goalControl("pause")}
       onResume={goalControl("resume")}
-      label={goalLabel}
-      durationLabel={goalDurationLabel}
       clearLabel={goalClearLabel}
       onClear={onClearActiveGoal}
       onResumeOrdinary={

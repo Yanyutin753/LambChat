@@ -283,7 +283,10 @@ fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), 
         })?;
         std::process::Command::new(bin)
     };
+    let control_token = uuid::Uuid::new_v4().to_string();
     command
+        .env("LAMBCHAT_DESKTOP_CONTROL", &control_token)
+        .stdin(std::process::Stdio::piped())
         .arg("run")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -305,11 +308,17 @@ fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), 
         // 时 unsupported 置位会把状态误报为「不支持」，误导排查方向。
         format!("failed to spawn lambchat-daemon: {e}")
     })?;
+    if let Some(input) = child.inner().stdin.take() {
+        crate::commands::desktop_control::attach(app, control_token.clone(), input);
+    }
     let pid = child.id();
     warn_log!("daemon started in process group (pid {pid})");
     // 排空 stdout/stderr 管道（防缓冲写满阻塞 daemon；日志进壳 stderr）
     if let Some(out) = child.inner().stdout.take() {
+        let control_app = app.clone();
         std::thread::spawn(move || {
+            let mut events = crate::commands::desktop_control::Events::default();
+            let prefix = format!("LAMBCHAT_CUA:{control_token}:");
             use std::io::Read;
             let mut buf = [0u8; 4096];
             let mut out = out;
@@ -317,6 +326,13 @@ fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), 
                 match out.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
+                        for event in events.feed(&buf[..n], &prefix) {
+                            crate::commands::desktop_control::receive(
+                                &control_app,
+                                &control_token,
+                                event,
+                            );
+                        }
                         // 写失败必须忽略：windows_subsystem="windows" 的壳 stderr
                         // 句柄无效，eprint! 会 panic 杀死排空线程——管道再无人读，
                         // daemon 写满 stdout 后永久阻塞（表现为沙箱假死）
@@ -329,6 +345,7 @@ fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), 
                     }
                 }
             }
+            crate::commands::desktop_control::detached(&control_app, &control_token);
         });
     }
     if let Some(err) = child.inner().stderr.take() {

@@ -174,3 +174,7 @@ tickets/
 .video_agent/
 
 !/scripts/check_release_mutability.py
+
+# Android local-device reproducible runtime preparation (generated assets stay in app/build).
+!/scripts/prepare_android_runtime.py
+!/scripts/android-runtime/

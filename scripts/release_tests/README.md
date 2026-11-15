@@ -47,3 +47,20 @@ python3 scripts/run_validation.py uv run python scripts/test_windows_device.py v
 Windows 验证锁覆盖安装、原生检查和清理；使用独立 WebView 和 daemon 目录。结束后回收本轮客户端、计划任务、调试监听、临时 PAT/机器、凭据及合成图片/会话；清理失败明确失败，失败安装备份保留在本轮 Windows 临时目录供恢复，成功后删除大体积临时安装文件。报告绑定 tag、签名源码 SHA 和本轮编号，临时凭据不进入最终报告。
 
 该工具是按需诊断工具，不是发布门禁。尚未重跑的真机路径如实标为未验证；GitHub 托管 runner 不需要访问局域网真机，也未新增后台任务或自托管 runner。
+
+## CUA 常驻浮窗开发验收
+
+`frontend/src-tauri/examples/desktop_control_smoke.rs` 使用独立应用标识
+`com.lambchat.control-acceptance`，运行真实壳管道与 `DesktopControl`，但不会注入任何桌面输入。
+先经验证锁完成前端构建，再设置 `LAMBCHAT_CONTROL_TEST_ROOT` 为仓库绝对路径、
+`LAMBCHAT_CONTROL_TEST_PYTHON` 为已安装 Python 3.12+ 的绝对路径，经验证锁运行：
+
+```sh
+python3 scripts/run_validation.py cargo run --manifest-path frontend/src-tauri/Cargo.toml -j1 --example desktop_control_smoke --features tauri/custom-protocol
+```
+
+需要已解锁的交互桌面。检查浮窗不抢初始焦点、置顶和拖动、暂停确认后才可继续，及思考间隔不隐藏。
+测试约三分钟自动结束；`cua_state` 仅等待并返回测试文本，不能用它代替真实键鼠或截图验证。
+真实输入取消回归在 `tests/client/test_cua_worker.py`，它验证暂停后工作进程已退出且不会继续延迟写入。
+
+原生浮窗可通过 `LAMBCHAT_CONTROL_AUTOMATED=1` 运行同一 example：在实际 WebView 中检查按钮尺寸及 20 轮真实管道暂停/恢复，输出 `control-fixture-report`，失败或三分钟超时返回非零。此模式不注入桌面键鼠，不能代替原生拖动与目标应用截图验收。

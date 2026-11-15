@@ -25,7 +25,7 @@ export function buildMeta(file: RevealedFileItem, t: TFunction): string {
   const isProject = file.file_type === "project";
   const ext = isProject ? "" : getExt(file.file_name);
   const parts: string[] = [];
-  if (!isProject && file.file_size > 0)
+  if (!isProject && file.file_size != null && file.file_size > 0)
     parts.push(formatFileSize(file.file_size));
   if (ext) parts.push(CODE_LANG_MAP[ext] || ext);
   parts.push(formatTimeAgo(t, file.created_at));
@@ -429,7 +429,9 @@ export function buildFileCardPreview(
     badge: ext || label.toUpperCase(),
     lines: normalizeLines([
       description,
-      file.file_size > 0 ? formatFileSize(file.file_size) : "",
+      file.file_size != null && file.file_size > 0
+        ? formatFileSize(file.file_size)
+        : "",
       file.mime_type || label,
     ]),
     colorName,

@@ -1,3 +1,5 @@
+import { getOwnUploadFileUrl } from "../../../../services/api/uploadFileUrl";
+
 export function computerUseRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -29,8 +31,7 @@ export function parseComputerUseResult(
 
   const screenshot = computerUseRecord(data.screenshot);
   const screenshotSrc =
-    typeof screenshot.url === "string" &&
-    /^\/api\/upload\/file\//.test(screenshot.url)
+    typeof screenshot.url === "string" && getOwnUploadFileUrl(screenshot.url)
       ? screenshot.url
       : typeof screenshot.mime === "string" &&
           /^image\/(jpeg|png|webp)$/.test(screenshot.mime) &&
@@ -55,14 +56,30 @@ export function parseComputerUseResult(
   const error =
     typeof data.error === "string"
       ? data.error
-      : (original.match(/^ERROR\s+(\w+)/)?.[1] ?? "");
+      : original.match(/^ERROR\s+(\w+)/)?.[1] ?? "";
   return { data, text, error, screenshotSrc };
 }
 
-export function computerUsePreviewText(parsed: ReturnType<typeof parseComputerUseResult>): string {
+export function computerUsePreviewText(
+  parsed: ReturnType<typeof parseComputerUseResult>,
+): string {
   const { data, text } = parsed;
-  const source = [data.state, data.tree, computerUseRecord(data.window).title, data.message]
-    .find((value) => typeof value === "string" && value.trim());
-  const readable = typeof source === "string" ? source : Object.keys(data).length === 0 ? text : "";
-  return readable.split("\n").find((line) => line.trim())?.trim() ?? "";
+  const source = [
+    data.state,
+    data.tree,
+    computerUseRecord(data.window).title,
+    data.message,
+  ].find((value) => typeof value === "string" && value.trim());
+  const readable =
+    typeof source === "string"
+      ? source
+      : Object.keys(data).length === 0
+        ? text
+        : "";
+  return (
+    readable
+      .split("\n")
+      .find((line) => line.trim())
+      ?.trim() ?? ""
+  );
 }
