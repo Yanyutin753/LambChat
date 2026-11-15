@@ -43,6 +43,10 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 - **daemon 保持 stdlib + httpx 的极简依赖面**，新增依赖必须在 PR 说明理由（PyInstaller onefile 体积与冷启动对此敏感）。既有例外：computer-use 的 `cua` 依赖组（`uv sync --group cua`，平台标记互斥）——macOS atomacos（带 PyObjC+pyautogui）、Windows pywinauto+pyautogui、Linux pyautogui+python-xlib（AT-SPI 走系统包 python3-pyatspi）；未同步该组的构建里 cua\_\* op 报 `unsupported_platform`，其余链路不受影响。
 - CUA 必须显式选择在线机器；代码沙箱可为本地或云端，桌面选机与代码沙箱平台独立。工具参数不能覆盖会话选机，未选择、离线或审批后改机均拒绝，不回退到账户默认机器。审批绑定机器和具体操作，按该机器确认策略执行。观察索引仅在当前会话有效。
+- 桌面构建内嵌 `client/agent-desktop.lock.json` 锁定的 agent-desktop 与平台 helper，构建期核验 SHA256，不在运行期自动下载或执行 PATH 中的同名程序。许可证随 daemon 分发。开发环境可通过 `LAMBCHAT_AGENT_DESKTOP` 指定二进制；未安装资源时保留原生后端。新驱动继续遵守前台截图、显式激活与机器审批边界，不开放其任意 CLI/MCP 命令。
+- CUA 观察和输入在独立常驻工作进程内执行，超时或取消后回收进程树与临时快照目录；Windows 使用 Job Object。应用启动独立于该工作进程，避免回收自动化进程时关闭用户应用。恢复后必须重新观察，不自动重放输入。Agent 光标使用上游 overlay，平台不支持绘制时不把展示失败当作语义动作失败。
+- `state` 回传 `snapshot_id`；使用截图像素坐标时必须传该 ID 与 `coordinate_space=screenshot`，daemon 校验会话、窗口焦点及位置并完成缩放换算。服务端使用独立 `cua_snapshot_action` 操作，旧 daemon 明确拒绝，不会把截图坐标误当全局坐标。原有全局坐标与未带快照 ID 的调用保持兼容。动作的 `disposition` 区分已验证、未验证和不确定交付；工具成功不能替代应用最终状态验收。
+- 命令 stdout/stderr 通过非阻塞管道读取并分别保留有界尾部，禁止先收集完整输出再截断；Windows 需要项目既定的 Python 3.12+ 管道支持。
 - 远程服务器地址必须使用 HTTPS，HTTP 仅允许回环开发地址。PAT 绑定签发服务器 origin，改连服务器不复用旧凭据，未绑定的旧凭据须重新配对；服务器反向代理子路径仍保留。凭据文件原子写入，并在写入内容前设置仅本用户可访问的权限。
 - 上述传输与账户隔离不等同于服务器失陷后的端到端控制隔离：当前电脑指令仍由服务端 Agent 生成。可信设备执行与端到端配对方案须独立实现、验证后才能声明服务器无控制权。
 - daemon 的有界 call_id 去重同时记录请求终态：结果已受理（含流式结果）或服务端明确拒绝过期回传后，重复帧仅记审计并跳过 HTTP；结果尚未确认的重复帧仍补发 ACK，避免旧终态调用阻塞后续请求。

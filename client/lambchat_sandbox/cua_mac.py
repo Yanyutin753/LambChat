@@ -12,6 +12,17 @@ import atomacos
 from atomacos import _a11y
 
 
+def desktop_locked() -> bool:
+    from Quartz import CGSessionCopyCurrentDictionary
+
+    session = CGSessionCopyCurrentDictionary()
+    return (
+        not session
+        or bool(session.get("CGSSessionScreenIsLocked"))
+        or not session.get("kCGSSessionOnConsoleKey", False)
+    )
+
+
 def ax_trusted() -> bool:
     try:
         return bool(_a11y.AXIsProcessTrusted())

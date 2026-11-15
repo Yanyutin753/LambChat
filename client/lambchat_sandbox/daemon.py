@@ -47,6 +47,7 @@ from lambchat_sandbox import paths, pbs
 from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.cua_ops import CUA_OPS, handle_cua_op
+from lambchat_sandbox.cua_worker import CuaWorker
 from lambchat_sandbox.executor import Executor, ExecutorError, map_workspace
 from lambchat_sandbox.fsops import (
     FS_OPS,
@@ -80,6 +81,7 @@ _EXEC_ACK_DELAY_S = 8.0
 _RECENT_CALL_IDS_MAX = 512
 _TRANSFER_CONCURRENCY = 8
 _MAX_PENDING_CALLS = 64
+_CUA_WORKER = CuaWorker()
 _TRANSFER_OPS = STREAM_OPS | {"fs_upload", "fs_download"}
 
 
@@ -345,6 +347,8 @@ async def _handle_channel(
             ),
             errors[0],
         ) from None
+    finally:
+        await _CUA_WORKER.close()
 
 
 def _transfer_path(call: ToolCall, cfg: SandboxConfig) -> Path | None:
@@ -629,7 +633,7 @@ async def _process_cua_call(
 ) -> None:
     """op=cua_*（computer-use）的执行链：与 fs op 同语义的两级错误协议。
 
-    AX 树走查/截屏是同步重活（各自带时间预算），经 to_thread 离开事件循环；
+    AX 树走查/截屏与输入在可回收工作进程内执行，超时终止而非遗留后台线程；
     op 级错误（未授权/元素失效/平台不支持）收敛进 ``result.error``——模型
     可读指引后引导用户授权或改路径重试。
     """
@@ -649,7 +653,13 @@ async def _process_cua_call(
         return
 
     try:
-        result = await asyncio.to_thread(handle_cua_op, call.op, call.payload)
+        if call.op == "cua_launch":
+            # User applications must outlive disposal of the automation worker.
+            result = await asyncio.to_thread(handle_cua_op, call.op, call.payload)
+        else:
+            result = await _CUA_WORKER.call(
+                call.op, call.payload, timeout=effective - (time.monotonic() - started)
+            )
     except Exception as exc:  # noqa: BLE001 - 单条 cua op 崩溃不拖垮通道
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}

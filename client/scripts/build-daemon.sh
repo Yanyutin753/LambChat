@@ -73,6 +73,7 @@ fi
 # Keep the small packaging environment separate from the shared developer venv.
 export UV_PROJECT_ENVIRONMENT="$REPO_ROOT/client/build/venv"
 uv sync --locked --only-group daemon-build
+uv run --no-sync python client/scripts/fetch-agent-desktop.py --triple "$TRIPLE"
 uv run --no-sync pyinstaller client/pyinstaller.spec \
     --distpath client/dist \
     --workpath client/build \

@@ -111,6 +111,88 @@ def test_apps_marks_frontmost(fake_backend: _FakeBackend) -> None:
     assert by_name["Finder"]["active"] is False
 
 
+def test_snapshot_id_rejects_index_from_replaced_observation(fake_backend):
+    first = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": first["snapshot_id"],
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert result["error"] == "stale_state"
+    assert not fake_backend.performed
+
+
+def test_element_double_click_does_not_degrade_to_single_semantic_press(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    calls = []
+    monkeypatch.setattr(
+        fake_backend, "click_point", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 1},
+            "click_count": 2,
+        },
+    )
+    assert result["ok"]
+    assert not fake_backend.performed
+    assert len(calls) == 2
+
+
+def test_driver_input_error_is_not_replayed_as_keyboard_input(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+
+    def rejected(*args):
+        raise cua_ops.CuaOpError("stale_state", "delivery uncertain; observe")
+
+    monkeypatch.setattr(fake_backend, "set_value", rejected)
+    monkeypatch.setattr(cua_ops, "_type_text", lambda text: pytest.fail("unsafe input replay"))
+    result = cua_ops.handle_cua_op(
+        "cua_type",
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 2},
+            "text": "test",
+        },
+    )
+    assert result["error"] == "stale_state"
+
+
+def test_screenshot_coordinates_are_scaled_by_daemon(fake_backend, monkeypatch):
+    monkeypatch.setattr(cua_ops, "_capture", lambda bounds: {"width": 400, "height": 300})
+    state = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    calls = []
+    monkeypatch.setattr(
+        fake_backend, "click_point", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": state.get("snapshot_id"),
+            "coordinate_space": "screenshot",
+            "target": {"x": 200, "y": 150},
+        },
+    )
+    assert result["ok"]
+    assert calls == [(410.0, 320.0, "left")]
+
+
+def test_driver_observation_error_is_not_an_empty_success(fake_backend, monkeypatch):
+    def fail(element):
+        raise cua_ops.CuaOpError("stale_state", "window ownership changed")
+
+    monkeypatch.setattr(fake_backend, "row_of", fail)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert result["error"] == "stale_state"
+
+
 @pytest.mark.parametrize("clicks", [1, 2, 3])
 def test_native_coordinate_click_preserves_click_count(fake_backend, monkeypatch, clicks):
     calls = []
@@ -979,3 +1061,22 @@ def test_element_event_fallback_checks_its_observed_window(fake_backend, monkeyp
         },
     )
     assert result["error"] == "foreground_required"
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_subtree_observation_refreshes_snapshot_backend(fake_backend, monkeypatch, complete):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    refreshed = _FakeElement("AXTextField", "Updated text")
+
+    def refresh(element, window):
+        window["driver_complete"] = complete
+        return refreshed
+
+    monkeypatch.setattr(fake_backend, "refresh_element", refresh, raising=False)
+    result = cua_ops.handle_cua_op(
+        "cua_state", {"pid": 4242, "target": {"type": "element", "index": 2}}
+    )
+    assert "Updated text" in result["state"]
+    assert result["truncated"] is not complete
+    cua_ops.handle_cua_op("cua_click", {"pid": 4242, "target": {"type": "element", "index": 0}})
+    assert fake_backend.performed[-1][0] is refreshed

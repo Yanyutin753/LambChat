@@ -1,0 +1,13 @@
+{
+  "version": "1.3.1",
+  "source_commit": "b0b7277bea09b770ef9d1fb45aad667bc432cd57",
+  "repository": "vercel-labs/agent-desktop",
+  "assets": {
+    "aarch64-apple-darwin": "9b7b7cfc74892eab46c2c85d6cb7dc4863bf8dab0a222cfcfb8ae4604c69c86c",
+    "aarch64-pc-windows-msvc": "805f1f61890f9983fceaf38cda94a37a049c379435d65607db5cedd22c8ef97b",
+    "aarch64-unknown-linux-gnu": "438990a703fbeb19775596c341c3701435e80adbfa1b2f64b82ff17567d5573b",
+    "x86_64-apple-darwin": "469da10cfb68928c58caff88b92b30526e0ca895ac06bc86b7f533b1d9b309b3",
+    "x86_64-pc-windows-msvc": "6ee4b1e078f4e78792e79f16e32e4a78b9919464aa3c55629b7e27ed53a08c13",
+    "x86_64-unknown-linux-gnu": "ca77b6b75034eeb12e537dd8c0a4f2a3424119253f38b7e6bd79ba0d2fef1264"
+  }
+}

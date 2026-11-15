@@ -108,6 +108,18 @@ jobs:
         shell: bash
         run: python scripts/run_validation.py uv run --no-project --python 3.12 python client/scripts/fetch-pbs.py --platform windows-x86_64
 
+      - name: Verify packaged Windows computer control
+        run: python scripts/run_validation.py client/build/venv/Scripts/python.exe client/scripts/smoke-cua-windows.py --daemon frontend/src-tauri/binaries/lambchat-daemon-x86_64-pc-windows-msvc.exe --report-dir cua-verification-artifacts
+
+      - name: Upload Windows computer control evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cua-${{ github.run_id }}-${{ github.run_attempt }}
+          path: cua-verification-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Configure isolated test application identity
         shell: pwsh
         run: |

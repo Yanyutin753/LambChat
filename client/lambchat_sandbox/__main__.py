@@ -73,6 +73,10 @@ if __name__ == "__main__":
     _force_utf8_stdio()
     _enable_parent_death_signal()
     _watch_parent_windows()
+    if sys.argv[1:] == ["--cua-worker"]:
+        from lambchat_sandbox.cua_worker import worker_main
+
+        raise SystemExit(worker_main())
     from lambchat_sandbox.cli import main
 
     raise SystemExit(main())
