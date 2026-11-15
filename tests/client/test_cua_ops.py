@@ -1063,13 +1063,20 @@ def test_element_event_fallback_checks_its_observed_window(fake_backend, monkeyp
     assert result["error"] == "foreground_required"
 
 
-def test_subtree_observation_refreshes_snapshot_backend(fake_backend, monkeypatch):
+@pytest.mark.parametrize("complete", [True, False])
+def test_subtree_observation_refreshes_snapshot_backend(fake_backend, monkeypatch, complete):
     cua_ops.handle_cua_op("cua_state", {"pid": 4242})
     refreshed = _FakeElement("AXTextField", "Updated text")
-    monkeypatch.setattr(fake_backend, "refresh_element", lambda element: refreshed, raising=False)
+
+    def refresh(element, window):
+        window["driver_complete"] = complete
+        return refreshed
+
+    monkeypatch.setattr(fake_backend, "refresh_element", refresh, raising=False)
     result = cua_ops.handle_cua_op(
         "cua_state", {"pid": 4242, "target": {"type": "element", "index": 2}}
     )
     assert "Updated text" in result["state"]
+    assert result["truncated"] is not complete
     cua_ops.handle_cua_op("cua_click", {"pid": 4242, "target": {"type": "element", "index": 0}})
     assert fake_backend.performed[-1][0] is refreshed

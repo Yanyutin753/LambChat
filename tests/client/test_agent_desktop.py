@@ -168,11 +168,26 @@ def test_subtree_refresh_reads_live_value_instead_of_cached_snapshot(backend, mo
             or {"tree": {"ref_id": "@s:e2", "role": "textfield", "value": "new"}, "complete": True}
         ),
     )
-    refreshed = backend.refresh_element({"ref_id": "@s:e2", "role": "textfield", "value": "old"})
+    window = {}
+    refreshed = backend.refresh_element(
+        {"ref_id": "@s:e2", "role": "textfield", "value": "old"}, window
+    )
     assert refreshed["value"] == "new"
+    assert window["driver_complete"] is True
     assert calls == [
         ("snapshot", "--root", "@s:e2", "--compact", "--include-bounds", "--timeout-ms", "5000")
     ]
+
+
+@pytest.mark.parametrize("complete", [False, None])
+def test_incomplete_subtree_is_not_reported_as_complete(backend, monkeypatch, complete):
+    result = {"tree": {"ref_id": "@s:e2", "role": "group"}}
+    if complete is not None:
+        result["complete"] = complete
+    monkeypatch.setattr(backend, "_call", lambda *a, **k: result)
+    window = {"driver_complete": True}
+    backend.refresh_element({"ref_id": "@s:e2"}, window)
+    assert window["driver_complete"] is False
 
 
 def test_snapshot_owner_check_uses_resolved_driver_app_without_rediscovery(backend, monkeypatch):

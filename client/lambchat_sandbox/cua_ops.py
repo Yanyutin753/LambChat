@@ -409,7 +409,7 @@ def _op_state(payload: dict) -> dict:
     )
     refresh = getattr(backend, "refresh_element", None)
     if subtree and callable(refresh):
-        root = refresh(root)
+        root = refresh(root, window_info)
     rows, elements, truncated = _walk_tree(root)
     observed = _Observed(elements, window_info)
     _store_observation(pid, resolved_window_id, observed)

@@ -180,8 +180,8 @@ class AgentDesktopBackend:
     def children(self, element: dict) -> list:
         return self._node(element).get("children", [])
 
-    def refresh_element(self, element: dict) -> dict:
-        return self._call(
+    def refresh_element(self, element: dict, window: dict) -> dict:
+        result = self._call(
             "snapshot",
             "--root",
             self._node(element)["ref_id"],
@@ -189,7 +189,9 @@ class AgentDesktopBackend:
             "--include-bounds",
             "--timeout-ms",
             "5000",
-        )["tree"]
+        )
+        window["driver_complete"] = result.get("complete", False)
+        return result["tree"]
 
     def perform(self, element: dict, action: str) -> dict:
         commands = {
