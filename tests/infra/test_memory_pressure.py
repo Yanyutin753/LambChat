@@ -53,7 +53,7 @@ async def test_small_gc_dip_does_not_hide_sustained_growth(monitor):
     assert (await monitor.get_summary())["suspected_leak"] is True
 
 
-async def test_idle_window_reports_observed_rss_change_without_calling_it_a_leak(monitor):
+async def test_zero_run_samples_do_not_claim_process_idle(monitor):
     monitor._history = deque(
         [
             sample(500, 0, active_runs=2, queued_runs=0),
@@ -63,8 +63,30 @@ async def test_idle_window_reports_observed_rss_change_without_calling_it_a_leak
     )
     summary = await monitor.get_summary()
     assert summary["history_window_seconds"] == 660
-    assert summary["idle_seconds"] == 600
-    assert summary["idle_rss_change_bytes"] == -40
+    assert summary["idle_seconds"] is None
+    assert summary["idle_rss_change_bytes"] is None
+    assert summary["sampled_no_run_window_seconds"] == 600
+    assert summary["sampled_no_run_rss_change_bytes"] == -40
+
+
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {},
+        {"active_runs": 0},
+        {"queued_runs": 0},
+        {"active_runs": 1, "queued_runs": 0},
+        {"active_runs": 0, "queued_runs": 1},
+    ],
+)
+async def test_sampled_no_run_window_requires_known_zero_counts(monitor, counts):
+    monitor._history = deque(
+        [sample(500, 0, active_runs=0, queued_runs=0), sample(520, 60, **counts)]
+    )
+    summary = await monitor.get_summary()
+    assert summary["sampled_no_run_window_seconds"] is None
+    assert summary["sampled_no_run_rss_change_bytes"] is None
+    assert summary["idle_seconds"] is None
 
 
 async def test_memory_incident_survives_live_snapshot_expiry():

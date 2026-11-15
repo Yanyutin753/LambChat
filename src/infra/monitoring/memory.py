@@ -449,11 +449,11 @@ class MemoryMonitor:
             return {"available": False, "reason": "no_samples", "last_error": self._last_error}
 
         latest = self._history[-1]
-        idle_start = None
+        no_run_start = None
         for sample in reversed(self._history):
             if sample.get("active_runs") != 0 or sample.get("queued_runs") != 0:
                 break
-            idle_start = sample
+            no_run_start = sample
         try:
             from src.infra.storage.checkpoint import get_checkpointer_diagnostics
 
@@ -474,11 +474,16 @@ class MemoryMonitor:
             "process_started_at": latest.get("process_started_at"),
             "active_runs": latest.get("active_runs"),
             "queued_runs": latest.get("queued_runs"),
-            "idle_seconds": (latest["timestamp"] - idle_start["timestamp"]).total_seconds()
-            if idle_start
+            # Task-count samples do not cover HTTP/background work or work between samples.
+            "idle_seconds": None,
+            "idle_rss_change_bytes": None,
+            "sampled_no_run_window_seconds": (
+                latest["timestamp"] - no_run_start["timestamp"]
+            ).total_seconds()
+            if no_run_start
             else None,
-            "idle_rss_change_bytes": latest["rss_bytes"] - idle_start["rss_bytes"]
-            if idle_start
+            "sampled_no_run_rss_change_bytes": latest["rss_bytes"] - no_run_start["rss_bytes"]
+            if no_run_start
             else None,
             "memory_current_bytes": latest.get("memory_current_bytes"),
             "memory_limit_bytes": latest.get("memory_limit_bytes"),

@@ -101,6 +101,14 @@ API 通过既有 `update.sh` 切换端口并重载配置；同镜像 worker 需�
 经验证锁运行 `uv run pytest tests/infra/session/test_byte_chunks_mongodb.py -q`。
 测试只创建并清理随机命名的测试数据库，覆盖旧路径超限、新路径重试、读取、替换和回滚。
 
+## 内存采样的活动范围
+
+`sampled_no_run_window_seconds` 与 `sampled_no_run_rss_change_bytes` 仅描述连续采样点上
+本地 Agent 运行数、排队数都为零时的跨度及 RSS 差值。它们不覆盖 HTTP 请求、其他后台任务，
+也不能排除两次采样之间已经结束的任务，不能作为进程真正空闲或内存泄漏的证明。
+有歧义的旧字段 `idle_seconds` / `idle_rss_change_bytes` 保留为 `null`；历史记录中的旧数值
+同样不能直接当作空闲证据。排查时仍需关联同一实例的请求日志与任务活动。
+
 ## 回环网络故障排查
 
 2026-11-06 故障的内核日志在 00:39:06 起记录了 `UFW BLOCK IN=lo`，随后包含
