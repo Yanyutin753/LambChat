@@ -178,6 +178,20 @@ def test_execute_truncates_oversized_stdout_keeps_tail(tmp_path):
     assert len(res["stdout"]) == len(TRUNCATED_MARK) + MAX_OUTPUT_BYTES
 
 
+def test_execution_does_not_buffer_all_output_with_communicate(tmp_path, monkeypatch):
+    import subprocess
+
+    def unbounded(*args, **kwargs):
+        pytest.fail("communicate buffers the entire output")
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", unbounded)
+    cmd = _python_stdout_cmd("'x' * (4 * 1024 * 1024) + 'END'")
+    result = Executor(tmp_path).execute(cmd, "/workspace/bounded", timeout=30)
+    assert result["status"] == "ok"
+    assert result["stdout"].endswith("END")
+    assert len(result["stdout"]) == len(TRUNCATED_MARK) + MAX_OUTPUT_BYTES
+
+
 def test_execute_truncates_stderr_independently(tmp_path):
     payload = f"'e' * {300 * 1024} + 'ETAIL'"
     cmd = _python_stdout_cmd(payload).replace("sys.stdout.write", "sys.stderr.write")

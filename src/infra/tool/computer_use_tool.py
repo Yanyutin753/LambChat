@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional
 from weakref import WeakValueDictionary
 
 from langchain.tools import ToolRuntime, tool
@@ -121,6 +121,13 @@ class _ComputerUseInput(BaseModel):
     index: Optional[int] = Field(
         None, description="element index from latest state; state: inspect only this subtree"
     )
+    snapshot_id: Optional[str] = Field(
+        None, description="Copy snapshot_id from state when acting on its elements or screenshot"
+    )
+    coordinate_space: Literal["screen", "screenshot"] = Field(
+        "screen",
+        description="Use screenshot with snapshot_id for image pixel coordinates; daemon handles scaling",
+    )
     x: Optional[float] = Field(
         None,
         description="coordinate fallback: global screen x (add window origin; account for screenshot scaling)",
@@ -158,6 +165,10 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
         payload["name"] = data.name
     if data.window_id is not None:
         payload["window_id"] = data.window_id
+    if data.snapshot_id is not None:
+        payload["snapshot_id"] = data.snapshot_id
+    if data.coordinate_space != "screen":
+        payload["coordinate_space"] = data.coordinate_space
     if data.index is not None:
         payload["target"] = {"type": "element", "index": data.index}
     elif data.x is not None and data.y is not None:
@@ -248,6 +259,8 @@ async def computer_use(
     name: Annotated[Optional[str], "Target app name (exact match)"] = None,
     window_id: Annotated[Optional[int], "Pin one window"] = None,
     index: Annotated[Optional[int], "Element index from latest state"] = None,
+    snapshot_id: Annotated[Optional[str], "Snapshot identity from state"] = None,
+    coordinate_space: Annotated[Literal["screen", "screenshot"], "Coordinate space"] = "screen",
     x: Annotated[Optional[float], "Coordinate fallback x"] = None,
     y: Annotated[Optional[float], "Coordinate fallback y"] = None,
     text: Annotated[Optional[str], "Text for type/key"] = None,
@@ -358,8 +371,11 @@ async def computer_use(
     - For settable elements prefer set_value over typing.
     - ``action`` invokes a named accessibility action: pass ``element_action`` from
       the latest tree's actions= list and the element ``index``.
-    - Coordinate targets use global screen coordinates, not cropped screenshot pixels.
-      Add the window origin and account for screenshot scaling using window.bounds.
+    - Copy state.snapshot_id when using its element indices. For screenshot pixels,
+      use coordinate_space="screenshot" and snapshot_id: the daemon handles scaling
+      and rejects moved windows. The legacy default "screen" uses global coordinates.
+    - Driver disposition distinguishes verified from unverified delivery. After timeout
+      or uncertain delivery, observe first; never blindly repeat a write or click.
       For scroll, pass an element index or coordinates to target the scroll area.
     - Errors are structured: ax_not_trusted/screen_recording_denied → tell the user to
       grant Accessibility & Screen Recording to LambChat.app once in System Settings
@@ -378,6 +394,18 @@ async def computer_use(
         return "ERROR invalid_arguments: this action needs pid or name"
     if action == "launch" and not url and not app:
         return "ERROR invalid_arguments: launch needs url or app"
+    if coordinate_space == "screenshot" and not snapshot_id:
+        return "ERROR invalid_arguments: screenshot coordinates require snapshot_id from state"
+    if snapshot_id and action not in (
+        "state",
+        "click",
+        "set_value",
+        "type",
+        "key",
+        "scroll",
+        "action",
+    ):
+        return "ERROR invalid_arguments: snapshot_id only applies to state and input actions"
 
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -406,6 +434,8 @@ async def computer_use(
             name=name,
             window_id=window_id,
             index=index,
+            snapshot_id=snapshot_id,
+            coordinate_space=coordinate_space,
             x=x,
             y=y,
             text=text,
@@ -453,9 +483,11 @@ async def computer_use(
         ):
             return "ERROR declined_by_user: approval missing or operation changed; do not retry without an explicit user request"
         try:
-            resp = await dispatch_local_call(
-                user_id, f"cua_{action}", payload, machine_id=selected_machine
-            )
+            op = f"cua_{action}"
+            if snapshot_id:
+                op = "cua_snapshot_action"
+                payload = {**payload, "operation": action}
+            resp = await dispatch_local_call(user_id, op, payload, machine_id=selected_machine)
         except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
             # AppError.__str__ retains interpolation placeholders.
             message = exc.display_message if isinstance(exc, AppError) else str(exc)

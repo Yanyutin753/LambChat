@@ -384,6 +384,33 @@ async def test_element_index_becomes_target_payload(monkeypatch: pytest.MonkeyPa
     assert captured["payload"]["pid"] == 7
 
 
+def test_snapshot_and_screenshot_space_reach_daemon():
+    data = cut._ComputerUseInput(
+        action="click",
+        pid=7,
+        x=20,
+        y=30,
+        snapshot_id="observation-1",
+        coordinate_space="screenshot",
+    )
+    payload = cut._build_payload(data)
+    assert payload["snapshot_id"] == "observation-1"
+    assert payload["coordinate_space"] == "screenshot"
+
+
+async def test_snapshot_actions_use_distinct_op_for_old_daemons(monkeypatch):
+    captured = {}
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        captured.update(op=op, payload=payload)
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    await _call(action="click", pid=7, index=3, snapshot_id="observation-1")
+    assert captured["op"] == "cua_snapshot_action"
+    assert captured["payload"]["operation"] == "click"
+
+
 @pytest.mark.asyncio
 async def test_coordinate_target_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}

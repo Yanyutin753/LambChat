@@ -133,6 +133,7 @@ def test_win_shell_uses_drive_path_for_cwd_and_workspace_env(
         return SimpleNamespace(pid=12345, returncode=0, communicate=lambda **kw: (b"ok", b""))
 
     monkeypatch.setattr(executor_mod.subprocess, "Popen", popen)
+    monkeypatch.setattr(executor_mod, "_communicate_tail", lambda proc, timeout: (b"ok", b""))
     result = Executor(tmp_path)._execute_windows("echo ok", Path(native), 5, detach=detach)
     assert result["exit_code"] == 0
     assert str(captured["cwd"]) == expected
@@ -335,3 +336,28 @@ def test_job_constants_match_windows_sdk_values() -> None:
     assert JOBOBJECT_INFO_CLASS_EXTENDED_LIMIT == 9  # JOBOBJECTINFOCLASS 成员序
     assert PROCESS_TERMINATE == 0x0001
     assert PROCESS_SET_QUOTA == 0x0100
+
+
+def test_windows_shell_is_suspended_until_job_assignment(tmp_path, monkeypatch, win32):
+    events = []
+    monkeypatch.setattr(executor_mod, "os", SimpleNamespace(**{**vars(os), "name": "nt"}))
+
+    def popen(*args, **kwargs):
+        events.append(("spawn", kwargs.get("creationflags")))
+        return SimpleNamespace(pid=12345, returncode=0)
+
+    monkeypatch.setattr(executor_mod.subprocess, "Popen", popen)
+    monkeypatch.setattr(win32, "assign_process_to_job_object", lambda *a: events.append("assign"))
+    monkeypatch.setattr(
+        executor_mod,
+        "psutil",
+        SimpleNamespace(
+            Process=lambda pid: SimpleNamespace(resume=lambda: events.append("resume"))
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        executor_mod, "_communicate_tail", lambda *a: events.append("read") or (b"ok", b"")
+    )
+    assert Executor(tmp_path)._execute_windows("echo ok", tmp_path, 5)["exit_code"] == 0
+    assert events == [("spawn", 4), "assign", "resume", "read"]
