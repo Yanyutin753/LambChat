@@ -4569,6 +4569,8 @@
     "statusSuspectedLeak": "持続的なメモリ増加が疑われます: RSS={{rss}}, 成長={{growth}}",
     "statusUnavailableReason": "メモリモニタリングは利用できません: {{reason}}",
     "suspectedLeak": "メモリリーク疑い",
+    "memoryPressure": "メモリ負荷が高い",
+    "statusMemoryPressure": "コンテナのメモリ使用量が上限の 85% に達しており、メモリ不足の恐れがあります。",
     "threads": "スレッド",
     "title": "システムヘルス",
     "topAllocations": "割り当て上位",

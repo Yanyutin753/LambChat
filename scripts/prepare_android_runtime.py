@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -34,8 +36,15 @@ def fetch(url: str, digest: str, cache: Path) -> bytes:
     path = cache / digest
     if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == digest:
         return path.read_bytes()
-    with urllib.request.urlopen(url, timeout=120) as response:
-        data = response.read()
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as response:
+                data = response.read()
+            break
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                raise
+            time.sleep(2**attempt)
     if hashlib.sha256(data).hexdigest() != digest:
         raise ValueError(f"Checksum mismatch: {url}")
     path.write_bytes(data)

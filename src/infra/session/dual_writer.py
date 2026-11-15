@@ -55,9 +55,6 @@ _MONGO_BATCH_SIZE = 200  # 每 200 条立即刷新
 _MONGO_BUFFER_MAX = 10000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM
 _TTL_SET_KEYS_MAX = 5000  # _ttl_set_keys 上限，防止内存泄漏
 _LIVE_STREAM_READ_TIMEOUT_SECONDS = 24 * 60 * 60
-# 单组 chunk 事件的最大重试次数：超过后判定为不可写事件（如含非法字段名），
-# 丢弃并告警，避免毒事件永久阻塞 flush 循环
-_CHUNK_WRITE_MAX_ATTEMPTS = 50
 # 心跳与 xread block 同频 5s：空闲流每唤醒即发一次 ping；客户端按
 # 3 个周期（15s）无事件判定半开死连接并自愈，恢复时间 ~20s
 _SSE_HEARTBEAT_INTERVAL_SECONDS = 5
@@ -148,6 +145,7 @@ class DualEventWriter:
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[MongoBufferItem] = []
+        self._mongo_retry_after: dict[str, float] = {}
         self._mongo_flush_lock = asyncio.Lock()
         self._mongo_lock = asyncio.Lock()  # 只保护 buffer 和 flush 操作
         self._flush_event = asyncio.Event()  # 使用 Event 替代轮询标志
@@ -254,6 +252,10 @@ class DualEventWriter:
             buffer_size = 0
             async with self._mongo_lock:
                 buffer_size = len(self._mongo_buffer)
+                if buffer_size >= mongo_buffer_max:
+                    raise RuntimeError(
+                        "MongoDB event buffer is full; event remains in Redis replay"
+                    )
                 # 当缓冲区达到 80% 时发出警告
                 if buffer_size >= int(mongo_buffer_max * 0.8):
                     logger.warning(
@@ -449,6 +451,9 @@ class DualEventWriter:
         if chunk_storage_enabled:
             failed_chunk_items: list[MongoBufferItem] = []
             for trace_id, items, events, reserved_start_seq in _iter_chunk_write_groups(batch):
+                if self._mongo_retry_after.get(trace_id, 0) > time.monotonic():
+                    failed_chunk_items.extend(items)
+                    continue
                 trace_doc: dict[str, Any] | None = None
                 start_seq = reserved_start_seq
                 try:
@@ -458,11 +463,7 @@ class DualEventWriter:
                             len(events),
                         )
                         if not trace_doc:
-                            logger.warning(
-                                "Chunk write skipped because trace %s was not found", trace_id
-                            )
-                            failed_chunk_items.extend(items)
-                            continue
+                            raise RuntimeError("trace_chunk_reservation_unavailable")
                         start_seq = int(trace_doc.get("event_count", 0)) - len(events) + 1
                     else:
                         # Retry path: prefer the real trace document so chunk
@@ -490,35 +491,21 @@ class DualEventWriter:
                     )
                     if not appended:
                         raise RuntimeError("trace_chunk_write_fenced")
+                    self._mongo_retry_after.pop(trace_id, None)
                 except Exception as e:
-                    if start_seq is not None:
-                        attempts = max(_buffer_item_attempts(item) for item in items)
-                        if attempts >= _CHUNK_WRITE_MAX_ATTEMPTS:
-                            logger.error(
-                                "Dropping %s unwritable events for trace %s "
-                                "(seq %s..%s, event_type=%s, attempts=%s): %s",
-                                len(events),
-                                trace_id,
-                                start_seq,
-                                (start_seq or 0) + len(events) - 1,
-                                events[0].get("event_type"),
-                                attempts,
-                                e,
-                            )
-                        else:
-                            failed_chunk_items.extend(
-                                _with_chunk_retry_metadata(
-                                    item,
-                                    # Keep the group base seq for every item so the
-                                    # retry re-forms one group instead of one group
-                                    # per event.
-                                    reserved_start_seq=start_seq,
-                                    skip_legacy=dual_write_legacy or _buffer_item_skip_legacy(item),
-                                )
-                                for item in items
-                            )
-                    else:
-                        failed_chunk_items.extend(items)
+                    attempts = max(_buffer_item_attempts(item) for item in items) + 1
+                    if attempts >= 2:
+                        self._mongo_retry_after[trace_id] = time.monotonic() + min(
+                            2 ** min(attempts - 2, 5), 30
+                        )
+                    failed_chunk_items.extend(
+                        _with_chunk_retry_metadata(
+                            item,
+                            reserved_start_seq=start_seq,
+                            skip_legacy=dual_write_legacy or _buffer_item_skip_legacy(item),
+                        )
+                        for item in items
+                    )
                     logger.error(
                         "Chunk write failed for trace %s with %s events (seq %s..%s): %s",
                         trace_id,

@@ -17,6 +17,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import AzureChatOpenAI
 from pydantic import Field
 
+from src.infra.llm.openai_chat import chat_file_url_references
 from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
@@ -53,6 +54,14 @@ class LambChatAzureChatModel(QuotaChatMixin, AzureChatOpenAI):
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
+
+    def _get_request_payload(
+        self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
+    ) -> dict:
+        messages = self._convert_input(input_).to_messages()
+        if not self._use_responses_api({**self._default_params, **kwargs}):
+            messages = chat_file_url_references(messages)
+        return super()._get_request_payload(messages, stop=stop, **kwargs)
 
     async def _astream(self, *args: Any, **kwargs: Any) -> AsyncIterator[ChatGenerationChunk]:
         source = super()._astream(*args, **kwargs)

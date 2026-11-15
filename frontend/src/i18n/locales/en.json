@@ -4569,6 +4569,8 @@
     "statusSuspectedLeak": "Suspected sustained memory growth: RSS={{rss}}, Growth={{growth}}",
     "statusUnavailableReason": "Memory monitoring is unavailable: {{reason}}",
     "suspectedLeak": "Suspected Leak",
+    "memoryPressure": "High memory pressure",
+    "statusMemoryPressure": "Container memory usage has reached 85% of its limit; it may run out of memory.",
     "threads": "Threads",
     "title": "System Health",
     "topAllocations": "Top Allocations",

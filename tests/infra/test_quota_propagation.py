@@ -23,7 +23,9 @@ async def test_model_fallback_does_not_replay_quota_denial(monkeypatch, denied):
     fallback = AsyncMock()
     monkeypatch.setattr(middleware, "_invoke_fallback", fallback)
     with pytest.raises(AppError) as error:
-        await middleware.awrap_model_call(object(), AsyncMock(side_effect=denied))
+        await middleware.awrap_model_call(
+            SimpleNamespace(model=object()), AsyncMock(side_effect=denied)
+        )
     assert error.value is denied
     fallback.assert_not_awaited()
 

@@ -79,9 +79,38 @@ hostNetwork 下每个 API 分片只能有 1 个副本；不能直接把 `lambcha
    回滚失败明确报出目标，退出失败状态，不能继续宣称发布成功。
 
 不要在旧部署入口与新入口之间同时发布。手工改 Deployment 前也要确认没有发布正在运行。
+API 分片禁止直接执行 `kubectl rollout restart`，包括 cron、timer 和同镜像模板变更；
+它不会切换端口，新旧 Pod 会争用同一 hostNetwork 端口而永久 Pending。
+现有凌晨维护任务仅保留 worker 重启，使用 `flock -n -E 75 /data/lambchat-k8s/deployment.lock` 串行保护，并等待 worker rollout（设置有限超时）；
+锁被占用时跳过本次维护，不排队、不重启 API，也不改成 `Recreate` 掩盖端口冲突。
+排查内存时须记录该维护造成的进程更换，不能将重启后的低 RSS 当作内存回收证据。
 共享资源采用增量保留，失败发布不会删除新资源；清理旧资源属于独立维护任务，必须考虑仍打开的旧页面。
 长于退出窗口的 SSE / WebSocket 仍可能重新连接；真正用户无感还依赖原 run、事件游标和客户端重连恢复。
 不可对可能已经执行的 POST 或工具调用盲目重放。
+
+## 事件分块格式升级
+
+`SESSION_EVENT_BYTE_CHUNKS_ENABLED` 默认关闭，避免滚动发布期间旧 writer 写入新格式。
+先将所有 API/worker 升级到支持 `bytes_v1` 的同一镜像并确认旧 Pod 已退出，再启用该环境变量。
+API 通过既有 `update.sh` 切换端口并重载配置；同镜像 worker 需要在发布锁内单独滚动重启。
+仅新 trace 选择字节分块，已有 trace 保持原布局；升级期间的旧任务须完成后再做容量验收。
+新旧布局使用相同事件内容和顺序，完整 payload 留在 chunks，父记录仅保存短文本预览。
+不得把已产生的新格式 trace 交给不支持该格式的旧 writer；降级前关闭新格式创建并排空在途任务。
+
+真实 BSON 上限回归可在独立 MongoDB 服务上执行：设置 `LAMBCHAT_TEST_MONGODB_URL`，
+经验证锁运行 `uv run pytest tests/infra/session/test_byte_chunks_mongodb.py -q`。
+测试只创建并清理随机命名的测试数据库，覆盖旧路径超限、新路径重试、读取、替换和回滚。
+
+## 回环网络故障排查
+
+2026-11-06 故障的内核日志在 00:39:06 起记录了 `UFW BLOCK IN=lo`，随后包含
+k3s、MongoDB 和 Redis 的本机连接。API 超时本身不能证明 kine/SQLite 死锁。
+2026-11-15 复核时，生产 UFW 为 inactive、`ENABLED=no` 且服务 masked，INPUT
+保留回环 ACCEPT；这证明当前拦截条件已消除，不证明历史规则变更的触发者已查明。
+
+再次出现本机连接超时时，先保存同一启动周期的内核日志、`iptables-save`、
+`nft list ruleset`、路由与 conntrack 状态，再判断是回环 INPUT、容器桥还是服务故障。
+不要自动重启数据库、清空防火墙或重启整机来替代诊断；保留公网访问控制和恢复证据。
 
 ## 自定义实例与 staging
 

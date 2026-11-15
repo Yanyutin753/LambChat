@@ -936,3 +936,77 @@ async def test_complete_unique_index_does_not_bypass_a_conflicting_missing_key_b
     storage.collection.update_many.assert_awaited_once()
     assert storage.collection.aggregate_pipelines == []
     assert storage.collection.delete_many_calls == []
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_drops_legacy_trace_unique_index() -> None:
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        indexes={
+            "user_key_trace_unique_idx": {
+                "key": [("user_id", 1), ("file_key", 1), ("trace_id", 1)],
+                "unique": True,
+            }
+        }
+    )
+
+    await storage._ensure_indexes()
+
+    assert "user_key_trace_unique_idx" in storage.collection.dropped_indexes
+
+
+@pytest.mark.asyncio
+async def test_upsert_by_name_retries_once_on_duplicate_key_race() -> None:
+    from pymongo.errors import DuplicateKeyError
+
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection()
+    storage.ensure_indexes_if_needed = _no_op_async
+    original_update_one = storage._collection.update_one
+    calls = {"count": 0}
+
+    async def racing_update_one(query, update, upsert=False):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise DuplicateKeyError("E11000 concurrent upsert race")
+        return await original_update_one(query, update, upsert)
+
+    storage._collection.update_one = racing_update_one
+
+    await storage.upsert_by_name(
+        user_id="user-1",
+        file_name="report.r",
+        source="reveal_file",
+        file_key="revealed_files/abc/report.r",
+        trace_id="trace-1",
+        data={"session_id": "session-1"},
+    )
+
+    assert calls["count"] == 2
+    query, _update, upsert = storage._collection.update_calls[0]
+    assert query["user_id"] == "user-1"
+    assert upsert is True
+
+
+@pytest.mark.asyncio
+async def test_upsert_by_name_persists_warning_when_duplicate_key_persists() -> None:
+    from pymongo.errors import DuplicateKeyError
+
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection()
+    storage.ensure_indexes_if_needed = _no_op_async
+
+    async def always_conflicting(query, update, upsert=False):
+        raise DuplicateKeyError("E11000 legacy index conflict")
+
+    storage._collection.update_one = always_conflicting
+
+    # 不抛出：保持既有 WARNING 容错行为
+    await storage.upsert_by_name(
+        user_id="user-1",
+        file_name="report.r",
+        source="reveal_file",
+        file_key="revealed_files/abc/report.r",
+        trace_id="trace-1",
+        data={"session_id": "session-1"},
+    )

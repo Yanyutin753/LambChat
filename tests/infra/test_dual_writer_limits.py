@@ -928,7 +928,7 @@ async def test_flush_mongo_buffer_requeues_failed_chunk_writes(
 
     await writer._do_flush()
 
-    assert writer._mongo_buffer == [event]
+    assert writer._mongo_buffer == [(*event, None, False, False, 1)]
 
 
 @pytest.mark.asyncio
