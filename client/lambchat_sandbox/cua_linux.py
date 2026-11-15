@@ -8,7 +8,7 @@
 - 会话需可达:``DBUS_SESSION_BUS_ADDRESS`` 指向用户会话总线(SSH 场景需
   显式 ``unix:path=/run/user/<uid>/bus``),AT-SPI 总线由 GNOME 桌面常驻提供;
 - GNOME 需开无障碍:``gsettings set org.gnome.desktop.interface toolkit-accessibility true``;
-- X11 截图读取合成器维护的窗口 pixmap，不读取被浮窗遮挡的屏幕；Wayland 截图受限。
+- X11 截图读取窗口 pixmap，无合成器时临时建立背板，不读取被浮窗遮挡的屏幕；Wayland 截图受限。
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def screenshot(bounds: list[float] | None) -> Any:
         raise RuntimeError("empty capture bounds")
 
     from Xlib import X, display
-    from Xlib.ext import composite  # noqa: F401 - register the dynamically loaded extension
+    from Xlib.ext import composite
 
     connection = display.Display()
     pixmap = None
@@ -94,8 +94,31 @@ def screenshot(bounds: list[float] | None) -> Any:
         fmt = next(f for f in connection.display.info.pixmap_formats if f.depth == geometry.depth)
         if fmt.bits_per_pixel not in (24, 32):
             raise RuntimeError("unsupported X11 pixel depth")
-        # Use the compositor's existing backing store; redirecting here can capture unpainted pixels.
-        pixmap = window.composite_name_window_pixmap()
+        for attempt in range(2):
+            errors = []
+
+            def capture_error(error, _request):
+                errors.append(error)
+                return 1
+
+            candidate = window.composite_name_window_pixmap(onerror=capture_error)
+            connection.sync()
+            if not errors:
+                pixmap = candidate
+                break
+            candidate.free(onerror=lambda *_: 1)
+            if attempt or getattr(errors[0], "code", None) != 8:  # X11 BadMatch
+                raise RuntimeError("window backing store unavailable; observe again")
+            errors.clear()
+            window.composite_redirect_window(composite.RedirectAutomatic, onerror=capture_error)
+            connection.sync()
+            if errors:
+                raise RuntimeError("window capture redirection unavailable")
+            # Non-composited desktops must repaint newly exposed backing pixels before capture.
+            import time
+
+            time.sleep(0.2)
+        assert pixmap is not None
         data = pixmap.get_image(x - left, y - top, width, height, X.ZPixmap, 0xFFFFFFFF)
         little = connection.display.info.image_byte_order == X.LSBFirst
         mode = (

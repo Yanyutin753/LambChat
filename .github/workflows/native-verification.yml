@@ -224,7 +224,9 @@ jobs:
       - name: Install X11 capture fixture dependencies
         run: sudo apt-get update && sudo apt-get install -y python3-xlib python3-pil xvfb xauth
       - name: Verify overlay-free native window pixels
-        run: python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
+        run: |
+          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
+          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py --unredirected
 
   desktop-control:
     if: startsWith(github.ref, 'refs/heads/codex/')
@@ -252,14 +254,28 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb xauth
       - name: Install and build toolbar frontend
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           python3 scripts/run_validation.py pnpm --dir frontend install --frozen-lockfile
           python3 scripts/run_validation.py pnpm --dir frontend run build
+      - name: Install and build Windows toolbar frontend
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cmd /d /s /c pnpm --dir frontend install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/run_validation.py cmd /d /s /c pnpm --dir frontend run build
       - name: Generate native icons
+        if: runner.os != 'Windows'
         working-directory: frontend
         shell: bash
         run: python3 ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
+      - name: Generate Windows native icons
+        if: runner.os == 'Windows'
+        working-directory: frontend
+        shell: pwsh
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
       - name: Build isolated native toolbar
         shell: bash
         env:
