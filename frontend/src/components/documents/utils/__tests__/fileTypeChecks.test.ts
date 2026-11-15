@@ -1,6 +1,7 @@
 import {
   getFileTypeInfo,
   isBinaryFile,
+  isVideoFile,
   getFileLinkInfo,
   isCadFile,
   isDwgFile,
@@ -101,4 +102,9 @@ test.each([
 ])("text script/data %s is previewable and not binary", (ext) => {
   expect(isBinaryFile(ext)).toBe(false);
   expect(isPreviewableFile(ext)).toBe(true);
+});
+
+test("TypeScript files do not route file-library clicks to the video viewer", () => {
+  expect(isVideoFile("ts")).toBe(false);
+  expect(isVideoFile("mp4")).toBe(true);
 });

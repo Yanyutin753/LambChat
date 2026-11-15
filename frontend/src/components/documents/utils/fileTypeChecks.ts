@@ -100,7 +100,6 @@ export function isVideoFile(ext: string): boolean {
     "3g2",
     "ogv",
     // Other
-    "ts",
     "mts",
     "m2ts",
     "vob",
