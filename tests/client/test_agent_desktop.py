@@ -115,11 +115,12 @@ def test_linux_scroll_explicitly_uses_headed_mode(backend, monkeypatch):
     ]
 
 
-def test_linux_resolves_driver_app_name_by_pid(backend, monkeypatch):
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_resolves_driver_app_name_without_global_accessibility_scan(backend, monkeypatch, platform):
     from lambchat_sandbox import cua_backend
 
     calls = []
-    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "linux")
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: platform)
 
     def call(*args, **kwargs):
         calls.append(args)
@@ -132,12 +133,23 @@ def test_linux_resolves_driver_app_name_by_pid(backend, monkeypatch):
     assert calls[1] == ("list-windows", "--app", "python3.14", "--timeout-ms", "5000")
 
 
-def test_reported_set_focus_action_is_supported(backend, monkeypatch):
+@pytest.mark.parametrize(
+    ("action", "command"),
+    [
+        ("SetFocus", "focus"),
+        ("RightClick", "right-click"),
+        ("ScrollTo", "scroll-to"),
+        ("Check", "check"),
+        ("Uncheck", "uncheck"),
+        ("Hover", "hover"),
+    ],
+)
+def test_reported_parameterless_action_is_supported(backend, monkeypatch, action, command):
     calls = []
     monkeypatch.setattr(backend, "_enable_cursor", lambda: None)
     monkeypatch.setattr(backend, "_call", lambda *a, **k: calls.append(a) or {})
-    backend.perform({"ref_id": "@snapshot:e1"}, "SetFocus")
-    assert calls == [("focus", "@snapshot:e1")]
+    backend.perform({"ref_id": "@snapshot:e1"}, action)
+    assert calls == [(command, "@snapshot:e1")]
 
 
 def test_cursor_reports_unrendered_without_claiming_visibility(backend, monkeypatch):

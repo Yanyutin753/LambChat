@@ -106,10 +106,10 @@ class AgentDesktopBackend:
     def windows(self, pid: int) -> list[dict]:
         from lambchat_sandbox.cua_backend import backend_platform
 
-        # Linux toolkit names can differ from the driver's process names.
+        # Avoid Windows' global UIA scan; Linux toolkit names can differ from process names.
         apps = (
             self._call("list-apps")["apps"]
-            if backend_platform() == "linux"
+            if backend_platform() in ("linux", "win32")
             else self.native.list_apps()
         )
         app = next((a for a in apps if a["pid"] == pid), None)
@@ -196,6 +196,11 @@ class AgentDesktopBackend:
             "click": "click",
             "context_menu": "right-click",
             "Click": "click",
+            "RightClick": "right-click",
+            "ScrollTo": "scroll-to",
+            "Check": "check",
+            "Uncheck": "uncheck",
+            "Hover": "hover",
             "Press": "click",
             "Focus": "focus",
             "SetFocus": "focus",
