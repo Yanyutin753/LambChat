@@ -11,7 +11,7 @@
   };
   const state = () => invoke('desktop_control_status', { ready: true });
   try {
-    await invoke('fixture_report', {report: {phase: "start"}});
+    await invoke('desktop_control_status', {ready: false,report: {phase: "start"}});
     await wait(() => document.querySelector('.desktop-control button'));
     const button = document.querySelector('.desktop-control button');
     const rect = button.getBoundingClientRect();
@@ -21,15 +21,15 @@
       await wait(async () => (await state()) === 'active' && !button.disabled);
       button.click();
       await wait(async () => (await state()) === 'paused' && !button.disabled);
-      await invoke('fixture_report', {report: {phase: 'paused', round, label: button.textContent}});
+      await invoke('desktop_control_status', {ready: false,report: {phase: 'paused', round, label: button.textContent}});
       // Wait for the React label and handler to observe the native acknowledgement.
       await sleep(); await sleep(); await sleep();
       if (document.querySelector('[role="alert"]')) throw new Error('Toolbar reported an IPC error');
       button.click();
       await wait(async () => ['idle', 'waiting', 'active'].includes(await state()));
     }
-    await invoke('fixture_report', { report: { ok: true, pauseResumeRounds: 20, button: { width: rect.width, height: rect.height }, status: document.querySelector('[role="status"]').textContent } });
+    await invoke('desktop_control_status', {ready: false, report: { ok: true, pauseResumeRounds: 20, button: { width: rect.width, height: rect.height }, status: document.querySelector('[role="status"]').textContent } });
   } catch (error) {
-    await invoke('fixture_report', { report: { ok: false, error: String(error) } });
+    await invoke('desktop_control_status', {ready: false, report: { ok: false, error: String(error) } });
   }
 })();

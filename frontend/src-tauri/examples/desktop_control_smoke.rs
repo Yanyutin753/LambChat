@@ -14,12 +14,21 @@ fn finish(app: &tauri::AppHandle, code: i32) {
     app.exit(code);
 }
 
-#[tauri::command]
-fn fixture_report(app: tauri::AppHandle, report: serde_json::Value) {
-    eprintln!("control-fixture-report {report}");
-    if let Some(ok) = report["ok"].as_bool() {
-        finish(&app, if ok { 0 } else { 1 });
+#[tauri::command(rename = "desktop_control_status")]
+fn fixture_status(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    ready: bool,
+    report: Option<serde_json::Value>,
+) -> Result<String, String> {
+    if let Some(report) = report {
+        eprintln!("control-fixture-report {report}");
+        if let Some(ok) = report["ok"].as_bool() {
+            finish(&app, if ok { 0 } else { 1 });
+        }
+        return Ok("reported".into());
     }
+    desktop_control::desktop_control_status(window, app, ready)
 }
 
 fn main() {
@@ -31,9 +40,8 @@ fn main() {
     tauri::Builder::default()
         .manage(desktop_control::DesktopControl::default())
         .invoke_handler(tauri::generate_handler![
-            desktop_control::desktop_control_status,
-            desktop_control::desktop_control_set_paused,
-            fixture_report
+            fixture_status,
+            desktop_control::desktop_control_set_paused
         ])
         .setup(move |app| {
             let token = uuid::Uuid::new_v4().to_string();
