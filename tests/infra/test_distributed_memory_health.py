@@ -195,6 +195,8 @@ def test_build_instance_snapshot_serializes_local_diagnostics_for_redis() -> Non
 
     assert snapshot == {
         "instance_id": "instance-a",
+        "hostname": memory_health.socket.gethostname(),
+        "pid": memory_health.os.getpid(),
         "captured_at": "2026-04-30T03:21:00+00:00",
         "summary": {
             "available": True,

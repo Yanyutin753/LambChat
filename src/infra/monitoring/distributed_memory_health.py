@@ -126,7 +126,13 @@ def _format_mb(value: int | None) -> str | None:
 def _build_memory_overview(summary: Mapping[str, Any]) -> dict[str, Any]:
     status = "unavailable"
     if summary.get("available"):
-        status = "suspected_leak" if summary.get("suspected_leak") else "stable"
+        status = (
+            "memory_pressure"
+            if summary.get("memory_pressure")
+            else "suspected_leak"
+            if summary.get("suspected_leak")
+            else "stable"
+        )
 
     return {
         "status": status,
@@ -150,8 +156,10 @@ def _build_highlight_items(
     highlights: list[dict[str, Any]] = [
         {
             "kind": "status",
-            "status": "suspected_leak" if summary.get("suspected_leak") else "stable",
-            "severity": "warning" if summary.get("suspected_leak") else "info",
+            "status": _build_memory_overview(summary)["status"],
+            "severity": "warning"
+            if summary.get("suspected_leak") or summary.get("memory_pressure")
+            else "info",
         }
     ]
 
@@ -257,6 +265,8 @@ def build_instance_snapshot(
     normalized_details = _normalize_details(details)
     snapshot = {
         "instance_id": _normalize_instance_id(instance_id) or get_instance_id(),
+        "hostname": socket.gethostname(),
+        "pid": os.getpid(),
         "captured_at": captured_at if captured_at is not None else utc_now(),
         "summary": normalized_summary,
         "overview": _build_memory_overview(normalized_summary),
@@ -290,6 +300,16 @@ async def publish_instance_snapshot(
         ex=calculate_snapshot_ttl(interval_seconds),
     )
     return serialized_snapshot
+
+
+async def publish_memory_incident(
+    snapshot: Mapping[str, Any], *, redis_client: Any | None = None
+) -> None:
+    """Keep bounded alert evidence after a killed process's live snapshot expires."""
+    client = redis_client or get_redis_client()
+    safe = _to_redis_safe(dict(snapshot))
+    key = f"health:memory:incident:{safe['instance_id']}:{safe['captured_at']}"
+    await client.set(key, await _json_dumps_snapshot(safe), ex=86400)
 
 
 async def _scan_keys(

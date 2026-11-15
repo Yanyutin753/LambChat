@@ -24,6 +24,34 @@ _OPENAI_OFFICIAL_HOSTS = frozenset({"api.openai.com"})
 _RESPONSES_INPUT_READONLY_FIELDS = ("status",)
 
 
+def chat_file_url_references(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Keep unsupported file URLs as references without rewriting saved history."""
+    result = []
+    for message in messages:
+        if not isinstance(message.content, list):
+            result.append(message)
+            continue
+        content: list[str | dict[str, Any]] = []
+        changed = False
+        for block in message.content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "file"
+                and isinstance(block.get("url"), str)
+                and "base64" not in block
+                and "file_id" not in block
+                and block.get("source_type") not in ("base64", "id")
+            ):
+                content.append(
+                    {"type": "text", "text": f"File URL (contents not included): {block['url']}"}
+                )
+                changed = True
+            else:
+                content.append(block)
+        result.append(message.model_copy(update={"content": content}) if changed else message)
+    return result
+
+
 def strip_readonly_responses_input_fields(payload: dict) -> dict:
     """剥离回传历史 item 顶层的只读输出字段（就地修改）。
 
@@ -72,7 +100,10 @@ class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
     ) -> dict:
-        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        messages = self._convert_input(input_).to_messages()
+        if not self._use_responses_api({**self._default_params, **kwargs}):
+            messages = chat_file_url_references(messages)
+        payload = super()._get_request_payload(messages, stop=stop, **kwargs)
         # 历史回传的 reasoning/function_call 等输出 item 带 status 只读字段，
         # 严格校验的端点会整体 400（生产 2026-09-17：input[13].status），
         # 在统一出口剥离后再注入其余字段。
@@ -82,7 +113,6 @@ class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
             reasoning_text_from_message,
         )
 
-        messages = self._convert_input(input_).to_messages()
         for source, message in zip(messages, payload.get("messages", [])):
             if message.get("role") != "assistant":
                 continue

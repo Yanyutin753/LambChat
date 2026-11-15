@@ -104,6 +104,9 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                 if operator == "$exists":
                     if (actual is not _MISSING) is not bool(operand):
                         return False
+                elif operator == "$gte":
+                    if actual is _MISSING or actual < operand:
+                        return False
                 elif operator == "$lte":
                     if actual is _MISSING or actual > operand:
                         return False
@@ -200,6 +203,9 @@ class _FakeChunkCollection:
         self.find_calls.append((deepcopy(query), deepcopy(projection)))
         docs = [_project(chunk, projection) for chunk in self.chunks if _matches(chunk, query)]
         return _AsyncCursor(docs)
+
+    async def count_documents(self, query: dict[str, Any]):
+        return sum(_matches(chunk, query) for chunk in self.chunks)
 
     async def delete_many(self, query: dict[str, Any]):
         self.deleted_queries.append(query)

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict
 
 from src.infra.session import trace_storage as trace_storage_helpers
+from src.infra.session.trace_byte_chunks import BYTE_CHUNK_LAYOUT
 from src.infra.utils.datetime import utc_now
 
 ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
@@ -40,28 +41,45 @@ class TraceChunkRollbackMixin:
         except (TypeError, ValueError):
             reserved_end_count = 0
         end_seq = start_seq + event_count - 1
-        chunk_size = trace_storage_helpers._get_event_chunk_size()
-        start_chunk = trace_storage_helpers._event_chunk_index(start_seq)
-        end_chunk = trace_storage_helpers._event_chunk_index(end_seq)
-        for chunk_index in range(start_chunk, end_chunk + 1):
-            chunk_start_seq = chunk_index * chunk_size + 1
-            chunk_end_seq = chunk_start_seq + chunk_size - 1
-            remove_start_seq = max(start_seq, chunk_start_seq)
-            remove_end_seq = min(end_seq, chunk_end_seq)
-            remove_count = remove_end_seq - remove_start_seq + 1
-            seq_filter = {"$gte": remove_start_seq, "$lte": remove_end_seq}
-            await self.chunks_collection.update_one(
+        byte_layout = (trace_doc.get("metadata") or {}).get(
+            "event_chunk_layout"
+        ) == BYTE_CHUNK_LAYOUT
+        updates: dict[str, Any] = {"updated_at": now}
+        if byte_layout:
+            # Byte chunks belong to one reserved batch; rollback never removes another batch.
+            await self.chunks_collection.delete_many(
                 {
                     "trace_id": trace_id,
-                    "chunk_index": chunk_index,
-                    "events.seq": seq_filter,
-                },
-                {
-                    "$pull": {"events": {"seq": seq_filter}},
-                    "$inc": {"event_count": -remove_count},
-                    "$set": {"updated_at": now},
-                },
+                    "start_seq": {"$gte": start_seq},
+                    "end_seq": {"$lte": end_seq},
+                }
             )
+            updates["chunk_count"] = await self.chunks_collection.count_documents(
+                {"trace_id": trace_id}
+            )
+        else:
+            chunk_size = trace_storage_helpers._get_event_chunk_size()
+            start_chunk = trace_storage_helpers._event_chunk_index(start_seq)
+            end_chunk = trace_storage_helpers._event_chunk_index(end_seq)
+            for chunk_index in range(start_chunk, end_chunk + 1):
+                chunk_start_seq = chunk_index * chunk_size + 1
+                chunk_end_seq = chunk_start_seq + chunk_size - 1
+                remove_start_seq = max(start_seq, chunk_start_seq)
+                remove_end_seq = min(end_seq, chunk_end_seq)
+                remove_count = remove_end_seq - remove_start_seq + 1
+                seq_filter = {"$gte": remove_start_seq, "$lte": remove_end_seq}
+                await self.chunks_collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        "chunk_index": chunk_index,
+                        "events.seq": seq_filter,
+                    },
+                    {
+                        "$pull": {"events": {"seq": seq_filter}},
+                        "$inc": {"event_count": -remove_count},
+                        "$set": {"updated_at": now},
+                    },
+                )
         await self.collection.update_one(
             {
                 "trace_id": trace_id,
@@ -73,6 +91,6 @@ class TraceChunkRollbackMixin:
                     "event_count": -event_count,
                     TRACE_EVENT_REVISION_FIELD: 1,
                 },
-                "$set": {"updated_at": now},
+                "$set": updates,
             },
         )

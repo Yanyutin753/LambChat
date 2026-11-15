@@ -12,6 +12,7 @@ from pymongo import ReturnDocument
 from src.infra.async_utils import run_long_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session import trace_storage as trace_storage_helpers
+from src.infra.session.trace_byte_chunks import BYTE_CHUNK_LAYOUT, byte_chunks
 from src.infra.session.trace_chunk_rollback import TraceChunkRollbackMixin
 from src.infra.utils.datetime import ensure_utc, utc_now
 
@@ -472,6 +473,24 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
             normalized_event["seq"] = index
             normalized_events.append(normalized_event)
 
+        byte_documents = None
+        if (trace_doc.get("metadata") or {}).get("event_chunk_layout") == BYTE_CHUNK_LAYOUT:
+            byte_documents = await run_long_blocking_io(
+                byte_chunks,
+                {
+                    "trace_id": f"{trace_id}:replace:{'0' * 32}",
+                    "replacement_target_trace_id": trace_id,
+                    "replacement_operation_id": "0" * 32,
+                    "attachment_chunk_staging": True,
+                    "session_id": trace_doc.get("session_id", ""),
+                    "run_id": trace_doc.get("run_id", ""),
+                    "trace_started_at": trace_doc.get("started_at"),
+                    "created_at": now,
+                    "updated_at": now,
+                },
+                normalized_events,
+            )
+
         replacement_digest = await run_long_blocking_io(
             _replacement_digest,
             normalized_events,
@@ -486,7 +505,9 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
         update_fields: Dict[str, Any] = {
             **(parent_updates or {}),
             "event_count": len(normalized_events),
-            "chunk_count": (len(normalized_events) + chunk_size - 1) // chunk_size,
+            "chunk_count": len(byte_documents)
+            if byte_documents is not None
+            else (len(normalized_events) + chunk_size - 1) // chunk_size,
             "first_event_preview": trace_storage_helpers._event_preview(
                 normalized_events[0] if normalized_events else None
             ),
@@ -542,29 +563,39 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
         if marker.get("phase") == "staging":
             operation_id = marker["id"]
             staging_trace_id = marker["staging_trace_id"]
-            staging_docs = []
-            for start in range(0, len(normalized_events), chunk_size):
-                chunk_events = normalized_events[start : start + chunk_size]
-                start_seq = int(chunk_events[0]["seq"])
-                end_seq = int(chunk_events[-1]["seq"])
-                staging_docs.append(
+            if byte_documents is not None:
+                staging_docs = [
                     {
+                        **document,
                         "trace_id": staging_trace_id,
-                        "replacement_target_trace_id": trace_id,
                         "replacement_operation_id": operation_id,
-                        "attachment_chunk_staging": True,
-                        "session_id": trace_doc.get("session_id", ""),
-                        "run_id": trace_doc.get("run_id", ""),
-                        "trace_started_at": trace_doc.get("started_at"),
-                        "chunk_index": trace_storage_helpers._event_chunk_index(start_seq),
-                        "start_seq": start_seq,
-                        "end_seq": end_seq,
-                        "event_count": len(chunk_events),
-                        "events": chunk_events,
-                        "created_at": now,
-                        "updated_at": now,
                     }
-                )
+                    for document in byte_documents
+                ]
+            else:
+                staging_docs = []
+                for start in range(0, len(normalized_events), chunk_size):
+                    chunk_events = normalized_events[start : start + chunk_size]
+                    start_seq = int(chunk_events[0]["seq"])
+                    end_seq = int(chunk_events[-1]["seq"])
+                    staging_docs.append(
+                        {
+                            "trace_id": staging_trace_id,
+                            "replacement_target_trace_id": trace_id,
+                            "replacement_operation_id": operation_id,
+                            "attachment_chunk_staging": True,
+                            "session_id": trace_doc.get("session_id", ""),
+                            "run_id": trace_doc.get("run_id", ""),
+                            "trace_started_at": trace_doc.get("started_at"),
+                            "chunk_index": trace_storage_helpers._event_chunk_index(start_seq),
+                            "start_seq": start_seq,
+                            "end_seq": end_seq,
+                            "event_count": len(chunk_events),
+                            "events": chunk_events,
+                            "created_at": now,
+                            "updated_at": now,
+                        }
+                    )
 
         return await self._run_chunk_replacement(
             trace_doc,
@@ -614,6 +645,12 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                             "recovery_after": now + timedelta(minutes=5),
                         },
                         "updated_at": now,
+                        **(
+                            {"metadata.event_chunk_layout": BYTE_CHUNK_LAYOUT}
+                            if current.get("event_count", 0) == 0
+                            and trace_storage_helpers.settings.SESSION_EVENT_BYTE_CHUNKS_ENABLED
+                            else {}
+                        ),
                     },
                 },
                 projection={"_id": 0},
@@ -661,69 +698,96 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
             ).append(normalized_event)
 
         try:
-            for chunk_index in sorted(grouped):
-                chunk_events = grouped[chunk_index]
-                start = int(chunk_events[0]["seq"])
-                end = int(chunk_events[-1]["seq"])
-                existing_events_without_range = {
-                    "$filter": {
-                        "input": {"$ifNull": ["$events", []]},
-                        "as": "event",
-                        "cond": {
-                            "$not": [
-                                {
-                                    "$and": [
-                                        {"$gte": [{"$ifNull": ["$$event.seq", 0]}, start]},
-                                        {"$lte": [{"$ifNull": ["$$event.seq", 0]}, end]},
-                                    ]
-                                }
-                            ]
-                        },
-                    }
-                }
-                await self.chunks_collection.update_one(
-                    {"trace_id": trace_id, "chunk_index": chunk_index},
-                    [
-                        {
-                            "$set": {
-                                "trace_id": trace_id,
-                                "session_id": trace_doc.get("session_id", ""),
-                                "run_id": trace_doc.get("run_id", ""),
-                                "trace_started_at": trace_doc.get("started_at"),
-                                "chunk_index": chunk_index,
-                                "created_at": {"$ifNull": ["$created_at", now]},
-                                "updated_at": now,
-                                "start_seq": {
-                                    "$min": [
-                                        {"$ifNull": ["$start_seq", start]},
-                                        start,
-                                    ]
-                                },
-                                "end_seq": {
-                                    "$max": [
-                                        {"$ifNull": ["$end_seq", end]},
-                                        end,
-                                    ]
-                                },
-                                "events": {
-                                    "$concatArrays": [
-                                        existing_events_without_range,
-                                        {"$literal": chunk_events},
-                                    ]
-                                },
-                            }
-                        },
-                        {"$set": {"event_count": {"$size": "$events"}}},
-                    ],
-                    upsert=True,
+            byte_layout = (trace_doc.get("metadata") or {}).get(
+                "event_chunk_layout"
+            ) == BYTE_CHUNK_LAYOUT
+            if byte_layout:
+                documents = await run_long_blocking_io(
+                    byte_chunks,
+                    {
+                        "trace_id": trace_id,
+                        "session_id": trace_doc.get("session_id", ""),
+                        "run_id": trace_doc.get("run_id", ""),
+                        "trace_started_at": trace_doc.get("started_at"),
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                    [event for group in grouped.values() for event in group],
                 )
-
+                for document in documents:
+                    await self.chunks_collection.replace_one(
+                        {"trace_id": trace_id, "chunk_index": document["chunk_index"]},
+                        document,
+                        upsert=True,
+                    )
+                chunk_count = await self.chunks_collection.count_documents({"trace_id": trace_id})
+                chunk_count_update = {}
+            else:
+                for chunk_index in sorted(grouped):
+                    chunk_events = grouped[chunk_index]
+                    start = int(chunk_events[0]["seq"])
+                    end = int(chunk_events[-1]["seq"])
+                    existing_events_without_range = {
+                        "$filter": {
+                            "input": {"$ifNull": ["$events", []]},
+                            "as": "event",
+                            "cond": {
+                                "$not": [
+                                    {
+                                        "$and": [
+                                            {"$gte": [{"$ifNull": ["$$event.seq", 0]}, start]},
+                                            {"$lte": [{"$ifNull": ["$$event.seq", 0]}, end]},
+                                        ]
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                    await self.chunks_collection.update_one(
+                        {"trace_id": trace_id, "chunk_index": chunk_index},
+                        [
+                            {
+                                "$set": {
+                                    "trace_id": trace_id,
+                                    "session_id": trace_doc.get("session_id", ""),
+                                    "run_id": trace_doc.get("run_id", ""),
+                                    "trace_started_at": trace_doc.get("started_at"),
+                                    "chunk_index": chunk_index,
+                                    "created_at": {"$ifNull": ["$created_at", now]},
+                                    "updated_at": now,
+                                    "start_seq": {
+                                        "$min": [
+                                            {"$ifNull": ["$start_seq", start]},
+                                            start,
+                                        ]
+                                    },
+                                    "end_seq": {
+                                        "$max": [
+                                            {"$ifNull": ["$end_seq", end]},
+                                            end,
+                                        ]
+                                    },
+                                    "events": {
+                                        "$concatArrays": [
+                                            existing_events_without_range,
+                                            {"$literal": chunk_events},
+                                        ]
+                                    },
+                                }
+                            },
+                            {"$set": {"event_count": {"$size": "$events"}}},
+                        ],
+                        upsert=True,
+                    )
+                chunk_count_update = {"$max": {"chunk_count": max(grouped) + 1}}
             end_seq = start_seq + len(events) - 1
             update_fields: Dict[str, Any] = {
                 "updated_at": utc_now(),
                 "metadata.event_storage": "chunked",
                 "metadata.merged": False,
             }
+            if byte_layout:
+                update_fields["chunk_count"] = chunk_count
             if start_seq == 1:
                 update_fields["first_event_preview"] = trace_storage_helpers._event_preview(
                     events[0]
@@ -754,7 +818,7 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                 },
                 {
                     "$set": update_fields,
-                    "$max": {"chunk_count": max(grouped) + 1},
+                    **chunk_count_update,
                     "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
                 },
             )
@@ -782,7 +846,7 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                 },
                 {
                     "$set": update_fields,
-                    "$max": {"chunk_count": max(grouped) + 1},
+                    **chunk_count_update,
                     "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
                 },
             )

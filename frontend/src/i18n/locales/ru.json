@@ -4569,6 +4569,8 @@
     "statusSuspectedLeak": "Подозрение на устойчивый рост памяти: RSS={{rss}}, Рост={{growth}}",
     "statusUnavailableReason": "Мониторинг памяти недоступен: {{reason}}",
     "suspectedLeak": "Возможная утечка",
+    "memoryPressure": "Высокая нагрузка на память",
+    "statusMemoryPressure": "Использование памяти контейнера достигло 85% лимита; возможна нехватка памяти.",
     "threads": "Потоки",
     "title": "Состояние системы",
     "topAllocations": "Крупнейшие выделения",

@@ -58,9 +58,16 @@ def _event_chunk_index(seq: int) -> int:
 def _event_preview(event: Dict[str, Any] | None) -> Dict[str, Any] | None:
     if not event:
         return None
+    data = event.get("data")
+    # Parent previews are list labels, not another copy of large tool/file payloads.
+    preview_data = {
+        key: data[key][:4096]
+        for key in ("content", "message")
+        if isinstance(data, dict) and isinstance(data.get(key), str)
+    }
     preview = {
         "event_type": event.get("event_type"),
-        "data": event.get("data", {}),
+        "data": preview_data,
         "timestamp": event.get("timestamp"),
     }
     if "seq" in event:

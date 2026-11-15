@@ -6,7 +6,7 @@ import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 
 export interface MemoryOverview {
-  status: "stable" | "suspected_leak" | "unavailable";
+  status: "stable" | "suspected_leak" | "memory_pressure" | "unavailable";
   rss: string | null;
   vms: string | null;
   growth: string | null;

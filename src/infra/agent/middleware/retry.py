@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import uuid
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from langchain.agents.middleware import ModelRetryMiddleware
@@ -25,6 +28,7 @@ from src.infra.agent.middleware.dead_attachment import (
 )
 from src.infra.llm.quota import is_quota_error
 from src.infra.llm.retry import (
+    _error_status,
     _is_output_limit_response,
     content_moderation_message,
     is_rate_limit_model_error,
@@ -39,6 +43,41 @@ if TYPE_CHECKING:
     from langchain.agents.middleware.types import ExtendedModelResponse
 
 logger = logging.getLogger(__name__)
+
+# shortcut: cooldown is process-local; use shared state if cross-worker probes remain costly.
+_account_failures: OrderedDict[str, tuple[int, float]] = OrderedDict()
+
+
+def _account_failure_key(model: Any) -> str | None:
+    config_id = getattr(model, "quota_model_config_id", None)
+    if not isinstance(config_id, str) or not config_id:
+        return None
+    # Credential rotation must immediately permit a new probe; never log/store the credential.
+    values = [config_id]
+    for name in (
+        "openai_api_key",
+        "anthropic_api_key",
+        "google_api_key",
+        "api_key",
+        "openai_api_base",
+        "azure_endpoint",
+        "default_headers",
+    ):
+        value = getattr(model, name, None)
+        if callable(getattr(value, "get_secret_value", None)):
+            value = value.get_secret_value()
+        values.append(str(value))
+    return hashlib.sha256(repr(values).encode()).hexdigest()
+
+
+def _account_failure_count(key: str | None) -> int:
+    if key is None:
+        return 0
+    count, expires = _account_failures.get(key, (0, 0.0))
+    if expires <= monotonic():
+        _account_failures.pop(key, None)
+        return 0
+    return count
 
 
 def _is_retryable_error(exc: Exception) -> bool:
@@ -299,13 +338,29 @@ class ModelFallbackMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         self._schedule_prewarm()
+        account_key = _account_failure_key(request.model)
+        if _account_failure_count(account_key) >= 2:
+            return await self._invoke_fallback(request, handler, "account_failure_cooldown")
         try:
             response = await handler(request)
         except Exception as exc:
             if is_quota_error(exc):
                 raise
+            if account_key is not None:
+                if _error_status(exc) in (401, 402):
+                    _account_failures[account_key] = (
+                        _account_failure_count(account_key) + 1,
+                        monotonic() + 600,
+                    )
+                    _account_failures.move_to_end(account_key)
+                    while len(_account_failures) > 256:
+                        _account_failures.popitem(last=False)
+                else:
+                    _account_failures.pop(account_key, None)
             return await self._invoke_fallback(request, handler, type(exc).__name__, error=exc)
 
+        if account_key is not None:
+            _account_failures.pop(account_key, None)
         if _response_is_invalid(response):
             messages = _extract_messages(response)
             ai_message = messages[0]

@@ -4569,6 +4569,8 @@
     "statusSuspectedLeak": "疑似持续内存增长: RSS={{rss}}, 增长={{growth}}",
     "statusUnavailableReason": "内存监控不可用: {{reason}}",
     "suspectedLeak": "疑似泄漏",
+    "memoryPressure": "内存压力较高",
+    "statusMemoryPressure": "容器内存使用已达到限额的 85%，存在内存不足风险。",
     "threads": "线程",
     "title": "系统健康",
     "topAllocations": "最大分配",
