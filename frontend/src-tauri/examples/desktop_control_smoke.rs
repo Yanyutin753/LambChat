@@ -83,7 +83,9 @@ fn main() {
                 && payload.event() == tauri::webview::PageLoadEvent::Finished
                 && std::env::var_os("LAMBCHAT_CONTROL_AUTOMATED").is_some()
             {
-                let _ = window.eval(include_str!("../../../scripts/release_tests/desktop-control-smoke.js"));
+                let _ = window.eval(include_str!(
+                    "../../../scripts/release_tests/desktop-control-smoke.js"
+                ));
             }
         })
         .on_window_event(|window, event| {

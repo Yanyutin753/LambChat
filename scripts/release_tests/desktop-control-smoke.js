@@ -9,7 +9,7 @@
     }
     throw new Error('Timed out waiting for native toolbar state');
   };
-  const state = () => invoke('desktop_control_status', { ready: true });
+  const state = () => invoke('desktop_control_status', { ready: false });
   try {
     await invoke('desktop_control_status', {ready: false,report: {phase: "start"}});
     await wait(() => document.querySelector('.desktop-control button'));

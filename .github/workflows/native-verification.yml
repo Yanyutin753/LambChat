@@ -1,4 +1,4 @@
-name: Windows Native Verification
+name: Native Desktop Verification
 
 # Build-only: no tags, releases, signing credentials, updater files or deployments.
 # The opt-in branch allows a first verification run without merging this workflow.
@@ -162,9 +162,9 @@ jobs:
       - name: Build native desktop control acceptance fixture
         shell: pwsh
         run: |
-          python scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
+          python scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --release --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item frontend/src-tauri/target/debug/examples/desktop_control_smoke.exe verification-artifacts/
+          Copy-Item frontend/src-tauri/target/release/examples/desktop_control_smoke.exe verification-artifacts/
 
       - name: Native updater version-binding regression
         shell: pwsh
