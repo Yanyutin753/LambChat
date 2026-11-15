@@ -167,8 +167,24 @@ class MemoryHealthSummary(BaseModel):
     process_started_at: Optional[datetime] = None
     active_runs: Optional[int] = None
     queued_runs: Optional[int] = None
-    idle_seconds: Optional[float] = None
-    idle_rss_change_bytes: Optional[int] = None
+    idle_seconds: Optional[float] = Field(
+        default=None,
+        deprecated=True,
+        description="Process inactivity is not established; returns null.",
+    )
+    idle_rss_change_bytes: Optional[int] = Field(
+        default=None,
+        deprecated=True,
+        description="Process inactivity is not established; returns null.",
+    )
+    sampled_no_run_window_seconds: Optional[float] = Field(
+        default=None,
+        description="Span of consecutive zero local-task-count samples, not verified process idle time.",
+    )
+    sampled_no_run_rss_change_bytes: Optional[int] = Field(
+        default=None,
+        description="RSS change across those samples; HTTP, background and between-sample work may occur.",
+    )
     sample_interval_seconds: Optional[float] = None
     baseline_reset_at: Optional[datetime] = None
     last_sample_at: Optional[datetime] = None
