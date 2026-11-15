@@ -27,6 +27,12 @@ def _runtime(
     )
 
 
+def test_workflow_observes_known_app_without_unnecessary_window_discovery():
+    description = cut.computer_use.description
+    assert "call state directly with that pid" in description
+    assert "Use windows when the target window is ambiguous" in description
+
+
 @pytest.fixture(autouse=True)
 def unattended_policy(monkeypatch):
     async def lookup(user_id, machine_id=None):

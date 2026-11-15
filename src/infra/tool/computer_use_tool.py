@@ -289,9 +289,11 @@ async def computer_use(
     Coordinate clicks also require pid or name; never assume the current app implicitly.
     1. ``launch`` to open a URL or start an app — this is the correct way to start
        browsers/GUI apps (detached, survives; do NOT start GUI apps via shell execute).
-    2. ``apps`` to find the pid (``launch.launcher_pid`` may belong to a wrapper,
-       not the accessible app; browsers are multi-process: only ONE pid owns windows —
-       probe candidates with ``windows`` and keep the pid that returns windows).
+    2. ``apps`` to find the pid, then call state directly with that pid.
+       ``launch.launcher_pid`` may belong to a wrapper, not the accessible app.
+       Use windows when the target window is ambiguous or state cannot resolve it;
+       do not enumerate windows before every state. For multi-process browsers,
+       probe candidates with windows only if the selected pid has no usable window.
     3. ``state`` to observe the accessibility tree. Element indices address the LATEST
        observation; every new ``state`` renumbers. Re-observe after a GUI change before
        using indices again. Read-only status/apps/windows/state calls do not require
