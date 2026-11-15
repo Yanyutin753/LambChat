@@ -15,7 +15,9 @@ async def main():
 
     for _ in range(120):
         if not control.paused:
-            await control.execute("cua_state", observe)
+            result = await control.execute("cua_state", observe)
+            if result.get("error") not in (None, "desktop_control_paused"):
+                raise RuntimeError(f"Native control readiness failed: {result['error']}")
         await asyncio.sleep(0.25)
 
 

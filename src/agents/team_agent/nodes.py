@@ -22,6 +22,7 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     inline_image_attachments_as_data_urls,
     isolated_nested_graph_run,
+    prepare_runtime_feature_skills,
     resolve_fallback_model,
     resolve_model_image_url_mode,
     resolve_model_supports_vision,
@@ -240,17 +241,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     runtime_env_keys = tuple(
         getattr(getattr(sandbox_backend, "default", sandbox_backend), "_run_env_overrides", {})
     )
-    from src.infra.tool.computer_use_tool import (
-        filter_computer_use_tools,
-        resolve_computer_use_context,
-    )
+    from src.infra.tool.computer_use_tool import filter_computer_use_tools
 
-    computer_use_context = (
-        await resolve_computer_use_context(
-            context.user_id or "", agent_options, configurable.get("hitl_resume")
-        )
-        if settings.ENABLE_COMPUTER_USE
-        else None
+    computer_use_context, feature_skills = await prepare_runtime_feature_skills(
+        context.user_id or "",
+        agent_options,
+        configurable.get("hitl_resume"),
+        computer_use_enabled=settings.ENABLE_COMPUTER_USE,
     )
     filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
     inner_checkpointer = prepared.checkpointer
@@ -338,6 +335,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         mw = [
             *create_retry_middleware(fallback_model=fallback_model),
             create_todo_middleware(),
+            feature_skills,
             ToolResultBinaryMiddleware(
                 base_url=subagent_base_url,
                 supports_vision=member_supports_vision,
@@ -610,6 +608,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         ]
 
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
+    user_middleware.append(feature_skills)
     user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(

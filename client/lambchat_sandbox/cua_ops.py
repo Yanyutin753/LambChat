@@ -82,10 +82,23 @@ _KEY_MAP = {
 class CuaOpError(Exception):
     """op 级结构化错误(收敛进 result.error,不炸通道)。"""
 
-    def __init__(self, code: str, detail: str = ""):
+    def __init__(self, code: str, detail: str = "", *, context: dict | None = None):
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
         self.detail = detail
+        self.context = {
+            key: value
+            for key, value in (context or {}).items()
+            if key
+            in {
+                "disposition",
+                "recovery",
+                "post_state",
+                "postcondition_satisfied",
+                "details",
+                "suggestion",
+            }
+        }
 
 
 def _backend() -> Any:
@@ -754,8 +767,14 @@ def _op_type(payload: dict) -> dict:
             }
         except CuaOpError:
             raise
-        except Exception:  # noqa: BLE001 - 元素不可直写,回退事件输入
+        except KeyError:  # Backend explicitly reports that the element is not settable.
             pass
+        except Exception as exc:  # noqa: BLE001 - A failed readback does not prove non-delivery.
+            raise CuaOpError(
+                "action_failed",
+                str(exc),
+                context={"disposition": {"delivery": "unknown", "retry": "unsafe"}},
+            ) from exc
         # set_focus 在 Windows 会顺带把窗口调到前台;再查一次前台,过则打字
         try:
             _require_observed_window_foreground(pid, payload.get("window_id"))
@@ -782,12 +801,12 @@ def _op_activate(payload: dict) -> dict:
     backend = _backend()
     pid = _resolve_app_ref(payload)
     try:
-        backend.activate_window(pid, payload.get("window_id"))
+        delivery = backend.activate_window(pid, payload.get("window_id"))
     except CuaOpError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("action_failed", f"activate failed: {exc}") from exc
-    return {"ok": True, "pid": pid}
+    return {"ok": True, "pid": pid, **(delivery if isinstance(delivery, dict) else {})}
 
 
 def _map_modifiers(text: str | None) -> list[str]:
@@ -861,8 +880,14 @@ def _op_key(payload: dict) -> dict:
             for _ in range(repeat):
                 native_press(keys[0])
             return {"ok": True, "strategy": "a11y-event", "key": keys[0]}
-        except Exception:  # noqa: BLE001 - 原生不支持该键回退 pyautogui
-            pass
+        except CuaOpError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - Never resend a key after uncertain delivery.
+            raise CuaOpError(
+                "action_failed",
+                str(exc),
+                context={"disposition": {"delivery": "unknown", "retry": "unsafe"}},
+            ) from exc
 
     pyautogui = _pyautogui()
     for _ in range(repeat):
@@ -889,8 +914,13 @@ def _op_scroll(payload: dict) -> dict:
     if target.get("type") == "element" and callable(native_scroll):
         element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
         try:
-            native_scroll(element, direction, pages)
-            return {"ok": True, "strategy": "a11y", "clicks": clicks}
+            delivery = native_scroll(element, direction, pages)
+            return {
+                "ok": True,
+                "strategy": "a11y",
+                "clicks": clicks,
+                **(delivery if isinstance(delivery, dict) else {}),
+            }
         except KeyError:
             pass
     _require_foreground(pid)
@@ -1091,7 +1121,7 @@ def handle_cua_op(op: str, payload: dict) -> dict:
                 }
         return handler(payload)
     except CuaOpError as exc:
-        return {"error": exc.code, "detail": exc.detail}
+        return {"error": exc.code, "detail": exc.detail, **exc.context}
     except Exception as exc:  # noqa: BLE001 - COMError 等三方异常同样结构化
         return {"error": "op_failed", "detail": f"{type(exc).__name__}: {exc}"}
     finally:

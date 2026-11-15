@@ -420,6 +420,34 @@ def test_single_key_prefers_native_backend(monkeypatch: pytest.MonkeyPatch) -> N
     assert pressed == ["enter"]
 
 
+def test_failed_native_key_is_not_replayed_through_another_input_backend(fake_backend, monkeypatch):
+    calls = []
+
+    def native(key):
+        calls.append(key)
+        raise RuntimeError("readback failed after delivery")
+
+    monkeypatch.setattr(fake_backend, "press_key", native, raising=False)
+    monkeypatch.setattr(
+        cua_ops, "_pyautogui", lambda: pytest.fail("must not replay uncertain input")
+    )
+    result = cua_ops.handle_cua_op("cua_key", {"pid": 4242, "text": "return"})
+    assert result["error"] == "action_failed"
+    assert result["disposition"]["retry"] == "unsafe"
+    assert calls == ["enter"]
+
+
+def test_failed_value_write_is_not_replayed_as_typing(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    fake_backend.set_value_error = RuntimeError("readback failed after writing")
+    monkeypatch.setattr(cua_ops, "_type_text", lambda text: pytest.fail("must not duplicate input"))
+    result = cua_ops.handle_cua_op(
+        "cua_type", {"pid": 4242, "target": {"type": "element", "index": 0}, "text": "中文"}
+    )
+    assert result["error"] == "action_failed"
+    assert result["disposition"]["retry"] == "unsafe"
+
+
 def test_chord_key_falls_back_to_pyautogui(fake_backend: _FakeBackend) -> None:
     """修饰键和弦没有原生通道,仍走 pyautogui。"""
     pressed: list[str] = []

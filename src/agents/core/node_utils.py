@@ -32,6 +32,31 @@ IMAGE_DATA_URL_SPOOL_MAX_MEMORY_BYTES = 256 * 1024
 IMAGE_DATA_URL_ENCODE_CHUNK_BYTES = 192 * 1024
 
 
+async def prepare_runtime_feature_skills(
+    user_id: str,
+    options: dict[str, Any],
+    hitl_resume: dict[str, Any] | None,
+    *,
+    computer_use_enabled: bool,
+):
+    """Resolve trusted runtime capabilities once for main and child feature guides."""
+    from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
+    from src.infra.tool.computer_use_tool import resolve_computer_use_context
+
+    selection = (
+        await resolve_computer_use_context(user_id, options, hitl_resume)
+        if computer_use_enabled
+        else None
+    )
+    middleware = EmbeddedFeatureSkillsMiddleware(
+        capabilities={"local_computer"}
+        if selection and selection.get("platform") == "local" and selection.get("machine_id")
+        else set(),
+        platform=(selection or {}).get("os_platform", ""),
+    )
+    return selection, middleware
+
+
 def append_memory_recall_middleware(
     middleware: list[Any],
     enabled: bool,

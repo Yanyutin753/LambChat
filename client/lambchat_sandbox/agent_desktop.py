@@ -66,7 +66,7 @@ class AgentDesktopBackend:
             code = error.get("code", "driver_failed").lower()
             if code in ("stale_ref", "snapshot_not_found", "ambiguous_target"):
                 code = "stale_state"
-            raise CuaOpError(code, json.dumps(error, ensure_ascii=False))
+            raise CuaOpError(code, error.get("message", code), context=error)
         data = envelope["data"]
         if isinstance(data, dict) and "disposition" in data:
             data.pop("steps", None)
@@ -291,9 +291,9 @@ class AgentDesktopBackend:
     def set_focus(self, element: dict) -> None:
         self.perform(element, "Focus")
 
-    def activate_window(self, pid: int, window_id: int | None) -> None:
+    def activate_window(self, pid: int, window_id: int | None) -> dict:
         _, window = self.pick_window(pid, window_id)
-        self._call("focus-window", "--window-id", window["driver_window_id"])
+        return self._call("focus-window", "--window-id", window["driver_window_id"])
 
     def click_point(self, x: float, y: float, button: str = "left", *, count: int = 1) -> dict:
         self._enable_cursor()
@@ -303,11 +303,11 @@ class AgentDesktopBackend:
 
     click_point_repeated = click_point
 
-    def scroll_element(self, element: dict, direction: str, pages: float) -> None:
+    def scroll_element(self, element: dict, direction: str, pages: float) -> dict:
         from lambchat_sandbox.cua_backend import backend_platform
 
         self._enable_cursor()
-        self._call(
+        return self._call(
             *(["--headed"] if backend_platform() == "linux" else []),
             "scroll",
             self._reference(element),
