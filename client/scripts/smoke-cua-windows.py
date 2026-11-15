@@ -154,10 +154,12 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                 report["oracle"] = json.loads((root / "result.json").read_text(encoding="utf-8"))
                 report["success"] = True
             finally:
-                await worker.close()
-                if fixture.poll() is None:
-                    fixture.terminate()
-                fixture.wait(timeout=5)
+                try:
+                    await worker.close()
+                finally:
+                    if fixture.poll() is None:
+                        fixture.terminate()
+                    fixture.wait(timeout=5)
 
 
 def main() -> int:
@@ -173,6 +175,7 @@ def main() -> int:
     try:
         asyncio.run(verify(args.daemon.resolve(strict=True), directory, report))
     except Exception as exc:
+        report["success"] = False
         report["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         (directory / "report.json").write_text(

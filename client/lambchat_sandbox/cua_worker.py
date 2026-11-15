@@ -104,6 +104,7 @@ class CuaWorker:
 
     async def close(self) -> None:
         proc, self._process = self._process, None
+        job_closed = self._job is not None
         if self._job is not None:
             from lambchat_sandbox import executor
 
@@ -115,18 +116,20 @@ class CuaWorker:
                 self._state.cleanup()
                 self._state = None
             return
-        with contextlib.suppress(psutil.NoSuchProcess):
-            parent = psutil.Process(proc.pid)
-            parent.suspend()
-            for child in reversed(parent.children(recursive=True)):
-                with contextlib.suppress(psutil.NoSuchProcess):
-                    child.kill()
-        if os.name != "nt":
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(proc.pid, signal.SIGKILL)
-        else:
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
+        # Closing the Windows Job already terminates its entire process tree.
+        if not job_closed:
+            with contextlib.suppress(psutil.NoSuchProcess):
+                parent = psutil.Process(proc.pid)
+                parent.suspend()
+                for child in reversed(parent.children(recursive=True)):
+                    with contextlib.suppress(psutil.NoSuchProcess):
+                        child.kill()
+            if os.name != "nt":
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(proc.pid, signal.SIGKILL)
+            else:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
         await asyncio.wait_for(proc.wait(), timeout=5)
         if self._state is not None:
             self._state.cleanup()

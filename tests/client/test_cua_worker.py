@@ -178,3 +178,27 @@ async def test_windows_worker_is_suspended_until_job_assignment(tmp_path, monkey
     finally:
         worker._process = None
         await worker.close()
+
+
+async def test_job_close_reaps_worker_without_inspecting_terminated_process(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from lambchat_sandbox import cua_worker, executor
+
+    worker = cua_worker.CuaWorker()
+    process = SimpleNamespace(pid=123, wait=AsyncMock(return_value=0), kill=Mock())
+    worker._process = process
+    worker._job = 456
+    state = Mock()
+    worker._state = state
+    close_handle = Mock()
+    monkeypatch.setattr(executor, "_winapi", SimpleNamespace(close_handle=close_handle))
+    inspect = Mock(side_effect=cua_worker.psutil.AccessDenied(123))
+    monkeypatch.setattr(cua_worker.psutil, "Process", inspect)
+    await worker.close()
+    close_handle.assert_called_once_with(456)
+    inspect.assert_not_called()
+    process.wait.assert_awaited_once()
+    state.cleanup.assert_called_once()
+    assert worker._process is None and worker._job is None and worker._state is None
