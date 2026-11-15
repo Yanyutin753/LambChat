@@ -11,6 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.infra.agent.middleware import summarization_fallback_patch
+from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
 from src.infra.agent.middleware.evidence import EvidenceMiddleware
 from src.infra.agent.middleware.subagent_sessions import SubagentSessionMiddleware
 from src.infra.agent.subagent_sessions import SubagentSessions
@@ -81,10 +82,20 @@ def assemble_subagent_sessions(
                         "middleware": [
                             protect_server_artifact_eviction(FilesystemMiddleware(backend=backend)),
                             PatchToolCallsMiddleware(),
-                            *spec.get("middleware", []),
+                            *[
+                                mw
+                                for mw in spec.get("middleware", [])
+                                if not isinstance(mw, EmbeddedFeatureSkillsMiddleware)
+                            ],
                             *extra_middleware,
                             inbox,
                             deepagents_graph.create_summarization_middleware(child_model, backend),
+                            # Runtime references must not enter archived conversation summaries.
+                            *[
+                                mw
+                                for mw in spec.get("middleware", [])
+                                if isinstance(mw, EmbeddedFeatureSkillsMiddleware)
+                            ],
                         ],
                     },
                 )

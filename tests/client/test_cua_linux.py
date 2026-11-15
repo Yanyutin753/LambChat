@@ -135,6 +135,54 @@ def test_linux_capture_reads_window_pixmap_not_overlaid_screen(window_capture):
     connection.close.assert_called_once()
 
 
+def test_linux_capture_creates_backing_store_when_desktop_has_no_compositor(window_capture):
+    from unittest.mock import MagicMock
+
+    connection, pixmap = window_capture
+    window = connection.create_resource_object.return_value
+    invalid = MagicMock()
+    calls = 0
+
+    def name_pixmap(onerror=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            if onerror:
+                onerror(SimpleNamespace(code=8), None)
+            return invalid
+        return pixmap
+
+    window.composite_name_window_pixmap.side_effect = name_pixmap
+    image = cua_linux.screenshot([10, 20, 2, 2])
+    assert image.getpixel((1, 1)) == (255, 0, 0)
+    window.composite_redirect_window.assert_called_once()
+    invalid.free.assert_called_once()
+    pixmap.free.assert_called_once()
+    connection.close.assert_called_once()
+
+
+@pytest.mark.parametrize("failure", ["window_gone", "redirect_denied", "still_unavailable"])
+def test_linux_capture_does_not_return_pixels_when_backing_store_recovery_fails(
+    window_capture, failure
+):
+    connection, pixmap = window_capture
+    window = connection.create_resource_object.return_value
+
+    def unavailable(onerror=None):
+        onerror(SimpleNamespace(code=3 if failure == "window_gone" else 8), None)
+        return pixmap
+
+    window.composite_name_window_pixmap.side_effect = unavailable
+    if failure == "redirect_denied":
+        window.composite_redirect_window.side_effect = lambda _, onerror: onerror(
+            SimpleNamespace(code=10), None
+        )
+    with pytest.raises(RuntimeError, match="unavailable"):
+        cua_linux.screenshot([10, 20, 2, 2])
+    pixmap.get_image.assert_not_called()
+    connection.close.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "failure", ["no_composite", "outside_window", "focus_changed", "pixel_read"]
 )

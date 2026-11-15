@@ -1,4 +1,5 @@
 import os
+import sys
 
 os.environ.pop("WAYLAND_DISPLAY", None)
 from PIL import ImageGrab
@@ -23,7 +24,8 @@ w.map()
 c.sync()
 r.change_property(c.intern_atom("_NET_ACTIVE_WINDOW"), Xatom.WINDOW, 32, [w.id])
 # Prime the window's offscreen storage before an always-on-top sibling covers it.
-w.composite_redirect_window(0)
+if "--unredirected" not in sys.argv:
+    w.composite_redirect_window(0)
 c.sync()
 o = r.create_window(
     40,

@@ -295,6 +295,7 @@ async def test_summary_counts_system_and_tools_before_using_native_prefix(tmp_pa
 async def test_deep_agent_summary_uses_the_fully_assembled_model_prefix(tmp_path, unhashable):
     from deepagents import create_deep_agent
 
+    from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
     from src.infra.agent.middleware.prompt_injection import SectionPromptMiddleware
 
     class UnhashableSectionPromptMiddleware(SectionPromptMiddleware):
@@ -315,7 +316,19 @@ async def test_deep_agent_summary_uses_the_fully_assembled_model_prefix(tmp_path
                 model=model,
                 backend=FilesystemBackend(tmp_path),
                 system_prompt="Base instructions",
-                middleware=[section_type(sections=["Required project rules"])],
+                middleware=[
+                    section_type(sections=["Required project rules"]),
+                    EmbeddedFeatureSkillsMiddleware(
+                        capabilities={"local_computer"}, platform="darwin"
+                    ),
+                ],
+                tools=[
+                    {
+                        "name": "computer_use",
+                        "description": "Control",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                ],
             )
     result = await graph.ainvoke({"messages": request_for(model).messages})
     assert result["messages"][-1].content == "Final answer"
@@ -327,11 +340,15 @@ async def test_deep_agent_summary_uses_the_fully_assembled_model_prefix(tmp_path
     assert summary_kwargs["tools"] == main_kwargs["tools"]
     assert summary_kwargs["tool_choice"] == "none"
     assert main_kwargs["tool_choice"] is None
+    assert not any(m.name == "embedded_feature_skill" for m in summary_messages)
+    assert sum(m.name == "embedded_feature_skill" for m in main_messages) == 1
+    assert not any(m.name == "embedded_feature_skill" for m in result["messages"])
 
 
 async def test_persistent_child_summary_uses_its_complete_system_tools_and_history(tmp_path):
     from langgraph.checkpoint.memory import InMemorySaver
 
+    from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
     from src.infra.agent.middleware.prompt_injection import SectionPromptMiddleware
     from src.infra.agent.subagent_assembly import assemble_subagent_sessions
     from src.infra.agent.subagent_sessions import SubagentInboxMiddleware
@@ -346,11 +363,22 @@ async def test_persistent_child_summary_uses_its_complete_system_tools_and_histo
                 "name": "researcher",
                 "description": "Research",
                 "system_prompt": "Child rules",
+                "middleware": [
+                    EmbeddedFeatureSkillsMiddleware(
+                        capabilities={"local_computer"}, platform="darwin"
+                    )
+                ],
             }
         },
         model=model,
         backend=FilesystemBackend(tmp_path),
-        tools=[],
+        tools=[
+            {
+                "name": "computer_use",
+                "description": "Control",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ],
         checkpointer=saver,
         store=None,
         system_prompt="Parent rules",
@@ -378,6 +406,9 @@ async def test_persistent_child_summary_uses_its_complete_system_tools_and_histo
     assert summary_kwargs["tools"] == main_kwargs["tools"]
     assert summary_kwargs["tool_choice"] == "none"
     assert main_kwargs["tool_choice"] is None
+    assert not any(m.name == "embedded_feature_skill" for m in summary_messages)
+    assert sum(m.name == "embedded_feature_skill" for m in main_messages) == 1
+    assert not any(m.name == "embedded_feature_skill" for m in result["messages"])
 
 
 @pytest.mark.parametrize("mode", ["native", "manual", "fallback", "retry"])

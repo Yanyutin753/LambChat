@@ -206,7 +206,7 @@ jobs:
             python3-pyatspi \
             python3-gi \
             gir1.2-atspi-2.0 \
-            xdg-utils
+            xdg-utils xvfb xauth
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -535,6 +535,28 @@ jobs:
           gh api "repos/$env:GITHUB_REPOSITORY/contents/scripts/test_windows_native_update.ps1?ref=$env:GITHUB_SHA" --header 'Accept: application/vnd.github.raw+json' > $validation
           if ($LASTEXITCODE -ne 0) { throw 'Cannot load the pinned release validation script' }
           & $validation -Verifier frontend/src-tauri/target/debug/verify_updater.exe -Artifact "release-assets/LambChat-$env:RELEASE_TAG-Windows-x64-setup.exe" -Version ($env:RELEASE_TAG.TrimStart('v'))
+
+      - name: Native shared-window desktop control regression
+        shell: bash
+        env:
+          LAMBCHAT_CONTROL_AUTOMATED: '1'
+        run: |
+          set -euo pipefail
+          args=(--manifest-path frontend/src-tauri/Cargo.toml --release --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol)
+          target="${{ matrix.target || '' }}"
+          output="frontend/src-tauri/target"
+          if [ -n "$target" ]; then args+=(--target "$target"); output="$output/$target"; fi
+          python scripts/run_validation.py cargo build "${args[@]}"
+          export LAMBCHAT_CONTROL_TEST_ROOT="$GITHUB_WORKSPACE"
+          export LAMBCHAT_CONTROL_TEST_PYTHON="$(uv python find 3.12)"
+          binary="$output/release/examples/desktop_control_smoke"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          if [ "$RUNNER_OS" = Linux ]; then
+            python scripts/run_validation.py xvfb-run -a "$binary" 2>&1 | tee desktop-control.log
+          else
+            python scripts/run_validation.py "$binary" 2>&1 | tee desktop-control.log
+          fi
+          grep -q '"ok":true' desktop-control.log
 
       - name: Native macOS update installation regression
         if: runner.os == 'macOS'

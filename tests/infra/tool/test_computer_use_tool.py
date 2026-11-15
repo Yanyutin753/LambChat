@@ -84,7 +84,11 @@ async def test_selected_machine_is_not_replaced_by_account_default(monkeypatch):
             "sandbox_machine_id": "selected-windows",
         },
     )
-    assert context == {"platform": "local", "machine_id": "selected-windows"}
+    assert context == {
+        "platform": "local",
+        "machine_id": "selected-windows",
+        "os_platform": "darwin",
+    }
 
 
 async def test_cloud_selection_never_resolves_an_account_machine(monkeypatch):
@@ -146,6 +150,7 @@ async def test_automatic_selection_pins_registry_default_machine(monkeypatch):
     assert await cut.resolve_computer_use_context("u1", {"sandbox": "local"}) == {
         "platform": "local",
         "machine_id": "default-mac",
+        "os_platform": "darwin",
     }
 
 
@@ -365,6 +370,17 @@ async def test_structured_error_is_formatted(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(cut, "dispatch_local_call", _dispatch)
     result = await _call(action="state", pid=42)
     assert result.startswith("ERROR ax_not_trusted")
+
+
+@pytest.mark.asyncio
+async def test_delivery_evidence_survives_error_formatting() -> None:
+    error = {
+        "error": "action_failed",
+        "detail": "Readback failed",
+        "disposition": {"delivery": "delivery_uncertain", "retry": "unsafe"},
+        "post_state": {"value": "partial"},
+    }
+    assert json.loads(await cut._format_result(error)) == error
 
 
 @pytest.mark.asyncio

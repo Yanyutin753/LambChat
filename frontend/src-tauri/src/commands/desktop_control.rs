@@ -81,7 +81,8 @@ pub fn receive(app: &AppHandle, token: &str, event: serde_json::Value) {
                 if manager.0.lock().unwrap_or_else(|p| p.into_inner()).token != generation { return; }
                 let shown = show(&handle);
                 let mut control = manager.0.lock().unwrap_or_else(|p| p.into_inner());
-                if shown.is_err() {
+                if let Err(error) = shown {
+                    let _ = writeln!(std::io::stderr(), "[desktop-control] Cannot show toolbar: {error}");
                     control.state = "unavailable".into();
                     if let Some(request) = control.pending.take() {
                         let _ = control.send(serde_json::json!({"action":"permit", "request":request, "allowed":false}));
@@ -112,7 +113,15 @@ fn show(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(LABEL) {
         return window.show().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("cua-control.html".into()))
+    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("cua-control.html".into()));
+    // WebView2 rejects a shared browser process when window options differ.
+    if let Some(args) = app.config().app.windows.iter()
+        .find(|window| window.label == "main")
+        .and_then(|window| window.additional_browser_args.as_deref())
+    {
+        builder = builder.additional_browser_args(args);
+    }
+    builder
         .title("LambChat")
         .inner_size(420.0, 188.0)
         .min_inner_size(320.0, 188.0)
