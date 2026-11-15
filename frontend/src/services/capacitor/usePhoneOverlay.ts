@@ -47,7 +47,7 @@ export function usePhoneOverlay(options: Options) {
           () => {},
         );
       };
-      if (disposed || event.scope !== value.draftKey) {
+      if (disposed || event.scope !== value.draftKey || (event.expiresAt !== undefined && (!Number.isFinite(event.expiresAt) || event.expiresAt <= Date.now()))) {
         reply(false);
         return;
       }

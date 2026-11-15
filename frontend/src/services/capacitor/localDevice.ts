@@ -22,6 +22,7 @@ interface LocalDevicePlugin {
     event: "overlayAction",
     listener: (event: {
       id: string;
+      expiresAt?: number;
       scope: string;
       action: string;
       text?: string;

@@ -58,8 +58,19 @@ public class LocalDevicePlugin extends Plugin {
         if ((action.equals("approve") || action.equals("reject")) && !scope.optBoolean("canApprove")) return false;
         String id = UUID.randomUUID().toString(); pendingOverlayId = id; lastOverlayAction = action;
         JSObject event = new JSObject().put("id", id).put("scope", scope.optString("scope")).put("action", action)
-                .put("text", text).put("approvalId", scope.optString("approvalId")).put("message", scope.optString("message"));
+                .put("expiresAt", System.currentTimeMillis() + 15000).put("text", text).put("approvalId", scope.optString("approvalId")).put("message", scope.optString("message"));
         plugin.notifyListeners("overlayAction", event);
+        // A background WebView can freeze; an explicit floating action may bring it back to finish.
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (!id.equals(pendingOverlayId)) return;
+            try {
+                plugin.getActivity().startActivity(new Intent(plugin.getContext(), MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            } catch (RuntimeException unavailable) {
+                pendingOverlayId = null;
+                LocalDeviceService.overlayResult(false);
+            }
+        }, 2000);
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
             if (id.equals(pendingOverlayId)) { pendingOverlayId = null; LocalDeviceService.overlayResult(false); }
         }, 15000);

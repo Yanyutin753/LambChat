@@ -118,3 +118,11 @@ test("floating approval waits for the server and reports rejection", async () =>
   await act(async () => { finish(false); });
   expect(native.overlayResult).toHaveBeenCalledWith({ id: "pending", accepted: false });
 });
+
+test("an action delayed beyond its native timeout cannot approve later", async () => {
+  render(<Harness approvals={[{ id: "approval", message: "operation", fields: [], status: "pending", type: "form" }]} />);
+  await waitFor(() => expect(native.addListener).toHaveBeenCalled());
+  act(() => native.addListener.mock.calls[0][1]({ id: "expired", scope: "account/server/chat", action: "approve", approvalId: "approval", message: "operation", expiresAt: Date.now() - 1 }));
+  expect(respond).not.toHaveBeenCalled();
+  expect(native.overlayResult).toHaveBeenCalledWith({ id: "expired", accepted: false });
+});
