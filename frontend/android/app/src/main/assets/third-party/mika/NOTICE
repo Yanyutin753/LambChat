@@ -1,0 +1,5 @@
+Mika — https://github.com/wangzan101/Mika
+Source: 4387bfeace287fafb73038609efcb00ff6a5f63e
+ADB protocol and ShellContext adapted under Apache-2.0.
+ShellContext also contains scrcpy code, Copyright 2018 Genymobile and 2018–2024 Romain Vimont.
+LambChat changes: package names and Android key identity.

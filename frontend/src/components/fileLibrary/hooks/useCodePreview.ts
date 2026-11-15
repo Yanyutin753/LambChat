@@ -29,7 +29,7 @@ export function useCodePreview(file: RevealedFileItem): string | null {
     if (
       file.file_type !== "code" ||
       !file.url ||
-      file.file_size > PREVIEW_MAX_SIZE
+      (file.file_size != null && file.file_size > PREVIEW_MAX_SIZE)
     )
       return;
 

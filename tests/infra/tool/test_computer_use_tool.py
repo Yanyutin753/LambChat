@@ -27,6 +27,12 @@ def _runtime(
     )
 
 
+def test_workflow_observes_known_app_without_unnecessary_window_discovery():
+    description = cut.computer_use.description
+    assert "call state directly with that pid" in description
+    assert "Use windows when the target window is ambiguous" in description
+
+
 @pytest.fixture(autouse=True)
 def unattended_policy(monkeypatch):
     async def lookup(user_id, machine_id=None):
@@ -63,6 +69,9 @@ async def test_model_cannot_override_selected_machine(monkeypatch):
 
 async def test_selected_machine_is_not_replaced_by_account_default(monkeypatch):
     class _Registry:
+        async def get_platform(self, user_id, machine_id=None):
+            return "darwin"
+
         async def resolve_target(self, user_id, machine_id=None):
             assert (user_id, machine_id) == ("u1", "selected-windows")
             return machine_id
@@ -80,6 +89,9 @@ async def test_selected_machine_is_not_replaced_by_account_default(monkeypatch):
 
 async def test_cloud_selection_never_resolves_an_account_machine(monkeypatch):
     class _Registry:
+        async def get_platform(self, user_id, machine_id=None):
+            return "darwin"
+
         async def resolve_target(self, *args):
             pytest.fail("cloud conversations must not resolve desktop machines")
 
@@ -91,6 +103,9 @@ async def test_cloud_selection_never_resolves_an_account_machine(monkeypatch):
 
 async def test_explicit_offline_machine_is_not_available(monkeypatch):
     class _Registry:
+        async def get_platform(self, user_id, machine_id=None):
+            return "darwin"
+
         async def resolve_target(self, user_id, machine_id=None):
             assert (user_id, machine_id) == ("u1", "offline-mac")
             return None
@@ -117,6 +132,9 @@ async def test_automatic_selection_pins_registry_default_machine(monkeypatch):
     目标机——默认机开箱即用，不再强制用户手动选中。"""
 
     class _Registry:
+        async def get_platform(self, user_id, machine_id=None):
+            return "darwin"
+
         def __init__(self, target):
             self._target = target
 
@@ -136,6 +154,9 @@ async def test_automatic_selection_without_online_machine_stays_unpinned(monkeyp
     收敛——自动档解析不能凭空造出机器。"""
 
     class _Registry:
+        async def get_platform(self, user_id, machine_id=None):
+            return "darwin"
+
         async def resolve_target(self, user_id, machine_id=None):
             return None
 
@@ -382,6 +403,33 @@ async def test_element_index_becomes_target_payload(monkeypatch: pytest.MonkeyPa
     assert captured["op"] == "cua_click"
     assert captured["payload"]["target"] == {"type": "element", "index": 3}
     assert captured["payload"]["pid"] == 7
+
+
+def test_snapshot_and_screenshot_space_reach_daemon():
+    data = cut._ComputerUseInput(
+        action="click",
+        pid=7,
+        x=20,
+        y=30,
+        snapshot_id="observation-1",
+        coordinate_space="screenshot",
+    )
+    payload = cut._build_payload(data)
+    assert payload["snapshot_id"] == "observation-1"
+    assert payload["coordinate_space"] == "screenshot"
+
+
+async def test_snapshot_actions_use_distinct_op_for_old_daemons(monkeypatch):
+    captured = {}
+
+    async def dispatch(user_id, op, payload, **kwargs):
+        captured.update(op=op, payload=payload)
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    await _call(action="click", pid=7, index=3, snapshot_id="observation-1")
+    assert captured["op"] == "cua_snapshot_action"
+    assert captured["payload"]["operation"] == "click"
 
 
 @pytest.mark.asyncio
@@ -711,3 +759,30 @@ def test_state_guidance_allows_subtree_and_avoids_reobserving_read_only_calls():
 def test_scroll_guidance_does_not_infer_boundary_from_sticky_header():
     assert "sticky header" in cut.computer_use.description
     assert "original first/last content" in cut.computer_use.description
+
+
+async def test_android_device_uses_the_existing_approved_control_tool(monkeypatch):
+    class Registry:
+        async def resolve_target(self, user_id, machine_id=None):
+            return "phone"
+
+        async def get_platform(self, user_id, machine_id=None):
+            assert machine_id == "phone"
+            return "android"
+
+    monkeypatch.setattr(cut, "SandboxClientRegistry", Registry)
+    context = await cut.resolve_computer_use_context("u1", {"sandbox": "local"})
+    tools = [SimpleNamespace(name="computer_use"), SimpleNamespace(name="execute")]
+    assert [tool.name for tool in cut.filter_computer_use_tools(tools, context)] == [
+        "computer_use",
+        "execute",
+    ]
+
+
+async def test_screenshot_size_is_preserved_from_upload_receipt(monkeypatch):
+    async def upload(result, *args, **kwargs):
+        result["blocks"][0].update(url="/api/upload/file/cua_screenshots/u/s/a.png", size=12345)
+
+    monkeypatch.setattr(cut, "upload_binary_blocks", upload)
+    result = json.loads(await cut._format_result({"screenshot": {"data_b64": "abcd"}}))
+    assert result["screenshot"]["size"] == 12345

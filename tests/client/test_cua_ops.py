@@ -111,6 +111,88 @@ def test_apps_marks_frontmost(fake_backend: _FakeBackend) -> None:
     assert by_name["Finder"]["active"] is False
 
 
+def test_snapshot_id_rejects_index_from_replaced_observation(fake_backend):
+    first = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": first["snapshot_id"],
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert result["error"] == "stale_state"
+    assert not fake_backend.performed
+
+
+def test_element_double_click_does_not_degrade_to_single_semantic_press(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    calls = []
+    monkeypatch.setattr(
+        fake_backend, "click_point", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 1},
+            "click_count": 2,
+        },
+    )
+    assert result["ok"]
+    assert not fake_backend.performed
+    assert len(calls) == 2
+
+
+def test_driver_input_error_is_not_replayed_as_keyboard_input(fake_backend, monkeypatch):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+
+    def rejected(*args):
+        raise cua_ops.CuaOpError("stale_state", "delivery uncertain; observe")
+
+    monkeypatch.setattr(fake_backend, "set_value", rejected)
+    monkeypatch.setattr(cua_ops, "_type_text", lambda text: pytest.fail("unsafe input replay"))
+    result = cua_ops.handle_cua_op(
+        "cua_type",
+        {
+            "pid": 4242,
+            "target": {"type": "element", "index": 2},
+            "text": "test",
+        },
+    )
+    assert result["error"] == "stale_state"
+
+
+def test_screenshot_coordinates_are_scaled_by_daemon(fake_backend, monkeypatch):
+    monkeypatch.setattr(cua_ops, "_capture", lambda bounds: {"width": 400, "height": 300})
+    state = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    calls = []
+    monkeypatch.setattr(
+        fake_backend, "click_point", lambda *args: calls.append(args), raising=False
+    )
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": state.get("snapshot_id"),
+            "coordinate_space": "screenshot",
+            "target": {"x": 200, "y": 150},
+        },
+    )
+    assert result["ok"]
+    assert calls == [(410.0, 320.0, "left")]
+
+
+def test_driver_observation_error_is_not_an_empty_success(fake_backend, monkeypatch):
+    def fail(element):
+        raise cua_ops.CuaOpError("stale_state", "window ownership changed")
+
+    monkeypatch.setattr(fake_backend, "row_of", fail)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert result["error"] == "stale_state"
+
+
 @pytest.mark.parametrize("clicks", [1, 2, 3])
 def test_native_coordinate_click_preserves_click_count(fake_backend, monkeypatch, clicks):
     calls = []
@@ -979,3 +1061,97 @@ def test_element_event_fallback_checks_its_observed_window(fake_backend, monkeyp
         },
     )
     assert result["error"] == "foreground_required"
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_subtree_observation_refreshes_snapshot_backend(fake_backend, monkeypatch, complete):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    refreshed = _FakeElement("AXTextField", "Updated text")
+
+    def refresh(element, window):
+        window["driver_complete"] = complete
+        return refreshed
+
+    monkeypatch.setattr(fake_backend, "refresh_element", refresh, raising=False)
+    result = cua_ops.handle_cua_op(
+        "cua_state", {"pid": 4242, "target": {"type": "element", "index": 2}}
+    )
+    assert "Updated text" in result["state"]
+    assert result["truncated"] is not complete
+    cua_ops.handle_cua_op("cua_click", {"pid": 4242, "target": {"type": "element", "index": 0}})
+    assert fake_backend.performed[-1][0] is refreshed
+
+
+def test_subtree_screenshot_crops_to_element_and_maps_pixels(fake_backend, monkeypatch):
+    captures = []
+    monkeypatch.setattr(
+        fake_backend,
+        "row_of",
+        lambda e: {"kind": e.kind, "title": e.title, "bounds": [100, 100, 200, 100]},
+    )
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: captures.append(bounds) or {"width": 100, "height": 50}
+    )
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_state",
+        {"pid": 4242, "target": {"type": "element", "index": 1}, "include_screenshot": True},
+    )
+    assert captures == [[100, 100, 200, 100]]
+    assert result["screenshot"]["bounds"] == [100, 100, 200, 100]
+    points = []
+    monkeypatch.setattr(
+        fake_backend,
+        "click_point_repeated",
+        lambda x, y, *a, **k: points.append((x, y)) or {},
+        raising=False,
+    )
+    cua_ops.handle_cua_op(
+        "cua_snapshot_action",
+        {
+            "operation": "click",
+            "pid": 4242,
+            "snapshot_id": result["snapshot_id"],
+            "coordinate_space": "screenshot",
+            "target": {"x": 50, "y": 25},
+        },
+    )
+    assert points == [(200, 150)]
+
+
+def test_capture_reports_size_and_keeps_text_lossless_when_within_budget(fake_backend, monkeypatch):
+    import base64
+
+    from PIL import Image
+
+    image = Image.new("RGB", (1800, 1000), "white")
+    monkeypatch.setattr(fake_backend, "screenshot", lambda bounds: image, raising=False)
+    result = cua_ops._capture([0, 0, 1800, 1000])
+    assert result["width"] == 1800
+    assert result["mime"] == "image/png"
+    assert result["size"] == len(base64.b64decode(result["data_b64"]))
+
+
+@pytest.mark.parametrize("element", [[900, 20, 20, 20], None, [0, 0, float("nan"), 20]])
+def test_invalid_crop_never_captures_other_desktop_regions(element):
+    with pytest.raises(cua_ops.CuaOpError, match="screenshot_failed"):
+        cua_ops._intersect_bounds([10, 20, 800, 600], element)
+
+
+def test_crop_clips_element_to_window():
+    assert cua_ops._intersect_bounds([10, 20, 800, 600], [0, 0, 100, 100]) == [10, 20, 90, 80]
+
+
+def test_focus_lost_during_capture_discards_pixels(fake_backend, monkeypatch):
+    focus = [4242]
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: focus[0])
+
+    def capture(bounds):
+        focus[0] = 100
+        return {"data_b64": "private pixels", "width": 100, "height": 100}
+
+    monkeypatch.setattr(cua_ops, "_capture", capture)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert result["screenshot"]["error"] == "foreground_required"
+    assert "data_b64" not in result["screenshot"]
+    assert cua_ops._get_observation(4242, None).screenshot is None

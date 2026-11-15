@@ -198,7 +198,7 @@ test("environment copy follows the option default, switches, and ignores stale v
   const placeholder = () => container.querySelector(".rich-chat-composer__placeholder");
   expect(placeholder()).toHaveTextContent("Describe a task to complete in the cloud");
   rerender(<ChatInput {...props} agentOptions={{ sandbox }} agentOptionValues={{ sandbox: "local" }} />);
-  expect(placeholder()).toHaveTextContent("What would you like to do on the selected computer?");
+  expect(placeholder()).toHaveTextContent("What would you like to do on the selected device?");
   rerender(<ChatInput {...props} agentOptionValues={{ sandbox: "local" }} />);
   expect(placeholder()).toHaveTextContent("Type a message or describe a task");
 });

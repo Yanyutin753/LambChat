@@ -44,7 +44,9 @@ def _load_backend() -> Any:
         return _BACKEND
     if _BACKEND_ERROR is not None:
         raise UnsupportedBackendError(_BACKEND_ERROR)
-    platform = sys.platform
+    from lambchat_sandbox.platform import daemon_platform
+
+    platform = "android" if daemon_platform() == "android" else sys.platform
     try:
         if platform == "darwin":
             from lambchat_sandbox import cua_mac
@@ -60,6 +62,11 @@ def _load_backend() -> Any:
             _BACKEND = cua_linux
         else:
             raise UnsupportedBackendError(f"unsupported_platform:{platform}")
+        from lambchat_sandbox.agent_desktop import AgentDesktopBackend, binary_path
+
+        binary = binary_path()
+        if binary is not None:
+            _BACKEND = AgentDesktopBackend(binary, _BACKEND)
     except ImportError as exc:
         _BACKEND_ERROR = f"backend_import_failed:{exc}"
         raise UnsupportedBackendError(_BACKEND_ERROR) from exc

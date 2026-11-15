@@ -69,6 +69,7 @@ frontend/**/*.tsbuildinfo
 frontend/src-tauri/binaries/
 # Embedded python-build-standalone tarballs (build-time fetch-pbs.py download, ~100MB each)
 frontend/src-tauri/resources/python/
+client/resources/agent-desktop/
 # Tauri Rust 构建产物（Cargo.lock 入库：壳的可复现构建依赖锁文件，M4 T8）
 frontend/src-tauri/target/
 frontend/src-tauri/gen/
@@ -173,3 +174,7 @@ tickets/
 .video_agent/
 
 !/scripts/check_release_mutability.py
+
+# Android local-device reproducible runtime preparation (generated assets stay in app/build).
+!/scripts/prepare_android_runtime.py
+!/scripts/android-runtime/

@@ -2,6 +2,7 @@ import i18n, { type BackendModule, type ResourceLanguage } from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import en from "./locales/en.json";
+import { isAndroidLocalDevice, LocalDevice } from "../services/capacitor/localDevice";
 
 const localeLoaders: Record<
   string,
@@ -45,6 +46,12 @@ const detectLanguage = (): string => {
   // 3. Fallback to English
   return "en";
 };
+
+i18n.on("languageChanged", (language) => {
+  if (isAndroidLocalDevice()) {
+    void LocalDevice.setLanguage({ language }).catch(() => {});
+  }
+});
 
 export const i18nReady = i18n.use(localeBackend).use(initReactI18next).init({
   resources: {

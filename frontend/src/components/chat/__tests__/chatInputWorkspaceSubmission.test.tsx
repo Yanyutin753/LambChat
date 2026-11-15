@@ -12,7 +12,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ChatInput } from "../ChatInput";
 import { workspaceOptionPatch } from "../workspaceSelection";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, shellAvailable } = vi.hoisted(() => ({ invoke: vi.fn(), shellAvailable: vi.fn(() => true) }));
 vi.mock("../ComposerUsageChip", () => ({
   ComposerUsageChip: () => null,
 }));
@@ -38,7 +38,7 @@ vi.mock("../../../hooks/useSandboxStatus", () => ({
 }));
 vi.mock("../../../services/tauri/sandboxShell", () => ({
   invokeInShell: invoke,
-  isShellAvailable: () => true,
+  isShellAvailable: shellAvailable,
 }));
 vi.mock("../ChatInputSelectors", () => ({ ChatInputSelectors: () => null }));
 
@@ -203,6 +203,19 @@ test("assistant-managed empty composer does not describe the ordinary chat's loc
   render(<Composer onSend={vi.fn()} input="" configurationLocked />);
   await screen.findByRole("textbox");
   expect(
-    screen.queryByText("What would you like to do on the selected computer?"),
+    screen.queryByText("What would you like to do on the selected device?"),
   ).toBeNull();
+});
+
+ test("Android local device submits in its private workspace without a desktop picker", async () => {
+  shellAvailable.mockReturnValue(false);
+  try {
+    const onSend = vi.fn();
+    render(<Composer onSend={onSend} />);
+    const editor = await screen.findByRole("textbox");
+    await waitFor(() => expect(editor).toHaveTextContent("List the files"));
+    await act(async () => { fireEvent.submit(editor.closest("form")!); });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalled();
+  } finally { shellAvailable.mockReturnValue(true); }
 });

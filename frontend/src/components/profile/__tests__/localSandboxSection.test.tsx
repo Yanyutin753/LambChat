@@ -212,18 +212,16 @@ test("native connection failure keeps process state and retries without claiming
     );
   const { container } = render(<LocalSandboxSection />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    /local sandbox.*failed/i,
+    /local device.*failed/i,
   );
   expect(screen.getByText("Running")).toBeVisible();
   expect(screen.queryByText("Offline")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Confirmation policy" }),
   ).toBeDisabled();
-  fireEvent.click(
-    screen.getByRole("button", { name: /retry: local sandbox/i }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /retry: local device/i }));
   expect(await screen.findByRole("status")).toHaveTextContent(
-    /local sandbox.*loading/i,
+    /local device.*loading/i,
   );
   expect(container.querySelector(".local-sandbox-section")).toHaveFocus();
   await waitFor(() => expect(recover).toBeDefined());
@@ -241,7 +239,7 @@ test("native process readiness does not announce offline while connection status
   mocks.getStatus.mockReturnValue(new Promise(() => {}));
   render(<LocalSandboxSection />);
   await screen.findByText("Running");
-  expect(screen.getByText(/local sandbox.*loading/i)).toHaveAttribute(
+  expect(screen.getByText(/local device.*loading/i)).toHaveAttribute(
     "role",
     "status",
   );
@@ -691,7 +689,7 @@ test.each([false, true])(
     mocks.getStatus.mockImplementation(() => new Promise(() => {}));
     mocks.daemonProcessStatus.mockImplementation(() => new Promise(() => {}));
     render(<LocalSandboxSection />);
-    expect(screen.getByText(/local sandbox.*loading/i)).toHaveAttribute(
+    expect(screen.getByText(/local device.*loading/i)).toHaveAttribute(
       "role",
       "status",
     );
@@ -835,7 +833,9 @@ test("pure web offline renders the pairing guidance with a download CTA", async 
   render(<LocalSandboxSection />);
 
   expect(
-    await screen.findByText(/pair it with the LambChat desktop app/i),
+    await screen.findByText(
+      /Enable a local device in the desktop app or a supported Android app/i,
+    ),
   ).toBeInTheDocument();
   // 离线引导卡：下载入口跳站内下载页（含桌面端/daemon + 教程）
   const downloadCta = await screen.findByRole("button", {
@@ -892,7 +892,9 @@ test("pure web with an online daemon shows status and machines, not the dead-end
   expect(await screen.findByText("yangyang")).toBeInTheDocument();
   // 死提示与配对表单都不出现
   expect(
-    screen.queryByText(/pair it with the LambChat desktop app/i),
+    screen.queryByText(
+      /Enable a local device in the desktop app or a supported Android app/i,
+    ),
   ).not.toBeInTheDocument();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
   expect(mocks.daemonProcessStatus).not.toHaveBeenCalled();

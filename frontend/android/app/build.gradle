@@ -1,14 +1,17 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
+    kotlinOptions { jvmTarget = "21" }
     namespace = "com.lambchat.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.lambchat.app"
+        manifestPlaceholders = [appDisplayLabel: "@string/app_name"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21509999
-        versionName "2.15.9"
+        versionCode 21510999
+        versionName "2.15.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,7 +19,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    sourceSets {
+        main.assets.srcDir("$buildDir/generated/localDevice/assets")
+        main.jniLibs.srcDir("$buildDir/generated/localDevice/jniLibs")
+    }
+    packaging { jniLibs { useLegacyPackaging = true } }
+    testOptions { unitTests.all { maxParallelForks = 1 } }
     buildTypes {
+        debug {
+            if (project.hasProperty('phonePreview')) {
+                applicationIdSuffix '.phonepreview'
+                versionNameSuffix '-phone-preview'
+                manifestPlaceholders = [appDisplayLabel: '@string/phone_preview_name']
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -52,3 +68,28 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+// Fail closed: an APK must contain the pinned runtime, never a nonfunctional entry.
+tasks.register('verifyLocalDeviceRuntime') {
+    doLast {
+        ['assets/local-device/source.sha256', 'assets/local-device/runtime.zip', 'assets/local-device/runtime.sha256',
+         'jniLibs/arm64-v8a/libproot.so', 'jniLibs/arm64-v8a/libproot_loader.so',
+         'jniLibs/arm64-v8a/libmikarun.so'].each { name ->
+            if (!file("$buildDir/generated/localDevice/$name").isFile()) {
+                throw new GradleException('Prepare Android runtime with: python3 scripts/run_validation.py uv run python scripts/prepare_android_runtime.py')
+            }
+        }
+        def repo = rootProject.projectDir.parentFile.parentFile
+        def sourceDigest = java.security.MessageDigest.getInstance('SHA-256')
+        def sources = [new File(repo, 'scripts/android-runtime/sources.json'), new File(repo, 'scripts/prepare_android_runtime.py')]
+        sources.addAll(new File(repo, 'client/lambchat_sandbox').listFiles().findAll { it.name.endsWith('.py') }.sort { it.name })
+        sources.each { source ->
+            sourceDigest.update((repo.toPath().relativize(source.toPath()).toString().replace('\\', '/') + '\u0000').getBytes('UTF-8'))
+            sourceDigest.update(source.bytes)
+        }
+        if (sourceDigest.digest().encodeHex().toString() != file("$buildDir/generated/localDevice/assets/local-device/source.sha256").text.trim()) {
+            throw new GradleException('Local device sources changed; rerun prepare_android_runtime.py')
+        }
+    }
+}
+preBuild.dependsOn('verifyLocalDeviceRuntime')

@@ -108,6 +108,7 @@ async def test_upload_binary_blocks_spools_decoded_bytes_to_storage_file(monkeyp
     await upload_binary_blocks(result, "https://app.example.com")
 
     block = result["blocks"][0]
+    assert block["size"] == len(b"image-data")
     assert "base64" not in block
     assert block["url"].startswith("https://app.example.com/api/upload/file/tool_binaries/")
     assert storage.uploaded == {

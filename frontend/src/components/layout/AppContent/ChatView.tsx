@@ -1,3 +1,4 @@
+import { usePhoneOverlay } from "../../../services/capacitor/usePhoneOverlay";
 import { FeedbackProvider } from "../../chat/ChatMessage/FeedbackProvider";
 import { parseWorkspaceSelection } from "../../chat/workspaceSelection";
 import { WorkspaceMediaContext } from "../../../hooks/workspaceMediaContext";
@@ -56,6 +57,7 @@ import {
 import { useRevealPreview } from "./useRevealPreview";
 import { findCancelledRetryTarget } from "../../chat/ChatMessage/cancelledRetry";
 import {
+  hasVisiblePersistentGoal,
   getGoalForMessage,
   getVisibleActiveGoalForMessages,
 } from "../../chat/goalVisibility";
@@ -186,6 +188,23 @@ export function ChatView({
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
   const hasPendingApproval = approvals.length > 0;
+  usePhoneOverlay({
+    draftKey,
+    agentOptionValues,
+    approvals,
+    approvalLoading,
+    onRespondApproval,
+    onSendMessage,
+    onStopGeneration,
+    ready:
+      !!user &&
+      canSendMessage &&
+      !workspaceLocked &&
+      !workspaceSaving &&
+      !workspaceUnconfirmed &&
+      agentOptionValues?.sandbox === "local",
+    running: sessionRunning,
+  });
   const hasVisibleStreamingMessage = messages.some(
     (message) => message.role === "assistant" && message.isStreaming,
   );
@@ -483,6 +502,8 @@ export function ChatView({
     () => getVisibleActiveGoalForMessages(activeGoal, messages),
     [activeGoal, messages],
   );
+  const showWelcome =
+    messages.length === 0 && !hasVisiblePersistentGoal(persistentGoal);
   const composerGoal =
     visibleActiveGoal ??
     (activeGoal?._persistent_id &&
@@ -830,7 +851,7 @@ export function ChatView({
                   "linear-gradient(to bottom, transparent, var(--theme-bg))",
               }}
             />
-            {messages.length === 0 ? (
+            {showWelcome ? (
               !hasPendingApproval &&
               (isLoading ? (
                 <ChatSkeleton count={8} />
@@ -882,7 +903,7 @@ export function ChatView({
                   onSelectTeam={onSelectTeam}
                 />
               ))
-            ) : (
+            ) : messages.length > 0 ? (
               <Virtuoso
                 key={messageListSessionKey}
                 ref={virtuosoRef}
@@ -904,7 +925,7 @@ export function ChatView({
                 components={virtuosoComponents}
                 itemContent={virtuosoItemContent}
               />
-            )}
+            ) : null}
             {showTimelineRail && (
               <MessageTimelineRail
                 items={outlineItems}
@@ -923,7 +944,7 @@ export function ChatView({
           <PersistentToolPanelHost />
 
           {/* Pending confirmations replace every composer, including empty/history-loading views. */}
-          {(messages.length > 0 || hasPendingApproval) && (
+          {(!showWelcome || hasPendingApproval) && (
             <div className="relative">
               <SessionTodoDock
                 running={sessionRunning || approvals.length > 0}
@@ -932,7 +953,9 @@ export function ChatView({
                 currentRunId={currentRunId}
               />
               <div
-                className={`chat-scroll-actions absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
+                className={`${
+                  messages.length === 0 ? "hidden" : "flex"
+                } chat-scroll-actions absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex-col gap-2 sm:right-4`}
               >
                 <SessionBookmarksButton
                   sessionId={sessionId}
@@ -1014,8 +1037,6 @@ export function ChatView({
                   persistentGoalBusy={persistentGoalBusy}
                   onControlPersistentGoal={onControlPersistentGoal}
                   onClearActiveGoal={onClearActiveGoal}
-                  goalLabel={t("chat.goal.active", "Goal")}
-                  goalDurationLabel={t("chat.goal.running", "Running")}
                   goalClearLabel={t("chat.goal.clear", "Clear goal")}
                   showHelpMenu
                   helpMenuClassName="hidden sm:block"

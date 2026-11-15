@@ -33,8 +33,8 @@ a = Analysis(
     [str(REPO_ROOT / "client/lambchat_sandbox/__main__.py")],
     # Keep distro GI available without shadowing uv.lock dependencies.
     pathex=[str(REPO_ROOT / "client"), *getsitepackages(), *LINUX_SYSTEM_PACKAGES],
-    binaries=[],
-    datas=[],
+    binaries=[(str(path), "agent-desktop") for path in (REPO_ROOT / "client/resources/agent-desktop").glob("agent-desktop*") if path.is_file()],
+    datas=[(str(REPO_ROOT / "client/third_party/agent-desktop/LICENSE"), "licenses/agent-desktop")],
     hiddenimports=[
         # computer-use 事件/截屏链:pyautogui 懒加载这些模块(函数体内
         # import / try-import),静态分析抓不到;2026-10-08 生产实测
@@ -44,7 +44,7 @@ a = Analysis(
         "PIL",
         "pyperclip",
         "pyautogui",
-        *(["pyatspi", "gi.repository.Atspi"] if LINUX_SYSTEM_PACKAGES else []),
+        *(["pyatspi", "gi.repository.Atspi", "Xlib.ext.composite"] if LINUX_SYSTEM_PACKAGES else []),
     ],
     hookspath=[],
     hooksconfig={},

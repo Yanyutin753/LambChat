@@ -1,3 +1,7 @@
+import { isAndroidLocalDevice } from "../../services/capacitor/localDevice";
+import { PhoneControlSettings } from "./PhoneControlSettings";
+import { LocalDeviceOverlaySettings } from "./LocalDeviceOverlaySettings";
+import { LocalDeviceFiles } from "./LocalDeviceFiles";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import {
@@ -96,7 +100,8 @@ export function LocalSandboxSection({
   const { hasPermission } = useAuth();
   const canManage = hasPermission(Permission.SANDBOX_MANAGE);
   const navigate = useNavigate();
-  const shell = isShellAvailable();
+  const androidDevice = isAndroidLocalDevice();
+  const shell = isShellAvailable() || androidDevice;
   const { status, statusError, refreshing, online, refresh, currentMachineId } =
     useSandboxStatus();
   const [processStatus, setProcessStatus] = useState("");
@@ -119,7 +124,13 @@ export function LocalSandboxSection({
   const pairing = action === "other" && busy;
   const pairingCurrent = action === "current" && busy;
   const blocked =
-    !canManage || busy || pathBusy || pairPrepared || locationBusy;
+    !canManage ||
+    busy ||
+    pathBusy ||
+    pairPrepared ||
+    locationBusy ||
+    processStatus === "unsupported" ||
+    processStatus === "starting";
   const pairBusy = blocked;
   const unpairing = action === "unpair" && busy;
   const [username, setUsername] = useState("");
@@ -226,7 +237,7 @@ export function LocalSandboxSection({
       processStatus === "unsupported" ||
       statusError === "unauthorized") &&
     !(states.native && action !== "current" && action !== "other");
-  const loading = processStatus === "";
+  const loading = processStatus === "" || processStatus === "starting";
   const connectionPending = status === null && statusError === null;
   const connectionFailed = statusError === "failed";
   const connectionLoading =
@@ -552,7 +563,7 @@ export function LocalSandboxSection({
             label={t("profile.localSandbox.title")}
             loading={loading}
             error={processStatus === "error"}
-            onRetry={refreshProcessStatus}
+            onRetry={androidDevice ? handleRestart : refreshProcessStatus}
             focusTargetRef={sectionRef}
           />
         ) : (
@@ -598,16 +609,37 @@ export function LocalSandboxSection({
             >
               {processStatus === "running"
                 ? t("profile.localSandbox.processRunning")
-                : t("profile.localSandbox.processStopped")}
+                : processStatus === "unsupported"
+                  ? t("profile.localSandbox.androidUnsupported")
+                  : t("profile.localSandbox.processStopped")}
             </span>
           </div>
         )}
 
         {/* 数据位置（配对态无关）：当前根 + 更改/恢复默认 + 重启引导 */}
-        <SandboxDataLocationCard
-          disabled={busy || pathBusy || pairPrepared}
-          onBusyChange={setLocationBusy}
-        />
+        {!androidDevice && (
+          <SandboxDataLocationCard
+            disabled={busy || pathBusy || pairPrepared}
+            onBusyChange={setLocationBusy}
+          />
+        )}
+        {androidDevice && (
+          <p className="mt-2 text-12 text-theme-text-secondary">
+            {t("profile.localSandbox.androidHint")}
+          </p>
+        )}
+        {androidDevice && processStatus !== "unsupported" && (
+          <>
+            <LocalDeviceOverlaySettings />
+            <PhoneControlSettings />
+            <LocalDeviceFiles />
+          </>
+        )}
+        {androidDevice && processStatus === "error" && (
+          <Button size="sm" disabled={blocked} onClick={handleUnpair}>
+            {t("profile.localSandbox.unpair")}
+          </Button>
+        )}
 
         {states.native && (
           <div className="mt-2" aria-busy={busy}>
@@ -724,20 +756,21 @@ export function LocalSandboxSection({
             />
 
             <div className="local-sandbox-actions">
-              {(["workspaces", "audit", "logs"] as const).map((path) => (
-                <Button
-                  key={path}
-                  size="sm"
-                  leftIcon={
-                    <FolderOpen size={14} className="shrink-0 opacity-60" />
-                  }
-                  onClick={() => handleOpenLocalPath(path)}
-                  loading={pathBusy && pathAction === path}
-                  disabled={blocked}
-                >
-                  {t(PATH_LABELS[path])}
-                </Button>
-              ))}
+              {!androidDevice &&
+                (["workspaces", "audit", "logs"] as const).map((path) => (
+                  <Button
+                    key={path}
+                    size="sm"
+                    leftIcon={
+                      <FolderOpen size={14} className="shrink-0 opacity-60" />
+                    }
+                    onClick={() => handleOpenLocalPath(path)}
+                    loading={pathBusy && pathAction === path}
+                    disabled={blocked}
+                  >
+                    {t(PATH_LABELS[path])}
+                  </Button>
+                ))}
               <Button
                 size="sm"
                 leftIcon={

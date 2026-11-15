@@ -732,6 +732,7 @@ export const ChatMessage = memo(function ChatMessage({
     runPartGroups,
     { enabled: true, preserveSubagents: inGroup },
   );
+  const isPersistentGoalRun = message.runId?.startsWith("goal-") === true;
   const renderPartGroups = (
     groups: Array<(typeof runPartGroups)[number]>,
     foldTools = true,
@@ -759,7 +760,7 @@ export const ChatMessage = memo(function ChatMessage({
           defaultExpanded={message.isStreaming}
           stateKey={`${message.id}:gallery-${group.startPartIndex}`}
         />
-      ) : (
+      ) : group.part.type === "cancelled" && isPersistentGoalRun ? null : (
         <MessagePartRenderer
           key={group.partIndex}
           part={group.part}
@@ -883,6 +884,7 @@ export const ChatMessage = memo(function ChatMessage({
             <div className="flex flex-col gap-3">
               {(runHeadGroups.length > 0 ||
                 message.isStreaming ||
+                (message.cancelled && isPersistentGoalRun) ||
                 isWaitingForHuman) && (
                 <RunStepsCollapse
                   steps={countRunSteps(message.parts!)}

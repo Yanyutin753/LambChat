@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional
 from weakref import WeakValueDictionary
 
 from langchain.tools import ToolRuntime, tool
@@ -60,8 +60,10 @@ async def resolve_computer_use_context(
         selected = options.get("sandbox_machine_id")
         selected = selected.strip() if isinstance(selected, str) else None
         try:
-            machine = await SandboxClientRegistry().resolve_target(user_id, selected or None)
+            registry = SandboxClientRegistry()
+            machine = await registry.resolve_target(user_id, selected or None)
         except Exception:  # noqa: BLE001 - 注册表故障时不暴露桌面工具
+            machine = None
             logger.warning("computer_use machine resolution failed for user %s", user_id)
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
@@ -100,12 +102,16 @@ class _ComputerUseInput(BaseModel):
     action: str = Field(
         ...,
         description=(
-            "status|apps|launch|windows|state|activate|click|set_value|type|key|scroll|action"
+            "status|apps|launch|windows|state|activate|click|set_value|type|key|scroll|action. "
+            "Android: use name=package from apps; launch uses app=package. Observe state before every input, "
+            "pass snapshot_id; key supports back/home/enter/tab/backspace. Right click is long press. "
+            "User selects foreground/background and enables control on the phone. Never change Android permissions via tools."
         ),
     )
     url: Optional[str] = Field(None, description="launch: open this URL in the default browser")
     app: Optional[str] = Field(
-        None, description="launch: executable path or macOS .app bundle (no shell)"
+        None,
+        description="launch: executable path, macOS .app bundle, or Android package name (no shell)",
     )
     args: Optional[list[str]] = Field(None, description="launch: argv for app")
     machine_id: Optional[str] = Field(
@@ -116,10 +122,20 @@ class _ComputerUseInput(BaseModel):
         None,
         description="Target app pid from apps. Required unless name is supplied for all actions except status/apps/launch, including coordinate clicks.",
     )
-    name: Optional[str] = Field(None, description="target app name (exact, from apps)")
+    name: Optional[str] = Field(
+        None,
+        description="target app name (exact, from apps); Android requires the package in name for every targeted operation",
+    )
     window_id: Optional[int] = Field(None, description="pin one window (from windows)")
     index: Optional[int] = Field(
         None, description="element index from latest state; state: inspect only this subtree"
+    )
+    snapshot_id: Optional[str] = Field(
+        None, description="Copy snapshot_id from state when acting on its elements or screenshot"
+    )
+    coordinate_space: Literal["screen", "screenshot"] = Field(
+        "screen",
+        description="Use screenshot with snapshot_id for image pixel coordinates; daemon handles scaling",
     )
     x: Optional[float] = Field(
         None,
@@ -158,6 +174,10 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
         payload["name"] = data.name
     if data.window_id is not None:
         payload["window_id"] = data.window_id
+    if data.snapshot_id is not None:
+        payload["snapshot_id"] = data.snapshot_id
+    if data.coordinate_space != "screen":
+        payload["coordinate_space"] = data.coordinate_space
     if data.index is not None:
         payload["target"] = {"type": "element", "index": data.index}
     elif data.x is not None and data.y is not None:
@@ -215,7 +235,7 @@ async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
             **result,
             "screenshot": {
                 **{k: v for k, v in screenshot.items() if k != "data_b64"},
-                **{k: v for k, v in block.items() if k in ("url", "upload_error")},
+                **{k: v for k, v in block.items() if k in ("url", "size", "upload_error")},
             },
         }
     serialized = await _json_dumps_result(result)
@@ -238,7 +258,10 @@ async def computer_use(
         "type, key, scroll, action",
     ],
     url: Annotated[Optional[str], "launch: URL to open in default browser"] = None,
-    app: Annotated[Optional[str], "launch: executable path or macOS .app bundle (no shell)"] = None,
+    app: Annotated[
+        Optional[str],
+        "launch: executable path, macOS .app bundle, or Android package name (no shell)",
+    ] = None,
     args: Annotated[Optional[list[str]], "launch: argv for app"] = None,
     machine_id: Annotated[Optional[str], "target a specific registered machine"] = None,
     pid: Annotated[
@@ -248,6 +271,8 @@ async def computer_use(
     name: Annotated[Optional[str], "Target app name (exact match)"] = None,
     window_id: Annotated[Optional[int], "Pin one window"] = None,
     index: Annotated[Optional[int], "Element index from latest state"] = None,
+    snapshot_id: Annotated[Optional[str], "Snapshot identity from state"] = None,
+    coordinate_space: Annotated[Literal["screen", "screenshot"], "Coordinate space"] = "screen",
     x: Annotated[Optional[float], "Coordinate fallback x"] = None,
     y: Annotated[Optional[float], "Coordinate fallback y"] = None,
     text: Annotated[Optional[str], "Text for type/key"] = None,
@@ -276,15 +301,21 @@ async def computer_use(
     Coordinate clicks also require pid or name; never assume the current app implicitly.
     1. ``launch`` to open a URL or start an app — this is the correct way to start
        browsers/GUI apps (detached, survives; do NOT start GUI apps via shell execute).
-    2. ``apps`` to find the pid (``launch.launcher_pid`` may belong to a wrapper,
-       not the accessible app; browsers are multi-process: only ONE pid owns windows —
-       probe candidates with ``windows`` and keep the pid that returns windows).
+    2. ``apps`` to find the pid, then call state directly with that pid.
+       ``launch.launcher_pid`` may belong to a wrapper, not the accessible app.
+       Use windows when the target window is ambiguous or state cannot resolve it;
+       do not enumerate windows before every state. For multi-process browsers,
+       probe candidates with windows only if the selected pid has no usable window.
     3. ``state`` to observe the accessibility tree. Element indices address the LATEST
        observation; every new ``state`` renumbers. Re-observe after a GUI change before
        using indices again. Read-only status/apps/windows/state calls do not require
        another observation. For truncated trees, use ``state(index=...)`` on a known
        document/container; subtree indices replace the previous ones. Omit index to
        return to the full window. Screenshots still show the verified target window.
+       If ``desktop_control_paused`` is returned, the local user has taken over:
+       stop computer actions and wait for the user to resume in the control window.
+       Never use exec or another tool to bypass a local pause. After resuming,
+       observe again; interrupted input may have partially completed and must not be replayed.
        If ``window.focused=false`` or screenshot error is ``foreground_required``,
        call ``activate`` on that window before observing an image; do not retry the same background screenshot.
     4. Prefer element actions (accessibility press/value work on background apps, no
@@ -358,8 +389,11 @@ async def computer_use(
     - For settable elements prefer set_value over typing.
     - ``action`` invokes a named accessibility action: pass ``element_action`` from
       the latest tree's actions= list and the element ``index``.
-    - Coordinate targets use global screen coordinates, not cropped screenshot pixels.
-      Add the window origin and account for screenshot scaling using window.bounds.
+    - Copy state.snapshot_id when using its element indices. For screenshot pixels,
+      use coordinate_space="screenshot" and snapshot_id: the daemon handles scaling
+      and rejects moved windows. The legacy default "screen" uses global coordinates.
+    - Driver disposition distinguishes verified from unverified delivery. After timeout
+      or uncertain delivery, observe first; never blindly repeat a write or click.
       For scroll, pass an element index or coordinates to target the scroll area.
     - Errors are structured: ax_not_trusted/screen_recording_denied → tell the user to
       grant Accessibility & Screen Recording to LambChat.app once in System Settings
@@ -378,6 +412,18 @@ async def computer_use(
         return "ERROR invalid_arguments: this action needs pid or name"
     if action == "launch" and not url and not app:
         return "ERROR invalid_arguments: launch needs url or app"
+    if coordinate_space == "screenshot" and not snapshot_id:
+        return "ERROR invalid_arguments: screenshot coordinates require snapshot_id from state"
+    if snapshot_id and action not in (
+        "state",
+        "click",
+        "set_value",
+        "type",
+        "key",
+        "scroll",
+        "action",
+    ):
+        return "ERROR invalid_arguments: snapshot_id only applies to state and input actions"
 
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -389,7 +435,7 @@ async def computer_use(
     if not isinstance(selection, dict):
         return "ERROR machine_selection_required: select an online machine in this session"
     if selection.get("platform") != "local":
-        return "ERROR local_computer_required: select Local computer in this session"
+        return "ERROR local_computer_required: select Local device in this session"
     selected_machine = selection.get("machine_id")
     if not isinstance(selected_machine, str) or not selected_machine:
         return "ERROR machine_selection_required: select an online machine in this session"
@@ -406,6 +452,8 @@ async def computer_use(
             name=name,
             window_id=window_id,
             index=index,
+            snapshot_id=snapshot_id,
+            coordinate_space=coordinate_space,
             x=x,
             y=y,
             text=text,
@@ -453,9 +501,11 @@ async def computer_use(
         ):
             return "ERROR declined_by_user: approval missing or operation changed; do not retry without an explicit user request"
         try:
-            resp = await dispatch_local_call(
-                user_id, f"cua_{action}", payload, machine_id=selected_machine
-            )
+            op = f"cua_{action}"
+            if snapshot_id:
+                op = "cua_snapshot_action"
+                payload = {**payload, "operation": action}
+            resp = await dispatch_local_call(user_id, op, payload, machine_id=selected_machine)
         except Exception as exc:  # noqa: BLE001 - AppError(SANDBOX_*) 等统一转文本
             # AppError.__str__ retains interpolation placeholders.
             message = exc.display_message if isinstance(exc, AppError) else str(exc)

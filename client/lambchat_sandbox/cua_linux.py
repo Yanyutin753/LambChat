@@ -8,7 +8,7 @@
 - 会话需可达:``DBUS_SESSION_BUS_ADDRESS`` 指向用户会话总线(SSH 场景需
   显式 ``unix:path=/run/user/<uid>/bus``),AT-SPI 总线由 GNOME 桌面常驻提供;
 - GNOME 需开无障碍:``gsettings set org.gnome.desktop.interface toolkit-accessibility true``;
-- 事件/截屏走 ops 层 pyautogui(X11;Wayland 下合成输入受限,报错引导)。
+- X11 截图读取合成器维护的窗口 pixmap，不读取被浮窗遮挡的屏幕；Wayland 截图受限。
 """
 
 from __future__ import annotations
@@ -33,19 +33,98 @@ def _desktop() -> Any:
 
 
 def screenshot(bounds: list[float] | None) -> Any:
+    import math
     import os
 
-    from PIL import ImageGrab
+    from PIL import Image
 
     if os.environ.get("WAYLAND_DISPLAY"):
         raise RuntimeError(
             "native Wayland capture is unavailable; use an X11 desktop for screenshots"
         )
-    bbox = None
-    if bounds:
-        x, y, width, height = bounds
-        bbox = (int(x), int(y), int(x + width), int(y + height))
-    return ImageGrab.grab(bbox=bbox, xdisplay=os.environ.get("DISPLAY"))
+    if not bounds or len(bounds) != 4 or not all(math.isfinite(v) for v in bounds):
+        raise RuntimeError("target window bounds required")
+    x, y, width, height = map(int, bounds)
+    if width <= 0 or height <= 0:
+        raise RuntimeError("empty capture bounds")
+
+    from Xlib import X, display
+    from Xlib.ext import composite  # noqa: F401 - register the dynamically loaded extension
+
+    connection = display.Display()
+    pixmap = None
+    try:
+        if not connection.has_extension("Composite"):
+            raise RuntimeError("XComposite is required for overlay-free window screenshots")
+        root = connection.screen().root
+        active_atom = connection.intern_atom("_NET_ACTIVE_WINDOW")
+        active = root.get_full_property(active_atom, X.AnyPropertyType)
+        if active is None or not len(active.value) or not active.value[0]:
+            raise RuntimeError("active window unavailable")
+        active_id = int(active.value[0])
+        window = connection.create_resource_object("window", active_id)
+        # Include server-side decorations if AT-SPI bounds refer to the frame.
+        for _ in range(8):
+            geometry = window.get_geometry()
+            origin = root.translate_coords(window, 0, 0)
+            border = geometry.border_width
+            left, top = origin.x - border, origin.y - border
+            if (
+                left <= x
+                and top <= y
+                and x + width <= left + geometry.width + 2 * border
+                and y + height <= top + geometry.height + 2 * border
+            ):
+                break
+            window = window.query_tree().parent
+            if window.id == root.id:
+                raise RuntimeError("capture bounds outside target window")
+        else:
+            raise RuntimeError("target window frame unavailable")
+
+        visual_id = window.get_attributes().visual
+        visual = next(
+            v
+            for d in connection.screen().allowed_depths
+            for v in d.visuals
+            if v.visual_id == visual_id
+        )
+        if (visual.red_mask, visual.green_mask, visual.blue_mask) != (0xFF0000, 0xFF00, 0xFF):
+            raise RuntimeError("unsupported X11 pixel format")
+        fmt = next(f for f in connection.display.info.pixmap_formats if f.depth == geometry.depth)
+        if fmt.bits_per_pixel not in (24, 32):
+            raise RuntimeError("unsupported X11 pixel depth")
+        # Use the compositor's existing backing store; redirecting here can capture unpainted pixels.
+        pixmap = window.composite_name_window_pixmap()
+        data = pixmap.get_image(x - left, y - top, width, height, X.ZPixmap, 0xFFFFFFFF)
+        little = connection.display.info.image_byte_order == X.LSBFirst
+        mode = (
+            ("BGRX" if little else "XRGB")
+            if fmt.bits_per_pixel == 32
+            else ("BGR" if little else "RGB")
+        )
+        stride = ((width * fmt.bits_per_pixel + fmt.scanline_pad - 1) // fmt.scanline_pad) * (
+            fmt.scanline_pad // 8
+        )
+        image = Image.frombytes("RGB", (width, height), data.data, "raw", mode, stride, 1)
+        after = root.get_full_property(active_atom, X.AnyPropertyType)
+        current = root.translate_coords(window, 0, 0)
+        resized = window.get_geometry()
+        if (
+            after is None
+            or list(after.value) != [active_id]
+            or (current.x, current.y, resized.width, resized.height)
+            != (origin.x, origin.y, geometry.width, geometry.height)
+        ):
+            raise RuntimeError("window changed during capture; observe again")
+        return image
+    finally:
+        try:
+            if pixmap is not None:
+                pixmap.free()
+            connection.sync()
+        finally:
+            connection.close()
 
 
 def ax_trusted() -> bool:

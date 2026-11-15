@@ -186,7 +186,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // window-state 插件：跨启动记住主窗口位置/大小（桌面原生感标配；
         // 状态文件在 app data，版本升级时同样保留）
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["cua-control"])
+                .build(),
+        )
         .setup(|app| {
             #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
@@ -200,6 +204,7 @@ pub fn run() {
             // 播种、daemon spawn、open_local_path 白名单）都跟随覆盖文件。
             daemon::apply_sandbox_home_override(app.handle());
             app.manage(daemon::DaemonManager::default());
+            app.manage(commands::desktop_control::DesktopControl::default());
             app.manage(commands::preview::PreviewManager::default());
             // SIGTERM 优雅退出路径（unix）：kill -TERM → app.exit(0) → Exit 事件
             // → daemon::stop（与关窗路径同一出口）。
@@ -222,6 +227,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::desktop_control::desktop_control_status,
+            commands::desktop_control::desktop_control_set_paused,
             commands::notification::desktop_notification_supports_actions,
             commands::notification::desktop_notification_permission,
             commands::notification::desktop_notification_send,
@@ -255,6 +262,10 @@ pub fn run() {
         .on_window_event(|window, event| {
             commands::attachments::handle_drop(window, event);
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "cua-control" {
+                    api.prevent_close();
+                    let _ = commands::desktop_control::set_paused(window.app_handle(), true);
+                }
                 if window.label() == "main" {
                     api.prevent_close();
                     let has_tray = window.app_handle().tray_by_id("lambchat-tray").is_some();
