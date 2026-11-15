@@ -122,6 +122,24 @@ class _CallDedupe:
     def is_terminal(self, call_id: str) -> bool:
         return call_id in self._terminal
 
+    async def report_interrupted(self, client: ChannelClient) -> None:
+        # A disconnected handler has stopped; ACK alone would leave its caller waiting.
+        for call_id in tuple(self._order):
+            if call_id in self._terminal or call_id in self._active:
+                continue
+            try:
+                await client.post_result(
+                    call_id,
+                    {
+                        "stage": "done",
+                        "status": "error",
+                        "error": "connection_interrupted: outcome unknown; inspect current state before retrying",
+                    },
+                )
+            except ResultRejectedError:
+                pass  # An expired assignment no longer has a waiting caller.
+            self.mark_terminal(call_id)
+
 
 def _default_machine_name() -> str:
     """machine_name 未配置时的展示名退回 hostname（截断防超长 URL）。"""
@@ -179,6 +197,7 @@ async def run_daemon(
             try:
                 hello, calls = await client.connect()
                 attempt = 0  # 连接建立（收到 hello）即清零退避
+                await dedupe.report_interrupted(client)
                 print(f"[sandbox] 已连接 {cfg.server_url}（hello={hello}），等待任务…", flush=True)
                 await _handle_channel(
                     client,
@@ -284,6 +303,11 @@ async def _handle_channel(
                 _session_id_from_cwd(str(call.payload.get("cwd", ""))),
                 {"event": "result_rejected", "call_id": call.call_id, "op": call.op},
             )
+        except BaseException:
+            # Queued calls can be ACKed before the operation handler records them.
+            if dedupe is not None:
+                dedupe.remember(call.call_id)
+            raise
         finally:
             if acquired:
                 slots.release()

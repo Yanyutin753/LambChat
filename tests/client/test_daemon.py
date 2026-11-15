@@ -538,6 +538,96 @@ async def test_connection_error_reconnects_with_backoff():
     assert good.close_count == 1
 
 
+@pytest.mark.parametrize("lost_stage", ["ack", "done"])
+@pytest.mark.parametrize("repush", [False, True])
+async def test_reconnect_ends_interrupted_call_without_waiting_or_replaying(lost_stage, repush):
+    class LostReply(FakeClient):
+        async def post_result(self, call_id, body):
+            if body.get("stage") == lost_stage:
+                raise TransportError("connection lost")
+            await super().post_result(call_id, body)
+
+    call = _call("interrupted", op="cua_state" if lost_stage == "ack" else "exec")
+    first = LostReply(calls=[call])
+    reconnected = FakeClient(calls=[call] if repush else [])
+    executor = FakeExecutor()
+    await _run(
+        _cfg(),
+        FakeFactory([first, reconnected, _terminator()]),
+        executor=executor,
+        auditor=MemoryAuditor(),
+    )
+    assert len(executor.calls) == (1 if lost_stage == "done" else 0)
+    assert len(reconnected.posted) == 1
+    call_id, result = reconnected.posted[0]
+    assert call_id == "interrupted"
+    assert result["stage"] == "done" and result["status"] == "error"
+    assert "unknown" in result["error"] and "inspect" in result["error"]
+
+
+async def test_interrupted_report_is_retried_until_the_server_accepts_it():
+    class LostReport(FakeClient):
+        async def post_result(self, call_id, body):
+            raise TransportError("reply lost")
+
+    dedupe = daemon_module._CallDedupe()
+    dedupe.remember("interrupted")
+    with pytest.raises(TransportError):
+        await dedupe.report_interrupted(LostReport())
+    assert not dedupe.is_terminal("interrupted")
+    accepted = FakeClient()
+    await dedupe.report_interrupted(accepted)
+    await dedupe.report_interrupted(accepted)
+    assert len(accepted.posted) == 1
+    assert dedupe.is_terminal("interrupted")
+
+
+async def test_expired_interrupted_report_does_not_block_other_results():
+    class ExpiredReport(FakeClient):
+        async def post_result(self, call_id, body):
+            if call_id == "expired":
+                raise ResultRejectedError("assignment expired")
+            await super().post_result(call_id, body)
+
+    dedupe = daemon_module._CallDedupe()
+    dedupe.remember("expired")
+    dedupe.remember("pending")
+    accepted = ExpiredReport()
+    await dedupe.report_interrupted(accepted)
+    assert dedupe.is_terminal("expired") and dedupe.is_terminal("pending")
+    assert [call_id for call_id, _ in accepted.posted] == ["pending"]
+
+
+async def test_reconnect_reports_acked_calls_cancelled_while_waiting_for_another_call(monkeypatch):
+    async def blocked(*args, **kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(daemon_module, "_process_cua_call", blocked)
+    dedupe = daemon_module._CallDedupe()
+    client = FakeClient()
+    task = asyncio.create_task(
+        daemon_module._handle_channel(
+            client,
+            _aiter([_call("first", op="cua_state"), _call("queued", op="cua_state")]),
+            cfg=_cfg(),
+            executor=FakeExecutor(),
+            auditor=MemoryAuditor(),
+            dedupe=dedupe,
+        )
+    )
+    try:
+        async with asyncio.timeout(1):
+            while len(client.posted) < 2:
+                await asyncio.sleep(0)
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    reconnected = FakeClient()
+    await dedupe.report_interrupted(reconnected)
+    assert {call_id for call_id, _ in reconnected.posted} == {"first", "queued"}
+
+
 async def test_backoff_resets_after_successful_connect():
     """连接成功清零退避：第二次退避仍是基线 1s 而非翻倍到 2s。"""
     first = FakeClient(calls=[])
