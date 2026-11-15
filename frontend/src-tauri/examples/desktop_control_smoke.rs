@@ -49,26 +49,23 @@ fn main() {
                         }
                     }
                 }
+                desktop_control::detached(&handle, &token);
                 let _ = child.wait();
             });
-            if std::env::var_os("LAMBCHAT_CONTROL_AUTOMATED").is_some() {
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    for _ in 0..100 {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                        if let Some(window) = handle.get_webview_window("cua-control") {
-                            let _ = window.eval(include_str!("../../../scripts/release_tests/desktop-control-smoke.js"));
-                            break;
-                        }
-                    }
-                });
-            }
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(180));
                 handle.exit(1);
             });
             Ok(())
+        })
+        .on_page_load(|window, payload| {
+            if window.label() == "cua-control"
+                && payload.event() == tauri::webview::PageLoadEvent::Finished
+                && std::env::var_os("LAMBCHAT_CONTROL_AUTOMATED").is_some()
+            {
+                let _ = window.eval(include_str!("../../../scripts/release_tests/desktop-control-smoke.js"));
+            }
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
