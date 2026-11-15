@@ -3,11 +3,22 @@
 mod desktop_control;
 use tauri::Manager;
 
+struct FixtureChild(std::sync::Mutex<std::process::Child>);
+fn finish(app: &tauri::AppHandle, code: i32) {
+    if let Some(child) = app.try_state::<FixtureChild>() {
+        if let Ok(mut child) = child.0.lock() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+    app.exit(code);
+}
+
 #[tauri::command]
 fn fixture_report(app: tauri::AppHandle, report: serde_json::Value) {
     eprintln!("control-fixture-report {report}");
     if let Some(ok) = report["ok"].as_bool() {
-        app.exit(if ok { 0 } else { 1 });
+        finish(&app, if ok { 0 } else { 1 });
     }
 }
 
@@ -37,6 +48,7 @@ fn main() {
                 .spawn()?;
             desktop_control::attach(app.handle(), token.clone(), child.stdin.take().unwrap());
             let out = child.stdout.take().unwrap();
+            app.manage(FixtureChild(std::sync::Mutex::new(child)));
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 use std::io::{BufRead, BufReader};
@@ -50,12 +62,11 @@ fn main() {
                     }
                 }
                 desktop_control::detached(&handle, &token);
-                let _ = child.wait();
             });
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(180));
-                handle.exit(1);
+                finish(&handle, 1);
             });
             Ok(())
         })

@@ -255,11 +255,15 @@ jobs:
         run: |
           python3 scripts/run_validation.py pnpm --dir frontend install --frozen-lockfile
           python3 scripts/run_validation.py pnpm --dir frontend run build
+      - name: Generate native icons
+        working-directory: frontend
+        run: python3 ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
       - name: Build isolated native toolbar
         env:
           TAURI_CONFIG: '{"bundle":{"externalBin":[],"resources":[]}}'
         run: python3 scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
       - name: Verify native pause and resume
+        shell: bash
         env:
           LAMBCHAT_CONTROL_AUTOMATED: '1'
         run: |
@@ -270,6 +274,7 @@ jobs:
           else
             python3 scripts/run_validation.py frontend/src-tauri/target/debug/examples/desktop_control_smoke 2>&1 | tee desktop-control.log
           fi
+          grep -q '"ok":true' desktop-control.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
