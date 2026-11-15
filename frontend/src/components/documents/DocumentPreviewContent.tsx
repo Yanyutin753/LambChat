@@ -17,6 +17,7 @@ const WordPreview = lazy(() => import("./previews/WordPreview"));
 const ExcelPreview = lazy(() => import("./previews/ExcelPreview"));
 const ExcalidrawPreview = lazy(() => import("./previews/ExcalidrawPreview"));
 const CadPreview = lazy(() => import("./previews/CadPreview"));
+const BytesPreview = lazy(() => import("./previews/BytesPreview"));
 const FileFallbackPanel = lazy(() => import("./previews/FileFallbackPanel"));
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
@@ -94,7 +95,6 @@ export default function DocumentPreviewContent({
   language,
   ext,
   fileName,
-  fileInfo,
   Icon,
   markdownFile,
   htmlFile,
@@ -162,43 +162,19 @@ export default function DocumentPreviewContent({
   }
 
   if (
-    resolvedBinaryFile &&
-    !resolvedImageFile &&
-    !resolvedPdfFile &&
-    !resolvedVideoFile &&
-    !resolvedAudioFile
+    (resolvedBinaryFile &&
+      !resolvedImageFile &&
+      !resolvedPdfFile &&
+      !resolvedVideoFile &&
+      !resolvedAudioFile) ||
+    unsupportedPreviewFile
   ) {
     return (
       <Suspense fallback={suspenseFallback}>
-        <FileFallbackPanel
-          icon={Icon}
-          iconBg={fileInfo.bg}
-          iconColor={fileInfo.color}
-          title={t("documents.binaryFilePreview")}
-          description={t("documents.binaryFileHint")}
-          downloadUrl={resolvedUrl || signedUrl}
+        <BytesPreview
+          url={resolvedUrl || signedUrl}
           fileName={fileName}
-          downloadLabel={t("documents.downloadFile")}
-        />
-      </Suspense>
-    );
-  }
-
-  if (unsupportedPreviewFile) {
-    return (
-      <Suspense fallback={suspenseFallback}>
-        <FileFallbackPanel
-          icon={Icon}
-          iconBg={fileInfo.bg}
-          iconColor={fileInfo.color}
-          title={t("documents.unsupportedFilePreview", "暂不支持预览此文件")}
-          description={t(
-            "documents.unsupportedFileHint",
-            "此文件类型暂不支持在线预览，请下载后查看。",
-          )}
-          downloadUrl={resolvedUrl || signedUrl}
-          fileName={fileName}
-          downloadLabel={t("documents.downloadFile")}
+          content={data?.content}
         />
       </Suspense>
     );
@@ -369,7 +345,11 @@ export default function DocumentPreviewContent({
     return viewSource ? (
       <CodeRenderer content={data?.content || ""} filePath={path} t={t} />
     ) : (
-      <MarkdownRenderer content={data?.content || ""} _t={t} baseUrl={signedUrl} />
+      <MarkdownRenderer
+        content={data?.content || ""}
+        _t={t}
+        baseUrl={signedUrl}
+      />
     );
   }
 

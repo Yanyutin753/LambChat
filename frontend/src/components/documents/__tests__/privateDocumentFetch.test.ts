@@ -99,3 +99,17 @@ test("a same-account token refresh during document loading remains valid", async
     fetchDocumentText("/api/upload/file/uploads/refreshed.txt"),
   ).resolves.toBe("refreshed owner document");
 });
+
+test("Windows UTF-16 text is decoded before entering the document cache", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new Uint8Array([255, 254, 36, 0, 65, 0])),
+      ),
+  );
+  expect(await fetchDocumentText("/api/upload/file/uploads/unicode.ps1")).toBe(
+    "$A",
+  );
+});

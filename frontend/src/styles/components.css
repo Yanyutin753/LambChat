@@ -5945,6 +5945,25 @@
   container: usage / inline-size;
   min-width: 0;
 }
+.usage-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.usage-kpis > :last-child {
+  grid-column: 1 / -1;
+}
+@container usage (min-width: 720px) {
+  .usage-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container usage (min-width: 1200px) {
+  .usage-kpis {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  .usage-kpis > :last-child {
+    grid-column: auto;
+  }
+}
 .usage-overview-grid,
 .usage-breakdown-grid {
   grid-template-columns: minmax(0, 1fr);

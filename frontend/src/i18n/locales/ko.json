@@ -2241,7 +2241,10 @@
     "wordPreviewTitle": "Word 미리보기",
     "yesterday": "어제",
     "zoomIn": "확대",
-    "zoomOut": "축소"
+    "zoomOut": "축소",
+    "hexPreview": "16진수 미리보기",
+    "textPreview": "텍스트 미리보기",
+    "previewBytesLimit": "처음 64 KiB만 표시합니다. 전체 파일은 다운로드하세요"
   },
   "envVars": {
     "addFailed": "추가 실패",
@@ -4935,7 +4938,19 @@
     "quotaErrorExhausted": "{{windows}} 모델 비용 한도가 소진되었습니다.",
     "quotaErrorReserved": "{{windows}} 사용 가능 한도가 진행 중인 호출을 위해 예약되어 있습니다. 완료될 때까지 기다리세요.",
     "quotaErrorUnknown": "{{windows}} 일부 비용을 알 수 없어 사용 가능한 한도를 확인할 수 없습니다.",
-    "quotaErrorResets": "{{time}}에 초기화됩니다."
+    "quotaErrorResets": "{{time}}에 초기화됩니다.",
+    "billing": {
+      "title": "비용 내역",
+      "confirmedAmount": "전체 산정된 비용",
+      "partialAmount": "부분 산정된 요청의 확인된 비용",
+      "knownOnly": "합계에는 위의 확인된 금액이 포함됩니다. 누락된 비용은 0으로 처리하지 않습니다. 과거 추정치는 별도로 표시하며 합계에서 제외합니다.",
+      "coverageScope": "비용 산정 범위: 성공한 요청(인수 테스트 제외)",
+      "priced": "전체 산정: {{count}}건",
+      "partial": "부분 산정: {{count}}건",
+      "estimated": "과거 추정: {{count}}건",
+      "unpriced": "미산정: {{count}}건",
+      "knownTotal": "확인된 비용"
+    }
   },
   "users": {
     "actions": "작업",

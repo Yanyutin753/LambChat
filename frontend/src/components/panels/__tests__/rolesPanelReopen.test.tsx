@@ -11,6 +11,7 @@ import i18n from "../../../i18n";
 import type { Role } from "../../../types";
 import { resetRightPanelCoordinator } from "../../common/rightPanelCoordinator";
 import { RolesPanel } from "../RolesPanel";
+import { ChatHeaderFrame } from "../../layout/AppContent/ChatHeaderFrame";
 
 const roles: Role[] = ["Alpha", "Beta"].map((name) => ({
   id: name.toLowerCase(),
@@ -52,7 +53,14 @@ test.each([
 ])(
   "clicking the %s reopens collapsed role details for %s",
   async (target, name) => {
-    render(<RolesPanel />);
+    render(
+      <>
+        <ChatHeaderFrame>
+          <span>Roles</span>
+        </ChatHeaderFrame>
+        <RolesPanel />
+      </>,
+    );
     fireEvent.click(
       await screen.findByRole("button", { name: "Alpha", exact: true }),
     );
@@ -86,7 +94,14 @@ test.each([
 test.each(["other", "create"])(
   "role editor preserves the same draft but resets for %s",
   async (target) => {
-    render(<RolesPanel />);
+    render(
+      <>
+        <ChatHeaderFrame>
+          <span>Roles</span>
+        </ChatHeaderFrame>
+        <RolesPanel />
+      </>,
+    );
     await screen.findByRole("button", { name: "Alpha", exact: true });
     const edit = (name: string) =>
       within(

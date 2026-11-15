@@ -135,3 +135,26 @@ test.each<[string, string | null]>([
     }
   },
 );
+
+test.each([
+  ["audio_check.ps1", "application/octet-stream"],
+  ["index.ts", "text/typescript"],
+  ["settings.custom", "text/plain; charset=utf-8"],
+  ["records.ndjson", "application/x-ndjson"],
+])(
+  "reads %s as text rather than a binary/media fallback",
+  async (path, mimeType) => {
+    fetchFile.mockResolvedValue(new Response("Readable file content"));
+    render(
+      <Preview
+        path={path}
+        mimeType={mimeType}
+        signedUrl="/preview/text-file"
+      />,
+    );
+    expect(
+      await screen.findByText("Readable file content"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("documents.binaryFilePreview")).toBeNull();
+  },
+);

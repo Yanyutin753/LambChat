@@ -29,7 +29,17 @@ export function getOwnUploadFileUrl(source?: string): URL | null {
 
 export function needsUploadFileCapability(source?: string): boolean {
   const url = getOwnUploadFileUrl(source);
-  if (!url || url.searchParams.has("file_token")) return false;
+  if (!url) return false;
+  const token = url.searchParams.get("file_token");
+  if (token) {
+    const expires = decodeToken(token)?.exp;
+    // A preview can remain open longer than its capability; renewal still checks ownership.
+    return (
+      typeof expires === "number" &&
+      Number.isFinite(expires) &&
+      expires * 1000 <= Date.now()
+    );
+  }
   try {
     const key = decodeURIComponent(url.pathname.slice(FILE_PREFIX.length));
     return !/^(avatars|cua_screenshots)\//.test(key);
