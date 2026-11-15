@@ -102,7 +102,7 @@ def _buffer_item_attempts(item: MongoBufferItem) -> int:
 def _with_chunk_retry_metadata(
     item: MongoBufferItem,
     *,
-    reserved_start_seq: int,
+    reserved_start_seq: int | None,
     skip_legacy: bool,
     skip_chunk: bool = False,
 ) -> MongoBufferItem:

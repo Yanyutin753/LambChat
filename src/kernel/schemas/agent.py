@@ -159,6 +159,16 @@ class MemoryHealthSummary(BaseModel):
     history_size: Optional[int] = None
     growth_bytes: int = 0
     suspected_leak: bool = False
+    memory_pressure: bool = False
+    memory_current_bytes: Optional[int] = None
+    memory_limit_bytes: Optional[int] = None
+    history_window_seconds: Optional[float] = None
+    peak_rss_bytes: Optional[int] = None
+    process_started_at: Optional[datetime] = None
+    active_runs: Optional[int] = None
+    queued_runs: Optional[int] = None
+    idle_seconds: Optional[float] = None
+    idle_rss_change_bytes: Optional[int] = None
     sample_interval_seconds: Optional[float] = None
     baseline_reset_at: Optional[datetime] = None
     last_sample_at: Optional[datetime] = None

@@ -27,11 +27,13 @@ import { Permission } from "../../types";
 const HEALTH_STATUS_COLOR: Record<string, StatusColor> = {
   stable: "green",
   suspected_leak: "red",
+  memory_pressure: "red",
 };
 
 const HEALTH_STATUS_LABEL: Record<string, string> = {
   stable: "systemHealth.stable",
   suspected_leak: "systemHealth.suspectedLeak",
+  memory_pressure: "systemHealth.memoryPressure",
   unavailable: "systemHealth.unavailable",
 };
 
@@ -64,6 +66,9 @@ function renderHighlightText(
 ) {
   switch (highlight.kind) {
     case "status":
+      if (highlight.status === "memory_pressure") {
+        return t("systemHealth.statusMemoryPressure");
+      }
       if (highlight.status === "suspected_leak") {
         return t("systemHealth.statusSuspectedLeak", {
           rss: overview.rss ?? "-",
@@ -263,7 +268,8 @@ export function SystemHealthSection() {
                       key={i}
                       className={`text-12 ${
                         highlight.kind === "status" &&
-                        highlight.status === "suspected_leak"
+                        (highlight.status === "suspected_leak" ||
+                          highlight.status === "memory_pressure")
                           ? "text-red-600 dark:text-red-400"
                           : "text-stone-500 dark:text-stone-400"
                       }`}

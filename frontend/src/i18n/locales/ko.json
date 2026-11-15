@@ -4569,6 +4569,8 @@
     "statusSuspectedLeak": "지속적인 메모리 증가 의심: RSS={{rss}}, 성장={{growth}}",
     "statusUnavailableReason": "메모리 모니터링을 사용할 수 없습니다: {{reason}}",
     "suspectedLeak": "메모리 누수 의심",
+    "memoryPressure": "높은 메모리 사용량",
+    "statusMemoryPressure": "컨테이너 메모리 사용량이 한도의 85%에 도달하여 메모리가 부족해질 수 있습니다.",
     "threads": "스레드",
     "title": "시스템 상태",
     "topAllocations": "할당 상위",

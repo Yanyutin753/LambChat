@@ -966,6 +966,16 @@ class BackgroundTaskManager:
 _task_manager: Optional[BackgroundTaskManager] = None
 
 
+def get_local_task_counts() -> dict[str, int]:
+    """Sample local work without creating a task manager or exposing run identities."""
+    if _task_manager is None:
+        return {"active_runs": 0, "queued_runs": 0}
+    return {
+        "active_runs": sum(not task.done() for task in tuple(_task_manager._tasks.values())),
+        "queued_runs": len(_task_manager._pending_tasks),
+    }
+
+
 def get_task_manager() -> BackgroundTaskManager:
     """获取 TaskManager 单例"""
     global _task_manager

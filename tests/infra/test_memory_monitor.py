@@ -50,6 +50,11 @@ def _enable_memory_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
         _noop_publish_instance_snapshot,
     )
 
+    async def _noop_incident(snapshot, **kwargs):
+        return None
+
+    monkeypatch.setattr(distributed_memory_health, "publish_memory_incident", _noop_incident)
+
 
 @pytest.mark.asyncio
 async def test_monitor_marks_suspicious_growth_when_rss_keeps_rising() -> None:
@@ -365,6 +370,16 @@ async def test_reset_baseline_publishes_fresh_instance_snapshot(
         "baseline_reset_at": reset_timestamp,
         "last_sample_at": reset_timestamp,
         "last_error": None,
+        "history_window_seconds": 0.0,
+        "peak_rss_bytes": 220 * 1024 * 1024,
+        "process_started_at": None,
+        "active_runs": None,
+        "queued_runs": None,
+        "idle_seconds": None,
+        "idle_rss_change_bytes": None,
+        "memory_current_bytes": None,
+        "memory_limit_bytes": None,
+        "memory_pressure": False,
         "checkpointer": _CHECKPOINTER_SUMMARY,
     }
     assert built_snapshots[0]["details"] == {
@@ -466,6 +481,16 @@ async def test_sample_once_publishes_current_snapshot_when_no_alert(
         "baseline_reset_at": None,
         "last_sample_at": sample_timestamp,
         "last_error": None,
+        "history_window_seconds": 0.0,
+        "peak_rss_bytes": 220 * 1024 * 1024,
+        "process_started_at": None,
+        "active_runs": None,
+        "queued_runs": None,
+        "idle_seconds": None,
+        "idle_rss_change_bytes": None,
+        "memory_current_bytes": None,
+        "memory_limit_bytes": None,
+        "memory_pressure": False,
         "checkpointer": _CHECKPOINTER_SUMMARY,
     }
     assert built_snapshots[0]["details"] == {
@@ -590,6 +615,16 @@ async def test_sample_once_publishes_last_alert_snapshot_when_alert_fires(
         "baseline_reset_at": None,
         "last_sample_at": second_timestamp,
         "last_error": None,
+        "history_window_seconds": 60.0,
+        "peak_rss_bytes": 220 * 1024 * 1024,
+        "process_started_at": None,
+        "active_runs": None,
+        "queued_runs": None,
+        "idle_seconds": None,
+        "idle_rss_change_bytes": None,
+        "memory_current_bytes": None,
+        "memory_limit_bytes": None,
+        "memory_pressure": False,
         "checkpointer": _CHECKPOINTER_SUMMARY,
     }
     assert built_snapshots[-1]["details"] == alert_snapshot

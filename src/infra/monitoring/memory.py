@@ -8,6 +8,7 @@ import os
 import tracemalloc
 from collections import Counter, deque
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from src.infra.async_utils import run_long_blocking_io
@@ -24,6 +25,33 @@ logger = get_logger(__name__)
 
 _BLOCKING_SAMPLE_TIMEOUT_SECONDS = 10.0
 _ALERT_AGGREGATION_WINDOW_SECONDS = 24 * 3600.0
+
+
+def _cgroup_memory() -> dict[str, int]:
+    for current, limit in (
+        ("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.max"),
+        (
+            "/sys/fs/cgroup/memory/memory.usage_in_bytes",
+            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        ),
+    ):
+        try:
+            used, maximum = int(Path(current).read_text()), int(Path(limit).read_text())
+            if 0 < maximum < 2**60:
+                return {"memory_current_bytes": used, "memory_limit_bytes": maximum}
+        except (OSError, ValueError):
+            continue
+    return {}
+
+
+def _memory_pressure(sample: dict[str, Any]) -> bool:
+    maximum, current = sample.get("memory_limit_bytes"), sample.get("memory_current_bytes")
+    return (
+        isinstance(maximum, int)
+        and maximum > 0
+        and isinstance(current, int)
+        and current >= maximum * 0.85
+    )
 
 
 def _format_trace_location(trace: tracemalloc.Frame) -> str:
@@ -176,14 +204,16 @@ class MemoryMonitor:
 
     async def _sample_once(self) -> None:
         distributed_snapshot: dict[str, Any] | None = None
+        emitted_alert = False
         async with self._state_lock:
             sample = await self._run_monitor_blocking(self._collect_process_sample)
             sample.setdefault("timestamp", utc_now())
             self._history.append(sample)
 
-            if self._is_suspicious_growth(sample["timestamp"]):
+            if self._is_suspicious_growth(sample["timestamp"]) or _memory_pressure(sample):
                 now = sample["timestamp"]
                 if self._should_emit_alert(now):
+                    emitted_alert = True
                     self._last_alert = None
                     if self.heavy_diagnostics_enabled:
                         try:
@@ -206,6 +236,11 @@ class MemoryMonitor:
                         f"rss={_format_bytes_as_mb(sample['rss_bytes'])}",
                         f"growth={_format_bytes_as_mb(self._growth_bytes())}",
                         f"alerts_24h={self._count_recent_alerts(now)}",
+                        f"memory_pressure={_memory_pressure(sample)}",
+                        f"memory_current_bytes={sample.get('memory_current_bytes')}",
+                        f"memory_limit_bytes={sample.get('memory_limit_bytes')}",
+                        f"active_runs={sample.get('active_runs')}",
+                        f"window_seconds={(now - self._history[0]['timestamp']).total_seconds()}",
                     ]
                     growth_summary = self._format_growth_summary(self._last_alert)
                     if growth_summary is not None:
@@ -223,6 +258,13 @@ class MemoryMonitor:
             distributed_snapshot = await self._build_distributed_snapshot_locked()
 
         await self._publish_distributed_snapshot(distributed_snapshot)
+        if emitted_alert and distributed_snapshot is not None:
+            from src.infra.monitoring.distributed_memory_health import publish_memory_incident
+
+            try:
+                await publish_memory_incident(distributed_snapshot)
+            except Exception as exc:
+                logger.warning("[MemoryMonitor] failed to retain incident snapshot: %s", exc)
 
     def _collect_process_sample(self) -> dict[str, Any]:
         if self._process is None:
@@ -235,6 +277,7 @@ class MemoryMonitor:
             open_file_count = len(self._process.open_files())
 
         from src.infra.async_utils.blocking import blocking_io_stats
+        from src.infra.task.manager import get_local_task_counts
 
         return {
             "timestamp": utc_now(),
@@ -243,6 +286,9 @@ class MemoryMonitor:
             "thread_count": int(self._process.num_threads()),
             "open_file_count": int(open_file_count),
             "blocking_io_lanes": blocking_io_stats(),
+            "process_started_at": getattr(self._process, "create_time", lambda: None)(),
+            **get_local_task_counts(),
+            **_cgroup_memory(),
         }
 
     def _capture_diagnostics_snapshot(self) -> dict[str, Any]:
@@ -372,7 +418,8 @@ class MemoryMonitor:
             return False
 
         rss_series = [sample["rss_bytes"] for sample in self._history]
-        return all(current >= previous for previous, current in zip(rss_series, rss_series[1:]))
+        # A small GC dip must not erase a sustained rise near the window's high-water mark.
+        return max(rss_series) - rss_series[-1] <= self.leak_threshold_bytes / 4
 
     def _should_emit_alert(self, now: datetime) -> bool:
         if self._last_alert_at is None:
@@ -402,6 +449,11 @@ class MemoryMonitor:
             return {"available": False, "reason": "no_samples", "last_error": self._last_error}
 
         latest = self._history[-1]
+        idle_start = None
+        for sample in reversed(self._history):
+            if sample.get("active_runs") != 0 or sample.get("queued_runs") != 0:
+                break
+            idle_start = sample
         try:
             from src.infra.storage.checkpoint import get_checkpointer_diagnostics
 
@@ -415,6 +467,22 @@ class MemoryMonitor:
             "thread_count": latest["thread_count"],
             "open_file_count": latest["open_file_count"],
             "history_size": len(self._history),
+            "history_window_seconds": (
+                latest["timestamp"] - self._history[0]["timestamp"]
+            ).total_seconds(),
+            "peak_rss_bytes": max(sample["rss_bytes"] for sample in self._history),
+            "process_started_at": latest.get("process_started_at"),
+            "active_runs": latest.get("active_runs"),
+            "queued_runs": latest.get("queued_runs"),
+            "idle_seconds": (latest["timestamp"] - idle_start["timestamp"]).total_seconds()
+            if idle_start
+            else None,
+            "idle_rss_change_bytes": latest["rss_bytes"] - idle_start["rss_bytes"]
+            if idle_start
+            else None,
+            "memory_current_bytes": latest.get("memory_current_bytes"),
+            "memory_limit_bytes": latest.get("memory_limit_bytes"),
+            "memory_pressure": _memory_pressure(latest),
             "growth_bytes": self._growth_bytes(),
             "suspected_leak": self._is_suspicious_growth(latest["timestamp"]),
             "alerts_24h": self._count_recent_alerts(latest["timestamp"]),

@@ -333,3 +333,30 @@ async def test_memory_health_route_returns_local_only_when_redis_fails(
     assert response["selected_instance"]["is_local"] is True
     assert response["overview"]["status"] == "suspected_leak"
     assert response["highlights"][0]["kind"] == "status"
+
+
+async def test_health_exposes_pressure_and_idle_context(monkeypatch):
+    monitor = _FakeMonitor()
+    monitor.get_summary = AsyncMock(
+        return_value={
+            "available": True,
+            "memory_pressure": True,
+            "memory_current_bytes": 900,
+            "memory_limit_bytes": 1000,
+            "active_runs": 0,
+            "queued_runs": 0,
+            "idle_seconds": 600,
+            "idle_rss_change_bytes": -40,
+            "peak_rss_bytes": 950,
+            "history_window_seconds": 660,
+            "process_started_at": "2026-11-15T00:00:00+00:00",
+        }
+    )
+    monkeypatch.setattr(health_routes, "get_memory_monitor", lambda: monitor)
+    response = await health_routes.health_check()
+    summary = response.memory.model_dump()
+    assert summary["memory_pressure"] is True
+    assert summary["idle_seconds"] == 600
+    assert summary["active_runs"] == 0
+    assert health_routes._build_memory_overview(summary)["status"] == "memory_pressure"
+    assert health_routes._build_highlight_items(summary, None)[0]["severity"] == "warning"
