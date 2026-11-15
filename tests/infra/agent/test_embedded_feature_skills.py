@@ -247,3 +247,35 @@ async def test_unavailable_feature_does_not_load_its_resources(tmp_path, monkeyp
     middleware = EmbeddedFeatureSkillsMiddleware()
     source = request()
     assert await middleware.awrap_model_call(source, identity) is source
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_shared_runtime_assembly_preserves_feature_toggle_and_trusted_platform(
+    monkeypatch, enabled
+):
+    from unittest.mock import AsyncMock
+
+    from src.agents.core.node_utils import prepare_runtime_feature_skills
+    from src.infra.tool import computer_use_tool as cut
+
+    selection = {"platform": "local", "machine_id": "selected", "os_platform": "win32"}
+    resolve = AsyncMock(return_value=selection)
+    monkeypatch.setattr(cut, "resolve_computer_use_context", resolve)
+    options = {"sandbox": "local"}
+    resume = {"confirmation_context": {"machine_id": "selected"}}
+    context, middleware = await prepare_runtime_feature_skills(
+        "owner",
+        options,
+        resume,
+        computer_use_enabled=enabled,
+    )
+    source = request()
+    result = await middleware.awrap_model_call(source, identity)
+    if enabled:
+        resolve.assert_awaited_once_with("owner", options, resume)
+        assert context is selection
+        assert "## Windows" in result.messages[0].content
+    else:
+        resolve.assert_not_called()
+        assert context is None
+        assert result is source

@@ -22,6 +22,7 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     inline_image_attachments_as_data_urls,
     isolated_nested_graph_run,
+    prepare_runtime_feature_skills,
     resolve_fallback_model,
     resolve_model_image_url_mode,
     resolve_model_supports_vision,
@@ -84,7 +85,6 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
-from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import (
     add_persona_discovery,
@@ -241,27 +241,15 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     runtime_env_keys = tuple(
         getattr(getattr(sandbox_backend, "default", sandbox_backend), "_run_env_overrides", {})
     )
-    from src.infra.tool.computer_use_tool import (
-        filter_computer_use_tools,
-        resolve_computer_use_context,
-    )
+    from src.infra.tool.computer_use_tool import filter_computer_use_tools
 
-    computer_use_context = (
-        await resolve_computer_use_context(
-            context.user_id or "", agent_options, configurable.get("hitl_resume")
-        )
-        if settings.ENABLE_COMPUTER_USE
-        else None
+    computer_use_context, feature_skills = await prepare_runtime_feature_skills(
+        context.user_id or "",
+        agent_options,
+        configurable.get("hitl_resume"),
+        computer_use_enabled=settings.ENABLE_COMPUTER_USE,
     )
     filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
-    feature_skills = EmbeddedFeatureSkillsMiddleware(
-        capabilities={"local_computer"}
-        if computer_use_context
-        and computer_use_context.get("platform") == "local"
-        and computer_use_context.get("machine_id")
-        else set(),
-        platform=(computer_use_context or {}).get("os_platform", ""),
-    )
     inner_checkpointer = prepared.checkpointer
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
