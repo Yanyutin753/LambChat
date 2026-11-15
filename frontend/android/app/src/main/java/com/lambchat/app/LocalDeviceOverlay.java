@@ -16,7 +16,7 @@ import androidx.appcompat.view.ContextThemeWrapper;
 /** A small non-focusable status capsule; no screen capture or accessibility access. */
 final class LocalDeviceOverlay {
     private final LocalDeviceService service;
-    private final Context context;
+    private Context context;
     private final WindowManager windows;
     private final SharedPreferences preferences;
     private LinearLayout root;
@@ -39,11 +39,19 @@ final class LocalDeviceOverlay {
 
     LocalDeviceOverlay(LocalDeviceService service) {
         this.service = service;
-        context = new ContextThemeWrapper(service, R.style.AppTheme_NoActionBar);
+        context = new ContextThemeWrapper(localizedContext(service), R.style.AppTheme_NoActionBar);
         windows = service.getSystemService(WindowManager.class);
         preferences = service.getSharedPreferences("local-device-overlay", Context.MODE_PRIVATE);
         left = preferences.getBoolean("left", false);
         fraction = preferences.getFloat("position", 0.35f);
+    }
+
+    static Context localizedContext(Context context) {
+        String language = context.getSharedPreferences("local-device-overlay", Context.MODE_PRIVATE).getString("language", "");
+        if (!java.util.Arrays.asList("en", "zh", "ja", "ko", "ru").contains(language)) return context;
+        android.content.res.Configuration config = new android.content.res.Configuration(context.getResources().getConfiguration());
+        config.setLocale(java.util.Locale.forLanguageTag(language));
+        return context.createConfigurationContext(config);
     }
 
     static boolean enabled(Context context) {
@@ -63,6 +71,11 @@ final class LocalDeviceOverlay {
     }
 
     void visibility(boolean visible) {
+        Context localized = localizedContext(service);
+        if (!context.getResources().getConfiguration().getLocales().equals(localized.getResources().getConfiguration().getLocales())) {
+            hide();
+            context = new ContextThemeWrapper(localized, R.style.AppTheme_NoActionBar);
+        }
         if (!visible || !enabled(context) || !Settings.canDrawOverlays(context)) { hide(); return; }
         if (root != null) return;
         root = new LinearLayout(context);
@@ -192,11 +205,21 @@ final class LocalDeviceOverlay {
         refresh();
         if (!accepted && detail != null) detail.setText(R.string.phone_action_failed);
     }
+    static String approvalMessage(Context context, String message) {
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^Computer control on machine ([a-zA-Z0-9_-]+): (.*)$", java.util.regex.Pattern.DOTALL).matcher(message);
+        if (!match.matches()) return message;
+        String operation = match.group(2);
+        String suffix = " (includes a screenshot sent to the model)";
+        boolean screenshot = operation.endsWith(suffix);
+        if (screenshot) operation = operation.substring(0, operation.length() - suffix.length());
+        return context.getString(R.string.phone_control_request, match.group(1), operation)
+            + (screenshot ? "\n" + context.getString(R.string.phone_control_screenshot_notice) : "");
+    }
     void refresh() {
         if (root == null) return;
         com.getcapacitor.JSObject task = LocalDevicePlugin.taskContext;
         boolean pending = LocalDevicePlugin.pendingOverlayId != null;
-        detail.setText(task.optString("message").isEmpty() ? context.getString(R.string.phone_task_scope) : task.optString("message"));
+        detail.setText(task.optString("message").isEmpty() ? context.getString(R.string.phone_task_scope) : approvalMessage(context, task.optString("message")));
         sendTask.setEnabled(task.optBoolean("ready") && !pending);
         stopTask.setVisibility(task.optBoolean("running") ? View.VISIBLE : View.GONE);
         stopTask.setEnabled(!pending);

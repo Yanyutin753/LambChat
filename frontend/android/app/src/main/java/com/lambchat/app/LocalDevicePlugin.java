@@ -27,6 +27,13 @@ public class LocalDevicePlugin extends Plugin {
     static volatile String lastOverlayAction;
     @Override public void load() { active = this; }
     @Override protected void handleOnDestroy() { if (active == this) { active = null; taskContext = new JSObject(); pendingOverlayId = null; } }
+    @PluginMethod public void setLanguage(PluginCall call) {
+        String language = call.getString("language", "en");
+        if (!java.util.Arrays.asList("en", "zh", "ja", "ko", "ru").contains(language)) { call.reject("Unsupported language"); return; }
+        getContext().getSharedPreferences("local-device-overlay", android.content.Context.MODE_PRIVATE).edit().putString("language", language).apply();
+        LocalDeviceService.refreshOverlay();
+        call.resolve();
+    }
     @PluginMethod public void setOverlayContext(PluginCall call) {
         JSObject next = call.getData();
         if (next.optString("scope").length() > 1024 || next.optString("message").length() > 16000) { call.reject("Invalid overlay context"); return; }

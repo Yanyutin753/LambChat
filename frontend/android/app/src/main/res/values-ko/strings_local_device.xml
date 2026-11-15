@@ -36,4 +36,6 @@
     <string name="phone_waiting_approval">승인 대기 중</string>
     <string name="phone_working">처리 중</string>
     <string name="phone_preview_name">LambChat 테스트</string>
+    <string name="phone_control_request">기기 %1$s의 제어 작업: %2$s</string>
+    <string name="phone_control_screenshot_notice">모델에 전송되는 스크린샷 포함</string>
 </resources>

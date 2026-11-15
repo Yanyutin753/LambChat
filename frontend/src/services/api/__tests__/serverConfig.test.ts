@@ -193,3 +193,10 @@ test("unsafe stored server blocks authenticated requests and requires setup", as
   ).rejects.toThrow();
   expect(fetchImpl).not.toHaveBeenCalled();
 });
+
+test("packaged approval requests reach the configured server", async () => {
+  const fetchImpl = vi.fn().mockResolvedValue(new Response("ok"));
+  installServerUrlNetworkPatch({ fetchImpl, base: "https://phone.example" });
+  await window.fetch("/human/approval/respond?approved=true", { method: "POST" });
+  expect(fetchImpl).toHaveBeenCalledWith("https://phone.example/human/approval/respond?approved=true", { method: "POST" });
+});

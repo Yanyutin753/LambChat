@@ -225,7 +225,7 @@ export interface ChatViewProps {
     id: string,
     response: Record<string, unknown>,
     approved: boolean,
-  ) => void;
+  ) => Promise<boolean>;
   approvalLoading: boolean;
   onSendMessage: (
     content: string,

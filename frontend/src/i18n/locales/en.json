@@ -1866,7 +1866,7 @@
           "unknown": "Not checked"
         }
       },
-      "computerUseTitle": "Computer Use",
+      "computerUseTitle": "Device control",
       "computerUsePermissionHint": "Grant Accessibility & Screen Recording to LambChat.app once in System Settings → Privacy & Security, then retry.",
       "toolCancelSubagent": "Cancel subagent",
       "toolGetGoal": "Read goal",
@@ -1896,7 +1896,7 @@
     "teamMentionHint": "@ to switch team",
     "personaMentionHint": "@ to switch persona",
     "replyRequiredPlaceholder": "Reply to the question above first…",
-    "localPlaceholder": "What would you like to do on the selected computer?",
+    "localPlaceholder": "What would you like to do on the selected device?",
     "cloudPlaceholder": "Describe a task to complete in the cloud…",
     "placeholderWithHintCtrl": "Type a message or describe a task…  Enter for newline, Ctrl+Enter to send",
     "placeholderWithHintShift": "Type a message or describe a task…  Enter to send, Shift+Enter for newline",

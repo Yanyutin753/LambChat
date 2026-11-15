@@ -91,8 +91,9 @@ export function usePhoneOverlay(options: Options) {
         reply(false);
         return;
       }
-      value.onRespondApproval(approval.id, {}, event.action === "approve");
-      reply(true);
+      void Promise.resolve(value.onRespondApproval(approval.id, {}, event.action === "approve"))
+        .then((accepted) => reply(accepted === true))
+        .catch(() => reply(false));
     });
     return () => {
       disposed = true;

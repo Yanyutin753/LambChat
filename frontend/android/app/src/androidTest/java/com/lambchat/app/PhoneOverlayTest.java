@@ -59,14 +59,14 @@ public class PhoneOverlayTest {
             for (int i=0; i<50 && header == null; i++) { Thread.sleep(100); header = find(ui, "LambChat ·"); }
             assertNotNull("Floating window missing", header);
             assertTrue(header.performAction(AccessibilityNodeInfo.ACTION_CLICK)); Thread.sleep(300);
-            assertNotNull(find(ui, context.getString(R.string.phone_task_send)));
-            AccessibilityNodeInfo field = find(ui, context.getString(R.string.phone_task_hint));
+            assertNotNull(find(ui, LocalDeviceOverlay.localizedContext(context).getString(R.string.phone_task_send)));
+            AccessibilityNodeInfo field = find(ui, LocalDeviceOverlay.localizedContext(context).getString(R.string.phone_task_hint));
             assertNotNull("Task input missing", field);
             field.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
             Bundle value = new Bundle(); value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "overlay-draft");
             assertTrue(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
             Thread.sleep(200); assertNotNull(find(ui, "overlay-draft"));
-            AccessibilityNodeInfo hide = find(ui, context.getString(R.string.local_device_overlay_hide));
+            AccessibilityNodeInfo hide = find(ui, LocalDeviceOverlay.localizedContext(context).getString(R.string.local_device_overlay_hide));
             for (int i=0; i<5 && (hide == null || !hide.isVisibleToUser()); i++) {
                 for (AccessibilityWindowInfo window : ui.getWindows()) {
                     AccessibilityNodeInfo root = window.getRoot();
@@ -75,7 +75,7 @@ public class PhoneOverlayTest {
                         if (scroll != null) scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
                     }
                 }
-                Thread.sleep(200); hide = find(ui, context.getString(R.string.local_device_overlay_hide));
+                Thread.sleep(200); hide = find(ui, LocalDeviceOverlay.localizedContext(context).getString(R.string.local_device_overlay_hide));
             }
             assertNotNull(hide); assertTrue(hide.isVisibleToUser()); assertTrue(hide.performAction(AccessibilityNodeInfo.ACTION_CLICK)); Thread.sleep(300);
             assertNull(find(ui, "LambChat ·"));

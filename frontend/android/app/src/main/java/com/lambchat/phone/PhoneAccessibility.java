@@ -19,7 +19,8 @@ public final class PhoneAccessibility extends AccessibilityService {
     private final Map<Integer, AccessibilityNodeInfo> nodes = new HashMap<>();
     private volatile String snapshot;
     private String session, app;
-    private int display;
+    private volatile int display;
+    private final Map<Integer, Integer> windowDisplays = new java.util.concurrent.ConcurrentHashMap<>();
     private long observedAt;
     private volatile long generation;
     private long observedGeneration;
@@ -27,7 +28,14 @@ public final class PhoneAccessibility extends AccessibilityService {
 
     @Override protected void onServiceConnected() { instance = this; }
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-        generation++;
+        android.util.SparseArray<List<AccessibilityWindowInfo>> all = getWindowsOnAllDisplays();
+        if (windowDisplays.size() > 512) windowDisplays.clear();
+        for (int i = 0; i < all.size(); i++) {
+            for (AccessibilityWindowInfo window : all.valueAt(i)) windowDisplays.put(window.getId(), all.keyAt(i));
+        }
+        // Keep removed window IDs briefly so a main-screen overlay closing cannot stale a background app.
+        Integer changedDisplay = windowDisplays.get(event.getWindowId());
+        if (changedDisplay == null || changedDisplay == display) generation++;
     }
     @Override public void onInterrupt() { invalidate(); }
     @Override public boolean onUnbind(Intent intent) { if (instance == this) instance = null; invalidate(); return super.onUnbind(intent); }
@@ -135,6 +143,7 @@ public final class PhoneAccessibility extends AccessibilityService {
         invalidate();
         clearNodes();
         if (targetApp.isEmpty()) return error("app_package_required");
+        display = targetDisplay;
         List<AccessibilityWindowInfo> windows = getWindowsOnAllDisplays().get(targetDisplay);
         JSONArray windowRows = new JSONArray(); StringBuilder tree = new StringBuilder();
         long start = SystemClock.uptimeMillis(); long before = generation;

@@ -107,3 +107,14 @@ test("never approves an operation whose displayed message changed", async () => 
     accepted: false,
   });
 });
+
+test("floating approval waits for the server and reports rejection", async () => {
+  let finish!: (accepted: boolean) => void;
+  respond.mockReturnValue(new Promise<boolean>((resolve) => { finish = resolve; }));
+  render(<Harness approvals={[{ id: "approval", message: "operation", fields: [], status: "pending", type: "form" }]} />);
+  await waitFor(() => expect(native.addListener).toHaveBeenCalled());
+  act(() => native.addListener.mock.calls[0][1]({ id: "pending", scope: "account/server/chat", action: "approve", approvalId: "approval", message: "operation" }));
+  expect(native.overlayResult).not.toHaveBeenCalled();
+  await act(async () => { finish(false); });
+  expect(native.overlayResult).toHaveBeenCalledWith({ id: "pending", accepted: false });
+});

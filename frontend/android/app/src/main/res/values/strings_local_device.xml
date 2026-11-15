@@ -36,4 +36,6 @@
     <string name="phone_waiting_approval">Awaiting approval</string>
     <string name="phone_working">Working</string>
     <string name="phone_preview_name">LambChat Preview</string>
+    <string name="phone_control_request">Control operation on device %1$s: %2$s</string>
+    <string name="phone_control_screenshot_notice">Includes a screenshot sent to the model</string>
 </resources>

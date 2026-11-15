@@ -1862,7 +1862,7 @@
           "unknown": "未確認"
         }
       },
-      "computerUseTitle": "コンピュータ操作",
+      "computerUseTitle": "デバイス操作",
       "computerUsePermissionHint": "システム設定 → プライバシーとセキュリティで LambChat.app に「補助機能」と「画面収録」を一度だけ許可してから再試行してください。",
       "toolCancelSubagent": "サブエージェントをキャンセル",
       "toolGetGoal": "目標を確認",
@@ -1896,7 +1896,7 @@
     "teamMentionHint": "@ でチームを切替",
     "personaMentionHint": "@ でペルソナを切替",
     "replyRequiredPlaceholder": "先に上の質問に回答してください…",
-    "localPlaceholder": "選択したパソコンで何をしますか？",
+    "localPlaceholder": "選択したデバイスで何をしますか？",
     "cloudPlaceholder": "クラウドで実行するタスクを入力…",
     "placeholderWithHintCtrl": "メッセージやタスクを入力…  Enter で改行、Ctrl+Enter で送信",
     "placeholderWithHintShift": "メッセージやタスクを入力…  Enter で送信、Shift+Enter で改行",

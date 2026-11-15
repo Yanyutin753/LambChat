@@ -36,4 +36,6 @@
     <string name="phone_waiting_approval">承認待ち</string>
     <string name="phone_working">処理中</string>
     <string name="phone_preview_name">LambChat 検証版</string>
+    <string name="phone_control_request">デバイス %1$s の操作：%2$s</string>
+    <string name="phone_control_screenshot_notice">モデルに送信するスクリーンショットを含みます</string>
 </resources>

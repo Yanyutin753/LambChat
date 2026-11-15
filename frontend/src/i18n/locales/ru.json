@@ -1874,7 +1874,7 @@
           "unknown": "Не проверено"
         }
       },
-      "computerUseTitle": "Управление компьютером",
+      "computerUseTitle": "Управление устройством",
       "computerUsePermissionHint": "Выдайте LambChat.app разрешения «Универсальный доступ» и «Запись экрана» в Настройки → Конфиденциальность (один раз), затем повторите.",
       "toolCancelSubagent": "Отменить подагента",
       "toolGetGoal": "Просмотр цели",
@@ -1896,7 +1896,7 @@
     "teamMentionHint": "@ — сменить команду",
     "personaMentionHint": "@ — сменить персону",
     "replyRequiredPlaceholder": "Сначала ответьте на вопрос выше…",
-    "localPlaceholder": "Что нужно сделать на выбранном компьютере?",
+    "localPlaceholder": "Что нужно сделать на выбранном устройстве?",
     "cloudPlaceholder": "Опишите задачу для выполнения в облаке…",
     "placeholderWithHintCtrl": "Введите сообщение или опишите задачу…  Enter новая строка, Ctrl+Enter отправить",
     "placeholderWithHintShift": "Введите сообщение или опишите задачу…  Enter отправить, Shift+Enter новая строка",

@@ -1862,7 +1862,7 @@
           "unknown": "확인하지 않음"
         }
       },
-      "computerUseTitle": "컴퓨터 제어",
+      "computerUseTitle": "기기 제어",
       "computerUsePermissionHint": "시스템 설정 → 개인정보 보호 및 보안에서 LambChat.app에 접근성 및 화면 기록 권한을 한 번만 허용한 후 다시 시도하세요.",
       "toolCancelSubagent": "하위 에이전트 취소",
       "toolGetGoal": "목표 확인",
@@ -1896,7 +1896,7 @@
     "teamMentionHint": "@로 팀 전환",
     "personaMentionHint": "@로 페르소나 전환",
     "replyRequiredPlaceholder": "먼저 위 질문에 답해 주세요…",
-    "localPlaceholder": "선택한 컴퓨터에서 무엇을 할까요?",
+    "localPlaceholder": "선택한 기기에서 무엇을 할까요?",
     "cloudPlaceholder": "클라우드에서 수행할 작업을 입력하세요…",
     "placeholderWithHintCtrl": "메시지나 작업을 입력하세요…  Enter로 줄바꿈, Ctrl+Enter로 전송",
     "placeholderWithHintShift": "메시지나 작업을 입력하세요…  Enter로 전송, Shift+Enter로 줄바꿈",

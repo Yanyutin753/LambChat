@@ -1862,7 +1862,7 @@
           "unknown": "未检测"
         }
       },
-      "computerUseTitle": "电脑控制",
+      "computerUseTitle": "设备控制",
       "computerUsePermissionHint": "需要在系统设置 → 隐私与安全性中给 LambChat.app 授予「辅助功能」与「屏幕录制」权限(仅需一次),授权后重试。",
       "toolCancelSubagent": "取消子代理",
       "toolGetGoal": "读取目标",
@@ -1896,7 +1896,7 @@
     "teamMentionHint": "@ 可切换团队",
     "personaMentionHint": "@ 可切换角色",
     "replyRequiredPlaceholder": "请先回复上方问题…",
-    "localPlaceholder": "想在所选电脑上完成什么？",
+    "localPlaceholder": "想在所选设备上完成什么？",
     "cloudPlaceholder": "描述任务，在云端完成…",
     "placeholderWithHintCtrl": "输入消息或描述任务…  Enter 换行，Ctrl+Enter 发送",
     "placeholderWithHintShift": "输入消息或描述任务…  Enter 发送，Shift+Enter 换行",

@@ -36,4 +36,6 @@
     <string name="phone_waiting_approval">Ожидает подтверждения</string>
     <string name="phone_working">Выполняется</string>
     <string name="phone_preview_name">LambChat Тест</string>
+    <string name="phone_control_request">Операция на устройстве %1$s: %2$s</string>
+    <string name="phone_control_screenshot_notice">Включает снимок экрана, отправляемый модели</string>
 </resources>

@@ -36,4 +36,6 @@
     <string name="phone_waiting_approval">等待审批</string>
     <string name="phone_working">正在处理</string>
     <string name="phone_preview_name">LambChat 验收版</string>
+    <string name="phone_control_request">设备 %1$s 上的控制操作：%2$s</string>
+    <string name="phone_control_screenshot_notice">包含发送给模型的截图</string>
 </resources>

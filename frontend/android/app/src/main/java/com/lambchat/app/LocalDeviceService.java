@@ -36,7 +36,7 @@ public class LocalDeviceService extends Service {
                 String name = "phone-screen-" + java.util.UUID.randomUUID() + ".jpg";
                 java.io.File file = LocalDeviceRuntime.child(root, name);
                 java.nio.file.Files.write(file.toPath(), android.util.Base64.decode(shot.getString("data_b64"), android.util.Base64.DEFAULT), java.nio.file.StandardOpenOption.CREATE_NEW);
-                overlayDraft(getString(R.string.phone_screenshot_path, "/workspace/.shared/" + name));
+                overlayDraft(LocalDeviceOverlay.localizedContext(this).getString(R.string.phone_screenshot_path, "/workspace/.shared/" + name));
             } catch (Exception e) { overlayResult(false); }
             finally { refreshOverlay(); }
         }), 200);
@@ -49,7 +49,7 @@ public class LocalDeviceService extends Service {
     static void refreshOverlay() {
         LocalDeviceService current = instance;
         if (current != null) current.main.post(() -> {
-            if (instance == current && current.overlay != null) { current.overlay.visibility(!appVisible && !stopping); current.overlay.refresh(); }
+            if (instance == current && current.overlay != null) { current.overlay.visibility(!appVisible && !stopping); current.overlay.refresh(); current.updateNotification(false); }
         });
     }
 
@@ -108,16 +108,21 @@ public class LocalDeviceService extends Service {
         getSystemService(android.net.ConnectivityManager.class).registerDefaultNetworkCallback(networkCallback);
     }
 
-    @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        stopping = false;
+    private void updateNotification(boolean foreground) {
         NotificationManager manager = getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel(CHANNEL, getString(R.string.local_device_title), NotificationManager.IMPORTANCE_LOW));
+        manager.createNotificationChannel(new NotificationChannel(CHANNEL, LocalDeviceOverlay.localizedContext(this).getString(R.string.local_device_title), NotificationManager.IMPORTANCE_LOW));
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stop = PendingIntent.getService(this, 1, new Intent(this, LocalDeviceService.class).setAction("stop"), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        startForeground(NOTIFICATION, new NotificationCompat.Builder(this, CHANNEL)
-                .setSmallIcon(R.mipmap.ic_launcher).setContentTitle(getString(R.string.local_device_title))
-                .setContentText(getString(R.string.local_device_notification)).setContentIntent(open).setOngoing(true)
-                .addAction(0, getString(R.string.local_device_stop), stop).build());
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL)
+                .setSmallIcon(R.mipmap.ic_launcher).setContentTitle(LocalDeviceOverlay.localizedContext(this).getString(R.string.local_device_title))
+                .setContentText(LocalDeviceOverlay.localizedContext(this).getString(R.string.local_device_notification)).setContentIntent(open).setOngoing(true)
+                .addAction(0, LocalDeviceOverlay.localizedContext(this).getString(R.string.local_device_stop), stop).build();
+        if (foreground) startForeground(NOTIFICATION, notification); else manager.notify(NOTIFICATION, notification);
+    }
+
+    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        stopping = false;
+        updateNotification(true);
         if (intent != null && "stop".equals(intent.getAction())) {
             stopping = true;
             OPERATIONS.execute(() -> { try { stopProcess(); } catch (Exception e) { failed = true; } stopSelf(startId); });

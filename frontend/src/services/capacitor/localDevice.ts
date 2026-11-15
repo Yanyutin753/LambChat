@@ -17,6 +17,7 @@ export interface OverlayContext {
   canApprove: boolean;
 }
 interface LocalDevicePlugin {
+  setLanguage(options: { language: string }): Promise<void>;
   addListener(
     event: "overlayAction",
     listener: (event: {
