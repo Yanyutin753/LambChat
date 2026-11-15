@@ -44,7 +44,7 @@ a = Analysis(
         "PIL",
         "pyperclip",
         "pyautogui",
-        *(["pyatspi", "gi.repository.Atspi"] if LINUX_SYSTEM_PACKAGES else []),
+        *(["pyatspi", "gi.repository.Atspi", "Xlib.ext.composite"] if LINUX_SYSTEM_PACKAGES else []),
     ],
     hookspath=[],
     hooksconfig={},

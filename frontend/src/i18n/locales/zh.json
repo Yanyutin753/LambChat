@@ -1,4 +1,23 @@
 {
+  "desktopControl": {
+    "pausedHint": "电脑控制已暂停。准备好后，请在常驻浮窗中点击“继续”。",
+    "unavailableHint": "控制浮窗暂不可用，本次未执行电脑操作。",
+    "foregroundHint": "目标窗口已不在前台。请先完成你的操作，再让 Agent 继续。",
+    "staleHint": "画面或元素已变化，需要重新观察后再继续操作。",
+    "title": "电脑控制",
+    "waiting": "正在准备电脑控制",
+    "active": "Agent 正在使用这台电脑",
+    "idle": "等待 Agent 下一步操作",
+    "paused": "你已接管电脑",
+    "stopping": "正在停止 Agent 输入…",
+    "disconnected": "电脑控制已断开",
+    "unavailable": "控制浮窗不可用",
+    "hint": "使用鼠标或键盘前，请先暂停并接管。",
+    "resumeHint": "继续后 Agent 会重新观察，再执行操作。",
+    "pause": "暂停并接管",
+    "resume": "继续",
+    "error": "无法确认控制状态，请重试。"
+  },
   "assistants": {
     "activity": {
       "waiting_human": "等你确认",
@@ -500,11 +519,11 @@
       "saveUnconfirmed": "保存结果尚未确认。请重试读取当前环境，确认后再发送消息或更改设置。",
       "options": {
         "cloud": "云端电脑",
-        "local": "本地电脑"
+        "local": "本地设备"
       },
       "cloudHint": "在隔离的云端环境运行代码",
       "localHint": "在已连接的个人电脑运行代码和电脑操作",
-      "offlineHint": "本地沙箱离线：下载并启动后即可使用本地电脑",
+      "offlineHint": "本地沙箱离线：下载并启动后即可使用本地设备",
       "downloadEntry": "下载本地沙箱"
     },
     "sandboxMachine": {
@@ -512,9 +531,9 @@
       "description": "选择本地沙箱命令的执行机器",
       "auto": "自动（默认机）",
       "offline": "离线",
-      "offlineHint": "该电脑当前离线，暂不能选为执行机器",
+      "offlineHint": "本地设备离线，请在对应客户端中启动本地执行。",
       "section": "执行设备",
-      "computerUseHint": "电脑操作仅在本地电脑档可用，使用选中的在线设备或在线默认设备。",
+      "computerUseHint": "手机 App 控制需在本地设备设置中授权并连接。桌面控制需授予对应系统权限。",
       "currentDevice": "当前设备"
     },
     "sandboxPolicy": {
@@ -1408,7 +1427,7 @@
       "unavailableProject": "已保存的项目不可用",
       "projectWorkspace": "此项目绑定 {{machine}} 上的 {{path}}，运行环境由该本地工作目录确定。",
       "sandbox": "运行环境",
-      "local": "本地电脑",
+      "local": "本地设备",
       "cloud": "云端电脑",
       "machine": "本地设备",
       "offline": "离线",
@@ -1786,7 +1805,7 @@
         "tree": "界面树",
         "truncated": "界面树已截断，仅展示本次观察到的元素。",
         "rawResult": "原始结果",
-        "offlineHint": "本地电脑离线，请打开 LambChat 桌面端并检查本地沙箱连接。",
+        "offlineHint": "本地设备离线，请在对应客户端中启动本地执行。",
         "permissionHint": "请在 macOS 系统设置 → 隐私与安全性中为 LambChat 授予辅助功能和屏幕录制权限，然后重试。",
         "linuxPermissionHint": "请启用 Linux 辅助功能并安装 python3-atspi；截图还需可用的屏幕捕获环境。",
         "windowsPermissionHint": "请检查 Windows 辅助功能及屏幕捕获权限，然后重新观察界面。",
@@ -3177,8 +3196,8 @@
         "resetRestartPending": "已恢复默认位置，重启应用后生效；现有数据保留在原位置，不会自动搬回。",
         "relaunchNow": "立即重启"
       },
-      "title": "本地沙箱",
-      "desc": "Agent 通过桌面端在你自己的电脑上执行命令与文件读写",
+      "title": "本地设备",
+      "desc": "通过桌面端或安卓客户端，在所选设备上执行命令和处理文件。",
       "statusOnline": "在线",
       "statusOffline": "离线",
       "version": "daemon {{version}}",
@@ -3200,7 +3219,7 @@
       "openAudit": "打开审计目录",
       "openLogs": "打开日志目录",
       "restartDaemon": "重启 daemon",
-      "needDesktop": "本地沙箱当前离线：用 LambChat 桌面端配对连接后，即可在网页端选用本地沙箱。",
+      "needDesktop": "请在桌面端或支持的安卓客户端中启用本地设备。",
       "webManaged": "由已配对的桌面端管理",
       "pairFailed": "配对失败，请重试。",
       "unpair": "取消配对",
@@ -3229,7 +3248,36 @@
       },
       "forgetMachine": "忘记这台机器",
       "forgetMachineConfirm": "确定忘记「{{name}}」？将清除它的名称与默认机设置。",
-      "pairSavedRestartPending": "配对信息已保存，重启服务后即可完成。"
+      "pairSavedRestartPending": "配对信息已保存，重启服务后即可完成。",
+      "androidHint": "安卓手机需要 Android 11 或以上及 arm64。首次启动会解包内置运行环境；任务可访问应用内工作目录和导入的文件，退出应用后需重新启动本地设备。",
+      "phoneControl": "手机 App 控制",
+      "phoneControlHint": "先启动本地设备，再开启屏幕访问并通过 Android 无线调试配对本机。操作沿用所选审批策略，可随时暂停或接管。",
+      "phoneAccessibility": "屏幕访问设置",
+      "phoneDebugging": "无线调试设置",
+      "phonePaused": "手机控制已暂停",
+      "phoneConnected": "手机已连接",
+      "phoneDisconnected": "手机未连接",
+      "phoneNeedsAccessibility": "需要开启屏幕访问",
+      "phonePairHint": "在无线调试中打开“使用配对码配对设备”，保持该窗口打开，通过悬浮窗或分屏输入其中的端口和配对码。配对后，连接端口使用无线调试主页面显示的端口。",
+      "phoneDiscover": "查找本机端口",
+      "phonePairPort": "配对端口",
+      "phonePairCode": "六位配对码",
+      "phonePair": "配对手机",
+      "phoneConnectPort": "连接端口",
+      "phoneBackground": "在后台操作 App（Android 14+）",
+      "phoneConnect": "连接手机",
+      "phoneResume": "恢复控制",
+      "phonePause": "暂停控制",
+      "phoneTakeover": "在手机上接管",
+      "phoneDisconnect": "断开手机",
+      "phoneError": "操作失败。请检查屏幕访问、无线调试、当前端口及本地设备是否已启动。若不支持后台模式，需要手动取消勾选。",
+      "overlay": "悬浮窗",
+      "overlayHint": "在其他 App 上方显示任务状态，可返回 LambChat 或停止本地执行。开启时需授予系统悬浮窗权限。",
+      "androidUnsupported": "此手机不支持本地执行（需要 Android 11+、arm64）",
+      "phoneFiles": "手机文件",
+      "importPhoneFile": "导入手机文件",
+      "phoneFilesHint": "导入的文件位于共享工作目录 /workspace/.shared，可供本设备上的对话使用。最多显示 200 个文件，导入导出限 512 MiB。",
+      "phoneFilesEmpty": "尚未导入文件。"
     },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",
@@ -5058,7 +5106,7 @@
     "title": "会话文件",
     "viewChats": "会话",
     "viewCloud": "云端电脑",
-    "viewLocal": "本地电脑"
+    "viewLocal": "本地设备"
   },
   "projectWorkspace": {
     "details": "工作区详情",

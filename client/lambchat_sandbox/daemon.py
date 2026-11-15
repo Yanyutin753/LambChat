@@ -652,14 +652,23 @@ async def _process_cua_call(
         )
         return
 
-    try:
+    from lambchat_sandbox.desktop_control import local_control
+
+    async def execute() -> dict:
+        if control and control.needs_observation:
+            await _CUA_WORKER.close()
+        if time.monotonic() - started >= effective:
+            return {"error": "expired"}
         if call.op == "cua_launch":
-            # User applications must outlive disposal of the automation worker.
-            result = await asyncio.to_thread(handle_cua_op, call.op, call.payload)
-        else:
-            result = await _CUA_WORKER.call(
-                call.op, call.payload, timeout=effective - (time.monotonic() - started)
-            )
+            # Launch is detached: takeover cannot undo an application already launched.
+            return await asyncio.to_thread(handle_cua_op, call.op, call.payload)
+        return await _CUA_WORKER.call(
+            call.op, call.payload, timeout=effective - (time.monotonic() - started)
+        )
+
+    try:
+        control = local_control()
+        result = await control.execute(call.op, execute) if control else await execute()
     except Exception as exc:  # noqa: BLE001 - 单条 cua op 崩溃不拖垮通道
         await client.post_result(
             call.call_id, {"stage": "done", "status": "error", "error": str(exc)}

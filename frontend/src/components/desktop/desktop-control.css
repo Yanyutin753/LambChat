@@ -1,0 +1,54 @@
+.desktop-control {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 12px 16px;
+  background: var(--theme-bg-card);
+  color: var(--theme-text);
+  font: 0.8125rem/1.5 var(--chat-font-family);
+  border: 1px solid var(--theme-border);
+}
+.desktop-control header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: move;
+  user-select: none;
+}
+.desktop-control header strong {
+  flex: 1;
+  font-weight: 600;
+}
+.desktop-control p {
+  margin: 6px 0;
+}
+.desktop-control-hint {
+  color: var(--theme-text-secondary);
+}
+.desktop-control button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-sm);
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text);
+  font: inherit;
+  cursor: pointer;
+}
+.desktop-control button:hover {
+  background: var(--theme-bg-hover);
+}
+.desktop-control button:focus-visible {
+  outline: 2px solid var(--theme-ring);
+  outline-offset: 2px;
+}
+.desktop-control button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.desktop-control [role="alert"] {
+  color: var(--theme-error);
+}

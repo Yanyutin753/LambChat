@@ -159,6 +159,13 @@ jobs:
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
 
+      - name: Build native desktop control acceptance fixture
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item frontend/src-tauri/target/debug/examples/desktop_control_smoke.exe verification-artifacts/
+
       - name: Native updater version-binding regression
         shell: pwsh
         env:
@@ -208,3 +215,13 @@ jobs:
             frontend/src-tauri/target/debug/build
             frontend/src-tauri/target/debug/.fingerprint
           key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
+
+  linux-capture:
+    if: startsWith(github.ref, 'refs/heads/codex/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install X11 capture fixture dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-xlib python3-pil xvfb xauth
+      - name: Verify overlay-free native window pixels
+        run: python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
