@@ -254,6 +254,8 @@ export function machinePlatformLabel(
   t: (k: string) => string,
 ): string {
   switch (platform) {
+    case "android":
+      return "Android";
     case "win32":
       return t("profile.localSandbox.platform.windows");
     case "darwin":

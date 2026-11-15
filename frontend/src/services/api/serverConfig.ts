@@ -3,6 +3,7 @@
  */
 
 import { API_BASE, isNativeAppRuntime } from "./config";
+import { isBackendPath } from "../../pwaRouting";
 import {
   clearStoredServerUrl,
   getStoredServerUrl,
@@ -91,7 +92,7 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
     try {
       const parsed = new URL(url, window.location.origin);
       const isApiPath =
-        parsed.pathname.startsWith("/api") || parsed.pathname.startsWith("/ws");
+        isBackendPath(parsed.pathname);
       if (!isApiPath) return false;
       return (
         !/^https?:\/\//i.test(url) || parsed.origin === window.location.origin
@@ -116,7 +117,7 @@ export function installServerUrlNetworkPatch(deps: PatchDeps = {}): boolean {
           : input instanceof Request
             ? input.url
             : "";
-    if (hasUnsafeStoredServerUrl() && /\/(api|ws)(\/|\?|$)/.test(url)) {
+    if (hasUnsafeStoredServerUrl() && isBackendPath(new URL(url, window.location.origin).pathname)) {
       throw new Error(
         "Configure an HTTPS server before sending authenticated requests",
       );

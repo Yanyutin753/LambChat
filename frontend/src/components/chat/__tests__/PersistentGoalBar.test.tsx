@@ -102,7 +102,12 @@ test("does not show another ordinary run's duration on the persistent goal", () 
       />
     </I18nextProvider>,
   );
-  expect(screen.queryByText("4s")).toBeNull();
+  expect(
+    screen.getByText(goal.objective).parentElement?.textContent,
+  ).not.toContain("4s");
+  expect(screen.getByText("ordinary").parentElement?.textContent).toContain(
+    "4s",
+  );
 });
 
 test.each([false, true])(
@@ -402,4 +407,50 @@ test("completed persistent goal leaves the composer without showing its ended pr
   );
   expect(screen.queryByText(goal.objective)).toBeNull();
   expect(screen.queryByRole("button", { name: /resume|继续/i })).toBeNull();
+});
+
+test.each(["ordinary", "persistent"] as const)(
+  "%s goals use the same compact expandable row without redundant labels",
+  (kind) => {
+    const { container } = render(
+      <I18nextProvider i18n={i18n}>
+        <ActiveGoalBar
+          goal={kind === "ordinary" ? { objective: goal.objective } : null}
+          persistentGoal={kind === "persistent" ? goal : null}
+          embedded
+        />
+      </I18nextProvider>,
+    );
+    expect(container.querySelector(".composer-goal-card")).toBeTruthy();
+    expect(screen.queryByText("Goal")).toBeNull();
+    expect(screen.queryByText("—")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    expect(
+      screen
+        .getByText(goal.objective)
+        .classList.contains("whitespace-pre-wrap"),
+    ).toBe(true);
+  },
+);
+
+test("expanded goal and editor leave room for the composer on short screens", () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <ActiveGoalBar
+        goal={null}
+        persistentGoal={goal}
+        onUpdatePersistentGoal={vi.fn()}
+        embedded
+      />
+    </I18nextProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+  expect(screen.getByText(goal.objective).className).toContain(
+    "max-h-[min(12rem,30dvh)]",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
+  const editor = screen.getByRole("textbox", { name: "Goal" }).parentElement!
+    .parentElement!;
+  expect(editor.className).toContain("max-h-[min(22rem,40dvh)]");
+  expect(editor.className).toContain("overflow-y-auto");
 });

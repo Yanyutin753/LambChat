@@ -67,7 +67,7 @@ async def test_reveal_does_not_probe_private_capture_sizes(
         )
     )
 
-    assert result["size"] == 0
+    assert result["size"] is None
     assert storage.size_checks == []
 
 
@@ -207,3 +207,71 @@ async def test_relative_upload_url_is_revealed_without_reading_sandbox(monkeypat
     )
     assert result["url"] == "https://app.example.com/api/upload/file/images/photo.png"
     assert result["type"] == "image"
+
+
+async def test_own_capture_uses_authorized_record_size(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from src.infra.upload import file_record
+
+    records = type(
+        "Records", (), {"require_private_access": AsyncMock(return_value={"size": 12345})}
+    )()
+    monkeypatch.setattr(file_record, "get_file_record_storage", lambda: records)
+    monkeypatch.setattr(reveal_file_tool, "_reveal_user_id", lambda runtime: "owner")
+    monkeypatch.setattr(reveal_file_tool, "get_session_id_from_runtime", lambda runtime: "session")
+    monkeypatch.setattr(reveal_file_tool, "_self_upload_url_missing", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        reveal_file_tool, "_reverse_map_self_upload_row", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reveal_file_tool, "_index_revealed_file", AsyncMock())
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(
+            "https://app.example/api/upload/file/cua_screenshots/owner/session/a.png",
+            runtime=object(),
+        )
+    )
+    assert result["size"] == 12345
+    records.require_private_access.assert_awaited_once_with(
+        "cua_screenshots/owner/session/a.png", "owner", "session"
+    )
+
+
+@pytest.mark.parametrize("failure", ["denied", "offline"])
+async def test_capture_size_denial_stays_unknown_without_storage_probe(monkeypatch, failure):
+    from unittest.mock import AsyncMock
+
+    from src.infra.upload import file_record
+    from src.kernel.errors import AppError, ErrorCode
+
+    records = type(
+        "Records",
+        (),
+        {
+            "require_private_access": AsyncMock(
+                side_effect=AppError(ErrorCode.FILE_NOT_FOUND)
+                if failure == "denied"
+                else RuntimeError("offline")
+            )
+        },
+    )()
+    monkeypatch.setattr(file_record, "get_file_record_storage", lambda: records)
+    monkeypatch.setattr(reveal_file_tool, "_reveal_user_id", lambda runtime: "other")
+    monkeypatch.setattr(
+        reveal_file_tool, "get_session_id_from_runtime", lambda runtime: "other-session"
+    )
+    monkeypatch.setattr(reveal_file_tool, "_self_upload_url_missing", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        reveal_file_tool, "_reverse_map_self_upload_row", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(reveal_file_tool, "_index_revealed_file", AsyncMock())
+    storage = AsyncMock()
+    monkeypatch.setattr(reveal_file_tool, "_get_storage", AsyncMock(return_value=storage))
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(
+            "https://app.example/api/upload/file/cua_screenshots/owner/session/a.png",
+            runtime=object(),
+        )
+    )
+    assert result["size"] is None
+    storage.get_size.assert_not_awaited()

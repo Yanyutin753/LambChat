@@ -62,10 +62,10 @@ test("pending approvals hide the goal bar and restore it with the composer", () 
 
 test("pending approvals suppress welcome and loading composers without messages", () => {
   expect(chatViewSource).toMatch(
-    /\{messages\.length === 0 \? \(\s*!hasPendingApproval &&\s*\(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,
+    /\{showWelcome \? \(\s*!hasPendingApproval &&\s*\(\s*isLoading \? \([\s\S]*?<ChatSkeleton[\s\S]*?<WelcomePage/,
   );
   expect(chatViewSource).toMatch(
-    /\{\(messages\.length > 0 \|\| hasPendingApproval\) && \(\s*<div className="relative">/,
+    /\{\(!showWelcome \|\| hasPendingApproval\) && \(\s*<div className="relative">/,
   );
 });
 
@@ -153,5 +153,11 @@ test("passes the resumed run id to the stream recovery callback", () => {
   );
   expect(approvalsHookSource).toMatch(
     /onInterruptResume\?\.\(\s*res\.hitl_resume\.run_id,/,
+  );
+});
+
+test("a saved goal uses the conversation composer before messages arrive", () => {
+  expect(chatViewSource).toMatch(
+    /showWelcome =\s*messages.length === 0 && !hasVisiblePersistentGoal\(persistentGoal\)/,
   );
 });

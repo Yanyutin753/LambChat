@@ -156,3 +156,34 @@ test.each([false, true])(
     ).toBeNull();
   },
 );
+
+test.each([false, true])(
+  "cancelled goal runs use their goal controls while ordinary runs retain retry (%s)",
+  (persistentGoal) => {
+    render(
+      <ChatMessage
+        message={{
+          id: "cancelled-run",
+          runId: persistentGoal ? "goal-example-1-1" : "ordinary-run",
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+          cancelled: true,
+          parts: [{ type: "cancelled" }],
+        }}
+        isLastMessage
+        onRetryCancelledMessage={vi.fn()}
+      />,
+    );
+    const retry = screen.queryByRole("button", {
+      name: "chat.message.retryAnswer",
+    });
+    if (persistentGoal) {
+      expect(retry).toBeNull();
+      expect(screen.queryByText("chat.message.interrupted")).toBeNull();
+      expect(screen.getByText("chat.message.runStepsStopped")).toBeVisible();
+    } else {
+      expect(retry).toBeVisible();
+    }
+  },
+);

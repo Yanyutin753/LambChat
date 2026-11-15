@@ -111,7 +111,7 @@ async def test_reveal_file_returns_remote_url_directly(
         "name": "portrait.png",
         "type": "image",
         "mime_type": "image/png",
-        "size": 0,
+        "size": None,
         "_meta": {
             "path": url,
             "description": "AI generated portrait",
@@ -163,7 +163,7 @@ async def test_reveal_file_indexes_remote_url_without_storage_or_backend(
             "data": {
                 "file_type": "image",
                 "mime_type": "image/png",
-                "file_size": 0,
+                "file_size": None,
                 "url": url,
                 "session_id": "session-1",
                 "project_id": None,

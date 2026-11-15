@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
         // 必须在 super.onCreate 之前注册：BridgeActivity.onCreate 末尾 load()
         // 即消费 bridgeBuilder 创建 bridge，晚于此注册插件不会生效
         registerPlugin(ApkInstallerPlugin.class);
+        registerPlugin(LocalDevicePlugin.class);
         registerPlugin(UpdateDownloaderPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);

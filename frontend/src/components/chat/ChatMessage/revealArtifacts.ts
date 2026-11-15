@@ -57,13 +57,26 @@ interface ParsedFileReveal {
   fileSize?: number;
 }
 
+function knownFileSize(size: unknown, path: string): number | undefined {
+  if (typeof size !== "number" || !Number.isFinite(size) || size < 0)
+    return undefined;
+  // Older captures stored unknown metadata as zero; an image cannot be empty.
+  if (size === 0 && /cua_screenshots(?:\/|%2f)/i.test(path)) return undefined;
+  return size;
+}
+
 function collectArtifactPart(part: MessagePart): RevealArtifact | null {
   if (part.type !== "artifact" || part.success !== true) {
     return null;
   }
 
   if (part.artifact.kind === "file") {
-    return part.artifact;
+    const fileSize = knownFileSize(part.artifact.fileSize, part.artifact.path);
+    return {
+      ...part.artifact,
+      fileSize,
+      preview: { ...part.artifact.preview, fileSize },
+    };
   }
 
   const project = part.artifact.preview.project as ParsedProjectRevealData;
@@ -126,7 +139,7 @@ function parseFileRevealPart(part: ToolPart): ParsedFileReveal | null {
         typeof meta?.description === "string" ? meta.description : undefined,
       s3Key: parsed.key,
       s3Url: getFullUrl(parsed.url) || parsed.url,
-      fileSize: typeof parsed.size === "number" ? parsed.size : undefined,
+      fileSize: knownFileSize(parsed.size, filePath),
     };
   }
 
@@ -142,7 +155,7 @@ function parseFileRevealPart(part: ToolPart): ParsedFileReveal | null {
       s3Key: typeof file.s3_key === "string" ? file.s3_key : undefined,
       s3Url:
         typeof file.s3_url === "string" ? getFullUrl(file.s3_url) : undefined,
-      fileSize: typeof file.size === "number" ? file.size : undefined,
+      fileSize: knownFileSize(file.size, filePath),
     };
   }
 

@@ -281,7 +281,7 @@ function RevealedFilesContent({
           registryKey={`library-preview:${previewFile.id}`}
           path={previewFile.file_name}
           signedUrl={previewFile.url ? getFullUrl(previewFile.url) : undefined}
-          fileSize={previewFile.file_size}
+          fileSize={previewFile.file_size ?? undefined}
           mimeType={previewFile.mime_type ?? undefined}
           onClose={() =>
             setPreviewFiles((current) =>

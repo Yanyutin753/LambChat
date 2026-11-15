@@ -1080,3 +1080,78 @@ def test_subtree_observation_refreshes_snapshot_backend(fake_backend, monkeypatc
     assert result["truncated"] is not complete
     cua_ops.handle_cua_op("cua_click", {"pid": 4242, "target": {"type": "element", "index": 0}})
     assert fake_backend.performed[-1][0] is refreshed
+
+
+def test_subtree_screenshot_crops_to_element_and_maps_pixels(fake_backend, monkeypatch):
+    captures = []
+    monkeypatch.setattr(
+        fake_backend,
+        "row_of",
+        lambda e: {"kind": e.kind, "title": e.title, "bounds": [100, 100, 200, 100]},
+    )
+    monkeypatch.setattr(
+        cua_ops, "_capture", lambda bounds: captures.append(bounds) or {"width": 100, "height": 50}
+    )
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    result = cua_ops.handle_cua_op(
+        "cua_state",
+        {"pid": 4242, "target": {"type": "element", "index": 1}, "include_screenshot": True},
+    )
+    assert captures == [[100, 100, 200, 100]]
+    assert result["screenshot"]["bounds"] == [100, 100, 200, 100]
+    points = []
+    monkeypatch.setattr(
+        fake_backend,
+        "click_point_repeated",
+        lambda x, y, *a, **k: points.append((x, y)) or {},
+        raising=False,
+    )
+    cua_ops.handle_cua_op(
+        "cua_snapshot_action",
+        {
+            "operation": "click",
+            "pid": 4242,
+            "snapshot_id": result["snapshot_id"],
+            "coordinate_space": "screenshot",
+            "target": {"x": 50, "y": 25},
+        },
+    )
+    assert points == [(200, 150)]
+
+
+def test_capture_reports_size_and_keeps_text_lossless_when_within_budget(fake_backend, monkeypatch):
+    import base64
+
+    from PIL import Image
+
+    image = Image.new("RGB", (1800, 1000), "white")
+    monkeypatch.setattr(fake_backend, "screenshot", lambda bounds: image, raising=False)
+    result = cua_ops._capture([0, 0, 1800, 1000])
+    assert result["width"] == 1800
+    assert result["mime"] == "image/png"
+    assert result["size"] == len(base64.b64decode(result["data_b64"]))
+
+
+@pytest.mark.parametrize("element", [[900, 20, 20, 20], None, [0, 0, float("nan"), 20]])
+def test_invalid_crop_never_captures_other_desktop_regions(element):
+    with pytest.raises(cua_ops.CuaOpError, match="screenshot_failed"):
+        cua_ops._intersect_bounds([10, 20, 800, 600], element)
+
+
+def test_crop_clips_element_to_window():
+    assert cua_ops._intersect_bounds([10, 20, 800, 600], [0, 0, 100, 100]) == [10, 20, 90, 80]
+
+
+def test_focus_lost_during_capture_discards_pixels(fake_backend, monkeypatch):
+    focus = [4242]
+    monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: focus[0])
+
+    def capture(bounds):
+        focus[0] = 100
+        return {"data_b64": "private pixels", "width": 100, "height": 100}
+
+    monkeypatch.setattr(cua_ops, "_capture", capture)
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert result["screenshot"]["error"] == "foreground_required"
+    assert "data_b64" not in result["screenshot"]
+    assert cua_ops._get_observation(4242, None).screenshot is None

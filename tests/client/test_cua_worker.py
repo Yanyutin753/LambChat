@@ -223,3 +223,33 @@ def test_failed_job_assignment_closes_handle_without_marking_worker_attached(mon
         worker._attach_job(123)
     assert worker._job is None
     assert [call.args[0] for call in api.close_handle.call_args_list] == [789, 456]
+
+
+async def test_local_takeover_kills_native_worker_before_acknowledging_pause(worker, tmp_path):
+    from lambchat_sandbox.desktop_control import DesktopControl
+
+    events = []
+    control = DesktopControl(events.append)
+    started, late = tmp_path / "started", tmp_path / "late"
+
+    async def action():
+        return await worker.call(
+            "cua_type", {"delay": 1, "started": str(started), "late_write": str(late)}, timeout=5
+        )
+
+    task = asyncio.create_task(control.execute("cua_type", action))
+    try:
+        await asyncio.sleep(0)
+        control.command({"action": "permit", "request": events[0]["request"], "allowed": True})
+        async with asyncio.timeout(5):
+            while not started.exists():
+                await asyncio.sleep(0.01)
+        control.command({"action": "pause"})
+        assert (await task)["error"] == "desktop_control_paused"
+        assert worker._process is None
+        assert events[-1] == {"state": "paused"}
+        await asyncio.sleep(1.1)
+        assert not late.exists()
+    finally:
+        task.cancel()
+        await worker.close()

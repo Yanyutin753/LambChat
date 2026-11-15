@@ -130,3 +130,13 @@ def test_remembered_output_formats_do_not_create_unrequested_artifacts():
     assert "only when requested or needed" in ARTIFACT_POLICY
     assert "format preferences alone" in ARTIFACT_POLICY
     assert "in-chat answer" in ARTIFACT_POLICY
+
+
+def test_android_policy_describes_phone_runtime_and_file_boundary():
+    section = sandbox_shell_platform_section("android", "Pixel")
+    assert "Android" in section and "Pixel" in section
+    assert "Python" in section and "Node" in section
+    assert "/workspace/.shared" in section
+    assert "Phone App control uses computer_use" in section
+    assert "never enable permissions" in section
+    assert "real computer" not in section

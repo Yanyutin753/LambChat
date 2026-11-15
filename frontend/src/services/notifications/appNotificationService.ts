@@ -273,20 +273,17 @@ function createTauriAdapter(): AppNotificationAdapter {
 function createCapacitorAndroidAdapter(): AppNotificationAdapter {
   return {
     async requestPermission() {
-      const { LocalNotifications } = await import(
-        "@capacitor/local-notifications"
-      );
+      const { LocalNotifications } = await import("@capacitor/local-notifications");
       const permission = await LocalNotifications.requestPermissions();
       return permission.display === "granted" ? "granted" : "denied";
     },
     async notify(payload) {
-      const { LocalNotifications } = await import(
-        "@capacitor/local-notifications"
-      );
+      const { LocalNotifications } = await import("@capacitor/local-notifications");
       await LocalNotifications.schedule({
         notifications: [
           {
             id: notificationIdFromPayload(payload),
+            isExactNotification: false,
             title: payload.title,
             body: payload.body || "",
             extra: {

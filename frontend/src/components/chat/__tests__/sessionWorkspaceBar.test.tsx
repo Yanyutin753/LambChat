@@ -52,7 +52,7 @@ beforeEach(() => {
   mocks.current = "m1";
   mocks.online = true;
   mocks.defaultId = "m1";
-  mocks.shell = false;
+  mocks.shell = true;
 });
 
 test("native identity must resolve before local submission can choose its workspace", async () => {
@@ -116,6 +116,7 @@ test("local submission selects a real directory before allowing execution", asyn
 test.each(["cloud", "local"])(
   "%s execution outside this client keeps its existing workspace behavior",
   (sandbox) => {
+    mocks.shell = false;
     mocks.current = null;
     const ref = createRef<SessionWorkspaceBarHandle>();
     render(
@@ -179,6 +180,7 @@ test("cancelling preserves session options", async () => {
 });
 
 test("browser clients do not show a native directory entry", () => {
+  mocks.shell = false;
   mocks.current = null;
   render(
     <SessionWorkspaceBar
@@ -189,6 +191,22 @@ test("browser clients do not show a native directory entry", () => {
   );
   expect(screen.queryByRole("button")).toBeNull();
   expect(screen.getByText("sessionWorkspace.independent")).toBeVisible();
+});
+
+test("Android local devices submit without opening a desktop directory picker", () => {
+  mocks.shell = false;
+  const ref = createRef<SessionWorkspaceBarHandle>();
+  render(
+    <SessionWorkspaceBar
+      ref={ref}
+      values={{ sandbox: "local", sandbox_machine_id: "m1" }}
+      onChange={vi.fn()}
+      disabled={false}
+    />,
+  );
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(ref.current?.prepareSubmit()).toBe(true);
+  expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
 test("cloud conversations explain their independent directory without a native picker", () => {
@@ -253,6 +271,7 @@ test("a picker opened before execution cannot change the directory after executi
 });
 
 test("web sessions show the inherited directory without exposing its full path or native controls", () => {
+  mocks.shell = false;
   mocks.current = null;
   render(
     <SessionWorkspaceBar

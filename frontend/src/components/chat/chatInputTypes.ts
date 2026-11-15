@@ -145,8 +145,6 @@ export interface ChatInputProps {
   onControlPersistentGoal?: (action: "pause" | "resume" | "clear") => void;
   activeGoal?: ActiveGoalSpec | null;
   onClearActiveGoal?: () => void;
-  goalLabel?: string;
-  goalDurationLabel?: string;
   goalClearLabel?: string;
 
   /** Show the help (?) button — defaults to false. */

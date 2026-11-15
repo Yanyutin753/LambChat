@@ -1,15 +1,26 @@
+import { isAndroidLocalDevice } from "../../services/capacitor/localDevice";
 import { InteractiveIcon } from "../common/InteractiveIcon";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
-import { Check, Download, Laptop, Monitor, Terminal } from "lucide-react";
+import {
+  Check,
+  Download,
+  Laptop,
+  Monitor,
+  Smartphone,
+  Terminal,
+} from "lucide-react";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
-import { isWorkspaceSelectionLocked, type WorkspaceControlState } from "./workspaceSelection";
+import {
+  isWorkspaceSelectionLocked,
+  type WorkspaceControlState,
+} from "./workspaceSelection";
 import { AgentOptionButton } from "./AgentOptionButton";
 import { Select } from "../common/ui/Select";
 import {
@@ -180,7 +191,7 @@ export function ChatInputSelectors(props: ChatInputSelectorsProps) {
     defaultMachineId,
     currentMachineId,
   } = useSandboxStatus();
-  const sandboxShell = isShellAvailable();
+  const sandboxShell = isShellAvailable() || isAndroidLocalDevice();
   const { user, refreshUser } = useAuth();
   const { states, save, retry } = usePreferenceWrites(user?.id);
   const [policyOverride, setPolicyOverride] = useState<{
@@ -233,7 +244,8 @@ export function ChatInputSelectors(props: ChatInputSelectorsProps) {
     save(
       policyTarget,
       async () => {
-        if (workspaceBlockedRef.current) throw new Error("Workspace settings are locked");
+        if (workspaceBlockedRef.current)
+          throw new Error("Workspace settings are locked");
         if (!isLocal) {
           await authApi.updateMetadata({ sandboxCloudConfirmPolicy: policy });
         } else if (selectedMachine) {
@@ -529,12 +541,12 @@ export function ChatInputSelectors(props: ChatInputSelectorsProps) {
               const note = workspaceUnconfirmed
                 ? t("agentOptions.sandbox.saveUnconfirmed")
                 : workspaceSaving
-                ? t("common.saving")
-                : workspaceBlocked
-                  ? t("agentOptions.sandbox.lockedWhileActive")
-                  : isLocal && !sandboxOnline
-                  ? t("agentOptions.sandbox.offlineHint")
-                  : undefined;
+                  ? t("common.saving")
+                  : workspaceBlocked
+                    ? t("agentOptions.sandbox.lockedWhileActive")
+                    : isLocal && !sandboxOnline
+                      ? t("agentOptions.sandbox.offlineHint")
+                      : undefined;
               const downloadFooter =
                 isLocal && !sandboxOnline ? (
                   <button
@@ -608,6 +620,8 @@ export function ChatInputSelectors(props: ChatInputSelectorsProps) {
 /** 设备行平台图标：darwin/未知=Laptop，win32=Monitor，linux=Terminal。 */
 function machinePlatformIcon(platform?: string) {
   switch (platform) {
+    case "android":
+      return Smartphone;
     case "win32":
       return Monitor;
     case "linux":

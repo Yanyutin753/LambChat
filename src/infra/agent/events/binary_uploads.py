@@ -164,6 +164,7 @@ async def upload_binary_blocks(
             )
             block.pop("base64", None)
             block["url"] = proxy_url
+            block["size"] = size
             uploaded_block_count += 1
             estimated_total_bytes += estimated_bytes
             logger.info(

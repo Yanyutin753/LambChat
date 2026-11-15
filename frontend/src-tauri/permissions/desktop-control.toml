@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-desktop-control"
+description = "Local takeover controls, restricted to the bundled CUA window"
+commands.allow = ["desktop_control_status", "desktop_control_set_paused"]

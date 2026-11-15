@@ -429,3 +429,33 @@ test("URL echoes refresh the same object's capability without losing its workspa
     preview: { signedUrl: url + "?file_token=fresh" },
   });
 });
+
+test("historical private screenshot zero size is unknown, while real empty files remain zero", () => {
+  const parts: MessagePart[] = [
+    "/api/upload/file/cua_screenshots/u/s/image.jpg",
+    "/empty.txt",
+  ].map((path) => ({
+    type: "artifact",
+    success: true,
+    artifact: {
+      kind: "file",
+      id: path,
+      name: path.split("/").pop()!,
+      path,
+      fileSize: 0,
+      preview: {
+        kind: "file",
+        previewKey: path,
+        filePath: path,
+        signedUrl: path,
+        fileSize: 0,
+      },
+    },
+  }));
+  const artifacts = collectRevealArtifacts(parts);
+  expect(artifacts[0]).toMatchObject({
+    fileSize: undefined,
+    preview: { fileSize: undefined },
+  });
+  expect(artifacts[1]).toMatchObject({ fileSize: 0 });
+});
