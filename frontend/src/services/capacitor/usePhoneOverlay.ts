@@ -41,6 +41,19 @@ export function usePhoneOverlay(options: Options) {
     let disposed = false;
     const scope = options.draftKey;
     const listener = LocalDevice.addListener("overlayAction", (event) => {
+      void (async () => {
+      // Resume can replay native clicks before the current chat and approvals finish restoring.
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const restored = current.current;
+        if (disposed || event.scope !== restored.draftKey || !Number.isFinite(event.expiresAt) || event.expiresAt! <= Date.now()) break;
+        const ready = event.action === "task"
+          ? restored.ready && !restored.running && !restored.approvals.length
+          : event.action === "approve" || event.action === "reject"
+            ? restored.approvals.some((approval) => approval.id === event.approvalId)
+            : true;
+        if (ready) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
       const value = current.current;
       const reply = (accepted: boolean) => {
         void LocalDevice.overlayResult({ id: event.id, accepted }).catch(
@@ -94,6 +107,7 @@ export function usePhoneOverlay(options: Options) {
       void Promise.resolve(value.onRespondApproval(approval.id, {}, event.action === "approve"))
         .then((accepted) => reply(accepted === true))
         .catch(() => reply(false));
+      })();
     });
     return () => {
       disposed = true;

@@ -126,3 +126,14 @@ test("an action delayed beyond its native timeout cannot approve later", async (
   expect(respond).not.toHaveBeenCalled();
   expect(native.overlayResult).toHaveBeenCalledWith({ id: "expired", accepted: false });
 });
+
+test("a waking page waits briefly for its exact pending approval to restore", async () => {
+  const view = render(<Harness />);
+  await waitFor(() => expect(native.addListener).toHaveBeenCalled());
+  respond.mockResolvedValue(true);
+  act(() => native.addListener.mock.calls[0][1]({ id: "waking", scope: "account/server/chat", action: "reject", approvalId: "approval", message: "operation", expiresAt: Date.now() + 15000 }));
+  expect(respond).not.toHaveBeenCalled();
+  view.rerender(<Harness approvals={[{ id: "approval", message: "operation", fields: [], status: "pending", type: "form" }]} />);
+  await waitFor(() => expect(respond).toHaveBeenCalledWith("approval", {}, false));
+  expect(native.overlayResult).toHaveBeenCalledWith({ id: "waking", accepted: true });
+});
