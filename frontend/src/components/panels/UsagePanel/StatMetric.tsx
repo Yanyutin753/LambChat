@@ -17,7 +17,7 @@ export function StatMetric({
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] transition-colors duration-200 sm:h-8 sm:w-8">
           <Icon size={13} strokeWidth={2} />
         </div>
-        <span className="min-w-0 break-words text-10 font-medium leading-none uppercase tracking-widest text-theme-text-tertiary sm:text-11">
+        <span className="min-w-0 break-words text-12 font-medium leading-snug text-theme-text-tertiary sm:text-12">
           {label}
         </span>
       </div>
@@ -27,9 +27,9 @@ export function StatMetric({
       {hint && (
         <p
           title={hint}
-          className="break-words text-10 leading-snug text-theme-text-tertiary sm:text-11"
+          className="break-words text-12 leading-relaxed text-theme-text-tertiary sm:text-12"
         >
-          <span className="text-theme-text-tertiary/50">&#x00B7;</span> {hint}
+          {hint}
         </p>
       )}
     </div>

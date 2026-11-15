@@ -1,5 +1,6 @@
 import {
   getFileTypeInfo,
+  isBinaryFile,
   getFileLinkInfo,
   isCadFile,
   isDwgFile,
@@ -84,4 +85,20 @@ test("language badge only appears when it says more than the file extension", ()
   );
   expect(shouldShowLanguageBadge(true, "", "main.ts")).toBe(false);
   expect(shouldShowLanguageBadge(false, "typescript", "main.ts")).toBe(false);
+});
+
+test.each([
+  "ps1",
+  "psm1",
+  "psd1",
+  "bat",
+  "cmd",
+  "vbs",
+  "wsf",
+  "sh",
+  "jsonl",
+  "ndjson",
+])("text script/data %s is previewable and not binary", (ext) => {
+  expect(isBinaryFile(ext)).toBe(false);
+  expect(isPreviewableFile(ext)).toBe(true);
 });

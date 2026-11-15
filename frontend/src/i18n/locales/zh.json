@@ -2241,7 +2241,10 @@
     "wordPreviewTitle": "Word 预览",
     "yesterday": "昨天",
     "zoomIn": "放大",
-    "zoomOut": "缩小"
+    "zoomOut": "缩小",
+    "hexPreview": "十六进制预览",
+    "textPreview": "文本预览",
+    "previewBytesLimit": "仅预览前 64 KiB，下载可获取完整文件"
   },
   "envVars": {
     "addFailed": "添加失败",
@@ -4935,7 +4938,19 @@
     "quotaErrorExhausted": "{{windows}}模型费用额度已用尽。",
     "quotaErrorReserved": "{{windows}}可用额度已被进行中的调用预留，请等待调用结束。",
     "quotaErrorUnknown": "{{windows}}部分费用未知，暂时无法核验可用额度。",
-    "quotaErrorResets": "重置于 {{time}}。"
+    "quotaErrorResets": "重置于 {{time}}。",
+    "billing": {
+      "title": "费用明细",
+      "confirmedAmount": "完整计价费用",
+      "partialAmount": "部分计价中的已知费用",
+      "knownOnly": "总费用包含以上已知金额；缺失费用不按零计。历史估算单列，不计入总费用。",
+      "coverageScope": "计价覆盖：成功请求（不含验收测试）",
+      "priced": "完整计价 {{count}} 次",
+      "partial": "部分计价 {{count}} 次",
+      "estimated": "历史估算 {{count}} 次",
+      "unpriced": "未计价 {{count}} 次",
+      "knownTotal": "已知费用"
+    }
   },
   "users": {
     "actions": "操作",

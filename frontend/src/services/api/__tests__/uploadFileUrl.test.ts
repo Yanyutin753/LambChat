@@ -165,3 +165,57 @@ test("legacy capture signing cannot expose an unsigned URL to generic media elem
     resolveUploadFileUrl("/api/upload/file/tool_binaries/private-capture.jpg"),
   ).rejects.toThrow("Invalid file capability");
 });
+
+const fileToken = (exp: number) =>
+  `header.${btoa(
+    JSON.stringify({ type: "file", aud: "lambchat-file", exp }),
+  )}.signature`;
+
+test("renews an expired preview download capability and preserves proxy options", async () => {
+  const expired = fileToken(Math.floor(Date.now() / 1000) - 1);
+  request.mockResolvedValueOnce(
+    signed("revealed_files/audio_check.ps1", "fresh"),
+  );
+  const result = new URL(
+    await resolveUploadFileUrl(
+      `/api/upload/file/revealed_files/audio_check.ps1?file_token=${expired}&proxy=true#preview`,
+    ),
+    window.location.origin,
+  );
+  expect(result.searchParams.get("file_token")).toBe("fresh");
+  expect(result.searchParams.get("proxy")).toBe("true");
+  expect(result.hash).toBe("#preview");
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+test("keeps valid shared capabilities usable without an account", async () => {
+  localStorage.removeItem("access_token");
+  const source = `/api/upload/file/uploads/a.png?file_token=${fileToken(
+    Math.floor(Date.now() / 1000) + 3600,
+  )}`;
+  expect(await resolveUploadFileUrl(source)).toBe(source);
+  expect(request).not.toHaveBeenCalled();
+});
+
+test("expired capabilities cannot bypass ownership checks or authenticate anonymous users", async () => {
+  const source = `/api/upload/file/uploads/a.png?file_token=${fileToken(
+    Math.floor(Date.now() / 1000),
+  )}`;
+  localStorage.removeItem("access_token");
+  await expect(resolveUploadFileUrl(source)).rejects.toThrow(
+    "authentication required",
+  );
+  expect(request).not.toHaveBeenCalled();
+  localStorage.setItem("access_token", "different-owner");
+  request.mockResolvedValueOnce(new Response("denied", { status: 404 }));
+  await expect(resolveUploadFileUrl(source)).rejects.toThrow("404");
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+test("never renews expired capabilities on a foreign origin", async () => {
+  const source = `https://evil.example/api/upload/file/uploads/a.png?file_token=${fileToken(
+    1,
+  )}`;
+  expect(await resolveUploadFileUrl(source)).toBe(source);
+  expect(request).not.toHaveBeenCalled();
+});

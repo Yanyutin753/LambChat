@@ -139,10 +139,7 @@ test("browser upload downloads resolve the capability first and never fetch the 
       }),
     ),
   );
-  await downloadUrl(
-    "/api/upload/file/generated-images/clip.mp4",
-    "clip.mp4",
-  );
+  await downloadUrl("/api/upload/file/generated-images/clip.mp4", "clip.mp4");
   expect(request).toHaveBeenCalledTimes(1);
   expect(fetch).not.toHaveBeenCalled();
   expect(anchorClick).toHaveBeenCalledOnce();
@@ -171,4 +168,32 @@ test("native app runtimes keep the prefetch path for cross-origin webview downlo
   expect(fetch).toHaveBeenCalledOnce();
   expect(anchorClick).not.toHaveBeenCalled();
   expect(bridge.invoke).not.toHaveBeenCalled();
+});
+
+test("an expired Windows preview link is renewed before saving the original script bytes", async () => {
+  localStorage.setItem("access_token", "windows-download-owner");
+  const expired = `header.${btoa(JSON.stringify({ exp: 1 }))}.signature`;
+  request.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        url: "/api/upload/file/revealed_files/audio_check.ps1?file_token=fresh",
+      }),
+    ),
+  );
+  const bytes = new Uint8Array([239, 187, 191, 36, 115, 114, 99, 61, 49]);
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(bytes));
+  await downloadUrl(
+    `/api/upload/file/revealed_files/audio_check.ps1?file_token=${expired}`,
+    "audio_check.ps1",
+  );
+  expect(request).toHaveBeenCalledOnce();
+  const fetched = new URL(String(vi.mocked(fetch).mock.calls[0][0]));
+  expect(fetched.searchParams.get("file_token")).toBe("fresh");
+  expect(fetched.searchParams.get("proxy")).toBe("true");
+  expect(bridge.invoke).toHaveBeenCalledOnce();
+  expect(new Uint8Array(bridge.invoke.mock.calls[0][1])).toEqual(bytes);
+  expect(
+    JSON.parse(bridge.invoke.mock.calls[0][2].headers["x-file-name"]),
+  ).toBe("audio_check.ps1");
+  expect(toast.error).not.toHaveBeenCalled();
 });

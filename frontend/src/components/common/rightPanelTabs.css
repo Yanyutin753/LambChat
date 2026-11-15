@@ -255,15 +255,11 @@
   outline-offset: -2px;
 }
 .right-panel-restore-group {
-  position: fixed;
-  z-index: 40;
-  top: calc(
-    64px + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px))
-  );
-  right: 12px;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
   display: flex;
   align-items: center;
-  max-width: calc(100vw - 24px);
+  max-width: min(12rem, 40%);
   gap: 0;
   padding: 1px;
   border: 1px solid var(--theme-border);
@@ -280,7 +276,7 @@
   width: 0.875rem;
   height: 0.875rem;
 }
-.right-panel-restore > span:first-of-type {
+.right-panel-restore-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -386,6 +382,9 @@
 
 /* Phones keep readable tabs in a horizontal lane, with collapse pinned outside. */
 @media (max-width: 639px) {
+  .right-panel-restore-label {
+    display: none;
+  }
   .right-panel-tab-scroll {
     overflow-x: auto;
     overflow-y: hidden;

@@ -2241,7 +2241,10 @@
     "wordPreviewTitle": "Word preview",
     "yesterday": "Yesterday",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "hexPreview": "Hex preview",
+    "textPreview": "Text preview",
+    "previewBytesLimit": "Showing the first 64 KiB; download for the complete file"
   },
   "envVars": {
     "addFailed": "Failed to add",
@@ -4935,7 +4938,19 @@
     "quotaErrorExhausted": "{{windows}} model budget is exhausted.",
     "quotaErrorReserved": "{{windows}} available budget is reserved for active calls. Wait for them to finish.",
     "quotaErrorUnknown": "Some {{windows}} costs are unknown; the available budget cannot be verified.",
-    "quotaErrorResets": "Resets at {{time}}."
+    "quotaErrorResets": "Resets at {{time}}.",
+    "billing": {
+      "title": "Cost breakdown",
+      "confirmedAmount": "Fully priced charges",
+      "partialAmount": "Known charges from partially priced requests",
+      "knownOnly": "The total includes these known amounts. Missing charges are not zero. Historical estimates are separate and excluded from the total.",
+      "coverageScope": "Pricing coverage: successful requests (excluding acceptance tests)",
+      "priced": "Fully priced: {{count}}",
+      "partial": "Partially priced: {{count}}",
+      "estimated": "Historical estimates: {{count}}",
+      "unpriced": "Unpriced: {{count}}",
+      "knownTotal": "Known charges"
+    }
   },
   "users": {
     "actions": "Actions",

@@ -2241,7 +2241,10 @@
     "wordPreviewTitle": "Wordプレビュー",
     "yesterday": "昨日",
     "zoomIn": "拡大",
-    "zoomOut": "縮小"
+    "zoomOut": "縮小",
+    "hexPreview": "16進数プレビュー",
+    "textPreview": "テキストプレビュー",
+    "previewBytesLimit": "先頭64 KiBのみ表示。全内容はダウンロードできます"
   },
   "envVars": {
     "addFailed": "追加に失敗しました",
@@ -4935,7 +4938,19 @@
     "quotaErrorExhausted": "{{windows}}のモデル利用予算を使い切りました。",
     "quotaErrorReserved": "{{windows}}の利用可能な予算は実行中の呼び出し用に予約されています。終了までお待ちください。",
     "quotaErrorUnknown": "{{windows}}の一部の費用が不明なため、利用可能な予算を確認できません。",
-    "quotaErrorResets": "{{time}} にリセット。"
+    "quotaErrorResets": "{{time}} にリセット。",
+    "billing": {
+      "title": "料金の内訳",
+      "confirmedAmount": "全額算定済みの料金",
+      "partialAmount": "一部算定済みの既知料金",
+      "knownOnly": "合計には上記の既知料金を含みます。不明な料金はゼロ扱いしません。過去の推定額は別表示で、合計には含みません。",
+      "coverageScope": "料金算定状況：成功したリクエスト（受入テストを除く）",
+      "priced": "全額算定済み：{{count}} 件",
+      "partial": "一部算定済み：{{count}} 件",
+      "estimated": "過去の推定：{{count}} 件",
+      "unpriced": "未算定：{{count}} 件",
+      "knownTotal": "既知の料金"
+    }
   },
   "users": {
     "actions": "操作",
