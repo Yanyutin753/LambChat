@@ -64,8 +64,9 @@ def _account_failure_key(model: Any) -> str | None:
         "default_headers",
     ):
         value = getattr(model, name, None)
-        if callable(getattr(value, "get_secret_value", None)):
-            value = value.get_secret_value()
+        secret_value = getattr(value, "get_secret_value", None)
+        if callable(secret_value):
+            value = secret_value()
         values.append(str(value))
     return hashlib.sha256(repr(values).encode()).hexdigest()
 

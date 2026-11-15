@@ -168,17 +168,15 @@ class _PoisonedTraceStorage:
 
 
 @pytest.mark.asyncio
-async def test_flush_drops_poisoned_group_after_attempt_cap(
+async def test_flush_retains_poisoned_group_and_backs_off(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(dual_writer_module.settings, "SESSION_EVENT_CHUNK_STORAGE_ENABLED", True)
     monkeypatch.setattr(dual_writer_module.settings, "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY", False)
-    monkeypatch.setattr(dual_writer_module, "_CHUNK_WRITE_MAX_ATTEMPTS", 2)
+    now = [1000.0]
+    monkeypatch.setattr(dual_writer_module.time, "monotonic", lambda: now[0])
 
-    writer = object.__new__(DualEventWriter)
-    writer._mongo_lock = asyncio.Lock()
-    writer._flush_event = asyncio.Event()
-    writer._mongo_buffer = []
+    writer = DualEventWriter()
     fake_trace = _PoisonedTraceStorage()
     monkeypatch.setattr(DualEventWriter, "trace", property(lambda self: fake_trace))
 
@@ -198,13 +196,20 @@ async def test_flush_drops_poisoned_group_after_attempt_cap(
     assert len(second) == 1
     assert _buffer_item_attempts(second[0]) == 2
 
-    # 第 3 次：达到上限，丢弃并打错误日志
+    # Backoff preserves the original payload without another database request.
+    writer._mongo_buffer = []
+    await writer._flush_mongo_batch(list(second))
+    assert writer._mongo_buffer == second
+    assert fake_trace.append_calls == 2
+
+    now[0] += 2
     writer._mongo_buffer = []
     with caplog.at_level("ERROR", logger=dual_writer_module.logger.name):
         await writer._flush_mongo_batch(list(second))
-    assert writer._mongo_buffer == []
-    drop_logs = [r for r in caplog.records if "unwritable" in r.getMessage()]
-    assert drop_logs, "expected a drop error log"
+    assert len(writer._mongo_buffer) == 1
+    assert writer._mongo_buffer[0][2] == batch[0][2]
+    assert _buffer_item_attempts(writer._mongo_buffer[0]) == 3
+    assert any("Chunk write failed" in record.getMessage() for record in caplog.records)
     assert fake_trace.append_calls == 3
 
 
