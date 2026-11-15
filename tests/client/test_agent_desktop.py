@@ -239,6 +239,36 @@ def test_action_result_omits_transport_diagnostics_but_preserves_delivery_eviden
     }
 
 
+def test_driver_error_keeps_delivery_and_recovery_as_structured_evidence(backend, monkeypatch):
+    import json
+    import subprocess
+
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    error = {
+        "code": "ACTION_FAILED",
+        "message": "Readback failed after input",
+        "disposition": {"delivery": "delivery_uncertain", "retry": "unsafe"},
+        "post_state": {"value": "partially written"},
+    }
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(stdout=json.dumps({"ok": False, "error": error})),
+    )
+    with pytest.raises(CuaOpError) as caught:
+        backend._run(["set-value", "@s:e1"])
+    assert caught.value.context["disposition"] == error["disposition"]
+    assert caught.value.context["post_state"] == error["post_state"]
+
+
+def test_scroll_preserves_native_delivery_report(backend, monkeypatch):
+    report = {"disposition": {"delivery": "delivered_unverified", "retry": "unsafe"}}
+    monkeypatch.setattr(backend, "_enable_cursor", lambda: None)
+    monkeypatch.setattr(backend, "_call", lambda *a, **k: report)
+    assert backend.scroll_element({"ref_id": "@s:e1"}, "down", 1) == report
+
+
 @pytest.mark.parametrize("owner_pid", [8, None])
 def test_snapshot_owner_recheck_rejects_changed_process(backend, monkeypatch, owner_pid):
     from lambchat_sandbox.cua_ops import CuaOpError

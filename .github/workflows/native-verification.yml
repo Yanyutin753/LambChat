@@ -231,7 +231,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-latest]
+        os: [windows-2022, macos-15, macos-15-intel, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -252,13 +252,16 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb xauth
       - name: Install and build toolbar frontend
+        shell: bash
         run: |
           python3 scripts/run_validation.py pnpm --dir frontend install --frozen-lockfile
           python3 scripts/run_validation.py pnpm --dir frontend run build
       - name: Generate native icons
         working-directory: frontend
+        shell: bash
         run: python3 ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
       - name: Build isolated native toolbar
+        shell: bash
         env:
           TAURI_CONFIG: '{"bundle":{"externalBin":[],"resources":[]}}'
         run: python3 scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
@@ -268,16 +271,18 @@ jobs:
           LAMBCHAT_CONTROL_AUTOMATED: '1'
         run: |
           export LAMBCHAT_CONTROL_TEST_ROOT="$GITHUB_WORKSPACE"
-          export LAMBCHAT_CONTROL_TEST_PYTHON="$(command -v python3)"
+          export LAMBCHAT_CONTROL_TEST_PYTHON="$(python3 -c 'import sys; print(sys.executable)')"
+          binary=frontend/src-tauri/target/debug/examples/desktop_control_smoke
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           if [ "$RUNNER_OS" = Linux ]; then
-            python3 scripts/run_validation.py xvfb-run -a frontend/src-tauri/target/debug/examples/desktop_control_smoke 2>&1 | tee desktop-control.log
+            python3 scripts/run_validation.py xvfb-run -a "$binary" 2>&1 | tee desktop-control.log
           else
-            python3 scripts/run_validation.py frontend/src-tauri/target/debug/examples/desktop_control_smoke 2>&1 | tee desktop-control.log
+            python3 scripts/run_validation.py "$binary" 2>&1 | tee desktop-control.log
           fi
           grep -q '"ok":true' desktop-control.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: desktop-control-${{ runner.os }}-${{ github.run_id }}
+          name: desktop-control-${{ matrix.os }}-${{ github.run_id }}
           path: desktop-control.log
           if-no-files-found: warn

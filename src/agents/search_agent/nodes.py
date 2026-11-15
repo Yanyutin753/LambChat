@@ -69,6 +69,7 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
+from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import add_persona_discovery
 from src.infra.agent.subagent_assembly import assemble_subagent_sessions, refresh_subagent_context
@@ -234,6 +235,14 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         else None
     )
     filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
+    feature_skills = EmbeddedFeatureSkillsMiddleware(
+        capabilities={"local_computer"}
+        if computer_use_context
+        and computer_use_context.get("platform") == "local"
+        and computer_use_context.get("machine_id")
+        else set(),
+        platform=(computer_use_context or {}).get("os_platform", ""),
+    )
     inner_checkpointer = prepared.checkpointer
 
     if context.deferred_manager is not None:
@@ -271,6 +280,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         mw = [
             *create_retry_middleware(fallback_model=fallback_model_value),
             create_todo_middleware(),
+            feature_skills,
             ToolResultBinaryMiddleware(
                 base_url=search_base_url,
                 supports_vision=supports_vision,
@@ -380,6 +390,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 构建中间件栈：steer → retry → binary → authored prompts → sandbox tools → memory_index → tool search
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
+    user_middleware.append(feature_skills)
     user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(

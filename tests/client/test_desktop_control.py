@@ -100,3 +100,17 @@ async def test_failed_overlay_creation_is_not_reported_as_user_takeover():
     control.command({"action": "permit", "request": events[0]["request"], "allowed": False})
     assert (await task)["error"] == "desktop_control_unavailable"
     assert not control.paused
+
+
+async def test_worker_loss_requires_new_observation_before_more_input():
+    events = []
+    control = DesktopControl(events.append)
+
+    async def action():
+        return {"error": "worker_failed", "retry": "observe_first"}
+
+    task = asyncio.create_task(control.execute("cua_type", action))
+    await asyncio.sleep(0)
+    control.command({"action": "permit", "request": events[0]["request"], "allowed": True})
+    assert (await task)["error"] == "worker_failed"
+    assert (await control.execute("cua_type", action))["error"] == "observation_required"

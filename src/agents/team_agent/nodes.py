@@ -84,6 +84,7 @@ from src.infra.agent.middleware import (
     image_url_middleware_for_mode,
     summarization_fallback_patch,
 )
+from src.infra.agent.middleware.embedded_feature_skills import EmbeddedFeatureSkillsMiddleware
 from src.infra.agent.middleware.evidence import EvidenceClock, create_evidence_middleware
 from src.infra.agent.middleware.persona_subagent import (
     add_persona_discovery,
@@ -253,6 +254,14 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         else None
     )
     filtered_tool_list = filter_computer_use_tools(prepared.tools, computer_use_context)
+    feature_skills = EmbeddedFeatureSkillsMiddleware(
+        capabilities={"local_computer"}
+        if computer_use_context
+        and computer_use_context.get("platform") == "local"
+        and computer_use_context.get("machine_id")
+        else set(),
+        platform=(computer_use_context or {}).get("os_platform", ""),
+    )
     inner_checkpointer = prepared.checkpointer
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
@@ -338,6 +347,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         mw = [
             *create_retry_middleware(fallback_model=fallback_model),
             create_todo_middleware(),
+            feature_skills,
             ToolResultBinaryMiddleware(
                 base_url=subagent_base_url,
                 supports_vision=member_supports_vision,
@@ -610,6 +620,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         ]
 
     user_middleware = create_retry_middleware(fallback_model=fallback_model_value)
+    user_middleware.append(feature_skills)
     user_middleware.append(ActivityReferenceMiddleware())
     user_middleware.append(create_todo_middleware())
     user_middleware.insert(

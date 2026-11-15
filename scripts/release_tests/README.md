@@ -52,6 +52,7 @@ Windows 验证锁覆盖安装、原生检查和清理；使用独立 WebView 和
 
 `frontend/src-tauri/examples/desktop_control_smoke.rs` 使用独立应用标识
 `com.lambchat.control-acceptance`，运行真实壳管道与 `DesktopControl`，但不会注入任何桌面输入。
+保留主窗口的实际 WebView 配置（空白页、隐藏），与浮窗共享浏览器进程，覆盖 Windows 启动参数不一致导致的创建失败。各桌面 Release 构建执行相同验收。
 先经验证锁完成前端构建，再设置 `LAMBCHAT_CONTROL_TEST_ROOT` 为仓库绝对路径、
 `LAMBCHAT_CONTROL_TEST_PYTHON` 为已安装 Python 3.12+ 的绝对路径，经验证锁运行：
 

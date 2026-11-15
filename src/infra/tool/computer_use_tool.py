@@ -66,6 +66,13 @@ async def resolve_computer_use_context(
             machine = None
             logger.warning("computer_use machine resolution failed for user %s", user_id)
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
+    if machine:
+        try:
+            os_platform = await registry.get_platform(user_id, machine)
+            if os_platform:
+                selection["os_platform"] = os_platform
+        except Exception:  # noqa: BLE001 - Unknown OS retains the generic capability guide.
+            logger.warning("computer_use platform resolution failed for user %s", user_id)
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
         approval = hitl_resume.get("approval_resolved") or {}
         selection["resume"] = {
@@ -214,7 +221,7 @@ def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
 async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
     if not isinstance(result, dict):
         return str(result)
-    if "error" in result:
+    if "error" in result and "disposition" not in result and "retry" not in result:
         detail = result.get("detail") or ""
         return f"ERROR {result['error']}" + (f": {detail}" if detail else "")
     screenshot = result.get("screenshot")

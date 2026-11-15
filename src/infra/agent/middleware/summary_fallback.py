@@ -354,6 +354,10 @@ def summarization_fallback_patch(
                 return middleware
 
             def merge(*args: Any, **kwargs: Any) -> Any:
+                from src.infra.agent.middleware.embedded_feature_skills import (
+                    EmbeddedFeatureSkillsMiddleware,
+                )
+
                 middleware = original_merge(*args, **kwargs)
                 context = _SUMMARY_BUILD_CONTEXT.get()
                 if context is None:
@@ -361,9 +365,16 @@ def summarization_fallback_patch(
                 summaries = context[2]
                 middleware = [protect_server_artifact_eviction(m) for m in middleware]
                 # Count and summarize after all prompt-producing hooks.
-                return [m for m in middleware if id(m) not in summaries] + [
-                    m for m in middleware if id(m) in summaries
-                ]
+                return (
+                    [
+                        m
+                        for m in middleware
+                        if id(m) not in summaries
+                        and not isinstance(m, EmbeddedFeatureSkillsMiddleware)
+                    ]
+                    + [m for m in middleware if id(m) in summaries]
+                    + [m for m in middleware if isinstance(m, EmbeddedFeatureSkillsMiddleware)]
+                )
 
             deepagents_graph.create_summarization_middleware = patched
             deepagents_graph._apply_custom_middleware = merge

@@ -36,7 +36,11 @@ fn main() {
     let python = std::env::var("LAMBCHAT_CONTROL_TEST_PYTHON").expect("test Python required");
     let mut context = tauri::generate_context!();
     context.config_mut().identifier = "com.lambchat.control-acceptance".into();
-    context.config_mut().app.windows.clear();
+    // Keep the real main WebView options: Windows shares its browser process with the toolbar.
+    for window in &mut context.config_mut().app.windows {
+        window.url = tauri::WebviewUrl::External("about:blank".parse().unwrap());
+        window.visible = false;
+    }
     tauri::Builder::default()
         .manage(desktop_control::DesktopControl::default())
         .invoke_handler(tauri::generate_handler![
@@ -44,6 +48,7 @@ fn main() {
             desktop_control::desktop_control_set_paused
         ])
         .setup(move |app| {
+            assert!(app.get_webview_window("main").is_some());
             let token = uuid::Uuid::new_v4().to_string();
             let mut child = std::process::Command::new(&python)
                 .arg(format!(

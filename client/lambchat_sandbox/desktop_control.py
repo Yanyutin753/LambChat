@@ -72,6 +72,14 @@ class DesktopControl:
             self.emit({"state": "active"})
             self.active = asyncio.create_task(run())
             result = await self.active
+            disposition = result.get("disposition")
+            if result.get("error") and (
+                result.get("retry") == "observe_first"
+                or isinstance(disposition, dict)
+                and disposition.get("retry") != "safe"
+            ):
+                self.needs_observation = True
+                self.observed = False
             screenshot = result.get("screenshot") or {}
             focus_lost = (
                 result.get("error") == "foreground_required"
