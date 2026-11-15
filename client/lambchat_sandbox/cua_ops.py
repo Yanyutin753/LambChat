@@ -21,6 +21,7 @@ import io
 import math
 import os
 import time
+import uuid
 from contextvars import ContextVar
 from threading import Lock
 from typing import Any
@@ -41,6 +42,7 @@ CUA_OPS = frozenset(
         "cua_key",
         "cua_scroll",
         "cua_action",
+        "cua_snapshot_action",
     }
 )
 """computer-use op 清单(daemon.py 据此分发到本模块)。"""
@@ -176,7 +178,7 @@ def _op_launch(payload: dict) -> dict:
             if platform == "darwin":
                 subprocess.Popen(["open", url], start_new_session=True)
             elif platform == "win32":
-                os.startfile(url)  # noqa: S606 - 系统 opener,非 shell  # type: ignore[attr-defined]
+                getattr(os, "startfile")(url)  # 系统 opener,非 shell
             else:
                 subprocess.Popen(["xdg-open", url], start_new_session=True)
             return {"ok": True, "kind": "url", "target": url}
@@ -210,7 +212,9 @@ def _op_launch(payload: dict) -> dict:
             env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={runtime_dir}/bus")
         creationflags = 0
         if platform == "win32":
-            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            creationflags = getattr(subprocess, "DETACHED_PROCESS") | getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP"
+            )
         proc = subprocess.Popen(
             argv,
             start_new_session=(platform != "win32"),
@@ -230,12 +234,14 @@ def _op_launch(payload: dict) -> dict:
 
 
 class _Observed:
-    __slots__ = ("ts", "elements", "window")
+    __slots__ = ("ts", "elements", "window", "snapshot_id", "screenshot")
 
     def __init__(self, elements: list[Any], window: dict[str, Any]):
         self.ts = time.monotonic()
         self.elements = elements
         self.window = window
+        self.snapshot_id = uuid.uuid4().hex
+        self.screenshot: dict | None = None
 
 
 _OBSERVATIONS: dict[tuple[str | None, int, int | None], _Observed] = {}
@@ -335,6 +341,8 @@ def _walk_tree(root: Any) -> tuple[list[dict[str, Any]], list[Any], bool]:
         element, depth = queue.pop(0)
         try:
             row = backend.row_of(element)
+        except CuaOpError:
+            raise
         except Exception:  # noqa: BLE001 - 单元素元数据失败跳过不中断
             continue
         row["depth"] = depth
@@ -370,6 +378,8 @@ def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: 
             label += f" value={str(row['value'])[:TEXT_VALUE_MAX]!r}"
         if row.get("actions"):
             label += " actions=" + ",".join(str(a) for a in row["actions"])
+        if row.get("states"):
+            label += " states=" + ",".join(row["states"])
         lines.append(f"{indent}{label}")
     if truncated:
         lines.append("[tree truncated by element/time budget]")
@@ -397,10 +407,16 @@ def _op_state(payload: dict) -> dict:
     root = (
         _resolve_index(pid, resolved_window_id, target.get("index")) if subtree else window_element
     )
+    refresh = getattr(backend, "refresh_element", None)
+    if subtree and callable(refresh):
+        root = refresh(root, window_info)
     rows, elements, truncated = _walk_tree(root)
-    _store_observation(pid, resolved_window_id, _Observed(elements, window_info))
+    observed = _Observed(elements, window_info)
+    _store_observation(pid, resolved_window_id, observed)
+    truncated = truncated or window_info.get("driver_complete") is False
     result: dict[str, Any] = {
         "pid": pid,
+        "snapshot_id": observed.snapshot_id,
         "window": window_info,
         "element_count": len(rows),
         "truncated": truncated,
@@ -430,6 +446,7 @@ def _op_state(payload: dict) -> dict:
             ):
                 raise CuaOpError("foreground_required", "target window is not the active window")
             result["screenshot"] = _capture(window_info.get("bounds"))
+            observed.screenshot = result["screenshot"]
         except CuaOpError as exc:
             result["screenshot"] = {"error": exc.code, "detail": exc.detail}
     return result
@@ -557,22 +574,38 @@ def _op_click(payload: dict) -> dict:
         element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
         semantic = "click" if button == "left" else "context_menu"
         try:
-            backend.perform(element, semantic)
+            if clicks != 1 or button == "middle":
+                raise KeyError("physical multi-click required")
+            delivery = backend.perform(element, semantic)
         except KeyError:
             _require_observed_window_foreground(pid, payload.get("window_id"))
             x, y = _element_center(element)
             target = {"x": x, "y": y}
+        except CuaOpError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise CuaOpError("action_failed", str(exc)) from exc
         else:
-            return {"ok": True, "strategy": "a11y", "action": semantic}
+            return {
+                "ok": True,
+                "strategy": "a11y",
+                "action": semantic,
+                **(delivery if isinstance(delivery, dict) else {}),
+            }
     _require_foreground(pid)
     try:
         x = float(target["x"])
         y = float(target["y"])
     except (KeyError, TypeError, ValueError) as exc:
         raise CuaOpError("invalid_arguments", "target needs x/y") from exc
-    native_click = getattr(_backend(), "click_point", None)
+    repeated_click = getattr(backend, "click_point_repeated", None)
+    if callable(repeated_click):
+        return {
+            "ok": True,
+            "strategy": "agent-desktop",
+            **repeated_click(x, y, button, count=max(1, min(clicks, 3))),
+        }
+    native_click = getattr(backend, "click_point", None)
     if callable(native_click):
         for _ in range(max(1, min(clicks, 3))):
             native_click(x, y, button)  # Linux: AT-SPI 鼠标合成
@@ -602,12 +635,14 @@ def _op_set_value(payload: dict) -> dict:
         raise CuaOpError("invalid_arguments", "value must be text")
     element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
     try:
-        backend.set_value(element, value)
+        delivery = backend.set_value(element, value)
+    except CuaOpError:
+        raise
     except KeyError as exc:
         raise CuaOpError("action_failed", f"{exc} (element may not be settable)") from exc
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("action_failed", str(exc)) from exc
-    return {"ok": True}
+    return {"ok": True, **(delivery if isinstance(delivery, dict) else {})}
 
 
 def _type_text(text: str) -> None:
@@ -657,8 +692,15 @@ def _op_type(payload: dict) -> dict:
         except Exception:  # noqa: BLE001 - 聚焦尽力而为,直写不依赖它
             pass
         try:
-            backend.set_value(element, text)
-            return {"ok": True, "strategy": "a11y", "method": "set_value"}
+            delivery = backend.set_value(element, text)
+            return {
+                "ok": True,
+                "strategy": "a11y",
+                "method": "set_value",
+                **(delivery if isinstance(delivery, dict) else {}),
+            }
+        except CuaOpError:
+            raise
         except Exception:  # noqa: BLE001 - 元素不可直写,回退事件输入
             pass
         # set_focus 在 Windows 会顺带把窗口调到前台;再查一次前台,过则打字
@@ -838,12 +880,14 @@ def _op_action(payload: dict) -> dict:
         raise CuaOpError("invalid_arguments", "action required (name from the tree's actions=)")
     element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
     try:
-        backend.perform(element, action)
+        delivery = backend.perform(element, action)
+    except CuaOpError:
+        raise
     except KeyError as exc:
         raise CuaOpError("action_failed", str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("action_failed", str(exc)) from exc
-    return {"ok": True, "action": action}
+    return {"ok": True, "action": action, **(delivery if isinstance(delivery, dict) else {})}
 
 
 # ---------------------------------------------------------------------------
@@ -876,6 +920,16 @@ def _op_status(payload: dict) -> dict:
             screen_state = "denied" if exc.code == "screen_recording_denied" else "unknown"
             message = f"{exc.code}: {exc.detail}"
     ready = ax_ok and (not payload.get("probe_screen") or screen_state == "granted")
+    locked = getattr(backend, "desktop_locked", None)
+    if callable(locked) and locked():
+        return {
+            "platform": cua_backend.backend_platform(),
+            "ready": False,
+            "accessibility": "granted" if ax_ok else "denied",
+            "screen_recording": screen_state,
+            "error": "desktop_locked",
+            "message": "Unlock the desktop before computer use",
+        }
     if not ax_ok:
         message = (
             "grant Accessibility (and Screen Recording) to LambChat.app"
@@ -884,6 +938,7 @@ def _op_status(payload: dict) -> dict:
         )
     return {
         "platform": cua_backend.backend_platform(),
+        "driver": getattr(backend, "driver_name", "native"),
         "ready": ready,
         "accessibility": "granted" if ax_ok else "denied",
         "screen_recording": screen_state,
@@ -919,6 +974,20 @@ def handle_cua_op(op: str, payload: dict) -> dict:
     daemon 层 error 字符串,relay 包成 SANDBOX_EXEC_FAILED 后模型只见到
     模板文案而无从纠错——op 级异常必须在模型可读层收敛。
     """
+    if op == "cua_snapshot_action":
+        if not isinstance(payload, dict) or not payload.get("snapshot_id"):
+            return {"error": "invalid_arguments", "detail": "snapshot_id required"}
+        if payload.get("operation") not in (
+            "state",
+            "click",
+            "set_value",
+            "type",
+            "key",
+            "scroll",
+            "action",
+        ):
+            return {"error": "invalid_arguments", "detail": "unsupported snapshot operation"}
+        op = "cua_" + str(payload.get("operation", ""))
     handler = _CUA_HANDLERS.get(op)
     if handler is None:
         raise ValueError(f"unknown cua op: {op}")
@@ -928,6 +997,39 @@ def handle_cua_op(op: str, payload: dict) -> dict:
         return {"error": "invalid_arguments", "detail": "session_id must be nonempty text"}
     token = _OBSERVATION_SESSION.set(session_id)
     try:
+        if op not in ("cua_status", "cua_apps", "cua_launch"):
+            locked = getattr(_backend(), "desktop_locked", None)
+            if callable(locked) and locked():
+                raise CuaOpError("desktop_locked", "Unlock the desktop before computer use")
+        if (
+            payload.get("snapshot_id") is not None
+            or payload.get("coordinate_space") == "screenshot"
+        ):
+            pid = _resolve_app_ref(payload)
+            observed = _get_observation(pid, payload.get("window_id"))
+            if payload.get("snapshot_id") != observed.snapshot_id:
+                raise CuaOpError("stale_state", "snapshot replaced; observe again before acting")
+            if payload.get("coordinate_space") == "screenshot":
+                screenshot = observed.screenshot
+                if not screenshot or not screenshot.get("width") or not screenshot.get("height"):
+                    raise CuaOpError("stale_state", "snapshot has no screenshot")
+                _require_observed_window_foreground(pid, payload.get("window_id"))
+                _, current = _backend().pick_window(pid, observed.window.get("window_id"))
+                if current.get("bounds") != observed.window.get("bounds"):
+                    raise CuaOpError("stale_state", "window moved or resized; observe again")
+                target = payload.get("target") or {}
+                x, y = float(target["x"]), float(target["y"])
+                if not (0 <= x < screenshot["width"] and 0 <= y < screenshot["height"]):
+                    raise CuaOpError("invalid_arguments", "point outside screenshot")
+                left, top, width, height = observed.window["bounds"]
+                payload = {
+                    **payload,
+                    "target": {
+                        **target,
+                        "x": left + x * width / screenshot["width"],
+                        "y": top + y * height / screenshot["height"],
+                    },
+                }
         return handler(payload)
     except CuaOpError as exc:
         return {"error": exc.code, "detail": exc.detail}

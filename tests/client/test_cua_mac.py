@@ -39,6 +39,22 @@ def test_window_list_and_observation_share_a_stable_window_id(mac_backend) -> No
         assert info["window_id"] == 0
 
 
+@pytest.mark.parametrize(
+    "session,locked",
+    [
+        ({"CGSSessionScreenIsLocked": True, "kCGSSessionOnConsoleKey": True}, True),
+        ({"kCGSSessionOnConsoleKey": False}, True),
+        ({"kCGSSessionOnConsoleKey": True}, False),
+        (None, True),
+    ],
+)
+def test_mac_desktop_lock_uses_console_session_not_permission(mac_backend, session, locked):
+    with patch.dict(
+        sys.modules, {"Quartz": SimpleNamespace(CGSessionCopyCurrentDictionary=lambda: session)}
+    ):
+        assert mac_backend.desktop_locked() is locked
+
+
 def test_focus_uses_the_actual_accessibility_attribute(mac_backend) -> None:
     class Element:
         AXFocused = False

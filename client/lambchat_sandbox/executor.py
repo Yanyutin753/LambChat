@@ -36,12 +36,49 @@ import os
 import re
 import signal
 import subprocess
+import time
 from pathlib import Path
+
+import psutil
 
 from lambchat_sandbox import platform as plat
 
 MAX_OUTPUT_BYTES = 256 * 1024
 TRUNCATED_MARK = "...[truncated]"
+
+
+def _communicate_tail(proc: subprocess.Popen, timeout: float) -> tuple[bytes, bytes]:
+    """Drain both pipes fairly, retaining only the tail and one truncation byte."""
+    streams = [proc.stdout, proc.stderr]
+    buffers = [bytearray(), bytearray()]
+    active = {i: stream.fileno() for i, stream in enumerate(streams) if stream is not None}
+    for fd in active.values():
+        os.set_blocking(fd, False)
+    deadline = time.monotonic() + timeout
+    while active or proc.poll() is None:
+        if time.monotonic() >= deadline:
+            raise subprocess.TimeoutExpired(
+                proc.args, timeout, output=bytes(buffers[0]), stderr=bytes(buffers[1])
+            )
+        progressed = False
+        for index, fd in list(active.items()):
+            try:
+                chunk = os.read(fd, 64 * 1024)
+            except BlockingIOError:
+                continue
+            if not chunk:
+                del active[index]
+                continue
+            progressed = True
+            buffers[index].extend(chunk)
+            del buffers[index][: -(MAX_OUTPUT_BYTES + 1)]
+        if not progressed:
+            time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+    for stream in streams:
+        if stream is not None:
+            stream.close()
+    return bytes(buffers[0]), bytes(buffers[1])
+
 
 _WORKSPACE_PREFIX = "/workspace/"
 
@@ -326,7 +363,7 @@ class Executor:
             env=self._spawn_env(workspace, env_extra),
         )
         try:
-            stdout_b, stderr_b = proc.communicate(timeout=timeout)
+            stdout_b, stderr_b = _communicate_tail(proc, timeout)
         except subprocess.TimeoutExpired as exc:
             # communicate 超时只抛异常、不杀任何进程；这里对整个进程组补 SIGKILL
             # （shell 的孙进程同组），随后关闭管道、只回收直接子进程——绝不重读
@@ -371,7 +408,7 @@ class Executor:
             env=self._spawn_env(workspace, env_extra),
         )
         try:
-            stdout_b, stderr_b = proc.communicate(timeout=timeout)
+            stdout_b, stderr_b = _communicate_tail(proc, timeout)
             exit_code = proc.returncode
             return {
                 "status": "ok" if exit_code == 0 else "error",
@@ -408,9 +445,7 @@ class Executor:
         shell=True 走 cmd.exe：cmd 及其全部后代默认随父入 Job（未设 breakaway），
         对齐 POSIX"孙进程同组"的击杀覆盖面。
 
-        已知窄窗：Popen 到 Assign 之间子进程若抢先再 spawn 孙进程，孙进程不
-        在 Job 内（POSIX 的 start_new_session 在 exec 前生效、无此竞窗）——窗口
-        为毫秒级且仅影响极端抢跑场景，真机验证项记录于 M4 任务报告。
+        Windows 挂起创建 shell，入 Job 后恢复，避免启动器提前派生未受控子进程。
         """
         # cmd.exe treats verbatim drive paths as UNC and falls back to the Windows directory.
         if re.match(r"^\\\\\?\\[A-Za-z]:\\", str(workspace)):
@@ -431,6 +466,7 @@ class Executor:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=self._spawn_env(workspace, env_extra),
+                creationflags=0x00000004 if os.name == "nt" else 0,  # CREATE_SUSPENDED
             )
             try:
                 process = winapi.open_process(PROCESS_SET_QUOTA | PROCESS_TERMINATE, proc.pid)
@@ -438,14 +474,16 @@ class Executor:
                     winapi.assign_process_to_job_object(job, process)
                 finally:
                     winapi.close_handle(process)
-            except OSError:
+                if os.name == "nt":
+                    psutil.Process(proc.pid).resume()
+            except (OSError, psutil.Error):
                 # 未入 Job（OpenProcess 失败，或进程已在别的 Job 且不许
                 # breakaway）：KILL_ON_JOB_CLOSE 罩不住它，补杀再上抛防泄漏。
                 proc.kill()
                 _reap(proc)
                 raise
             try:
-                stdout_b, stderr_b = proc.communicate(timeout=timeout)
+                stdout_b, stderr_b = _communicate_tail(proc, timeout)
             except subprocess.TimeoutExpired as exc:
                 # 与 POSIX 对仗：communicate 超时不杀进程，这里击杀 Job 内全部
                 # 进程（= 进程组语义），随后关管道、回收直接子进程、不重读管道。

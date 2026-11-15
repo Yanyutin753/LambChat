@@ -60,6 +60,11 @@ def _load_backend() -> Any:
             _BACKEND = cua_linux
         else:
             raise UnsupportedBackendError(f"unsupported_platform:{platform}")
+        from lambchat_sandbox.agent_desktop import AgentDesktopBackend, binary_path
+
+        binary = binary_path()
+        if binary is not None:
+            _BACKEND = AgentDesktopBackend(binary, _BACKEND)
     except ImportError as exc:
         _BACKEND_ERROR = f"backend_import_failed:{exc}"
         raise UnsupportedBackendError(_BACKEND_ERROR) from exc
