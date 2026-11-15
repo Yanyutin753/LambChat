@@ -45,7 +45,8 @@ class CuaWorker:
                             creationflags=0x00000004 if os.name == "nt" else 0,  # CREATE_SUSPENDED
                             env={
                                 **os.environ,
-                                "AGENT_DESKTOP_HOME": self._state.name,
+                                # The driver protects Windows ACLs only for directories it creates.
+                                "AGENT_DESKTOP_HOME": str(Path(self._state.name) / "driver"),
                                 "PYTHONPATH": str(Path(__file__).resolve().parents[1])
                                 + os.pathsep
                                 + os.environ.get("PYTHONPATH", ""),

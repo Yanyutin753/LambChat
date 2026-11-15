@@ -42,6 +42,24 @@ async def test_worker_reuses_process_between_observation_and_action(worker):
         await worker.close()
 
 
+async def test_driver_creates_its_own_private_state_directory(worker, monkeypatch):
+    from lambchat_sandbox import cua_worker
+
+    script = (
+        "import os,json,sys; from pathlib import Path; sys.stdin.readline(); "
+        "p=Path(os.environ['AGENT_DESKTOP_HOME']); "
+        "print(json.dumps({'exists':p.exists(),'parent_exists':p.parent.is_dir()}),flush=True)"
+    )
+    monkeypatch.setattr(cua_worker, "_worker_command", lambda: [sys.executable, "-c", script])
+    try:
+        assert await worker.call("cua_state", {}, timeout=5) == {
+            "exists": False,
+            "parent_exists": True,
+        }
+    finally:
+        await worker.close()
+
+
 async def test_timeout_stops_late_input_and_restarts_with_empty_state(worker, tmp_path):
     late_write = tmp_path / "late-input"
     try:
