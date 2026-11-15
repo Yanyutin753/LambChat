@@ -202,3 +202,24 @@ async def test_job_close_reaps_worker_without_inspecting_terminated_process(monk
     process.wait.assert_awaited_once()
     state.cleanup.assert_called_once()
     assert worker._process is None and worker._job is None and worker._state is None
+
+
+def test_failed_job_assignment_closes_handle_without_marking_worker_attached(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from lambchat_sandbox import cua_worker, executor
+
+    api = SimpleNamespace(
+        create_job_object=Mock(return_value=456),
+        set_information_job_object=Mock(),
+        open_process=Mock(return_value=789),
+        assign_process_to_job_object=Mock(side_effect=OSError("assignment failed")),
+        close_handle=Mock(),
+    )
+    monkeypatch.setattr(executor, "_winapi", api)
+    worker = cua_worker.CuaWorker()
+    with pytest.raises(OSError, match="assignment failed"):
+        worker._attach_job(123)
+    assert worker._job is None
+    assert [call.args[0] for call in api.close_handle.call_args_list] == [789, 456]

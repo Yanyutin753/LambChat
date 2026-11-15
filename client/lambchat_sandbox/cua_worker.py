@@ -90,17 +90,20 @@ class CuaWorker:
 
         api = executor._winapi
         assert api is not None
-        self._job = api.create_job_object()
-        info = executor.JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-        info.BasicLimitInformation.LimitFlags = executor.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-        api.set_information_job_object(
-            self._job, executor.JOBOBJECT_INFO_CLASS_EXTENDED_LIMIT, info
-        )
-        handle = api.open_process(executor.PROCESS_SET_QUOTA | executor.PROCESS_TERMINATE, pid)
+        job = api.create_job_object()
         try:
-            api.assign_process_to_job_object(self._job, handle)
-        finally:
-            api.close_handle(handle)
+            info = executor.JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+            info.BasicLimitInformation.LimitFlags = executor.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            api.set_information_job_object(job, executor.JOBOBJECT_INFO_CLASS_EXTENDED_LIMIT, info)
+            handle = api.open_process(executor.PROCESS_SET_QUOTA | executor.PROCESS_TERMINATE, pid)
+            try:
+                api.assign_process_to_job_object(job, handle)
+            finally:
+                api.close_handle(handle)
+        except BaseException:
+            api.close_handle(job)
+            raise
+        self._job = job
 
     async def close(self) -> None:
         proc, self._process = self._process, None
