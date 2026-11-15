@@ -203,7 +203,7 @@ test("assistant-managed empty composer does not describe the ordinary chat's loc
   render(<Composer onSend={vi.fn()} input="" configurationLocked />);
   await screen.findByRole("textbox");
   expect(
-    screen.queryByText("What would you like to do on the selected computer?"),
+    screen.queryByText("What would you like to do on the selected device?"),
   ).toBeNull();
 });
 
