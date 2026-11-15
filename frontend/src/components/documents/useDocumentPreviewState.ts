@@ -195,18 +195,24 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   const codeFile = isCodeFile(ext);
   const markdownFile = isMarkdownFile(fileName);
   const excalidrawFile = isExcalidrawFile(ext);
-  const videoFile = isVideoFile(ext);
+  const videoFile = isVideoFile(ext) && !codeFile;
   const audioFile = isAudioFile(ext);
 
   // MIME-based fallback
-  const mime = mimeType?.toLowerCase();
+  const mime = mimeType?.split(";", 1)[0].trim().toLowerCase();
+  const textMime =
+    !!mime?.startsWith("text/") ||
+    /^(application\/(?:[\w.+-]+\+)?(?:json|xml)|application\/x-ndjson)$/.test(
+      mime || "",
+    );
   const resolvedImageFile = imageFile || !!mime?.startsWith("image/");
   const resolvedVideoFile = videoFile || !!mime?.startsWith("video/");
   const resolvedAudioFile = audioFile || !!mime?.startsWith("audio/");
   const resolvedPdfFile = pdfFile || mime === "application/pdf";
   const resolvedBinaryFile =
-    binaryFile && !resolvedVideoFile && !resolvedAudioFile;
+    binaryFile && !textMime && !resolvedVideoFile && !resolvedAudioFile;
   const hasSupportedPreview =
+    textMime ||
     resolvedImageFile ||
     resolvedVideoFile ||
     resolvedAudioFile ||

@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { ChatHeaderFrame } from "../../layout/AppContent/ChatHeaderFrame";
 import { useState, type ReactNode } from "react";
 import {
   act,
@@ -926,7 +927,12 @@ test.each([390, 900, 1440])(
         </EditorSidebar>
       );
     }
-    render(<Harness />);
+    render(
+      <>
+        <ChatHeaderFrame>{null}</ChatHeaderFrame>
+        <Harness />
+      </>,
+    );
     const input = screen.getByRole("textbox", { name: "Unsaved draft" });
     fireEvent.change(input, { target: { value: "keep me" } });
     const body = input.closest(".editor-sidebar-body")!;
@@ -984,9 +990,17 @@ test("tool tabs preserve detailed titles and reserve Back for explicit inner nav
 
 test("restoring an automatic preview moves keyboard focus into its tab", async () => {
   render(
-    <ToolResultPanel automatic open onClose={() => {}} title="Automatic result">
-      result
-    </ToolResultPanel>,
+    <>
+      <ChatHeaderFrame>{null}</ChatHeaderFrame>
+      <ToolResultPanel
+        automatic
+        open
+        onClose={() => {}}
+        title="Automatic result"
+      >
+        result
+      </ToolResultPanel>
+    </>,
   );
   const collapse = screen.getByRole("button", { name: "Collapse panel" });
   fireEvent.pointerDown(collapse);

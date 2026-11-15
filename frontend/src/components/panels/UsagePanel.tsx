@@ -1,3 +1,4 @@
+import { BillingSummary } from "./UsagePanel/BillingSummary";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 /**
  * Usage Details Panel — Token consumption tracking
@@ -329,7 +330,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
       {/* KPI Cards */}
       {stats && (
         <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-          <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] overflow-hidden rounded-xl">
+          <div className="usage-surface usage-kpis grid overflow-hidden rounded-xl">
             <StatMetric
               icon={Zap}
               label={t("usage.totalRequests")}
@@ -399,7 +400,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
             />
             <StatMetric
               icon={Coins}
-              label={t("usage.costTotal")}
+              label={t("usage.billing.knownTotal")}
               value={fmtCostUsd(stats.total_cost_usd, true, {
                 language: i18n.language,
                 rates: fxRates,
@@ -431,6 +432,7 @@ export function UsagePanel({ assistantId }: { assistantId?: string } = {}) {
               }
             />
           </div>
+          <BillingSummary stats={stats} />
         </div>
       )}
 

@@ -28,13 +28,12 @@ test("PDF preview revokes generated blob URLs", () => {
   expect(stateSource).toMatch(/URL\.revokeObjectURL\(pdfUrl\)/);
 });
 
-test("unsupported preview files render a guardrail instead of auto-downloading", () => {
+test("unknown file types render a bounded byte preview instead of auto-downloading", () => {
   const unsupportedBranch = stateSource.match(
     /else if \(unsupportedPreviewFile\) \{(?<body>[\s\S]*?)\n\s*\}\s*else if \(wordPreviewFile/,
   )?.groups?.body;
 
   expect(unsupportedBranch).toBeTruthy();
   expect(unsupportedBranch).not.toMatch(/document\.createElement\("a"\)/);
-  expect(contentSource).toMatch(/documents\.unsupportedFilePreview/);
-  expect(contentSource).toMatch(/documents\.unsupportedFileHint/);
+  expect(contentSource).toMatch(/<BytesPreview/);
 });

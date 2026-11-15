@@ -1,3 +1,4 @@
+import { decodePreviewText } from "./utils/fileBytesPreview";
 import {
   getOwnUploadFileUrl,
   isCurrentFileAccount,
@@ -160,7 +161,12 @@ export function fetchDocumentText(url: string): Promise<string> {
 
   const request = fetchWithValidation(url)
     .then(async (response) => {
-      const value = await response.text();
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const charset = /charset=["']?([^;\s"']+)/i.exec(
+        response.headers.get("content-type") || "",
+      )?.[1];
+      const value = decodePreviewText(bytes, charset);
+      if (value === null) throw new Error("File is not valid text");
       syncCacheAccount();
       if (!isCurrentFileAccount(account))
         throw new Error("File account changed");

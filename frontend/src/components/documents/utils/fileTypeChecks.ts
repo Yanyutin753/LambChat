@@ -10,6 +10,7 @@ export function getFileExtension(fileName: string): string {
 
 // Check if file is binary (video, audio, archive, image, font, etc.)
 export function isBinaryFile(ext: string): boolean {
+  if (isCodeFile(ext)) return false;
   return (
     isVideoFile(ext) ||
     isAudioFile(ext) ||
@@ -99,7 +100,6 @@ export function isVideoFile(ext: string): boolean {
     "3g2",
     "ogv",
     // Other
-    "ts",
     "mts",
     "m2ts",
     "vob",
@@ -620,6 +620,8 @@ export function isCodeFile(ext: string): boolean {
     "proto",
     "thrift",
     // Config/data
+    "jsonl",
+    "ndjson",
     "env",
     "conf",
     "properties",
@@ -630,6 +632,10 @@ export function isCodeFile(ext: string): boolean {
     // Shell
     "fish",
     "ps1",
+    "psm1",
+    "psd1",
+    "vbs",
+    "wsf",
     "bat",
     "cmd",
     // Other

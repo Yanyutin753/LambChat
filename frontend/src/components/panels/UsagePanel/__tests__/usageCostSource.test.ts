@@ -15,7 +15,7 @@ test("usage panel shows a total cost KPI card", () => {
     "utf8",
   );
 
-  expect(source).toMatch(/usage\.costTotal/);
+  expect(source).toMatch(/usage\.billing\.knownTotal/);
   expect(source).toMatch(/stats\.total_cost_usd/);
   expect(source).toMatch(/stats\.unpriced_requests/);
 });

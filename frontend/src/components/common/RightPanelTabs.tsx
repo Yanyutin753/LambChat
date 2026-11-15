@@ -1,16 +1,13 @@
 import { InteractiveIcon } from "./InteractiveIcon";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
 import "./rightPanelTabs.css";
 import { Tooltip } from "./Tooltip";
-import { DialogCloseButton } from "./DialogCloseButton";
 import {
   Columns2,
   Expand,
   Shrink,
   PanelRight,
   PanelRightClose,
-  PanelRightOpen,
   X,
 } from "lucide-react";
 import { RightPanelTabPreview } from "./RightPanelTabPreview";
@@ -41,7 +38,6 @@ export function RightPanelTabs({
     getRightPanelSnapshot,
   );
 
-  const restoreRef = useRef<HTMLButtonElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const tabs = tabsRef.current;
@@ -58,41 +54,8 @@ export function RightPanelTabs({
     observer.observe(tabs.parentElement);
     return () => observer.disconnect();
   }, [activeId, collapsed]);
-  useEffect(() => {
-    if (collapsed) restoreRef.current?.focus({ preventScroll: true });
-  }, [collapsed]);
 
-  if (collapsed && activeId) {
-    return createPortal(
-      <div
-        className="right-panel-restore-group"
-        role="group"
-        aria-label={t("common.panelTabs")}
-      >
-        <button
-          ref={restoreRef}
-          type="button"
-          className="right-panel-restore"
-          onClick={() => activateRightPanel(activeId)}
-          aria-label={t("common.expandPanel")}
-          title={t("common.expandPanel")}
-          aria-expanded={false}
-        >
-          <InteractiveIcon>
-            <PanelRightOpen size={16} aria-hidden="true" />
-          </InteractiveIcon>
-          <span>{t("common.panelTabs")}</span>
-          <span className="count-badge">{Math.min(entries.length, 99)}</span>
-        </button>
-        <DialogCloseButton
-          aria-label={t("common.closeAllPanelTabs")}
-          title={t("common.closeAllPanelTabs")}
-          onClick={() => entries.forEach((entry) => closeRightPanel(entry.id))}
-        />
-      </div>,
-      document.body,
-    );
-  }
+  if (collapsed && activeId) return null;
 
   return (
     <div className="right-panel-tabbar">

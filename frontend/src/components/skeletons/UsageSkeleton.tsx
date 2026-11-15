@@ -164,7 +164,7 @@ export function UsagePanelSkeleton() {
 
       {/* 2. KPI grid — same available-width layout as StatMetric */}
       <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-        <div className="usage-surface grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] overflow-hidden rounded-xl">
+        <div className="usage-surface usage-kpis grid overflow-hidden rounded-xl">
           {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}

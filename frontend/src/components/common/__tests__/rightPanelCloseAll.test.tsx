@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { ChatHeaderFrame } from "../../layout/AppContent/ChatHeaderFrame";
 import { useState } from "react";
 import {
   cleanup,
@@ -26,6 +27,7 @@ test("close all from the collapsed control releases editor and result tabs", asy
     const [result, setResult] = useState(true);
     return (
       <>
+        <ChatHeaderFrame>{null}</ChatHeaderFrame>
         <EditorSidebar
           open={editor}
           onClose={() => setEditor(false)}

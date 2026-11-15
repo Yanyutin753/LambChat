@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RightPanelRestore } from "../../common/RightPanelRestore";
 
 export function ChatHeaderFrame({
   children,
@@ -15,6 +16,7 @@ export function ChatHeaderFrame({
       }
     >
       {children}
+      <RightPanelRestore />
     </header>
   );
 }

@@ -242,7 +242,12 @@ const stats = {
   total_cache_creation_tokens: 0,
   total_cache_read_tokens: 42000,
   total_cost_usd: 2.18,
-  unpriced_requests: 0,
+  priced_requests: 48,
+  partial_cost_usd: 0.46,
+  partial_requests: 8,
+  estimated_cost_usd: 0.12,
+  estimated_requests: 2,
+  unpriced_requests: 3,
   total_duration: 2600,
 };
 const feedbackStats = {
