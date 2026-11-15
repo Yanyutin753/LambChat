@@ -99,7 +99,7 @@ _SANDBOX_LOCAL_MACHINE_BINDING = """### Local Machine Binding
 
 This session's daemon is connected to the user's {os_name} machine{machine_label}. Every shell command and file operation runs on that machine: use its OS and path conventions directly, and never guess the OS from memory when the user has more than one machine."""
 
-_OS_NAMES = {"win32": "Windows", "darwin": "macOS", "linux": "Linux"}
+_OS_NAMES = {"win32": "Windows", "darwin": "macOS", "linux": "Linux", "android": "Android"}
 
 
 def sandbox_shell_platform_section(daemon_platform: str, machine_name: str = "") -> str:
@@ -119,6 +119,9 @@ def sandbox_shell_platform_section(daemon_platform: str, machine_name: str = "")
         base = _SANDBOX_SHELL_WIN32 + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
     elif daemon_platform == "darwin":
         base = _SANDBOX_SHELL_DARWIN + "\n\n" + _SANDBOX_LOCAL_MACHINE_IDENTITY
+    elif daemon_platform == "android":
+        base = """### Android Local Device
+Commands run on the selected Android phone in an app-private Alpine Linux environment with Python 3, Node and POSIX Shell. Use Linux commands, not Android system shell commands. Files imported through the app are in /workspace/.shared; session files live in the session workspace. You cannot read other apps' private files. Phone App control uses computer_use after the user enables accessibility and pairs local wireless debugging in the app. Use exact package names from apps, observe state, and pass snapshot_id for each input. The user selects foreground or background mode on the device; never enable permissions, change control modes or bypass a paused state with shell commands. Local script execution is not Android system shell. This environment is not a security boundary against code running as the app user. Respect the selected approval policy and confirm destructive changes outside the session workspace."""
     elif daemon_platform == "linux":
         base = _SANDBOX_LOCAL_MACHINE_IDENTITY
     else:

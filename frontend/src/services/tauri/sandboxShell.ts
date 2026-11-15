@@ -1,3 +1,8 @@
+import {
+  isAndroidLocalDevice,
+  invokeAndroidDevice,
+} from "../capacitor/localDevice";
+
 /**
  * LambChat 本地沙箱 —— Tauri 壳 invoke 封装。
  *
@@ -68,6 +73,15 @@ export interface SavePairingOptions {
   patId?: string;
 }
 
+function invokeDevice<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return isAndroidLocalDevice()
+    ? invokeAndroidDevice<T>(command, args)
+    : invokeInShell<T>(command, args);
+}
+
 /** 写入配对凭据（~/.lambchat/pat）与 daemon 配置（~/.lambchat/sandbox.json）。 */
 export function savePairing(opts: SavePairingOptions): Promise<void> {
   const args: Record<string, unknown> = {
@@ -78,7 +92,7 @@ export function savePairing(opts: SavePairingOptions): Promise<void> {
   if (opts.patId !== undefined) {
     args.patId = opts.patId;
   }
-  return invokeInShell("save_pairing", args).then(() => undefined);
+  return invokeDevice("save_pairing", args).then(() => undefined);
 }
 
 /**
@@ -86,9 +100,7 @@ export function savePairing(opts: SavePairingOptions): Promise<void> {
  * 策略切换专用——不重铸 PAT、不碰凭据文件，避免永久凭据累积。
  */
 export function writeConfirmPolicy(policy: string): Promise<void> {
-  return invokeInShell("write_confirm_policy", { policy }).then(
-    () => undefined,
-  );
+  return invokeDevice("write_confirm_policy", { policy }).then(() => undefined);
 }
 
 /**
@@ -96,12 +108,12 @@ export function writeConfirmPolicy(policy: string): Promise<void> {
  * （服务端 PAT 吊销由调用方先用 readPairingPat 的结果调自删端点完成）。
  */
 export function clearPairing(): Promise<void> {
-  return invokeInShell("clear_pairing").then(() => undefined);
+  return invokeDevice("clear_pairing").then(() => undefined);
 }
 
 /** Only return a pairing PAT belonging to the caller's current server. */
 export function readPairingPat(serverUrl: string): Promise<string | null> {
-  return invokeInShell<string | null>("read_pairing_pat", { serverUrl });
+  return invokeDevice<string | null>("read_pairing_pat", { serverUrl });
 }
 
 /**
@@ -109,17 +121,17 @@ export function readPairingPat(serverUrl: string): Promise<string | null> {
  * 未配对 / daemon 未写过时 null；用于机器列表上的"当前设备"标识。
  */
 export function readMachineId(): Promise<string | null> {
-  return invokeInShell<string | null>("read_machine_id");
+  return invokeDevice<string | null>("read_machine_id");
 }
 
 /** 重启托管的 daemon（stop → start）。 */
 export function restartDaemon(): Promise<void> {
-  return invokeInShell("restart_daemon").then(() => undefined);
+  return invokeDevice("restart_daemon").then(() => undefined);
 }
 
 /** 查询 daemon 进程状态：running | stopped | unsupported。 */
 export async function daemonProcessStatus(): Promise<string> {
-  return invokeInShell<string>("daemon_process_status");
+  return invokeDevice<string>("daemon_process_status");
 }
 
 /**

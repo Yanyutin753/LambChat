@@ -265,7 +265,7 @@ test("resolveSandboxPresentation reports presence and the stored tier label", ()
   // 已存 local：badge 显示本地档 label
   expect(
     resolveSandboxPresentation(options, { sandbox: "local" }, i18n.t),
-  ).toEqual({ has: true, label: "Local computer" });
+  ).toEqual({ has: true, label: "Local device" });
   // 未存值：回落 default（cloud）
   expect(resolveSandboxPresentation(options, {}, i18n.t)).toEqual({
     has: true,
@@ -355,7 +355,7 @@ test("sandbox panel blocks selecting an offline machine with a hint", async () =
   fireEvent.click(offlineRow);
   const { toast } = await import("react-hot-toast");
   expect(toast.error).toHaveBeenCalledWith(
-    "That computer is offline and can't be selected as the execution target",
+    "Local device is offline. Start local execution in its app.",
   );
   expect(onToggleAgentOption).not.toHaveBeenCalled();
 
@@ -406,7 +406,7 @@ test("sandbox panel on offline web keeps the local tier visible with a download 
   mocks.getStatus.mockResolvedValue({ online: false });
   renderSelectors("sandbox", { sandbox: "local" });
 
-  const localRow = await screen.findByText("Local computer");
+  const localRow = await screen.findByText("Local device");
   expect(localRow).toBeInTheDocument();
 
   const downloadEntry = await screen.findByText("Download local sandbox");
@@ -448,8 +448,8 @@ test("toolbar shows a sandbox chip with the current tier that opens the sandbox 
 test("sandbox chip reflects the stored local tier in the label", () => {
   renderToolbar(vi.fn(), { sandbox: "local" });
 
-  expect(screen.getByTitle("Sandbox · Local computer")).toHaveTextContent(
-    "Local computer",
+  expect(screen.getByTitle("Sandbox · Local device")).toHaveTextContent(
+    "Local device",
   );
 });
 
@@ -460,8 +460,8 @@ test("sandbox chip keeps a short tier label when a machine is selected", async (
   });
   renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "mac1" });
 
-  const chip = await screen.findByTitle("Sandbox · Local computer");
-  expect(chip).toHaveTextContent("Local computer");
+  const chip = await screen.findByTitle("Sandbox · Local device");
+  expect(chip).toHaveTextContent("Local device");
   expect(chip).not.toHaveTextContent("MacBook");
 });
 
@@ -472,7 +472,7 @@ test("sandbox chip keeps the tier-only label on auto machine resolution", async 
   });
   renderToolbar(vi.fn(), { sandbox: "local", sandbox_machine_id: "" });
 
-  await screen.findByTitle("Sandbox · Local computer");
+  await screen.findByTitle("Sandbox · Local device");
   expect(screen.queryByTitle(/MacBook/)).not.toBeInTheDocument();
 });
 
@@ -489,7 +489,7 @@ test("sandbox chip swaps to a cloud icon on the cloud tier and a monitor icon on
   renderToolbar(vi.fn(), { sandbox: "local" });
   expect(
     screen
-      .getByTitle("Sandbox · Local computer")
+      .getByTitle("Sandbox · Local device")
       .querySelector("svg.lucide-monitor"),
   ).not.toBeNull();
 });

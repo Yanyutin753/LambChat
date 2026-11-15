@@ -54,7 +54,7 @@ ELEMENT_CACHE_TTL = 180.0
 ELEMENT_CACHE_MAX_APPS = 8
 # 截屏结果预算:relay 的 SANDBOX_RESULTS_MAX_BYTES=2MiB,留出 JSON 余量。
 SCREENSHOT_MAX_BYTES = 1_500_000
-SCREENSHOT_MAX_DIMENSION = 1568
+SCREENSHOT_MAX_DIMENSION = 2560
 
 TEXT_VALUE_MAX = 200
 TEXT_TITLE_MAX = 120
@@ -445,8 +445,26 @@ def _op_state(payload: dict) -> dict:
                 or active_window.get("bounds") != window_info.get("bounds")
             ):
                 raise CuaOpError("foreground_required", "target window is not the active window")
-            result["screenshot"] = _capture(window_info.get("bounds"))
-            observed.screenshot = result["screenshot"]
+            capture_bounds = window_info.get("bounds")
+            if subtree:
+                element_bounds = rows[0].get("bounds") if rows else None
+                capture_bounds = _intersect_bounds(capture_bounds, element_bounds)
+            screenshot = _capture(capture_bounds)
+            # Discard pixels if focus or geometry changed during capture.
+            _require_foreground(pid)
+            _, after_capture = backend.pick_window(pid, None)
+            if (
+                after_capture.get("focused") is not True
+                or after_capture.get("window_id") != resolved_window_id
+                or after_capture.get("bounds") != window_info.get("bounds")
+            ):
+                raise CuaOpError(
+                    "foreground_required", "Window changed during capture; observe again"
+                )
+            if subtree:
+                screenshot["bounds"] = capture_bounds
+            result["screenshot"] = screenshot
+            observed.screenshot = screenshot
         except CuaOpError as exc:
             result["screenshot"] = {"error": exc.code, "detail": exc.detail}
     return result
@@ -455,6 +473,26 @@ def _op_state(payload: dict) -> dict:
 # ---------------------------------------------------------------------------
 # 截屏(pyautogui/pyscreeze,窗口 region 优先)
 # ---------------------------------------------------------------------------
+
+
+def _intersect_bounds(window: list | None, element: list | None) -> list[float]:
+    for bounds in (window, element):
+        if (
+            not isinstance(bounds, (list, tuple))
+            or len(bounds) != 4
+            or any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in bounds)
+            or bounds[2] <= 0
+            or bounds[3] <= 0
+        ):
+            raise CuaOpError(
+                "screenshot_failed", "Element bounds unavailable; observe the window instead"
+            )
+    left, top = max(window[0], element[0]), max(window[1], element[1])
+    right = min(window[0] + window[2], element[0] + element[2])
+    bottom = min(window[1] + window[3], element[1] + element[3])
+    if right <= left or bottom <= top:
+        raise CuaOpError("screenshot_failed", "Element is outside the visible window")
+    return [left, top, right - left, bottom - top]
 
 
 def _capture(bounds: list[float] | None) -> dict[str, Any]:
@@ -501,17 +539,32 @@ def _capture(bounds: list[float] | None) -> dict[str, Any]:
             scale = SCREENSHOT_MAX_DIMENSION / max(width, height)
             image = image.resize((int(width * scale), int(height * scale)))
             width, height = image.size
+        # Text-heavy screenshots stay lossless when they fit the relay budget.
         buffer = io.BytesIO()
-        image.convert("RGB").save(buffer, format="JPEG", quality=60)
-        data = buffer.getvalue()
+        image.convert("RGB").save(buffer, format="PNG", compress_level=3)
+        data, mime = buffer.getvalue(), "image/png"
         if len(data) > SCREENSHOT_MAX_BYTES:
-            buffer = io.BytesIO()
-            image.convert("RGB").save(buffer, format="JPEG", quality=40)
-            data = buffer.getvalue()
+            mime = "image/jpeg"
+            for quality in (85, 65, 45):
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG", quality=quality)
+                data = buffer.getvalue()
+                if len(data) <= SCREENSHOT_MAX_BYTES:
+                    break
+            while len(data) > SCREENSHOT_MAX_BYTES and min(image.size) > 1:
+                image = image.resize((max(1, image.width // 2), max(1, image.height // 2)))
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG", quality=65)
+                data = buffer.getvalue()
+        width, height = image.size
+        if len(data) > SCREENSHOT_MAX_BYTES:
+            raise ValueError("encoded screenshot exceeds relay budget")
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("screenshot_failed", str(exc)) from exc
     return {
-        "mime": "image/jpeg",
+        "mime": mime,
+        "size": len(data),
+        "bounds": list(bounds),
         "width": width,
         "height": height,
         "data_b64": base64.b64encode(data).decode("ascii"),
@@ -974,6 +1027,12 @@ def handle_cua_op(op: str, payload: dict) -> dict:
     daemon 层 error 字符串,relay 包成 SANDBOX_EXEC_FAILED 后模型只见到
     模板文案而无从纠错——op 级异常必须在模型可读层收敛。
     """
+    from lambchat_sandbox.platform import daemon_platform
+
+    if daemon_platform() == "android":
+        from lambchat_sandbox.android_control import handle
+
+        return handle(op, payload)
     if op == "cua_snapshot_action":
         if not isinstance(payload, dict) or not payload.get("snapshot_id"):
             return {"error": "invalid_arguments", "detail": "snapshot_id required"}
@@ -1021,7 +1080,7 @@ def handle_cua_op(op: str, payload: dict) -> dict:
                 x, y = float(target["x"]), float(target["y"])
                 if not (0 <= x < screenshot["width"] and 0 <= y < screenshot["height"]):
                     raise CuaOpError("invalid_arguments", "point outside screenshot")
-                left, top, width, height = observed.window["bounds"]
+                left, top, width, height = screenshot.get("bounds", observed.window["bounds"])
                 payload = {
                     **payload,
                     "target": {

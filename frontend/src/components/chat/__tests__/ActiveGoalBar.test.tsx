@@ -11,12 +11,12 @@ test("renders final goal runtime from lifecycle timestamps", () => {
         started_at: "2026-05-30T08:00:00.000Z",
         ended_at: "2026-05-30T08:02:03.000Z",
       }}
-      durationLabel="运行"
     />,
   );
 
   expect(html).toMatch(/finish docs/);
-  expect(html).toMatch(/运行 02:03/);
+  expect(html).toMatch(/2m 03s/);
+  expect(html).not.toMatch(/运行 /);
 });
 
 test("embedded mode omits standalone border/background", () => {
@@ -27,7 +27,6 @@ test("embedded mode omits standalone border/background", () => {
         started_at: "2026-05-30T08:00:00.000Z",
         ended_at: "2026-05-30T08:01:00.000Z",
       }}
-      durationLabel="运行"
       embedded
     />,
   );

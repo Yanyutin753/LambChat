@@ -781,6 +781,9 @@ jobs:
         run: pnpm brand:assets:check
         working-directory: frontend
 
+      - name: Prepare Android local device runtime and corresponding source
+        run: python3 scripts/run_validation.py python3 scripts/prepare_android_runtime.py --sources
+
       - name: Build Android APKs
         env:
           ANDROID_SIGNING_READY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
@@ -791,7 +794,7 @@ jobs:
           else
             variant=assembleDebug
           fi
-          ./gradlew "$variant" --build-cache --max-workers=1 --no-parallel
+          python3 ../../scripts/run_validation.py ./gradlew testDebugUnitTest "$variant" --build-cache --max-workers=1 --no-parallel
         working-directory: frontend/android
 
       - name: Prepare Android APK artifact
@@ -803,6 +806,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           mkdir -p release-assets
+          cp frontend/android/app/build/generated/localDevice/android-runtime-sources.tar.gz "release-assets/LambChat-android-runtime-sources-${RELEASE_TAG}.tar.gz"
           unsigned_apk="frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk"
           if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore

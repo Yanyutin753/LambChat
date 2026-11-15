@@ -60,8 +60,10 @@ async def resolve_computer_use_context(
         selected = options.get("sandbox_machine_id")
         selected = selected.strip() if isinstance(selected, str) else None
         try:
-            machine = await SandboxClientRegistry().resolve_target(user_id, selected or None)
+            registry = SandboxClientRegistry()
+            machine = await registry.resolve_target(user_id, selected or None)
         except Exception:  # noqa: BLE001 - 注册表故障时不暴露桌面工具
+            machine = None
             logger.warning("computer_use machine resolution failed for user %s", user_id)
     selection: dict[str, Any] = {"platform": platform, "machine_id": machine}
     if hitl_resume and isinstance(hitl_resume.get("confirmation_context"), dict):
@@ -100,12 +102,16 @@ class _ComputerUseInput(BaseModel):
     action: str = Field(
         ...,
         description=(
-            "status|apps|launch|windows|state|activate|click|set_value|type|key|scroll|action"
+            "status|apps|launch|windows|state|activate|click|set_value|type|key|scroll|action. "
+            "Android: use name=package from apps; launch uses app=package. Observe state before every input, "
+            "pass snapshot_id; key supports back/home/enter/tab/backspace. Right click is long press. "
+            "User selects foreground/background and enables control on the phone. Never change Android permissions via tools."
         ),
     )
     url: Optional[str] = Field(None, description="launch: open this URL in the default browser")
     app: Optional[str] = Field(
-        None, description="launch: executable path or macOS .app bundle (no shell)"
+        None,
+        description="launch: executable path, macOS .app bundle, or Android package name (no shell)",
     )
     args: Optional[list[str]] = Field(None, description="launch: argv for app")
     machine_id: Optional[str] = Field(
@@ -116,7 +122,10 @@ class _ComputerUseInput(BaseModel):
         None,
         description="Target app pid from apps. Required unless name is supplied for all actions except status/apps/launch, including coordinate clicks.",
     )
-    name: Optional[str] = Field(None, description="target app name (exact, from apps)")
+    name: Optional[str] = Field(
+        None,
+        description="target app name (exact, from apps); Android requires the package in name for every targeted operation",
+    )
     window_id: Optional[int] = Field(None, description="pin one window (from windows)")
     index: Optional[int] = Field(
         None, description="element index from latest state; state: inspect only this subtree"
@@ -226,7 +235,7 @@ async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
             **result,
             "screenshot": {
                 **{k: v for k, v in screenshot.items() if k != "data_b64"},
-                **{k: v for k, v in block.items() if k in ("url", "upload_error")},
+                **{k: v for k, v in block.items() if k in ("url", "size", "upload_error")},
             },
         }
     serialized = await _json_dumps_result(result)
@@ -249,7 +258,10 @@ async def computer_use(
         "type, key, scroll, action",
     ],
     url: Annotated[Optional[str], "launch: URL to open in default browser"] = None,
-    app: Annotated[Optional[str], "launch: executable path or macOS .app bundle (no shell)"] = None,
+    app: Annotated[
+        Optional[str],
+        "launch: executable path, macOS .app bundle, or Android package name (no shell)",
+    ] = None,
     args: Annotated[Optional[list[str]], "launch: argv for app"] = None,
     machine_id: Annotated[Optional[str], "target a specific registered machine"] = None,
     pid: Annotated[
@@ -300,6 +312,10 @@ async def computer_use(
        another observation. For truncated trees, use ``state(index=...)`` on a known
        document/container; subtree indices replace the previous ones. Omit index to
        return to the full window. Screenshots still show the verified target window.
+       If ``desktop_control_paused`` is returned, the local user has taken over:
+       stop computer actions and wait for the user to resume in the control window.
+       Never use exec or another tool to bypass a local pause. After resuming,
+       observe again; interrupted input may have partially completed and must not be replayed.
        If ``window.focused=false`` or screenshot error is ``foreground_required``,
        call ``activate`` on that window before observing an image; do not retry the same background screenshot.
     4. Prefer element actions (accessibility press/value work on background apps, no
@@ -419,7 +435,7 @@ async def computer_use(
     if not isinstance(selection, dict):
         return "ERROR machine_selection_required: select an online machine in this session"
     if selection.get("platform") != "local":
-        return "ERROR local_computer_required: select Local computer in this session"
+        return "ERROR local_computer_required: select Local device in this session"
     selected_machine = selection.get("machine_id")
     if not isinstance(selected_machine, str) or not selected_machine:
         return "ERROR machine_selection_required: select an online machine in this session"
