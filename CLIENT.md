@@ -44,6 +44,7 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - **daemon 保持 stdlib + httpx 的极简依赖面**，新增依赖必须在 PR 说明理由（PyInstaller onefile 体积与冷启动对此敏感）。既有例外：computer-use 的 `cua` 依赖组（`uv sync --group cua`，平台标记互斥）——macOS atomacos（带 PyObjC+pyautogui）、Windows pywinauto+pyautogui、Linux pyautogui+python-xlib（AT-SPI 走系统包 python3-pyatspi）；未同步该组的构建里 cua\_\* op 报 `unsupported_platform`，其余链路不受影响。
 - CUA 必须显式选择在线机器；代码沙箱可为本地或云端，桌面选机与代码沙箱平台独立。工具参数不能覆盖会话选机，未选择、离线或审批后改机均拒绝，不回退到账户默认机器。审批绑定机器和具体操作，按该机器确认策略执行。观察索引仅在当前会话有效。
 - 桌面构建内嵌 `client/agent-desktop.lock.json` 锁定的 agent-desktop 与平台 helper，构建期核验 SHA256，不在运行期自动下载或执行 PATH 中的同名程序。许可证随 daemon 分发。开发环境可通过 `LAMBCHAT_AGENT_DESKTOP` 指定二进制；未安装资源时保留原生后端。新驱动继续遵守前台截图、显式激活与机器审批边界，不开放其任意 CLI/MCP 命令。
+- 桌面壳托管的 CUA 使用独立置顶控制浮窗，经继承的 stdin/stdout 管道握手；浮窗绘制确认后才执行。浮窗在 Agent 思考间隔继续显示，用户暂停会取消当前工作进程并拒绝后续 CUA 调用；恢复必须重新观察，前台冲突自动暂停。仅本机浮窗可恢复，断管与握手超时拒绝执行，不禁用用户系统键鼠。独立 CLI daemon 不具备壳浮窗。新增壳命令 `desktop_control_status(ready) -> state` 与 `desktop_control_set_paused(paused)` 仅授予 `cua-control` 窗口；旧 daemon 忽略新增环境变量，协议兼容，但浮窗需新版壳与 daemon 同时具备。Mac/Windows 浮窗设置 `content_protected`；Linux X11 直接读取目标窗口的 XComposite 离屏像素，保持浮窗可操作且不进入截图。缺少 XComposite、运行中的 X11 合成器或无法确认目标窗口时拒绝截图，不回退到含浮窗的桌面截图；Wayland 截图仍不支持。
 - CUA 观察和输入在独立常驻工作进程内执行，超时或取消后回收进程树与临时快照目录；Windows 使用 Job Object。应用启动独立于该工作进程，避免回收自动化进程时关闭用户应用。恢复后必须重新观察，不自动重放输入。Agent 光标使用上游 overlay，平台不支持绘制时不把展示失败当作语义动作失败。
 - `state` 回传 `snapshot_id`；使用截图像素坐标时必须传该 ID 与 `coordinate_space=screenshot`，daemon 校验会话、窗口焦点及位置并完成缩放换算。服务端使用独立 `cua_snapshot_action` 操作，旧 daemon 明确拒绝，不会把截图坐标误当全局坐标。原有全局坐标与未带快照 ID 的调用保持兼容。动作的 `disposition` 区分已验证、未验证和不确定交付；工具成功不能替代应用最终状态验收。
 - 命令 stdout/stderr 通过非阻塞管道读取并分别保留有界尾部，禁止先收集完整输出再截断；Windows 需要项目既定的 Python 3.12+ 管道支持。
@@ -169,3 +170,24 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 Windows 主窗口使用 WebView2 的 HTML 拖拽，关闭仅识别普通路径的 Wry 拖拽拦截。主窗口通过 `postMessageWithAdditionalObjects` 提交真实 `File` 对象，原生 `windows_file_drop` 桥校验固定应用来源后读取 `ICoreWebView2File.Path` 并签发现有 receipt；不接受前端文本路径。没有原路径的图片字节使用现有上传、云端压缩流程，无法读取的占位内容明确提示。异步回传绑定账户、服务器、对话和环境；桥接等待最多 3 秒，超时可改用原生选择文件。
 
 桌面文件下载统一经 `desktop_save_file`：二进制 IPC 传入文件内容，`x-file-name` 为 ASCII 转义的 JSON 文件名；原生另存为对话框决定目标路径，主窗口 `allow-desktop-save-file` 权限不接受任意写入路径。取消正常结束，保存失败显示现有下载失败提示；同目录临时文件完整写入后替换目标，失败清理临时文件。Windows CI 编译原生桥并运行文件边界测试，仍须区分这些检查与微信拖拽/系统保存对话框的人工验收。
+
+## Android 本地设备
+
+- Android 11+ / arm64 可在设置 → 本地设备配对并启动；其他架构保留聊天能力，不显示为可用执行端。模型和审批仍由 LambChat 服务端负责，安卓运行同一套 `lambchat_sandbox` daemon，SSE/文件协议向后兼容。
+- 原生 `LocalDevice` Capacitor 插件桥接配对、策略、启停、系统文件选择器及用户主动操作的手机控制设置。凭据用 Android Keystore 加密，身份、凭据、工作目录均位于 no-backup 私有目录；服务器 origin 不一致时不返回 PAT。取消配对不删除工作文件。
+- PRoot + Alpine（Python / Node / Shell）随 APK 打包，首次启动离线展开。手机文件通过系统选择器复制到 `/workspace/.shared`，导出使用系统保存对话框；无需全盘存储权限，不访问其他应用私有目录。共享列表最多 200 项，单次导入导出限 512 MiB；会话文件继续使用现有文件面板。PRoot 不是恶意代码隔离边界，执行权限相当于应用用户权限。
+- 前台服务有常驻通知和停止操作；退出任务列表后停止，不自动重放命令、不自动重启服务。系统仍可能回收后台进程，重新打开应用后在本地设备设置重启。手机 App 控制从 Android 12 起提供，独立焦点的后台 App 操作要求 Android 14+；不满足时须由用户主动选择前台模式，不自动抢占主屏。桌面驱动不在 Android 上兜底。
+- 修改后在共享验证锁下准备运行环境，再构建原生工程：
+  ```bash
+  # 本机已有独立工具链时可先 source "$HOME/.cache/lambchat/client-toolchains/env.sh"
+  python3 scripts/run_validation.py uv run python scripts/prepare_android_runtime.py
+  cd frontend/android && python3 ../../scripts/run_validation.py ./gradlew testDebugUnitTest assembleDebug --max-workers=1 --no-parallel
+  ```
+  构建失败不得跳过运行环境校验。依赖固定于 `scripts/android-runtime/sources.json`；原生程序和 rootfs 校验 SHA-256。产物仅写入 `frontend/android/app/build/generated/localDevice/`，不提交二进制。
+- 悬浮窗：在本地设备设置中单独启用，Android 系统实际授予悬浮窗权限后才开启；App 在后台时显示连接/执行状态，支持拖动吸边、展开、返回 App、停止本地执行和隐藏。折叠时只显示数量和状态；展开后支持当前对话的任务输入、系统语音转文字、截屏导入共享目录、无表单审批、暂停/恢复及接管。表单审批返回现有 App 面板。审批核对原始请求和当前会话，语音与截屏只填入草稿，不自动发送。权限被撤销时隐藏，停止服务时移除。
+- Mika 对齐的原生验收清单（实现不等于验收通过）：手机内无线调试配对与断线恢复；App 列表/启动/切换；屏幕结构读取与截图；点击、长按、滑动、输入与返回；独立显示区域里的后台 App 操作与前后台交接；浮窗发起任务、任务状态、审批/接管/停止。所有模型操作必须经过既有设备归属检查和审批通道，不能从 WebView 直接暴露任意特权 shell。逐项记录原生设备结果，未接通的能力不能在工具清单或文案中宣布可用。
+- 手机控制链路：本机无线调试配对（Keystore 包装身份）→ ADB 的私有 stdin/stdout helper → 用户授权的无障碍服务。没有可供 WebView 任意调用的 shell 执行入口。后台显示区域、应用启动、按键在 shell helper 完成；树读取、元素操作、手势、文字及截图走 Android 无障碍接口。工具沿用 `computer_use` 的选机、会话、审批指纹和私有图片上传；daemon 通过限长、随机令牌认证的 loopback 端点调用原生操作。该端点仅在本地服务运行时存在，脚本与端点同属应用用户权限，并非恶意脚本隔离边界。
+- 设置引导：先启动本地设备，手动授予屏幕访问，打开无线调试的配对码对话框，可用悬浮窗输入配对端口与六位码；连接使用无线调试主页的连接端口。可发现本机 mDNS 端口，不连接其他设备。断线后不重放动作，重新发现端口并连接；停止/取消配对关闭 bridge 和 helper。接管先暂停，再将本 helper 启动的任务移回主屏；再次输入必须重新观察。后台启动遇到用户正在主屏使用的 App 时拒绝。
+- 安全与兼容边界：锁屏时拒绝操作，密码控件不读取或写入，LambChat 自身、设置和权限页面不接受模型操作；快照绑定会话、包名、显示区域、窗口变化及 60 秒时效。厂商 ROM 的 shell/虚拟屏 API、受保护窗口和应用多屏兼容性仍须分别测试；不把 API 调用返回成功写成端到端效果已验证。
+- 验证入口包括 `tests/client/test_android_control.py`、手机设置/浮窗桥接的前端测试、原生 `PhoneHelperTest`/ADB 加密与地址测试、`PhoneBridgeTest` 及 `LocalDeviceRuntimeTest`。设备验收至少覆盖：中文输入、长按/滑动/返回、旧截图拒绝、主屏焦点不被后台任务抢占、审批内容变更、切账号后旧浮窗事件、接管和断线清场。
+- 发布 Android APK 必须先执行 `prepare_android_runtime.py --sources` 并附带 `android-runtime-sources.tar.gz`（PRoot/talloc、Alpine 的对应源码、锁文件、补丁及许可证）。上游来源、版本和许可见 `scripts/android-runtime/NOTICE.md`。原生冒烟 `LocalDeviceRuntimeTest` 需 Android 11+ arm64 模拟器或真机，运行 Python、Node、Shell、文件读写并验证取消清场；主机单测不能替代它。

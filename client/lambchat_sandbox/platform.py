@@ -22,6 +22,7 @@ learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments）：
 
 from __future__ import annotations
 
+import os
 import shlex
 import sys
 
@@ -59,6 +60,8 @@ def daemon_platform() -> str:
     前缀，其余一律 posix（现状）；未知平台（如 freebsd）保守归 ``linux``，
     绝不错入 windows 分支。
     """
+    if os.environ.get("LAMBCHAT_ANDROID") == "1":
+        return "android"
     if _sys_platform == "win32":
         return "win32"
     if _sys_platform == "darwin":

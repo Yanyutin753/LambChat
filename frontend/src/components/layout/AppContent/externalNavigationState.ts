@@ -102,7 +102,9 @@ export function buildExternalNavigationPreviewRequest(
     const files = Array.isArray(projectMeta.files)
       ? Object.fromEntries(
           projectMeta.files
-            .filter((item) => item && typeof item.path === "string" && item.path)
+            .filter(
+              (item) => item && typeof item.path === "string" && item.path,
+            )
             .map((item) => {
               const { path, ...entry } = item;
               return [path, { ...entry, is_binary: entry.is_binary ?? false }];
@@ -144,7 +146,7 @@ export function buildExternalNavigationPreviewRequest(
     filePath,
     s3Key: file.file_key || undefined,
     signedUrl: getFullUrl(file.url),
-    fileSize: file.file_size,
+    fileSize: file.file_size ?? undefined,
   };
 }
 

@@ -26,7 +26,7 @@ export interface RevealedFileItem {
   file_name: string;
   file_type: "image" | "video" | "document" | "code" | "project" | "other";
   mime_type: string | null;
-  file_size: number;
+  file_size: number | null;
   url: string | null;
   session_id: string;
   session_name: string | null;

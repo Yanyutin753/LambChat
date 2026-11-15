@@ -162,9 +162,24 @@ class AgentDesktopBackend:
                 from lambchat_sandbox.cua_ops import CuaOpError
 
                 raise CuaOpError("stale_state", "window ownership changed")
+            self._bind_paths(
+                result["tree"], {"_window": element["_window"], "_pid": element["_pid"]}, []
+            )
             element["_tree"] = result["tree"]
             element["_window"]["driver_complete"] = result.get("complete", False)
         return element.get("_tree", element)
+
+    @staticmethod
+    def _bind_paths(tree: dict, owner: dict, path: list[int]) -> None:
+        pending = [(tree, path)]
+        while pending:
+            node, current_path = pending.pop()
+            node["_driver_owner"] = owner
+            node["_driver_path"] = current_path
+            pending.extend(
+                (child, [*current_path, index])
+                for index, child in enumerate(node.get("children", []))
+            )
 
     def row_of(self, element: dict) -> dict:
         node = self._node(element)
@@ -181,17 +196,54 @@ class AgentDesktopBackend:
         return self._node(element).get("children", [])
 
     def refresh_element(self, element: dict, window: dict) -> dict:
+        from lambchat_sandbox.cua_ops import CuaOpError
+
+        node = self._node(element)
+        if not node.get("ref_id"):
+            owner, path = node.get("_driver_owner"), node.get("_driver_path")
+            if not isinstance(owner, dict) or not isinstance(path, list):
+                raise CuaOpError(
+                    "element_unavailable", "Element has no live reference; observe the window again"
+                )
+            fresh_owner = {"_window": dict(owner["_window"]), "_pid": owner["_pid"]}
+            fresh = self._node(fresh_owner)
+            try:
+                for index in path:
+                    fresh = fresh["children"][index]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise CuaOpError(
+                    "stale_state", "Element tree changed; observe the window again"
+                ) from exc
+            if any(fresh.get(key) != node.get(key) for key in ("role", "name", "bounds")):
+                raise CuaOpError(
+                    "stale_state", "Element identity changed; observe the window again"
+                )
+            window["driver_complete"] = fresh_owner["_window"].get("driver_complete", False)
+            return fresh
         result = self._call(
             "snapshot",
             "--root",
-            self._node(element)["ref_id"],
+            self._reference(element),
             "--compact",
             "--include-bounds",
             "--timeout-ms",
             "5000",
         )
         window["driver_complete"] = result.get("complete", False)
+        if "_driver_owner" in node and "_driver_path" in node:
+            self._bind_paths(result["tree"], node["_driver_owner"], node["_driver_path"])
         return result["tree"]
+
+    def _reference(self, element: dict) -> str:
+        from lambchat_sandbox.cua_ops import CuaOpError
+
+        reference = self._node(element).get("ref_id")
+        if not isinstance(reference, str) or not reference:
+            raise CuaOpError(
+                "element_unavailable",
+                "Element is observable but has no action reference; observe again or use verified screenshot coordinates",
+            )
+        return reference
 
     def perform(self, element: dict, action: str) -> dict:
         commands = {
@@ -230,11 +282,11 @@ class AgentDesktopBackend:
         if action not in commands:
             raise KeyError(action)
         self._enable_cursor()
-        return self._call(commands[action], self._node(element)["ref_id"])
+        return self._call(commands[action], self._reference(element))
 
     def set_value(self, element: dict, text: str) -> dict:
         self._enable_cursor()
-        return self._call("set-value", self._node(element)["ref_id"], "--stdin", text=text)
+        return self._call("set-value", self._reference(element), "--stdin", text=text)
 
     def set_focus(self, element: dict) -> None:
         self.perform(element, "Focus")
@@ -258,7 +310,7 @@ class AgentDesktopBackend:
         self._call(
             *(["--headed"] if backend_platform() == "linux" else []),
             "scroll",
-            self._node(element)["ref_id"],
+            self._reference(element),
             "--direction",
             direction,
             "--amount",

@@ -1,4 +1,4 @@
-name: Windows Native Verification
+name: Native Desktop Verification
 
 # Build-only: no tags, releases, signing credentials, updater files or deployments.
 # The opt-in branch allows a first verification run without merging this workflow.
@@ -159,6 +159,13 @@ jobs:
           git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock ../uv.lock
           if ($LASTEXITCODE -ne 0) { throw 'Build changed a dependency lockfile' }
 
+      - name: Build native desktop control acceptance fixture
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --release --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item frontend/src-tauri/target/release/examples/desktop_control_smoke.exe verification-artifacts/
+
       - name: Native updater version-binding regression
         shell: pwsh
         env:
@@ -208,3 +215,69 @@ jobs:
             frontend/src-tauri/target/debug/build
             frontend/src-tauri/target/debug/.fingerprint
           key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
+
+  linux-capture:
+    if: startsWith(github.ref, 'refs/heads/codex/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install X11 capture fixture dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-xlib python3-pil xvfb xauth
+      - name: Verify overlay-free native window pixels
+        run: python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
+
+  desktop-control:
+    if: startsWith(github.ref, 'refs/heads/codex/')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb xauth
+      - name: Install and build toolbar frontend
+        run: |
+          python3 scripts/run_validation.py pnpm --dir frontend install --frozen-lockfile
+          python3 scripts/run_validation.py pnpm --dir frontend run build
+      - name: Generate native icons
+        working-directory: frontend
+        run: python3 ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
+      - name: Build isolated native toolbar
+        env:
+          TAURI_CONFIG: '{"bundle":{"externalBin":[],"resources":[]}}'
+        run: python3 scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
+      - name: Verify native pause and resume
+        shell: bash
+        env:
+          LAMBCHAT_CONTROL_AUTOMATED: '1'
+        run: |
+          export LAMBCHAT_CONTROL_TEST_ROOT="$GITHUB_WORKSPACE"
+          export LAMBCHAT_CONTROL_TEST_PYTHON="$(command -v python3)"
+          if [ "$RUNNER_OS" = Linux ]; then
+            python3 scripts/run_validation.py xvfb-run -a frontend/src-tauri/target/debug/examples/desktop_control_smoke 2>&1 | tee desktop-control.log
+          else
+            python3 scripts/run_validation.py frontend/src-tauri/target/debug/examples/desktop_control_smoke 2>&1 | tee desktop-control.log
+          fi
+          grep -q '"ok":true' desktop-control.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-control-${{ runner.os }}-${{ github.run_id }}
+          path: desktop-control.log
+          if-no-files-found: warn

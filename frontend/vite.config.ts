@@ -179,6 +179,10 @@ export default defineConfig({
   build: {
     manifest: true,
     rolldownOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname, "index.html"),
+        desktopControl: path.resolve(import.meta.dirname, "cua-control.html"),
+      },
       output: {
         minify: {
           compress: {

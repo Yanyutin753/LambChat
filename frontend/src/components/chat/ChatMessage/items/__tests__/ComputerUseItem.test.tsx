@@ -162,7 +162,7 @@ test("daemon errors never show a successful pill", () => {
     success: true,
   });
   expect(view.getByRole("button").getAttribute("data-status")).toBe("error");
-  expect(panel.getByText(/打开 LambChat 桌面端/)).toBeTruthy();
+  expect(panel.getByText(zh.chat.message.computerUse.offlineHint)).toBeTruthy();
 });
 
 test("empty applications have an explicit empty result", () => {
@@ -180,4 +180,15 @@ test("running control shows a waiting state instead of a blank panel", () => {
     isPending: true,
   });
   expect(panel.getByText("正在执行，等待电脑返回结果…")).toBeTruthy();
+});
+
+test("local takeover tells the user where to resume", () => {
+  const { panel } = show({
+    args: { action: "click" },
+    result: "ERROR desktop_control_paused: user takeover",
+    success: true,
+  });
+  expect(
+    panel.getByText("电脑控制已暂停。准备好后，请在常驻浮窗中点击“继续”。"),
+  ).toBeTruthy();
 });

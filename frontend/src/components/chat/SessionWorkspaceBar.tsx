@@ -99,7 +99,7 @@ export function SessionWorkspaceBar({
     },
     [],
   );
-  const visible = isCurrentWorkspaceMachine(
+  const visible = isShellAvailable() && isCurrentWorkspaceMachine(
     values.sandbox,
     selectedId,
     currentMachineId,

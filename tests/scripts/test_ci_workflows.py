@@ -43,12 +43,19 @@ def test_updater_verifier_builds_only_the_real_updater_with_shared_lock():
 def test_android_builds_only_the_variant_that_will_be_published(tmp_path, signed):
     jobs = yaml.safe_load((WORKFLOW.parent / "app-release.yml").read_text())["jobs"]
     step = next(s for s in jobs["android"]["steps"] if s.get("name") == "Build Android APKs")
-    gradle = tmp_path / "gradlew"
+    android = tmp_path / "frontend/android"
+    android.mkdir(parents=True)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "run_validation.py").write_text(
+        (WORKFLOW.parents[2] / "scripts/run_validation.py").read_text()
+    )
+    gradle = android / "gradlew"
     gradle.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$GRADLE_ARGS"\n')
     result = tmp_path / "args"
     subprocess.run(
         ["bash", "-eu", "-c", step["run"]],
-        cwd=tmp_path,
+        cwd=android,
         check=True,
         env={
             **os.environ,
@@ -57,6 +64,7 @@ def test_android_builds_only_the_variant_that_will_be_published(tmp_path, signed
         },
     )
     assert result.read_text().splitlines() == [
+        "testDebugUnitTest",
         "assembleRelease" if signed else "assembleDebug",
         "--build-cache",
         "--max-workers=1",

@@ -1,4 +1,5 @@
 import {
+  hasVisiblePersistentGoal,
   getGoalForMessage,
   getVisibleActiveGoalForMessages,
   shouldShowGoalDetailsForMessage,
@@ -70,4 +71,24 @@ test("shows goal details on messages from the goal run", () => {
       message({ id: "goal-message", runId: "run-goal" }),
     ),
   ).toBe(true);
+});
+
+test.each([
+  "active",
+  "waiting_human",
+  "paused",
+  "blocked",
+  "budget_limited",
+] as const)(
+  "%s goal keeps the conversation composer visible before the first message",
+  (status) => expect(hasVisiblePersistentGoal({ status })).toBe(true),
+);
+
+test.each(["completed", "cleared"] as const)(
+  "%s goal does not suppress an empty welcome page",
+  (status) => expect(hasVisiblePersistentGoal({ status })).toBe(false),
+);
+
+test("an absent goal does not suppress the welcome page", () => {
+  expect(hasVisiblePersistentGoal(null)).toBe(false);
 });

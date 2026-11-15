@@ -251,3 +251,30 @@ def test_snapshot_owner_recheck_rejects_changed_process(backend, monkeypatch, ow
     monkeypatch.setattr(backend, "_call", call)
     with pytest.raises(CuaOpError, match="stale_state"):
         backend._node({"_window": {"driver_window_id": "w-42", "window_id": 42}, "_pid": 7})
+
+
+def test_non_actionable_subtree_without_reference_has_structured_error(backend):
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    with pytest.raises(CuaOpError, match="element_unavailable"):
+        backend.refresh_element({"role": "text", "name": "27/30"}, {})
+
+
+def test_non_actionable_subtree_refreshes_by_verified_window_path(backend, monkeypatch):
+    old = {
+        "role": "text",
+        "name": "score",
+        "value": "old",
+        "_driver_path": [0],
+        "_driver_owner": {"_window": {"driver_window_id": "w-42"}, "_pid": 7},
+    }
+    fresh = {"role": "text", "name": "score", "value": "new"}
+    monkeypatch.setattr(
+        backend, "_node", lambda element: {"children": [fresh]} if "_window" in element else element
+    )
+    assert backend.refresh_element(old, {})["value"] == "new"
+    fresh["name"] = "other"
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    with pytest.raises(CuaOpError, match="stale_state"):
+        backend.refresh_element(old, {})
