@@ -187,7 +187,8 @@ def test_reported_parameterless_action_is_supported(backend, monkeypatch, action
     monkeypatch.setattr(backend, "_enable_cursor", lambda: None)
     monkeypatch.setattr(backend, "_call", lambda *a, **k: calls.append(a) or {})
     backend.perform({"ref_id": "@snapshot:e1"}, action)
-    assert calls == [(command, "@snapshot:e1")]
+    prefix = ("--headed",) if command in {"focus", "hover"} else ()
+    assert calls == [(*prefix, command, "@snapshot:e1")]
 
 
 def test_cursor_reports_unrendered_without_claiming_visibility(backend, monkeypatch):

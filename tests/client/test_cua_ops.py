@@ -327,7 +327,7 @@ def test_unknown_app_name_reports_not_found(fake_backend: _FakeBackend) -> None:
     assert result["error"] == "app_not_found"
 
 
-def test_truncation_when_tree_exceeds_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_driver_tree_is_not_truncated_at_400_elements(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeBackend()
     fake.window = _FakeElement(
         "AXWindow", "Big", [_FakeElement("AXStaticText", f"t{i}") for i in range(500)]
@@ -336,8 +336,9 @@ def test_truncation_when_tree_exceeds_budget(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(cua_backend, "_BACKEND_ERROR", None)
     cua_ops._OBSERVATIONS.clear()
     result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
-    assert result["truncated"] is True
-    assert result["element_count"] == cua_ops.STATE_MAX_ELEMENTS
+    assert result["truncated"] is False
+    assert result["element_count"] == 501
+    assert "t499" in result["state"]
 
 
 def test_untrusted_ax_converges_to_structured_error(
@@ -376,7 +377,7 @@ def test_invalid_arguments_for_non_status_actions(fake_backend: _FakeBackend) ->
 def test_type_with_index_writes_value_without_foreground(
     fake_backend: _FakeBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """带 index 的 type 走 focus+set_value 免前台——后台窗口也能输入,
+    """带 index 的 type 走 set_value 免前台——后台窗口也能输入,
     不再一律 foreground_required(生产实测 Windows Edge 地址框即此坑)。"""
     # 前台是别的应用,元素路径仍必须成功
     monkeypatch.setattr(fake_backend, "frontmost_pid", lambda: 9999)
@@ -384,7 +385,7 @@ def test_type_with_index_writes_value_without_foreground(
     result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "index": 2, "text": "今日新闻"})
     assert result == {"ok": True, "strategy": "a11y", "method": "set_value"}
     assert fake_backend.set_values[0][1] == "今日新闻"
-    assert fake_backend.focused  # 先聚焦过元素
+    assert not fake_backend.focused  # 后台直写不能抢焦点
 
 
 def test_type_without_index_still_requires_foreground(
@@ -746,7 +747,7 @@ def test_state_preserves_full_text_and_omits_duplicate_value():
         {"kind": "textbox", "title": "回答", "value": value, "depth": 1},
         {"kind": "checkbox", "title": "选项", "value": False, "depth": 1},
     ]
-    state = cua_ops._render_tree(rows, {"window_id": 1}, False)
+    state, _ = cua_ops._render_tree(rows, {"window_id": 1}, False)
     assert state.count(title) == 1
     assert value in state
     assert "[1] textbox '回答' value=" in state
@@ -764,7 +765,7 @@ def test_state_omits_empty_layout_nodes_without_renumbering_controls():
         {"kind": "Window", "depth": 2},
         {"kind": "Pane", "actions": ["Invoke"], "depth": 2},
     ]
-    state = cua_ops._render_tree(rows, {"title": "Calc", "window_id": 0}, False)
+    state, _ = cua_ops._render_tree(rows, {"title": "Calc", "window_id": 0}, False)
     assert "[1] filler" not in state
     assert "[3] panel" not in state
     assert "[2] panel 'Font Name' actions=press" in state
@@ -834,7 +835,7 @@ def test_state_omits_unnamed_uia_invoke_groups_but_keeps_controls():
         {"depth": 1, "kind": "Group", "title": "Document", "actions": ["Invoke"]},
         {"depth": 1, "kind": "Group", "actions": ["Expand"]},
     ]
-    state = cua_ops._render_tree(rows, {"title": "WPS", "window_id": 0}, False)
+    state, _ = cua_ops._render_tree(rows, {"title": "WPS", "window_id": 0}, False)
     assert "[0]" not in state
     assert "[1] Button" in state
     assert "[2] Group 'Document'" in state
@@ -1028,7 +1029,6 @@ def test_hidden_rows_do_not_exhaust_visible_budget_or_hide_visible_descendants(
         return row
 
     monkeypatch.setattr(fake_backend, "row_of", row_of)
-    monkeypatch.setattr(cua_ops, "STATE_MAX_ELEMENTS", 3)
     state = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
     assert not state["truncated"]
     assert "hidden template" not in state["state"]
@@ -1047,7 +1047,7 @@ def test_hidden_rows_do_not_exhaust_visible_budget_or_hide_visible_descendants(
     assert fake_backend.performed[-1][0] is target
 
 
-def test_on_screen_controls_take_budget_before_offscreen_content(fake_backend, monkeypatch):
+def test_on_screen_controls_precede_offscreen_content(fake_backend, monkeypatch):
     target = _FakeElement("button", "Visible answer")
     offscreen = [_FakeElement("text", f"Footer {index}") for index in range(10)]
     parent = _FakeElement("group", "Question", [target])
@@ -1061,9 +1061,9 @@ def test_on_screen_controls_take_budget_before_offscreen_content(fake_backend, m
         return row
 
     monkeypatch.setattr(fake_backend, "row_of", row_of)
-    monkeypatch.setattr(cua_ops, "STATE_MAX_ELEMENTS", 4)
     state = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
-    assert state["truncated"]
+    assert not state["truncated"]
+    assert "Footer 9" in state["state"]
     assert "Visible answer" in state["state"]
     assert "Footer 0" in state["state"]
     observation = cua_ops._get_observation(4242, None)
@@ -1153,3 +1153,48 @@ def test_status_cannot_claim_ready_when_lock_check_is_unavailable(fake_backend, 
     monkeypatch.setattr(fake_backend, "desktop_locked", unavailable, raising=False)
     result = cua_ops.handle_cua_op("cua_status", {})
     assert result["ready"] is False and result["platform"] == "fake"
+
+
+def test_driver_tree_preserves_deep_controls(fake_backend):
+    child = _FakeElement("button", "Deep answer")
+    for _ in range(35):
+        child = _FakeElement("group", "", [child])
+    fake_backend.window.children = [child]
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert not result["truncated"]
+    assert "Deep answer" in result["state"]
+
+
+def test_state_marks_single_output_budget_and_keeps_observation(fake_backend, monkeypatch):
+    monkeypatch.setattr(cua_ops, "STATE_MAX_TEXT_BYTES", 300)
+    fake_backend.window.children = [_FakeElement("text", "中文内容" * 100)]
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert result["truncated"]
+    assert "output budget" in result["state"]
+    assert len(result["state"].encode()) < 400
+    assert len(cua_ops._get_observation(4242, None).elements) == 2
+
+
+@pytest.mark.parametrize("action", ["Focus", "SetFocus", "focus", "Hover"])
+def test_physical_element_action_requires_foreground(fake_backend, action):
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    fake_backend.frontmost_pid = lambda: 999
+    result = cua_ops.handle_cua_op(
+        "cua_action", {"pid": 4242, "target": {"type": "element", "index": 1}, "action": action}
+    )
+    assert result["error"] == "foreground_required"
+    assert not fake_backend.performed
+
+
+def test_unsettable_element_is_focused_before_headed_typing(fake_backend, monkeypatch):
+    fake_backend.set_value_error = KeyError("not settable")
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    target = cua_ops._get_observation(4242, None).elements[1]
+
+    def type_text(text, window):
+        assert fake_backend.focused == [target]
+        return {}
+
+    monkeypatch.setattr(fake_backend, "type_text", type_text)
+    result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "index": 1, "text": "answer"})
+    assert result.get("ok") is True, result

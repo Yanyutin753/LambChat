@@ -48,8 +48,7 @@ CUA_OPS = frozenset(
 """computer-use op 清单(daemon.py 据此分发到本模块)。"""
 
 # 观察与动作预算:大树的走查、输入注入都不能无限占用 daemon 线程。
-STATE_TIME_BUDGET = 5.0
-STATE_MAX_ELEMENTS = 400
+STATE_MAX_TEXT_BYTES = 256_000
 ELEMENT_CACHE_TTL = 180.0
 ELEMENT_CACHE_MAX_APPS = 8
 # 截屏结果预算:relay 的 SANDBOX_RESULTS_MAX_BYTES=2MiB,留出 JSON 余量。
@@ -288,52 +287,47 @@ def _op_windows(payload: dict) -> dict:
 
 
 def _walk_tree(root: Any) -> tuple[list[dict[str, Any]], list[Any], bool]:
-    """BFS 走查(可见子树优先),带时间与数量预算。
+    """BFS 投影驱动已获取的快照，可见内容优先。
 
     返回 (行列表, 元素句柄列表, 是否截断);两个列表同序,索引即下标。
     """
     backend = _backend()
-    deadline = time.monotonic() + STATE_TIME_BUDGET
     rows: list[dict[str, Any]] = []
     elements: list[Any] = []
     offscreen: list[tuple[dict[str, Any], Any]] = []
     truncated = False
     queue = deque([(root, 0)])
     while queue:
-        if len(rows) >= STATE_MAX_ELEMENTS or time.monotonic() > deadline:
-            truncated = True
-            break
         element, depth = queue.popleft()
         try:
             row = backend.row_of(element)
         except CuaOpError:
             raise
         except Exception:  # noqa: BLE001 - 单元素元数据失败跳过不中断
+            truncated = True
             continue
         if depth == 0 or "hidden" not in (row.get("states") or []):
             row["depth"] = depth
             if depth and "offscreen" in (row.get("states") or []):
-                if len(offscreen) < STATE_MAX_ELEMENTS:
-                    offscreen.append((row, element))
-                else:
-                    truncated = True
+                offscreen.append((row, element))
             else:
                 rows.append(row)
                 elements.append(element)
-        if depth >= 30:
-            continue
         for child in backend.children(element):
             queue.append((child, depth + 1))
-    remaining = STATE_MAX_ELEMENTS - len(rows)
-    truncated = truncated or len(offscreen) > remaining
-    for row, element in offscreen[:remaining]:
+    for row, element in offscreen:
         rows.append(row)
         elements.append(element)
     return rows, elements, truncated
 
 
-def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: bool) -> str:
-    lines = [f"window: {window.get('title') or ''} (id={window.get('window_id')})"]
+def _render_tree(
+    rows: list[dict[str, Any]], window: dict[str, Any], truncated: bool
+) -> tuple[str, bool]:
+    header = f"window: {window.get('title') or ''} (id={window.get('window_id')})".encode()
+    lines = [header[:STATE_MAX_TEXT_BYTES].decode("utf-8", errors="ignore")]
+    used = len(lines[0].encode())
+    output_truncated = len(header) > STATE_MAX_TEXT_BYTES
     for index, row in enumerate(rows):
         if (
             row.get("kind")
@@ -357,10 +351,19 @@ def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: 
             label += " actions=" + ",".join(str(a) for a in row["actions"])
         if row.get("states"):
             label += " states=" + ",".join(row["states"])
-        lines.append(f"{indent}{label}")
+        line = f"{indent}{label}".encode()
+        remaining = max(0, STATE_MAX_TEXT_BYTES - used - 1)
+        if len(line) > remaining:
+            lines.append(line[:remaining].decode("utf-8", errors="ignore"))
+            output_truncated = True
+            break
+        lines.append(line.decode())
+        used += len(line) + 1
+    if output_truncated:
+        lines.append("[output budget reached; observe the relevant element subtree]")
     if truncated:
-        lines.append("[tree truncated by element/time budget]")
-    return "\n".join(lines)
+        lines.append("[driver snapshot incomplete; observe the relevant window or subtree again]")
+    return "\n".join(lines), truncated or output_truncated
 
 
 def _op_state(payload: dict) -> dict:
@@ -393,13 +396,14 @@ def _op_state(payload: dict) -> dict:
     observed = _Observed(elements, window_info)
     _store_observation(pid, resolved_window_id, observed)
     truncated = truncated or window_info.get("driver_complete") is False
+    state, truncated = _render_tree(rows, window_info, truncated)
     result: dict[str, Any] = {
         "pid": pid,
         "snapshot_id": observed.snapshot_id,
         "window": window_info,
         "element_count": len(rows),
         "truncated": truncated,
-        "state": _render_tree(rows, window_info, truncated),
+        "state": state,
     }
     if subtree:
         result["subtree"] = True
@@ -652,7 +656,7 @@ def _type_text(text: str, pid: int, window_id: int | None) -> dict:
 
 
 def _op_type(payload: dict) -> dict:
-    """输入文本。带元素索引时优先走免前台路径:AX/UIA 聚焦元素 →
+    """输入文本。带元素索引时优先走免前台路径:
     ValuePattern/EditableText 直写——后台窗口也能输入,绕开事件策略的
     foreground 门槛(实测 Chromium 地址框有 ValuePattern,直写即可)。
     不支持直写时，仅通过同一驱动向已观察的前台窗口输入。
@@ -672,10 +676,6 @@ def _op_type(payload: dict) -> dict:
     if index is not None:
         element = _resolve_index(pid, payload.get("window_id"), index)
         backend = _backend()
-        try:
-            backend.set_focus(element)
-        except Exception:  # noqa: BLE001 - 聚焦尽力而为,直写不依赖它
-            pass
         try:
             delivery = backend.set_value(element, text)
             return {
@@ -703,6 +703,7 @@ def _op_type(payload: dict) -> dict:
                 f"{exc.detail}; element is not directly settable — "
                 "activate the window (action=activate) first, or use set_value on a settable element",
             ) from exc
+        backend.set_focus(element)
         delivery = _type_text(text, pid, payload.get("window_id"))
         return {"ok": True, "strategy": "agent-desktop", "method": "focused-typing", **delivery}
 
@@ -846,6 +847,8 @@ def _op_action(payload: dict) -> dict:
     action = payload.get("action")
     if not isinstance(action, str) or not action:
         raise CuaOpError("invalid_arguments", "action required (name from the tree's actions=)")
+    if action in {"Focus", "SetFocus", "focus", "Hover"}:
+        _require_observed_window_foreground(pid, payload.get("window_id"))
     element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
     try:
         delivery = backend.perform(element, action)

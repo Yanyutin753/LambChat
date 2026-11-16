@@ -355,7 +355,8 @@ class AgentDesktopBackend:
         if action not in commands:
             raise KeyError(action)
         self._enable_cursor()
-        return self._call(commands[action], self._reference(element))
+        prefix = ("--headed",) if commands[action] in {"focus", "hover"} else ()
+        return self._call(*prefix, commands[action], self._reference(element))
 
     def set_value(self, element: dict, text: str) -> dict:
         self._enable_cursor()
