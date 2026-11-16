@@ -29,6 +29,15 @@ $field = New-Object System.Windows.Forms.TextBox
 $field.AccessibleName = 'Acceptance text'
 $field.Location = New-Object System.Drawing.Point(20,40)
 $field.Width = 540
+$keys = New-Object 'System.Collections.Generic.List[string]'
+$field.Add_KeyDown({ param($sender, $event) $keys.Add([string]$event.KeyData) })
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 100
+$timer.Add_Tick({
+    $state = @{ text = $field.Text; start = $field.SelectionStart; length = $field.SelectionLength; keys = @($keys.ToArray()) } | ConvertTo-Json
+    [IO.File]::WriteAllText((Join-Path $env:LAMBCHAT_CUA_FIXTURE 'input.json'), $state)
+})
+$timer.Start()
 $check = New-Object System.Windows.Forms.CheckBox
 $check.Text = 'Enable option'
 $check.Location = New-Object System.Drawing.Point(20,90)
@@ -166,6 +175,20 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                     action="Focus",
                 )
                 await call("cua_key", text="ctrl+a")
+                async with asyncio.timeout(3):
+                    while True:
+                        try:
+                            selection = json.loads(
+                                (root / "input.json").read_text(encoding="utf-8")
+                            )
+                            report["selection_after_ctrl_a"] = selection
+                            if selection["start"] == 0 and selection["length"] == len(
+                                selection["text"]
+                            ):
+                                break
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            pass
+                        await asyncio.sleep(0.1)
                 expected = "Windows 原生输入 😀 {ENTER}+^%"
                 await call("cua_type", text=expected)
                 state = await call("cua_state")
