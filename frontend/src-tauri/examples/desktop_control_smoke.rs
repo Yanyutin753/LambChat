@@ -57,12 +57,23 @@ fn fixture_status(
             let token = app.state::<FixtureToken>();
             desktop_control::receive(&app, &token.0, serde_json::json!({"state":"ended"}));
             let handle = app.clone();
-            app.run_on_main_thread(move || {
-                let hidden = handle.webview_windows().iter().filter(|(label, _)| label.starts_with("cua-"))
-                    .all(|(_, window)| window.is_visible().ok() == Some(false));
+            std::thread::spawn(move || {
+                // GTK applies hide on a later event-loop iteration.
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+                let hidden = loop {
+                    let hidden = handle
+                        .webview_windows()
+                        .iter()
+                        .filter(|(label, _)| label.starts_with("cua-"))
+                        .all(|(_, window)| window.is_visible().ok() == Some(false));
+                    if hidden || std::time::Instant::now() >= deadline {
+                        break hidden;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                };
                 eprintln!("control-surface-report displays={} geometry={geometry_ok} terminal_hidden={hidden}", monitors.len());
                 finish(&handle, if ok && geometry_ok && hidden { 0 } else { 1 });
-            }).map_err(|e| e.to_string())?;
+            });
         }
         return Ok("reported".into());
     }
