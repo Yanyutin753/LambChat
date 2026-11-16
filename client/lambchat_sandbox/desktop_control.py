@@ -70,7 +70,9 @@ class DesktopControl:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.paused = True
+                # Idle transport loss is not user takeover; interrupted operations stay paused.
+                if self.active is not None:
+                    self.paused = True
                 await self.finish("disconnected")
 
         self.watcher = asyncio.create_task(watch())

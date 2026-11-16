@@ -97,7 +97,69 @@ async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure)
     assert control.owner is None
     assert control.watcher is None
     assert events[-1]["reason"] == ("disconnected" if failure else "completed")
-    assert control.paused is failure
+    assert not control.paused
+
+
+@pytest.mark.parametrize("user_paused", [False, True])
+async def test_idle_disconnect_rebind_preserves_user_takeover_without_inventing_it(user_paused):
+    from unittest.mock import AsyncMock
+
+    ended = asyncio.Event()
+    events = []
+
+    def emit(event):
+        events.append(event)
+        if event["state"] == "ended":
+            ended.set()
+
+    client = AsyncMock()
+    client.control_active.side_effect = [True, OSError("offline"), True]
+    control = DesktopControl(emit)
+    assert await control.bind("session", "run", client)
+    if user_paused:
+        control.command({"action": "pause"})
+    await asyncio.wait_for(ended.wait(), 3)
+    assert events[-1] == {"state": "ended", "reason": "disconnected"}
+    assert await control.bind("session", "run", client)
+    try:
+        assert control.paused is user_paused
+        assert control.needs_observation
+        action = AsyncMock(return_value={"ok": True})
+        result = await control.execute("cua_type", action)
+        assert result["error"] == (
+            "desktop_control_paused" if user_paused else "observation_required"
+        )
+        action.assert_not_awaited()
+    finally:
+        await control.finish("completed")
+
+
+async def test_disconnect_during_active_operation_keeps_pause_after_rebind():
+    from unittest.mock import AsyncMock
+
+    events = []
+    ended = asyncio.Event()
+
+    def emit(event):
+        events.append(event)
+        if event["state"] == "ended":
+            ended.set()
+
+    client = AsyncMock()
+    client.control_active.side_effect = [True, OSError("offline"), True]
+    control = DesktopControl(emit)
+    assert await control.bind("session", "run", client)
+    control.needs_observation = False
+    operation = asyncio.create_task(control.execute("cua_type", asyncio.Event().wait))
+    await asyncio.sleep(0)
+    control.command({"action": "permit", "request": events[-1]["request"], "allowed": True})
+    await asyncio.wait_for(ended.wait(), 3)
+    assert (await operation)["error"] == "desktop_control_ended"
+    assert await control.bind("session", "run", client)
+    try:
+        assert control.paused
+    finally:
+        await control.finish("completed")
 
 
 async def test_local_takeover_survives_execution_end_and_new_execution():

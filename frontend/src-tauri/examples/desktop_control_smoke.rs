@@ -29,7 +29,15 @@ fn fixture_status(
     if let Some(report) = report {
         eprintln!("control-fixture-report {report}");
         if report["phase"].as_str() == Some("start") {
+            // The undecorated GTK surface has no frame; compositor frame extents can stay 1x1.
+            #[cfg(target_os = "linux")]
+            let (position, size) = (
+                window.inner_position().map_err(|e| e.to_string())?,
+                window.inner_size().map_err(|e| e.to_string())?,
+            );
+            #[cfg(not(target_os = "linux"))]
             let position = window.outer_position().map_err(|e| e.to_string())?;
+            #[cfg(not(target_os = "linux"))]
             let size = window.outer_size().map_err(|e| e.to_string())?;
             // WebKit can finish loading before GTK maps the native window.
             if size.width <= 1 || size.height <= 1 {
