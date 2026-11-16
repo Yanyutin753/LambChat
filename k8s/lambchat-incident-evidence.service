@@ -1,0 +1,16 @@
+[Unit]
+Description=LambChat read-only network incident evidence
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /data/lambchat-k8s/incident_evidence.py
+TimeoutStartSec=120
+KillMode=control-group
+UMask=0077
+StateDirectory=lambchat-incident-evidence
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true

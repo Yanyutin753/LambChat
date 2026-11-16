@@ -120,6 +120,27 @@ k3s、MongoDB 和 Redis 的本机连接。API 超时本身不能证明 kine/SQLi
 `nft list ruleset`、路由与 conntrack 状态，再判断是回环 INPUT、容器桥还是服务故障。
 不要自动重启数据库、清空防火墙或重启整机来替代诊断；保留公网访问控制和恢复证据。
 
+`k8s/scripts/incident_evidence.py` 通过 systemd timer 检查本机 MongoDB/Redis TCP。
+连接失败时保存启动周期、路由、防火墙和服务日志；每个诊断命令最多 8 秒，整个服务最多
+120 秒。同一故障最多每分钟一份，保留最近 20 份，目录仅 root 可读。它不会重启服务、
+修改网络规则或自动修复数据库；TCP 可连接也不能证明应用协议或公网链路正常。
+
+在服务器安装或更新现有取证服务：
+
+```bash
+install -m 0644 k8s/scripts/incident_evidence.py /data/lambchat-k8s/incident_evidence.py
+install -m 0644 k8s/lambchat-incident-evidence.{service,timer} /etc/systemd/system/
+systemd-analyze verify /etc/systemd/system/lambchat-incident-evidence.{service,timer}
+systemctl daemon-reload
+systemctl enable --now lambchat-incident-evidence.timer
+systemctl start lambchat-incident-evidence.service
+```
+
+用 `systemctl status lambchat-incident-evidence.timer` 检查调度，故障文件位于
+`/var/lib/lambchat-incident-evidence/`。停止采集用
+`systemctl disable --now lambchat-incident-evidence.timer`，保留证据文件。
+不要与旧的 `/root/incident-evidence-collector.sh` 循环同时运行；切换前确认旧进程已退出。
+
 ## 自定义实例与 staging
 
 ```bash
