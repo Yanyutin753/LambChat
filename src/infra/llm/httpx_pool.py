@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -60,9 +61,9 @@ def _spawn_close_task(target: Any) -> None:
                 logger.debug(f"Failed to close LLM client connections: {exc}")
 
     try:
-        task = asyncio.ensure_future(target.aclose())
+        task = contextvars.Context().run(asyncio.ensure_future, target.aclose())
         _close_tasks.add(task)
-        task.add_done_callback(_on_close_done)
+        task.add_done_callback(_on_close_done, context=contextvars.Context())
     except Exception as e:
         logger.debug(f"Failed to close LLM client connections: {e}")
 
@@ -83,7 +84,8 @@ def _schedule_graceful_close(registry: dict[Any, _RetiredClient], key: Any, targ
         _spawn_close_task(target)
         return
     grace = _close_grace_seconds()
-    timer = loop.call_later(grace, _fire)
+    # Retired clients must not retain the evicting agent's request context for the grace period.
+    timer = loop.call_later(grace, _fire, context=contextvars.Context())
     registry[key] = _RetiredClient(client=target, timer=timer)
 
 
