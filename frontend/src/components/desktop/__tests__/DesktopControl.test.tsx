@@ -8,11 +8,15 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, setSize } = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  setSize: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
     startDragging: vi.fn().mockResolvedValue(undefined),
+    setSize,
   }),
 }));
 vi.mock("react-i18next", () => ({
@@ -22,6 +26,7 @@ import { DesktopControl } from "../DesktopControl";
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  setSize.mockResolvedValue(undefined);
 });
 test("screen indicator acknowledges paint but exposes no takeover controls", async () => {
   invoke.mockResolvedValue("active");
@@ -33,9 +38,9 @@ test("screen indicator acknowledges paint but exposes no takeover controls", asy
   );
   expect(screen.queryByRole("button")).toBeNull();
   expect(container.querySelector(".desktop-control-overlay")).not.toBeNull();
-  expect(container.querySelector(".desktop-control-overlay")).toHaveTextContent(
-    "desktopControl.active",
-  );
+  expect(
+    container.querySelector(".desktop-control-overlay"),
+  ).toBeEmptyDOMElement();
   expect(invoke).not.toHaveBeenCalledWith(
     "desktop_control_set_paused",
     expect.anything(),
@@ -123,4 +128,20 @@ test("takeover action describes the current ownership and next step", async () =
   expect(
     screen.getByRole("button", { name: "desktopControl.pause" }),
   ).toHaveAccessibleDescription(/desktopControl.active.*desktopControl.hint/);
+});
+
+test("active toolbar stays compact and expands for takeover guidance", async () => {
+  invoke.mockResolvedValue("active");
+  render(<DesktopControl />);
+  await waitFor(() =>
+    expect(setSize).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 460, height: 56 }),
+    ),
+  );
+  invoke.mockResolvedValue("paused");
+  await waitFor(() =>
+    expect(setSize).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 460, height: 96 }),
+    ),
+  );
 });

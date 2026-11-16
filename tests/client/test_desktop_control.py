@@ -478,3 +478,42 @@ async def test_takeover_after_permit_before_dispatch_never_starts_input(stop):
     if stop == "disconnected":
         assert result["retry"] == "observe_first"
         assert result["disposition"] == "not_started"
+
+
+async def test_fresh_empty_inventory_allows_launch_but_never_input():
+    from unittest.mock import AsyncMock
+
+    def acknowledge(event):
+        if event.get("state") == "request":
+            control.command({"action": "permit", "request": event["request"], "allowed": True})
+
+    control = DesktopControl(acknowledge)
+    control.needs_observation = True
+    await control.execute("cua_apps", AsyncMock(return_value={"apps": []}))
+    action = AsyncMock(return_value={"launched": True})
+    assert await control.execute("cua_launch", action) == {"launched": True}
+    assert action.await_count == 1
+    assert (await control.execute("cua_click", action))["error"] == "observation_required"
+    assert (await control.execute("cua_launch", action))["error"] == "observation_required"
+    assert action.await_count == 1
+
+
+@pytest.mark.parametrize("invalidate", ["pause", "failed_discovery"])
+async def test_inventory_cannot_authorize_launch_after_takeover_or_failed_discovery(invalidate):
+    from unittest.mock import AsyncMock
+
+    def acknowledge(event):
+        if event.get("state") == "request":
+            control.command({"action": "permit", "request": event["request"], "allowed": True})
+
+    control = DesktopControl(acknowledge)
+    control.needs_observation = True
+    await control.execute("cua_apps", AsyncMock(return_value={"apps": []}))
+    if invalidate == "pause":
+        control.command({"action": "pause"})
+        control.command({"action": "resume"})
+    else:
+        await control.execute("cua_apps", AsyncMock(return_value={"error": "access_denied"}))
+    action = AsyncMock()
+    assert (await control.execute("cua_launch", action))["error"] == "observation_required"
+    action.assert_not_awaited()

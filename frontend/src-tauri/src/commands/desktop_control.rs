@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder}
 const LABEL: &str = "cua-control";
 const OVERLAY_PREFIX: &str = "cua-overlay-";
 const CONTROL_WIDTH: f64 = 460.0;
-const CONTROL_HEIGHT: f64 = 112.0;
+const CONTROL_HEIGHT: f64 = 56.0;
 #[derive(Default)]
 pub struct DesktopControl(Mutex<Control>);
 #[derive(Default)]
@@ -196,7 +196,10 @@ fn takeover_position(
 ) -> tauri::PhysicalPosition<i32> {
     tauri::PhysicalPosition::new(
         area.position.x + (area.size.width.saturating_sub(size.width) / 2) as i32,
-        area.position.y + (area.size.height.saturating_sub(size.height) as i32 - margin).max(0),
+        area.position.y
+            + margin
+                .max(0)
+                .min(area.size.height.saturating_sub(size.height) as i32),
     )
 }
 
@@ -280,13 +283,13 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
                 label,
                 WebviewUrl::App("cua-control.html?surface=overlay".into()),
             );
-            // CSS cannot blur other applications behind a transparent webview.
+            // Acrylic ignores the tint on newer Windows and can obscure the entire desktop.
             #[cfg(target_os = "windows")]
             {
                 builder = builder.effects(
                     tauri::window::EffectsBuilder::new()
-                        .effect(tauri::window::Effect::Acrylic)
-                        .color(tauri::window::Color(0, 0, 0, 32))
+                        .effect(tauri::window::Effect::Blur)
+                        .color(tauri::window::Color(0, 0, 0, 0))
                         .build(),
                 );
             }
@@ -492,7 +495,7 @@ mod tests {
         };
         assert_eq!(
             takeover_position(area, tauri::PhysicalSize::new(460, 112), 24),
-            tauri::PhysicalPosition::new(-1190, 904)
+            tauri::PhysicalPosition::new(-1190, 48)
         );
         let small = tauri::PhysicalRect {
             position: tauri::PhysicalPosition::new(0, 0),

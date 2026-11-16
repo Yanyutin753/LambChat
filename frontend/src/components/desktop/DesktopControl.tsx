@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { Monitor, Pause, Play, GripVertical } from "lucide-react";
@@ -43,6 +44,13 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
   const paused = state === "paused";
   const unavailable =
     state === "disconnected" || state === "unavailable" || state === "ended";
+  const expanded = paused || unavailable || error || state === "stopping";
+  useEffect(() => {
+    if (overlay) return;
+    void getCurrentWindow()
+      .setSize(new LogicalSize(460, expanded ? 96 : 56))
+      .catch(() => setError(true));
+  }, [overlay, expanded]);
   const change = async (pause: boolean) => {
     setBusy(true);
     try {
@@ -61,19 +69,13 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
         className={`desktop-control-overlay${
           paused || unavailable || error ? " is-inactive" : ""
         }`}
-      >
-        <div className="desktop-control-cover-message">
-          <Monitor aria-hidden="true" size={48} />
-          <span>LambChat</span>
-          <strong>{t(`desktopControl.${state || "waiting"}`)}</strong>
-          <p>{t("desktopControl.hint")}</p>
-        </div>
-      </div>
+      />
     );
   }
   return (
     <main
       className="desktop-control"
+      aria-label={t("desktopControl.title")}
       data-state={error ? "unavailable" : state}
       onKeyDown={(event) => {
         if (event.key === "Escape" && !paused && !busy) {
@@ -99,7 +101,6 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
           <Monitor aria-hidden="true" size={18} />
         </span>
         <div className="desktop-control-copy">
-          <strong>{t("desktopControl.title")}</strong>
           <p id={statusId} role="status">
             {t(`desktopControl.${state || "waiting"}`)}
           </p>
@@ -123,6 +124,7 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
       <p
         id={hintId}
         className="desktop-control-hint"
+        hidden={!expanded}
         role={error ? "alert" : undefined}
       >
         {t(

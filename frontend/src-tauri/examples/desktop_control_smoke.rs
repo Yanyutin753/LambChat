@@ -53,12 +53,10 @@ fn fixture_status(
                 - i64::from(area.size.width))
             .abs()
                 <= 2;
-            let bottom_gap = i64::from(area.position.y) + i64::from(area.size.height)
-                - i64::from(position.y)
-                - i64::from(size.height);
-            let placed = centered
-                && (bottom_gap - (24.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
-            eprintln!("control-toolbar-placement position={position:?} size={size:?} bottom_gap={bottom_gap} ok={placed}");
+            let top_gap = i64::from(position.y) - i64::from(area.position.y);
+            let placed =
+                centered && (top_gap - (24.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
+            eprintln!("control-toolbar-placement position={position:?} size={size:?} top_gap={top_gap} ok={placed}");
             if !placed {
                 finish(&app, 1);
                 return Err("Control toolbar is not centered inside the work area".into());
