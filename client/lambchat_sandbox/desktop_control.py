@@ -226,10 +226,11 @@ class DesktopControl:
                 return self._paused_result()
             raise
         finally:
-            if self.pausing is not None:
-                await asyncio.shield(self.pausing)
+            # Channel cancellation must not leave a finished input blocking local resume.
             self.pending = None
             self.active = None
+            if self.pausing is not None:
+                await asyncio.shield(self.pausing)
             self.emit(
                 {"state": "ended", "reason": self.ended}
                 if self.ended
