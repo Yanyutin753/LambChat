@@ -30,6 +30,7 @@ from src.api.routes import (
     channel_webhook,
     channels,
     chat,
+    desktop_control,
     envvar,
     feedback,
     github,
@@ -847,6 +848,7 @@ def create_app() -> FastAPI:
     )
     # Sandbox daemon 中继: /api/sandbox channel/results/status
     app.include_router(sandbox.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.include_router(desktop_control.router, prefix="/api/sandbox", tags=["Sandbox"])
     # WebSocket 路由: /ws 用于实时通知
     app.include_router(websocket.router, tags=["WebSocket"])
 

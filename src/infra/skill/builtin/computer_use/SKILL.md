@@ -14,6 +14,10 @@ for supported operations; use computer_use for the user's existing desktop sessi
 Do not start a replacement browser profile or edit an open document behind its app.
 
 1. Read status/capabilities, identify the target with apps/windows, then observe state.
+   Start with include_screenshot=false. Truncation does not invalidate visible controls:
+   if the target and necessary options are present, use their current indices directly.
+   Inspect a relevant subtree only when required content is missing. Do not request an image merely
+   because computer control is active.
    Reuse observations while valid; request screenshots when layout or visual evidence
    is needed, not after every semantic operation.
 2. Prefer observed accessibility elements and supported actions over coordinates.
@@ -32,6 +36,8 @@ Do not start a replacement browser profile or edit an open document behind its a
 5. Verify the requested outcome in app state or the resulting artifact. Preserve user
    drafts and report remaining uncertainty. On desktop_control_unavailable, no action
    started: diagnose control readiness; do not bypass the control UI or its permission gate.
+   On desktop_control_ended or desktop_control_busy, stop: the owning run ended or
+   another execution owns the desktop. Do not retry inputs or bypass the ownership gate.
 
 Use the actual tool schema, not upstream agent-desktop CLI flags. The daemon owns
 capture exclusion, input serialization and cancellation. Do not disable these protections,

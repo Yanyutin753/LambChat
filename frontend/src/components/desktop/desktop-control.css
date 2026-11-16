@@ -1,3 +1,15 @@
+.desktop-control-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 3px solid var(--theme-ring);
+  background: transparent;
+}
+.desktop-control-overlay.is-inactive {
+  display: none;
+}
+
 .desktop-control {
   box-sizing: border-box;
   min-height: 100vh;

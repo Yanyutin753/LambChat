@@ -19,6 +19,28 @@ class _FakeElement:
         self.children = children or []
 
 
+def test_snapshot_pins_its_window_when_another_window_was_observed(fake_backend, monkeypatch):
+    original = fake_backend.pick_window
+
+    def pick(pid, window_id):
+        element, window = original(pid, None)
+        return element, {**window, "window_id": window_id or 0}
+
+    monkeypatch.setattr(fake_backend, "pick_window", pick)
+    first = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "window_id": 0})
+    cua_ops.handle_cua_op("cua_state", {"pid": 4242, "window_id": 1})
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": first["snapshot_id"],
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert "error" not in result
+    assert fake_backend.performed
+
+
 class _FakeBackend:
     platform_name = "fake"
 
@@ -1183,3 +1205,74 @@ def test_focus_lost_during_capture_discards_pixels(fake_backend, monkeypatch):
     assert result["screenshot"]["error"] == "foreground_required"
     assert "data_b64" not in result["screenshot"]
     assert cua_ops._get_observation(4242, None).screenshot is None
+
+
+def test_hidden_rows_do_not_exhaust_visible_budget_or_hide_visible_descendants(
+    fake_backend, monkeypatch
+):
+    target = _FakeElement("button", "Answer")
+    hidden_parent = _FakeElement("group", "hidden layout", [target])
+    offscreen = _FakeElement("button", "Below fold")
+    hidden = [hidden_parent, *[_FakeElement("button", "hidden template") for _ in range(10)]]
+    fake_backend.window.children = [*hidden, offscreen]
+    original = fake_backend.row_of
+
+    def row_of(element):
+        row = original(element)
+        if element in hidden or element is fake_backend.window:
+            row["states"] = ["hidden"]
+        elif element is offscreen:
+            row["states"] = ["offscreen"]
+        return row
+
+    monkeypatch.setattr(fake_backend, "row_of", row_of)
+    monkeypatch.setattr(cua_ops, "STATE_MAX_ELEMENTS", 3)
+    state = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert not state["truncated"]
+    assert "hidden template" not in state["state"]
+    assert "[0] AXWindow" in state["state"]
+    assert "[2] button 'Below fold'" in state["state"]
+    assert "[1] button 'Answer'" in state["state"]
+    clicked = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": state["snapshot_id"],
+            "target": {"type": "element", "index": 1},
+        },
+    )
+    assert "error" not in clicked
+    assert fake_backend.performed[-1][0] is target
+
+
+def test_on_screen_controls_take_budget_before_offscreen_content(fake_backend, monkeypatch):
+    target = _FakeElement("button", "Visible answer")
+    offscreen = [_FakeElement("text", f"Footer {index}") for index in range(10)]
+    parent = _FakeElement("group", "Question", [target])
+    fake_backend.window.children = [*offscreen, parent]
+    original = fake_backend.row_of
+
+    def row_of(element):
+        row = original(element)
+        if element in offscreen:
+            row["states"] = ["offscreen"]
+        return row
+
+    monkeypatch.setattr(fake_backend, "row_of", row_of)
+    monkeypatch.setattr(cua_ops, "STATE_MAX_ELEMENTS", 4)
+    state = cua_ops.handle_cua_op("cua_state", {"pid": 4242})
+    assert state["truncated"]
+    assert "Visible answer" in state["state"]
+    assert "Footer 0" in state["state"]
+    observation = cua_ops._get_observation(4242, None)
+    index = observation.elements.index(target)
+    result = cua_ops.handle_cua_op(
+        "cua_click",
+        {
+            "pid": 4242,
+            "snapshot_id": state["snapshot_id"],
+            "target": {"type": "element", "index": index},
+        },
+    )
+    assert "error" not in result
+    assert fake_backend.performed[-1][0] is target

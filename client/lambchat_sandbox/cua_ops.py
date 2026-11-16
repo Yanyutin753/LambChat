@@ -22,6 +22,7 @@ import math
 import os
 import time
 import uuid
+from collections import deque
 from contextvars import ContextVar
 from threading import Lock
 from typing import Any
@@ -283,14 +284,17 @@ def _store_observation(pid: int, window_id: int | None, observed: _Observed) -> 
         _OBSERVATIONS[key] = observed
 
 
-def _get_observation(pid: int, window_id: int | None) -> _Observed:
+def _get_observation(pid: int, window_id: int | None, snapshot_id: str | None = None) -> _Observed:
     with _OBSERVATION_LOCK:
         if window_id is not None:
             observed = _OBSERVATIONS.get(_cache_key(pid, window_id))
         else:
             # 索引寻址该应用**最近一次**观察(未显式钉窗口时),与 ZCode 语义一致
             candidates = [
-                v for k, v in _OBSERVATIONS.items() if k[:2] == (_OBSERVATION_SESSION.get(), pid)
+                v
+                for k, v in _OBSERVATIONS.items()
+                if k[:2] == (_OBSERVATION_SESSION.get(), pid)
+                and (snapshot_id is None or v.snapshot_id == snapshot_id)
             ]
             observed = max(candidates, key=lambda v: v.ts) if candidates else None
     if observed is None or time.monotonic() - observed.ts > ELEMENT_CACHE_TTL:
@@ -345,26 +349,39 @@ def _walk_tree(root: Any) -> tuple[list[dict[str, Any]], list[Any], bool]:
     deadline = time.monotonic() + STATE_TIME_BUDGET
     rows: list[dict[str, Any]] = []
     elements: list[Any] = []
+    offscreen: list[tuple[dict[str, Any], Any]] = []
     truncated = False
-    queue: list[tuple[Any, int]] = [(root, 0)]
+    queue = deque([(root, 0)])
     while queue:
         if len(rows) >= STATE_MAX_ELEMENTS or time.monotonic() > deadline:
             truncated = True
             break
-        element, depth = queue.pop(0)
+        element, depth = queue.popleft()
         try:
             row = backend.row_of(element)
         except CuaOpError:
             raise
         except Exception:  # noqa: BLE001 - 单元素元数据失败跳过不中断
             continue
-        row["depth"] = depth
-        rows.append(row)
-        elements.append(element)
+        if depth == 0 or "hidden" not in (row.get("states") or []):
+            row["depth"] = depth
+            if depth and "offscreen" in (row.get("states") or []):
+                if len(offscreen) < STATE_MAX_ELEMENTS:
+                    offscreen.append((row, element))
+                else:
+                    truncated = True
+            else:
+                rows.append(row)
+                elements.append(element)
         if depth >= 30:
             continue
         for child in backend.children(element):
             queue.append((child, depth + 1))
+    remaining = STATE_MAX_ELEMENTS - len(rows)
+    truncated = truncated or len(offscreen) > remaining
+    for row, element in offscreen[:remaining]:
+        rows.append(row)
+        elements.append(element)
     return rows, elements, truncated
 
 
@@ -1095,9 +1112,11 @@ def handle_cua_op(op: str, payload: dict) -> dict:
             or payload.get("coordinate_space") == "screenshot"
         ):
             pid = _resolve_app_ref(payload)
-            observed = _get_observation(pid, payload.get("window_id"))
+            observed = _get_observation(pid, payload.get("window_id"), payload.get("snapshot_id"))
             if payload.get("snapshot_id") != observed.snapshot_id:
                 raise CuaOpError("stale_state", "snapshot replaced; observe again before acting")
+            # A snapshot names its window even after observing another window of this app.
+            payload = {**payload, "window_id": observed.window.get("window_id")}
             if payload.get("coordinate_space") == "screenshot":
                 screenshot = observed.screenshot
                 if not screenshot or not screenshot.get("width") or not screenshot.get("height"):

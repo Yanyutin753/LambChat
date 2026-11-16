@@ -1,5 +1,7 @@
 {
   "desktopControl": {
+    "busyHint": "Another task owns the computer, or this task has ended. Do not replay input.",
+    "ended": "Computer control ended",
     "pausedHint": "Computer control is paused. Resume in the floating control window when you are ready.",
     "unavailableHint": "The control window is unavailable; no computer action was started.",
     "foregroundHint": "The target window is no longer in front. Finish your interaction before letting the Agent continue.",
@@ -14,8 +16,8 @@
     "unavailable": "Control window unavailable",
     "hint": "Use Pause before using the mouse or keyboard.",
     "resumeHint": "Resume lets the Agent observe again before continuing.",
-    "pause": "Pause and take over",
-    "resume": "Resume",
+    "pause": "Take control",
+    "resume": "Let Agent continue",
     "error": "Could not confirm control status. Please try again."
   },
   "assistants": {

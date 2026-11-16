@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 import sys
 
 import pytest
@@ -180,7 +181,7 @@ async def test_windows_worker_is_suspended_until_job_assignment(tmp_path, monkey
         await worker.close()
 
 
-async def test_job_close_reaps_worker_without_inspecting_terminated_process(monkeypatch):
+async def test_job_close_reaps_worker_without_inspecting_terminated_process(monkeypatch, tmp_path):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, Mock
 
@@ -191,6 +192,7 @@ async def test_job_close_reaps_worker_without_inspecting_terminated_process(monk
     worker._process = process
     worker._job = 456
     state = Mock()
+    state.name = str(tmp_path)
     worker._state = state
     close_handle = Mock()
     monkeypatch.setattr(executor, "_winapi", SimpleNamespace(close_handle=close_handle))
@@ -253,3 +255,60 @@ async def test_local_takeover_kills_native_worker_before_acknowledging_pause(wor
     finally:
         task.cancel()
         await worker.close()
+
+
+async def test_close_ends_only_owned_driver_sessions_after_reaping_input(worker, monkeypatch):
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from lambchat_sandbox import agent_desktop
+
+    await worker.call("cua_state", {}, timeout=5)
+    process = worker._process
+    driver_home = Path(worker._state.name) / "driver"
+    driver_home.mkdir()
+    calls = []
+
+    def run(args, **kwargs):
+        assert process.returncode is not None
+        assert driver_home.is_dir()
+        assert kwargs["env"]["AGENT_DESKTOP_HOME"] == str(driver_home)
+        calls.append(args[1:])
+        data = (
+            {"sessions": [{"session_id": "owned-session"}]}
+            if args[1:] == ["session", "list"]
+            else {}
+        )
+        return SimpleNamespace(stdout=json.dumps({"ok": True, "data": data}))
+
+    monkeypatch.setattr(agent_desktop, "binary_path", lambda: Path(sys.executable))
+    monkeypatch.setattr(subprocess, "run", run)
+    await worker.close()
+    assert calls == [["session", "list"], ["session", "end", "owned-session"]]
+    assert not driver_home.exists()
+
+
+def test_driver_cursor_cleanup_is_bounded_and_does_not_scan_other_homes(
+    tmp_path, monkeypatch, caplog
+):
+    from types import SimpleNamespace
+
+    from lambchat_sandbox import agent_desktop, cua_worker
+
+    ticks = iter([0, 1, 4])
+    calls = []
+    monkeypatch.setattr(cua_worker.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(agent_desktop, "binary_path", lambda: tmp_path / "driver")
+
+    def run(args, **kwargs):
+        calls.append(args)
+        assert kwargs["timeout"] == 2
+        assert kwargs["env"]["AGENT_DESKTOP_HOME"] == str(tmp_path)
+        return SimpleNamespace(
+            stdout=json.dumps({"ok": True, "data": {"sessions": [{"session_id": "owned"}]}})
+        )
+
+    monkeypatch.setattr(cua_worker.subprocess, "run", run)
+    cua_worker._close_driver_sessions(tmp_path)
+    assert len(calls) == 1
+    assert "cleanup deadline exceeded" in caplog.text.lower()

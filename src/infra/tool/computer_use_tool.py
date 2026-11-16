@@ -316,7 +316,8 @@ async def computer_use(
     3. ``state`` to observe the accessibility tree. Element indices address the LATEST
        observation; every new ``state`` renumbers. Re-observe after a GUI change before
        using indices again. Read-only status/apps/windows/state calls do not require
-       another observation. For truncated trees, use ``state(index=...)`` on a known
+       another observation. If relevant content is missing from a truncated tree,
+       use ``state(index=...)`` on a known
        document/container; subtree indices replace the previous ones. Omit index to
        return to the full window. Screenshots still show the verified target window.
        If ``desktop_control_paused`` is returned, the local user has taken over:
@@ -336,7 +337,10 @@ async def computer_use(
        key/main window is re-resolved each observation — a just-opened modal becomes the
        captured window (check the ``window:`` header line first when things look wrong).
 
-    If the current tree and screenshot demonstrate the requested outcome,
+    Start with state(include_screenshot=false). If the tree alone identifies the target,
+    use its supported accessibility action. Request an image only for a specific visual
+    question or a control absent from the tree; a screenshot is not required to act.
+    If the current tree alone demonstrates the requested outcome,
     finish without more input or identical observations. Re-observe after a change
     or to resolve specific missing evidence, not to repeatedly reconfirm the same state.
     If a repeated observation provides no new evidence, change the approach or report
@@ -379,12 +383,10 @@ async def computer_use(
     browser activates accessibility — if ``state`` shows only window chrome, prefer URL
     navigation instead of trying to click into the page (e.g. open
     ``https://www.baidu.com/s?wd=<query>`` via ``launch`` for searches); address-bar
-    and browser chrome (tabs/buttons) are always visible. Firefox exposes page DOM
-    more readily. On Linux/Wayland launch browsers with
-    ``--ozone-platform=wayland --disable-gpu --force-renderer-accessibility`` plus a
-    fresh ``--user-data-dir`` (default X11 mode exits silently without XWayland);
-    pass the executable path (e.g. ``/usr/bin/microsoft-edge``) — bare names are
-    resolved from PATH.
+    and browser chrome may still be available. Inspect a relevant subtree when the
+    tree is truncated; if page controls remain unavailable, use a fresh screenshot
+    as a targeted fallback. Preserve the user's existing browser profile and session;
+    do not restart their browser or create a replacement profile to obtain accessibility.
 
     Hard rules:
     - For non-editable dropdowns, expand and commit the option using advertised actions;
@@ -479,6 +481,10 @@ async def computer_use(
         )
     )
     payload["session_id"] = session_id
+    configurable = (getattr(runtime, "config", None) or {}).get("configurable") or {}
+    run_id = configurable.get("run_id") or getattr(configurable.get("presenter"), "run_id", None)
+    if isinstance(run_id, str) and run_id:
+        payload["run_id"] = run_id
     async with _desktop_call_lock(user_id, selected_machine):
         policy = await _lookup_confirm_policy(user_id, selected_machine)
         read_only = action in ("status", "apps", "windows") or (

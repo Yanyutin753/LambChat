@@ -205,10 +205,9 @@ def test_zhipu_legacy_models_receive_nothing() -> None:
     assert model.reasoning_effort is None
 
 
-def test_zhipu_unverified_families_receive_nothing() -> None:
-    # glm-4.7 未在官方矩阵核实 → 不发送
+def test_zhipu_glm47_receives_documented_thinking_body() -> None:
     model = _openai_model("zhipu", "glm-4.7", ENABLED("low"))
-    assert not (model.extra_body or {})
+    assert model.extra_body["thinking"] == {"type": "enabled"}
 
 
 def test_zhipu_body_sent_to_openai_protocol_glm_hosting() -> None:
@@ -331,7 +330,7 @@ def test_anthropic_without_thinking_old_models_keep_caller_temperature() -> None
 
 
 def test_anthropic_protocol_third_party_models_receive_nothing() -> None:
-    for model_name in ("kimi-k2-instruct", "minimax-m2", "glm-4.7"):
+    for model_name in ("kimi-k2-instruct", "minimax-m2"):
         model = _anthropic_model(model_name, ENABLED("high"))
         assert model.thinking is None, model_name
         assert model.reasoning_effort is None, model_name
@@ -361,7 +360,7 @@ def test_zai_glm_without_thinking_config_sends_nothing() -> None:
 
 
 def test_zai_legacy_and_unverified_glm_receive_nothing() -> None:
-    for model_name in ("chatglm-3-turbo", "glm-4.7"):
+    for model_name in ("chatglm-3-turbo", "glm-4-plus"):
         model = _anthropic_model(model_name, ENABLED("low"), provider="zai")
         assert model.thinking is None, model_name
 
@@ -433,7 +432,7 @@ def test_model_supports_thinking_zhipu() -> None:
     assert model_supports_thinking("zhipu", "glm-4.6") is True
     assert model_supports_thinking("zhipu", "glm-4.5-air") is True
     assert model_supports_thinking("zhipu", "glm-5.3") is True
-    assert model_supports_thinking("zhipu", "glm-4.7") is False
+    assert model_supports_thinking("zhipu", "glm-4.7") is True
     assert model_supports_thinking("zhipu", "chatglm-3-turbo") is False
     # 第三方中转托管的 GLM 同样下发思考体（用户指示：全部供应商支持）
     assert model_supports_thinking("openai", "glm-4.6") is True
@@ -446,7 +445,7 @@ def test_model_supports_thinking_zai_anthropic_protocol() -> None:
     assert model_supports_thinking("zai", "glm-5.2") is True
     assert model_supports_thinking("zai", "glm-4.6") is True
     assert model_supports_thinking("zai", "glm-4.5-air") is True
-    assert model_supports_thinking("zai", "glm-4.7") is False
+    assert model_supports_thinking("zai", "glm-4.7") is True
     assert model_supports_thinking("zai", "chatglm-3-turbo") is False
 
 

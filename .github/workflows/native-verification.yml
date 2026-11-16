@@ -291,7 +291,7 @@ jobs:
           binary=frontend/src-tauri/target/debug/examples/desktop_control_smoke
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           if [ "$RUNNER_OS" = Linux ]; then
-            python3 scripts/run_validation.py xvfb-run -a "$binary" 2>&1 | tee desktop-control.log
+            python3 scripts/run_validation.py env GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a dbus-run-session -- "$binary" 2>&1 | tee desktop-control.log
           else
             python3 scripts/run_validation.py "$binary" 2>&1 | tee desktop-control.log
           fi
@@ -300,5 +300,8 @@ jobs:
         if: always()
         with:
           name: desktop-control-${{ matrix.os }}-${{ github.run_id }}
-          path: desktop-control.log
+          path: |
+            desktop-control.log
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke.exe
           if-no-files-found: warn

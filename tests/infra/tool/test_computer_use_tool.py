@@ -33,6 +33,28 @@ def test_workflow_observes_known_app_without_unnecessary_window_discovery():
     assert "Use windows when the target window is ambiguous" in description
 
 
+def test_accessibility_first_guide_preserves_existing_browser_session():
+    description = cut.computer_use.description
+    assert "include_screenshot=false" in description
+    assert "fresh ``--user-data-dir``" not in description
+    assert "tree alone" in description
+
+
+async def test_control_payload_binds_trusted_execution(monkeypatch):
+    captured = []
+
+    async def dispatch(user_id, op, payload, *, machine_id=None):
+        captured.append(payload)
+        return {"result": {"ok": True}}
+
+    monkeypatch.setattr(cut, "dispatch_local_call", dispatch)
+    runtime = _runtime()
+    runtime.config["configurable"]["run_id"] = "run-current"
+    await _call(action="apps", runtime=runtime)
+    assert captured[0]["run_id"] == "run-current"
+    assert captured[0]["session_id"] == "session-1"
+
+
 @pytest.fixture(autouse=True)
 def unattended_policy(monkeypatch):
     async def lookup(user_id, machine_id=None):
@@ -760,7 +782,7 @@ def test_nested_scroll_guidance_avoids_boundary_probe_chaining():
 
 def test_observation_guidance_stops_when_current_evidence_meets_the_goal():
     assert (
-        "If the current tree and screenshot demonstrate the requested outcome"
+        "If the current tree alone demonstrates the requested outcome"
         in cut.computer_use.description
     )
     assert "finish without more input or identical observations" in cut.computer_use.description

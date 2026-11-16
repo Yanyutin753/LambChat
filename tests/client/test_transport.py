@@ -30,6 +30,23 @@ PAT = "pat-secret-1"
 HEARTBEAT = ": heartbeat\n\n"
 
 
+@pytest.mark.parametrize(
+    "active,expected", [(True, True), (False, False), (1, False), ("true", False)]
+)
+async def test_control_lifecycle_uses_authenticated_bounded_request(active, expected):
+    def handler(request):
+        assert request.url.path == "/api/sandbox/control/status"
+        assert request.url.params["session_id"] == "session"
+        assert request.url.params["run_id"] == "run"
+        assert request.headers["authorization"] == "Bearer " + PAT
+        assert request.extensions["timeout"]["read"] == 3.0
+        return httpx.Response(200, json={"active": active})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ChannelClient(SERVER, PAT, client=http)
+        assert await client.control_active("session", "run") is expected
+
+
 def _frame(event: str, data: str) -> str:
     return f"event: {event}\ndata: {data}\n\n"
 
@@ -850,3 +867,39 @@ async def test_expired_stream_upload_assignment_does_not_disconnect_channel():
                 pytest.fail("expired upload must not start")
     finally:
         await client.close()
+
+
+@pytest.mark.parametrize("stage", ["ack", "done"])
+async def test_result_receipt_retries_one_lost_response_without_changing_call(stage):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return httpx.Response(200, json={"status": "ok"})
+
+    client = _channel_client(httpx.MockTransport(handler))
+    try:
+        await client.post_result("same-call", {"stage": stage, "status": "ok"})
+    finally:
+        await client.close()
+    assert len(requests) == 2
+    assert requests[0].url == requests[1].url
+    assert requests[0].content == requests[1].content
+
+
+async def test_result_receipt_retry_is_bounded():
+    attempts = []
+
+    def handler(request):
+        attempts.append(request)
+        raise httpx.RemoteProtocolError("lost response")
+
+    client = _channel_client(httpx.MockTransport(handler))
+    try:
+        with pytest.raises(httpx.RemoteProtocolError):
+            await client.post_result("same-call", {"stage": "done", "status": "ok"})
+    finally:
+        await client.close()
+    assert len(attempts) == 2

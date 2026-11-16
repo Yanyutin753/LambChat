@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Monitor, Pause, Play, GripHorizontal } from "lucide-react";
 import "./desktop-control.css";
 
-export function DesktopControl() {
+export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
   const { t } = useTranslation();
   const [state, setState] = useState("waiting");
   const [error, setError] = useState(false);
@@ -39,7 +39,8 @@ export function DesktopControl() {
     };
   }, []);
   const paused = state === "paused";
-  const unavailable = state === "disconnected" || state === "unavailable";
+  const unavailable =
+    state === "disconnected" || state === "unavailable" || state === "ended";
   const change = async (pause: boolean) => {
     setBusy(true);
     try {
@@ -51,6 +52,16 @@ export function DesktopControl() {
       setBusy(false);
     }
   };
+  if (overlay) {
+    return (
+      <div
+        aria-hidden="true"
+        className={`desktop-control-overlay${
+          paused || unavailable || error ? " is-inactive" : ""
+        }`}
+      />
+    );
+  }
   return (
     <main
       className="desktop-control"

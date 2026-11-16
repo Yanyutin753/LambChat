@@ -189,6 +189,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_denylist(&["cua-control"])
+                .with_filter(|label| !label.starts_with("cua-overlay-"))
                 .build(),
         )
         .setup(|app| {

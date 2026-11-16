@@ -129,12 +129,14 @@ def normalize_provider(provider: Optional[str]) -> str:
 
 
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
-# field (via model_kwargs). glm-4.7 未核实，不发送。
+# field (via extra_body).
 ZHIPU_THINKING_MODEL_PREFIXES = (
     "glm-4.5",
     "glm-4-5",
     "glm-4.6",
     "glm-4-6",
+    "glm-4.7",
+    "glm-4-7",
     "glm-5",
 )
 
