@@ -75,6 +75,8 @@ function ComputerUseDetail({
     {
       desktop_control_paused: "pausedHint",
       desktop_control_unavailable: "unavailableHint",
+      desktop_control_ended: "ended",
+      desktop_control_busy: "busyHint",
       foreground_required: "foregroundHint",
       stale_state: "staleHint",
       observation_required: "staleHint",

@@ -2198,3 +2198,77 @@ async def test_incomplete_upload_never_replaces_existing_file(tmp_path, invalid)
     assert client.posted[-1][1]["status"] == "error"
     assert target.read_bytes() == b"original report"
     assert list(target.parent.iterdir()) == [target]
+
+
+async def test_real_http_lost_receipts_keep_channel_processing_without_reexecution(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import httpx
+
+    from lambchat_sandbox.transport import ChannelClient
+
+    receipts = []
+    dropped = set()
+
+    async def serve(reader, writer):
+        try:
+            head = await reader.readuntil(b"\r\n\r\n")
+            length = next(
+                int(line.split(b":", 1)[1])
+                for line in head.split(b"\r\n")
+                if line.lower().startswith(b"content-length:")
+            )
+            body = json.loads(await reader.readexactly(length))
+            path = head.split(b" ")[1].decode()
+            receipts.append((path, body))
+            stage = body["stage"]
+            if path.endswith("/first") and stage not in dropped:
+                dropped.add(stage)
+                return
+            payload = b'{"status":"ok"}'
+            writer.write(
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
+                + str(len(payload)).encode()
+                + b"\r\n\r\n"
+                + payload
+            )
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    client = ChannelClient(
+        f"http://127.0.0.1:{port}", PAT, client=httpx.AsyncClient(trust_env=False)
+    )
+    worker = SimpleNamespace(call=AsyncMock(return_value={"ok": True}), close=AsyncMock())
+    monkeypatch.setattr(daemon_module, "_CUA_WORKER", worker)
+    try:
+        await asyncio.wait_for(
+            daemon_module._handle_channel(
+                client,
+                _aiter(
+                    [
+                        _fs_call("first", op="cua_click", payload={}),
+                        _fs_call("next", op="cua_click", payload={}),
+                    ]
+                ),
+                cfg=_cfg(),
+                executor=FakeExecutor(),
+                auditor=MemoryAuditor(),
+            ),
+            5,
+        )
+    finally:
+        await client.close()
+        server.close()
+        await server.wait_closed()
+    assert worker.call.await_count == 2
+    assert dropped == {"ack", "done"}
+    first = [body for path, body in receipts if path.endswith("/first")]
+    assert [body["stage"] for body in first] == ["ack", "ack", "done", "done"]
+    assert first[0] == first[1] and first[2] == first[3]
+    assert any(path.endswith("/next") and body["stage"] == "done" for path, body in receipts)

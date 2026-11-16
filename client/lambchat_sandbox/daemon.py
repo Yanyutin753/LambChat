@@ -373,6 +373,12 @@ async def _handle_channel(
         ) from None
     finally:
         await _CUA_WORKER.close()
+        from lambchat_sandbox.desktop_control import local_control
+
+        control = local_control(cleanup=_CUA_WORKER.close)
+        if control and control.owner:
+            control.paused = True
+            await control.finish("disconnected")
 
 
 def _transfer_path(call: ToolCall, cfg: SandboxConfig) -> Path | None:
@@ -691,7 +697,23 @@ async def _process_cua_call(
         )
 
     try:
-        control = local_control()
+        control = local_control(cleanup=_CUA_WORKER.close)
+        if control and call.payload.get("run_id"):
+            if not await control.bind(
+                call.payload.get("session_id", ""), call.payload["run_id"], client
+            ):
+                await client.post_result(
+                    call.call_id,
+                    {
+                        "stage": "done",
+                        "status": "ok",
+                        "result": {
+                            "error": "desktop_control_busy",
+                            "detail": "Control belongs to another or inactive execution",
+                        },
+                    },
+                )
+                return
         result = await control.execute(call.op, execute) if control else await execute()
     except Exception as exc:  # noqa: BLE001 - 单条 cua op 崩溃不拖垮通道
         await client.post_result(

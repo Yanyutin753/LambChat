@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import random
 from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
@@ -251,6 +252,18 @@ class ChannelClient:
         finally:
             await cm.__aexit__(None, None, None)
 
+    async def control_active(self, session_id: str, run_id: str) -> bool:
+        response = await self._client.get(
+            f"{self._base}/api/sandbox/control/status",
+            params={"session_id": session_id, "run_id": run_id},
+            headers=self._auth_headers(),
+            follow_redirects=False,
+            timeout=3.0,
+        )
+        await _raise_for_status(response, "control_status")
+        result = response.json()
+        return isinstance(result, dict) and result.get("active") is True
+
     async def post_result(self, call_id: str, body: dict[str, Any]) -> None:
         """回传执行结果；body 中值为 None 的字段按契约剔除（exclude_none）。
 
@@ -258,13 +271,25 @@ class ChannelClient:
         目标机一致（同用户多机防冒答）；不带只允许回传明确下发到 legacy 的调用。
         """
         machine_param = f"?machine_id={quote(self._machine_id)}" if self._machine_id else ""
-        response = await self._client.post(
-            f"{self._base}/api/sandbox/results/{quote(call_id, safe='')}{machine_param}",
-            json={k: v for k, v in body.items() if v is not None},
-            headers=self._auth_headers(),
-            follow_redirects=False,
-            timeout=POST_TIMEOUT_S,
-        )
+        # Retry only the receipt, never the desktop operation that produced it.
+        for attempt in range(2):
+            try:
+                response = await self._client.post(
+                    f"{self._base}/api/sandbox/results/{quote(call_id, safe='')}{machine_param}",
+                    json={k: v for k, v in body.items() if v is not None},
+                    headers=self._auth_headers(),
+                    follow_redirects=False,
+                    timeout=POST_TIMEOUT_S,
+                )
+                break
+            except httpx.RemoteProtocolError:
+                if attempt or body.get("stage") not in {"ack", "done"}:
+                    raise
+                logging.getLogger(__name__).warning(
+                    "Result response lost; retrying receipt once (call=%s, stage=%s)",
+                    call_id,
+                    body.get("stage"),
+                )
         if response.status_code == 409 and body.get("stage") == "done":
             # A timed-out call loses its assignment; a late reply must not tear down SSE.
             with contextlib.suppress(ValueError):

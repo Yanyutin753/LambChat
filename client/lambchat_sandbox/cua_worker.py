@@ -5,15 +5,54 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import signal
+import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import psutil
 
 _MAX_FRAME = 2 * 1024 * 1024
+
+
+def _close_driver_sessions(home: Path) -> None:
+    from lambchat_sandbox.agent_desktop import binary_path
+
+    binary = binary_path()
+    if binary is None or not home.is_dir():
+        return
+    deadline = time.monotonic() + 3
+
+    def command(*args: str) -> dict:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Driver session cleanup deadline exceeded")
+        result = subprocess.run(
+            [str(binary), "session", *args],
+            env={**os.environ, "AGENT_DESKTOP_HOME": str(home)},
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=remaining,
+            check=False,
+        )
+        envelope = json.loads(result.stdout)
+        if not isinstance(envelope, dict) or envelope.get("ok") is not True:
+            raise ValueError("Driver session cleanup failed")
+        return envelope["data"]
+
+    try:
+        for session in command("list")["sessions"]:
+            session_id = session["session_id"]
+            if not isinstance(session_id, str) or not session_id:
+                raise ValueError("Invalid driver session identity")
+            command("end", session_id)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
+        logging.getLogger(__name__).warning("Desktop cursor cleanup failed: %s", exc)
 
 
 def _worker_command() -> list[str]:
@@ -107,6 +146,7 @@ class CuaWorker:
 
     async def close(self) -> None:
         proc, self._process = self._process, None
+        state, self._state = self._state, None
         job_closed = self._job is not None
         if self._job is not None:
             from lambchat_sandbox import executor
@@ -115,9 +155,9 @@ class CuaWorker:
             executor._winapi.close_handle(self._job)
             self._job = None
         if proc is None:
-            if self._state is not None:
-                self._state.cleanup()
-                self._state = None
+            if state is not None:
+                await asyncio.to_thread(_close_driver_sessions, Path(state.name) / "driver")
+                state.cleanup()
             return
         # Closing the Windows Job already terminates its entire process tree.
         if not job_closed:
@@ -134,9 +174,10 @@ class CuaWorker:
                 with contextlib.suppress(ProcessLookupError):
                     proc.kill()
         await asyncio.wait_for(proc.wait(), timeout=5)
-        if self._state is not None:
-            self._state.cleanup()
-            self._state = None
+        if state is not None:
+            # Detached cursor helpers can survive the input worker process group.
+            await asyncio.to_thread(_close_driver_sessions, Path(state.name) / "driver")
+            state.cleanup()
 
 
 def worker_main() -> int:

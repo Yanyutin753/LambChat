@@ -606,3 +606,98 @@ def test_x11_unicode_keys_restore_mapping_even_when_injection_fails(monkeypatch,
         assert all(code != 13 for kind, code, symbol in events)
     assert mapping == {code: (0, 0) for code in range(10, 15)}
     assert closed == [True]
+
+
+@pytest.mark.parametrize(
+    "case", ["unique", "framed", "duplicate", "wrong_active", "hidden", "changed"]
+)
+def test_foreground_window_requires_unique_viewable_native_identity(window_capture, case):
+    import sys
+    from unittest.mock import MagicMock
+
+    connection, _ = window_capture
+    sys.modules["Xlib"].X.IsViewable = 2
+    connection.intern_atom.side_effect = lambda name: name
+    root = connection.screen.return_value.root
+    reads = 0
+
+    def prop(atom, kind):
+        nonlocal reads
+        if atom == "_NET_CLIENT_LIST":
+            return SimpleNamespace(value=[42, 43] if case == "duplicate" else [42])
+        reads += 1
+        return SimpleNamespace(
+            value=[99 if case == "wrong_active" or (case == "changed" and reads > 1) else 42]
+        )
+
+    root.get_full_property.side_effect = prop
+    windows = {}
+    for xid in [42, 43]:
+        window = MagicMock()
+        window.get_full_property.return_value = SimpleNamespace(value=[7])
+        window.get_attributes.return_value = SimpleNamespace(map_state=0 if case == "hidden" else 2)
+        window.get_geometry.return_value = SimpleNamespace(width=800, height=600)
+        window.query_tree.return_value.parent = root
+        windows[xid] = window
+    if case == "framed":
+        frame = MagicMock()
+        frame.id = 50
+        frame.get_geometry.return_value = SimpleNamespace(width=802, height=627)
+        frame.query_tree.return_value.parent = root
+        windows[42].query_tree.return_value.parent = frame
+        root.translate_coords.side_effect = lambda window, x, y: (
+            SimpleNamespace(x=9, y=-6) if window is frame else SimpleNamespace(x=10, y=20)
+        )
+    connection.create_resource_object.side_effect = lambda kind, xid: windows[xid]
+    result = cua_linux.foreground_window()
+    expected = {"pid": 7, "bounds": [10, 20, 800, 600]} if case in ("unique", "framed") else None
+    if case == "framed":
+        expected["frame_bounds"] = [9, -6, 802, 627]
+    assert result == expected
+    connection.close.assert_called_once()
+
+
+@pytest.mark.parametrize("case", ["confirmed", "ambiguous", "unconfirmed"])
+def test_native_activation_requires_unique_match_and_confirms_delivery(
+    window_capture, monkeypatch, case
+):
+    import sys
+    from types import ModuleType
+
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    connection, _ = window_capture
+    x = sys.modules["Xlib"].X
+    x.CurrentTime, x.SubstructureRedirectMask, x.SubstructureNotifyMask = 0, 1, 2
+    protocol = ModuleType("Xlib.protocol")
+    protocol.event = SimpleNamespace(ClientMessage=lambda **kwargs: kwargs)
+    monkeypatch.setitem(sys.modules, "Xlib.protocol", protocol)
+    target = {"pid": 7, "bounds": [1, 2, 800, 600]}
+    monkeypatch.setattr(
+        cua_linux,
+        "_x11_clients",
+        lambda conn: {42: target, 43: target} if case == "ambiguous" else {42: target},
+    )
+    monkeypatch.setattr(
+        cua_linux, "foreground_window", lambda: target if case == "confirmed" else None
+    )
+    ticks = iter([0, 0, 3])
+    monkeypatch.setattr("time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    if case == "confirmed":
+        assert (
+            cua_linux.activate_window_bounds(7, target["bounds"])["disposition"]["delivery"]
+            == "delivered_verified"
+        )
+    else:
+        with pytest.raises(CuaOpError) as error:
+            cua_linux.activate_window_bounds(7, target["bounds"])
+        if case == "unconfirmed":
+            assert error.value.context["disposition"] == {
+                "delivery": "delivered_unverified",
+                "retry": "unsafe",
+            }
+    assert connection.screen.return_value.root.send_event.call_count == (
+        0 if case == "ambiguous" else 1
+    )
+    connection.close.assert_called_once()

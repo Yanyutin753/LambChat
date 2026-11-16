@@ -23,6 +23,32 @@ afterEach(() => {
   cleanup();
   vi.resetAllMocks();
 });
+test("screen indicator acknowledges paint but exposes no takeover controls", async () => {
+  invoke.mockResolvedValue("active");
+  const { container } = render(<DesktopControl overlay />);
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("desktop_control_status", {
+      ready: true,
+    }),
+  );
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(container.querySelector(".desktop-control-overlay")).not.toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith(
+    "desktop_control_set_paused",
+    expect.anything(),
+  );
+});
+
+test("ended execution cannot be resumed from the control surface", async () => {
+  invoke.mockResolvedValue("ended");
+  render(<DesktopControl />);
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "desktopControl.ended",
+    ),
+  );
+  expect(screen.getByRole("button")).toBeDisabled();
+});
 test("takeover waits for daemon acknowledgement before enabling resume", async () => {
   let state = "active";
   invoke.mockImplementation(

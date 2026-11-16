@@ -1,5 +1,7 @@
 {
   "desktopControl": {
+    "busyHint": "另一项任务正在控制电脑，或当前任务已结束。请勿重复执行输入。",
+    "ended": "电脑控制已结束",
     "pausedHint": "电脑控制已暂停。准备好后，请在常驻浮窗中点击“继续”。",
     "unavailableHint": "控制浮窗暂不可用，本次未执行电脑操作。",
     "foregroundHint": "目标窗口已不在前台。请先完成你的操作，再让 Agent 继续。",
@@ -14,8 +16,8 @@
     "unavailable": "控制浮窗不可用",
     "hint": "使用鼠标或键盘前，请先暂停并接管。",
     "resumeHint": "继续后 Agent 会重新观察，再执行操作。",
-    "pause": "暂停并接管",
-    "resume": "继续",
+    "pause": "由我接管",
+    "resume": "让 Agent 继续",
     "error": "无法确认控制状态，请重试。"
   },
   "assistants": {

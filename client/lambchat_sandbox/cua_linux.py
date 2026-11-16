@@ -158,6 +158,138 @@ def ax_trusted() -> bool:
         return False
 
 
+def _x11_property(connection: Any, window: Any, name: str) -> list:
+    from Xlib import X
+
+    prop = window.get_full_property(connection.intern_atom(name), X.AnyPropertyType)
+    return list(prop.value) if prop is not None else []
+
+
+def _x11_clients(connection: Any) -> dict[int, dict[str, Any]]:
+    from Xlib import X
+
+    root = connection.screen().root
+    clients = _x11_property(connection, root, "_NET_CLIENT_LIST")
+    rows = {}
+    for xid in clients:
+        window = connection.create_resource_object("window", int(xid))
+        if window.get_attributes().map_state != X.IsViewable:
+            continue
+        owner = _x11_property(connection, window, "_NET_WM_PID")
+        if len(owner) != 1 or owner[0] <= 0:
+            continue
+        geometry = window.get_geometry()
+        origin = root.translate_coords(window, 0, 0)
+        if geometry.width > 0 and geometry.height > 0:
+            rows[int(xid)] = {
+                "pid": int(owner[0]),
+                "bounds": [origin.x, origin.y, geometry.width, geometry.height],
+            }
+            frame = window.query_tree().parent
+            for _ in range(8):
+                if frame.id == root.id:
+                    break
+                geometry = frame.get_geometry()
+                origin = root.translate_coords(frame, 0, 0)
+                rows[int(xid)]["frame_bounds"] = [
+                    origin.x,
+                    origin.y,
+                    geometry.width,
+                    geometry.height,
+                ]
+                frame = frame.query_tree().parent
+            else:
+                raise RuntimeError("X11 frame ancestry unavailable")
+    return rows
+
+
+def _matches_x11_window(row: dict, pid: int, bounds: list) -> bool:
+    return row["pid"] == pid and bounds in (row["bounds"], row.get("frame_bounds"))
+
+
+def foreground_window() -> dict[str, Any] | None:
+    """Return a uniquely identifiable, viewable X11 foreground client."""
+    import os
+
+    if os.environ.get("WAYLAND_DISPLAY"):
+        return None
+    connection = None
+    try:
+        from Xlib import display
+
+        connection = display.Display()
+        root = connection.screen().root
+        active = _x11_property(connection, root, "_NET_ACTIVE_WINDOW")
+        if len(active) != 1 or not active[0]:
+            return None
+        rows = _x11_clients(connection)
+        target = rows.get(int(active[0]))
+        if (
+            target is not None
+            and all(
+                sum(_matches_x11_window(row, target["pid"], bounds) for row in rows.values()) == 1
+                for bounds in [
+                    target["bounds"],
+                    *([target["frame_bounds"]] if "frame_bounds" in target else []),
+                ]
+            )
+            and _x11_property(connection, root, "_NET_ACTIVE_WINDOW") == active
+        ):
+            return target
+        return None
+    except Exception:  # noqa: BLE001 - disappearing X11 clients must fail closed
+        return None
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def activate_window_bounds(pid: int, bounds: list | None) -> dict:
+    """Activate only an unambiguous native client matching the observed AX window."""
+    import os
+    import time
+
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    if os.environ.get("WAYLAND_DISPLAY") or not bounds:
+        raise CuaOpError("action_failed", "native X11 window mapping unavailable")
+    from Xlib import X, display
+    from Xlib.protocol import event
+
+    connection = display.Display()
+    try:
+        matches = [
+            xid
+            for xid, row in _x11_clients(connection).items()
+            if _matches_x11_window(row, pid, bounds)
+        ]
+        if len(matches) != 1:
+            raise CuaOpError("stale_state", "native window mapping is not unique")
+        root = connection.screen().root
+        root.send_event(
+            event.ClientMessage(
+                window=matches[0],
+                client_type=connection.intern_atom("_NET_ACTIVE_WINDOW"),
+                data=(32, [2, X.CurrentTime, 0, 0, 0]),
+            ),
+            event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask,
+        )
+        connection.sync()
+    finally:
+        connection.close()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        foreground = foreground_window()
+        if foreground and _matches_x11_window(foreground, pid, bounds):
+            return {"disposition": {"delivery": "delivered_verified"}}
+        time.sleep(0.05)
+    raise CuaOpError(
+        "action_failed",
+        "window activation was not confirmed",
+        context={"disposition": {"delivery": "delivered_unverified", "retry": "unsafe"}},
+    )
+
+
 def frontmost_pid() -> int | None:
     # AT-SPI 无前台语义;X11 下用 xdotool 探测,Wayland 返回 None
     # (事件路径据此报 foreground_required,绝不猜)

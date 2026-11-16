@@ -2,3 +2,8 @@
 identifier = "allow-desktop-control"
 description = "Local takeover controls, restricted to the bundled CUA window"
 commands.allow = ["desktop_control_status", "desktop_control_set_paused"]
+
+[[permission]]
+identifier = "allow-desktop-control-observe"
+description = "Read-only paint acknowledgement for transparent desktop indicators"
+commands.allow = ["desktop_control_status"]

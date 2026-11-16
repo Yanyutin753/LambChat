@@ -9,5 +9,11 @@ import "./styles/tokens.css";
 applyThemeToDocument(getInitialThemePreference());
 document.body.style.margin = "0";
 void i18nReady.then(() =>
-  createRoot(document.getElementById("root")!).render(<DesktopControl />),
+  createRoot(document.getElementById("root")!).render(
+    <DesktopControl
+      overlay={
+        new URLSearchParams(location.search).get("surface") === "overlay"
+      }
+    />,
+  ),
 );
