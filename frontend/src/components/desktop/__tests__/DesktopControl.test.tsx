@@ -33,6 +33,9 @@ test("screen indicator acknowledges paint but exposes no takeover controls", asy
   );
   expect(screen.queryByRole("button")).toBeNull();
   expect(container.querySelector(".desktop-control-overlay")).not.toBeNull();
+  expect(container.querySelector(".desktop-control-overlay")).toHaveTextContent(
+    "desktopControl.active",
+  );
   expect(invoke).not.toHaveBeenCalledWith(
     "desktop_control_set_paused",
     expect.anything(),
@@ -92,4 +95,32 @@ test("disconnected daemon cannot be resumed", async () => {
   expect(screen.getByRole("status")).toHaveTextContent(
     "desktopControl.disconnected",
   );
+});
+
+test("resume stays disabled when the paused state can no longer be confirmed", async () => {
+  invoke.mockResolvedValue("paused");
+  render(<DesktopControl />);
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "desktopControl.resume" }),
+    ).toBeEnabled(),
+  );
+  invoke.mockRejectedValue(new Error("IPC disconnected"));
+  await screen.findByRole("alert");
+  expect(
+    screen.getByRole("button", { name: "desktopControl.resume" }),
+  ).toBeDisabled();
+});
+
+test("takeover action describes the current ownership and next step", async () => {
+  invoke.mockResolvedValue("active");
+  render(<DesktopControl />);
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "desktopControl.active",
+    ),
+  );
+  expect(
+    screen.getByRole("button", { name: "desktopControl.pause" }),
+  ).toHaveAccessibleDescription(/desktopControl.active.*desktopControl.hint/);
 });

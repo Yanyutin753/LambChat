@@ -286,6 +286,10 @@ fn start_gated(app: &AppHandle, expected_generation: Option<u64>) -> Result<(), 
     let control_token = uuid::Uuid::new_v4().to_string();
     command
         .env("LAMBCHAT_DESKTOP_CONTROL", &control_token)
+        .env(
+            "LAMBCHAT_DESKTOP_CONTROL_OWNER_PID",
+            std::process::id().to_string(),
+        )
         .stdin(std::process::Stdio::piped())
         .arg("run")
         .stdout(std::process::Stdio::piped())

@@ -27,6 +27,19 @@ from lambchat_sandbox.transport import (
 SERVER = "https://lc.example"
 PAT = "pat-secret-1"
 
+
+@pytest.mark.parametrize("status", [401, 429, 503])
+async def test_control_status_logs_rejection_code_without_credentials(status, caplog):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(status, text=PAT))
+    ) as http:
+        client = ChannelClient(SERVER, PAT, client=http)
+        with pytest.raises(TransportError):
+            await client.control_active("session", "run")
+    assert f"Desktop control authority HTTP {status}" in caplog.text
+    assert PAT not in caplog.text
+
+
 HEARTBEAT = ": heartbeat\n\n"
 
 

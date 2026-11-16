@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from lambchat_sandbox.cua_backend import is_control_window
+
 
 def _pyatspi() -> Any:
     try:
@@ -355,6 +357,8 @@ def windows(pid: int) -> list[dict[str, Any]]:
             child = app.getChildAtIndex(child_index)
             child.clear_cache()
             if not _is_window(child):
+                continue
+            if is_control_window(pid, child.name or ""):
                 continue
             try:
                 focused = bool(child.getState().contains(_pyatspi().STATE_ACTIVE))

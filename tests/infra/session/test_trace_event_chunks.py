@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from src.infra.session import trace_storage as trace_storage_module
+from src.infra.session.trace_event_read import history_events_projection
 from src.infra.session.trace_storage import TraceStorage
 
 
@@ -1105,7 +1106,7 @@ async def test_get_session_events_reads_chunks_across_traces_in_started_order() 
                 "status": 1,
                 "started_at": 1,
                 "updated_at": 1,
-                "events": 1,
+                "events": history_events_projection(1),
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
             },
@@ -1176,8 +1177,8 @@ async def test_get_session_events_snapshot_returns_active_user_and_requires_stre
     assert chunk_collection.find_count == 1
     trace_events_projection = trace_collection.find_calls[0][1]["events"]
     chunk_events_projection = chunk_collection.find_calls[0][1]["events"]
-    assert "$cond" in trace_events_projection
-    assert "$cond" in chunk_events_projection
+    assert "$cond" in trace_events_projection["$map"]["input"]["$ifNull"][0]
+    assert "$cond" in chunk_events_projection["$map"]["input"]["$ifNull"][0]
 
 
 @pytest.mark.asyncio
@@ -1218,8 +1219,8 @@ async def test_active_snapshot_projects_large_running_trace_to_user_events() -> 
     )
 
     assert [event["event_type"] for event in snapshot.events] == ["user:message"]
-    assert "$cond" in trace_collection.find_calls[0][1]["events"]
-    assert "$cond" in chunk_collection.find_calls[0][1]["events"]
+    assert "$cond" in trace_collection.find_calls[0][1]["events"]["$map"]["input"]["$ifNull"][0]
+    assert "$cond" in chunk_collection.find_calls[0][1]["events"]["$map"]["input"]["$ifNull"][0]
 
 
 @pytest.mark.asyncio
@@ -1421,8 +1422,12 @@ async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> Non
             self,
             trace_docs: list[dict[str, Any]],
             event_types: list[str] | None = None,
+            include_cost_receipts: bool = True,
+            active_user_only_trace_ids: set[str] | None = None,
         ) -> dict[str, list[dict[str, Any]]]:
             del event_types
+            assert not include_cost_receipts
+            assert not active_user_only_trace_ids
             trace_ids = [str(trace["trace_id"]) for trace in trace_docs]
             self.batch_reads.append(trace_ids)
             return {

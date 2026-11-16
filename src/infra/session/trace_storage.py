@@ -69,7 +69,7 @@ from src.infra.session.trace_attachment_cleanup import (
 )
 from src.infra.session.trace_attachment_cleanup import TraceAttachmentCleanupMixin
 from src.infra.session.trace_event_chunks import TraceEventChunkMixin
-from src.infra.session.trace_event_read import TraceEventReadCompatMixin
+from src.infra.session.trace_event_read import TraceEventReadCompatMixin, history_events_projection
 from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import utc_now
@@ -683,7 +683,7 @@ class TraceStorage(
                         if active_run_id
                         else {}
                     ),
-                    "events": events_projection,
+                    "events": history_events_projection(events_projection),
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
                 },
@@ -738,17 +738,12 @@ class TraceStorage(
                 and not _is_stale_running(trace)
                 and trace.get("trace_id")
             }
-            if active_user_only_trace_ids:
-                events_by_trace = await self.read_trace_events_batch_compat(
-                    traces,
-                    event_types=event_types,
-                    active_user_only_trace_ids=active_user_only_trace_ids,
-                )
-            else:
-                events_by_trace = await self.read_trace_events_batch_compat(
-                    traces,
-                    event_types=event_types,
-                )
+            events_by_trace = await self.read_trace_events_batch_compat(
+                traces,
+                event_types=event_types,
+                active_user_only_trace_ids=active_user_only_trace_ids,
+                include_cost_receipts=False,
+            )
             collected_chunks: List[List[Dict[str, Any]]] = []
             remaining_budget: Optional[int] = max_events
             events_truncated = False

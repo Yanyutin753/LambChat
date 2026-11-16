@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
-import { Monitor, Pause, Play, GripHorizontal } from "lucide-react";
+import { Monitor, Pause, Play, GripVertical } from "lucide-react";
 import "./desktop-control.css";
 
 export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
   const { t } = useTranslation();
+  const statusId = useId();
+  const hintId = useId();
   const [state, setState] = useState("waiting");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,12 +61,20 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
         className={`desktop-control-overlay${
           paused || unavailable || error ? " is-inactive" : ""
         }`}
-      />
+      >
+        <div className="desktop-control-cover-message">
+          <Monitor aria-hidden="true" size={48} />
+          <span>LambChat</span>
+          <strong>{t(`desktopControl.${state || "waiting"}`)}</strong>
+          <p>{t("desktopControl.hint")}</p>
+        </div>
+      </div>
     );
   }
   return (
     <main
       className="desktop-control"
+      data-state={error ? "unavailable" : state}
       onKeyDown={(event) => {
         if (event.key === "Escape" && !paused && !busy) {
           event.preventDefault();
@@ -80,18 +90,27 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
               .catch(() => setError(true));
         }}
       >
-        <Monitor aria-hidden="true" size={16} />
-        <strong>{t("desktopControl.title")}</strong>
-        <GripHorizontal aria-hidden="true" size={16} />
+        <GripVertical
+          className="desktop-control-grip"
+          aria-hidden="true"
+          size={16}
+        />
+        <span className="desktop-control-icon">
+          <Monitor aria-hidden="true" size={18} />
+        </span>
+        <div className="desktop-control-copy">
+          <strong>{t("desktopControl.title")}</strong>
+          <p id={statusId} role="status">
+            {t(`desktopControl.${state || "waiting"}`)}
+          </p>
+        </div>
       </header>
-      <p role="status">{t(`desktopControl.${state || "waiting"}`)}</p>
-      <p className="desktop-control-hint">
-        {t(paused ? "desktopControl.resumeHint" : "desktopControl.hint")}
-      </p>
-      {error && <p role="alert">{t("desktopControl.error")}</p>}
       <button
         type="button"
-        disabled={busy || state === "stopping" || unavailable}
+        aria-describedby={`${statusId} ${hintId}`}
+        disabled={
+          busy || state === "stopping" || unavailable || (paused && error)
+        }
         onClick={() => void change(!paused)}
       >
         {paused ? (
@@ -101,6 +120,19 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
         )}
         {t(paused ? "desktopControl.resume" : "desktopControl.pause")}
       </button>
+      <p
+        id={hintId}
+        className="desktop-control-hint"
+        role={error ? "alert" : undefined}
+      >
+        {t(
+          error
+            ? "desktopControl.error"
+            : paused
+              ? "desktopControl.resumeHint"
+              : "desktopControl.hint",
+        )}
+      </p>
     </main>
   );
 }

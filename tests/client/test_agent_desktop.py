@@ -40,6 +40,30 @@ def test_windows_filter_same_named_processes(backend, monkeypatch):
     assert calls == [("list-windows", "--app", "Editor", "--timeout-ms", "5000")]
 
 
+@pytest.mark.parametrize("owner,enabled", [(None, True), ("7", True), ("8", True), ("7", False)])
+def test_control_surfaces_are_not_agent_targets(backend, monkeypatch, owner, enabled):
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL", "fixture" if enabled else "")
+    if owner is None:
+        monkeypatch.delenv("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID", raising=False)
+    else:
+        monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID", owner)
+    rows = [
+        {"id": f"w-{index}", "pid": 7, "title": title, "is_focused": index == 42}
+        for index, title in enumerate(
+            ["LambChat Control", "LambChat Control Overlay", "LambChat"], 41
+        )
+    ]
+    monkeypatch.setattr(backend, "_call", lambda *args, **kwargs: rows)
+    if owner == "7" and enabled:
+        assert [w["title"] for w in backend.windows(7)] == ["LambChat"]
+        assert backend.pick_window(7, None)[1]["window_id"] == 43
+        with pytest.raises(KeyError):
+            backend.pick_window(7, 42)
+    else:
+        assert len(backend.windows(7)) == 3
+        assert backend.pick_window(7, 42)[1]["title"] == "LambChat Control Overlay"
+
+
 def test_set_value_uses_qualified_ref_and_stdin(backend, monkeypatch):
     calls = []
     monkeypatch.setattr(

@@ -7,6 +7,30 @@ import pytest
 from lambchat_sandbox import cua_linux
 
 
+def test_control_surfaces_are_not_agent_targets(monkeypatch):
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL", "fixture")
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID", "42")
+    windows = [
+        SimpleNamespace(name=title, clear_cache=lambda: None, getRoleName=lambda: "frame")
+        for title in ["LambChat Control Overlay", "LambChat Control", "LambChat"]
+    ]
+    app = SimpleNamespace(
+        childCount=len(windows),
+        getChildAtIndex=windows.__getitem__,
+        get_process_id=lambda: 42,
+        clear_cache=lambda: None,
+    )
+    monkeypatch.setattr(
+        cua_linux,
+        "_desktop",
+        lambda: SimpleNamespace(childCount=1, getChildAtIndex=lambda index: app),
+    )
+    monkeypatch.setattr(cua_linux, "_is_window", lambda child: True)
+    monkeypatch.setattr(cua_linux, "_extents", lambda child: [0, 0, 100, 100])
+    assert [w["title"] for w in cua_linux.windows(42)] == ["LambChat"]
+    assert cua_linux.pick_window(42, 0)[0] is windows[-1]
+
+
 def test_desktop_refresh_clears_stale_accessibility_tree(monkeypatch):
     calls = []
     desktop = SimpleNamespace(clear_cache=lambda: calls.append("clear"))
