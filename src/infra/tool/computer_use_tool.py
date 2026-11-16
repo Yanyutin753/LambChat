@@ -170,7 +170,9 @@ class _ComputerUseInput(BaseModel):
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
-    return await run_long_blocking_io(json.dumps, data, ensure_ascii=False, default=str)
+    return await run_long_blocking_io(
+        json.dumps, data, ensure_ascii=False, default=str, separators=(",", ":")
+    )
 
 
 def _build_payload(data: _ComputerUseInput) -> dict[str, Any]:
@@ -247,10 +249,12 @@ async def _format_result(result: dict[str, Any], runtime: Any = None) -> str:
         }
     serialized = await _json_dumps_result(result)
     # Keep the JSON envelope below the SSE parse limit, including screenshot metadata.
-    while len(serialized) > 90_000 and isinstance(result.get("state"), str) and result["state"]:
+    state = result.get("state")
+    while len(serialized) > 90_000 and isinstance(state, str) and state:
+        state = state[: len(state) // 2]
         result = {
             **result,
-            "state": result["state"][: len(result["state"]) // 2],
+            "state": state + "\n[output budget reached; observe the relevant element subtree]",
             "truncated": True,
         }
         serialized = await _json_dumps_result(result)
