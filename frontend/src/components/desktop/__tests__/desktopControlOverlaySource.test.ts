@@ -26,3 +26,14 @@ test("terminal execution removes control surfaces without granting resume to ove
 test("daemon cleanup failure reaches the unavailable control state", () => {
   expect(native).toMatch(/Some\("unavailable"\)\s*=>/);
 });
+
+test("overlay is realized before Linux cursor passthrough accesses its native window", () => {
+  const show = native.slice(
+    native.indexOf("fn show_overlays("),
+    native.indexOf("fn hide_surfaces("),
+  );
+  expect(show.indexOf("window.show()")).toBeGreaterThanOrEqual(0);
+  expect(show.indexOf("window.show()")).toBeLessThan(
+    show.indexOf(".set_ignore_cursor_events(true)"),
+  );
+});

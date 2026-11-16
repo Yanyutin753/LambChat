@@ -271,15 +271,16 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
                 .map_err(|e| e.to_string())?
         };
         window
-            .set_ignore_cursor_events(true)
-            .map_err(|e| e.to_string())?;
-        window
             .set_size(*monitor.size())
             .map_err(|e| e.to_string())?;
         window
             .set_position(*monitor.position())
             .map_err(|e| e.to_string())?;
         window.show().map_err(|e| e.to_string())?;
+        // GTK must realize the window before Tao can set its input shape.
+        window
+            .set_ignore_cursor_events(true)
+            .map_err(|e| e.to_string())?;
     }
     for (label, window) in app.webview_windows() {
         if label.starts_with(OVERLAY_PREFIX) && !labels.contains(&label) {
