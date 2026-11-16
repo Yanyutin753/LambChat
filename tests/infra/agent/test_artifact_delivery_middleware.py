@@ -1814,6 +1814,42 @@ async def test_artifact_delivery_auto_stages_file_urls_from_final_messages() -> 
 
 
 @pytest.mark.asyncio
+async def test_artifact_delivery_does_not_auto_stage_news_article_html_urls() -> None:
+    """新闻站 CMS 的 .html 文章链接是内容页，不得在 run 尾部投成文件卡。
+
+    实况（分享对话 DHTBetB3yAbD）：日报回复的参考链接区含
+    independent.co.uk 的 .html 后缀文章链接，被按扩展名误判为「外部文件」，
+    run 结束时投出一张 0 字节的 HTML 文件卡挂在对话末尾。
+    """
+    reveal_calls: list[dict] = []
+
+    async def fake_reveal_file(**kwargs):
+        reveal_calls.append(kwargs)
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=fake_reveal_file)
+
+    update = await middleware.aafter_agent(
+        {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "日报已生成，参考链接：\n"
+                        "1. Independent — https://www.independent.co.uk/news/world/"
+                        "middle-east/trump-netanyahu-call-iran-war-shouting-match-b3083649.html\n"
+                        "2. BBC — https://www.bbc.com/news/world-68345121\n"
+                    )
+                )
+            ]
+        },
+        SimpleNamespace(config={}),
+    )
+
+    assert reveal_calls == []
+    assert update is None
+
+
+@pytest.mark.asyncio
 async def test_artifact_delivery_does_not_auto_stage_plain_webpage_urls() -> None:
     reveal_calls: list[dict] = []
 
