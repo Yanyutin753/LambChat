@@ -1,5 +1,6 @@
 """Release acceptance must reject stale reports and untrusted candidate bytes."""
 
+import ast
 import copy
 import hashlib
 import importlib.util
@@ -179,23 +180,55 @@ def test_complete_automated_results_pass_without_native_evidence():
     assert load_runner().check_production_report(complete_production_report()) == 39
 
 
-def test_production_suite_allows_observed_full_regression_duration(tmp_path, monkeypatch):
+@pytest.mark.parametrize("exit_code", [0, 75, 1])
+def test_production_suite_survives_disconnect_without_relaunch(tmp_path, monkeypatch, exit_code):
     runner = load_runner()
+    calls = []
+    ticks = iter([0, 1, 500, 972, 973])
+    replies = iter([subprocess.CalledProcessError(255, "ssh"), "running", str(exit_code)])
 
-    def remote_run(_host, command, *, log, timeout):
-        # The complete passing production run took 16 minutes and 12 seconds.
-        if timeout < 972:
-            raise subprocess.TimeoutExpired(command, timeout)
+    def remote_run(_host, command, **_kwargs):
+        calls.append(command)
+        tree = ast.parse(command[-1])
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if node.value.startswith("import subprocess,pathlib;result="):
+                    ast.parse(node.value)
+        if len(calls) == 1:
+            raise subprocess.CalledProcessError(255, "ssh")
+        reply = next(replies)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
     def download_report(_host, _source, destination):
         destination.write_text("\n".join(map(json.dumps, complete_production_report())))
 
     monkeypatch.setattr(runner, "ssh", remote_run)
     monkeypatch.setattr(runner, "copy_from", download_report)
-    assert runner.production_suite("yang", tmp_path, "/tmp/release-run") == {
-        "passed": True,
-        "cases": 39,
-    }
+    monkeypatch.setattr(runner.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(runner.time, "sleep", lambda _: None)
+    if exit_code:
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            runner.production_suite("yang", tmp_path, "/tmp/release-run")
+        assert error.value.returncode == exit_code
+    else:
+        assert runner.production_suite("yang", tmp_path, "/tmp/release-run") == {
+            "passed": True,
+            "cases": 39,
+        }
+    assert len(calls) == 4
+    assert "Popen" in calls[0][-1]
+    assert all("Popen" not in command[-1] for command in calls[1:])
+
+
+def test_production_suite_unknown_completion_is_not_a_pass(tmp_path, monkeypatch):
+    runner = load_runner()
+    ticks = iter([0, 1861])
+    monkeypatch.setattr(runner, "ssh", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(runner.time, "monotonic", lambda: next(ticks))
+    with pytest.raises(TimeoutError, match="/tmp/release-run"):
+        runner.production_suite("yang", tmp_path, "/tmp/release-run")
 
 
 def complete_production_report():
