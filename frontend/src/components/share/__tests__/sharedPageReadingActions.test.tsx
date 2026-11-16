@@ -12,6 +12,12 @@ import { SharedPage } from "../SharedPage";
 import { LanguagePreferenceProvider } from "../../../hooks/useLanguagePreference";
 import { APP_NAME } from "../../../constants";
 import i18n from "../../../i18n";
+import {
+  collapseRightPanel,
+  getRightPanelSnapshot,
+  registerRightPanel,
+  resetRightPanelCoordinator,
+} from "../../common/rightPanelCoordinator";
 
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ user: undefined }),
@@ -22,8 +28,38 @@ beforeEach(async () => {
 });
 afterEach(() => {
   cleanup();
+  resetRightPanelCoordinator();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+test("shared reader can restore and close a collapsed file panel from its header", async () => {
+  renderReader();
+  await screen.findByRole("heading", { name: "Reading sample" });
+  const close = vi.fn();
+  act(() => {
+    registerRightPanel({
+      id: Symbol(),
+      kind: "content",
+      automatic: false,
+      close,
+      opener: null,
+      title: "report.txt",
+    });
+    collapseRightPanel();
+  });
+  const restore = screen.getByRole("button", {
+    name: i18n.t("common.expandPanel"),
+  });
+  expect(restore.closest("header")).not.toBeNull();
+  expect(restore).toHaveFocus();
+  fireEvent.click(restore);
+  expect(getRightPanelSnapshot().collapsed).toBe(false);
+  act(() => collapseRightPanel());
+  fireEvent.click(
+    screen.getByRole("button", { name: i18n.t("common.closeAllPanelTabs") }),
+  );
+  expect(close).toHaveBeenCalledOnce();
 });
 
 function renderReader(modelName?: string) {

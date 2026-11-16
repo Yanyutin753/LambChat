@@ -2,6 +2,7 @@ import { InteractiveIcon } from "../common/InteractiveIcon";
 import "../../styles/app-content.css";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { LanguageToggle } from "../common/LanguageToggle";
+import { RightPanelRestore } from "../common/RightPanelRestore";
 /**
  * SharedPage - Public view of a shared session
  * ChatGPT-inspired design with theme support and mobile responsiveness
@@ -510,11 +511,15 @@ export function SharedPage({
             className="flex min-h-11 items-center cursor-pointer group gap-1.5"
           >
             <BrandLogo className="size-8 transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:transform-none" />
-            <BrandWordmark decorative className="w-auto text-theme-text h-8" />
+            <BrandWordmark
+              decorative
+              className="hidden sm:block w-auto text-theme-text h-8"
+            />
           </Link>
 
           {/* Right: Controls */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            <RightPanelRestore />
             <Link
               to="/"
               className="ui-button ui-button--ghost ui-button--lg ui-icon-button"
