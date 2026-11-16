@@ -39,6 +39,21 @@ fn fixture_status(
                                 && window.inner_size().ok().as_ref() == Some(monitor.size())
                         })
                 });
+            for (label, window) in &overlays {
+                eprintln!(
+                    "control-surface-geometry {label} position={:?} size={:?} visible={:?}",
+                    window.outer_position(),
+                    window.inner_size(),
+                    window.is_visible()
+                );
+            }
+            for monitor in &monitors {
+                eprintln!(
+                    "control-monitor-geometry position={:?} size={:?}",
+                    monitor.position(),
+                    monitor.size()
+                );
+            }
             let token = app.state::<FixtureToken>();
             desktop_control::receive(&app, &token.0, serde_json::json!({"state":"ended"}));
             let handle = app.clone();
@@ -108,6 +123,12 @@ fn main() {
             Ok(())
         })
         .on_page_load(|window, payload| {
+            eprintln!(
+                "control-page-load window={} event={:?} time={:?}",
+                window.label(),
+                payload.event(),
+                std::time::SystemTime::now()
+            );
             if window.label() == "cua-control"
                 && payload.event() == tauri::webview::PageLoadEvent::Finished
                 && std::env::var_os("LAMBCHAT_CONTROL_AUTOMATED").is_some()

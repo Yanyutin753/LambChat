@@ -239,6 +239,8 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
         let window = if let Some(window) = app.get_webview_window(label) {
             window
         } else {
+            let size = monitor.size().to_logical::<f64>(monitor.scale_factor());
+            let position = monitor.position().to_logical::<f64>(monitor.scale_factor());
             let mut builder = WebviewWindowBuilder::new(
                 app,
                 label,
@@ -256,6 +258,9 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
             }
             builder
                 .title("LambChat Control Overlay")
+                // GTK fixes a non-resizable window's size at its first configure event.
+                .inner_size(size.width, size.height)
+                .position(position.x, position.y)
                 .transparent(true)
                 .decorations(false)
                 .shadow(false)

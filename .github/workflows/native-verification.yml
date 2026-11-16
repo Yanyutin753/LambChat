@@ -300,5 +300,8 @@ jobs:
         if: always()
         with:
           name: desktop-control-${{ matrix.os }}-${{ github.run_id }}
-          path: desktop-control.log
+          path: |
+            desktop-control.log
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke.exe
           if-no-files-found: warn
