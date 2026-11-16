@@ -57,7 +57,7 @@ class _FakePresenter:
         return None
 
     def done(self) -> dict:
-        return {"event": "done", "data": {}}
+        return {"event": "done", "data": {"status": "completed"}}
 
 
 class _RecordingWriter:
@@ -173,6 +173,8 @@ async def test_user_cancel_still_writes_terminal_events(monkeypatch: pytest.Monk
 
     presenter = holder["presenter"]
     assert presenter.completions == ["cancelled"]
+    terminal = [event for event in presenter.saved_events if event["event"] == "done"]
+    assert terminal[-1]["data"]["status"] == "cancelled"
     written_types = [event["event_type"] for event in writer.written]
     assert "user:cancel" in written_types
     assert "error" in written_types

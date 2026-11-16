@@ -4,6 +4,7 @@ mod desktop_control;
 use tauri::Manager;
 
 struct FixtureChild(std::sync::Mutex<std::process::Child>);
+struct FixtureToken(String);
 fn finish(app: &tauri::AppHandle, code: i32) {
     if let Some(child) = app.try_state::<FixtureChild>() {
         if let Ok(mut child) = child.0.lock() {
@@ -24,7 +25,29 @@ fn fixture_status(
     if let Some(report) = report {
         eprintln!("control-fixture-report {report}");
         if let Some(ok) = report["ok"].as_bool() {
-            finish(&app, if ok { 0 } else { 1 });
+            let monitors = app.available_monitors().map_err(|e| e.to_string())?;
+            let overlays: Vec<_> = app
+                .webview_windows()
+                .into_iter()
+                .filter(|(label, _)| label.starts_with("cua-overlay-"))
+                .collect();
+            let geometry_ok = overlays.len() == monitors.len()
+                && monitors.iter().enumerate().all(|(index, monitor)| {
+                    app.get_webview_window(&format!("cua-overlay-{index}"))
+                        .is_some_and(|window| {
+                            window.outer_position().ok().as_ref() == Some(monitor.position())
+                                && window.inner_size().ok().as_ref() == Some(monitor.size())
+                        })
+                });
+            let token = app.state::<FixtureToken>();
+            desktop_control::receive(&app, &token.0, serde_json::json!({"state":"ended"}));
+            let handle = app.clone();
+            app.run_on_main_thread(move || {
+                let hidden = handle.webview_windows().iter().filter(|(label, _)| label.starts_with("cua-"))
+                    .all(|(_, window)| window.is_visible().ok() == Some(false));
+                eprintln!("control-surface-report displays={} geometry={geometry_ok} terminal_hidden={hidden}", monitors.len());
+                finish(&handle, if ok && geometry_ok && hidden { 0 } else { 1 });
+            }).map_err(|e| e.to_string())?;
         }
         return Ok("reported".into());
     }
@@ -50,6 +73,7 @@ fn main() {
         .setup(move |app| {
             assert!(app.get_webview_window("main").is_some());
             let token = uuid::Uuid::new_v4().to_string();
+            app.manage(FixtureToken(token.clone()));
             let mut child = std::process::Command::new(&python)
                 .arg(format!(
                     "{root}/scripts/release_tests/desktop-control-fixture.py"

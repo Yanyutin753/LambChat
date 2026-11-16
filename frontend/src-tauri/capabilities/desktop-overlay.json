@@ -1,0 +1,6 @@
+{
+  "identifier": "desktop-overlay",
+  "description": "Transparent desktop indicators cannot change control authority",
+  "windows": ["cua-overlay-*"],
+  "permissions": ["allow-desktop-control-observe"]
+}

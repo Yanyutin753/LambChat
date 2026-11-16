@@ -513,6 +513,7 @@ class TaskExecutor(TaskSessionStatusMixin):
         if presenter is not None:
             await presenter._ensure_token_usage_event()
             done_event = presenter.done()
+            done_event["data"]["status"] = "cancelled"
             self._move_recorded_done_to_end(dual_writer, trace_id, run_id)
             presenter._done_recorded = False
 
