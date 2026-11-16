@@ -181,7 +181,7 @@ def check_production_report(rows):
 
 def production_suite(host, root, remote_root):
     capture = (
-        "import subprocess,shutil;result=subprocess.run(['bash','/root/disttest/run-all.sh']);shutil.copyfile('/root/disttest-results.json',"
+        "import subprocess,shutil;result=subprocess.run(['timeout','--signal=TERM','--kill-after=30s','1800s','bash','/root/disttest/run-all.sh']);shutil.copyfile('/root/disttest-results.json',"
         + repr(remote_root + "/production-results.jsonl")
         + ");raise SystemExit(result.returncode)"
     )
@@ -190,7 +190,7 @@ def production_suite(host, root, remote_root):
     log_path = remote_root + "/production-regression.log"
     job = (
         "import subprocess,pathlib;result=subprocess.run("
-        + repr(["timeout", "--signal=TERM", "--kill-after=30s", "1800s", *command])
+        + repr(command)
         + ");p=pathlib.Path("
         + repr(status_path + ".tmp")
         + ");p.write_text(str(result.returncode));p.replace("
