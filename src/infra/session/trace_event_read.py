@@ -14,6 +14,40 @@ from src.infra.session import trace_storage as trace_storage_helpers
 logger = get_logger(__name__)
 
 
+def history_events_projection(events: Any) -> Dict[str, Any]:
+    """Drop cumulative recovery receipts in Mongo before decoding UI history."""
+    return {
+        "$map": {
+            "input": {"$ifNull": ["$events" if events == 1 else events, []]},
+            "as": "event",
+            "in": {
+                "$cond": [
+                    {
+                        "$and": [
+                            {"$eq": ["$$event.event_type", "token:usage"]},
+                            {"$eq": [{"$type": "$$event.data"}, "object"]},
+                        ]
+                    },
+                    {
+                        "$mergeObjects": [
+                            "$$event",
+                            {
+                                "data": {
+                                    "$unsetField": {
+                                        "field": "cost_receipts",
+                                        "input": "$$event.data",
+                                    }
+                                }
+                            },
+                        ]
+                    },
+                    "$$event",
+                ]
+            },
+        }
+    }
+
+
 class TraceEventReadCompatMixin:
     """Read trace events from chunks when present, otherwise legacy traces.events."""
 
@@ -126,6 +160,7 @@ class TraceEventReadCompatMixin:
         trace_docs: List[Dict[str, Any]],
         event_types: Optional[List[str]] = None,
         active_user_only_trace_ids: Optional[set[str]] = None,
+        include_cost_receipts: bool = True,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Read legacy/chunk events for many traces with one chunk query."""
         event_types = trace_storage_helpers._bounded_unique_strings(
@@ -157,6 +192,9 @@ class TraceEventReadCompatMixin:
                     "$events",
                 ]
             }
+
+        if not include_cost_receipts:
+            events_projection = history_events_projection(events_projection)
 
         chunks_by_trace: Dict[str, List[Dict[str, Any]]] = {trace_id: [] for trace_id in trace_ids}
         cursor = self.chunks_collection.find(

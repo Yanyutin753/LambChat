@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.infra.session.trace_event_read import history_events_projection
 from src.infra.session.trace_storage import TraceStorage
 
 
@@ -488,7 +489,7 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
                 "status": 1,
                 "started_at": 1,
                 "updated_at": 1,
-                "events": 1,
+                "events": history_events_projection(1),
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
             },
