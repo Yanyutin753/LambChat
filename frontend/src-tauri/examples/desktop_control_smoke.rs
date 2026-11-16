@@ -28,6 +28,30 @@ fn fixture_status(
 ) -> Result<String, String> {
     if let Some(report) = report {
         eprintln!("control-fixture-report {report}");
+        if report["phase"].as_str() == Some("start") {
+            let position = window.outer_position().map_err(|e| e.to_string())?;
+            let size = window.outer_size().map_err(|e| e.to_string())?;
+            let monitor = window
+                .current_monitor()
+                .map_err(|e| e.to_string())?
+                .ok_or("control monitor missing")?;
+            let area = monitor.work_area();
+            let centered = (2 * i64::from(position.x) + i64::from(size.width)
+                - 2 * i64::from(area.position.x)
+                - i64::from(area.size.width))
+            .abs()
+                <= 2;
+            let bottom_gap = i64::from(area.position.y) + i64::from(area.size.height)
+                - i64::from(position.y)
+                - i64::from(size.height);
+            let placed = centered
+                && (bottom_gap - (24.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
+            eprintln!("control-toolbar-placement position={position:?} size={size:?} bottom_gap={bottom_gap} ok={placed}");
+            if !placed {
+                finish(&app, 1);
+                return Err("Control toolbar is not centered inside the work area".into());
+            }
+        }
         if report["transparent"].as_bool() == Some(true) {
             app.state::<TransparentSurfaces>()
                 .0

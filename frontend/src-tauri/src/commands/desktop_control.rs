@@ -7,6 +7,8 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder}
 
 const LABEL: &str = "cua-control";
 const OVERLAY_PREFIX: &str = "cua-overlay-";
+const CONTROL_WIDTH: f64 = 460.0;
+const CONTROL_HEIGHT: f64 = 112.0;
 #[derive(Default)]
 pub struct DesktopControl(Mutex<Control>);
 #[derive(Default)]
@@ -231,8 +233,8 @@ fn show(app: &AppHandle) -> Result<(), String> {
         .ok_or("desktop_control_no_display")?;
     let window = builder
         .title("LambChat")
-        .inner_size(460.0, 112.0)
-        .min_inner_size(460.0, 112.0)
+        .inner_size(CONTROL_WIDTH, CONTROL_HEIGHT)
+        .min_inner_size(CONTROL_WIDTH, CONTROL_HEIGHT)
         .decorations(false)
         .resizable(true)
         .always_on_top(true)
@@ -246,7 +248,9 @@ fn show(app: &AppHandle) -> Result<(), String> {
     window
         .set_position(takeover_position(
             *monitor.work_area(),
-            window.outer_size().map_err(|e| e.to_string())?,
+            // GTK reports zero size until the hidden window is mapped.
+            tauri::LogicalSize::new(CONTROL_WIDTH, CONTROL_HEIGHT)
+                .to_physical(monitor.scale_factor()),
             (24.0 * monitor.scale_factor()).round() as i32,
         ))
         .map_err(|e| e.to_string())?;
