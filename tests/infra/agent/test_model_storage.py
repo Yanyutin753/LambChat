@@ -768,3 +768,74 @@ async def test_model_import_without_pricing_authority_preserves_existing_price()
     update = collection.bulk_operations[0]._doc
     assert "pricing" not in update["$set"]
     assert update["$set"]["label"] == "Renamed"
+
+
+class _DocsModelCursor(_EmptyAsyncCursor):
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self._docs = [dict(doc) for doc in docs]
+        self._index = 0
+
+    def __aiter__(self):
+        self._index = 0
+        return self
+
+    async def __anext__(self):
+        if self._index >= len(self._docs):
+            raise StopAsyncIteration
+        doc = self._docs[self._index]
+        self._index += 1
+        return dict(doc)
+
+
+class _DocsModelCollection(_RecordingModelCollection):
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self.cursor = _DocsModelCursor(docs)
+
+
+_GOOD_MODEL_DOC = {
+    "id": "model-good",
+    "value": "glm-5.3-flash",
+    "label": "Flash",
+    "provider": "zai",
+    "enabled": True,
+    "order": 1,
+}
+
+# 生产实锤毒配置形态：pricing.cache_write 被写成 TTL 分档字典（float 字段拒绝）
+_POISONED_MODEL_DOC = {
+    "id": "model-poisoned",
+    "value": "grok-4.7",
+    "label": "Grok",
+    "provider": "xai",
+    "enabled": True,
+    "order": 2,
+    "pricing": {"cache_write": {"30m": 2.5, "12h": 5}},
+}
+
+
+async def _identity_decrypt(doc: dict[str, Any]) -> dict[str, Any]:
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_list_models_skips_invalid_model_docs_instead_of_failing() -> None:
+    storage = ModelStorage()
+    storage._collection = _DocsModelCollection([_GOOD_MODEL_DOC, _POISONED_MODEL_DOC])
+    storage._decrypt_doc = _identity_decrypt  # type: ignore[method-assign]
+
+    result = await storage.list_models(include_disabled=True)
+
+    assert [m.id for m in result] == ["model-good"]
+
+
+@pytest.mark.asyncio
+async def test_list_enabled_by_ids_or_values_skips_invalid_model_docs() -> None:
+    storage = ModelStorage()
+    storage._collection = _DocsModelCollection([_GOOD_MODEL_DOC, _POISONED_MODEL_DOC])
+    storage._decrypt_doc = _identity_decrypt  # type: ignore[method-assign]
+
+    result = await storage.list_enabled_by_ids_or_values(["model-good", "model-poisoned"])
+
+    assert [m.id for m in result] == ["model-good"]

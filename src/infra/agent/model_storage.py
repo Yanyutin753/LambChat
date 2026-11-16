@@ -9,6 +9,7 @@ Model 配置存储层
 from collections.abc import Iterable
 from typing import Any, Optional
 
+from pydantic import ValidationError
 from pymongo import UpdateOne
 
 from src.infra.async_utils import run_long_blocking_io
@@ -178,7 +179,15 @@ class ModelStorage:
         async for doc in cursor:
             doc.pop("_id", None)
             doc = await self._decrypt_doc(doc)
-            models.append(ModelConfig(**doc))
+            try:
+                models.append(ModelConfig(**doc))
+            except ValidationError:
+                # 单条脏配置（如 pricing 写成分档字典）不应炸掉整个模型列表
+                logger.warning(
+                    "Skipping invalid model doc id=%s value=%s in list_models",
+                    doc.get("id"),
+                    doc.get("value"),
+                )
         return models
 
     async def list_enabled_by_ids_or_values(
@@ -217,7 +226,15 @@ class ModelStorage:
         async for doc in cursor:
             doc.pop("_id", None)
             doc = await self._decrypt_doc(doc)
-            models.append(ModelConfig(**doc))
+            try:
+                models.append(ModelConfig(**doc))
+            except ValidationError:
+                # 与 list_models 同口径：跳过脏配置，保住其余模型的可见性
+                logger.warning(
+                    "Skipping invalid model doc id=%s value=%s in list_enabled_by_ids_or_values",
+                    doc.get("id"),
+                    doc.get("value"),
+                )
         return models
 
     async def get_many_by_ids_and_values(
