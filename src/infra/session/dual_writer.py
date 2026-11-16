@@ -498,6 +498,8 @@ class DualEventWriter:
                         self._mongo_retry_after[trace_id] = time.monotonic() + min(
                             2 ** min(attempts - 2, 5), 30
                         )
+                        while len(self._mongo_retry_after) > 256:
+                            self._mongo_retry_after.pop(next(iter(self._mongo_retry_after)))
                     failed_chunk_items.extend(
                         _with_chunk_retry_metadata(
                             item,

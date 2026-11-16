@@ -37,6 +37,27 @@ from lambchat_sandbox.transport import (
 PAT = "pat-secret-1"
 
 
+async def test_cua_without_run_identity_cannot_reuse_another_agents_control(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from lambchat_sandbox import desktop_control
+
+    control = SimpleNamespace(owner=("owner", "run"), execute=AsyncMock(), bind=AsyncMock())
+    monkeypatch.setattr(desktop_control, "local_control", lambda **kwargs: control)
+    client = FakeClient()
+    await daemon_module._process_cua_call(
+        client,
+        _call("missing-run", op="cua_state"),
+        session_id="other",
+        path="/",
+        started=time.monotonic(),
+        auditor=MemoryAuditor(),
+    )
+    control.execute.assert_not_awaited()
+    control.bind.assert_not_awaited()
+    assert client.posted[-1][1]["result"]["error"] == "desktop_control_busy"
+
+
 async def test_channel_close_failure_keeps_control_recoverable(monkeypatch):
     from unittest.mock import AsyncMock
 

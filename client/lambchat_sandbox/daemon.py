@@ -699,8 +699,8 @@ async def _process_cua_call(
 
     try:
         control = local_control(cleanup=_CUA_WORKER.close)
-        if control and call.payload.get("run_id"):
-            if not await control.bind(
+        if control and (call.payload.get("run_id") or control.owner):
+            if not call.payload.get("run_id") or not await control.bind(
                 call.payload.get("session_id", ""), call.payload["run_id"], client
             ):
                 await client.post_result(
