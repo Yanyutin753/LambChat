@@ -280,6 +280,25 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
                 label,
                 WebviewUrl::App("cua-control.html?surface=overlay".into()),
             );
+            // CSS cannot blur other applications behind a transparent webview.
+            #[cfg(target_os = "windows")]
+            {
+                builder = builder.effects(
+                    tauri::window::EffectsBuilder::new()
+                        .effect(tauri::window::Effect::Acrylic)
+                        .color(tauri::window::Color(0, 0, 0, 32))
+                        .build(),
+                );
+            }
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder.effects(
+                    tauri::window::EffectsBuilder::new()
+                        .effect(tauri::window::Effect::HudWindow)
+                        .state(tauri::window::EffectState::Active)
+                        .build(),
+                );
+            }
             if let Some(args) = app
                 .config()
                 .app

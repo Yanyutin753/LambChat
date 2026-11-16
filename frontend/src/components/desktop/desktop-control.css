@@ -8,7 +8,7 @@
   justify-items: center;
   align-items: start;
   padding: 24px;
-  background: transparent;
+  background: color-mix(in srgb, var(--theme-bg) 14%, transparent);
   color: var(--theme-text);
   font-family: var(--chat-font-family);
 }

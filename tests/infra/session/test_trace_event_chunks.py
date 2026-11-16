@@ -1423,9 +1423,11 @@ async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> Non
             trace_docs: list[dict[str, Any]],
             event_types: list[str] | None = None,
             include_cost_receipts: bool = True,
+            active_user_only_trace_ids: set[str] | None = None,
         ) -> dict[str, list[dict[str, Any]]]:
             del event_types
             assert not include_cost_receipts
+            assert not active_user_only_trace_ids
             trace_ids = [str(trace["trace_id"]) for trace in trace_docs]
             self.batch_reads.append(trace_ids)
             return {

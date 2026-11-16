@@ -15,8 +15,16 @@
       await wait(() => document.querySelector('.desktop-control-overlay'));
       const backgrounds = [document.documentElement, document.body, document.querySelector('.desktop-control-overlay')]
         .map(element => getComputedStyle(element).backgroundColor);
-      if (!backgrounds.every(color => color === 'rgba(0, 0, 0, 0)'))
+      if (!backgrounds.slice(0, 2).every(color => color === 'rgba(0, 0, 0, 0)'))
         throw new Error('Native overlay obscures desktop: ' + JSON.stringify(backgrounds));
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d');
+      context.fillStyle = backgrounds[2];
+      context.fillRect(0, 0, 1, 1);
+      const veilAlpha = context.getImageData(0, 0, 1, 1).data[3] / 255;
+      if (veilAlpha < 0.1 || veilAlpha > 0.18)
+        throw new Error('Expected a light translucent desktop veil, got alpha ' + veilAlpha);
       await invoke('desktop_control_status', {ready: false, report: {transparent: true}});
       return;
     }

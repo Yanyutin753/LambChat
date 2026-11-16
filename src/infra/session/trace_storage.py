@@ -738,19 +738,12 @@ class TraceStorage(
                 and not _is_stale_running(trace)
                 and trace.get("trace_id")
             }
-            if active_user_only_trace_ids:
-                events_by_trace = await self.read_trace_events_batch_compat(
-                    traces,
-                    event_types=event_types,
-                    active_user_only_trace_ids=active_user_only_trace_ids,
-                    include_cost_receipts=False,
-                )
-            else:
-                events_by_trace = await self.read_trace_events_batch_compat(
-                    traces,
-                    event_types=event_types,
-                    include_cost_receipts=False,
-                )
+            events_by_trace = await self.read_trace_events_batch_compat(
+                traces,
+                event_types=event_types,
+                active_user_only_trace_ids=active_user_only_trace_ids,
+                include_cost_receipts=False,
+            )
             collected_chunks: List[List[Dict[str, Any]]] = []
             remaining_budget: Optional[int] = max_events
             events_truncated = False
