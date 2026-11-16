@@ -404,7 +404,7 @@ async def test_failed_terminal_cleanup_can_recover_for_next_agent_without_auto_r
         await control.finish("completed")
 
 
-@pytest.mark.parametrize("stop", ["pause", "end"])
+@pytest.mark.parametrize("stop", ["pause", "end", "disconnected"])
 async def test_takeover_after_permit_before_dispatch_never_starts_input(stop):
     events = []
     ran = []
@@ -420,9 +420,16 @@ async def test_takeover_after_permit_before_dispatch_never_starts_input(stop):
     if stop == "pause":
         control.command({"action": "pause"})
     else:
-        await control.finish("completed")
+        await control.finish("disconnected" if stop == "disconnected" else "completed")
     result = await task
     assert not ran
     assert result["error"] == (
-        "desktop_control_paused" if stop == "pause" else "desktop_control_ended"
+        "desktop_control_paused"
+        if stop == "pause"
+        else "desktop_control_disconnected"
+        if stop == "disconnected"
+        else "desktop_control_ended"
     )
+    if stop == "disconnected":
+        assert result["retry"] == "observe_first"
+        assert result["disposition"] == "not_started"

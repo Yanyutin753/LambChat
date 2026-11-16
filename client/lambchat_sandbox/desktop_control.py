@@ -158,10 +158,7 @@ class DesktopControl:
 
     async def execute(self, op: str, run: Callable[[], Coroutine[Any, Any, dict]]) -> dict:
         if self.ended:
-            return {
-                "error": "desktop_control_ended",
-                "detail": "Owning execution ended; no input started",
-            }
+            return self._not_started_result()
         if self.paused:
             return self._paused_result()
         if self.needs_observation and op not in {
@@ -179,7 +176,7 @@ class DesktopControl:
             self.emit({"state": "request", "request": request})
             if not await asyncio.wait_for(future, self.timeout) or self.paused or self.ended:
                 if self.ended:
-                    return {"error": "desktop_control_ended"}
+                    return self._not_started_result()
                 if self.paused:
                     return self._paused_result()
                 return {
@@ -244,6 +241,20 @@ class DesktopControl:
                     else "idle"
                 }
             )
+
+    def _not_started_result(self) -> dict:
+        if self.ended == "disconnected" and not self.paused and not self.cleanup_failed:
+            return {
+                "error": "desktop_control_disconnected",
+                "disposition": "not_started",
+                "retry": "observe_first",
+                "detail": "Control authority connection was lost before the action started. "
+                "Try one fresh observation to revalidate the same live run; do not replay input.",
+            }
+        return {
+            "error": "desktop_control_ended",
+            "detail": "Owning execution ended; no input started",
+        }
 
     @staticmethod
     def _paused_result() -> dict:
