@@ -61,6 +61,24 @@ $form.Add_Shown({
 """
 
 
+def wait_fixture_window(driver, pid: int) -> dict:
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            windows = [w for w in driver.windows(pid) if w["title"] == "LambChat CUA Acceptance"]
+        except CuaOpError as exc:
+            if exc.code not in {"app_not_found", "window_not_found"}:
+                raise
+            windows = []
+        if len(windows) == 1:
+            return windows[0]
+        assert not windows, "Own fixture has ambiguous windows"
+        time.sleep(0.1)
+    raise AssertionError("Own fixture did not become visible within five seconds")
+
+
 def stage_fixture_foreground(pid: int) -> None:
     """Click only an independently verified point on our own visible fixture."""
     import ctypes
@@ -79,9 +97,8 @@ def stage_fixture_foreground(pid: int) -> None:
     user32.GetForegroundWindow.restype = wintypes.HWND
     user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     try:
-        windows = [w for w in driver.windows(pid) if w["title"] == "LambChat CUA Acceptance"]
-        assert len(windows) == 1, "Own fixture must have one visible window"
-        left, top, width, _ = windows[0]["bounds"]
+        window = wait_fixture_window(driver, pid)
+        left, top, width, _ = window["bounds"]
         point = wintypes.POINT(round(left + width / 2), round(top + 12))
         owner = wintypes.DWORD()
         user32.GetWindowThreadProcessId(user32.WindowFromPoint(point), ctypes.byref(owner))

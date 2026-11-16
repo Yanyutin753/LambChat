@@ -1,8 +1,21 @@
-"""Native smoke must fail when cleanup fails after a successful GUI oracle."""
+"""Window readiness must precede any physical fixture staging."""
 
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
+
+
+def test_fixture_discovery_waits_for_its_window_without_input(monkeypatch):
+    path = Path(__file__).parents[2] / "client/scripts/smoke-cua-windows.py"
+    spec = importlib.util.spec_from_file_location("windows_cua_smoke", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    window = {"title": "LambChat CUA Acceptance", "window_id": 42}
+    replies = iter([[], [window]])
+    driver = SimpleNamespace(windows=lambda pid: next(replies))
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    assert module.wait_fixture_window(driver, 7) == window
 
 
 def test_cleanup_error_does_not_publish_success(tmp_path, monkeypatch):
