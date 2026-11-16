@@ -185,12 +185,59 @@ def production_suite(host, root, remote_root):
         + repr(remote_root + "/production-results.jsonl")
         + ");raise SystemExit(result.returncode)"
     )
-    ssh(
-        host,
-        ["python3", remote_root + "/run_validation.py", "python3", "-c", capture],
-        log=root / "production-regression.log",
-        timeout=1800,
+    command = ["python3", remote_root + "/run_validation.py", "python3", "-c", capture]
+    status_path = remote_root + "/production.exit"
+    log_path = remote_root + "/production-regression.log"
+    job = (
+        "import subprocess,pathlib;result=subprocess.run("
+        + repr(["timeout", "--signal=TERM", "--kill-after=30s", "1800s", *command])
+        + ");p=pathlib.Path("
+        + repr(status_path + ".tmp")
+        + ");p.write_text(str(result.returncode));p.replace("
+        + repr(status_path)
+        + ")"
     )
+    launch = (
+        "import subprocess,pathlib;log=open(" + repr(log_path) + ",'x');"
+        "p=subprocess.Popen("
+        + repr(["python3", "-c", job])
+        + ",stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True);"
+        "pathlib.Path(" + repr(remote_root + "/production.pid") + ").write_text(str(p.pid))"
+    )
+    deadline = time.monotonic() + 1860
+    try:
+        ssh(host, ["python3", "-c", launch], timeout=30)
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 255:
+            raise
+    except subprocess.TimeoutExpired:
+        pass
+    # A lost launch acknowledgement must never start a second suite.
+    poll = (
+        "import pathlib;p=pathlib.Path("
+        + repr(status_path)
+        + ");print(p.read_text() if p.exists() else 'running')"
+    )
+    while time.monotonic() < deadline:
+        try:
+            status = ssh(host, ["python3", "-c", poll], timeout=30).strip()
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 255:
+                raise
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            if status != "running":
+                code = int(status)
+                copy_from(host, log_path, root / "production-regression.log")
+                if code:
+                    raise subprocess.CalledProcessError(code, command)
+                break
+        time.sleep(10)
+    else:
+        raise TimeoutError(
+            f"Production completion unknown; inspect {host}:{remote_root}; do not relaunch"
+        )
     copy_from(host, remote_root + "/production-results.jsonl", root / "production-results.jsonl")
     rows = [
         json.loads(line)
