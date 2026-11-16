@@ -17,7 +17,8 @@ Do not start a replacement browser profile or edit an open document behind its a
    Discovery, window IDs and element references come from the same agent-desktop driver.
    After observation_required, use apps/windows then one fresh state before input.
    If the target is not running, a fresh apps result allows one launch; then observe
-   the launched window before interacting. Status, shell process listings and recording
+   the launched window before interacting. For a URL launch, pass url alone, not app
+   together with url. Status, shell process listings and recording
    permission do not clear the observation guard. If discovery and state disagree, report the
    exact driver error; do not infer that a remote-control app caused it, repeatedly
    retry launch, or use shell input to bypass the guard.

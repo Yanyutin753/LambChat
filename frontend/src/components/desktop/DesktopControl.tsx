@@ -102,7 +102,7 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
         </span>
         <div className="desktop-control-copy">
           <p id={statusId} role="status">
-            {t(`desktopControl.${state || "waiting"}`)}
+            {t(`desktopControl.${error ? "unavailable" : state || "waiting"}`)}
           </p>
         </div>
       </header>

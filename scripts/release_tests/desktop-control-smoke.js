@@ -23,8 +23,8 @@
       context.fillStyle = backgrounds[2];
       context.fillRect(0, 0, 1, 1);
       const veilAlpha = context.getImageData(0, 0, 1, 1).data[3] / 255;
-      if (veilAlpha < 0.1 || veilAlpha > 0.18)
-        throw new Error('Expected a light translucent desktop veil, got alpha ' + veilAlpha);
+      if (Math.abs(veilAlpha - 0.05) > 1 / 255)
+        throw new Error('Expected a 5% translucent desktop veil, got alpha ' + veilAlpha);
       await invoke('desktop_control_status', {ready: false, report: {transparent: true}});
       return;
     }
@@ -38,6 +38,9 @@
       await wait(async () => (await state()) === 'active' && !button.disabled);
       button.click();
       await wait(async () => (await state()) === 'paused' && !button.disabled);
+      const pausedRect = button.getBoundingClientRect();
+      if (pausedRect.bottom > innerHeight || pausedRect.right > innerWidth)
+        throw new Error('Expanded takeover controls are clipped');
       await invoke('desktop_control_status', {ready: false,report: {phase: 'paused', round, label: button.textContent}});
       // Wait for the React label and handler to observe the native acknowledgement.
       await sleep(); await sleep(); await sleep();

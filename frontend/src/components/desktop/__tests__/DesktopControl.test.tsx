@@ -112,6 +112,9 @@ test("resume stays disabled when the paused state can no longer be confirmed", a
   );
   invoke.mockRejectedValue(new Error("IPC disconnected"));
   await screen.findByRole("alert");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "desktopControl.unavailable",
+  );
   expect(
     screen.getByRole("button", { name: "desktopControl.resume" }),
   ).toBeDisabled();
