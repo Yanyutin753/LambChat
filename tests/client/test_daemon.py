@@ -37,6 +37,29 @@ from lambchat_sandbox.transport import (
 PAT = "pat-secret-1"
 
 
+async def test_channel_close_failure_keeps_control_recoverable(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from lambchat_sandbox import desktop_control
+
+    events = []
+    worker = SimpleNamespace(close=AsyncMock(side_effect=TimeoutError("still stopping")))
+    control = desktop_control.DesktopControl(events.append, cleanup=worker.close)
+    control.owner = ("session", "run")
+    monkeypatch.setattr(daemon_module, "_CUA_WORKER", worker)
+    monkeypatch.setattr(desktop_control, "local_control", lambda **kwargs: control)
+    await daemon_module._handle_channel(
+        FakeClient(), _aiter([]), cfg=_cfg(), executor=FakeExecutor(), auditor=MemoryAuditor()
+    )
+    assert control.ended == "disconnected"
+    assert control.cleanup_failed
+    assert control.paused
+    assert events[-1] == {"state": "unavailable"}
+    worker.close.side_effect = None
+    await control.finish("disconnected")
+    assert control.owner is None
+
+
 # ---------- fakes ----------
 
 

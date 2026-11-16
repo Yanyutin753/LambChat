@@ -1,7 +1,7 @@
 /** BOM takes precedence over response charset, as with Windows-generated scripts. */
 export function decodePreviewText(
   bytes: Uint8Array,
-  charset = "utf-8",
+  charset?: string,
   truncated = false,
 ): string | null {
   const encoding =
@@ -9,11 +9,16 @@ export function decodePreviewText(
       ? "utf-16le"
       : bytes[0] === 254 && bytes[1] === 255
         ? "utf-16be"
-        : charset;
+        : bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191
+          ? "utf-8"
+          : charset;
   try {
-    const text = new TextDecoder(encoding, { fatal: true }).decode(bytes, {
-      stream: truncated,
-    });
+    const text = new TextDecoder(encoding ?? "utf-8", { fatal: true }).decode(
+      bytes,
+      {
+        stream: truncated,
+      },
+    );
     // Preserve tabs/newlines; control bytes indicate a binary file.
     for (const char of text) {
       const code = char.charCodeAt(0);
@@ -21,7 +26,10 @@ export function decodePreviewText(
     }
     return text;
   } catch {
-    return null;
+    // Legacy Windows text often has neither a BOM nor a response charset.
+    return encoding === undefined
+      ? decodePreviewText(bytes, "gb18030", truncated)
+      : null;
   }
 }
 

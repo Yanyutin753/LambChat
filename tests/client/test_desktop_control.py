@@ -5,6 +5,51 @@ import pytest
 from lambchat_sandbox.desktop_control import DesktopControl
 
 
+async def test_channel_cancellation_during_pause_cleanup_allows_next_agent_resume():
+    from unittest.mock import AsyncMock
+
+    events = []
+    started, cleaning, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def action():
+        started.set()
+        await asyncio.Event().wait()
+
+    async def cleanup():
+        cleaning.set()
+        await release.wait()
+
+    client = AsyncMock()
+    client.control_active.return_value = True
+    control = DesktopControl(events.append, cleanup=cleanup)
+    assert await control.bind("first", "run-1", client)
+    operation = asyncio.create_task(control.execute("cua_state", action))
+    await asyncio.sleep(0)
+    control.command({"action": "permit", "request": events[-1]["request"], "allowed": True})
+    await started.wait()
+    control.command({"action": "pause"})
+    await cleaning.wait()
+    operation.cancel()
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+        control.command({"action": "resume"})
+        assert control.paused
+    finally:
+        release.set()
+        await control.finish("disconnected")
+    assert control.active is None
+    assert control.pending is None
+    assert await control.bind("second", "run-2", client)
+    try:
+        assert control.paused
+        control.command({"action": "resume"})
+        assert not control.paused
+        assert control.needs_observation
+    finally:
+        await control.finish("completed")
+
+
 async def test_ended_execution_cancels_input_before_releasing_surface():
     events = []
     control = DesktopControl(events.append)

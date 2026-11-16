@@ -372,13 +372,14 @@ async def _handle_channel(
             errors[0],
         ) from None
     finally:
-        await _CUA_WORKER.close()
         from lambchat_sandbox.desktop_control import local_control
 
         control = local_control(cleanup=_CUA_WORKER.close)
         if control and control.owner:
             control.paused = True
             await control.finish("disconnected")
+        else:
+            await _CUA_WORKER.close()
 
 
 def _transfer_path(call: ToolCall, cfg: SandboxConfig) -> Path | None:

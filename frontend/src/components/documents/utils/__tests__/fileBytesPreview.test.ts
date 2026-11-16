@@ -1,5 +1,16 @@
 import { expect, test } from "vitest";
 import { decodePreviewText, formatHexPreview } from "../fileBytesPreview";
+test("decodes legacy Chinese text without a response charset", () => {
+  expect(decodePreviewText(new Uint8Array([0xd6, 0xd0, 0xce, 0xc4]))).toBe(
+    "中文",
+  );
+});
+test("keeps explicit charset and BOM authoritative over legacy fallback", () => {
+  expect(decodePreviewText(new Uint8Array([0xd6, 0xd0]), "utf-8")).toBeNull();
+  expect(
+    decodePreviewText(new Uint8Array([0xef, 0xbb, 0xbf, 0xd6, 0xd0])),
+  ).toBeNull();
+});
 test("decodes UTF-8 and Windows UTF-16 scripts without executing content", () => {
   expect(
     decodePreviewText(new TextEncoder().encode("Write-Output '中文'")),
