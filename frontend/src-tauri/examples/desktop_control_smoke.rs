@@ -31,6 +31,10 @@ fn fixture_status(
         if report["phase"].as_str() == Some("start") {
             let position = window.outer_position().map_err(|e| e.to_string())?;
             let size = window.outer_size().map_err(|e| e.to_string())?;
+            // WebKit can finish loading before GTK maps the native window.
+            if size.width <= 1 || size.height <= 1 {
+                return Ok("mapping".into());
+            }
             let monitor = window
                 .current_monitor()
                 .map_err(|e| e.to_string())?

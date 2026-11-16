@@ -20,7 +20,7 @@
       await invoke('desktop_control_status', {ready: false, report: {transparent: true}});
       return;
     }
-    await invoke('desktop_control_status', {ready: false,report: {phase: "start"}});
+    await wait(async () => (await invoke('desktop_control_status', {ready: false, report: {phase: "start"}})) !== 'mapping');
     await wait(() => document.querySelector('.desktop-control button'));
     const button = document.querySelector('.desktop-control button');
     const rect = button.getBoundingClientRect();
