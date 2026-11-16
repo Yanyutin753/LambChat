@@ -2,10 +2,8 @@
 """lambchat_sandbox daemon 的 PyInstaller 打包 spec（onefile 单文件产物）。
 
 入口 client/lambchat_sandbox/__main__.py 与 ``python -m lambchat_sandbox`` 等价；
-包内运行路径依赖 stdlib + httpx；computer-use 后端按平台经 ``cua`` 依赖组
-注入（macOS atomacos→PyObjC / Windows pywinauto / Linux dogtail + pyautogui），
-均为 cua_* op 的懒加载 import——Analysis 按入口可达性自动收集，未同步 cua 组
-的构建只会让 cua op 报 unsupported_platform，不影响其余链路。
+包内运行路径依赖 stdlib + httpx；computer-use 统一通过固定版本的
+agent-desktop 原生二进制，Pillow 仅处理截图缩放，Quartz 仅检测 macOS 锁屏。
 
 路径基准：PyInstaller 执行 spec 时不切换 cwd，spec 内相对路径会随调用目录漂移，
 因此统一用内置 ``SPECPATH``（spec 所在目录 client/）反推仓库根，
@@ -18,41 +16,24 @@ rich→pygments→PIL→numpy→yaml、click、zstandard，anyio 拖进 uvloop/_
 psutil 不在此列：procsup.py（Windows 父进程监视）模块级硬依赖，排除即崩。
 """
 
-import sys
 from pathlib import Path
 from site import getsitepackages
-
-LINUX_SYSTEM_PACKAGES = (
-    ["/usr/lib/python3/dist-packages"] if sys.platform.startswith("linux") else []
-)
-sys.path.extend(LINUX_SYSTEM_PACKAGES)
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 
 a = Analysis(
     [str(REPO_ROOT / "client/lambchat_sandbox/__main__.py")],
-    # Keep distro GI available without shadowing uv.lock dependencies.
-    pathex=[str(REPO_ROOT / "client"), *getsitepackages(), *LINUX_SYSTEM_PACKAGES],
+    pathex=[str(REPO_ROOT / "client"), *getsitepackages()],
     binaries=[(str(path), "agent-desktop") for path in (REPO_ROOT / "client/resources/agent-desktop").glob("agent-desktop*") if path.is_file()],
     datas=[(str(REPO_ROOT / "client/third_party/agent-desktop/LICENSE"), "licenses/agent-desktop")],
-    hiddenimports=[
-        # computer-use 事件/截屏链:pyautogui 懒加载这些模块(函数体内
-        # import / try-import),静态分析抓不到;2026-10-08 生产实测
-        # Windows daemon 截屏全灭(pyscreeze 缺)即此因。pyperclip 是
-        # 非 ASCII 输入的剪贴板路径(中文输入全靠它)。
-        "pyscreeze",
-        "PIL",
-        "pyperclip",
-        "pyautogui",
-        *(["pyatspi", "gi.repository.Atspi", "Xlib.ext.composite"] if LINUX_SYSTEM_PACKAGES else []),
-    ],
+    hiddenimports=["PIL"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
         # httpx[cli] 可选链（rich→pygments→PIL→numpy→yaml、click、zstandard）。
         # psutil 曾误列于此（当作 rich 链传递依赖），实为 procsup.py 硬依赖。
-        # PIL 已从排除名单移出:computer-use 截屏(pyscreeze)硬依赖。
+        # PIL 已从排除名单移出:computer-use 截图处理依赖。
         "rich",
         "pygments",
         "markdown_it",

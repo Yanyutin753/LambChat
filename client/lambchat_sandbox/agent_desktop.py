@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -34,17 +36,69 @@ def _window_number(native_id: str) -> int:
     return int.from_bytes(hashlib.sha256(native_id.encode()).digest()[:8], "big") & ((1 << 53) - 1)
 
 
+def _windows_desktop_locked() -> bool:
+    import ctypes
+    import struct
+
+    api = ctypes.WinDLL("wtsapi32", use_last_error=True)
+    api.WTSQuerySessionInformationW.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    api.WTSQuerySessionInformationW.restype = ctypes.c_int
+    api.WTSFreeMemory.argtypes = [ctypes.c_void_p]
+    api.WTSFreeMemory.restype = None
+    buffer = ctypes.c_void_p()
+    size = ctypes.c_uint32()
+    if not api.WTSQuerySessionInformationW(
+        None, 0xFFFFFFFF, 25, ctypes.byref(buffer), ctypes.byref(size)
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        # WTSINFOEXW has a DWORD level followed by an 8-byte-aligned level-1 union.
+        if not buffer.value or size.value < 20:
+            raise OSError("Incomplete Windows session information")
+        level, _, state, flags = struct.unpack("<I4xIIi", ctypes.string_at(buffer, 20))
+        if level != 1 or flags not in (0, 1):
+            raise OSError("Unknown Windows session lock state")
+        return flags == 0 or state != 0  # Only WTSActive permits interactive control.
+    finally:
+        api.WTSFreeMemory(buffer)
+
+
 class AgentDesktopBackend:
     driver_name = "agent-desktop-1.3.1"
 
-    def __init__(self, binary: Path, native: Any):
+    def __init__(self, binary: Path):
         self.binary = binary
-        self.native = native
         self.sessions: dict[str | None, str] = {}
         self.cursors: dict[str, dict] = {}
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.native, name)
+    def ax_trusted(self) -> bool:
+        return self._call("permissions")["accessibility"]["state"] == "granted"
+
+    def frontmost_pid(self) -> int | None:
+        windows = self._call("list-windows")
+        focused = {w["pid"] for w in windows if w.get("is_focused") is True}
+        return next(iter(focused)) if len(focused) == 1 else None
+
+    def desktop_locked(self) -> bool:
+        # This is a session safety check, not an alternate CUA execution backend.
+        if sys.platform == "win32":
+            return _windows_desktop_locked()
+        if sys.platform != "darwin":
+            return False
+        from Quartz import CGSessionCopyCurrentDictionary
+
+        session = CGSessionCopyCurrentDictionary()
+        return (
+            not session
+            or bool(session.get("CGSSessionScreenIsLocked"))
+            or not session.get("kCGSSessionOnConsoleKey", False)
+        )
 
     def _run(self, args: list[str], text: str | None = None) -> Any:
         from lambchat_sandbox.cua_ops import CuaOpError
@@ -108,7 +162,7 @@ class AgentDesktopBackend:
         return self._call("list-apps")["apps"]
 
     def windows(self, pid: int) -> list[dict]:
-        from lambchat_sandbox.cua_backend import backend_platform, is_control_window
+        from lambchat_sandbox.cua_backend import is_control_window
 
         apps = self.list_apps()
         app = next((a for a in apps if a["pid"] == pid), None)
@@ -123,23 +177,11 @@ class AgentDesktopBackend:
                 "focused": w.get("is_focused") is True,
                 "bounds": _bounds(w.get("bounds")),
                 "main": w.get("is_focused") is True,
+                "minimized": w.get("minimized") is True,
             }
             for w in result
             if w["pid"] == pid and not is_control_window(pid, w["title"])
         ]
-        if backend_platform() == "linux" and not os.environ.get("WAYLAND_DISPLAY"):
-            foreground = self.native.foreground_window()
-            matches = [
-                w
-                for w in rows
-                if foreground
-                and foreground["pid"] == pid
-                and w["bounds"] is not None
-                and w["bounds"] in (foreground["bounds"], foreground.get("frame_bounds"))
-            ]
-            # Browser AX titles can differ from X11 titles; require unique native geometry.
-            for window in rows:
-                window["focused"] = window["main"] = len(matches) == 1 and window is matches[0]
         return rows
 
     def pick_window(self, pid: int, window_id: int | None) -> tuple[dict, dict]:
@@ -158,6 +200,12 @@ class AgentDesktopBackend:
 
     def _node(self, element: dict) -> dict:
         if "_window" in element and "_tree" not in element:
+            if element["_window"].get("minimized"):
+                from lambchat_sandbox.cua_ops import CuaOpError
+
+                raise CuaOpError(
+                    "window_minimized", "Activate the window to restore it, then observe again"
+                )
             result = self._call(
                 "snapshot",
                 "--window-id",
@@ -307,7 +355,8 @@ class AgentDesktopBackend:
         if action not in commands:
             raise KeyError(action)
         self._enable_cursor()
-        return self._call(commands[action], self._reference(element))
+        prefix = ("--headed",) if commands[action] in {"focus", "hover"} else ()
+        return self._call(*prefix, commands[action], self._reference(element))
 
     def set_value(self, element: dict, text: str) -> dict:
         self._enable_cursor()
@@ -317,32 +366,16 @@ class AgentDesktopBackend:
         self.perform(element, "Focus")
 
     def activate_window(self, pid: int, window_id: int | None) -> dict:
-        from lambchat_sandbox.cua_backend import backend_platform
-        from lambchat_sandbox.cua_ops import CuaOpError
-
         _, window = self.pick_window(pid, window_id)
-        try:
-            return self._call("focus-window", "--window-id", window["driver_window_id"])
-        except CuaOpError as exc:
-            if (
-                backend_platform() != "linux"
-                or exc.context.get("details", {}).get("cause") != "window_not_mapped"
-                or exc.context.get("disposition", {}).get("delivery") != "not_delivered"
-            ):
-                raise
-            rows = self.windows(pid)
-            matches = [w for w in rows if w["bounds"] == window["bounds"]]
-            if len(matches) != 1 or matches[0]["window_id"] != window["window_id"]:
-                raise CuaOpError("stale_state", "window mapping is no longer unique") from exc
-            return self.native.activate_window_bounds(pid, window["bounds"])
+        if window.get("minimized"):
+            self._call("restore", "--window-id", window["driver_window_id"])
+        return self._call("focus-window", "--window-id", window["driver_window_id"])
 
     def click_point(self, x: float, y: float, button: str = "left", *, count: int = 1) -> dict:
         self._enable_cursor()
         return self._call(
             "--headed", "mouse-click", f"--xy={x},{y}", "--button", button, "--count", str(count)
         )
-
-    click_point_repeated = click_point
 
     def scroll_element(self, element: dict, direction: str, pages: float) -> dict:
         from lambchat_sandbox.cua_backend import backend_platform
@@ -357,3 +390,101 @@ class AgentDesktopBackend:
             "--amount",
             str(max(1, round(pages * 10))),
         )
+
+    def press_chord(self, keys: list[str], modifiers: list[str], window: dict) -> dict:
+        aliases = {
+            "enter": "return",
+            "esc": "escape",
+            "winleft": "meta",
+            "command": "cmd",
+            "option": "alt",
+            "delete": "forwarddelete",
+            "backspace": "delete",
+        }
+        chord = "+".join(aliases.get(key, key) for key in [*modifiers, *keys])
+        self._enable_cursor()
+        return self._call("--headed", "press", chord, "--window-id", window["driver_window_id"])
+
+    def type_text(self, text: str, window: dict) -> dict:
+        from lambchat_sandbox.cua_ops import CuaOpError
+
+        focused = self._call(
+            "snapshot",
+            "--window-id",
+            window["driver_window_id"],
+            "--surface",
+            "focused",
+            "--compact",
+            "--timeout-ms",
+            "5000",
+        )
+        if focused.get("window", {}).get("id") != window["driver_window_id"]:
+            raise CuaOpError("stale_state", "Focused window changed; observe again")
+        pending = [(focused["tree"], 0)]
+        candidates = []
+        while pending:
+            node, depth = pending.pop()
+            if (
+                "focused" in node.get("states", [])
+                and node.get("ref_id")
+                and node.get("role") not in {"window", "dialog", "application"}
+            ):
+                candidates.append((depth, node))
+            pending.extend((child, depth + 1) for child in node.get("children", []))
+        deepest = max((depth for depth, _ in candidates), default=-1)
+        targets = [node for depth, node in candidates if depth == deepest]
+        if len(targets) != 1:
+            raise CuaOpError(
+                "element_unavailable",
+                "Observe and select a unique focused text element before typing",
+            )
+        reference = self._reference(targets[0])
+        self._enable_cursor()
+        return self._call("--headed", "type", reference, "--stdin", text=text)
+
+    def scroll_point(self, x: float, y: float, direction: str, amount: int) -> dict:
+        magnitude = -amount if direction in ("down", "left") else amount
+        axis = "dx" if direction in ("left", "right") else "dy"
+        self._enable_cursor()
+        return self._call(
+            "--headed", "mouse-wheel", f"--x={x}", f"--y={y}", f"--{axis}={magnitude}"
+        )
+
+    def screenshot(self, bounds: list, window: dict | None = None) -> Any:
+        from PIL import Image
+
+        from lambchat_sandbox.cua_ops import CuaOpError
+
+        args = ("--window-id", window["driver_window_id"]) if window else ("--screen", "0")
+        result = self._call("screenshot", *args)
+        image = Image.open(io.BytesIO(base64.b64decode(result["data"], validate=True)))
+        image.load()
+        if window:
+            left, top, width, height = window["bounds"]
+            x, y, crop_width, crop_height = bounds
+            if (
+                width <= 0
+                or height <= 0
+                or x < left
+                or y < top
+                or x + crop_width > left + width
+                or y + crop_height > top + height
+            ):
+                raise CuaOpError(
+                    "screenshot_failed", "Capture bounds are outside the observed window"
+                )
+            sx, sy = image.width / width, image.height / height
+            image = image.crop(
+                (
+                    round((x - left) * sx),
+                    round((y - top) * sy),
+                    round((x - left + crop_width) * sx),
+                    round((y - top + crop_height) * sy),
+                )
+            )
+        else:
+            image = image.crop((0, 0, 10, 10))
+        return image
+
+    def launch(self, app: str, args: list[str]) -> dict:
+        return self._call("launch", app, *(f"--arg={arg}" for arg in args))

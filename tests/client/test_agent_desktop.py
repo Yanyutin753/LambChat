@@ -11,12 +11,7 @@ def backend(monkeypatch, tmp_path):
     from lambchat_sandbox.agent_desktop import AgentDesktopBackend
 
     monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
-    native = SimpleNamespace(
-        list_apps=lambda: [{"pid": 7, "name": "Editor"}],
-        frontmost_pid=lambda: 7,
-        foreground_window=lambda: None,
-    )
-    instance = AgentDesktopBackend(tmp_path / "agent-desktop", native)
+    instance = AgentDesktopBackend(tmp_path / "agent-desktop")
     return instance
 
 
@@ -192,7 +187,8 @@ def test_reported_parameterless_action_is_supported(backend, monkeypatch, action
     monkeypatch.setattr(backend, "_enable_cursor", lambda: None)
     monkeypatch.setattr(backend, "_call", lambda *a, **k: calls.append(a) or {})
     backend.perform({"ref_id": "@snapshot:e1"}, action)
-    assert calls == [(command, "@snapshot:e1")]
+    prefix = ("--headed",) if command in {"focus", "hover"} else ()
+    assert calls == [(*prefix, command, "@snapshot:e1")]
 
 
 def test_cursor_reports_unrendered_without_claiming_visibility(backend, monkeypatch):
@@ -353,78 +349,6 @@ def test_non_actionable_subtree_refreshes_by_verified_window_path(backend, monke
         backend.refresh_element(old, {})
 
 
-@pytest.mark.parametrize("framed", [False, True])
-@pytest.mark.parametrize("ambiguous,owner", [(False, 7), (True, 7), (False, 8)])
-def test_linux_focus_matches_unique_native_window_even_when_titles_differ(
-    backend, monkeypatch, ambiguous, owner, framed
-):
-    from lambchat_sandbox import cua_backend
-
-    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "linux")
-    windows = [
-        {
-            "id": "w-accessible",
-            "pid": 7,
-            "title": "Page - Edge",
-            "is_focused": False,
-            "bounds": {"x": 1, "y": 1, "width": 800, "height": 600},
-        }
-    ]
-    if ambiguous:
-        windows.append({**windows[0], "id": "w-other"})
-    monkeypatch.setattr(
-        backend,
-        "_call",
-        lambda *args: {"apps": [{"pid": 7, "name": "Edge"}]} if args[0] == "list-apps" else windows,
-    )
-    backend.native.foreground_window = lambda: {
-        "pid": owner,
-        "bounds": [2, 27, 798, 573] if framed else [1, 1, 800, 600],
-        **({"frame_bounds": [1, 1, 800, 600]} if framed else {}),
-    }
-    rows = backend.windows(7)
-    assert rows[0]["focused"] is (not ambiguous and owner == 7)
-    assert rows[0]["main"] is rows[0]["focused"]
-
-
-@pytest.mark.parametrize("cause", ["window_not_mapped", "permission_denied"])
-def test_linux_activation_recovers_only_undelivered_mapping_failure(backend, monkeypatch, cause):
-    from lambchat_sandbox import cua_backend
-    from lambchat_sandbox.cua_ops import CuaOpError
-
-    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "linux")
-    row = {
-        "window_id": 42,
-        "driver_window_id": "w-42",
-        "bounds": [1, 2, 800, 600],
-        "focused": False,
-    }
-    monkeypatch.setattr(backend, "windows", lambda pid: [row])
-
-    def fail(*args):
-        raise CuaOpError(
-            "action_failed",
-            cause,
-            context={
-                "details": {"cause": cause},
-                "disposition": {"delivery": "not_delivered", "retry": "safe"},
-            },
-        )
-
-    monkeypatch.setattr(backend, "_call", fail)
-    calls = []
-    backend.native.activate_window_bounds = lambda pid, bounds: (
-        calls.append((pid, bounds)) or {"disposition": {"delivery": "delivered_verified"}}
-    )
-    if cause == "window_not_mapped":
-        assert backend.activate_window(7, 42)["disposition"]["delivery"] == "delivered_verified"
-        assert calls == [(7, row["bounds"])]
-    else:
-        with pytest.raises(CuaOpError):
-            backend.activate_window(7, 42)
-        assert calls == []
-
-
 def test_wayland_keeps_driver_focus_for_accessibility_actions(backend, monkeypatch):
     from lambchat_sandbox import cua_backend
 
@@ -439,7 +363,6 @@ def test_wayland_keeps_driver_focus_for_accessibility_actions(backend, monkeypat
             else [{"id": "w-42", "pid": 7, "title": "Target", "is_focused": True}]
         ),
     )
-    backend.native.foreground_window = lambda: pytest.fail("X11 fallback must not run on Wayland")
     assert backend.windows(7)[0]["focused"] is True
 
 

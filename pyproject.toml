@@ -88,20 +88,11 @@ dev = [
     "pre-commit>=4.7.0",
     "pyinstaller>=6.22.3",
 ]
-# computer-use 后端（仅 daemon 打包时同步：`uv sync --group cua`）。
-# 平台标记互斥，各自只在对应构建机上落地：
-# - macOS: atomacos（Apple AX API，经 PyObjC；附带 pyautogui/pyscreeze 事件与截屏）
-# - Windows: pywinauto（UIA）+ pyautogui（键鼠/截屏，Windows 下零额外系统依赖）
-# - Linux: 系统包 python3-pyatspi（pip 无可靠发行，apt/dnf 安装）+ pyautogui（X11）
+# Desktop control uses the pinned native agent-desktop binary on every platform.
+# Quartz is retained only for the macOS lock-screen safety check.
 cua = [
-    "atomacos>=3.3.0; sys_platform == 'darwin'",
-    "pywinauto>=0.6.9; sys_platform == 'win32'",
-    "pyautogui>=0.9.54; sys_platform != 'darwin'",
-    "python-xlib>=0.33; sys_platform == 'linux'",
     "pillow>=12.3.0",
-    # 非 ASCII 文本输入的剪贴板通道(cua_ops._type_text);缺失时中文
-    # 输入整链 dispatch_failed(2026-10-08 生产实测)
-    "pyperclip>=1.11.0",
+    "pyobjc-framework-Quartz>=11.1; sys_platform == 'darwin'",
 ]
 
 [build-system]
@@ -145,7 +136,7 @@ testpaths = ["tests"]
 pythonpath = [".", "client"]
 
 [tool.uv]
-# atomacos and binary-only ONNX Runtime need separate macOS architecture resolutions.
+# Binary-only ONNX Runtime needs separate macOS architecture resolutions.
 # Intel macOS has no ONNX Runtime wheel for Python 3.14; native clients use Python 3.12.
 environments = [
     "sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
