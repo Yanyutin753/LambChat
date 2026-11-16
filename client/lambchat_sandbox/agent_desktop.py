@@ -104,7 +104,7 @@ class AgentDesktopBackend:
         return self.cursors[session]
 
     def windows(self, pid: int) -> list[dict]:
-        from lambchat_sandbox.cua_backend import backend_platform
+        from lambchat_sandbox.cua_backend import backend_platform, is_control_window
 
         # Avoid Windows' global UIA scan; Linux toolkit names can differ from process names.
         apps = (
@@ -126,7 +126,7 @@ class AgentDesktopBackend:
                 "main": w.get("is_focused") is True,
             }
             for w in result
-            if w["pid"] == pid
+            if w["pid"] == pid and not is_control_window(pid, w["title"])
         ]
         if backend_platform() == "linux" and not os.environ.get("WAYLAND_DISPLAY"):
             foreground = self.native.foreground_window()

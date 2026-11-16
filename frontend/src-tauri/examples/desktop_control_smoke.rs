@@ -159,6 +159,10 @@ fn main() {
                 ))
                 .env("PYTHONPATH", format!("{root}/client"))
                 .env("LAMBCHAT_DESKTOP_CONTROL", &token)
+                .env(
+                    "LAMBCHAT_DESKTOP_CONTROL_OWNER_PID",
+                    std::process::id().to_string(),
+                )
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .spawn()?;

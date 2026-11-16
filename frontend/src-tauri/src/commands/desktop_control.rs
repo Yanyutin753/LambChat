@@ -232,7 +232,7 @@ fn show(app: &AppHandle) -> Result<(), String> {
         .or_else(|| app.primary_monitor().ok().flatten())
         .ok_or("desktop_control_no_display")?;
     let window = builder
-        .title("LambChat")
+        .title("LambChat Control")
         .inner_size(CONTROL_WIDTH, CONTROL_HEIGHT)
         .min_inner_size(CONTROL_WIDTH, CONTROL_HEIGHT)
         .decorations(false)
@@ -245,12 +245,16 @@ fn show(app: &AppHandle) -> Result<(), String> {
         .visible(false)
         .build()
         .map_err(|e| e.to_string())?;
+    // GTK reports zero size until the hidden window is mapped.
+    #[cfg(target_os = "linux")]
+    let size =
+        tauri::LogicalSize::new(CONTROL_WIDTH, CONTROL_HEIGHT).to_physical(monitor.scale_factor());
+    #[cfg(not(target_os = "linux"))]
+    let size = window.outer_size().map_err(|e| e.to_string())?;
     window
         .set_position(takeover_position(
             *monitor.work_area(),
-            // GTK reports zero size until the hidden window is mapped.
-            tauri::LogicalSize::new(CONTROL_WIDTH, CONTROL_HEIGHT)
-                .to_physical(monitor.scale_factor()),
+            size,
             (24.0 * monitor.scale_factor()).round() as i32,
         ))
         .map_err(|e| e.to_string())?;

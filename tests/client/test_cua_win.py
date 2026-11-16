@@ -60,6 +60,25 @@ class _Legacy:
         self.default_action_called = True
 
 
+def test_control_surfaces_are_not_agent_targets(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL", "fixture")
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID", "42")
+    windows = [
+        SimpleNamespace(
+            process_id=lambda: 42, element_info=SimpleNamespace(name=title), handle=index
+        )
+        for index, title in enumerate(
+            ["LambChat Control Overlay", "LambChat Control", "LambChat"], 1
+        )
+    ]
+    monkeypatch.setattr(cua_win, "_desktop_windows", lambda: windows)
+    monkeypatch.setattr(cua_win, "_foreground_hwnd", lambda: 1)
+    assert [w["title"] for w in cua_win.windows(42)] == ["LambChat"]
+    assert cua_win.pick_window(42, 0)[0] is windows[-1]
+
+
 def test_perform_maps_semantic_click_to_invoke() -> None:
     """生产事故回归(2026-10-08):click 语义没映射,Windows 元素点击整体
     KeyError「action click not available on element」。"""
