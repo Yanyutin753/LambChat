@@ -103,15 +103,14 @@ class AgentDesktopBackend:
                 self.cursors[session] = {"rendered": False, "error": exc.code}
         return self.cursors[session]
 
+    def list_apps(self) -> list[dict]:
+        # Discovery and snapshots must use the same process names and IDs.
+        return self._call("list-apps")["apps"]
+
     def windows(self, pid: int) -> list[dict]:
         from lambchat_sandbox.cua_backend import backend_platform, is_control_window
 
-        # Avoid Windows' global UIA scan; Linux toolkit names can differ from process names.
-        apps = (
-            self._call("list-apps")["apps"]
-            if backend_platform() in ("linux", "win32")
-            else self.native.list_apps()
-        )
+        apps = self.list_apps()
         app = next((a for a in apps if a["pid"] == pid), None)
         if app is None:
             raise KeyError("app_not_found")

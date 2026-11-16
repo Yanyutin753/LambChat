@@ -2,5 +2,9 @@
   "identifier": "desktop-control",
   "description": "Only the bundled persistent CUA toolbar may pause or resume desktop control",
   "windows": ["cua-control"],
-  "permissions": ["allow-desktop-control", "core:window:allow-start-dragging"]
+  "permissions": [
+    "allow-desktop-control",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-size"
+  ]
 }

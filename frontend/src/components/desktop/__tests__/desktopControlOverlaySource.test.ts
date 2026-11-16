@@ -32,7 +32,8 @@ test("fullscreen overlays use native backdrop effects without blurring the toolb
     native.indexOf("fn show_overlays("),
     native.indexOf("fn hide_surfaces("),
   );
-  expect(overlay).toContain("Effect::Acrylic");
+  expect(overlay).toContain("Effect::Blur");
+  expect(overlay).not.toContain("Effect::Acrylic");
   expect(overlay).toContain("Effect::HudWindow");
   expect(overlay).toContain(".effects(");
   const toolbar = native.slice(
@@ -50,5 +51,15 @@ test("overlay is realized before Linux cursor passthrough accesses its native wi
   expect(show.indexOf("window.show()")).toBeGreaterThanOrEqual(0);
   expect(show.indexOf("window.show()")).toBeLessThan(
     show.indexOf(".set_ignore_cursor_events(true)"),
+  );
+});
+
+test("the single takeover toolbar starts inside the top work area", () => {
+  const position = native.slice(
+    native.indexOf("fn takeover_position("),
+    native.indexOf("fn show(app:"),
+  );
+  expect(position.replace(/\s+/g, "")).toContain(
+    "margin.max(0).min(area.size.height.saturating_sub(size.height)asi32)",
   );
 });

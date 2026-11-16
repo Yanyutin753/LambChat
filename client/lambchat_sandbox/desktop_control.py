@@ -30,6 +30,7 @@ class DesktopControl:
         self.paused = False
         self.needs_observation = False
         self.observed = False
+        self.observed_apps = False
         self.pending: tuple[str, asyncio.Future[bool]] | None = None
         self.active: asyncio.Task[dict] | None = None
         self.owner: tuple[str, str] | None = None
@@ -52,6 +53,7 @@ class DesktopControl:
         self.owner = owner
         self.ended = None
         self.needs_observation = True
+        self.observed_apps = False
         self.emit(
             {
                 "state": "session",
@@ -89,6 +91,7 @@ class DesktopControl:
         self.cleanup_failed = False
         self.needs_observation = True
         self.observed = False
+        self.observed_apps = False
         watcher, self.watcher = self.watcher, None
         if watcher and watcher is not asyncio.current_task():
             watcher.cancel()
@@ -136,6 +139,7 @@ class DesktopControl:
             self.paused = True
             self.needs_observation = True
             self.observed = False
+            self.observed_apps = False
             if self.active and not self.active.cancelling():
                 self.active.cancel()
             if self.pending and not self.pending[1].done():
@@ -161,14 +165,24 @@ class DesktopControl:
             return self._not_started_result()
         if self.paused:
             return self._paused_result()
-        if self.needs_observation and op not in {
-            "cua_state",
-            "cua_status",
-            "cua_apps",
-            "cua_windows",
-            "cua_activate",
-        }:
-            return {"error": "observation_required", "detail": "Observe again after local takeover"}
+        if (
+            self.needs_observation
+            and not (op == "cua_launch" and self.observed_apps)
+            and op
+            not in {
+                "cua_state",
+                "cua_status",
+                "cua_apps",
+                "cua_windows",
+                "cua_activate",
+            }
+        ):
+            return {
+                "error": "observation_required",
+                "detail": "Observe target state before input; refresh apps before launching an application",
+            }
+        if op in {"cua_apps", "cua_launch"}:
+            self.observed_apps = False
         request = uuid.uuid4().hex
         future = asyncio.get_running_loop().create_future()
         self.pending = request, future
@@ -194,6 +208,7 @@ class DesktopControl:
             ):
                 self.needs_observation = True
                 self.observed = False
+                self.observed_apps = False
             screenshot = result.get("screenshot") or {}
             focus_lost = (
                 result.get("error") == "foreground_required"
@@ -201,6 +216,8 @@ class DesktopControl:
             )
             if focus_lost and self.observed:
                 self.command({"action": "pause"})
+            if op == "cua_apps" and not result.get("error") and not self.paused:
+                self.observed_apps = isinstance(result.get("apps"), list)
             if op == "cua_state" and not result.get("error") and not self.paused:
                 self.needs_observation = False
                 self.observed = True
@@ -208,6 +225,7 @@ class DesktopControl:
         except TimeoutError:
             if self.active is not None:
                 self.needs_observation = True
+                self.observed_apps = False
                 return {
                     "error": "timeout",
                     "disposition": "unknown",
