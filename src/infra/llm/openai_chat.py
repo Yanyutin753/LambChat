@@ -13,6 +13,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 from pydantic import Field
 
+from src.infra.llm.providers import is_zhipu_thinking_model
 from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.responses_cache import current_responses_prompt_cache_key
 from src.infra.llm.streaming import aiter_with_first_event_timeout
@@ -120,6 +121,9 @@ class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
                 # Missing cross-model reasoning is valid as an empty field.
                 reasoning = reasoning_text_from_message(source)
                 message["reasoning_content"] = reasoning
+            elif is_zhipu_thinking_model(self.model_name):
+                if reasoning := reasoning_text_from_message(source):
+                    message["reasoning_content"] = reasoning
             elif not self.model_name.lower().startswith("deepseek"):
                 message.pop("reasoning_content", None)
         if "input" in payload and is_deepseek_thinking_model(self.model_name):

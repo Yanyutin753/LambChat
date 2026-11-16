@@ -55,7 +55,7 @@ _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
     "deepseek": ("deepseek-flash", "deepseek-v4"),
 }
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
-# field (via extra_body). glm-4.7 未核实，不发送。
+# field (via extra_body).
 # 前缀表与谓词已下沉 providers.py（reasoning_patch 复用），此处保留别名。
 
 
