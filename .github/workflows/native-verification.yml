@@ -12,12 +12,17 @@ on:
         description: 'Exact 40-character source commit to build from the selected codex branch'
         required: true
         type: string
+      suite:
+        description: 'Run all platforms or isolate Windows input diagnostics'
+        type: choice
+        options: [all, windows]
+        default: all
 
 permissions:
   contents: read
 
 concurrency:
-  group: native-verification-${{ github.ref }}
+  group: native-verification-${{ github.ref }}-${{ inputs.suite || 'all' }}
   cancel-in-progress: false
 
 env:
@@ -217,19 +222,19 @@ jobs:
           key: updater-verification-${{ runner.os }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
 
   linux-capture:
-    if: startsWith(github.ref, 'refs/heads/codex/')
+    if: startsWith(github.ref, 'refs/heads/codex/') && inputs.suite != 'windows'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install X11 capture fixture dependencies
-        run: sudo apt-get update && sudo apt-get install -y python3-xlib python3-pil xvfb xauth
+        run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-gtk-3.0 python3-pil at-spi2-core dbus-x11 openbox xcompmgr xvfb xauth
       - name: Verify overlay-free native window pixels
         run: |
-          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
-          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py --unredirected
+          python3 scripts/run_validation.py python3 client/scripts/fetch-agent-desktop.py --triple x86_64-unknown-linux-gnu
+          python3 scripts/run_validation.py env PYTHONPATH=client NO_AT_BRIDGE=0 GTK_MODULES=gail:atk-bridge dbus-run-session -- xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
 
   desktop-control:
-    if: startsWith(github.ref, 'refs/heads/codex/')
+    if: startsWith(github.ref, 'refs/heads/codex/') && inputs.suite != 'windows'
     strategy:
       fail-fast: false
       matrix:

@@ -606,6 +606,18 @@ async def test_large_tree_keeps_valid_json_and_screenshot_metadata() -> None:
     assert result["truncated"] is True
     assert result["screenshot"]["url"] == "/api/upload/file/shot.jpg"
     assert result["state"].startswith("[0] AXTextField")
+    assert result["state"].endswith("[output budget reached; observe the relevant element subtree]")
+
+
+async def test_result_uses_compact_json_without_changing_observed_text() -> None:
+    result = {
+        "snapshot_id": "snapshot-1",
+        "state": "[0] textfield value='a  b 中文'",
+        "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+    }
+    raw = await cut._format_result(result)
+    assert raw == json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+    assert json.loads(raw) == result
 
 
 async def test_cloud_conversation_cannot_dispatch_even_with_selected_machine(monkeypatch):

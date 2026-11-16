@@ -14,6 +14,14 @@ for supported operations; use computer_use for the user's existing desktop sessi
 Do not start a replacement browser profile or edit an open document behind its app.
 
 1. Read status/capabilities, identify the target with apps/windows, then observe state.
+   Discovery, window IDs and element references come from the same agent-desktop driver.
+   After observation_required, use apps/windows then one fresh state before input.
+   If the target is not running, a fresh apps result allows one launch; then observe
+   the launched window before interacting. For a URL launch, pass url alone, not app
+   together with url. Status, shell process listings and recording
+   permission do not clear the observation guard. If discovery and state disagree, report the
+   exact driver error; do not infer that a remote-control app caused it, repeatedly
+   retry launch, or use shell input to bypass the guard.
    Start with include_screenshot=false. Truncation does not invalidate visible controls:
    if the target and necessary options are present, use their current indices directly.
    Inspect a relevant subtree only when required content is missing. Do not request an image merely
@@ -45,3 +53,12 @@ Do not start a replacement browser profile or edit an open document behind its a
 Use the actual tool schema, not upstream agent-desktop CLI flags. The daemon owns
 capture exclusion, input serialization and cancellation. Do not disable these protections,
 change OS permissions automatically, or use an alternate shell input driver to evade them.
+
+All desktop operations use the bundled agent-desktop driver; do not switch to old
+platform automation libraries or shell input to work around a driver failure.
+A `window_minimized` result is not a hung daemon: explicitly activate the intended
+window to restore it, then request fresh state. Do not repeatedly snapshot a minimized
+window or raise its timeout. Observation text preserves complete names and values
+and removes duplicate labels. If `truncated` is true, read the indicated relevant
+element subtree; do not treat an omitted control as absent. For other timeouts, inspect current windows and focus
+before retrying a read; never replay an input whose delivery is uncertain.

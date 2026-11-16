@@ -1,16 +1,7 @@
 """computer-use 平台后端调度。
 
-三平台各接当前最好的开源无障碍自动化库,键鼠/截屏统一走 pyautogui
-(atomacos 在 macOS 附带;其余平台由 cua 依赖组显式引入):
-
-- macOS: ``atomacos``(Apple AX API,经 PyObjC)
-- Windows: ``pywinauto``(UI Automation)
-- Linux: ``dogtail``(AT-SPI2;需系统 python3-atspi / gir1.2-atspi-2.0)
-
-后端按平台**懒加载**(非本平台不 import,PyInstaller 按入口可达性收集),
-加载失败(库缺失/平台不匹配)统一抛 :class:`UnsupportedBackendError`,由 op 层
-收敛为 ``unsupported_platform`` 结构化错误——CI(Linux 无 X11/无 atspi)与
-生产未授权路径都优雅降级,不炸通道。
+三平台的应用发现、窗口、快照和语义操作统一经打包的 agent-desktop。
+权限、前台、输入与截图也由同一驱动提供；驱动缺失时明确失败。
 
 后端接口(duck-typed,ops 层唯一依赖面):
 - ``ax_trusted() -> bool``          权限预检(mac=辅助功能;linux=AT-SPI 可达)
@@ -57,25 +48,14 @@ def _load_backend() -> Any:
 
     platform = "android" if daemon_platform() == "android" else sys.platform
     try:
-        if platform == "darwin":
-            from lambchat_sandbox import cua_mac
-
-            _BACKEND = cua_mac
-        elif platform == "win32":
-            from lambchat_sandbox import cua_win
-
-            _BACKEND = cua_win
-        elif platform.startswith("linux"):
-            from lambchat_sandbox import cua_linux
-
-            _BACKEND = cua_linux
-        else:
+        if platform not in ("darwin", "win32", "linux"):
             raise UnsupportedBackendError(f"unsupported_platform:{platform}")
         from lambchat_sandbox.agent_desktop import AgentDesktopBackend, binary_path
 
         binary = binary_path()
-        if binary is not None:
-            _BACKEND = AgentDesktopBackend(binary, _BACKEND)
+        if binary is None:
+            raise UnsupportedBackendError("agent_desktop_missing: repair the desktop installation")
+        _BACKEND = AgentDesktopBackend(binary)
     except ImportError as exc:
         _BACKEND_ERROR = f"backend_import_failed:{exc}"
         raise UnsupportedBackendError(_BACKEND_ERROR) from exc

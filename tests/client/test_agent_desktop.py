@@ -11,12 +11,7 @@ def backend(monkeypatch, tmp_path):
     from lambchat_sandbox.agent_desktop import AgentDesktopBackend
 
     monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
-    native = SimpleNamespace(
-        list_apps=lambda: [{"pid": 7, "name": "Editor"}],
-        frontmost_pid=lambda: 7,
-        foreground_window=lambda: None,
-    )
-    instance = AgentDesktopBackend(tmp_path / "agent-desktop", native)
+    instance = AgentDesktopBackend(tmp_path / "agent-desktop")
     return instance
 
 
@@ -32,12 +27,19 @@ def test_windows_filter_same_named_processes(backend, monkeypatch):
         {"id": "w-43", "pid": 8, "title": "Other instance"},
     ]
     calls = []
-    monkeypatch.setattr(backend, "_call", lambda *a, **k: calls.append(a) or windows)
+    monkeypatch.setattr(
+        backend,
+        "_call",
+        lambda *a, **k: (
+            calls.append(a)
+            or ({"apps": [{"pid": 7, "name": "Editor"}]} if a[0] == "list-apps" else windows)
+        ),
+    )
     rows = backend.windows(7)
     assert len(rows) == 1
     assert rows[0]["window_id"] == 42
     assert rows[0]["bounds"] == [10, 20, 800, 600]
-    assert calls == [("list-windows", "--app", "Editor", "--timeout-ms", "5000")]
+    assert calls == [("list-apps",), ("list-windows", "--app", "Editor", "--timeout-ms", "5000")]
 
 
 @pytest.mark.parametrize("owner,enabled", [(None, True), ("7", True), ("8", True), ("7", False)])
@@ -53,7 +55,13 @@ def test_control_surfaces_are_not_agent_targets(backend, monkeypatch, owner, ena
             ["LambChat Control", "LambChat Control Overlay", "LambChat"], 41
         )
     ]
-    monkeypatch.setattr(backend, "_call", lambda *args, **kwargs: rows)
+    monkeypatch.setattr(
+        backend,
+        "_call",
+        lambda *args, **kwargs: (
+            {"apps": [{"pid": 7, "name": "Editor"}]} if args[0] == "list-apps" else rows
+        ),
+    )
     if owner == "7" and enabled:
         assert [w["title"] for w in backend.windows(7)] == ["LambChat"]
         assert backend.pick_window(7, None)[1]["window_id"] == 43
@@ -102,7 +110,11 @@ def test_linux_opaque_window_identity_is_preserved(backend, monkeypatch):
     monkeypatch.setattr(
         backend,
         "_call",
-        lambda *a, **k: [{"id": native_id, "pid": 7, "title": "Target", "is_focused": True}],
+        lambda *a, **k: (
+            {"apps": [{"pid": 7, "name": "Editor"}]}
+            if a[0] == "list-apps"
+            else [{"id": native_id, "pid": 7, "title": "Target", "is_focused": True}]
+        ),
     )
     first = backend.windows(7)[0]
     assert first["driver_window_id"] == native_id
@@ -175,7 +187,8 @@ def test_reported_parameterless_action_is_supported(backend, monkeypatch, action
     monkeypatch.setattr(backend, "_enable_cursor", lambda: None)
     monkeypatch.setattr(backend, "_call", lambda *a, **k: calls.append(a) or {})
     backend.perform({"ref_id": "@snapshot:e1"}, action)
-    assert calls == [(command, "@snapshot:e1")]
+    prefix = ("--headed",) if command in {"focus", "hover"} else ()
+    assert calls == [(*prefix, command, "@snapshot:e1")]
 
 
 def test_cursor_reports_unrendered_without_claiming_visibility(backend, monkeypatch):
@@ -336,78 +349,6 @@ def test_non_actionable_subtree_refreshes_by_verified_window_path(backend, monke
         backend.refresh_element(old, {})
 
 
-@pytest.mark.parametrize("framed", [False, True])
-@pytest.mark.parametrize("ambiguous,owner", [(False, 7), (True, 7), (False, 8)])
-def test_linux_focus_matches_unique_native_window_even_when_titles_differ(
-    backend, monkeypatch, ambiguous, owner, framed
-):
-    from lambchat_sandbox import cua_backend
-
-    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "linux")
-    windows = [
-        {
-            "id": "w-accessible",
-            "pid": 7,
-            "title": "Page - Edge",
-            "is_focused": False,
-            "bounds": {"x": 1, "y": 1, "width": 800, "height": 600},
-        }
-    ]
-    if ambiguous:
-        windows.append({**windows[0], "id": "w-other"})
-    monkeypatch.setattr(
-        backend,
-        "_call",
-        lambda *args: {"apps": [{"pid": 7, "name": "Edge"}]} if args[0] == "list-apps" else windows,
-    )
-    backend.native.foreground_window = lambda: {
-        "pid": owner,
-        "bounds": [2, 27, 798, 573] if framed else [1, 1, 800, 600],
-        **({"frame_bounds": [1, 1, 800, 600]} if framed else {}),
-    }
-    rows = backend.windows(7)
-    assert rows[0]["focused"] is (not ambiguous and owner == 7)
-    assert rows[0]["main"] is rows[0]["focused"]
-
-
-@pytest.mark.parametrize("cause", ["window_not_mapped", "permission_denied"])
-def test_linux_activation_recovers_only_undelivered_mapping_failure(backend, monkeypatch, cause):
-    from lambchat_sandbox import cua_backend
-    from lambchat_sandbox.cua_ops import CuaOpError
-
-    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "linux")
-    row = {
-        "window_id": 42,
-        "driver_window_id": "w-42",
-        "bounds": [1, 2, 800, 600],
-        "focused": False,
-    }
-    monkeypatch.setattr(backend, "windows", lambda pid: [row])
-
-    def fail(*args):
-        raise CuaOpError(
-            "action_failed",
-            cause,
-            context={
-                "details": {"cause": cause},
-                "disposition": {"delivery": "not_delivered", "retry": "safe"},
-            },
-        )
-
-    monkeypatch.setattr(backend, "_call", fail)
-    calls = []
-    backend.native.activate_window_bounds = lambda pid, bounds: (
-        calls.append((pid, bounds)) or {"disposition": {"delivery": "delivered_verified"}}
-    )
-    if cause == "window_not_mapped":
-        assert backend.activate_window(7, 42)["disposition"]["delivery"] == "delivered_verified"
-        assert calls == [(7, row["bounds"])]
-    else:
-        with pytest.raises(CuaOpError):
-            backend.activate_window(7, 42)
-        assert calls == []
-
-
 def test_wayland_keeps_driver_focus_for_accessibility_actions(backend, monkeypatch):
     from lambchat_sandbox import cua_backend
 
@@ -422,7 +363,6 @@ def test_wayland_keeps_driver_focus_for_accessibility_actions(backend, monkeypat
             else [{"id": "w-42", "pid": 7, "title": "Target", "is_focused": True}]
         ),
     )
-    backend.native.foreground_window = lambda: pytest.fail("X11 fallback must not run on Wayland")
     assert backend.windows(7)[0]["focused"] is True
 
 
@@ -454,3 +394,59 @@ def test_read_only_subtree_refresh_uses_verified_path_when_driver_ref_is_ambiguo
     fresh["name"] = "Other panel"
     with pytest.raises(CuaOpError, match="stale_state"):
         backend.refresh_element(old, {})
+
+
+@pytest.mark.parametrize("platform", ["win32", "darwin", "linux"])
+def test_apps_and_windows_share_driver_identity(backend, monkeypatch, platform):
+    from lambchat_sandbox import cua_backend
+
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: platform)
+    calls = []
+
+    def call(*args):
+        calls.append(args)
+        if args[0] == "list-apps":
+            return {"apps": [{"pid": 42, "name": "Browser"}]}
+        return [{"id": "w-8", "pid": 42, "title": "Browser"}]
+
+    monkeypatch.setattr(backend, "_call", call)
+    assert backend.list_apps() == [{"pid": 42, "name": "Browser"}]
+    assert backend.windows(42)[0]["window_id"] == 8
+    assert calls == [
+        ("list-apps",),
+        ("list-apps",),
+        ("list-windows", "--app", "Browser", "--timeout-ms", "5000"),
+    ]
+
+
+def test_missing_driver_never_silently_switches_discovery_backend(monkeypatch):
+    from lambchat_sandbox import agent_desktop, cua_backend
+
+    monkeypatch.setattr(cua_backend, "_BACKEND", None)
+    monkeypatch.setattr(cua_backend, "_BACKEND_ERROR", None)
+    monkeypatch.setattr(cua_backend, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(agent_desktop, "binary_path", lambda: None)
+    for _ in range(2):
+        with pytest.raises(cua_backend.UnsupportedBackendError, match="agent_desktop_missing"):
+            cua_backend.backend()
+        assert cua_backend._BACKEND is None
+
+
+def test_driver_discovery_failure_does_not_mix_native_results(backend, monkeypatch):
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    def fail(*args):
+        raise CuaOpError("access_denied", "interactive desktop unavailable")
+
+    monkeypatch.setattr(backend, "_call", fail)
+    for observe in (backend.list_apps, lambda: backend.windows(7)):
+        with pytest.raises(CuaOpError, match="access_denied"):
+            observe()
+
+
+def test_disappeared_app_requires_rediscovery_without_guessing_native_pid(backend, monkeypatch):
+    responses = iter([{"apps": [{"pid": 7, "name": "Editor"}]}, {"apps": []}])
+    monkeypatch.setattr(backend, "_call", lambda *args: next(responses))
+    assert backend.list_apps()[0]["pid"] == 7
+    with pytest.raises(KeyError, match="app_not_found"):
+        backend.windows(7)

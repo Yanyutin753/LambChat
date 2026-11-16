@@ -5,13 +5,12 @@
 - **observe → act → observe** 循环;元素索引寻址该应用**最近一次**观察,
   新观察会重新编号,失效索引报 ``element_unavailable``;
 - **无障碍优先**:元素动作用 AX/UIA/AT-SPI 接口(后台应用可操作,不抢
-  焦点);坐标/键盘走 pyautogui 事件兜底,要求目标已在前台
+  焦点);坐标/键盘同样走 agent-desktop,要求目标已在前台
   (``foreground_required``,事件策略绝不替用户激活应用);
 - 全部观察带时间/数量预算,任何 op 都不会无限占用线程(osascript 卡死教训);
-- 截屏走 pyautogui/pyscreeze(窗口 region 优先),缩放+jpeg 控制在结果预算内。
+- 截屏走 agent-desktop 精确窗口捕获,缩放+jpeg 控制在结果预算内。
 
-平台差异由 ``cua_backend`` 调度(macOS atomacos / Windows pywinauto /
-Linux dogtail);本模块只面对统一的 duck-typed 后端接口。
+三端均使用 ``agent_desktop.AgentDesktopBackend``，没有旧平台后端回退。
 """
 
 from __future__ import annotations
@@ -49,18 +48,14 @@ CUA_OPS = frozenset(
 """computer-use op 清单(daemon.py 据此分发到本模块)。"""
 
 # 观察与动作预算:大树的走查、输入注入都不能无限占用 daemon 线程。
-STATE_TIME_BUDGET = 5.0
-STATE_MAX_ELEMENTS = 400
+STATE_MAX_TEXT_BYTES = 256_000
 ELEMENT_CACHE_TTL = 180.0
 ELEMENT_CACHE_MAX_APPS = 8
 # 截屏结果预算:relay 的 SANDBOX_RESULTS_MAX_BYTES=2MiB,留出 JSON 余量。
 SCREENSHOT_MAX_BYTES = 1_500_000
 SCREENSHOT_MAX_DIMENSION = 2560
 
-TEXT_VALUE_MAX = 200
-TEXT_TITLE_MAX = 120
-
-# 工具键名 → pyautogui 键名
+# 工具键名归一化；驱动适配层转换为 agent-desktop 键名
 _KEY_MAP = {
     "return": "enter",
     "enter": "enter",
@@ -109,15 +104,6 @@ def _backend() -> Any:
         raise CuaOpError("unsupported_platform", str(exc)) from exc
 
 
-def _pyautogui() -> Any:
-    try:
-        import pyautogui
-
-        return pyautogui
-    except (ImportError, SystemExit) as exc:
-        raise CuaOpError("unsupported_platform", f"pyautogui_missing:{exc}") from exc
-
-
 def _is_mac() -> bool:
     return cua_backend.backend_platform() == "darwin"
 
@@ -129,7 +115,7 @@ def _require_ax() -> None:
             "ax_not_trusted",
             "grant Accessibility to LambChat.app in System Settings > Privacy & Security"
             if _is_mac()
-            else "enable accessibility (mac: grant to LambChat.app; linux: toolkit-accessibility + python3-atspi)",
+            else "grant accessibility access reported by the bundled agent-desktop driver",
         )
 
 
@@ -196,48 +182,8 @@ def _op_launch(payload: dict) -> dict:
             else:
                 subprocess.Popen(["xdg-open", url], start_new_session=True)
             return {"ok": True, "kind": "url", "target": url}
-        # app 路径启动(不走 shell);裸名(如 "firefox")经 PATH 解析——
-        # 2026-10-08 xiaoxin 实测 agent 常用裸名,直接 Popen 报
-        # launch_failed: No such file or directory
-        import shutil
-
-        resolved = str(app)
-        if platform == "darwin" and resolved.endswith(".app"):
-            subprocess.run(
-                ["open", "-a", resolved, *(["--args", *args] if args else [])],
-                check=True,
-                timeout=10,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            return {"ok": True, "kind": "app", "target": resolved}
-        if not os.path.isfile(resolved) and os.sep not in str(app):
-            which = shutil.which(str(app))
-            if which:
-                resolved = which
-        argv = [resolved, *args]
-        env = None
-        if platform.startswith("linux"):
-            env = dict(os.environ)
-            runtime_dir = f"/run/user/{os.getuid()}"
-            env.setdefault("XDG_RUNTIME_DIR", runtime_dir)
-            env.setdefault("WAYLAND_DISPLAY", "wayland-0")
-            env.setdefault("DISPLAY", ":0")
-            env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={runtime_dir}/bus")
-        creationflags = 0
-        if platform == "win32":
-            creationflags = getattr(subprocess, "DETACHED_PROCESS") | getattr(
-                subprocess, "CREATE_NEW_PROCESS_GROUP"
-            )
-        proc = subprocess.Popen(
-            argv,
-            start_new_session=(platform != "win32"),
-            env=env,
-            creationflags=creationflags,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return {"ok": True, "kind": "app", "target": argv[0], "launcher_pid": proc.pid}
+        delivery = _backend().launch(str(app), args)
+        return {"ok": True, "kind": "app", "target": str(app), **delivery}
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         raise CuaOpError("launch_failed", str(exc)) from exc
 
@@ -341,52 +287,47 @@ def _op_windows(payload: dict) -> dict:
 
 
 def _walk_tree(root: Any) -> tuple[list[dict[str, Any]], list[Any], bool]:
-    """BFS 走查(可见子树优先),带时间与数量预算。
+    """BFS 投影驱动已获取的快照，可见内容优先。
 
     返回 (行列表, 元素句柄列表, 是否截断);两个列表同序,索引即下标。
     """
     backend = _backend()
-    deadline = time.monotonic() + STATE_TIME_BUDGET
     rows: list[dict[str, Any]] = []
     elements: list[Any] = []
     offscreen: list[tuple[dict[str, Any], Any]] = []
     truncated = False
     queue = deque([(root, 0)])
     while queue:
-        if len(rows) >= STATE_MAX_ELEMENTS or time.monotonic() > deadline:
-            truncated = True
-            break
         element, depth = queue.popleft()
         try:
             row = backend.row_of(element)
         except CuaOpError:
             raise
         except Exception:  # noqa: BLE001 - 单元素元数据失败跳过不中断
+            truncated = True
             continue
         if depth == 0 or "hidden" not in (row.get("states") or []):
             row["depth"] = depth
             if depth and "offscreen" in (row.get("states") or []):
-                if len(offscreen) < STATE_MAX_ELEMENTS:
-                    offscreen.append((row, element))
-                else:
-                    truncated = True
+                offscreen.append((row, element))
             else:
                 rows.append(row)
                 elements.append(element)
-        if depth >= 30:
-            continue
         for child in backend.children(element):
             queue.append((child, depth + 1))
-    remaining = STATE_MAX_ELEMENTS - len(rows)
-    truncated = truncated or len(offscreen) > remaining
-    for row, element in offscreen[:remaining]:
+    for row, element in offscreen:
         rows.append(row)
         elements.append(element)
     return rows, elements, truncated
 
 
-def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: bool) -> str:
-    lines = [f"window: {window.get('title') or ''} (id={window.get('window_id')})"]
+def _render_tree(
+    rows: list[dict[str, Any]], window: dict[str, Any], truncated: bool
+) -> tuple[str, bool]:
+    header = f"window: {window.get('title') or ''} (id={window.get('window_id')})".encode()
+    lines = [header[:STATE_MAX_TEXT_BYTES].decode("utf-8", errors="ignore")]
+    used = len(lines[0].encode())
+    output_truncated = len(header) > STATE_MAX_TEXT_BYTES
     for index, row in enumerate(rows):
         if (
             row.get("kind")
@@ -403,17 +344,26 @@ def _render_tree(rows: list[dict[str, Any]], window: dict[str, Any], truncated: 
         kind = row.get("kind") or "Unknown"
         label = f"[{index}] {kind}"
         if row.get("title"):
-            label += f" {row['title'][:TEXT_TITLE_MAX]!r}"
-        if row.get("value") is not None:
-            label += f" value={str(row['value'])[:TEXT_VALUE_MAX]!r}"
+            label += f" {row['title']!r}"
+        if row.get("value") is not None and str(row["value"]) != row.get("title"):
+            label += f" value={str(row['value'])!r}"
         if row.get("actions"):
             label += " actions=" + ",".join(str(a) for a in row["actions"])
         if row.get("states"):
             label += " states=" + ",".join(row["states"])
-        lines.append(f"{indent}{label}")
+        line = f"{indent}{label}".encode()
+        remaining = max(0, STATE_MAX_TEXT_BYTES - used - 1)
+        if len(line) > remaining:
+            lines.append(line[:remaining].decode("utf-8", errors="ignore"))
+            output_truncated = True
+            break
+        lines.append(line.decode())
+        used += len(line) + 1
+    if output_truncated:
+        lines.append("[output budget reached; observe the relevant element subtree]")
     if truncated:
-        lines.append("[tree truncated by element/time budget]")
-    return "\n".join(lines)
+        lines.append("[driver snapshot incomplete; observe the relevant window or subtree again]")
+    return "\n".join(lines), truncated or output_truncated
 
 
 def _op_state(payload: dict) -> dict:
@@ -431,6 +381,8 @@ def _op_state(payload: dict) -> dict:
         )
     except KeyError as exc:
         raise CuaOpError("window_not_found", str(exc)) from exc
+    except CuaOpError:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise CuaOpError("ax_error", str(exc)) from exc
     resolved_window_id = window_info.get("window_id")
@@ -444,13 +396,14 @@ def _op_state(payload: dict) -> dict:
     observed = _Observed(elements, window_info)
     _store_observation(pid, resolved_window_id, observed)
     truncated = truncated or window_info.get("driver_complete") is False
+    state, truncated = _render_tree(rows, window_info, truncated)
     result: dict[str, Any] = {
         "pid": pid,
         "snapshot_id": observed.snapshot_id,
         "window": window_info,
         "element_count": len(rows),
         "truncated": truncated,
-        "state": _render_tree(rows, window_info, truncated),
+        "state": state,
     }
     if subtree:
         result["subtree"] = True
@@ -462,7 +415,6 @@ def _op_state(payload: dict) -> dict:
         pass
     if payload.get("include_screenshot"):
         try:
-            # ponytail: Foreground regions may include overlays; window isolation needs native capture.
             _require_foreground(pid)
             try:
                 _, active_window = backend.pick_window(pid, None)
@@ -479,7 +431,7 @@ def _op_state(payload: dict) -> dict:
             if subtree:
                 element_bounds = rows[0].get("bounds") if rows else None
                 capture_bounds = _intersect_bounds(capture_bounds, element_bounds)
-            screenshot = _capture(capture_bounds)
+            screenshot = _capture(capture_bounds, window_info)
             # Discard pixels if focus or geometry changed during capture.
             _require_foreground(pid)
             _, after_capture = backend.pick_window(pid, None)
@@ -501,7 +453,7 @@ def _op_state(payload: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 截屏(pyautogui/pyscreeze,窗口 region 优先)
+# 截屏(agent-desktop 精确窗口，按实际像素比例裁剪)
 # ---------------------------------------------------------------------------
 
 
@@ -525,7 +477,7 @@ def _intersect_bounds(window: list | None, element: list | None) -> list[float]:
     return [left, top, right - left, bottom - top]
 
 
-def _capture(bounds: list[float] | None) -> dict[str, Any]:
+def _capture(bounds: list[float] | None, window: dict | None = None) -> dict[str, Any]:
     if (
         not isinstance(bounds, (list, tuple))
         or len(bounds) != 4
@@ -535,24 +487,11 @@ def _capture(bounds: list[float] | None) -> dict[str, Any]:
     ):
         raise CuaOpError("screenshot_failed", "target window bounds unavailable or invalid")
     backend = _backend()  # 平台可用性预检
-    if _is_mac():
-        import Quartz
-
-        if not Quartz.CGPreflightScreenCaptureAccess():
-            raise CuaOpError("screen_recording_denied", "grant Screen Recording to LambChat.app")
     try:
-        native_capture = getattr(backend, "screenshot", None)
-        if callable(native_capture):
-            image = native_capture(bounds)
-        else:
-            region = (
-                int(bounds[0]),
-                int(bounds[1]),
-                max(1, int(bounds[2])),
-                max(1, int(bounds[3])),
-            )
-            image = _pyautogui().screenshot(region=region)
-    except Exception as exc:  # noqa: BLE001
+        image = backend.screenshot(bounds, window)
+    except CuaOpError:
+        raise
+    except Exception as exc:
         raise CuaOpError("screenshot_failed", str(exc)) from exc
     if image is None:
         raise CuaOpError("screenshot_failed", "capture returned nothing")
@@ -681,29 +620,11 @@ def _op_click(payload: dict) -> dict:
         y = float(target["y"])
     except (KeyError, TypeError, ValueError) as exc:
         raise CuaOpError("invalid_arguments", "target needs x/y") from exc
-    repeated_click = getattr(backend, "click_point_repeated", None)
-    if callable(repeated_click):
-        return {
-            "ok": True,
-            "strategy": "agent-desktop",
-            **repeated_click(x, y, button, count=max(1, min(clicks, 3))),
-        }
-    native_click = getattr(backend, "click_point", None)
-    if callable(native_click):
-        for _ in range(max(1, min(clicks, 3))):
-            native_click(x, y, button)  # Linux: AT-SPI 鼠标合成
-        return {"ok": True, "strategy": "a11y-event", "x": x, "y": y}
-    pyautogui = _pyautogui()
-    for _ in range(max(1, min(clicks, 3))):
-        if button == "right":
-            pyautogui.rightClick(x=x, y=y)
-        elif button == "middle":
-            pyautogui.middleClick(x=x, y=y) if hasattr(
-                pyautogui, "middleClick"
-            ) else pyautogui.click(x=x, y=y, button="middle")
-        else:
-            pyautogui.click(x=x, y=y)
-    return {"ok": True, "strategy": "event", "x": x, "y": y}
+    return {
+        "ok": True,
+        "strategy": "agent-desktop",
+        **backend.click_point(x, y, button, count=max(1, min(clicks, 3))),
+    }
 
 
 def _op_set_value(payload: dict) -> dict:
@@ -728,32 +649,17 @@ def _op_set_value(payload: dict) -> dict:
     return {"ok": True, **(delivery if isinstance(delivery, dict) else {})}
 
 
-def _type_text(text: str) -> None:
+def _type_text(text: str, pid: int, window_id: int | None) -> dict:
     backend = _backend()
-    native = getattr(backend, "type_text", None)
-    if callable(native):
-        native(text)  # Linux: AT-SPI KEY_STRING(Wayland 原生)
-        return
-    pyautogui = _pyautogui()
-    if all(ord(ch) < 128 for ch in text):
-        pyautogui.typewrite(text, interval=0.01)
-        return
-    # Non-ASCII fallback for platforms without native text injection.
-    import pyperclip
-
-    previous = pyperclip.paste()
-    try:
-        pyperclip.copy(text)
-        pyautogui.hotkey(*(["command", "v"] if _is_mac() else ["ctrl", "v"]))
-    finally:
-        pyperclip.copy(previous)
+    _, window = backend.pick_window(pid, window_id)
+    return backend.type_text(text, window)
 
 
 def _op_type(payload: dict) -> dict:
-    """输入文本。带元素索引时优先走免前台路径:AX/UIA 聚焦元素 →
+    """输入文本。带元素索引时优先走免前台路径:
     ValuePattern/EditableText 直写——后台窗口也能输入,绕开事件策略的
     foreground 门槛(实测 Chromium 地址框有 ValuePattern,直写即可)。
-    直写失败再回退合成键盘(需前台)。
+    不支持直写时，仅通过同一驱动向已观察的前台窗口输入。
     """
     _require_ax()
     pid = _resolve_app_ref(payload)
@@ -770,10 +676,6 @@ def _op_type(payload: dict) -> dict:
     if index is not None:
         element = _resolve_index(pid, payload.get("window_id"), index)
         backend = _backend()
-        try:
-            backend.set_focus(element)
-        except Exception:  # noqa: BLE001 - 聚焦尽力而为,直写不依赖它
-            pass
         try:
             delivery = backend.set_value(element, text)
             return {
@@ -792,7 +694,7 @@ def _op_type(payload: dict) -> dict:
                 str(exc),
                 context={"disposition": {"delivery": "unknown", "retry": "unsafe"}},
             ) from exc
-        # set_focus 在 Windows 会顺带把窗口调到前台;再查一次前台,过则打字
+        # Recheck the observed window before headed input; never guess the target.
         try:
             _require_observed_window_foreground(pid, payload.get("window_id"))
         except CuaOpError as exc:
@@ -801,12 +703,13 @@ def _op_type(payload: dict) -> dict:
                 f"{exc.detail}; element is not directly settable — "
                 "activate the window (action=activate) first, or use set_value on a settable element",
             ) from exc
-        _type_text(text)
-        return {"ok": True, "strategy": "event", "method": "focused-typing"}
+        backend.set_focus(element)
+        delivery = _type_text(text, pid, payload.get("window_id"))
+        return {"ok": True, "strategy": "agent-desktop", "method": "focused-typing", **delivery}
 
     _require_foreground(pid)
-    _type_text(text)
-    return {"ok": True, "strategy": "event", "method": "raw-typing"}
+    delivery = _type_text(text, pid, payload.get("window_id"))
+    return {"ok": True, "strategy": "agent-desktop", "method": "raw-typing", **delivery}
 
 
 def _op_activate(payload: dict) -> dict:
@@ -878,44 +781,21 @@ def _op_key(payload: dict) -> dict:
         raise CuaOpError("invalid_arguments", "no key in chord")
     _require_foreground(pid)
 
-    native_chord = getattr(backend, "press_chord", None)
-    if (
-        callable(native_chord)
-        and keys
-        and (modifier_keys or len(keys) > 1 or not callable(getattr(backend, "press_key", None)))
-    ):
+    _, window = backend.pick_window(pid, payload.get("window_id"))
+    _require_observed_window_foreground(pid, payload.get("window_id"))
+    delivery = {}
+    try:
         for _ in range(repeat):
-            native_chord(keys, modifier_keys)
-        return {"ok": True, "strategy": "a11y-event"}
-
-    # 单键优先走后端原生合成(Linux/AT-SPI KEY_SYM,Wayland 原生可用)。
-    # 2026-10-08 xiaoxin 实测:回车走 pyautogui 在无 X11 环境直接
-    # unsupported_platform,agent 只能绕 URL 导航——单键是最高频操作。
-    native_press = getattr(backend, "press_key", None)
-    if callable(native_press) and not modifier_keys and len(keys) == 1:
-        try:
-            for _ in range(repeat):
-                native_press(keys[0])
-            return {"ok": True, "strategy": "a11y-event", "key": keys[0]}
-        except CuaOpError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - Never resend a key after uncertain delivery.
-            raise CuaOpError(
-                "action_failed",
-                str(exc),
-                context={"disposition": {"delivery": "unknown", "retry": "unsafe"}},
-            ) from exc
-
-    pyautogui = _pyautogui()
-    for _ in range(repeat):
-        if modifier_keys and keys:
-            pyautogui.hotkey(*modifier_keys, *keys)
-        elif keys:
-            for key in keys:
-                pyautogui.press(key)
-        else:
-            pyautogui.hotkey(*modifier_keys)
-    return {"ok": True}
+            delivery = backend.press_chord(keys, modifier_keys, window)
+    except CuaOpError:
+        raise
+    except Exception as exc:
+        raise CuaOpError(
+            "action_failed",
+            str(exc),
+            context={"disposition": {"delivery": "unknown", "retry": "unsafe"}},
+        ) from exc
+    return {"ok": True, "strategy": "agent-desktop", **delivery}
 
 
 def _op_scroll(payload: dict) -> dict:
@@ -946,26 +826,15 @@ def _op_scroll(payload: dict) -> dict:
     _, window = _backend().pick_window(pid, payload.get("window_id"))
     if not window.get("focused"):
         raise CuaOpError("foreground_required", "target window is not active")
-    pyautogui = _pyautogui()
     if target.get("type") == "element":
         element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
-        pyautogui.moveTo(*_element_center(element))
+        x, y = _element_center(element)
     elif target.get("type") == "coordinate":
-        pyautogui.moveTo(float(target["x"]), float(target["y"]))
+        x, y = float(target["x"]), float(target["y"])
     else:
-        pyautogui.moveTo(*_bounds_center(window.get("bounds")))
-    magnitude = -clicks if direction in ("down", "left") else clicks
-    try:
-        native_wheel = getattr(_backend(), "scroll_wheel", None)
-        if callable(native_wheel):
-            native_wheel(direction in ("left", "right"), magnitude)
-        elif direction in ("left", "right"):
-            pyautogui.hscroll(magnitude)
-        else:
-            pyautogui.scroll(magnitude)
-    except Exception as exc:  # noqa: BLE001 - Wayland 等环境受限
-        raise CuaOpError("action_failed", f"scroll unsupported: {exc}") from exc
-    return {"ok": True, "clicks": clicks}
+        x, y = _bounds_center(window.get("bounds"))
+    delivery = _backend().scroll_point(x, y, direction, clicks)
+    return {"ok": True, "clicks": clicks, "strategy": "agent-desktop", **delivery}
 
 
 def _op_action(payload: dict) -> dict:
@@ -978,6 +847,8 @@ def _op_action(payload: dict) -> dict:
     action = payload.get("action")
     if not isinstance(action, str) or not action:
         raise CuaOpError("invalid_arguments", "action required (name from the tree's actions=)")
+    if action in {"Focus", "SetFocus", "focus", "Hover"}:
+        _require_observed_window_foreground(pid, payload.get("window_id"))
     element = _resolve_index(pid, payload.get("window_id"), target.get("index"))
     try:
         delivery = backend.perform(element, action)
@@ -1021,7 +892,18 @@ def _op_status(payload: dict) -> dict:
             message = f"{exc.code}: {exc.detail}"
     ready = ax_ok and (not payload.get("probe_screen") or screen_state == "granted")
     locked = getattr(backend, "desktop_locked", None)
-    if callable(locked) and locked():
+    try:
+        is_locked = callable(locked) and locked()
+    except Exception as exc:
+        return {
+            "platform": cua_backend.backend_platform(),
+            "ready": False,
+            "accessibility": "granted" if ax_ok else "denied",
+            "screen_recording": screen_state,
+            "error": "desktop_unavailable",
+            "message": f"Cannot verify the desktop session: {exc}",
+        }
+    if is_locked:
         return {
             "platform": cua_backend.backend_platform(),
             "ready": False,
@@ -1034,7 +916,7 @@ def _op_status(payload: dict) -> dict:
         message = (
             "grant Accessibility (and Screen Recording) to LambChat.app"
             if _is_mac()
-            else "enable accessibility: toolkit-accessibility + python3-atspi (linux)"
+            else "enable accessibility in the graphical desktop session"
         )
     return {
         "platform": cua_backend.backend_platform(),
@@ -1070,7 +952,7 @@ def handle_cua_op(op: str, payload: dict) -> dict:
     """执行一个 computer-use op。
 
     CuaOpError 与**一切**运行时异常都转为 ``{"error": ...}`` 结构化结果:
-    生产实测(2026-10-08 Windows)未捕获的 COMError/pyperclip 缺失会裸穿到
+    生产实测(2026-10-08 Windows)未捕获的 驱动异常会裸穿到
     daemon 层 error 字符串,relay 包成 SANDBOX_EXEC_FAILED 后模型只见到
     模板文案而无从纠错——op 级异常必须在模型可读层收敛。
     """

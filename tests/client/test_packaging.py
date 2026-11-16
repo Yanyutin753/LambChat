@@ -673,15 +673,15 @@ def test_updater_manifest_includes_release_notes(tmp_path, monkeypatch):
     assert manifest["pub_date"] == "2026-10-06T19:35:00Z"
 
 
-def test_linux_package_bundles_accessibility_runtime():
+def test_desktop_package_uses_only_pinned_driver():
     spec = _source("client/pyinstaller.spec")
-    workflow = _source(".github/workflows/app-release.yml")
-    assert "python3-pyatspi" in workflow
-    assert "python3-gi" in workflow
-    assert "gir1.2-atspi-2.0" in workflow
-    assert '"/usr/lib/python3/dist-packages"' in spec
-    assert '"gi.repository.Atspi"' in spec
-    assert '"pyatspi"' in spec
+    dependencies = _source("pyproject.toml")
+    assert "client/resources/agent-desktop" in spec
+    for name in ("pyatspi", "pywinauto", "pyautogui", "atomacos", "pyperclip"):
+        assert name not in spec
+        assert name not in dependencies
+    for platform in ("mac", "win", "linux"):
+        assert not Path(f"client/lambchat_sandbox/cua_{platform}.py").exists()
 
 
 def test_windows_upgrade_hooks_stop_owned_processes_and_uninstall_without_user_data():
@@ -718,7 +718,7 @@ def test_desktop_startup_does_not_recursively_delete_persistent_user_data():
     assert "clean_on_version_upgrade" not in startup
 
 
-def test_spec_prefers_locked_environment_over_linux_system_packages(monkeypatch):
+def test_spec_does_not_inject_old_system_python_backends(monkeypatch):
     import runpy
     import site
     import sys
@@ -743,7 +743,8 @@ def test_spec_prefers_locked_environment_over_linux_system_packages(monkeypatch)
         },
     )
     paths = captured["pathex"]
-    assert paths.index("/locked-venv/site-packages") < paths.index("/usr/lib/python3/dist-packages")
+    assert "/locked-venv/site-packages" in paths
+    assert "/usr/lib/python3/dist-packages" not in paths
 
 
 def test_linux_daemon_build_checks_packaged_async_networking():
