@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import sys
 import threading
@@ -69,7 +70,10 @@ class DesktopControl:
                         return
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Desktop control authority check failed (%s)", type(exc).__name__
+                )
                 # Idle transport loss is not user takeover; interrupted operations stay paused.
                 if self.active is not None:
                     self.paused = True

@@ -78,7 +78,7 @@ async def test_thinking_keeps_control_until_exact_run_finishes():
 
 
 @pytest.mark.parametrize("failure", [False, True])
-async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure):
+async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure, caplog):
     from unittest.mock import AsyncMock
 
     released = asyncio.Event()
@@ -90,7 +90,7 @@ async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure)
             released.set()
 
     client = AsyncMock()
-    client.control_active.side_effect = [True, OSError("offline") if failure else False]
+    client.control_active.side_effect = [True, OSError("private-pat-value") if failure else False]
     control = DesktopControl(emit)
     assert await control.bind("session", "run", client)
     await asyncio.wait_for(released.wait(), 3)
@@ -98,6 +98,9 @@ async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure)
     assert control.watcher is None
     assert events[-1]["reason"] == ("disconnected" if failure else "completed")
     assert not control.paused
+    if failure:
+        assert "authority check failed (OSError)" in caplog.text
+    assert "private-pat-value" not in caplog.text
 
 
 @pytest.mark.parametrize("user_paused", [False, True])
