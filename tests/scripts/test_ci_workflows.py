@@ -22,6 +22,57 @@ def test_dev_update_can_wait_for_post_build_regression():
     assert "contains(env.RELEASE_TAG, '-dev.')" in step["if"]
 
 
+def test_linux_release_control_runs_dbus_inside_software_rendered_display(tmp_path):
+    jobs = yaml.safe_load((WORKFLOW.parent / "app-release.yml").read_text())["jobs"]
+    step = next(
+        s
+        for s in jobs["desktop"]["steps"]
+        if s.get("name") == "Native shared-window desktop control regression"
+    )
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "run_validation.py").write_text(
+        (WORKFLOW.parents[2] / "scripts/run_validation.py").read_text()
+    )
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    for name, body in {
+        "cargo": "exit 0",
+        "uv": "command -v python3",
+        "xvfb-run": 'export DISPLAY=:123\nshift\nexec "$@"',
+        "dbus-run-session": (
+            'test "$DISPLAY" = :123 || exit 23\n'
+            'export DBUS_SESSION_BUS_ADDRESS=unix:path=/fixture\nshift\nexec "$@"'
+        ),
+    }.items():
+        executable = binaries / name
+        executable.write_text("#!/bin/sh\nset -eu\n" + body + "\n")
+        executable.chmod(0o755)
+    fixture = tmp_path / "frontend/src-tauri/target/release/examples/desktop_control_smoke"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'test "$GDK_BACKEND" = x11\n'
+        'test "$LIBGL_ALWAYS_SOFTWARE" = 1\n'
+        'test "$DISPLAY" = :123\n'
+        'test "$DBUS_SESSION_BUS_ADDRESS" = unix:path=/fixture\n'
+        "echo 'control-fixture-report {\"ok\":true}'\n"
+    )
+    fixture.chmod(0o755)
+    subprocess.run(
+        ["bash", "-eu", "-c", step["run"].replace("${{ matrix.target || '' }}", "")],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            **step["env"],
+            "PATH": f"{binaries}:{os.environ['PATH']}",
+            "RUNNER_OS": "Linux",
+            "GITHUB_WORKSPACE": str(tmp_path),
+        },
+        check=True,
+    )
+
+
 def test_updater_verifier_builds_only_the_real_updater_with_shared_lock():
     root = WORKFLOW.parents[2] / "frontend/src-tauri"
     app = tomllib.loads((root / "Cargo.toml").read_text())
