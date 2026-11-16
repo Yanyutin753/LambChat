@@ -4,7 +4,6 @@ mod desktop_control;
 use tauri::Manager;
 
 struct FixtureChild(std::sync::Mutex<std::process::Child>);
-struct FixtureToken(String);
 #[derive(Default)]
 struct FixtureSessions(std::sync::atomic::AtomicUsize);
 #[derive(Default)]
@@ -108,8 +107,6 @@ fn fixture_status(
                     monitor.size()
                 );
             }
-            let token = app.state::<FixtureToken>();
-            desktop_control::receive(&app, &token.0, serde_json::json!({"state":"ended"}));
             let handle = app.clone();
             std::thread::spawn(move || {
                 // GTK applies hide on a later event-loop iteration.
@@ -162,7 +159,6 @@ fn main() {
         .setup(move |app| {
             assert!(app.get_webview_window("main").is_some());
             let token = uuid::Uuid::new_v4().to_string();
-            app.manage(FixtureToken(token.clone()));
             let mut child = std::process::Command::new(&python)
                 .arg(format!(
                     "{root}/scripts/release_tests/desktop-control-fixture.py"
