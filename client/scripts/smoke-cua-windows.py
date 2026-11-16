@@ -43,7 +43,12 @@ $field.Add_KeyDown({
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 100
 $timer.Add_Tick({
-    $state = @{ text = $field.Text; start = $field.SelectionStart; length = $field.SelectionLength; keys = @($keys.ToArray()) } | ConvertTo-Json
+    $command = Join-Path $env:LAMBCHAT_CUA_FIXTURE 'minimize'
+    if (Test-Path $command) {
+        Remove-Item $command
+        $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+    }
+    $state = @{ text = $field.Text; start = $field.SelectionStart; length = $field.SelectionLength; keys = @($keys.ToArray()); window_state = $form.WindowState.ToString() } | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $env:LAMBCHAT_CUA_FIXTURE 'input.json'), $state)
 })
 $timer.Start()
@@ -176,6 +181,23 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                 state = await call("cua_state")
                 assert state["window"]["title"] == "LambChat CUA Acceptance"
                 await call("cua_activate", window_id=state["window"]["window_id"])
+                window_id = state["window"]["window_id"]
+                (root / "minimize").touch()
+                async with asyncio.timeout(5):
+                    while True:
+                        try:
+                            native = json.loads((root / "input.json").read_text(encoding="utf-8"))
+                            if native["window_state"] == "Minimized":
+                                break
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            pass
+                        await asyncio.sleep(0.05)
+                minimized = await call("cua_state", window_id=window_id)
+                assert minimized["window"]["minimized"] is True, minimized
+                assert minimized["window"]["window_id"] == window_id
+                assert "LambChat CUA Acceptance" in minimized["state"]
+                report["minimized_observation"] = True
+                await call("cua_activate", window_id=window_id)
                 for expected in ("Windows 中文验收 ①", "Windows 中文验收 ②"):
                     state = await call("cua_state")
                     await call(

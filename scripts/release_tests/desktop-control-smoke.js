@@ -46,8 +46,9 @@
       await sleep(); await sleep(); await sleep();
       if (document.querySelector('[role="alert"]')) throw new Error('Toolbar reported an IPC error');
       button.click();
-      await wait(async () => ['idle', 'waiting', 'active'].includes(await state()));
+      await wait(async () => ['idle', 'waiting', 'active', ...(round === 19 ? ['ended'] : [])].includes(await state()));
     }
+    await wait(async () => (await state()) === 'ended');
     await invoke('desktop_control_status', {ready: false, report: { ok: true, pauseResumeRounds: 20, button: { width: rect.width, height: rect.height }, status: document.querySelector('[role="status"]').textContent } });
   } catch (error) {
     await invoke('desktop_control_status', {ready: false, report: { ok: false, error: String(error) } });
