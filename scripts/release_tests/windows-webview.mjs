@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { exerciseMaximizeRestore } from "./windows-window-controls.mjs";
 import { createRequire } from "node:module";
 import { readFile, writeFile } from "node:fs/promises";
 import { assertImageCase } from "./image-loading-browser.mjs";
@@ -121,16 +122,7 @@ try {
     });
     if (!blocked) {
       const windowControls = page.locator("[data-window-controls]");
-      await windowControls.getByRole("button", { name: "最大化" }).click();
-      await windowControls.getByRole("button", { name: "还原" }).waitFor({
-        state: "visible",
-        timeout: 5000,
-      });
-      await windowControls.getByRole("button", { name: "还原" }).click();
-      await windowControls.getByRole("button", { name: "最大化" }).waitFor({
-        state: "visible",
-        timeout: 5000,
-      });
+      await exerciseMaximizeRestore(page, windowControls);
       const dragRegion = page.locator("[data-tauri-drag-region]");
       const dragBox = await dragRegion.boundingBox();
       assert(dragBox, "titlebar drag region is missing");
