@@ -1,8 +1,7 @@
 """computer-use 平台后端调度。
 
 三平台的应用发现、窗口、快照和语义操作统一经打包的 agent-desktop。
-平台模块只提供权限、前台校验和截图等系统集成；驱动缺失时明确失败，
-不静默换用另一套应用或元素标识。模块仍按平台懒加载，非本平台不 import。
+权限、前台、输入与截图也由同一驱动提供；驱动缺失时明确失败。
 
 后端接口(duck-typed,ops 层唯一依赖面):
 - ``ax_trusted() -> bool``          权限预检(mac=辅助功能;linux=AT-SPI 可达)
@@ -49,26 +48,14 @@ def _load_backend() -> Any:
 
     platform = "android" if daemon_platform() == "android" else sys.platform
     try:
-        if platform == "darwin":
-            from lambchat_sandbox import cua_mac
-
-            native = cua_mac
-        elif platform == "win32":
-            from lambchat_sandbox import cua_win
-
-            native = cua_win
-        elif platform.startswith("linux"):
-            from lambchat_sandbox import cua_linux
-
-            native = cua_linux
-        else:
+        if platform not in ("darwin", "win32", "linux"):
             raise UnsupportedBackendError(f"unsupported_platform:{platform}")
         from lambchat_sandbox.agent_desktop import AgentDesktopBackend, binary_path
 
         binary = binary_path()
         if binary is None:
             raise UnsupportedBackendError("agent_desktop_missing: repair the desktop installation")
-        _BACKEND = AgentDesktopBackend(binary, native)
+        _BACKEND = AgentDesktopBackend(binary)
     except ImportError as exc:
         _BACKEND_ERROR = f"backend_import_failed:{exc}"
         raise UnsupportedBackendError(_BACKEND_ERROR) from exc

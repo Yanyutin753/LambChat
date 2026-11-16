@@ -22,6 +22,7 @@ FORM = r"""
 Add-Type -AssemblyName System.Windows.Forms
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'LambChat CUA Acceptance'
+$form.TopMost = $true
 $form.Width = 640
 $form.Height = 320
 $field = New-Object System.Windows.Forms.TextBox
@@ -49,6 +50,39 @@ $form.Add_Shown({
 })
 [System.Windows.Forms.Application]::Run($form)
 """
+
+
+def stage_fixture_foreground(pid: int) -> None:
+    """Click only an independently verified point on our own visible fixture."""
+    import ctypes
+    from ctypes import wintypes
+
+    from lambchat_sandbox.agent_desktop import AgentDesktopBackend, binary_path
+
+    binary = binary_path()
+    assert binary, "Pinned driver is needed to stage the isolated fixture"
+    driver = AgentDesktopBackend(binary)
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+    user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+    user32.WindowFromPoint.argtypes = [wintypes.POINT]
+    user32.WindowFromPoint.restype = wintypes.HWND
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    try:
+        windows = [w for w in driver.windows(pid) if w["title"] == "LambChat CUA Acceptance"]
+        assert len(windows) == 1, "Own fixture must have one visible window"
+        left, top, width, _ = windows[0]["bounds"]
+        point = wintypes.POINT(round(left + width / 2), round(top + 12))
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(user32.WindowFromPoint(point), ctypes.byref(owner))
+        assert owner.value == pid, "Fixture title bar is covered; no input sent"
+        driver.click_point(point.x, point.y)
+        user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(owner))
+        assert owner.value == pid, "Desktop refused fixture foreground"
+    finally:
+        for session in driver.sessions.values():
+            driver._run(["--session", session, "session", "end"])
 
 
 def index_of(state: dict, title: str) -> int:
@@ -103,6 +137,7 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                         if fixture.poll() is not None:
                             raise AssertionError("Fixture exited; see fixture.log")
                         await asyncio.sleep(0.1)
+                await asyncio.to_thread(stage_fixture_foreground, fixture.pid)
                 state = await call("cua_state")
                 assert state["window"]["title"] == "LambChat CUA Acceptance"
                 await call("cua_activate", window_id=state["window"]["window_id"])
@@ -125,6 +160,16 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                     )
                     await saved({"text": expected})
                 state = await call("cua_state")
+                await call(
+                    "cua_action",
+                    target={"type": "element", "index": index_of(state, "Acceptance text")},
+                    action="Focus",
+                )
+                await call("cua_key", text="ctrl+a")
+                expected = "Windows 原生输入 😀 {ENTER}+^%"
+                await call("cua_type", text=expected)
+                state = await call("cua_state")
+                assert expected in state["state"], state
                 await call(
                     "cua_click",
                     target={"type": "element", "index": index_of(state, "Enable option")},

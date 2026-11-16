@@ -222,11 +222,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install X11 capture fixture dependencies
-        run: sudo apt-get update && sudo apt-get install -y python3-xlib python3-pil xvfb xauth
+        run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-gtk-3.0 python3-pil at-spi2-core dbus-x11 openbox xcompmgr xvfb xauth
       - name: Verify overlay-free native window pixels
         run: |
-          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
-          python3 scripts/run_validation.py env PYTHONPATH=client xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py --unredirected
+          python3 scripts/run_validation.py python3 client/scripts/fetch-agent-desktop.py --triple x86_64-unknown-linux-gnu
+          python3 scripts/run_validation.py env PYTHONPATH=client NO_AT_BRIDGE=0 GTK_MODULES=gail:atk-bridge dbus-run-session -- xvfb-run -a python3 scripts/release_tests/linux_capture_smoke.py
 
   desktop-control:
     if: startsWith(github.ref, 'refs/heads/codex/')

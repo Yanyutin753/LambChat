@@ -53,3 +53,10 @@ Do not start a replacement browser profile or edit an open document behind its a
 Use the actual tool schema, not upstream agent-desktop CLI flags. The daemon owns
 capture exclusion, input serialization and cancellation. Do not disable these protections,
 change OS permissions automatically, or use an alternate shell input driver to evade them.
+
+All desktop operations use the bundled agent-desktop driver; do not switch to old
+platform automation libraries or shell input to work around a driver failure.
+A `window_minimized` result is not a hung daemon: explicitly activate the intended
+window to restore it, then request fresh state. Do not repeatedly snapshot a minimized
+window or raise its timeout. For other timeouts, inspect current windows and focus
+before retrying a read; never replay an input whose delivery is uncertain.

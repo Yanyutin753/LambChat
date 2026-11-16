@@ -41,13 +41,13 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 
 ## 4. 依赖（§4）
 
-- **daemon 保持 stdlib + httpx 的极简依赖面**，新增依赖必须在 PR 说明理由（PyInstaller onefile 体积与冷启动对此敏感）。既有例外：computer-use 的 `cua` 依赖组（`uv sync --group cua`，平台标记互斥）——macOS atomacos（带 PyObjC+pyautogui）、Windows pywinauto+pyautogui、Linux pyautogui+python-xlib（AT-SPI 走系统包 python3-pyatspi）；未同步该组的构建里 cua\_\* op 报 `unsupported_platform`，其余链路不受影响。
+- **daemon 保持 stdlib + httpx 的极简依赖面**。CUA 统一使用打包的 agent-desktop 原生驱动；`cua` Python 依赖组只保留 Pillow 截图编码与 macOS Quartz 锁屏安全检查，不再包含 atomacos、pywinauto、pyautogui 或 Python AT-SPI 执行后端。
 - CUA 必须显式选择在线机器；代码沙箱可为本地或云端，桌面选机与代码沙箱平台独立。工具参数不能覆盖会话选机，未选择、离线或审批后改机均拒绝，不回退到账户默认机器。审批绑定机器和具体操作，按该机器确认策略执行。观察索引仅在当前会话有效。
 - 桌面构建内嵌 `client/agent-desktop.lock.json` 锁定的 agent-desktop 与平台 helper，构建期核验 SHA256，不在运行期自动下载或执行 PATH 中的同名程序。许可证随 daemon 分发。开发环境可通过 `LAMBCHAT_AGENT_DESKTOP` 指定二进制；未安装资源时明确返回驱动缺失，不静默回退到另一套应用/元素标识；应用发现、窗口枚举、状态快照和语义操作统一使用 agent-desktop。新驱动继续遵守前台截图、显式激活与机器审批边界，不开放其任意 CLI/MCP 命令。
-- 桌面壳托管的 CUA 使用每显示器全屏透明提示层与工作区顶部的独立置顶接管控制条（默认 56px，暂停/故障时展开至 96px），经继承的 stdin/stdout 管道握手；所有提示层和控制条绘制确认后才执行。提示层不获取焦点、鼠标穿透且只有只读 IPC 权限。浮窗在 Agent 思考间隔继续显示，用户暂停会取消当前工作进程并拒绝后续 CUA 调用；恢复必须重新观察，前台冲突自动暂停。没有目标窗口时，新的成功应用清单仅允许一次启动，不能授权点击/键盘输入；接管、发现失败、执行不确定或观察超时均使该启动许可失效。控制绑定可信 session_id/run_id，每次输入前及控制期间通过 PAT 鉴权核对具体执行仍在 running；终态、换轮或断连取消输入后隐藏控制界面，思考间隔不隐藏。用户接管状态跨任务保留，仅本机控制条可恢复；断管与握手超时拒绝执行，不禁用用户系统键鼠。独立 CLI daemon 不具备壳浮窗。新增壳命令 `desktop_control_status(ready) -> state` 与 `desktop_control_set_paused(paused)` 仅授予 `cua-control` 窗口；旧 daemon 忽略新增环境变量，协议兼容，但浮窗需新版壳与 daemon 同时具备。Mac/Windows 浮窗设置 `content_protected`；Linux X11 直接读取目标窗口的 XComposite 离屏像素，保持浮窗可操作且不进入截图。缺少 XComposite、运行中的 X11 合成器或无法确认目标窗口时拒绝截图，不回退到含浮窗的桌面截图；Wayland 截图仍不支持。
+- 桌面壳托管的 CUA 使用每显示器全屏透明提示层与工作区顶部的独立置顶接管控制条（默认 56px，暂停/故障时展开至 96px），经继承的 stdin/stdout 管道握手；所有提示层和控制条绘制确认后才执行。提示层不获取焦点、鼠标穿透且只有只读 IPC 权限。浮窗在 Agent 思考间隔继续显示，用户暂停会取消当前工作进程并拒绝后续 CUA 调用；恢复必须重新观察，前台冲突自动暂停。没有目标窗口时，新的成功应用清单仅允许一次启动，不能授权点击/键盘输入；接管、发现失败、执行不确定或观察超时均使该启动许可失效。控制绑定可信 session_id/run_id，每次输入前及控制期间通过 PAT 鉴权核对具体执行仍在 running；终态、换轮或断连取消输入后隐藏控制界面，思考间隔不隐藏。用户接管状态跨任务保留，仅本机控制条可恢复；断管与握手超时拒绝执行，不禁用用户系统键鼠。独立 CLI daemon 不具备壳浮窗。新增壳命令 `desktop_control_status(ready) -> state` 与 `desktop_control_set_paused(paused)` 仅授予 `cua-control` 窗口；旧 daemon 忽略新增环境变量，协议兼容，但浮窗需新版壳与 daemon 同时具备。Mac/Windows 浮窗设置 `content_protected`；Linux X11 直接读取目标窗口的 XComposite 离屏像素，保持浮窗可操作且不进入截图。由 agent-desktop 决定目标窗口捕获能力；拒绝时不回退到含浮窗的桌面截图。
 - 控制权检查在空闲期间断连时释放界面与执行所有权，不把断连伪装成用户接管；连接恢复后须重新校验执行仍在运行，并重新观察才能输入。操作执行中断连、用户主动暂停或清理失败继续保留暂停，禁止自动重放。
-- 桌面壳通过 `LAMBCHAT_DESKTOP_CONTROL_OWNER_PID` 标识控制界面所属进程。三端原生适配器及 agent-desktop 在窗口枚举和选窗时排除该进程的 `LambChat Control` / `LambChat Control Overlay`，避免 Agent 把接管界面当作任务目标；同进程主窗口和其他进程的同名窗口仍可操作。没有壳管道标识的独立 daemon 不应用该过滤。
-- 全屏控制提示层使用轻度主题蒙层，Windows 使用原生 Acrylic、macOS 使用原生 HUD 毛玻璃，独立接管控制条保持清晰。原生效果随提示层隐藏而消失，不通过后台抓屏模拟模糊。Linux 的原生桌面模糊依赖合成器；当前 Tauri 不支持时保留半透明蒙层，不将其标记为已启用毛玻璃。
+- 桌面壳通过 `LAMBCHAT_DESKTOP_CONTROL_OWNER_PID` 标识控制界面所属进程。agent-desktop 统一适配器 在窗口枚举和选窗时排除该进程的 `LambChat Control` / `LambChat Control Overlay`，避免 Agent 把接管界面当作任务目标；同进程主窗口和其他进程的同名窗口仍可操作。没有壳管道标识的独立 daemon 不应用该过滤。
+- 全屏控制提示层使用轻度主题蒙层，Windows 使用原生 Blur、macOS 使用原生 HUD 毛玻璃，独立接管控制条保持清晰。原生效果随提示层隐藏而消失，不通过后台抓屏模拟模糊。Linux 的原生桌面模糊依赖合成器；当前 Tauri 不支持时保留半透明蒙层，不将其标记为已启用毛玻璃。
 - CUA 观察和输入在独立常驻工作进程内执行，超时或取消后回收进程树与临时快照目录；Windows 使用 Job Object。应用启动独立于该工作进程，避免回收自动化进程时关闭用户应用。恢复后必须重新观察，不自动重放输入。Agent 光标使用上游 overlay，平台不支持绘制时不把展示失败当作语义动作失败。
 - `state` 回传 `snapshot_id`；使用截图像素坐标时必须传该 ID 与 `coordinate_space=screenshot`，daemon 校验会话、窗口焦点及位置并完成缩放换算。服务端使用独立 `cua_snapshot_action` 操作，旧 daemon 明确拒绝，不会把截图坐标误当全局坐标。原有全局坐标与未带快照 ID 的调用保持兼容。动作的 `disposition` 区分已验证、未验证和不确定交付；工具成功不能替代应用最终状态验收。
 - 命令 stdout/stderr 通过非阻塞管道读取并分别保留有界尾部，禁止先收集完整输出再截断；Windows 需要项目既定的 Python 3.12+ 管道支持。
@@ -56,7 +56,8 @@ Dev Release 规则以 `AGENTS.md`「Dev Release：下一版本预发布」为准
 - daemon 的有界 call_id 去重同时记录请求终态：结果已受理（含流式结果）或服务端明确拒绝过期回传后，重复帧仅记审计并跳过 HTTP；结果尚未确认的重复帧仍补发 ACK，避免旧终态调用阻塞后续请求。
 - daemon 最多并发执行 8 个调用，接收通道不等待长命令结束；最多保留 64 个运行/排队调用，超出时明确返回 busy。同一解析后文件路径（含符号链接别名）串行，硬链接及非传输文件操作作为文件队列的顺序屏障；桌面操作按到达顺序串行。Agent 同时发出的 exec 可与其他调用并行，有文件依赖的命令须等待前一工具结果后再提交。排队调用立即 ACK，排队时间计入原超时预算，过期后不得执行。活动调用不因去重环轮转而被遗忘，通道失败或退出须取消并回收全部调用任务，不自动重放写入。
 - CUA 截图仅允许已确认焦点的前台窗口有效区域，密码字段不读取；截图以会话所有者鉴权读取，禁止匿名、共享和签名直链，删除会话时回收。截图会发送给当前模型，窗口内通知或浮层仍可能入镜。新版回传必须携带机器身份，旧 daemon 的流式操作需同步更新；CUA 要求 daemon 2.14.4 或更新版本。
-- CUA 截图编码依赖三平台显式安装的 Pillow。Linux 打包机还需 `python3-pyatspi`、`python3-gi` 和 `gir1.2-atspi-2.0`，PyInstaller 从系统 Python 路径收集 AT-SPI 与 GI；构建 Python 的 minor 版本必须与系统 GI 扩展一致。Linux X11 的窗口激活和前台检测需 `wmctrl` / `xdotool`；当 AT-SPI 文本写入不生效时，键盘输入使用 X11 Unicode keysym，临时使用空闲非修饰键码并恢复原映射（不覆盖剪贴板、不合成 Shift 切换输入法）。Windows 必须有已登录的交互桌面；SSH 服务会话不能截取登录界面。Wayland 当前支持无障碍元素读写、点击和元素滚动，截图及全局键鼠仍受系统限制，不能把成功的元素操作视为全功能验证。
+- CUA 的应用、窗口、快照、权限、焦点、键鼠与截图均走固定版本 agent-desktop，没有旧平台后端回退；应用启动也调用驱动，URL 打开仅保留系统默认 URL opener（上游没有 URL opener 命令），不通过另一套自动化库操作窗口。Windows 必须有已登录的交互桌面；SSH 服务会话不能截取登录界面。Linux 使用上游 AT-SPI 与捕获能力，Wayland 可用性以驱动报告为准，不将元素操作成功视为全功能验证。截图裁剪以驱动真实像素尺寸与观察窗口几何换算。
+- 窗口枚举保留 `minimized`；最小化窗口不深入遍历无障碍树，返回 `window_minimized`。只有显式激活才通过驱动恢复窗口，然后重新观察；不通过延长超时或自动激活掩盖错误。
 - npm 侧 `@tauri-apps/*` 与 Cargo 侧 `tauri` 保持同 major.minor（`Cargo.toml` 注释已要求，升级时双重检查）。
 - tauri / capacitor 主版本升级必须单独 PR，且六端构建 + 冒烟门禁全绿才算过。
 
