@@ -129,14 +129,42 @@ def test_driver_missing_never_imports_old_platform_backends(monkeypatch):
     assert not any(name in source for name in ("cua_mac", "cua_win", "cua_linux"))
 
 
-def test_minimized_window_does_not_start_expensive_tree_walk(driver, monkeypatch):
+def test_minimized_mac_window_does_not_start_expensive_tree_walk(driver, monkeypatch):
+    from lambchat_sandbox import cua_backend
     from lambchat_sandbox.cua_ops import CuaOpError
 
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: "darwin")
     monkeypatch.setattr(
         driver, "_call", lambda *a, **k: pytest.fail("minimized window must not be traversed")
     )
     with pytest.raises(CuaOpError, match="window_minimized"):
         driver.row_of({"_pid": 7, "_window": {"driver_window_id": "w-42", "minimized": True}})
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_minimized_window_preserves_available_driver_observation(driver, monkeypatch, platform):
+    from lambchat_sandbox import cua_backend
+
+    monkeypatch.setattr(cua_backend, "backend_platform", lambda: platform)
+    calls = []
+
+    def call(*args):
+        calls.append(args[0])
+        if args[0] == "snapshot":
+            return {
+                "app": "Editor",
+                "window": {"id": "w-42"},
+                "tree": {"role": "window", "name": "Editor", "states": ["offscreen"]},
+                "complete": True,
+            }
+        assert args[0] == "list-windows"
+        return [{"id": "w-42", "pid": 7}]
+
+    monkeypatch.setattr(driver, "_call", call)
+    row = driver.row_of({"_pid": 7, "_window": {"driver_window_id": "w-42", "minimized": True}})
+    assert row["title"] == "Editor"
+    assert row["states"] == ["offscreen"]
+    assert calls == ["snapshot", "list-windows"]
 
 
 def test_explicit_activate_restores_minimized_window_through_driver(driver, monkeypatch):

@@ -29,6 +29,13 @@ async def main():
                 raise RuntimeError(f"Native control readiness failed: {result['error']}")
             if result.get("error") == "desktop_control_paused":
                 takeovers += 1
+                if takeovers == 20:
+                    while control.paused:
+                        await asyncio.sleep(0.05)
+                    await control.finish("completed")
+                    # Keep the pipe open until the native fixture checks the ended state.
+                    await asyncio.sleep(30)
+                    return
                 if takeovers % 5 == 0:
                     await control.finish("completed")
                     generation += 1

@@ -200,7 +200,9 @@ class AgentDesktopBackend:
 
     def _node(self, element: dict) -> dict:
         if "_window" in element and "_tree" not in element:
-            if element["_window"].get("minimized"):
+            from lambchat_sandbox.cua_backend import backend_platform
+
+            if element["_window"].get("minimized") and backend_platform() == "darwin":
                 from lambchat_sandbox.cua_ops import CuaOpError
 
                 raise CuaOpError(

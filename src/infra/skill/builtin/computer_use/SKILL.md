@@ -58,7 +58,8 @@ All desktop operations use the bundled agent-desktop driver; do not switch to ol
 platform automation libraries or shell input to work around a driver failure.
 A `window_minimized` result is not a hung daemon: explicitly activate the intended
 window to restore it, then request fresh state. Do not repeatedly snapshot a minimized
-window or raise its timeout. Observation text preserves complete names and values
+window or raise its timeout. Windows/Linux may still expose minimized windows through
+accessibility; observe normally and restore only when needed. Observation text preserves complete names and values
 and removes duplicate labels. If `truncated` is true, read the indicated relevant
 element subtree; do not treat an omitted control as absent. For other timeouts, inspect current windows and focus
 before retrying a read; never replay an input whose delivery is uncertain.
