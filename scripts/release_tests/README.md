@@ -68,4 +68,4 @@ python3 scripts/run_validation.py cargo run --manifest-path frontend/src-tauri/C
 测试约三分钟自动结束；`cua_state` 仅等待并返回测试文本，不能用它代替真实键鼠或截图验证。
 真实输入取消回归在 `tests/client/test_cua_worker.py`，它验证暂停后工作进程已退出且不会继续延迟写入。
 
-原生浮窗可通过 `LAMBCHAT_CONTROL_AUTOMATED=1` 运行同一 example：在实际 WebView 中检查按钮尺寸及 20 轮真实管道暂停/恢复，输出 `control-fixture-report`，失败或三分钟超时返回非零。此模式不注入桌面键鼠，不能代替原生拖动与目标应用截图验收。
+原生浮窗可通过 `LAMBCHAT_CONTROL_AUTOMATED=1` 运行同一 example：在实际 WebView 中检查按钮尺寸、每个显示器覆盖层的 HTML/body/容器透明背景及 20 轮真实管道暂停/恢复；每五次接管结束旧测试执行并绑定下一执行，检查至少四次执行能重新显示并恢复。执行授权使用测试替身，不代表服务端真实 Agent 验收。输出 `control-fixture-report`，失败或三分钟超时返回非零。此模式不注入桌面键鼠，不能代替原生拖动、桌面合成效果与目标应用截图验收。

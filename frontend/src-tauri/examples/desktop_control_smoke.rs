@@ -5,6 +5,10 @@ use tauri::Manager;
 
 struct FixtureChild(std::sync::Mutex<std::process::Child>);
 struct FixtureToken(String);
+#[derive(Default)]
+struct FixtureSessions(std::sync::atomic::AtomicUsize);
+#[derive(Default)]
+struct TransparentSurfaces(std::sync::Mutex<std::collections::HashSet<String>>);
 fn finish(app: &tauri::AppHandle, code: i32) {
     if let Some(child) = app.try_state::<FixtureChild>() {
         if let Ok(mut child) = child.0.lock() {
@@ -24,7 +28,18 @@ fn fixture_status(
 ) -> Result<String, String> {
     if let Some(report) = report {
         eprintln!("control-fixture-report {report}");
+        if report["transparent"].as_bool() == Some(true) {
+            app.state::<TransparentSurfaces>()
+                .0
+                .lock()
+                .unwrap()
+                .insert(window.label().to_string());
+        }
         if let Some(ok) = report["ok"].as_bool() {
+            let sessions = app
+                .state::<FixtureSessions>()
+                .0
+                .load(std::sync::atomic::Ordering::Relaxed);
             let monitors = app.available_monitors().map_err(|e| e.to_string())?;
             let overlays: Vec<_> = app
                 .webview_windows()
@@ -39,6 +54,11 @@ fn fixture_status(
                                 && window.inner_size().ok().as_ref() == Some(monitor.size())
                         })
                 });
+            let transparent = app.state::<TransparentSurfaces>();
+            let transparent = transparent.0.lock().unwrap();
+            let transparency_ok = overlays
+                .iter()
+                .all(|(label, _)| transparent.contains(label));
             for (label, window) in &overlays {
                 eprintln!(
                     "control-surface-geometry {label} position={:?} size={:?} visible={:?}",
@@ -71,8 +91,15 @@ fn fixture_status(
                     }
                     std::thread::sleep(std::time::Duration::from_millis(25));
                 };
-                eprintln!("control-surface-report displays={} geometry={geometry_ok} terminal_hidden={hidden}", monitors.len());
-                finish(&handle, if ok && geometry_ok && hidden { 0 } else { 1 });
+                eprintln!("control-surface-report displays={} geometry={geometry_ok} transparent={transparency_ok} sessions={sessions} terminal_hidden={hidden}", monitors.len());
+                finish(
+                    &handle,
+                    if ok && geometry_ok && transparency_ok && hidden && sessions >= 4 {
+                        0
+                    } else {
+                        1
+                    },
+                );
             });
         }
         return Ok("reported".into());
@@ -92,6 +119,8 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(desktop_control::DesktopControl::default())
+        .manage(TransparentSurfaces::default())
+        .manage(FixtureSessions::default())
         .invoke_handler(tauri::generate_handler![
             fixture_status,
             desktop_control::desktop_control_set_paused
@@ -118,7 +147,13 @@ fn main() {
                 let prefix = format!("LAMBCHAT_CUA:{token}:");
                 for line in BufReader::new(out).lines().map_while(Result::ok) {
                     if let Some(raw) = line.strip_prefix(&prefix) {
-                        if let Ok(event) = serde_json::from_str(raw) {
+                        if let Ok(event) = serde_json::from_str::<serde_json::Value>(raw) {
+                            if event["state"].as_str() == Some("session") {
+                                handle
+                                    .state::<FixtureSessions>()
+                                    .0
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            }
                             eprintln!("control-fixture {raw}");
                             desktop_control::receive(&handle, &token, event);
                         }
@@ -140,7 +175,7 @@ fn main() {
                 payload.event(),
                 std::time::SystemTime::now()
             );
-            if window.label() == "cua-control"
+            if window.label().starts_with("cua-")
                 && payload.event() == tauri::webview::PageLoadEvent::Finished
                 && std::env::var_os("LAMBCHAT_CONTROL_AUTOMATED").is_some()
             {

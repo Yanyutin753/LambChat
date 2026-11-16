@@ -11,6 +11,15 @@
   };
   const state = () => invoke('desktop_control_status', { ready: false });
   try {
+    if (new URLSearchParams(location.search).get('surface') === 'overlay') {
+      await wait(() => document.querySelector('.desktop-control-overlay'));
+      const backgrounds = [document.documentElement, document.body, document.querySelector('.desktop-control-overlay')]
+        .map(element => getComputedStyle(element).backgroundColor);
+      if (!backgrounds.every(color => color === 'rgba(0, 0, 0, 0)'))
+        throw new Error('Native overlay obscures desktop: ' + JSON.stringify(backgrounds));
+      await invoke('desktop_control_status', {ready: false, report: {transparent: true}});
+      return;
+    }
     await invoke('desktop_control_status', {ready: false,report: {phase: "start"}});
     await wait(() => document.querySelector('.desktop-control button'));
     const button = document.querySelector('.desktop-control button');

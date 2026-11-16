@@ -106,6 +106,9 @@ pub fn receive(app: &AppHandle, token: &str, event: serde_json::Value) {
         Some("session") => {
             control.revision += 1;
             let revision = control.revision;
+            if let Some(paused) = event["paused"].as_bool() {
+                control.paused = paused;
+            }
             control.state = if control.paused { "paused" } else { "waiting" }.into();
             drop(control);
             let handle = app.clone();
@@ -184,6 +187,17 @@ pub fn receive(app: &AppHandle, token: &str, event: serde_json::Value) {
     }
 }
 
+fn takeover_position(
+    area: tauri::PhysicalRect<i32, u32>,
+    size: tauri::PhysicalSize<u32>,
+    margin: i32,
+) -> tauri::PhysicalPosition<i32> {
+    tauri::PhysicalPosition::new(
+        area.position.x + (area.size.width.saturating_sub(size.width) / 2) as i32,
+        area.position.y + (area.size.height.saturating_sub(size.height) as i32 - margin).max(0),
+    )
+}
+
 fn show(app: &AppHandle) -> Result<(), String> {
     let paused = app
         .state::<DesktopControl>()
@@ -210,11 +224,15 @@ fn show(app: &AppHandle) -> Result<(), String> {
     {
         builder = builder.additional_browser_args(args);
     }
-    builder
+    let monitor = app
+        .get_webview_window("main")
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .ok_or("desktop_control_no_display")?;
+    let window = builder
         .title("LambChat")
-        .inner_size(420.0, 188.0)
-        .min_inner_size(320.0, 188.0)
-        .position(24.0, 48.0)
+        .inner_size(460.0, 112.0)
+        .min_inner_size(460.0, 112.0)
         .decorations(false)
         .resizable(true)
         .always_on_top(true)
@@ -222,9 +240,17 @@ fn show(app: &AppHandle) -> Result<(), String> {
         .content_protected(true)
         .skip_taskbar(true)
         .focused(false)
+        .visible(false)
         .build()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    window
+        .set_position(takeover_position(
+            *monitor.work_area(),
+            window.outer_size().map_err(|e| e.to_string())?,
+            (24.0 * monitor.scale_factor()).round() as i32,
+        ))
+        .map_err(|e| e.to_string())?;
+    window.show().map_err(|e| e.to_string())
 }
 
 fn show_overlays(app: &AppHandle) -> Result<(), String> {
@@ -431,6 +457,25 @@ impl Events {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn takeover_position_stays_in_the_selected_work_area() {
+        let area = tauri::PhysicalRect {
+            position: tauri::PhysicalPosition::new(-1920, 24),
+            size: tauri::PhysicalSize::new(1920, 1016),
+        };
+        assert_eq!(
+            takeover_position(area, tauri::PhysicalSize::new(460, 112), 24),
+            tauri::PhysicalPosition::new(-1190, 904)
+        );
+        let small = tauri::PhysicalRect {
+            position: tauri::PhysicalPosition::new(0, 0),
+            size: tauri::PhysicalSize::new(360, 180),
+        };
+        assert_eq!(
+            takeover_position(small, tauri::PhysicalSize::new(460, 200), 24),
+            tauri::PhysicalPosition::new(0, 0)
+        );
+    }
     #[test]
     fn every_display_must_acknowledge_before_input() {
         let mut control = Control {

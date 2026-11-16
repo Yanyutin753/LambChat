@@ -37,6 +37,8 @@ class DesktopControl:
 
     async def bind(self, session_id: str, run_id: str, client: Any) -> bool:
         owner = (session_id, run_id)
+        if self.ended is not None and self.cleanup_failed:
+            await self.finish(self.ended)
         if self.owner == owner:
             if self.ended is not None:
                 return False
@@ -49,7 +51,14 @@ class DesktopControl:
         self.owner = owner
         self.ended = None
         self.needs_observation = True
-        self.emit({"state": "session", "session_id": session_id, "run_id": run_id})
+        self.emit(
+            {
+                "state": "session",
+                "session_id": session_id,
+                "run_id": run_id,
+                "paused": self.paused,
+            }
+        )
 
         async def watch() -> None:
             try:
@@ -68,9 +77,10 @@ class DesktopControl:
         return True
 
     async def finish(self, reason: str) -> None:
-        if self.ended is not None:
+        if self.ended is not None and not self.cleanup_failed:
             return
         self.ended = reason
+        self.cleanup_failed = False
         self.needs_observation = True
         self.observed = False
         watcher, self.watcher = self.watcher, None
@@ -88,7 +98,13 @@ class DesktopControl:
         if self.pausing is not None:
             await asyncio.shield(self.pausing)
         if self.cleanup is not None:
-            await self.cleanup()
+            try:
+                await self.cleanup()
+            except Exception:
+                self.cleanup_failed = True
+                self.paused = True
+                self.emit({"state": "unavailable"})
+                return
         self.cleanup_failed = False
         self.owner = None
         self.emit({"state": "ended", "reason": reason})

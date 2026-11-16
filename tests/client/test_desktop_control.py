@@ -103,7 +103,8 @@ async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure)
 async def test_local_takeover_survives_execution_end_and_new_execution():
     from unittest.mock import AsyncMock
 
-    control = DesktopControl(lambda event: None)
+    events = []
+    control = DesktopControl(events.append)
     client = AsyncMock()
     client.control_active.return_value = True
     assert await control.bind("session", "run-1", client)
@@ -111,6 +112,12 @@ async def test_local_takeover_survives_execution_end_and_new_execution():
     await control.finish("completed")
     assert await control.bind("session", "run-2", client)
     assert control.paused
+    assert events[-1] == {
+        "state": "session",
+        "session_id": "session",
+        "run_id": "run-2",
+        "paused": True,
+    }
     await control.finish("completed")
 
 
@@ -297,6 +304,39 @@ async def test_cleanup_failure_does_not_allow_resume():
     control.command({"action": "resume"})
     assert control.paused
     assert events[-1] == {"state": "unavailable"}
+
+
+@pytest.mark.parametrize("failures", [1, 2])
+async def test_failed_terminal_cleanup_can_recover_for_next_agent_without_auto_resume(failures):
+    from unittest.mock import AsyncMock
+
+    events = []
+    cleanup = AsyncMock(side_effect=[OSError("worker still stopping")] * failures + [None, None])
+    client = AsyncMock()
+    client.control_active.return_value = True
+    control = DesktopControl(events.append, cleanup=cleanup)
+    assert await control.bind("first", "run-1", client)
+    await control.finish("completed")
+    assert control.owner == ("first", "run-1")
+    assert control.cleanup_failed
+    assert control.paused
+    control.command({"action": "resume"})
+    assert control.paused
+    for _ in range(failures - 1):
+        assert not await control.bind("second", "run-2", client)
+        assert control.owner == ("first", "run-1")
+        assert control.paused
+    assert await control.bind("second", "run-2", client)
+    try:
+        assert control.owner == ("second", "run-2")
+        assert not control.cleanup_failed
+        assert control.paused
+        assert events[-1]["state"] == "session"
+        control.command({"action": "resume"})
+        assert not control.paused
+        assert control.needs_observation
+    finally:
+        await control.finish("completed")
 
 
 @pytest.mark.parametrize("stop", ["pause", "end"])
