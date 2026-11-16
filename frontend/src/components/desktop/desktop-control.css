@@ -4,7 +4,38 @@
   pointer-events: none;
   box-sizing: border-box;
   border: 3px solid var(--theme-ring);
-  background: transparent;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 24px;
+  background: color-mix(in srgb, var(--theme-bg) 14%, transparent);
+  color: var(--theme-text);
+  font-family: var(--chat-font-family);
+}
+.desktop-control-cover-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: min(36rem, calc(100vw - 48px));
+  text-align: center;
+  padding: 12px 20px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
+  background: var(--theme-bg-card);
+}
+.desktop-control-cover-message > svg {
+  display: none;
+}
+.desktop-control-cover-message > span,
+.desktop-control-cover-message > p {
+  color: var(--theme-text-secondary);
+  margin: 0;
+}
+.desktop-control-cover-message > strong {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  font-weight: 600;
 }
 .desktop-control-overlay.is-inactive {
   display: none;
@@ -13,7 +44,12 @@
 .desktop-control {
   box-sizing: border-box;
   min-height: 100vh;
-  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px;
   background: var(--theme-bg-card);
   color: var(--theme-text);
   font: 0.8125rem/1.5 var(--chat-font-family);
@@ -21,37 +57,62 @@
 }
 .desktop-control header {
   display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: move;
   user-select: none;
 }
+.desktop-control-grip {
+  flex: none;
+  color: var(--theme-text-tertiary);
+}
+.desktop-control-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--theme-bg-subtle);
+}
+.desktop-control-copy {
+  min-width: 0;
+}
 .desktop-control header strong {
-  flex: 1;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
 }
 .desktop-control p {
-  margin: 6px 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.desktop-control [role="status"] {
+  font-weight: 600;
 }
 .desktop-control-hint {
+  grid-column: 1 / -1;
   color: var(--theme-text-secondary);
+  font-size: 0.75rem;
 }
 .desktop-control button {
   display: inline-flex;
   gap: 8px;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  min-height: 40px;
   padding: 4px 12px;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-sm);
-  background: var(--theme-bg-subtle);
-  color: var(--theme-text);
+  background: var(--theme-text);
+  color: var(--theme-bg-card);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 .desktop-control button:hover {
-  background: var(--theme-bg-hover);
+  background: var(--theme-text-secondary);
 }
 .desktop-control button:focus-visible {
   outline: 2px solid var(--theme-ring);
@@ -63,4 +124,19 @@
 }
 .desktop-control [role="alert"] {
   color: var(--theme-error);
+}
+
+.desktop-control[data-state="paused"] .desktop-control-icon {
+  color: var(--theme-success);
+}
+@media (max-width: 380px) {
+  .desktop-control-grip {
+    display: none;
+  }
+  .desktop-control {
+    gap: 8px;
+  }
+  .desktop-control header {
+    gap: 8px;
+  }
 }

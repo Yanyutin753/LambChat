@@ -78,7 +78,7 @@ async def test_thinking_keeps_control_until_exact_run_finishes():
 
 
 @pytest.mark.parametrize("failure", [False, True])
-async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure):
+async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure, caplog):
     from unittest.mock import AsyncMock
 
     released = asyncio.Event()
@@ -90,20 +90,86 @@ async def test_owner_monitor_releases_on_terminal_or_connection_failure(failure)
             released.set()
 
     client = AsyncMock()
-    client.control_active.side_effect = [True, OSError("offline") if failure else False]
+    client.control_active.side_effect = [True, OSError("private-pat-value") if failure else False]
     control = DesktopControl(emit)
     assert await control.bind("session", "run", client)
     await asyncio.wait_for(released.wait(), 3)
     assert control.owner is None
     assert control.watcher is None
     assert events[-1]["reason"] == ("disconnected" if failure else "completed")
-    assert control.paused is failure
+    assert not control.paused
+    if failure:
+        assert "authority check failed (OSError)" in caplog.text
+    assert "private-pat-value" not in caplog.text
+
+
+@pytest.mark.parametrize("user_paused", [False, True])
+async def test_idle_disconnect_rebind_preserves_user_takeover_without_inventing_it(user_paused):
+    from unittest.mock import AsyncMock
+
+    ended = asyncio.Event()
+    events = []
+
+    def emit(event):
+        events.append(event)
+        if event["state"] == "ended":
+            ended.set()
+
+    client = AsyncMock()
+    client.control_active.side_effect = [True, OSError("offline"), True]
+    control = DesktopControl(emit)
+    assert await control.bind("session", "run", client)
+    if user_paused:
+        control.command({"action": "pause"})
+    await asyncio.wait_for(ended.wait(), 3)
+    assert events[-1] == {"state": "ended", "reason": "disconnected"}
+    assert await control.bind("session", "run", client)
+    try:
+        assert control.paused is user_paused
+        assert control.needs_observation
+        action = AsyncMock(return_value={"ok": True})
+        result = await control.execute("cua_type", action)
+        assert result["error"] == (
+            "desktop_control_paused" if user_paused else "observation_required"
+        )
+        action.assert_not_awaited()
+    finally:
+        await control.finish("completed")
+
+
+async def test_disconnect_during_active_operation_keeps_pause_after_rebind():
+    from unittest.mock import AsyncMock
+
+    events = []
+    ended = asyncio.Event()
+
+    def emit(event):
+        events.append(event)
+        if event["state"] == "ended":
+            ended.set()
+
+    client = AsyncMock()
+    client.control_active.side_effect = [True, OSError("offline"), True]
+    control = DesktopControl(emit)
+    assert await control.bind("session", "run", client)
+    control.needs_observation = False
+    operation = asyncio.create_task(control.execute("cua_type", asyncio.Event().wait))
+    await asyncio.sleep(0)
+    control.command({"action": "permit", "request": events[-1]["request"], "allowed": True})
+    await asyncio.wait_for(ended.wait(), 3)
+    assert (await operation)["error"] == "desktop_control_ended"
+    assert await control.bind("session", "run", client)
+    try:
+        assert control.paused
+    finally:
+        await control.finish("completed")
 
 
 async def test_local_takeover_survives_execution_end_and_new_execution():
     from unittest.mock import AsyncMock
 
-    control = DesktopControl(lambda event: None)
+    events = []
+    control = DesktopControl(events.append)
     client = AsyncMock()
     client.control_active.return_value = True
     assert await control.bind("session", "run-1", client)
@@ -111,6 +177,12 @@ async def test_local_takeover_survives_execution_end_and_new_execution():
     await control.finish("completed")
     assert await control.bind("session", "run-2", client)
     assert control.paused
+    assert events[-1] == {
+        "state": "session",
+        "session_id": "session",
+        "run_id": "run-2",
+        "paused": True,
+    }
     await control.finish("completed")
 
 
@@ -299,7 +371,40 @@ async def test_cleanup_failure_does_not_allow_resume():
     assert events[-1] == {"state": "unavailable"}
 
 
-@pytest.mark.parametrize("stop", ["pause", "end"])
+@pytest.mark.parametrize("failures", [1, 2])
+async def test_failed_terminal_cleanup_can_recover_for_next_agent_without_auto_resume(failures):
+    from unittest.mock import AsyncMock
+
+    events = []
+    cleanup = AsyncMock(side_effect=[OSError("worker still stopping")] * failures + [None, None])
+    client = AsyncMock()
+    client.control_active.return_value = True
+    control = DesktopControl(events.append, cleanup=cleanup)
+    assert await control.bind("first", "run-1", client)
+    await control.finish("completed")
+    assert control.owner == ("first", "run-1")
+    assert control.cleanup_failed
+    assert control.paused
+    control.command({"action": "resume"})
+    assert control.paused
+    for _ in range(failures - 1):
+        assert not await control.bind("second", "run-2", client)
+        assert control.owner == ("first", "run-1")
+        assert control.paused
+    assert await control.bind("second", "run-2", client)
+    try:
+        assert control.owner == ("second", "run-2")
+        assert not control.cleanup_failed
+        assert control.paused
+        assert events[-1]["state"] == "session"
+        control.command({"action": "resume"})
+        assert not control.paused
+        assert control.needs_observation
+    finally:
+        await control.finish("completed")
+
+
+@pytest.mark.parametrize("stop", ["pause", "end", "disconnected"])
 async def test_takeover_after_permit_before_dispatch_never_starts_input(stop):
     events = []
     ran = []
@@ -315,9 +420,16 @@ async def test_takeover_after_permit_before_dispatch_never_starts_input(stop):
     if stop == "pause":
         control.command({"action": "pause"})
     else:
-        await control.finish("completed")
+        await control.finish("disconnected" if stop == "disconnected" else "completed")
     result = await task
     assert not ran
     assert result["error"] == (
-        "desktop_control_paused" if stop == "pause" else "desktop_control_ended"
+        "desktop_control_paused"
+        if stop == "pause"
+        else "desktop_control_disconnected"
+        if stop == "disconnected"
+        else "desktop_control_ended"
     )
+    if stop == "disconnected":
+        assert result["retry"] == "observe_first"
+        assert result["disposition"] == "not_started"

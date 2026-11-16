@@ -260,6 +260,10 @@ class ChannelClient:
             follow_redirects=False,
             timeout=3.0,
         )
+        if response.is_error:
+            logging.getLogger(__name__).warning(
+                "Desktop control authority HTTP %s", response.status_code
+            )
         await _raise_for_status(response, "control_status")
         result = response.json()
         return isinstance(result, dict) and result.get("active") is True

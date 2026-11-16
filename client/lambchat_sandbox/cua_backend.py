@@ -26,8 +26,17 @@ bounds 为 ``[x, y, w, h]`` 全局屏幕坐标(截屏 region 与元素中心点�
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import Any
+
+
+def is_control_window(pid: int, title: str) -> bool:
+    return (
+        bool(os.environ.get("LAMBCHAT_DESKTOP_CONTROL"))
+        and os.environ.get("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID") == str(pid)
+        and title in {"LambChat Control", "LambChat Control Overlay"}
+    )
 
 
 class UnsupportedBackendError(Exception):

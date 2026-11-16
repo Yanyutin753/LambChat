@@ -39,6 +39,20 @@ def test_window_list_and_observation_share_a_stable_window_id(mac_backend) -> No
         assert info["window_id"] == 0
 
 
+def test_control_surfaces_are_not_agent_targets(mac_backend, monkeypatch):
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL", "fixture")
+    monkeypatch.setenv("LAMBCHAT_DESKTOP_CONTROL_OWNER_PID", "42")
+    windows = [
+        SimpleNamespace(AXTitle=title, AXFocused=True, AXMain=True)
+        for title in ["LambChat Control Overlay", "LambChat Control", "LambChat"]
+    ]
+    monkeypatch.setattr(
+        mac_backend, "app_by_pid", lambda pid: SimpleNamespace(windows=lambda: windows)
+    )
+    assert [w["title"] for w in mac_backend.windows(42)] == ["LambChat"]
+    assert mac_backend.pick_window(42, 0)[0] is windows[-1]
+
+
 @pytest.mark.parametrize(
     "session,locked",
     [

@@ -38,6 +38,9 @@ Do not start a replacement browser profile or edit an open document behind its a
    started: diagnose control readiness; do not bypass the control UI or its permission gate.
    On desktop_control_ended or desktop_control_busy, stop: the owning run ended or
    another execution owns the desktop. Do not retry inputs or bypass the ownership gate.
+   On desktop_control_disconnected with disposition=not_started, try one fresh state
+   observation. The daemon must revalidate the same live run before it can proceed.
+   If that fails, stop and report the connection issue. Never replay the interrupted input.
 
 Use the actual tool schema, not upstream agent-desktop CLI flags. The daemon owns
 capture exclusion, input serialization and cancellation. Do not disable these protections,

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from lambchat_sandbox.cua_backend import is_control_window
+
 
 def _desktop_windows() -> list[Any]:
     """Desktop(backend="uia").windows()——懒加载 pywinauto(本模块需在
@@ -136,6 +138,9 @@ def windows(pid: int) -> list[dict[str, Any]]:
     for element in _desktop_windows():
         if _window_pid(element) != pid:
             continue
+        title = getattr(element.element_info, "name", "") or ""
+        if is_control_window(pid, title):
+            continue
         try:
             info = element.element_info
             rect = info.rectangle
@@ -146,7 +151,7 @@ def windows(pid: int) -> list[dict[str, Any]]:
         rows.append(
             {
                 "window_id": len(rows),
-                "title": getattr(element.element_info, "name", "") or "",
+                "title": title,
                 "subrole": None,
                 "main": len(rows) == 0,
                 "focused": focused,

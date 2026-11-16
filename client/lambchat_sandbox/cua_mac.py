@@ -11,6 +11,8 @@ from typing import Any
 import atomacos
 from atomacos import _a11y
 
+from lambchat_sandbox.cua_backend import is_control_window
+
 
 def desktop_locked() -> bool:
     from Quartz import CGSessionCopyCurrentDictionary
@@ -119,11 +121,14 @@ def app_by_pid(pid: int) -> Any:
 def windows(pid: int) -> list[dict[str, Any]]:
     app = app_by_pid(pid)
     rows = []
-    for index, window in enumerate(app.windows()):
+    for window in app.windows():
+        title = _scalar(window, "AXTitle") or ""
+        if is_control_window(pid, title):
+            continue
         rows.append(
             {
-                "window_id": index,
-                "title": _scalar(window, "AXTitle") or "",
+                "window_id": len(rows),
+                "title": title,
                 "subrole": _scalar(window, "AXSubrole"),
                 "main": bool(_scalar(window, "AXMain")),
                 "focused": bool(_scalar(window, "AXFocused")),

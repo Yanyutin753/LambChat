@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import sys
 import threading
@@ -37,6 +38,8 @@ class DesktopControl:
 
     async def bind(self, session_id: str, run_id: str, client: Any) -> bool:
         owner = (session_id, run_id)
+        if self.ended is not None and self.cleanup_failed:
+            await self.finish(self.ended)
         if self.owner == owner:
             if self.ended is not None:
                 return False
@@ -49,7 +52,14 @@ class DesktopControl:
         self.owner = owner
         self.ended = None
         self.needs_observation = True
-        self.emit({"state": "session", "session_id": session_id, "run_id": run_id})
+        self.emit(
+            {
+                "state": "session",
+                "session_id": session_id,
+                "run_id": run_id,
+                "paused": self.paused,
+            }
+        )
 
         async def watch() -> None:
             try:
@@ -60,17 +70,23 @@ class DesktopControl:
                         return
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                self.paused = True
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Desktop control authority check failed (%s)", type(exc).__name__
+                )
+                # Idle transport loss is not user takeover; interrupted operations stay paused.
+                if self.active is not None:
+                    self.paused = True
                 await self.finish("disconnected")
 
         self.watcher = asyncio.create_task(watch())
         return True
 
     async def finish(self, reason: str) -> None:
-        if self.ended is not None:
+        if self.ended is not None and not self.cleanup_failed:
             return
         self.ended = reason
+        self.cleanup_failed = False
         self.needs_observation = True
         self.observed = False
         watcher, self.watcher = self.watcher, None
@@ -88,7 +104,13 @@ class DesktopControl:
         if self.pausing is not None:
             await asyncio.shield(self.pausing)
         if self.cleanup is not None:
-            await self.cleanup()
+            try:
+                await self.cleanup()
+            except Exception:
+                self.cleanup_failed = True
+                self.paused = True
+                self.emit({"state": "unavailable"})
+                return
         self.cleanup_failed = False
         self.owner = None
         self.emit({"state": "ended", "reason": reason})
@@ -136,10 +158,7 @@ class DesktopControl:
 
     async def execute(self, op: str, run: Callable[[], Coroutine[Any, Any, dict]]) -> dict:
         if self.ended:
-            return {
-                "error": "desktop_control_ended",
-                "detail": "Owning execution ended; no input started",
-            }
+            return self._not_started_result()
         if self.paused:
             return self._paused_result()
         if self.needs_observation and op not in {
@@ -157,7 +176,7 @@ class DesktopControl:
             self.emit({"state": "request", "request": request})
             if not await asyncio.wait_for(future, self.timeout) or self.paused or self.ended:
                 if self.ended:
-                    return {"error": "desktop_control_ended"}
+                    return self._not_started_result()
                 if self.paused:
                     return self._paused_result()
                 return {
@@ -222,6 +241,20 @@ class DesktopControl:
                     else "idle"
                 }
             )
+
+    def _not_started_result(self) -> dict:
+        if self.ended == "disconnected" and not self.paused and not self.cleanup_failed:
+            return {
+                "error": "desktop_control_disconnected",
+                "disposition": "not_started",
+                "retry": "observe_first",
+                "detail": "Control authority connection was lost before the action started. "
+                "Try one fresh observation to revalidate the same live run; do not replay input.",
+            }
+        return {
+            "error": "desktop_control_ended",
+            "detail": "Owning execution ended; no input started",
+        }
 
     @staticmethod
     def _paused_result() -> dict:

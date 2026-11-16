@@ -27,6 +27,21 @@ test("daemon cleanup failure reaches the unavailable control state", () => {
   expect(native).toMatch(/Some\("unavailable"\)\s*=>/);
 });
 
+test("fullscreen overlays use native backdrop effects without blurring the toolbar", () => {
+  const overlay = native.slice(
+    native.indexOf("fn show_overlays("),
+    native.indexOf("fn hide_surfaces("),
+  );
+  expect(overlay).toContain("Effect::Acrylic");
+  expect(overlay).toContain("Effect::HudWindow");
+  expect(overlay).toContain(".effects(");
+  const toolbar = native.slice(
+    native.indexOf("fn show(app:"),
+    native.indexOf("fn show_overlays("),
+  );
+  expect(toolbar).not.toContain(".effects(");
+});
+
 test("overlay is realized before Linux cursor passthrough accesses its native window", () => {
   const show = native.slice(
     native.indexOf("fn show_overlays("),
