@@ -240,3 +240,67 @@ async def test_release_all_pooled_clients_flushes_immediately(monkeypatch) -> No
     assert active_client.is_closed
     assert retired_client.is_closed
     assert fake.async_client.closed
+
+
+@pytest.mark.parametrize("pooled", [False, True])
+async def test_retirement_does_not_retain_finished_agent_context(monkeypatch, pooled):
+    import weakref
+
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    monkeypatch.setattr(httpx_pool, "_close_grace_seconds", lambda: 60.0)
+
+    class Payload:
+        pass
+
+    class SDK:
+        async def aclose(self):
+            pass
+
+    payload = Payload()
+    reference = weakref.ref(payload)
+    model = await LLMClient.get_model(model_config=_config()) if pooled else None
+    token = var_child_runnable_config.set({"configurable": {"agent_payload": payload}})
+    try:
+        if pooled:
+            _release_pool_client(_pool_key("sk-pool", _POOL_BASE), model)
+        else:
+            httpx_pool._schedule_graceful_close(_retired_sdk_clients, "test", SDK())
+    finally:
+        var_child_runnable_config.reset(token)
+    del payload
+    assert reference() is None, "retirement timer retained the finished agent context"
+    assert _retired_pools if pooled else _retired_sdk_clients
+
+
+async def test_close_task_does_not_inherit_or_retain_agent_context():
+    import weakref
+
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    class Payload:
+        pass
+
+    closed = asyncio.Event()
+    observed = []
+
+    class SDK:
+        async def aclose(self):
+            observed.append(var_child_runnable_config.get())
+            await closed.wait()
+
+    payload = Payload()
+    reference = weakref.ref(payload)
+    token = var_child_runnable_config.set({"configurable": {"agent_payload": payload}})
+    try:
+        httpx_pool._spawn_close_task(SDK())
+    finally:
+        var_child_runnable_config.reset(token)
+    del payload
+    try:
+        await asyncio.sleep(0)
+        assert reference() is None, "close task or completion callback retained agent context"
+        assert not observed[0]
+    finally:
+        closed.set()
+        await LLMClient.drain_close_tasks()
