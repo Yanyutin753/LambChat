@@ -517,3 +517,20 @@ async def test_inventory_cannot_authorize_launch_after_takeover_or_failed_discov
     action = AsyncMock()
     assert (await control.execute("cua_launch", action))["error"] == "observation_required"
     action.assert_not_awaited()
+
+
+async def test_uncertain_observation_revokes_inventory_launch_permission():
+    from unittest.mock import AsyncMock
+
+    def acknowledge(event):
+        if event.get("state") == "request":
+            control.command({"action": "permit", "request": event["request"], "allowed": True})
+
+    control = DesktopControl(acknowledge)
+    control.needs_observation = True
+    await control.execute("cua_apps", AsyncMock(return_value={"apps": []}))
+    result = await control.execute("cua_state", AsyncMock(side_effect=TimeoutError))
+    assert result["retry"] == "observe_first"
+    action = AsyncMock(return_value={"launched": True})
+    assert (await control.execute("cua_launch", action))["error"] == "observation_required"
+    action.assert_not_awaited()

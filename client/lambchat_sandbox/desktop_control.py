@@ -225,6 +225,7 @@ class DesktopControl:
         except TimeoutError:
             if self.active is not None:
                 self.needs_observation = True
+                self.observed_apps = False
                 return {
                     "error": "timeout",
                     "disposition": "unknown",
