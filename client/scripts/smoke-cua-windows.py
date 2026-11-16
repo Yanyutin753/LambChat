@@ -30,7 +30,16 @@ $field.AccessibleName = 'Acceptance text'
 $field.Location = New-Object System.Drawing.Point(20,40)
 $field.Width = 540
 $keys = New-Object 'System.Collections.Generic.List[string]'
-$field.Add_KeyDown({ param($sender, $event) $keys.Add([string]$event.KeyData) })
+$field.Add_KeyDown({
+    param($sender, $event)
+    $keys.Add([string]$event.KeyData)
+    # Define the fixture shortcut explicitly across Windows PowerShell's WinForms versions.
+    if ($event.Control -and $event.KeyCode -eq [System.Windows.Forms.Keys]::A) {
+        $sender.SelectAll()
+        $event.SuppressKeyPress = $true
+        $event.Handled = $true
+    }
+})
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 100
 $timer.Add_Tick({
@@ -202,6 +211,7 @@ async def verify(daemon: Path, directory: Path, report: dict) -> None:
                             if selection["start"] == 0 and selection["length"] == len(
                                 selection["text"]
                             ):
+                                assert "A, Control" in selection["keys"], selection
                                 break
                         except (FileNotFoundError, json.JSONDecodeError):
                             pass
