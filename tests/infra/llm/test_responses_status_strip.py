@@ -11,6 +11,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.infra.llm.client import LLMClient
@@ -139,3 +142,71 @@ def test_chat_completions_payload_unaffected() -> None:
     payload = model._get_request_payload([HumanMessage(content="hi")])
     assert "input" not in payload
     assert payload["messages"][0]["content"] == "hi"
+
+
+def test_strip_normalizes_non_array_summary_on_replayed_items() -> None:
+    """生产 2026-11-17：input[3].summary expected an array（严格端点 400）。"""
+    payload = {
+        "input": [
+            {"type": "message", "role": "user", "content": "hi"},
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "thinking"}],
+                "summary": "历史上游存下的字符串型 summary",
+            },
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "thinking2"}],
+                "summary": {"bad": "shape"},
+            },
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "ok"}],
+                "summary": [{"type": "summary_text", "text": "本来就是数组"}],
+            },
+        ]
+    }
+
+    result = strip_readonly_responses_input_fields(payload)
+
+    summaries = [item.get("summary") for item in result["input"]]
+    assert summaries[0] is None
+    # 字符串 summary 归一化为 summary_text 数组
+    assert summaries[1] == [{"type": "summary_text", "text": "历史上游存下的字符串型 summary"}]
+    # 必填数组不能通过删除字段规避校验
+    assert summaries[2] == []
+    # 本来就合规的数组原样保留
+    assert summaries[3] == [{"type": "summary_text", "text": "本来就是数组"}]
+
+
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        ({}, []),
+        ({"summary": None}, []),
+        ({"summary": 17}, []),
+        (
+            {"summary": {"type": "summary_text", "text": "saved"}},
+            [{"type": "summary_text", "text": "saved"}],
+        ),
+    ],
+)
+def test_reasoning_summary_is_always_an_array(fields, expected):
+    item = {"type": "reasoning", "id": "rs_1", "encrypted_content": "ENC", **fields}
+    payload = strip_readonly_responses_input_fields({"input": [item]})
+    assert payload["input"][0]["summary"] == expected
+    assert payload["input"][0]["encrypted_content"] == "ENC"
+
+
+@pytest.mark.parametrize(
+    "summary", [None, "saved reasoning", {"type": "summary_text", "text": "saved"}]
+)
+def test_request_normalizes_replayed_summary_without_mutating_history(summary):
+    message = _polluted_ai_message()
+    message.content[0]["summary"] = summary
+    before = deepcopy(message.model_dump())
+    payload = _responses_model()._get_request_payload([HumanMessage(content="hi"), message])
+    reasoning = next(item for item in payload["input"] if item.get("type") == "reasoning")
+    assert isinstance(reasoning["summary"], list)
+    assert reasoning["encrypted_content"] == "gAAAA-encrypted"
+    assert message.model_dump() == before
