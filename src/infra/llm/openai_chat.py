@@ -66,8 +66,8 @@ def strip_readonly_responses_input_fields(payload: dict) -> dict:
     同时归一化 ``summary`` 形状：合法 input 的 reasoning item 要求
     ``summary`` 为数组；历史里存成字符串/字典等形状时，严格端点以 400
     ``expected an array`` 拒绝整个请求（生产 2026-11-17：
-    ``input[3].summary``）。字符串包成 summary_text 数组，其余非数组
-    形状直接剥离。
+    ``input[3].summary``）。字符串或单个 summary_text 对象包成数组，
+    缺失、null 或无法恢复的形状补为空数组；该字段不能省略。
     """
     input_items = payload.get("input")
     if not isinstance(input_items, list):
@@ -76,11 +76,18 @@ def strip_readonly_responses_input_fields(payload: dict) -> dict:
         if isinstance(item, dict):
             for field in _RESPONSES_INPUT_READONLY_FIELDS:
                 item.pop(field, None)
-            summary = item.get("summary")
-            if isinstance(summary, str):
-                item["summary"] = [{"type": "summary_text", "text": summary}]
-            elif summary is not None and not isinstance(summary, list):
-                item.pop("summary", None)
+            if item.get("type") == "reasoning":
+                summary = item.get("summary")
+                if isinstance(summary, str):
+                    item["summary"] = [{"type": "summary_text", "text": summary}]
+                elif (
+                    isinstance(summary, dict)
+                    and summary.get("type") == "summary_text"
+                    and isinstance(summary.get("text"), str)
+                ):
+                    item["summary"] = [summary]
+                elif not isinstance(summary, list):
+                    item["summary"] = []
     return payload
 
 
