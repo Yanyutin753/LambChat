@@ -124,3 +124,17 @@ def test_openai_responses_reasoning_summary_survives_google_switch():
         [HumanMessage(content="calculate"), message, HumanMessage(content="continue")]
     )
     assert "Verified the previous result" in model_part_texts(request)
+
+
+def test_foreign_redacted_reasoning_is_not_replayed_as_a_google_content_block():
+    message = AIMessage(
+        content=[
+            {"type": "redacted_thinking", "data": "opaque-foreign"},
+            {"type": "text", "text": "423"},
+        ],
+        response_metadata={"model_provider": "anthropic", "model_name": "glm-5.2"},
+    )
+    original = deepcopy(message)
+    normalized = _downgrade_foreign_reasoning([message])[0]
+    assert normalized.content == [{"type": "text", "text": "423"}]
+    assert message == original
