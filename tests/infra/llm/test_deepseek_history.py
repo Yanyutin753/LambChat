@@ -1,9 +1,14 @@
+import json
 from copy import deepcopy
+from unittest.mock import AsyncMock
 
+import httpx
+import openai
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from src.infra.llm.client import LLMClient
+from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.reasoning_patch import apply_reasoning_patches
 from src.infra.llm.thinking import model_supports_thinking
 
@@ -133,13 +138,51 @@ def test_deepseek_responses_replays_plain_reasoning_for_each_assistant(reasoning
     payload = model._get_request_payload(messages)
     assert payload["input"][1] == {
         "type": "reasoning",
+        "summary": [],
         "content": [{"type": "reasoning_text", "text": reasoning or " "}],
     }
     assert payload["input"][2]["type"] == "function_call"
     assert "include" not in payload
+    assert all("encrypted_content" not in item for item in payload["input"])
     assert all(
-        "summary" not in item and "encrypted_content" not in item for item in payload["input"]
+        isinstance(item["summary"], list)
+        for item in payload["input"]
+        if item["type"] == "reasoning"
     )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_deepseek_wire_request_includes_required_summary_array(stream, monkeypatch):
+    monkeypatch.setattr(QuotaChatMixin, "_quota_begin", AsyncMock(return_value=None))
+    observed = []
+
+    def respond(request):
+        payload = json.loads(request.content)
+        observed.append(payload)
+        assert request.url.path == "/v1/responses"
+        assert payload.get("stream", False) is stream
+        reasoning = [item for item in payload["input"] if item["type"] == "reasoning"]
+        assert reasoning and all(item["summary"] == [] for item in reasoning)
+        assert any(item.get("call_id") == "call_test" for item in payload["input"])
+        return httpx.Response(400, json={"error": {"message": "wire-contract-checked"}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        sdk = openai.AsyncOpenAI(
+            api_key="test", base_url="https://test.invalid/v1", http_client=client
+        )
+        model = LLMClient._create_model(
+            "openai", "deepseek-flash", api_key="test", api_format="responses"
+        )
+        model.root_async_client = sdk
+        model.async_client = sdk.chat.completions
+        model.streaming = stream
+        with pytest.raises(openai.BadRequestError, match="wire-contract-checked"):
+            if stream:
+                async for _ in model.astream(history()):
+                    pass
+            else:
+                await model.ainvoke(history())
+    assert len(observed) == 1
 
 
 @pytest.mark.parametrize("level,expected", [("low", "low"), ("medium", "high"), ("max", "max")])
