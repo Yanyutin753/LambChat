@@ -17,7 +17,15 @@ These patches bridge the gap by:
      ordinary assistant turns or other OpenAI-compatible backends.
 """
 
+from typing import Any
+
+from langchain_core.messages import AIMessage
+
 from src.infra.llm.providers import is_zhipu_thinking_model
+
+_DROPPED_REASONING_BLOCK_TYPES = frozenset(
+    {"reasoning", "thinking", "reasoning_content", "redacted_thinking"}
+)
 
 
 def is_deepseek_thinking_model(name: str) -> bool:
@@ -45,6 +53,34 @@ def reasoning_text_from_message(message) -> str:
                 )
             )
     return "".join(parts)
+
+
+def foreign_reasoning_as_text_blocks(message: AIMessage) -> AIMessage | None:
+    content = message.content
+    reasoning = reasoning_text_from_message(
+        message.model_copy(update={"content": message.content_blocks})
+    )
+    if isinstance(content, str):
+        removed = False
+        blocks: list[Any] = [{"type": "text", "text": content}] if content else []
+    elif isinstance(content, list):
+        blocks = [
+            block
+            for block in content
+            if not (isinstance(block, dict) and block.get("type") in _DROPPED_REASONING_BLOCK_TYPES)
+        ]
+        removed = len(blocks) != len(content)
+    else:
+        return None
+    if not removed and not reasoning.strip():
+        return None
+    if reasoning.strip():
+        new_content = [{"type": "text", "text": reasoning}, *blocks]
+    else:
+        new_content = blocks
+    if new_content == content:
+        return None
+    return message.model_copy(update={"content": new_content})
 
 
 def _is_deepseek_message(message) -> bool:
