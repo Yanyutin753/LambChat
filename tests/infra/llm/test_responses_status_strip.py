@@ -139,3 +139,38 @@ def test_chat_completions_payload_unaffected() -> None:
     payload = model._get_request_payload([HumanMessage(content="hi")])
     assert "input" not in payload
     assert payload["messages"][0]["content"] == "hi"
+
+
+def test_strip_normalizes_non_array_summary_on_replayed_items() -> None:
+    """生产 2026-11-17：input[3].summary expected an array（严格端点 400）。"""
+    payload = {
+        "input": [
+            {"type": "message", "role": "user", "content": "hi"},
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "thinking"}],
+                "summary": "历史上游存下的字符串型 summary",
+            },
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "thinking2"}],
+                "summary": {"bad": "shape"},
+            },
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "ok"}],
+                "summary": [{"type": "summary_text", "text": "本来就是数组"}],
+            },
+        ]
+    }
+
+    result = strip_readonly_responses_input_fields(payload)
+
+    summaries = [item.get("summary") for item in result["input"]]
+    assert summaries[0] is None
+    # 字符串 summary 归一化为 summary_text 数组
+    assert summaries[1] == [{"type": "summary_text", "text": "历史上游存下的字符串型 summary"}]
+    # 无法归一化的形状直接剥离
+    assert summaries[2] is None
+    # 本来就合规的数组原样保留
+    assert summaries[3] == [{"type": "summary_text", "text": "本来就是数组"}]
