@@ -124,9 +124,28 @@ class LambChatAnthropicChatModel(QuotaChatMixin, ChatAnthropic):
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
     ) -> dict:
-        from src.infra.llm.reasoning_patch import is_deepseek_thinking_model
+        from src.infra.llm.reasoning_patch import (
+            foreign_reasoning_as_text_blocks,
+            is_deepseek_thinking_model,
+        )
 
         messages = self._convert_input(input_).to_messages()
+        if self.model.lower().startswith("claude-"):
+            normalized = []
+            for message in messages:
+                if isinstance(message, AIMessage):
+                    source = message.response_metadata
+                    name = str(source.get("model_name") or source.get("model") or "").lower()
+                    foreign = (
+                        not name.startswith("claude-")
+                        if name
+                        else source.get("model_provider") not in (None, "anthropic")
+                    )
+                    if foreign:
+                        # Anthropic-compatible providers do not issue Claude signatures.
+                        message = foreign_reasoning_as_text_blocks(message) or message
+                normalized.append(message)
+            messages = normalized
         if is_deepseek_thinking_model(self.model):
             normalized = []
             for message in messages:
