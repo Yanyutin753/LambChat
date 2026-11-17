@@ -62,6 +62,12 @@ def strip_readonly_responses_input_fields(payload: dict) -> dict:
     ``unknown_parameter`` 拒绝整个请求（生产 2026-09-17：``input[13].status``，
     该会话每轮先 400 再 fallback，首字时间 ~7s）。``status`` 不是任何
     input item 的合法字段，剥离无条件执行。
+
+    同时归一化 ``summary`` 形状：合法 input 的 reasoning item 要求
+    ``summary`` 为数组；历史里存成字符串/字典等形状时，严格端点以 400
+    ``expected an array`` 拒绝整个请求（生产 2026-11-17：
+    ``input[3].summary``）。字符串包成 summary_text 数组，其余非数组
+    形状直接剥离。
     """
     input_items = payload.get("input")
     if not isinstance(input_items, list):
@@ -70,6 +76,11 @@ def strip_readonly_responses_input_fields(payload: dict) -> dict:
         if isinstance(item, dict):
             for field in _RESPONSES_INPUT_READONLY_FIELDS:
                 item.pop(field, None)
+            summary = item.get("summary")
+            if isinstance(summary, str):
+                item["summary"] = [{"type": "summary_text", "text": summary}]
+            elif summary is not None and not isinstance(summary, list):
+                item.pop("summary", None)
     return payload
 
 
