@@ -506,9 +506,13 @@ def create_goal_rubric_middleware(
     if middleware_cls is None:
         return None
 
+    from src.infra.agent.middleware.image_url import ImageUrlAccessMiddleware
     from src.infra.agent.middleware.retry import create_retry_middleware
 
-    grader_middleware = create_retry_middleware(fallback_model=fallback_model)
+    grader_middleware = [
+        *create_retry_middleware(fallback_model=fallback_model),
+        ImageUrlAccessMiddleware(),
+    ]
     from src.infra.agent.evidence import evidence_scope
 
     def on_evaluation(evaluation):
