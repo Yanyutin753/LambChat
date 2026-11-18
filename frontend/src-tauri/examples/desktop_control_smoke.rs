@@ -57,8 +57,8 @@ fn fixture_status(
                 centered && (top_gap - (12.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
             eprintln!("control-toolbar-placement position={position:?} size={size:?} top_gap={top_gap} ok={placed}");
             if !placed {
-                finish(&app, 1);
-                return Err("Control toolbar is not centered inside the work area".into());
+                // A mapped GTK window can still be awaiting the WM placement event.
+                return Ok("mapping".into());
             }
         }
         if report["transparent"].as_bool() == Some(true) {

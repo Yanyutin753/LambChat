@@ -36,6 +36,8 @@ test("native indicators cannot cover the desktop even with opaque WebViews", () 
   expect(overlay).not.toContain(".set_size(*monitor.size())");
   expect(overlay).toContain("INDICATOR_WIDTH");
   expect(overlay).toContain("INDICATOR_HEIGHT");
+  expect(overlay).toContain(".min_inner_size(size.width, size.height)");
+  expect(overlay).toContain(".max_inner_size(size.width, size.height)");
 });
 
 test("overlay is realized before Linux cursor passthrough accesses its native window", () => {

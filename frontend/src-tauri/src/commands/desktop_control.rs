@@ -310,12 +310,14 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
             }
             builder
                 .title("LambChat Control Overlay")
-                // GTK fixes a non-resizable window's size at its first configure event.
+                // Constrain GTK's WebView before the window manager maps it.
                 .inner_size(size.width, size.height)
+                .min_inner_size(size.width, size.height)
+                .max_inner_size(size.width, size.height)
                 .transparent(true)
                 .decorations(false)
                 .shadow(false)
-                .resizable(false)
+                .resizable(cfg!(target_os = "linux"))
                 .always_on_top(true)
                 .visible_on_all_workspaces(true)
                 .content_protected(true)

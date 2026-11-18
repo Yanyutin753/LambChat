@@ -17,8 +17,7 @@
         .map(element => getComputedStyle(element).backgroundColor);
       if (!backgrounds.slice(0, 2).every(color => color === 'rgba(0, 0, 0, 0)'))
         throw new Error('Native overlay obscures desktop: ' + JSON.stringify(backgrounds));
-      if (innerWidth > 310 || innerHeight > 40 || !document.querySelector('.desktop-control-overlay').textContent)
-        throw new Error('Expected a compact status indicator');
+      await wait(() => innerWidth === 308 && innerHeight === 38 && document.querySelector('.desktop-control-overlay').textContent);
       await invoke('desktop_control_status', {ready: false, report: {transparent: true}});
       return;
     }
