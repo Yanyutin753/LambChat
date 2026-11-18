@@ -192,3 +192,32 @@ test("local takeover tells the user where to resume", () => {
     panel.getByText("电脑控制已暂停。准备好后，请在常驻浮窗中点击“继续”。"),
   ).toBeTruthy();
 });
+
+test("a result without usable screenshot pixels shows an unavailable preview", () => {
+  const { panel } = show({
+    args: { action: "state", include_screenshot: true },
+    result: { screenshot: { width: 800, height: 600 } },
+    success: true,
+  });
+  expect(
+    panel.getByText(zh.chat.message.computerUse.screenshotFailed),
+  ).toBeTruthy();
+  expect(panel.queryByRole("img")).toBeNull();
+});
+
+test("key actions lead with the target app and show the shortcut inline", () => {
+  const { view } = show({
+    args: { name: "Editor", action: "key", text: "cmd+s" },
+    result: { ok: true },
+    success: true,
+  });
+  expect(view.getByRole("button").textContent).toMatch(/^Editor.*cmd\+s/);
+});
+
+test("typing previews never echo the text being entered", () => {
+  const { view } = show({
+    args: { name: "Editor", action: "type", text: "private draft" },
+    isPending: true,
+  });
+  expect(view.getByRole("button").textContent).not.toContain("private draft");
+});

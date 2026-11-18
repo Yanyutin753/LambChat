@@ -1,18 +1,52 @@
 .desktop-control-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
   box-sizing: border-box;
-  border: 2px solid var(--theme-info);
-  box-shadow: inset 0 0 32px
-    color-mix(in srgb, var(--theme-info) 20%, transparent);
-  display: grid;
-  justify-items: center;
-  align-items: start;
-  padding: 24px;
-  background: color-mix(in srgb, var(--theme-info) 5%, transparent);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background: var(--theme-bg-card);
   color: var(--theme-text);
-  font-family: var(--chat-font-family);
+  font: 600 0.8125rem/1.25 var(--chat-font-family);
+}
+.desktop-control-dots {
+  display: inline-flex;
+  gap: 3px;
+  color: var(--theme-text-secondary);
+}
+.desktop-control-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .desktop-control-overlay .desktop-control-dots i,
+  .desktop-control[data-state="active"] .desktop-control-dots i {
+    animation: cua-pulse 1.2s ease-in-out infinite;
+    animation-delay: var(--cua-dot-delay, 0ms);
+  }
+  .desktop-control-dots i:nth-child(2) {
+    --cua-dot-delay: 120ms;
+  }
+  .desktop-control-dots i:nth-child(3) {
+    --cua-dot-delay: 240ms;
+  }
+}
+@keyframes cua-pulse {
+  0%,
+  70%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .desktop-control-overlay.is-inactive {
   display: none;
@@ -26,7 +60,8 @@
   align-content: center;
   align-items: center;
   gap: 4px 12px;
-  padding: 7px 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-lg);
   background: var(--theme-bg-card);
   color: var(--theme-text);
   font: 0.8125rem/1.5 var(--chat-font-family);
@@ -39,19 +74,6 @@
   gap: 10px;
   cursor: move;
   user-select: none;
-}
-.desktop-control-grip {
-  flex: none;
-  color: var(--theme-text-tertiary);
-}
-.desktop-control-icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--theme-bg-subtle);
 }
 .desktop-control-copy {
   min-width: 0;
@@ -73,7 +95,7 @@
   gap: 8px;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: 36px;
   padding: 4px 12px;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-sm);
@@ -96,19 +118,4 @@
 }
 .desktop-control [role="alert"] {
   color: var(--theme-error);
-}
-
-.desktop-control[data-state="paused"] .desktop-control-icon {
-  color: var(--theme-success);
-}
-@media (max-width: 380px) {
-  .desktop-control-grip {
-    display: none;
-  }
-  .desktop-control {
-    gap: 8px;
-  }
-  .desktop-control header {
-    gap: 8px;
-  }
 }

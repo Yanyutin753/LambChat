@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LocalDevice,
@@ -15,12 +15,16 @@ export function PhoneControlSettings() {
   const [background, setBackground] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const revision = useRef(0);
   const refresh = useCallback(async () => {
+    const current = ++revision.current;
     try {
-      setState(await LocalDevice.phoneState());
+      const next = await LocalDevice.phoneState();
+      if (current !== revision.current) return;
+      setState(next);
       setError(false);
     } catch {
-      setError(true);
+      if (current === revision.current) setError(true);
     }
   }, []);
   useEffect(() => {
@@ -28,8 +32,16 @@ export function PhoneControlSettings() {
     const visible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
+    const invalidate = () => {
+      revision.current++;
+    };
     document.addEventListener("visibilitychange", visible);
-    return () => document.removeEventListener("visibilitychange", visible);
+    window.addEventListener("focus", visible);
+    return () => {
+      invalidate();
+      window.removeEventListener("focus", visible);
+      document.removeEventListener("visibilitychange", visible);
+    };
   }, [refresh]);
   const run = async (operation: () => Promise<unknown>) => {
     setBusy(true);
@@ -43,6 +55,9 @@ export function PhoneControlSettings() {
       setBusy(false);
     }
   };
+  const pendingStatus = error
+    ? "chat.message.computerUse.permissions.unknown"
+    : "common.loading";
   const port = (value: string) =>
     /^\d{1,5}$/.test(value) && Number(value) > 0 && Number(value) <= 65535;
   const inputClass =
@@ -55,41 +70,63 @@ export function PhoneControlSettings() {
       <p className="text-12 text-theme-text-secondary">
         {t("profile.localSandbox.phoneControlHint")}
       </p>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={() =>
-            void run(() => LocalDevice.phoneAction({ action: "accessibility" }))
-          }
-        >
-          {t("profile.localSandbox.phoneAccessibility")}
-        </Button>
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={() =>
-            void run(() => LocalDevice.phoneAction({ action: "debugging" }))
-          }
-        >
-          {t("profile.localSandbox.phoneDebugging")}
-        </Button>
-        <Button size="sm" disabled={busy} onClick={() => void refresh()}>
-          {t("common.refresh")}
-        </Button>
+      <div className="divide-y divide-theme-border rounded-[var(--radius-lg)] border border-theme-border px-3">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2">
+          <span className="text-13 text-theme-text">
+            {t("profile.localSandbox.phoneAccessibility")}
+          </span>
+          <Button
+            size="sm"
+            disabled={busy}
+            aria-label={t("profile.localSandbox.phoneAccessibility")}
+            onClick={() =>
+              void run(() =>
+                LocalDevice.phoneAction({ action: "accessibility" }),
+              )
+            }
+          >
+            {t(
+              !state
+                ? pendingStatus
+                : state.accessibility
+                  ? "chat.message.computerUse.permissions.granted"
+                  : "profile.localSandbox.phoneNeedsAccessibility",
+            )}
+          </Button>
+        </div>
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2">
+          <span role="status" className="text-13 text-theme-text">
+            {t(
+              !state
+                ? pendingStatus
+                : state.connected
+                  ? state.paused
+                    ? "profile.localSandbox.phonePaused"
+                    : "profile.localSandbox.phoneConnected"
+                  : "profile.localSandbox.phoneDisconnected",
+            )}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void run(() => LocalDevice.phoneAction({ action: "debugging" }))
+              }
+            >
+              {t("profile.localSandbox.phoneDebugging")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {t("common.refresh")}
+            </Button>
+          </div>
+        </div>
       </div>
-      <p role="status" className="text-12 text-theme-text-secondary">
-        {t(
-          state?.connected
-            ? state.paused
-              ? "profile.localSandbox.phonePaused"
-              : "profile.localSandbox.phoneConnected"
-            : "profile.localSandbox.phoneDisconnected",
-        )}
-        {state &&
-          !state.accessibility &&
-          ` · ${t("profile.localSandbox.phoneNeedsAccessibility")}`}
-      </p>
       {!state?.connected && (
         <>
           <p className="text-12 text-theme-text-secondary">

@@ -1,5 +1,7 @@
 {
   "desktopControl": {
+    "blankFrameHint": "The target window returned two blank frames. Make sure its content is visible, then observe it again.",
+    "lockedHint": "The computer is locked. Unlock it locally, then observe the window again.",
     "busyHint": "Another task owns the computer, or this task has ended. Do not replay input.",
     "ended": "Computer control ended",
     "pausedHint": "Computer control is paused. Resume in the floating control window when you are ready.",

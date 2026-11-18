@@ -87,7 +87,10 @@ final class LocalDeviceOverlay {
         root.setBackground(background);
         root.setElevation(dp(4));
         header = new TextView(context);
-        header.setTextSize(14);
+        header.setTextSize(13);
+        header.setTypeface(header.getTypeface(), android.graphics.Typeface.BOLD);
+        header.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.cua_status_dots, 0, 0, 0);
+        header.setCompoundDrawablePadding(dp(10));
         header.setTextColor(color(android.R.attr.textColorPrimary));
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setMinHeight(dp(44));

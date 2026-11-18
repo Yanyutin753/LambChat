@@ -54,11 +54,11 @@ fn fixture_status(
                 <= 2;
             let top_gap = i64::from(position.y) - i64::from(area.position.y);
             let placed =
-                centered && (top_gap - (24.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
+                centered && (top_gap - (12.0 * monitor.scale_factor()).round() as i64).abs() <= 2;
             eprintln!("control-toolbar-placement position={position:?} size={size:?} top_gap={top_gap} ok={placed}");
             if !placed {
-                finish(&app, 1);
-                return Err("Control toolbar is not centered inside the work area".into());
+                // A mapped GTK window can still be awaiting the WM placement event.
+                return Ok("mapping".into());
             }
         }
         if report["transparent"].as_bool() == Some(true) {
@@ -79,13 +79,26 @@ fn fixture_status(
                 .into_iter()
                 .filter(|(label, _)| label.starts_with("cua-overlay-"))
                 .collect();
-            let geometry_ok = overlays.len() == monitors.len()
+            let toolbar_monitor = window
+                .current_monitor()
+                .map_err(|e| e.to_string())?
+                .ok_or("control monitor missing")?;
+            let geometry_ok = overlays.len() + 1 == monitors.len()
                 && monitors.iter().enumerate().all(|(index, monitor)| {
-                    app.get_webview_window(&format!("cua-overlay-{index}"))
-                        .is_some_and(|window| {
-                            window.outer_position().ok().as_ref() == Some(monitor.position())
-                                && window.inner_size().ok().as_ref() == Some(monitor.size())
-                        })
+                    let indicator = app.get_webview_window(&format!("cua-overlay-{index}"));
+                    if monitor.position() == toolbar_monitor.position() {
+                        return indicator.is_none();
+                    }
+                    let expected =
+                        tauri::LogicalSize::new(308.0, 38.0).to_physical(monitor.scale_factor());
+                    indicator.is_some_and(|indicator| {
+                        indicator.inner_size().ok() == Some(expected)
+                            && indicator
+                                .current_monitor()
+                                .ok()
+                                .flatten()
+                                .is_some_and(|actual| actual.position() == monitor.position())
+                    })
                 });
             let transparent = app.state::<TransparentSurfaces>();
             let transparent = transparent.0.lock().unwrap();

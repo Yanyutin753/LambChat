@@ -7,8 +7,10 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder}
 
 const LABEL: &str = "cua-control";
 const OVERLAY_PREFIX: &str = "cua-overlay-";
-const CONTROL_WIDTH: f64 = 460.0;
-const CONTROL_HEIGHT: f64 = 56.0;
+const CONTROL_WIDTH: f64 = 400.0;
+const INDICATOR_WIDTH: f64 = 308.0;
+const INDICATOR_HEIGHT: f64 = 38.0;
+const CONTROL_HEIGHT: f64 = 48.0;
 #[derive(Default)]
 pub struct DesktopControl(Mutex<Control>);
 #[derive(Default)]
@@ -29,7 +31,6 @@ impl Control {
     fn surfaces_ready(&self) -> bool {
         self.ready
             && self.shown
-            && !self.overlay_labels.is_empty()
             && self
                 .overlay_labels
                 .iter()
@@ -258,7 +259,7 @@ fn show(app: &AppHandle) -> Result<(), String> {
         .set_position(takeover_position(
             *monitor.work_area(),
             size,
-            (24.0 * monitor.scale_factor()).round() as i32,
+            (12.0 * monitor.scale_factor()).round() as i32,
         ))
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())
@@ -269,39 +270,34 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
     if monitors.is_empty() {
         return Err("desktop_control_no_display".into());
     }
-    let labels: Vec<String> = (0..monitors.len())
-        .map(|index| format!("{OVERLAY_PREFIX}{index}"))
-        .collect();
-    for (label, monitor) in labels.iter().zip(monitors.iter()) {
-        let window = if let Some(window) = app.get_webview_window(label) {
+    let toolbar_monitor = app
+        .get_webview_window(LABEL)
+        .or_else(|| app.get_webview_window("main"))
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .ok_or("desktop_control_no_display")?;
+    let mut labels = Vec::new();
+    for (index, monitor) in monitors.iter().enumerate() {
+        if monitor.position() == toolbar_monitor.position() {
+            continue;
+        }
+        let label = format!("{OVERLAY_PREFIX}{index}");
+        labels.push(label.clone());
+        let size = tauri::LogicalSize::new(INDICATOR_WIDTH, INDICATOR_HEIGHT);
+        let physical = size.to_physical(monitor.scale_factor());
+        let position = takeover_position(
+            *monitor.work_area(),
+            physical,
+            (12.0 * monitor.scale_factor()).round() as i32,
+        );
+        let window = if let Some(window) = app.get_webview_window(&label) {
             window
         } else {
-            let size = monitor.size().to_logical::<f64>(monitor.scale_factor());
-            let position = monitor.position().to_logical::<f64>(monitor.scale_factor());
             let mut builder = WebviewWindowBuilder::new(
                 app,
-                label,
+                &label,
                 WebviewUrl::App("cua-control.html?surface=overlay".into()),
             );
-            // Acrylic ignores the tint on newer Windows and can obscure the entire desktop.
-            #[cfg(target_os = "windows")]
-            {
-                builder = builder.effects(
-                    tauri::window::EffectsBuilder::new()
-                        .effect(tauri::window::Effect::Blur)
-                        .color(tauri::window::Color(0, 0, 0, 0))
-                        .build(),
-                );
-            }
-            #[cfg(target_os = "macos")]
-            {
-                builder = builder.effects(
-                    tauri::window::EffectsBuilder::new()
-                        .effect(tauri::window::Effect::HudWindow)
-                        .state(tauri::window::EffectState::Active)
-                        .build(),
-                );
-            }
             if let Some(args) = app
                 .config()
                 .app
@@ -314,13 +310,14 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
             }
             builder
                 .title("LambChat Control Overlay")
-                // GTK fixes a non-resizable window's size at its first configure event.
+                // Constrain GTK's WebView before the window manager maps it.
                 .inner_size(size.width, size.height)
-                .position(position.x, position.y)
+                .min_inner_size(size.width, size.height)
+                .max_inner_size(size.width, size.height)
                 .transparent(true)
                 .decorations(false)
                 .shadow(false)
-                .resizable(false)
+                .resizable(cfg!(target_os = "linux"))
                 .always_on_top(true)
                 .visible_on_all_workspaces(true)
                 .content_protected(true)
@@ -331,12 +328,8 @@ fn show_overlays(app: &AppHandle) -> Result<(), String> {
                 .build()
                 .map_err(|e| e.to_string())?
         };
-        window
-            .set_size(*monitor.size())
-            .map_err(|e| e.to_string())?;
-        window
-            .set_position(*monitor.position())
-            .map_err(|e| e.to_string())?;
+        window.set_size(physical).map_err(|e| e.to_string())?;
+        window.set_position(position).map_err(|e| e.to_string())?;
         window.show().map_err(|e| e.to_string())?;
         // GTK must realize the window before Tao can set its input shape.
         window
@@ -513,7 +506,7 @@ mod tests {
             shown: true,
             ..Control::default()
         };
-        assert!(!control.surfaces_ready());
+        assert!(control.surfaces_ready());
         control.overlay_labels = vec!["cua-overlay-0".into(), "cua-overlay-1".into()];
         control.overlay_ready.insert("cua-overlay-0".into());
         assert!(!control.surfaces_ready());
