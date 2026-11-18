@@ -1057,15 +1057,15 @@ wheels = [
 
 [[package]]
 name = "cubesandbox"
-version = "0.7.3"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/88/8268b855f8b8cced152bdc20377b2ac112a0cfd00314f0483863eaced23b/cubesandbox-0.7.3.tar.gz", hash = "sha256:70f5615603ce07d0885c5ae7142746157cad71b0e04bbf7cc07456eb924e501c", size = 76843, upload-time = "2026-10-12T08:40:50.855Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/0a/571c88406b1471303f04989a780fe564d400589edba49b245d216cab3dcd/cubesandbox-0.8.0.tar.gz", hash = "sha256:1bcec73025e7ec9049a1802fc7cc9ebc61b647d5c68a627aa5d0268ac8447901", size = 88215, upload-time = "2026-11-12T15:19:34.409Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/07/da5528b21fdd3116411ab12d269cb28fb23caba76efb95d405ffb13be49a/cubesandbox-0.7.3-py3-none-any.whl", hash = "sha256:811ba07d97b2756f68299213881f93f04bc4e61f89bf60ed870a923807a9d087", size = 50875, upload-time = "2026-10-12T08:40:49.794Z" },
+    { url = "https://files.pythonhosted.org/packages/71/ec/7658c4335afe6e6c5f0978f0ef10b71eb227666890b81e2b10f50e533740/cubesandbox-0.8.0-py3-none-any.whl", hash = "sha256:09347450164e537b8a9acc07f3b2152791ef300a66e45d74b10c161d7020cc02", size = 55273, upload-time = "2026-11-12T15:19:33.286Z" },
 ]
 
 [[package]]
@@ -2159,7 +2159,7 @@ requires-dist = [
     { name = "botocore", specifier = ">=1.40.61" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cryptography", specifier = ">=50.0.2" },
-    { name = "cubesandbox", specifier = ">=0.7.3" },
+    { name = "cubesandbox", specifier = ">=0.8.0" },
     { name = "daytona", specifier = ">=0.224.1" },
     { name = "deepagents", specifier = ">=0.7.34,<0.8" },
     { name = "deepagents-backends", specifier = ">=0.2.0" },
