@@ -1,0 +1,40 @@
+name: CUA dual display screenshots
+on:
+  push:
+    branches: [codex/cua-dual-evidence-20261118]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 44222576930
+          name: desktop-control-${{ matrix.os }}-44222576930
+          path: native
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+      - if: runner.os != 'Linux'
+        run: python -m pip install Pillow
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb openbox xcompmgr xauth dbus-x11 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-pil python3-tk xserver-xorg-video-dummy x11-utils x11-xserver-utils
+      - name: Capture entire display during the native lifecycle
+        shell: bash
+        run: |
+          dbus-run-session -- bash scripts/cua-dual.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-screen-${{ matrix.os }}
+          path: photos
