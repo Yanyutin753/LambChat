@@ -20,6 +20,10 @@ from langchain.agents.middleware.types import (
 from src.agents.core.node_utils import (
     _download_image_url_as_data_url,
 )
+from src.infra.agent.middleware.dead_attachment import (
+    _image_block_placeholder,
+    _last_human_message_index,
+)
 from src.infra.logging import get_logger
 from src.kernel.errors import AppError, ErrorCode
 
@@ -289,6 +293,8 @@ async def prepare_image_messages(
                         data_url = None
                     if data_url:
                         return data_url
+                    if key is None:
+                        return None
                     if capture:
                         raise AppError(ErrorCode.FILE_NOT_FOUND)
                 if mode == "storage_direct":
@@ -317,7 +323,8 @@ async def prepare_image_messages(
             raise value
     changed = False
     outgoing = []
-    for message in messages:
+    last_human = _last_human_message_index(messages)
+    for index, message in enumerate(messages):
         content = getattr(message, "content", None)
         if not isinstance(content, list):
             outgoing.append(message)
@@ -326,7 +333,9 @@ async def prepare_image_messages(
         for block in content:
             url = _image_url_from_block(block)
             replacement = resolved.get(url) if url else None
-            if isinstance(replacement, str) and replacement != url:
+            if index < last_human and url in resolved and replacement is None:
+                block = _image_block_placeholder(None)
+            elif isinstance(replacement, str) and replacement != url:
                 block = (
                     _with_data_url(block, replacement)
                     if replacement.startswith("data:")
