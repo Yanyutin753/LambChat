@@ -1,0 +1,44 @@
+name: CUA final full display acceptance
+on:
+  push:
+    branches: [codex/cua-screen-final-20261118]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 44226114364
+          name: screenshot-test-binary-${{ matrix.os }}
+          path: native
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+      - if: runner.os != 'Linux'
+        run: python -m pip install Pillow
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb openbox xcompmgr xauth dbus-x11 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-pil python3-tk
+      - name: Capture entire display during the native lifecycle
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s '-screen 0 1440x900x24' dbus-run-session -- bash -c 'openbox & xcompmgr & sleep 1; xsetroot -solid "#557387"; /usr/bin/python3 scripts/run_validation.py /usr/bin/python3 scripts/fullscreen_evidence.py'
+          else
+            python scripts/run_validation.py python scripts/fullscreen_evidence.py
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-screen-${{ matrix.os }}
+          path: photos
