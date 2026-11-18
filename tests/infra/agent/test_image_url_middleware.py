@@ -193,6 +193,25 @@ async def test_image_url_middleware_failure_log_omits_exception_details(
     assert "RuntimeError" in caplog.text
 
 
+async def test_unreachable_external_history_image_is_omitted_only_from_outgoing_history(
+    monkeypatch,
+):
+    async def timeout(url, mime):
+        raise TimeoutError
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.image_url._download_image_url_as_data_url", timeout
+    )
+    block = {"type": "image_url", "image_url": {"url": "https://example.org/missing.png"}}
+    history = HumanMessage(content=[block])
+    current = HumanMessage(content=[block])
+    outgoing = await ImageUrlToBase64Middleware()._convert_messages([history, current])
+
+    assert outgoing[0].content[0]["type"] == "text"
+    assert history.content == [block]
+    assert outgoing[1] is current
+
+
 # ---------- ImageUrlProxyDirectMiddleware ----------
 
 
