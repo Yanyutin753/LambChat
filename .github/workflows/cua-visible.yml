@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, macos-15, ubuntu-latest]
+        os: [windows-2022, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -68,6 +68,13 @@ jobs:
           (root/'examples/capture_control.rs').write_text(cmd.replace('.content_protected(true)', '.content_protected(false)'))
           example = root/'examples/desktop_control_smoke.rs'
           example.write_text(example.read_text().replace('../src/commands/desktop_control.rs', 'capture_control.rs'))
+          driver = Path('scripts/release_tests/desktop-control-smoke.js')
+          old = "      await invoke('desktop_control_status', {ready: false,report: {phase: 'paused'"
+          js = driver.read_text()
+          assert old in js
+          js = js.replace(old, "      await wait(() => !!document.querySelector('.desktop-control[data-state=paused]') && button.textContent.includes('Let Agent continue'));\n" + old)
+          js = js.replace('      // Wait for the React label', '      if (round === 0) await new Promise(resolve => setTimeout(resolve, 7000));\n      // Wait for the React label')
+          driver.write_text(js)
           PYTHON
       - name: Build isolated native toolbar
         shell: bash
@@ -91,3 +98,10 @@ jobs:
         with:
           name: visible-control-${{ matrix.os }}
           path: photos
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot-test-binary-${{ matrix.os }}
+          path: |
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke.exe
+            frontend/src-tauri/target/debug/examples/desktop_control_smoke

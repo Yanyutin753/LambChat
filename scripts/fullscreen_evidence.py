@@ -55,7 +55,7 @@ def run(auto):
                 line=lines.get()
                 print(line,flush=True)
                 if not caught and ('"phase":"paused"' in line if auto else '"state": "active"' in line):
-                    paint(.15 if auto else .65)
+                    paint(.6)
                     snap('03-paused' if auto else '02-active')
                     caught=True
                     if not auto: return
