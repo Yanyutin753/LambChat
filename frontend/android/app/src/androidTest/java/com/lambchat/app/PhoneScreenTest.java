@@ -94,7 +94,20 @@ public class PhoneScreenTest {
             Thread.sleep(300);
             state = PhoneAccessibility.instance.execute("state", new JSONObject(args.toString()).put("include_screenshot", true), 0);
             assertTrue(state.toString(), state.getString("state").contains("clicked 安卓输入测试"));
-            assertTrue(state.getJSONObject("screenshot").getString("data_b64").length() > 100);
+            byte[] pixels = android.util.Base64.decode(state.getJSONObject("screenshot").getString("data_b64"), android.util.Base64.DEFAULT);
+            android.graphics.Bitmap frame = android.graphics.BitmapFactory.decodeByteArray(pixels, 0, pixels.length);
+            assertNotNull("Screenshot could not be decoded", frame);
+            try {
+                // Sample inside the app content: system bars can look valid over a blank target.
+                int reference = frame.getPixel(frame.getWidth() / 2, frame.getHeight() / 2);
+                boolean hasContent = false;
+                for (int y = frame.getHeight() / 4; y < 3 * frame.getHeight() / 4 && !hasContent; y += 3) {
+                    for (int x = frame.getWidth() / 10; x < 9 * frame.getWidth() / 10; x += 3) {
+                        if (frame.getPixel(x, y) != reference) { hasContent = true; break; }
+                    }
+                }
+                assertTrue("Target app screenshot is blank", hasContent);
+            } finally { frame.recycle(); }
         } finally {
             shell(automation, original.equals("null") || original.isEmpty() ? "settings delete secure enabled_accessibility_services" : "settings put secure enabled_accessibility_services " + original);
             shell(automation, "settings put secure accessibility_enabled " + (enabled.equals("1") ? "1" : "0"));

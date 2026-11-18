@@ -7,10 +7,41 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+# ZCode's session cursor palette; the native driver renders the pointer, outline and ripple.
+_CURSOR_FILLS = (
+    "#FFE485",
+    "#F698DB",
+    "#E1EEAF",
+    "#FFD3E4",
+    "#92D1FF",
+    "#FFD058",
+    "#AFDFEE",
+    "#FFBDB4",
+    "#F72967",
+    "#46C6D7",
+    "#BCACDD",
+)
+
+
+def _cursor_fill(session_id: str | None) -> str:
+    if not session_id or session_id == "default":
+        return "#1F8CFF"
+    suffix = re.search(r"(?:^|[-_.])([0-9]{1,18})$", session_id)
+    if suffix:
+        index = int(suffix[1]) - 1
+    elif len(session_id) == 1 and session_id.isascii() and session_id.isalpha():
+        index = ord(session_id.lower()) - ord("a")
+    else:
+        index = 2166136261
+        for byte in session_id.encode("utf-8"):
+            index = ((index ^ byte) * 16777619) & 0xFFFFFFFF
+    return _CURSOR_FILLS[index % len(_CURSOR_FILLS)]
 
 
 def binary_path() -> Path | None:
@@ -147,12 +178,23 @@ class AgentDesktopBackend:
         return self._run(["--session", self._session(), *args], text)
 
     def _enable_cursor(self) -> dict:
-        from lambchat_sandbox.cua_ops import CuaOpError
+        from lambchat_sandbox.cua_ops import _OBSERVATION_SESSION, CuaOpError
 
         session = self._session()
         if session not in self.cursors:
             try:
-                self.cursors[session] = self._call("cursor-overlay", "enable")
+                self.cursors[session] = self._call(
+                    "cursor-overlay",
+                    "enable",
+                    "--accent",
+                    _cursor_fill(_OBSERVATION_SESSION.get()),
+                    "--rim",
+                    "#FFFFFF",
+                    "--label",
+                    "LambChat",
+                    "--tremor",
+                    "0",
+                )
             except CuaOpError as exc:
                 self.cursors[session] = {"rendered": False, "error": exc.code}
         return self.cursors[session]
@@ -458,9 +500,15 @@ class AgentDesktopBackend:
         from lambchat_sandbox.cua_ops import CuaOpError
 
         args = ("--window-id", window["driver_window_id"]) if window else ("--screen", "0")
-        result = self._call("screenshot", *args)
-        image = Image.open(io.BytesIO(base64.b64decode(result["data"], validate=True)))
-        image.load()
+        for _ in range(2):
+            result = self._call("screenshot", *args)
+            image = Image.open(io.BytesIO(base64.b64decode(result["data"], validate=True)))
+            image.load()
+            # Judge the whole window before cropping: an element can legitimately be solid black.
+            if not window or (image.getbbox() and image.convert("RGB").getbbox()):
+                break
+        else:
+            raise CuaOpError("window_capture_blank", "Target window returned two blank frames")
         if window:
             left, top, width, height = window["bounds"]
             x, y, crop_width, crop_height = bounds

@@ -192,3 +192,29 @@ def test_raw_typing_requires_unique_focused_element(driver, monkeypatch):
     with pytest.raises(CuaOpError, match="element_unavailable"):
         driver.type_text("private", {"driver_window_id": "w-42"})
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("recovers", [True, False])
+def test_blank_window_retries_the_same_target_once(driver, monkeypatch, recovers):
+    from lambchat_sandbox.cua_ops import CuaOpError
+
+    def frame(color):
+        stream = io.BytesIO()
+        Image.new("RGB", (80, 60), color).save(stream, format="PNG")
+        return {"data": base64.b64encode(stream.getvalue()).decode()}
+
+    frames = iter([frame("black"), frame("red" if recovers else "black")])
+    calls = []
+
+    def capture(*args):
+        calls.append(args)
+        return next(frames)
+
+    monkeypatch.setattr(driver, "_call", capture)
+    window = {"driver_window_id": "w-42", "bounds": [0, 0, 80, 60]}
+    if recovers:
+        assert driver.screenshot(window["bounds"], window).getpixel((30, 30)) == (255, 0, 0)
+    else:
+        with pytest.raises(CuaOpError, match="window_capture_blank"):
+            driver.screenshot(window["bounds"], window)
+    assert calls == [("screenshot", "--window-id", "w-42")] * 2

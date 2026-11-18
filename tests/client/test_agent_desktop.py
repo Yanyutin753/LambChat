@@ -137,7 +137,11 @@ def test_overlay_unavailable_does_not_replay_or_prevent_semantic_action(backend,
     monkeypatch.setattr(backend, "_call", call)
     result = backend.perform({"ref_id": "@snapshot:e1"}, "click")
     assert result["disposition"]["delivery"] == "delivered_verified"
-    assert calls == [("cursor-overlay", "enable"), ("click", "@snapshot:e1")]
+    assert len(calls) == 2
+    assert calls[0][:2] == ("cursor-overlay", "enable")
+    assert calls[0][calls[0].index("--rim") + 1] == "#FFFFFF"
+    assert calls[0][calls[0].index("--accent") + 1] == "#1F8CFF"
+    assert calls[1] == ("click", "@snapshot:e1")
 
 
 def test_linux_scroll_explicitly_uses_headed_mode(backend, monkeypatch):
@@ -450,3 +454,24 @@ def test_disappeared_app_requires_rediscovery_without_guessing_native_pid(backen
     assert backend.list_apps()[0]["pid"] == 7
     with pytest.raises(KeyError, match="app_not_found"):
         backend.windows(7)
+
+
+@pytest.mark.parametrize(
+    "key,color", [("agent-1", "#FFE485"), ("agent-11", "#BCACDD"), ("B", "#F698DB")]
+)
+def test_cursor_color_uses_the_observing_chat_not_the_temporary_driver_session(
+    backend, monkeypatch, key, color
+):
+    from lambchat_sandbox.cua_ops import _OBSERVATION_SESSION
+
+    monkeypatch.setattr(backend, "_session", lambda: "temporary-session")
+    calls = []
+    monkeypatch.setattr(backend, "_call", lambda *args: calls.append(args) or {"rendered": True})
+    token = _OBSERVATION_SESSION.set(key)
+    try:
+        backend._enable_cursor()
+        backend._enable_cursor()
+    finally:
+        _OBSERVATION_SESSION.reset(token)
+    assert len(calls) == 1
+    assert calls[0][calls[0].index("--accent") + 1] == color

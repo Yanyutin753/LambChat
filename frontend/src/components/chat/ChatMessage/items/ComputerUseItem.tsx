@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { MousePointerClick, Smartphone } from "lucide-react";
+import { ImageOff, MousePointerClick, Smartphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { CollapsiblePill, formatFileSize } from "../../../common";
@@ -10,7 +10,6 @@ import {
   toolDetailPropsFromPanelData,
   type ToolDetailProps,
 } from "./ToolLivePanelContent";
-import { useToolStreamingLabel } from "./useToolStreamingLabel";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
@@ -78,6 +77,8 @@ function ComputerUseDetail({
       desktop_control_ended: "ended",
       desktop_control_busy: "busyHint",
       foreground_required: "foregroundHint",
+      window_capture_blank: "blankFrameHint",
+      desktop_locked: "lockedHint",
       stale_state: "staleHint",
       observation_required: "staleHint",
       element_unavailable: "staleHint",
@@ -261,11 +262,11 @@ function ComputerUseDetail({
         </section>
       )}
       {imageSrc && (
-        <figure className="min-w-0 w-full max-w-md space-y-2">
+        <figure className="min-w-0 w-full max-w-md space-y-2 border-t border-theme-border pt-3">
           <button
             type="button"
             onClick={() => openImage(imageSrc)}
-            className="block w-full cursor-zoom-in rounded-[var(--radius-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
+            className="block w-full cursor-zoom-in overflow-hidden rounded-[var(--radius-lg)] border border-theme-border bg-theme-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-primary"
             aria-label={t("chat.message.openImage")}
           >
             <ImageWithSkeleton
@@ -294,12 +295,18 @@ function ComputerUseDetail({
           </figcaption>
         </figure>
       )}
-      {(!!screenshot.upload_error || !!screenshot.error) && (
-        <p role="status" className="text-12 text-theme-text-secondary">
+      {!imageSrc && !!data.screenshot && (
+        <p
+          role="status"
+          className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-theme-border p-3 text-12 text-theme-text-secondary"
+        >
+          <ImageOff size={20} aria-hidden="true" />
           {t(`${key}.screenshotFailed`)}
-          <span className="ml-2 font-mono">
-            {displayValue(screenshot.error ?? screenshot.upload_error)}
-          </span>
+          {!!(screenshot.error || screenshot.upload_error) && (
+            <span className="font-mono">
+              {displayValue(screenshot.error ?? screenshot.upload_error)}
+            </span>
+          )}
         </p>
       )}
       {state && (
@@ -385,19 +392,12 @@ const ComputerUseItem = memo(function ComputerUseItem({
       ? t(`${key}.cancelled`)
       : resultSummary(parsed, t);
   const titleLabel = t("chat.message.computerUseTitle");
-  const pillLabel = [
-    titleLabel,
-    actionLabel(action, t),
-    target,
-    element,
-    summary,
-  ]
+  const label = [target || titleLabel, action && actionLabel(action, t)]
     .filter(Boolean)
-    .join(" · ");
-  const { label, isStreamingLabel } = useToolStreamingLabel(pillLabel, args, {
-    isPending,
-    result,
-  });
+    .join(" ");
+  const actionTarget =
+    element ||
+    (action === "key" && typeof args.text === "string" ? args.text : "");
   const canExpand = !!action || result !== undefined || isPending;
   return (
     <CollapsiblePill
@@ -410,7 +410,15 @@ const ComputerUseItem = memo(function ComputerUseItem({
         )
       }
       label={label}
-      animatedDots={isStreamingLabel}
+      description={summary}
+      suffix={
+        actionTarget ? (
+          <span className="rounded-full border border-theme-border px-1.5 text-12">
+            {actionTarget}
+          </span>
+        ) : undefined
+      }
+      animatedDots={isPending}
       variant="tool"
       formatLabel={false}
       expandable={canExpand}

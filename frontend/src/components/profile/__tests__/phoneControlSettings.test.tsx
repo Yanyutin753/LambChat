@@ -55,3 +55,28 @@ test("uses discovered ports without pairing or connecting automatically", async 
   expect(native.phoneConnect).not.toHaveBeenCalled();
   expect(native.phonePair).not.toHaveBeenCalled();
 });
+
+test("returning from system settings rechecks the permission and connection", async () => {
+  render(<PhoneControlSettings />);
+  await screen.findByText(/profile.localSandbox.phoneNeedsAccessibility/);
+  native.phoneState.mockResolvedValue({
+    connected: true,
+    accessibility: true,
+    paused: false,
+  });
+  fireEvent.focus(window);
+  expect(
+    await screen.findByText("profile.localSandbox.phoneConnected"),
+  ).toBeTruthy();
+  expect(
+    screen.queryByText(/profile.localSandbox.phoneNeedsAccessibility/),
+  ).toBeNull();
+});
+
+test("a failed initial status query leaves settings available and ends loading", async () => {
+  native.phoneState.mockRejectedValue(new Error("unavailable"));
+  render(<PhoneControlSettings />);
+  await screen.findByRole("alert");
+  expect(screen.queryAllByText("common.loading")).toHaveLength(0);
+  expect(screen.getByRole("button", { name: "common.refresh" })).toBeEnabled();
+});
