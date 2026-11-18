@@ -1,0 +1,93 @@
+name: CUA native visual acceptance
+on:
+  push:
+    branches: [codex/cua-visible-control-20261118]
+permissions:
+  contents: read
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.32.1'
+  CARGO_BUILD_JOBS: '1'
+jobs:
+  desktop-control:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb xauth
+      - name: Install and build toolbar frontend
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python3 scripts/run_validation.py pnpm --dir frontend install --frozen-lockfile
+          python3 scripts/run_validation.py pnpm --dir frontend run build
+      - name: Install and build Windows toolbar frontend
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python scripts/run_validation.py cmd /d /s /c pnpm --dir frontend install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/run_validation.py cmd /d /s /c pnpm --dir frontend run build
+      - name: Generate native icons
+        if: runner.os != 'Windows'
+        working-directory: frontend
+        shell: bash
+        run: python3 ../scripts/run_validation.py pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
+      - name: Generate Windows native icons
+        if: runner.os == 'Windows'
+        working-directory: frontend
+        shell: pwsh
+        run: python ../scripts/run_validation.py cmd /d /s /c pnpm dlx @tauri-apps/cli@2.12.3 icon resources/native-icon.png
+      - name: Enable screenshots of the acceptance example on Windows and macOS
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          python - <<'PYTHON'
+          from pathlib import Path
+          root = Path('frontend/src-tauri')
+          cmd = (root/'src/commands/desktop_control.rs').read_text()
+          assert cmd.count('.content_protected(true)') == 2
+          (root/'examples/capture_control.rs').write_text(cmd.replace('.content_protected(true)', '.content_protected(false)'))
+          example = root/'examples/desktop_control_smoke.rs'
+          example.write_text(example.read_text().replace('../src/commands/desktop_control.rs', 'capture_control.rs'))
+          PYTHON
+      - name: Build isolated native toolbar
+        shell: bash
+        env:
+          TAURI_CONFIG: '{"bundle":{"externalBin":[],"resources":[]}}'
+        run: python3 scripts/run_validation.py cargo build --manifest-path frontend/src-tauri/Cargo.toml --locked --jobs 1 --example desktop_control_smoke --features tauri/custom-protocol
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y openbox xcompmgr python3-pil python3-tk xserver-xorg-video-dummy x11-utils x11-xserver-utils dbus-x11
+      - if: runner.os != 'Linux'
+        run: python -m pip install Pillow
+      - name: Verify full display with visible controls
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            DISPLAY=:97 dbus-run-session -- bash scripts/cua-dual.sh
+          else
+            python scripts/run_validation.py python scripts/fullscreen_evidence.py
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visible-control-${{ matrix.os }}
+          path: photos
