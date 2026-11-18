@@ -9,7 +9,7 @@ import uuid
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from time import monotonic
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from langchain.agents.middleware import ModelRetryMiddleware
 from langchain.agents.middleware.types import (
@@ -40,7 +40,7 @@ from src.kernel.config import settings
 from src.kernel.errors import AppError, ErrorCode
 
 if TYPE_CHECKING:
-    from langchain.agents.middleware.types import ExtendedModelResponse
+    from langchain.agents.middleware.types import AgentState, ExtendedModelResponse
 
 logger = logging.getLogger(__name__)
 
@@ -227,26 +227,16 @@ class ModelFallbackMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        """按 fallback 模型 profile 配置的 image_url_mode 处理出站图片。
-
-        2026-10-11 生产事故前这里硬编码 storage_direct：deepseek-flash 拉 OSS
-        预签名直链间歇 400 "Failed to download image"，而模型配置的
-        image_url_mode 被完全无视。现与主模型同规则，"url" 档不做改写。
-        """
+        """Select the transport here; the image middleware applies it once after tool results."""
         from src.agents.core.node_utils import resolve_model_image_url_mode
-        from src.infra.agent.middleware.image_url import image_url_middleware_for_mode
 
         mode = await resolve_model_image_url_mode(
-            None, self._fallback_model, log_prefix="[ModelFallback]"
+            getattr(request.model, "quota_model_config_id", None),
+            self._fallback_model,
+            log_prefix="[ModelFallback]",
         )
-        image_middleware = image_url_middleware_for_mode(mode)
-        if image_middleware is None:
-            return await handler(request)
-        result = await image_middleware.awrap_model_call(
-            request,  # type: ignore[arg-type]
-            handler,  # type: ignore[arg-type]
-        )
-        return result  # type: ignore[return-value]
+        state = {**getattr(request, "state", {}), "_fallback_image_url_mode": mode}
+        return await handler(request.override(state=cast("AgentState[Any]", state)))
 
     async def _invoke_fallback(
         self,
