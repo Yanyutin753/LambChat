@@ -503,10 +503,20 @@ def _capture(bounds: list[float] | None, window: dict | None = None) -> dict[str
             if _is_mac()
             else "capture is empty (X11 required on Linux)",
         )
+    if "A" in image.getbands():
+        # Dropping alpha can turn an empty native frame black or expose invisible pixels.
+        from PIL import Image
+
+        alpha = image.getchannel("A")
+        if not alpha.getbbox():
+            raise CuaOpError("screenshot_failed", "Target window returned no visible pixels")
+        background = Image.new("RGB", image.size, "white")
+        background.paste(image, mask=alpha)
+        image = background
     try:
         if max(width, height) > SCREENSHOT_MAX_DIMENSION:
             scale = SCREENSHOT_MAX_DIMENSION / max(width, height)
-            image = image.resize((int(width * scale), int(height * scale)))
+            image = image.resize((max(1, int(width * scale)), max(1, int(height * scale))))
             width, height = image.size
         # Text-heavy screenshots stay lossless when they fit the relay budget.
         buffer = io.BytesIO()

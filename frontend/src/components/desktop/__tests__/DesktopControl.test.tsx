@@ -38,9 +38,9 @@ test("screen indicator acknowledges paint but exposes no takeover controls", asy
   );
   expect(screen.queryByRole("button")).toBeNull();
   expect(container.querySelector(".desktop-control-overlay")).not.toBeNull();
-  expect(
-    container.querySelector(".desktop-control-overlay"),
-  ).toBeEmptyDOMElement();
+  expect(container.querySelector(".desktop-control-overlay")).toHaveTextContent(
+    "desktopControl.active",
+  );
   expect(invoke).not.toHaveBeenCalledWith(
     "desktop_control_set_paused",
     expect.anything(),
@@ -138,13 +138,13 @@ test("active toolbar stays compact and expands for takeover guidance", async () 
   render(<DesktopControl />);
   await waitFor(() =>
     expect(setSize).toHaveBeenCalledWith(
-      expect.objectContaining({ width: 460, height: 56 }),
+      expect.objectContaining({ width: 400, height: 48 }),
     ),
   );
   invoke.mockResolvedValue("paused");
   await waitFor(() =>
     expect(setSize).toHaveBeenCalledWith(
-      expect.objectContaining({ width: 460, height: 96 }),
+      expect.objectContaining({ width: 400, height: 96 }),
     ),
   );
 });

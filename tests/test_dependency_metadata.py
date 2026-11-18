@@ -41,4 +41,4 @@ def test_cubesandbox_targets_latest_supported_sdk() -> None:
     dependencies = pyproject["project"]["dependencies"]
     cubesandbox = next(item for item in dependencies if item.startswith("cubesandbox"))
 
-    assert cubesandbox == "cubesandbox>=0.7.3"
+    assert cubesandbox == "cubesandbox>=0.8.0"

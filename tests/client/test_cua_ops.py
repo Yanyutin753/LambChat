@@ -1198,3 +1198,14 @@ def test_unsettable_element_is_focused_before_headed_typing(fake_backend, monkey
     monkeypatch.setattr(fake_backend, "type_text", type_text)
     result = cua_ops.handle_cua_op("cua_type", {"pid": 4242, "index": 1, "text": "answer"})
     assert result.get("ok") is True, result
+
+
+def test_transparent_window_has_no_observable_screenshot(fake_backend, monkeypatch):
+    from PIL import Image
+
+    monkeypatch.setattr(
+        fake_backend, "screenshot", lambda *_: Image.new("RGBA", (40, 40)), raising=False
+    )
+    result = cua_ops.handle_cua_op("cua_state", {"pid": 4242, "include_screenshot": True})
+    assert result["screenshot"]["error"] == "screenshot_failed"
+    assert result["state"]

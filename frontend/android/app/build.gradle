@@ -10,7 +10,7 @@ android {
         manifestPlaceholders = [appDisplayLabel: "@string/app_name"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21512008
+        versionCode 21512999
         versionName "2.15.12"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
