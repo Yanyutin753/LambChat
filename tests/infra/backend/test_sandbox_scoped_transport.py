@@ -259,3 +259,17 @@ async def test_command_decode_error_is_not_replayed_through_thread_lane(monkeypa
     assert result.exit_code == -1
     assert command.await_count == 1
     fallback.assert_not_awaited()
+
+
+async def test_cube_proxy_routes_scoped_operations_through_native_cube_client(monkeypatch):
+    monkeypatch.setattr(module.settings, "CUBE_PROXY_NODE_IP", "192.0.2.1")
+    connect = AsyncMock(side_effect=AssertionError("E2B transport bypasses Cube proxy"))
+    monkeypatch.setattr("e2b.AsyncSandbox.connect", connect)
+    _, _, scoped, _ = scoped_pair(monkeypatch, "cubesandbox")
+    fallback = AsyncMock(return_value=ExecuteResponse(output="42", exit_code=0))
+    monkeypatch.setattr(scoped, "_aexecute_via_thread", fallback)
+
+    assert (await scoped.aexecute("echo 42")).output == "42"
+    assert await scoped._async_client_or_none() is None
+    connect.assert_not_awaited()
+    fallback.assert_awaited_once()

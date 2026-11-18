@@ -141,6 +141,11 @@ class CubeSandboxBackend(E2BBackend):
     # （零线程占用）；个别部署不兼容时 aexecute 自动回落线程慢道。
     supports_async_sdk = True
 
+    def _async_sdk_available(self) -> bool:
+        # The E2B transport resolves sandbox hosts directly. Only the Cube client
+        # preserves the sandbox Host header when routing through the private proxy.
+        return not settings.CUBE_PROXY_NODE_IP and super()._async_sdk_available()
+
     @staticmethod
     def _cube_async_api_key() -> str:
         return (
