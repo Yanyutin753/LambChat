@@ -95,23 +95,30 @@ def _mime_type_from_block(block: dict) -> str:
     return "image/jpeg"
 
 
-class ImageUrlToBase64Middleware(AgentMiddleware):
-    """Convert every outbound image_url block to a base64 data URL."""
+class ImageUrlAccessMiddleware(AgentMiddleware):
+    """Prepare image blocks at the model boundary, after tool results are attached."""
 
-    async def _convert_messages(self, messages: list[Any]) -> list[Any]:
-        return await prepare_image_messages(messages, mode="base64")
+    mode = "url"
 
     async def awrap_model_call(
         self,
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
+        mode = getattr(request, "state", {}).get("_fallback_image_url_mode", self.mode)
         messages = await prepare_image_messages(
-            request.messages, mode="base64", **_request_image_context(request)
+            request.messages, mode=mode, **_request_image_context(request)
         )
         return await handler(
             request.override(messages=messages) if messages is not request.messages else request
         )
+
+
+class ImageUrlToBase64Middleware(ImageUrlAccessMiddleware):
+    mode = "base64"
+
+    async def _convert_messages(self, messages: list[Any]) -> list[Any]:
+        return await prepare_image_messages(messages, mode=self.mode)
 
 
 def _append_proxy_direct_param(url: str, *, base_url: str | None = None) -> str:
@@ -150,20 +157,8 @@ def _with_proxy_direct_url(block: dict, url: str) -> dict:
     return {**block, "image_url": {"url": url}}
 
 
-class ImageUrlProxyDirectMiddleware(AgentMiddleware):
-    """Rewrite outbound app upload image URLs to stream bytes directly (?proxy=true)."""
-
-    async def awrap_model_call(
-        self,
-        request: ModelRequest[ContextT],
-        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
-    ) -> ModelResponse[ResponseT]:
-        messages = await prepare_image_messages(
-            request.messages, mode="proxy_direct", **_request_image_context(request)
-        )
-        return await handler(
-            request.override(messages=messages) if messages is not request.messages else request
-        )
+class ImageUrlProxyDirectMiddleware(ImageUrlAccessMiddleware):
+    mode = "proxy_direct"
 
 
 async def _resolve_storage_image_url(
@@ -198,20 +193,8 @@ async def _resolve_storage_image_url(
         return _append_proxy_direct_param(authorized_url, base_url=base_url)
 
 
-class ImageUrlStorageDirectMiddleware(AgentMiddleware):
-    """Resolve app images to fresh storage URLs only for the outgoing request."""
-
-    async def awrap_model_call(
-        self,
-        request: ModelRequest[ContextT],
-        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
-    ) -> ModelResponse[ResponseT]:
-        messages = await prepare_image_messages(
-            request.messages, mode="storage_direct", **_request_image_context(request)
-        )
-        return await handler(
-            request.override(messages=messages) if messages is not request.messages else request
-        )
+class ImageUrlStorageDirectMiddleware(ImageUrlAccessMiddleware):
+    mode = "storage_direct"
 
 
 def _request_image_context(request: Any) -> dict[str, Any]:
@@ -347,16 +330,6 @@ async def prepare_image_messages(
             changed = True
         outgoing.append(message)
     return outgoing if changed else messages
-
-
-class ImageUrlAccessMiddleware(AgentMiddleware):
-    """Refresh ordinary URL-mode uploads at the model boundary."""
-
-    async def awrap_model_call(self, request, handler):
-        messages = await prepare_image_messages(request.messages, **_request_image_context(request))
-        return await handler(
-            request.override(messages=messages) if messages is not request.messages else request
-        )
 
 
 def image_url_middleware_for_mode(mode: str | None) -> AgentMiddleware:
