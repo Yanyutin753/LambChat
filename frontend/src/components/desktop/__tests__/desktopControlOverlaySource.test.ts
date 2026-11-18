@@ -10,7 +10,7 @@ const native = readFileSync(
   "utf8",
 );
 
-test("display-wide indicators never intercept input and every surface acknowledges readiness", () => {
+test("secondary display indicators never intercept input and every surface acknowledges readiness", () => {
   expect(native).toContain("available_monitors()");
   expect(native).toContain("set_ignore_cursor_events(true)");
   expect(native).toContain(".transparent(true)");
@@ -27,20 +27,17 @@ test("daemon cleanup failure reaches the unavailable control state", () => {
   expect(native).toMatch(/Some\("unavailable"\)\s*=>/);
 });
 
-test("fullscreen overlays use native backdrop effects without blurring the toolbar", () => {
+test("native indicators cannot cover the desktop even with opaque WebViews", () => {
   const overlay = native.slice(
     native.indexOf("fn show_overlays("),
     native.indexOf("fn hide_surfaces("),
   );
-  expect(overlay).toContain("Effect::Blur");
-  expect(overlay).not.toContain("Effect::Acrylic");
-  expect(overlay).toContain("Effect::HudWindow");
-  expect(overlay).toContain(".effects(");
-  const toolbar = native.slice(
-    native.indexOf("fn show(app:"),
-    native.indexOf("fn show_overlays("),
-  );
-  expect(toolbar).not.toContain(".effects(");
+  expect(overlay).not.toContain(".effects(");
+  expect(overlay).not.toContain(".set_size(*monitor.size())");
+  expect(overlay).toContain("INDICATOR_WIDTH");
+  expect(overlay).toContain("INDICATOR_HEIGHT");
+  expect(overlay).toContain(".min_inner_size(size.width, size.height)");
+  expect(overlay).toContain(".max_inner_size(size.width, size.height)");
 });
 
 test("overlay is realized before Linux cursor passthrough accesses its native window", () => {

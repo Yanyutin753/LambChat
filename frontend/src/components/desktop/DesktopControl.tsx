@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
-import { Monitor, Pause, Play, GripVertical } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 import "./desktop-control.css";
 
 export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
@@ -48,7 +48,7 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
   useEffect(() => {
     if (overlay) return;
     void getCurrentWindow()
-      .setSize(new LogicalSize(460, expanded ? 96 : 56))
+      .setSize(new LogicalSize(400, expanded ? 96 : 48))
       .catch(() => setError(true));
   }, [overlay, expanded]);
   const change = async (pause: boolean) => {
@@ -62,14 +62,27 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
       setBusy(false);
     }
   };
+  const dots = (
+    <span className="desktop-control-dots" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+  const status = t(
+    `desktopControl.${error ? "unavailable" : state || "waiting"}`,
+  );
   if (overlay) {
     return (
       <div
-        aria-hidden="true"
+        role="status"
         className={`desktop-control-overlay${
           paused || unavailable || error ? " is-inactive" : ""
         }`}
-      />
+      >
+        {dots}
+        {status}
+      </div>
     );
   }
   return (
@@ -92,17 +105,10 @@ export function DesktopControl({ overlay = false }: { overlay?: boolean }) {
               .catch(() => setError(true));
         }}
       >
-        <GripVertical
-          className="desktop-control-grip"
-          aria-hidden="true"
-          size={16}
-        />
-        <span className="desktop-control-icon">
-          <Monitor aria-hidden="true" size={18} />
-        </span>
+        {dots}
         <div className="desktop-control-copy">
           <p id={statusId} role="status">
-            {t(`desktopControl.${error ? "unavailable" : state || "waiting"}`)}
+            {status}
           </p>
         </div>
       </header>
