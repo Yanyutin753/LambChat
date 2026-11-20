@@ -245,6 +245,24 @@ def _image_aware_counter_for(model: Any):
     )
 
 
+def _neutralize_fractional_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    """把 fraction 形式的摘要设置替换为保守绝对值。
+
+    生产 2026-11-20：兜底模型经 ``LLMClient.get_model`` 解析后不带 profile，
+    langchain ``SummarizationMiddleware`` 构造期遇到 fractional keep/trigger 且无
+    profile 直接抛 ValueError，把可恢复的摘要瞬态失败升级成整 run 失败。
+    """
+    neutralized = dict(settings)
+    keep = neutralized.get("keep")
+    if isinstance(keep, tuple) and keep and keep[0] == "fraction":
+        # 与 deepagents 无 profile 时的保守默认保持一致
+        neutralized["keep"] = ("messages", 6)
+    trigger = neutralized.get("trigger")
+    if isinstance(trigger, tuple) and trigger and trigger[0] == "fraction":
+        neutralized["trigger"] = ("tokens", 170_000)
+    return neutralized
+
+
 async def _summarize_with_fallback(
     helper_settings: dict[str, Any],
     messages_to_summarize: Sequence[AnyMessage],
@@ -257,7 +275,9 @@ async def _summarize_with_fallback(
     from src.infra.llm.client import LLMClient
 
     fallback_llm = await LLMClient.get_model(model=fallback_model, thinking=thinking)
-    helper = LCSummarizationMiddleware(model=fallback_llm, **helper_settings)
+    helper = LCSummarizationMiddleware(
+        model=fallback_llm, **_neutralize_fractional_settings(helper_settings)
+    )
     return await helper._acreate_summary(list(messages_to_summarize))
 
 
