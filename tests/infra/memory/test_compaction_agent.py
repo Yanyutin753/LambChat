@@ -399,6 +399,9 @@ async def test_maybe_compact_after_write_runs_deepagent_compactor(monkeypatch):
             return {"messages": []}
 
     def fake_create_deep_agent(**kwargs):
+        from src.infra.agent.middleware.summary_fallback import _SUMMARY_BUILD_CONTEXT
+
+        created["protected_archive"] = _SUMMARY_BUILD_CONTEXT.get() is not None
         created.update(kwargs)
         return FakeGraph()
 
@@ -423,6 +426,7 @@ async def test_maybe_compact_after_write_runs_deepagent_compactor(monkeypatch):
     assert result["triggered"] is True
     assert result["scheduled"] is True
     await _wait_for_after_write_tasks(agent)
+    assert created["protected_archive"]
     assert created["model"] == "fake-compaction-model"
     assert [type(item).__name__ for item in created["middleware"]] == [
         "DeadAttachmentFilterMiddleware",
