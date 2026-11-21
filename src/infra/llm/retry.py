@@ -12,6 +12,8 @@ import httpx
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessage
 from langchain_core.runnables.config import ensure_config, merge_configs
+from openai import APIError as OpenAIAPIError
+from openai import APIStatusError as OpenAIAPIStatusError
 
 from src.kernel.config import settings
 
@@ -88,6 +90,18 @@ def _is_provider_retryable_error(exc: BaseException) -> bool:
     return False
 
 
+def _openai_stream_error_status(exc: BaseException) -> int | None:
+    # The SDK raises a bare APIError for SSE error frames after HTTP 200.
+    if not isinstance(exc, OpenAIAPIError) or isinstance(exc, OpenAIAPIStatusError):
+        return None
+    message = exc.message.strip().lower()
+    if message.startswith("concurrency limit exceeded for user"):
+        return 429
+    if re.match(r"(?:bad response status code 504\b|504 gateway time[ -]?out\b)", message):
+        return 504
+    return None
+
+
 def _error_status(exc: BaseException | None) -> int | None:
     """Extract the first plausible HTTP status from an exception chain."""
     if exc is None:
@@ -100,6 +114,9 @@ def _error_status(exc: BaseException | None) -> int | None:
         )
         if type(candidate) is int and 100 <= candidate <= 599:
             return candidate
+        stream_status = _openai_stream_error_status(current)
+        if stream_status is not None:
+            return stream_status
     return None
 
 
@@ -127,7 +144,9 @@ def is_retryable_model_error(exc: BaseException) -> bool:
             return True
         if isinstance(current, (httpx.TransportError, provider_httpx.TransportError)):
             return True
-        if _is_provider_retryable_error(current):
+        if _openai_stream_error_status(current) is not None or _is_provider_retryable_error(
+            current
+        ):
             return True
     return False
 

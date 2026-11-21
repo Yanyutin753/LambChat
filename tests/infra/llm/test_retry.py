@@ -7,7 +7,37 @@ import httpx2
 import openai as openai_module
 import pytest
 
-from src.infra.llm.retry import ainvoke_with_retry, is_auth_model_error, is_retryable_model_error
+from src.infra.llm.retry import (
+    ainvoke_with_retry,
+    is_auth_model_error,
+    is_rate_limit_model_error,
+    is_retryable_model_error,
+    model_failure_reason,
+)
+
+
+@pytest.mark.parametrize(
+    ("message", "reason"),
+    [
+        ("Concurrency limit exceeded for user, please retry later", "rate_limit"),
+        ("bad response status code 504 (request id: test)", "transient"),
+        ("504 Gateway Time-out", "transient"),
+        ("bad response status code 5040", "error"),
+        ("Invalid API key", "error"),
+    ],
+)
+def test_openai_stream_error_preserves_retry_and_rate_limit_distinction(message, reason):
+    error = openai_module.APIError(
+        message,
+        request=httpx2.Request("POST", "https://model.invalid"),
+        body={"type": "openai_error", "message": message},
+    )
+    wrapped = RuntimeError("model call failed")
+    wrapped.__cause__ = error
+
+    assert is_retryable_model_error(wrapped) is (reason != "error")
+    assert is_rate_limit_model_error(wrapped) is (reason == "rate_limit")
+    assert model_failure_reason(wrapped) == reason
 
 
 @pytest.mark.parametrize("error_type", [httpx2.RemoteProtocolError, httpx2.ReadTimeout])
