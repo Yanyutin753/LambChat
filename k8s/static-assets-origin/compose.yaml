@@ -1,0 +1,16 @@
+services:
+  assets:
+    image: ${OPENRESTY_IMAGE:?Use the pinned OpenResty image digest from the edge deployment}
+    entrypoint: ["/usr/local/openresty/bin/openresty"]
+    command: ["-c", "/etc/assets.conf", "-g", "daemon off;"]
+    network_mode: host
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    volumes:
+      - ./nginx.conf:/etc/assets.conf:ro
+      - /data/lambchat-k8s/static-assets:/srv/public/assets:ro
