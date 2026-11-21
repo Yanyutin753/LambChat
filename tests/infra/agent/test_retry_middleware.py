@@ -94,6 +94,94 @@ async def test_agent_event_stream_retries_empty_provider_stream(monkeypatch, emp
     assert calls == 2
 
 
+@pytest.mark.parametrize(
+    "message",
+    ["Concurrency limit exceeded for user, please retry later", "bad response status code 504"],
+)
+@pytest.mark.parametrize("use_responses_api", [False, True], ids=["chat", "responses"])
+async def test_agent_backs_off_after_http_200_stream_errors(
+    monkeypatch, message, use_responses_api
+):
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from langchain.agents import create_agent
+    from langchain.agents.middleware import model_retry
+    from langchain_core.messages import HumanMessage
+    from langsmith import tracing_context
+
+    from src.infra.llm.openai_chat import LambChatOpenAIChatModel
+    from src.infra.llm.quota import QuotaChatMixin
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "LLM_MAX_RETRIES", 2)
+    monkeypatch.setattr(settings, "LLM_RETRY_DELAY", 1)
+    monkeypatch.setattr(QuotaChatMixin, "_quota_begin", AsyncMock(return_value=None))
+    sleep = AsyncMock()
+    monkeypatch.setattr(model_retry, "asyncio", SimpleNamespace(sleep=sleep))
+    calls = 0
+
+    def respond(request):
+        nonlocal calls
+        assert request.url.path == (
+            "/v1/responses" if use_responses_api else "/v1/chat/completions"
+        )
+        assert sleep.await_count == calls
+        calls += 1
+        if calls <= 2:
+            chunk = {"error": {"message": message, "type": "openai_error"}}
+        elif use_responses_api:
+            chunk = {
+                "type": "response.output_text.delta",
+                "item_id": "test-item",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": "Recovered answer",
+            }
+        else:
+            chunk = {
+                "id": "test-chunk",
+                "model": "gpt-test",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Recovered answer"}, "finish_reason": "stop"}
+                ],
+            }
+        return httpx2.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+        )
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
+        graph = create_agent(
+            model=LambChatOpenAIChatModel(
+                model="gpt-test",
+                api_key="test-only",
+                base_url="https://test.invalid/v1",
+                http_async_client=client,
+                use_responses_api=use_responses_api,
+            ),
+            middleware=create_retry_middleware(),
+        )
+        with tracing_context(enabled=False):
+            events = [
+                event
+                async for event in graph.astream_events(
+                    {"messages": [HumanMessage(content="Hello")]}, version="v2"
+                )
+            ]
+
+    assert calls == 3
+    first_delay, second_delay = [call.args[0] for call in sleep.await_args_list]
+    assert 0 < first_delay < second_delay
+    assert any(
+        event["event"] == "on_chat_model_stream"
+        and event["data"]["chunk"].text == "Recovered answer"
+        for event in events
+    )
+
+
 async def test_fallback_runs_when_primary_raises_non_retryable_error() -> None:
     primary_model = object()
     fallback_model = object()

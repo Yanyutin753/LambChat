@@ -63,7 +63,7 @@ class FilesystemBackend:
 
 
 @pytest.mark.parametrize("sync", [False, True])
-async def test_history_larger_than_text_read_limit_can_append_without_losing_old_bytes(
+async def test_cloud_archive_preserves_large_legacy_file_without_downloading_it(
     tmp_path, monkeypatch, sync
 ):
     import asyncio
@@ -99,14 +99,17 @@ async def test_history_larger_than_text_read_limit_can_append_without_losing_old
             GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
         )
     )
+    download = AsyncMock(side_effect=AssertionError("legacy archive read"))
+    monkeypatch.setattr(raw, "adownload_files", download)
     messages = [HumanMessage("new decision")]
     if sync:
         path = await asyncio.to_thread(summary._offload_to_backend, artifact, messages, "session-a")
     else:
         path = await summary._aoffload_to_backend(artifact, messages, "session-a")
-    assert path == str(target)
-    assert target.read_text().startswith(original)
-    assert target.read_text().count("new decision") == 1
+    assert path and Path(path) != target
+    assert Path(path).read_text().count("new decision") == 1
+    assert target.read_text() == original
+    download.assert_not_awaited()
 
 
 @pytest.mark.parametrize("reset", ["new_backend", "execute", "pre_read_failure"])
@@ -179,9 +182,8 @@ async def test_summary_history_appends_after_file_observation_reset(
         "decode_error",
     ],
 )
-@pytest.mark.parametrize("protected", [False, True])
 async def test_summary_history_refuses_concurrent_write_after_observation(
-    tmp_path, monkeypatch, mutation, protected
+    tmp_path, monkeypatch, mutation
 ):
     from deepagents.middleware.summarization import create_summarization_middleware
     from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -236,26 +238,6 @@ async def test_summary_history_refuses_concurrent_write_after_observation(
     summary = create_summarization_middleware(
         GenericFakeChatModel(messages=iter([AIMessage("unused")])), artifact
     )
-    if protected:
-        from src.infra.agent.middleware.summary_history import protect_summary_history
-        from src.kernel.errors import AppError
-
-        summary = protect_summary_history(summary)
-        if mutation in {"before_download", "after_download", "read_failure"}:
-            assert await summary._aoffload_to_backend(
-                artifact, [HumanMessage("new history")], "session-a"
-            )
-            assert target.read_text().startswith("concurrent writer")
-            assert target.read_text().count("new history") == 1
-        else:
-            with pytest.raises(AppError):
-                await summary._aoffload_to_backend(
-                    artifact, [HumanMessage("new history")], "session-a"
-                )
-            assert target.read_text() == (
-                "original history" if download_failure else "concurrent writer"
-            )
-        return
     appended = await summary._aoffload_to_backend(
         artifact, [HumanMessage("new history")], "session-a"
     )

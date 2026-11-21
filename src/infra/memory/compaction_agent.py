@@ -19,6 +19,7 @@ from langsmith.run_helpers import tracing_context
 from pymongo import UpdateOne
 
 from src.infra.agent.middleware.retry import create_retry_middleware
+from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.quota import aux_model_call_skip_reason, bind_quota_user
 from src.infra.logging import get_logger
@@ -45,7 +46,6 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 
 _COMPACT_LOCK_SKIP_REASONS = {"lock_not_acquired", "lock_unavailable"}
-
 _memory_compaction_agent: MemoryCompactionAgent | None = None
 
 _COMPACTION_RECURSION_LIMIT = 200
@@ -314,15 +314,15 @@ class MemoryCompactionAgent:
                 write_guard=owns_lease,
             )
             model = await self._get_compaction_model()
-            graph = create_deep_agent(
-                model=model,
-                tools=tools,
-                middleware=create_retry_middleware(),
-                system_prompt=_COMPACTION_SYSTEM_PROMPT,
-                skills=None,
-                subagents=[],
-                name="memory_compaction_agent",
-            )
+            with summarization_fallback_patch(None):
+                graph = create_deep_agent(
+                    model=model,
+                    tools=tools,
+                    middleware=create_retry_middleware(),
+                    system_prompt=_COMPACTION_SYSTEM_PROMPT,
+                    subagents=[],
+                    name="memory_compaction_agent",
+                )
             prompt = await run_blocking_io(
                 self._build_compaction_prompt,
                 memory_count=memory_count,
