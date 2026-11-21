@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from deepagents.backends import FilesystemBackend
-from deepagents.backends.protocol import FileDownloadResponse, WriteResult
+from deepagents.backends.protocol import FileUploadResponse
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
@@ -37,110 +37,58 @@ async def offload(middleware, backend, messages, sync):
 @pytest.mark.parametrize("sync", [False, True])
 async def test_archive_retries_transient_write_failure(tmp_path, monkeypatch, sync):
     middleware, backend, _ = build(tmp_path)
-    original = backend.write
+    original = backend.aupload_files
     calls = 0
 
-    async def write(path, content):
+    async def upload(files):
         nonlocal calls
         calls += 1
         if calls == 1:
-            return WriteResult(error="temporary storage failure")
-        return await asyncio.to_thread(original, path, content)
+            return [FileUploadResponse(path=files[0][0], error="io_error")]
+        return await original(files)
 
-    monkeypatch.setattr(backend, "awrite", write)
-    monkeypatch.setattr(
-        backend, "write", Mock(return_value=WriteResult(error="temporary storage failure"))
-    )
+    monkeypatch.setattr(backend, "aupload_files", upload)
     path = await offload(middleware, backend, [HumanMessage("retain this decision")], sync)
     assert path and calls == 2
     assert next(tmp_path.rglob("*.md")).read_text().count("retain this decision") == 1
 
 
-async def test_archive_rereads_after_unknown_download_error_without_overwriting(
-    tmp_path, monkeypatch
-):
+async def test_concurrent_archives_get_distinct_segments(tmp_path):
     middleware, backend, _ = build(tmp_path)
-    path = await middleware._aoffload_to_backend(
-        backend, [HumanMessage("first decision")], "history"
+    paths = await asyncio.gather(
+        *(
+            offload(middleware, backend, [HumanMessage(text)], False)
+            for text in ("first decision", "second decision")
+        )
     )
-    original = backend.adownload_files
-    calls = 0
-
-    async def download(paths):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return [FileDownloadResponse(path=paths[0], error="io_error")]
-        return await original(paths)
-
-    monkeypatch.setattr(backend, "adownload_files", download)
-    await middleware._aoffload_to_backend(backend, [HumanMessage("next decision")], "history")
-    content = (await original([path]))[0].content.decode()
-    assert calls == 2
-    assert content.count("first decision") == content.count("next decision") == 1
-
-
-async def test_archive_retry_recognizes_a_committed_write_after_lost_response(
-    tmp_path, monkeypatch
-):
-    middleware, backend, _ = build(tmp_path)
-    original = backend.awrite
-    calls = 0
-
-    async def write(path, content):
-        nonlocal calls
-        calls += 1
-        await original(path, content)
-        return WriteResult(error="response lost after commit")
-
-    monkeypatch.setattr(backend, "awrite", write)
-    path = await middleware._aoffload_to_backend(backend, [HumanMessage("once only")], "history")
-    assert path and calls == 1
-    assert next(tmp_path.rglob("*.md")).read_text().count("once only") == 1
+    assert len(set(paths)) == 2
+    for path, text in zip(paths, ("first decision", "second decision"), strict=True):
+        assert text in (await backend.adownload_files([path]))[0].content.decode()
 
 
 @pytest.mark.parametrize("disconnected", [False, True])
 async def test_archive_retry_recognizes_committed_append_after_lost_response(
     tmp_path, monkeypatch, disconnected
 ):
-    from deepagents.backends.protocol import EditResult
-
     middleware, backend, _ = build(tmp_path)
-    original = backend.aedit
+    original = backend.aupload_files
     calls = 0
 
-    async def edit(*args):
+    async def upload(files):
         nonlocal calls
         calls += 1
-        await original(*args)
+        if calls > 1:
+            return [FileUploadResponse(path=files[0][0], error="file_conflict")]
+        await original(files)
         if disconnected:
             raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": 30})
-        return EditResult(error="response lost after commit")
+        return [FileUploadResponse(path=files[0][0], error="io_error")]
 
-    monkeypatch.setattr(backend, "aedit", edit)
+    monkeypatch.setattr(backend, "aupload_files", upload)
     monkeypatch.setattr("src.infra.agent.middleware.summary_history.asyncio.sleep", AsyncMock())
     path = await middleware._aoffload_to_backend(backend, [HumanMessage("once only")], "history")
-    assert path and calls == 1
+    assert path and calls == 2
     assert next(tmp_path.rglob("*.md")).read_text().count("once only") == 1
-
-
-async def test_archive_initialization_does_not_allow_summary_when_append_fails(
-    tmp_path, monkeypatch
-):
-    from deepagents.backends.protocol import EditResult
-
-    middleware, backend, model = build(tmp_path)
-    edit = AsyncMock(return_value=EditResult(error="storage unavailable"))
-    monkeypatch.setattr(backend, "aedit", edit)
-    messages = [HumanMessage(f"original {i}") for i in range(5)]
-    state = {"messages": messages}
-    request = ModelRequest(model=model, messages=messages, state=state, tools=[])
-    handler = AsyncMock()
-    with pytest.raises(AppError):
-        await middleware.awrap_model_call(request, handler)
-    assert edit.await_count == 3
-    assert state == {"messages": messages} and request.messages == messages
-    handler.assert_not_called()
 
 
 @pytest.mark.parametrize("sync", [False, True])
@@ -148,11 +96,8 @@ async def test_permanent_archive_failure_preserves_request_and_never_calls_main_
     tmp_path, monkeypatch, sync
 ):
     middleware, backend, model = build(tmp_path)
-    write = AsyncMock(return_value=WriteResult(error="storage unavailable"))
-    monkeypatch.setattr(backend, "awrite", write)
-    monkeypatch.setattr(
-        backend, "write", Mock(return_value=WriteResult(error="storage unavailable"))
-    )
+    write = AsyncMock(return_value=[FileUploadResponse(path="test", error="io_error")])
+    monkeypatch.setattr(backend, "aupload_files", write)
     messages = [
         HumanMessage("important original"),
         AIMessage("decision"),
@@ -181,7 +126,7 @@ async def test_permanent_archive_failure_preserves_request_and_never_calls_main_
 async def test_archive_cancellation_is_not_retried(tmp_path, monkeypatch):
     middleware, backend, _ = build(tmp_path)
     write = AsyncMock(side_effect=asyncio.CancelledError)
-    monkeypatch.setattr(backend, "awrite", write)
+    monkeypatch.setattr(backend, "aupload_files", write)
     with pytest.raises(asyncio.CancelledError):
         await middleware._aoffload_to_backend(backend, [HumanMessage("original")], "history")
     write.assert_awaited_once()
@@ -201,10 +146,10 @@ async def test_archive_failure_cancels_inflight_summary(tmp_path, monkeypatch):
 
     async def fail_write(*args):
         await started.wait()
-        return WriteResult(error="storage unavailable")
+        return [FileUploadResponse(path="test", error="io_error")]
 
     monkeypatch.setattr(type(model), "_agenerate", slow_summary)
-    monkeypatch.setattr(backend, "awrite", fail_write)
+    monkeypatch.setattr(backend, "aupload_files", fail_write)
     messages = [HumanMessage(str(i)) for i in range(5)]
     request = ModelRequest(model=model, messages=messages, state={"messages": messages}, tools=[])
     with pytest.raises(AppError):
@@ -221,7 +166,7 @@ async def test_summary_failure_cancels_inflight_archive(tmp_path, monkeypatch):
         await started.wait()
         raise ValueError("invalid summary input")
 
-    async def slow_download(*args):
+    async def slow_upload(*args):
         started.set()
         try:
             await asyncio.Event().wait()
@@ -230,7 +175,7 @@ async def test_summary_failure_cancels_inflight_archive(tmp_path, monkeypatch):
 
     monkeypatch.setattr(type(model), "_agenerate", fail_summary)
     monkeypatch.setattr(type(model), "with_retry", lambda self, **kwargs: self)
-    monkeypatch.setattr(backend, "adownload_files", slow_download)
+    monkeypatch.setattr(backend, "aupload_files", slow_upload)
     messages = [HumanMessage(str(i)) for i in range(5)]
     request = ModelRequest(model=model, messages=messages, state={"messages": messages}, tools=[])
     with pytest.raises(ValueError, match="invalid summary input"):
@@ -246,17 +191,17 @@ async def test_archive_waits_for_local_reconnection_and_rechecks_history(
     tmp_path, monkeypatch, code, sync
 ):
     middleware, backend, _ = build(tmp_path)
-    original = backend.adownload_files
+    original = backend.aupload_files
     calls = 0
 
-    async def download(paths):
+    async def upload(paths):
         nonlocal calls
         calls += 1
         if calls <= 3:
             raise AppError(code, args={"machine": "same-machine", "seconds": 30})
         return await original(paths)
 
-    monkeypatch.setattr(backend, "adownload_files", download)
+    monkeypatch.setattr(backend, "aupload_files", upload)
     monkeypatch.setattr("src.infra.agent.middleware.summary_history.asyncio.sleep", AsyncMock())
     path = await offload(middleware, backend, [HumanMessage("retained")], sync)
     assert path and calls == 4
@@ -271,14 +216,14 @@ async def test_archive_reconnection_deadline_preserves_offline_error_and_origina
     offline = AppError(ErrorCode.SANDBOX_MACHINE_OFFLINE, args={"machine": "same-machine"})
     calls = 0
 
-    async def download(*args):
+    async def upload(*args):
         nonlocal calls
         calls += 1
         if stalled_read and calls > 1:
             await asyncio.Event().wait()
         raise offline
 
-    monkeypatch.setattr(backend, "adownload_files", download)
+    monkeypatch.setattr(backend, "aupload_files", upload)
     monkeypatch.setattr("src.infra.agent.middleware.summary_history._RECONNECT_TIMEOUT", 0.01)
     if stalled_read:
         monkeypatch.setattr("src.infra.agent.middleware.summary_history.asyncio.sleep", AsyncMock())
@@ -297,15 +242,31 @@ async def test_archive_reconnection_can_be_cancelled_without_another_attempt(tmp
     middleware, backend, _ = build(tmp_path)
     started = asyncio.Event()
 
-    async def download(*args):
+    async def upload(*args):
         started.set()
         raise AppError(ErrorCode.DAEMON_OFFLINE)
 
-    download_mock = AsyncMock(side_effect=download)
-    monkeypatch.setattr(backend, "adownload_files", download_mock)
+    upload_mock = AsyncMock(side_effect=upload)
+    monkeypatch.setattr(backend, "aupload_files", upload_mock)
     task = asyncio.create_task(offload(middleware, backend, [HumanMessage("retained")], False))
     await started.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    download_mock.assert_awaited_once()
+    upload_mock.assert_awaited_once()
+
+
+async def test_large_compaction_writes_bounded_ordered_segments(tmp_path, monkeypatch):
+    from langchain_core.messages import get_buffer_string
+
+    from src.infra.agent.middleware import summary_history
+
+    middleware, backend, _ = build(tmp_path)
+    monkeypatch.setattr(summary_history, "_SEGMENT_CHARS", 128)
+    messages = [HumanMessage(f"{i}: " + "多<&" * 80) for i in range(7)]
+    last = await offload(middleware, backend, messages, False)
+    parts = sorted(tmp_path.rglob("*.md"))
+    assert len(parts) > 1 and parts[-1] == tmp_path / last.lstrip("/")
+    texts = [p.read_text() for p in parts]
+    assert all(len(text) <= 128 for text in texts)
+    assert "".join(texts).split("\n\n", 1)[1] == get_buffer_string(messages, format="xml") + "\n\n"

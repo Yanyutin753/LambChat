@@ -7,6 +7,7 @@ import logging
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from functools import wraps
+from io import StringIO
 from typing import Any
 from uuid import uuid4
 
@@ -16,12 +17,36 @@ from src.infra.async_utils.loop_bridge import run_coro_sync
 from src.kernel.errors import AppError, ErrorCode
 
 logger = logging.getLogger(__name__)
+_SEGMENT_CHARS = 1024 * 1024
 _RECONNECT_TIMEOUT = 120.0
 _LOCAL_CONNECTION_ERRORS = {
     ErrorCode.DAEMON_OFFLINE,
     ErrorCode.SANDBOX_MACHINE_OFFLINE,
     ErrorCode.SANDBOX_TIMEOUT,
 }
+
+
+def _archive_parts(messages, now):
+    def fragments():
+        yield f"## Summarized at {now.isoformat()}\n\n"
+        for index, message in enumerate(messages):
+            if index:
+                yield "\n"
+            yield get_buffer_string([message], format="xml")
+        yield "\n\n"
+
+    buffer = StringIO()
+    for text in fragments():
+        offset = 0
+        while offset < len(text):
+            end = offset + _SEGMENT_CHARS - buffer.tell()
+            buffer.write(text[offset:end])
+            offset = end
+            if buffer.tell() == _SEGMENT_CHARS:
+                yield buffer.getvalue().encode("utf-8")
+                buffer = StringIO()
+    if buffer.tell():
+        yield buffer.getvalue().encode("utf-8")
 
 
 def protect_summary_history(middleware: Any) -> Any:
@@ -33,54 +58,35 @@ def protect_summary_history(middleware: Any) -> Any:
         path = middleware._get_history_path(session_id)
         filtered = middleware._filter_summary_messages(messages)
         now = datetime.now(UTC)
-        section = (
-            f"## Summarized at {now.isoformat()}\n\n{get_buffer_string(filtered, format='xml')}\n\n"
-        )
-        part = None
-        if getattr(backend, "is_local_workspace", False):
-            path = f"{path.removesuffix('.md')}.{now:%Y%m%dT%H%M%S%fZ}-{uuid4().hex}.md"
-            part = section.encode("utf-8")
+        prefix = f"{path.removesuffix('.md')}.{now:%Y%m%dT%H%M%S%fZ}-{uuid4().hex}"
+        for number, part in enumerate(_archive_parts(filtered, now)):
+            path = f"{prefix}-{number:08d}.md"
+            await save_segment(backend, path, part)
+        return path
+
+    async def save_segment(backend, path, part):
+        retrying = False
         reconnect_error: AppError | None = None
         try:
             async with asyncio.timeout(None) as recovery:
                 attempt = 0
                 while True:
                     try:
-                        if part is not None:
-                            uploads = await backend.aupload_files([(path, part)])
-                            if not uploads or uploads[0].error:
-                                raise OSError(uploads[0].error if uploads else "no upload result")
-                            return path
-                        responses = await backend.adownload_files([path])
-                        if not responses:
-                            raise OSError("history download returned no result")
-                        response = responses[0]
-                        if response.error == "file_not_found":
-                            existing = ""
-                        elif response.error is None and response.content is not None:
-                            existing = response.content.decode("utf-8")
-                        else:
-                            raise OSError(
-                                f"history download failed: {response.error or 'missing content'}"
-                            )
-                        # A lost write response must not duplicate an already committed section.
-                        if section in existing:
-                            return path
-                        if not existing:
-                            # Local file creation is capped; edits retain version checks without that cap.
-                            existing = "# Conversation history\n\n"
-                            created = await backend.awrite(path, existing)
-                            if created is None or created.error:
-                                raise OSError(
-                                    created.error if created else "history write returned no result"
-                                )
-                        result = await backend.aedit(path, existing, existing + section)
-                        if result is None or result.error:
-                            raise OSError(
-                                result.error if result else "history write returned no result"
-                            )
+                        uploads = await backend.aupload_files([(path, part)])
+                        if retrying and uploads and "file_conflict" in str(uploads[0].error):
+                            # A guarded backend may have committed before losing its reply.
+                            existing = await backend.adownload_files([path])
+                            if (
+                                existing
+                                and existing[0].error is None
+                                and existing[0].content == part
+                            ):
+                                return path
+                        if not uploads or uploads[0].error:
+                            raise OSError(uploads[0].error if uploads else "no upload result")
                         return path
                     except Exception as exc:
+                        retrying = True
                         if isinstance(exc, AppError) and exc.error_code in _LOCAL_CONNECTION_ERRORS:
                             reconnect_error = exc
                             if recovery.when() is None:
@@ -115,22 +121,21 @@ def protect_summary_history(middleware: Any) -> Any:
 
     original_summary = middleware._acreate_summary
     original_wrap = middleware.awrap_model_call
-    if getattr(middleware._backend, "is_local_workspace", False):
-        original_build = middleware._build_new_messages_with_path
+    original_build = middleware._build_new_messages_with_path
 
-        def build(summary, file_path):
-            if file_path is None:
-                return original_build(summary, None)
-            stem = file_path.rsplit(".", 2)[0]
-            messages = original_build(summary, None)
-            messages[0].content = (
-                f"The latest archived conversation segment is at {file_path}. "
-                f"Find earlier segments matching {stem}.*.md and the legacy {stem}.md, "
-                f"if present.\n\n{messages[0].content}"
-            )
-            return messages
+    def build(summary, file_path):
+        if file_path is None:
+            return original_build(summary, None)
+        stem = file_path.rsplit(".", 2)[0]
+        messages = original_build(summary, None)
+        messages[0].content = (
+            f"The latest archived conversation segment is at {file_path}. "
+            f"Find earlier segments matching {stem}.*.md and the legacy {stem}.md, "
+            f"if present.\n\n{messages[0].content}"
+        )
+        return messages
 
-        middleware._build_new_messages_with_path = build
+    middleware._build_new_messages_with_path = build
     pending: ContextVar[set[asyncio.Task] | None] = ContextVar(
         "history_summary_tasks", default=None
     )

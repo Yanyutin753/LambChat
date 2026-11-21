@@ -314,15 +314,18 @@ class MemoryCompactionAgent:
                 write_guard=owns_lease,
             )
             model = await self._get_compaction_model()
-            graph = create_deep_agent(
-                model=model,
-                tools=tools,
-                middleware=create_retry_middleware(),
-                system_prompt=_COMPACTION_SYSTEM_PROMPT,
-                skills=None,
-                subagents=[],
-                name="memory_compaction_agent",
-            )
+            from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
+
+            with summarization_fallback_patch(None):
+                graph = create_deep_agent(
+                    model=model,
+                    tools=tools,
+                    middleware=create_retry_middleware(),
+                    system_prompt=_COMPACTION_SYSTEM_PROMPT,
+                    skills=None,
+                    subagents=[],
+                    name="memory_compaction_agent",
+                )
             prompt = await run_blocking_io(
                 self._build_compaction_prompt,
                 memory_count=memory_count,
