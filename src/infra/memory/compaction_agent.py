@@ -18,7 +18,7 @@ from langgraph.errors import GraphRecursionError
 from langsmith.run_helpers import tracing_context
 from pymongo import UpdateOne
 
-from src.infra.agent.middleware.retry import create_retry_middleware
+from src.infra.agent.middleware import create_retry_middleware, summarization_fallback_patch
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.quota import aux_model_call_skip_reason, bind_quota_user
 from src.infra.logging import get_logger
@@ -314,15 +314,12 @@ class MemoryCompactionAgent:
                 write_guard=owns_lease,
             )
             model = await self._get_compaction_model()
-            from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
-
             with summarization_fallback_patch(None):
                 graph = create_deep_agent(
                     model=model,
                     tools=tools,
                     middleware=create_retry_middleware(),
                     system_prompt=_COMPACTION_SYSTEM_PROMPT,
-                    skills=None,
                     subagents=[],
                     name="memory_compaction_agent",
                 )
