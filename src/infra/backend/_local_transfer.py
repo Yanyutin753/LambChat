@@ -147,13 +147,13 @@ class LocalFsTransferMixin:
         按 ``unsupported op`` 粘滞降级到分块 fs_upload，再降级 exec 的既有
         链条不变。
         """
+        max_bytes = _download_max_bytes()
+        if len(content) > max_bytes:
+            return (
+                f"file_too_large: {len(content)} bytes exceeds {max_bytes} limit "
+                "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
+            )
         if self._stream_transfer_supported is not False:
-            max_bytes = _download_max_bytes()
-            if len(content) > max_bytes:
-                return (
-                    f"file_too_large: {len(content)} bytes exceeds {max_bytes} limit "
-                    "(S3_INTERNAL_UPLOAD_MAX_SIZE)"
-                )
             try:
                 outcome = await self._aupload_via_stream(path, content, cwd=cwd)
             except FsStreamUnsupportedError:

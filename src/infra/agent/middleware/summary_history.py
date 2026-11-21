@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
+from uuid import uuid4
 
 from langchain_core.messages import get_buffer_string
 
@@ -31,16 +32,25 @@ def protect_summary_history(middleware: Any) -> Any:
     async def archive(backend, messages, session_id):
         path = middleware._get_history_path(session_id)
         filtered = middleware._filter_summary_messages(messages)
+        now = datetime.now(UTC)
         section = (
-            f"## Summarized at {datetime.now(UTC).isoformat()}\n\n"
-            f"{get_buffer_string(filtered, format='xml')}\n\n"
+            f"## Summarized at {now.isoformat()}\n\n{get_buffer_string(filtered, format='xml')}\n\n"
         )
+        part = None
+        if getattr(backend, "is_local_workspace", False):
+            path = f"{path.removesuffix('.md')}.{now:%Y%m%dT%H%M%S%fZ}-{uuid4().hex}.md"
+            part = section.encode("utf-8")
         reconnect_error: AppError | None = None
         try:
             async with asyncio.timeout(None) as recovery:
                 attempt = 0
                 while True:
                     try:
+                        if part is not None:
+                            uploads = await backend.aupload_files([(path, part)])
+                            if not uploads or uploads[0].error:
+                                raise OSError(uploads[0].error if uploads else "no upload result")
+                            return path
                         responses = await backend.adownload_files([path])
                         if not responses:
                             raise OSError("history download returned no result")
@@ -105,6 +115,22 @@ def protect_summary_history(middleware: Any) -> Any:
 
     original_summary = middleware._acreate_summary
     original_wrap = middleware.awrap_model_call
+    if getattr(middleware._backend, "is_local_workspace", False):
+        original_build = middleware._build_new_messages_with_path
+
+        def build(summary, file_path):
+            if file_path is None:
+                return original_build(summary, None)
+            stem = file_path.rsplit(".", 2)[0]
+            messages = original_build(summary, None)
+            messages[0].content = (
+                f"The latest archived conversation segment is at {file_path}. "
+                f"Find earlier segments matching {stem}.*.md and the legacy {stem}.md, "
+                f"if present.\n\n{messages[0].content}"
+            )
+            return messages
+
+        middleware._build_new_messages_with_path = build
     pending: ContextVar[set[asyncio.Task] | None] = ContextVar(
         "history_summary_tasks", default=None
     )

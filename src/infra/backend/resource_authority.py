@@ -222,6 +222,12 @@ class _ServerArtifactBackend(CompositeBackend):
         self._prefixes = (root + "/conversation_history/", root + "/large_tool_results/")
         self._blocked_writes: set[str] = set()
 
+    @property
+    def is_local_workspace(self) -> bool:
+        from src.infra.backend.local import WorkspaceAliasBackend
+
+        return isinstance(self._backend.default, WorkspaceAliasBackend)
+
     @contextmanager
     def _scope(self, paths):
         if any(not path.startswith(self._prefixes) for path in paths):
