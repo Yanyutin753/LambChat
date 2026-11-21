@@ -18,7 +18,8 @@ from langgraph.errors import GraphRecursionError
 from langsmith.run_helpers import tracing_context
 from pymongo import UpdateOne
 
-from src.infra.agent.middleware import create_retry_middleware, summarization_fallback_patch
+from src.infra.agent.middleware.retry import create_retry_middleware
+from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.quota import aux_model_call_skip_reason, bind_quota_user
 from src.infra.logging import get_logger
@@ -45,7 +46,6 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 
 _COMPACT_LOCK_SKIP_REASONS = {"lock_not_acquired", "lock_unavailable"}
-
 _memory_compaction_agent: MemoryCompactionAgent | None = None
 
 _COMPACTION_RECURSION_LIMIT = 200
