@@ -540,6 +540,10 @@ async def dispatch_local_stream_upload(
     ack_at: float | None = None
     outcome = "error"
     done: dict | None = None
+    request_queue = registry.queue_key(user_id, target)
+    request_body = json.dumps(req)
+    ack_timeout = settings.SANDBOX_LOCAL_ACK_TIMEOUT
+    ack_deadline = start + ack_timeout
 
     async def _push_frame(frame: bytes) -> None:
         """窗口控制下发一帧。帧必须逐帧惰性编码卸载——一次性内联构建整文件
@@ -563,6 +567,9 @@ async def dispatch_local_stream_upload(
                         ErrorCode.SANDBOX_EXEC_FAILED,
                         args={"detail": str(resp.get("error") or "upload stream failed")},
                     )
+            if not acked and time.monotonic() >= ack_deadline:
+                outcome = "ack_timeout"
+                raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": ack_timeout})
             if time.monotonic() - last_progress >= _STREAM_IDLE_TIMEOUT:
                 outcome = "stream_idle_timeout"
                 raise AppError(
@@ -578,7 +585,7 @@ async def dispatch_local_stream_upload(
 
     try:
         await _bind_call(redis, call_id, user_id, target, exec_timeout)
-        await redis.rpush(registry.queue_key(user_id, target), json.dumps(req))
+        await redis.rpush(request_queue, request_body)
         deadline = start + exec_timeout
         await _push_frame(
             await run_long_blocking_io(
@@ -616,15 +623,9 @@ async def dispatch_local_stream_upload(
                 elif resp.get("stage") == "done":
                     done = resp
                     await redis.delete(resp_key)
-            if (
-                done is None
-                and not acked
-                and time.monotonic() > start + settings.SANDBOX_LOCAL_ACK_TIMEOUT
-            ):
+            if done is None and not acked and time.monotonic() >= ack_deadline:
                 outcome = "ack_timeout"
-                raise AppError(
-                    ErrorCode.SANDBOX_TIMEOUT, args={"seconds": settings.SANDBOX_LOCAL_ACK_TIMEOUT}
-                )
+                raise AppError(ErrorCode.SANDBOX_TIMEOUT, args={"seconds": ack_timeout})
             if done is None:
                 if time.monotonic() - last_progress >= _STREAM_IDLE_TIMEOUT:
                     outcome = "stream_idle_timeout"
@@ -644,6 +645,10 @@ async def dispatch_local_stream_upload(
         outcome = "done"
     finally:
         _log_roundtrip("fs_upload_stream", call_id, outcome, start, ack_at, 0)
+        try:
+            await redis.lrem(request_queue, 0, request_body)
+        except Exception:  # noqa: BLE001
+            pass
         for key in (resp_key, blob_key, _assign_key(call_id), _owner_key(call_id)):
             try:
                 await redis.delete(key)

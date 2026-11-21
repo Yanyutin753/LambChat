@@ -1167,6 +1167,20 @@ async def test_upload_continues_while_daemon_consumes_frames(fake, monkeypatch):
         await task
 
 
+async def test_unacknowledged_upload_cleans_queue_at_ack_deadline(fake, monkeypatch):
+    monkeypatch.setattr(dispatch_module, "_UPBLOB_WINDOW", 1)
+    monkeypatch.setattr(dispatch_module, "_STREAM_IDLE_TIMEOUT", 0.8)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_ACK_TIMEOUT", 0.03)
+    monkeypatch.setattr(dispatch_module.settings, "SANDBOX_LOCAL_STREAM_TIMEOUT", 1)
+
+    with pytest.raises(AppError) as caught:
+        await asyncio.wait_for(
+            dispatch_module.dispatch_local_stream_upload("u1", {}, b"data"), timeout=0.4
+        )
+    assert caught.value.error_code == ErrorCode.SANDBOX_TIMEOUT
+    assert not any(fake.lists.values()) and not fake.kv
+
+
 @pytest.mark.parametrize("ack_user", ["u1", "foreign-user"])
 async def test_upload_preserves_authenticated_ack_consumed_during_window_wait(
     fake, monkeypatch, ack_user

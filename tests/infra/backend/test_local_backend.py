@@ -1907,16 +1907,18 @@ async def test_aupload_falls_back_to_chunked_when_stream_unsupported(monkeypatch
     assert probes == ["big.bin"]  # 只探测一次
 
 
-async def test_aupload_stream_oversize_preflight(monkeypatch):
-    """超统一上限：服务端预检直接报 file_too_large，不发起任何传输。"""
+@pytest.mark.parametrize("stream_supported", [True, False])
+async def test_aupload_oversize_preflight(monkeypatch, stream_supported):
     sent = []
 
-    async def must_not_send(user_id, payload, content, *, machine_id=None):
-        sent.append(payload)
+    async def must_not_send(*args, **kwargs):
+        sent.append(args)
 
     monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", must_not_send)
+    monkeypatch.setattr(local_module, "dispatch_local_call", must_not_send)
     monkeypatch.setattr(local_module, "_download_max_bytes", lambda: 10)
     backend = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
+    backend._stream_transfer_supported = stream_supported
     responses = await backend.aupload_files([("/workspace/s1/x", b"0" * 11)])
     assert sent == []
     assert responses[0].error is not None
@@ -2103,12 +2105,9 @@ async def test_selected_workspace_mutation_carries_actual_conversation_identity(
     assert captured[0]["actor"] == {"session_id": "chat-a"}
 
 
-@pytest.mark.parametrize(
-    ("existing", "failure"),
-    [(False, None), (True, None), (False, "lost_create"), (False, "lost_append"), (False, "race")],
-)
+@pytest.mark.parametrize("transport", ["stream", "lost_response", "legacy"])
 async def test_local_protected_history_archives_large_sections_without_losing_bytes(
-    monkeypatch, tmp_path, _legacy_file_protocol, existing, failure
+    monkeypatch, tmp_path, transport
 ):
     from deepagents.middleware.summarization import create_summarization_middleware
     from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -2121,33 +2120,20 @@ async def test_local_protected_history_archives_large_sections_without_losing_by
         server_artifact_backend,
     )
 
-    monkeypatch.setattr(
-        local_module.WorkspaceAliasBackend, "_supports_file_versions", _legacy_file_protocol
-    )
+    uploads = []
 
-    injected = False
-    competing = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
-    path = "/workspace/s1/conversation_history/session-a.md"
+    async def stream_upload(user_id, payload, content, **kwargs):
+        uploads.append(payload["path"])
+        (tmp_path / "s1" / payload["path"]).write_bytes(content)
+        if transport == "lost_response" and len(uploads) == 1:
+            raise AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "response lost"})
 
     async def dispatch(user_id, op, payload, **kwargs):
-        nonlocal injected
-        if failure == "race" and op == "fs_edit" and not injected:
-            injected = True
-            await competing.aread(path, limit=0)
-            result = await competing.aedit(
-                path, "# Conversation history\n\n", "# Conversation history\n\ncompeting history\n"
-            )
-            assert not result.error
-        result = fsops.handle_fs_op(op, payload, tmp_path)
-        if not injected and (
-            (failure == "lost_create" and op == "fs_write")
-            or (failure == "lost_append" and op == "fs_edit")
-        ):
-            assert not result.get("error")
-            injected = True
-            return {"result": {"error": "response lost after commit"}}
-        return {"result": result}
+        assert transport == "legacy" and op == "fs_upload"
+        return {"result": fsops.handle_fs_op(op, payload, tmp_path)}
 
+    if transport != "legacy":
+        monkeypatch.setattr(transfer_module, "dispatch_local_stream_upload", stream_upload)
     monkeypatch.setattr(local_module, "dispatch_local_call", dispatch)
     local = local_module.WorkspaceAliasBackend(user_id="u1", session_id="s1")
     artifact = server_artifact_backend(
@@ -2161,16 +2147,18 @@ async def test_local_protected_history_archives_large_sections_without_losing_by
         )
     )
     target = tmp_path / "s1/conversation_history/session-a.md"
-    original = "old decision\n" * 180000 if existing else ""
-    if existing:
-        target.parent.mkdir(parents=True)
-        target.write_text(original)
+    original = "old decision\n" * 180000
+    target.parent.mkdir(parents=True)
+    target.write_text(original)
     message = "retained original " + "长" * 750000
     path = await summary._aoffload_to_backend(artifact, [HumanMessage(message)], "session-a")
-    assert path == "/workspace/s1/conversation_history/session-a.md"
-    saved = target.read_text()
-    assert saved.startswith(original)
-    assert saved.count(message) == 1
-    assert injected == (failure is not None)
-    if failure == "race":
-        assert saved.count("competing history") == 1
+    (part,) = target.parent.glob("session-a.*.md")
+    assert path == f"/workspace/{part.relative_to(tmp_path)}"
+    assert part.read_text().count(message) == 1
+    assert target.read_text() == original
+    if transport == "lost_response":
+        assert uploads == [f"conversation_history/{part.name}"] * 2
+    (summary_message,) = summary._build_new_messages_with_path("summary", path)
+    assert path in summary_message.content
+    assert "/workspace/s1/conversation_history/session-a.*.md" in summary_message.content
+    assert "/workspace/s1/conversation_history/session-a.md" in summary_message.content
