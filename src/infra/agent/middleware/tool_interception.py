@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import mimetypes
@@ -40,6 +39,15 @@ from src.infra.agent.middleware._helpers import (
     _normalize_prompt_text,
     _system_message_to_blocks,
 )
+from src.infra.agent.middleware.binary_tool_blocks import (
+    _BINARY_EXTENSIONS,
+    _decode_base64_to_file,
+    _estimated_base64_decoded_size,
+    _redact_excess_binary_block,
+    _redact_failed_binary_block,
+    _redact_oversized_binary_block,
+    _write_bytes_to_file,
+)
 from src.infra.async_utils import run_blocking_io, run_long_blocking_io
 from src.infra.image_utils import (
     MODEL_SAFE_IMAGE_MIME_TYPES,
@@ -57,108 +65,10 @@ _BINARY_BLOCK_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 _BINARY_BLOCK_UPLOAD_TOTAL_MAX_BYTES = 50 * 1024 * 1024
 _BINARY_BLOCK_UPLOAD_MAX_BLOCKS = 4
 _READ_FILE_BINARY_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
-_BASE64_DECODE_CHUNK_CHARS = 4 * 1024 * 1024
 
 
 # MCP content block types that may carry binary data
 _BINARY_BLOCK_TYPES = frozenset(("image", "file"))
-
-# Binary file extensions — read_file should upload these to S3 instead of returning garbled text
-_BINARY_EXTENSIONS = frozenset(
-    (
-        # Images
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".bmp",
-        ".ico",
-        ".svg",
-        ".avif",
-        ".tiff",
-        ".tif",
-        # Videos
-        ".mp4",
-        ".webm",
-        ".mov",
-        ".avi",
-        ".wmv",
-        ".mkv",
-        ".ogv",
-        # Audio
-        ".mp3",
-        ".wav",
-        ".ogg",
-        ".aac",
-        ".flac",
-        ".m4a",
-        ".opus",
-        # Documents
-        ".pdf",
-        ".doc",
-        ".docx",
-        ".xls",
-        ".xlsx",
-        ".ppt",
-        ".pptx",
-    )
-)
-
-
-def _redact_failed_binary_block(block: dict[str, Any]) -> dict[str, Any]:
-    redacted = {k: v for k, v in block.items() if k != "base64"}
-    redacted["upload_error"] = "binary_upload_failed"
-    return redacted
-
-
-def _redact_oversized_binary_block(block: dict[str, Any]) -> dict[str, Any]:
-    redacted = {k: v for k, v in block.items() if k != "base64"}
-    redacted["upload_error"] = "binary_upload_too_large"
-    return redacted
-
-
-def _redact_excess_binary_block(block: dict[str, Any]) -> dict[str, Any]:
-    redacted = {k: v for k, v in block.items() if k != "base64"}
-    redacted["upload_error"] = "binary_upload_too_many_blocks"
-    return redacted
-
-
-def _estimated_base64_decoded_size(b64_data: str) -> int:
-    stripped = b64_data.rstrip("=")
-    return (len(stripped) * 3) // 4
-
-
-def _decode_base64_to_file(b64_data: str, file, *, max_bytes: int) -> int:
-    total = 0
-    carry = ""
-    for start in range(0, len(b64_data), _BASE64_DECODE_CHUNK_CHARS):
-        chunk = carry + b64_data[start : start + _BASE64_DECODE_CHUNK_CHARS]
-        decode_len = (len(chunk) // 4) * 4
-        if decode_len == 0:
-            carry = chunk
-            continue
-        decoded = base64.b64decode(chunk[:decode_len])
-        file.write(decoded)
-        total += len(decoded)
-        if total > max_bytes:
-            raise ValueError("binary_upload_too_large")
-        carry = chunk[decode_len:]
-    if carry:
-        decoded = base64.b64decode(carry)
-        file.write(decoded)
-        total += len(decoded)
-        if total > max_bytes:
-            raise ValueError("binary_upload_too_large")
-    file.seek(0)
-    return total
-
-
-def _write_bytes_to_file(data: bytes, file) -> int:
-    file.write(data)
-    size = len(data)
-    file.seek(0)
-    return size
 
 
 def _coerce_file_size(value: Any) -> int | None:
