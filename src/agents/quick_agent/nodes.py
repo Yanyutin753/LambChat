@@ -24,6 +24,7 @@ from src.agents.core.node_utils import (
 from src.agents.core.subagent_prompts import build_response_language_section
 from src.agents.core.thinking import build_thinking_config
 from src.agents.quick_agent.prompt import QUICK_SYSTEM_PROMPT, SEARCH_HANDOFF_TOOL
+from src.infra.agent.middleware.dead_attachment import without_image_inputs
 from src.infra.agent.middleware.image_url import prepare_image_messages
 from src.infra.agent.middleware.subagent_activity import ActivityReferenceMiddleware
 from src.infra.llm.client import LLMClient
@@ -89,13 +90,18 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     user_input = state.get("input", "")
     attachments = state.get("attachments") or []
     supports_vision = False
-    if attachments:
-        supports_vision = await resolve_model_supports_vision(
-            agent_options.get("model_id"),
-            agent_options.get("model"),
-            log_prefix="[QuickAgent]",
-        )
-        if supports_vision:
+    history = state.get("messages", [])
+    if attachments or any(isinstance(message.content, list) for message in history):
+        resolved_vision = agent_options.get("_resolved_supports_vision")
+        if resolved_vision is None:
+            supports_vision = await resolve_model_supports_vision(
+                agent_options.get("model_id"),
+                agent_options.get("model"),
+                log_prefix="[QuickAgent]",
+            )
+        else:
+            supports_vision = bool(resolved_vision)
+        if supports_vision and attachments:
             attachments = await inline_image_attachments_as_data_urls(
                 attachments,
                 base_url=configurable.get("base_url", ""),
@@ -106,7 +112,7 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     messages = [
         SystemMessage(content=_build_system_prompt(configurable)),
-        *state.get("messages", []),
+        *history,
         human_message,
     ]
 
@@ -118,7 +124,7 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
     original_messages = messages
     messages = await prepare_image_messages(
-        original_messages,
+        original_messages if supports_vision else without_image_inputs(original_messages),
         mode=image_mode,
         user_id=user_id,
         session_id=session_id,
@@ -132,6 +138,10 @@ async def quick_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
 
     async def prepare_fallback_prompt(model_reference: str):
+        if not await resolve_model_supports_vision(
+            None, model_reference, log_prefix="[QuickAgent]"
+        ):
+            return without_image_inputs(original_messages)
         mode = await resolve_model_image_url_mode(None, model_reference, log_prefix="[QuickAgent]")
         return await prepare_image_messages(
             original_messages,

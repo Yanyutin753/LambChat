@@ -198,6 +198,29 @@ def _image_block_placeholder(url: str | None) -> dict[str, Any]:
     return {"type": "text", "text": _OMITTED_PLACEHOLDER_NO_URL}
 
 
+def without_image_inputs(messages: list[Any]) -> list[Any]:
+    """Keep the checkpoint intact when replaying visual history to a text model."""
+    result = messages
+    for index, message in enumerate(messages):
+        if not isinstance(message.content, list):
+            continue
+        blocks = []
+        for block in message.content:
+            if isinstance(block, dict) and block.get("type") in {
+                "image_url",
+                "image",
+                "input_image",
+            }:
+                blocks.append(_image_block_placeholder(_image_url_from_block(block)))
+            else:
+                blocks.append(block)
+        if blocks != message.content:
+            if result is messages:
+                result = list(messages)
+            result[index] = message.model_copy(update={"content": blocks})
+    return result
+
+
 def _last_human_message_index(messages: list[Any]) -> int:
     for index in range(len(messages) - 1, -1, -1):
         if isinstance(messages[index], HumanMessage) and messages[index].name not in {

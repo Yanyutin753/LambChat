@@ -209,3 +209,131 @@ async def test_visual_tool_result_has_valid_openai_and_anthropic_payloads():
     assert anthropic[-1]["content"][-1]["type"] == "image"
     assert anthropic[-1]["content"][-1]["source"]["url"].endswith("/screen.jpg")
     assert tool.content == result.messages[1].content
+
+
+@pytest.mark.parametrize("with_evidence", [False, True])
+async def test_native_analysis_places_image_in_request_and_allows_text_model_switch(with_evidence):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+
+    from langgraph.types import Command
+
+    from src.infra.tool.image_analysis_tool import image_analyze
+
+    url = "https://example.org/chart.png"
+    call = {"name": "image_analyze", "args": {"image_urls": [url]}, "id": "vision-call"}
+    middleware = ToolResultBinaryMiddleware(supports_vision=True)
+
+    async def execute(request):
+        tool = await image_analyze.ainvoke({**request.tool_call, "type": "tool_call"})
+        return (
+            Command(update={"messages": [tool], "evidence": ["record"]}) if with_evidence else tool
+        )
+
+    with patch(
+        "src.infra.tool.image_analysis_tool._resolve_model_config", new_callable=AsyncMock
+    ) as resolve:
+        result = await middleware.awrap_tool_call(SimpleNamespace(tool_call=call), execute)
+        resolve.assert_not_awaited()
+    messages = [result]
+    if with_evidence:
+        assert result.update["evidence"] == ["record"]
+        messages = [
+            *result.update["messages"],
+            HumanMessage(
+                content="snapshot",
+                name="evidence_context",
+                additional_kwargs={"lambchat_evidence_snapshot": True},
+            ),
+        ]
+    visual = await middleware.awrap_model_call(Request(messages), capture)
+    assert visual.messages[-1].content[1]["image_url"]["url"] == url
+    text = await ToolResultBinaryMiddleware().awrap_model_call(visual, capture)
+    assert "image_url" not in str(text.messages[-1].content)
+    assert visual.messages[-1].content[1]["image_url"]["url"] == url
+
+
+async def test_text_fallback_receives_description_of_pending_native_analysis(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    describe = AsyncMock(return_value='{"analysis":"blue circle"}')
+    monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
+    blocks = [{"type": "image_url", "image_url": {"url": "https://example.org/circle.png"}}]
+    pending = ToolMessage(
+        content="Inspect image",
+        name="image_analyze",
+        tool_call_id="1",
+        artifact={"native_image_input": blocks},
+    )
+    request = Request([pending])
+    request.state = {"_fallback_supports_vision": False}
+    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
+        request, capture
+    )
+    assert result.messages[0].content == '{"analysis":"blue circle"}'
+    assert describe.await_args.args[0].content == blocks
+    assert pending.content == "Inspect image"
+
+
+@pytest.mark.parametrize("vision", [False, True])
+async def test_failed_tool_result_never_triggers_image_processing(vision, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    describe = AsyncMock()
+    monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
+    failed = ToolMessage(
+        content="Permission denied",
+        tool_call_id="denied",
+        name="image_analyze",
+        status="error",
+        artifact={"native_image_input": [{"type": "image_url", "image_url": {"url": "private"}}]},
+    )
+    request = Request([failed])
+    result = await ToolResultBinaryMiddleware(supports_vision=vision).awrap_model_call(
+        request, capture
+    )
+    describe.assert_not_awaited()
+    assert result is request
+
+
+@pytest.mark.parametrize("marker", [None, False, 1, "true"])
+async def test_new_user_turn_never_replays_previous_native_image(marker):
+    previous = ToolMessage(
+        name="image_analyze",
+        content="inspect",
+        tool_call_id="old",
+        artifact={"native_image_input": [{"type": "image_url", "image_url": {"url": "old"}}]},
+    )
+    user = HumanMessage(
+        content="next",
+        name="evidence_context",
+        additional_kwargs={"lambchat_evidence_snapshot": marker},
+    )
+    request = Request([previous, user])
+    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
+        request, capture
+    )
+    assert result is request
+
+
+async def test_multiple_native_results_preserve_call_and_image_order():
+    groups = [["a", "b"], ["c"]]
+    tools = [
+        ToolMessage(
+            name="image_analyze",
+            content="inspect",
+            tool_call_id=str(i),
+            artifact={
+                "native_image_input": [
+                    {"type": "image_url", "image_url": {"url": url}} for url in urls
+                ]
+            },
+        )
+        for i, urls in enumerate(groups)
+    ]
+    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
+        Request(tools), capture
+    )
+    assert [
+        [b["image_url"]["url"] for b in m.content] for m in result.messages[len(tools) :]
+    ] == groups

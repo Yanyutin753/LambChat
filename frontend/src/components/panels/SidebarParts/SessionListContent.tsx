@@ -417,7 +417,7 @@ export function SessionListContent({
           </button>
         )}
 
-        {!compactChrome && canReadScheduledTasks && (
+        {canReadScheduledTasks && (
           <button
             onClick={() => navigate("/scheduled-tasks")}
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
@@ -429,20 +429,18 @@ export function SessionListContent({
           </button>
         )}
 
-        {!compactChrome && (
-          <button
-            disabled={!hasPermission(Permission.FILE_READ)}
-            onClick={() => navigate("/files")}
-            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
-          >
-            <InteractiveIcon>
-              <FolderOpen size={16} />
-            </InteractiveIcon>
-            <span>{t("fileLibrary.title")}</span>
-          </button>
-        )}
+        <button
+          disabled={!hasPermission(Permission.FILE_READ)}
+          onClick={() => navigate("/files")}
+          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-hidden transition-colors"
+        >
+          <InteractiveIcon>
+            <FolderOpen size={16} />
+          </InteractiveIcon>
+          <span>{t("fileLibrary.title")}</span>
+        </button>
 
-        {!compactChrome && hasMoreMenuItems && (
+        {hasMoreMenuItems && (
           <div className="relative">
             <button
               ref={expandedMoreMenuBtnRef}

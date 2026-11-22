@@ -699,7 +699,7 @@ export const SessionSidebar = forwardRef<
 
         <MobileMoreMenuSheet
           featureItems={moreMenu.moreMenuFeatureItems}
-          isOpen={moreMenu.isMoreMenuOpen}
+          isOpen={isMobile && mobileOpen && moreMenu.isMoreMenuOpen}
           onClose={() => moreMenu.setIsMoreMenuOpen(false)}
           menuRef={moreMenu.moreMenuRef}
         />
