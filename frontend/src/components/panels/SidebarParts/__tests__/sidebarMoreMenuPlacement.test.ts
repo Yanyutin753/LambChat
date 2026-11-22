@@ -30,3 +30,12 @@ test("persona and team are not rendered as primary sidebar actions", () => {
   expect(sidebarRailSource).not.toMatch(/onOpenPersonaPlaza/);
   expect(sidebarRailSource).not.toMatch(/onOpenTeamBuilder/);
 });
+
+test("expanded desktop sidebar exposes labeled feature navigation", () => {
+  expect(sessionListContentSource).not.toContain(
+    "!compactChrome && hasMoreMenuItems",
+  );
+  expect(sessionListContentSource).not.toContain(
+    "!compactChrome && canReadScheduledTasks",
+  );
+});

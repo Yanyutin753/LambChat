@@ -11,6 +11,7 @@ import mimetypes
 import os
 import re
 import sys
+from contextvars import ContextVar
 from typing import Annotated, Any
 from urllib.parse import unquote, urlsplit
 
@@ -48,6 +49,9 @@ except ImportError:  # pragma: no cover
 from langchain.tools import tool  # noqa: E402
 
 logger = get_logger(__name__)
+
+# Scoped to one tool invocation, including parallel calls in the same agent.
+native_image_inputs: ContextVar[list[Any] | None] = ContextVar("native_image_inputs", default=None)
 
 DEFAULT_IMAGE_ANALYSIS_PROMPT = "Describe the image clearly and objectively."
 IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG = {
@@ -380,20 +384,38 @@ async def _invoke_with_retries(llm: Any, messages: list[Any]) -> Any:
     raise last_exc
 
 
-@tool
-async def image_analyze(
-    image_urls: Annotated[
-        list[str],
-        "Image URLs or project file URLs to inspect. Provide one or more images.",
-    ],
-    prompt: Annotated[
-        str,
-        "Question or instruction for the vision model, such as what to describe or compare.",
-    ] = DEFAULT_IMAGE_ANALYSIS_PROMPT,
-    runtime: Annotated[ToolRuntime | None, InjectedToolArg] = None,
+async def _analysis_error_result(exc: Exception) -> str:
+    if is_quota_error(exc):
+        raise exc
+    if isinstance(exc, AppError):
+        return await _json_dumps_result(
+            {"error": exc.display_message, "code": exc.error_code.code, "args": exc.args_data}
+        )
+    # 只记异常类型不记正文：LLM 异常消息可能内嵌请求体（图片 data URL），
+    # 全量落日志会泄露用户内容（test_image_analyze_model_error_omits_request_content 守卫）。
+    details = _model_error_details(exc)
+    logger.warning(
+        "[image_analyze] failed: error_type=%s status_code=%s provider_error=%s",
+        type(exc).__name__,
+        details["status_code"],
+        details["provider_error"],
+    )
+    if isinstance(exc, TimeoutError):
+        return await _json_dumps_result({"error": "Image analysis timed out", "retryable": True})
+    if details["status_code"] is not None:
+        return await _json_dumps_result(
+            {
+                "error": "Image analysis failed",
+                **details,
+                "retryable": is_retryable_model_error(exc),
+            }
+        )
+    return await _json_dumps_result({"error": "Image analysis failed"})
+
+
+async def analyze_image_message(
+    message: Any, *, user_id: str | None, session_id: str | None, base_url: str
 ) -> str:
-    """Analyze one or more images with the configured vision-language model.
-    Returns JSON {success, analysis, model_id}."""
     try:
         model_reference = str(getattr(settings, "IMAGE_ANALYSIS_MODEL_ID", "") or "").strip()
         if not model_reference:
@@ -409,6 +431,42 @@ async def image_analyze(
                 {"error": "Configured IMAGE_ANALYSIS_MODEL_ID does not support vision"}
             )
 
+        messages = await prepare_image_messages(
+            [message],
+            mode=effective_image_url_mode(model_config.profile),
+            user_id=user_id,
+            session_id=session_id,
+            base_url=base_url,
+        )
+        llm = await LLMClient.get_model(model_config=model_config)
+        response = await _call_with_retries(llm, messages)
+        analysis = _content_to_text(getattr(response, "content", response))
+        return await _json_dumps_result(
+            {
+                "success": True,
+                "analysis": analysis,
+                "model_id": model_config.id or model_reference,
+            }
+        )
+    except Exception as exc:
+        return await _analysis_error_result(exc)
+
+
+@tool
+async def image_analyze(
+    image_urls: Annotated[
+        list[str],
+        "Image URLs or project file URLs to inspect. Provide one or more images.",
+    ],
+    prompt: Annotated[
+        str,
+        "Question or instruction for the vision model, such as what to describe or compare.",
+    ] = DEFAULT_IMAGE_ANALYSIS_PROMPT,
+    runtime: Annotated[ToolRuntime | None, InjectedToolArg] = None,
+) -> str:
+    """Inspect images with the current vision model or the configured image analysis model."""
+    try:
+        native = native_image_inputs.get()
         attachments = _image_attachments_from_urls(image_urls)
         if not attachments:
             return await _json_dumps_result({"error": "image_urls must include at least one image"})
@@ -425,54 +483,18 @@ async def image_analyze(
         if isinstance(message.content, str):
             return await _json_dumps_result({"error": "No readable image URLs were provided"})
 
-        messages = await prepare_image_messages(
-            [message],
-            mode=effective_image_url_mode(model_config.profile),
+        if native is not None:
+            native.extend(message.content)
+            return "Inspect the supplied images and answer the requested question."
+
+        return await analyze_image_message(
+            message,
             user_id=get_user_id_from_runtime(runtime),
             session_id=get_session_id_from_runtime(runtime),
             base_url=get_base_url_from_runtime(runtime),
         )
-        llm = await LLMClient.get_model(model_config=model_config)
-        response = await _call_with_retries(llm, messages)
-        analysis = _content_to_text(getattr(response, "content", response))
-        return await _json_dumps_result(
-            {
-                "success": True,
-                "analysis": analysis,
-                "model_id": model_config.id or model_reference,
-            }
-        )
-    except AppError as exc:
-        if is_quota_error(exc):
-            raise
-        return await _json_dumps_result(
-            {"error": exc.display_message, "code": exc.error_code.code, "args": exc.args_data}
-        )
     except Exception as exc:
-        # 只记异常类型不记正文：LLM 异常消息可能内嵌请求体（图片 data URL），
-        # 全量落日志会泄露用户内容（test_image_analyze_model_error_omits_request_content 守卫）。
-        if is_quota_error(exc):
-            raise
-        details = _model_error_details(exc)
-        logger.warning(
-            "[image_analyze] failed: error_type=%s status_code=%s provider_error=%s",
-            type(exc).__name__,
-            details["status_code"],
-            details["provider_error"],
-        )
-        if isinstance(exc, TimeoutError):
-            return await _json_dumps_result(
-                {"error": "Image analysis timed out", "retryable": True}
-            )
-        if details["status_code"] is not None:
-            return await _json_dumps_result(
-                {
-                    "error": "Image analysis failed",
-                    **details,
-                    "retryable": is_retryable_model_error(exc),
-                }
-            )
-        return await _json_dumps_result({"error": "Image analysis failed"})
+        return await _analysis_error_result(exc)
 
 
 def get_image_analysis_tool() -> BaseTool:

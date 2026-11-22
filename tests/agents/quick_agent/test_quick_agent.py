@@ -23,6 +23,9 @@ from src.agents.quick_agent.state import QuickAgentState
 def image_reader(monkeypatch):
     from unittest.mock import AsyncMock
 
+    monkeypatch.setattr(
+        "src.agents.quick_agent.nodes.resolve_model_supports_vision", AsyncMock(return_value=True)
+    )
     from src.kernel.schemas.user import TokenPayload
 
     monkeypatch.setattr(
