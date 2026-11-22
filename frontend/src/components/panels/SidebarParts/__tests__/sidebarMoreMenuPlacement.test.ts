@@ -39,3 +39,13 @@ test("expanded desktop sidebar exposes labeled feature navigation", () => {
     "!compactChrome && canReadScheduledTasks",
   );
 });
+
+test("the mobile More dialog opens only inside an open mobile drawer", () => {
+  const sidebar = readFileSync(
+    new URL("../../SessionSidebar.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(sidebar).toMatch(
+    /<MobileMoreMenuSheet\b[^>]*isOpen=\{isMobile && mobileOpen && moreMenu\.isMoreMenuOpen\}/,
+  );
+});
