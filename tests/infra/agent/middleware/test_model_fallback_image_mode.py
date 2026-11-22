@@ -57,6 +57,9 @@ async def _run_fallback(monkeypatch, mode: str, primary_mode: str = "url") -> li
         "resolve_model_image_url_mode",
         AsyncMock(return_value=mode),
     )
+    monkeypatch.setattr(
+        node_utils_module, "resolve_model_supports_vision", AsyncMock(return_value=True)
+    )
     seen: list = []
 
     async def handler(request: ModelRequest) -> AIMessage:

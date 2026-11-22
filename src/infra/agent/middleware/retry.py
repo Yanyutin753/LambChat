@@ -228,14 +228,26 @@ class ModelFallbackMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         """Select the transport here; the image middleware applies it once after tool results."""
-        from src.agents.core.node_utils import resolve_model_image_url_mode
+        from src.agents.core.node_utils import (
+            resolve_model_image_url_mode,
+            resolve_model_supports_vision,
+        )
 
         mode = await resolve_model_image_url_mode(
             getattr(request.model, "quota_model_config_id", None),
             self._fallback_model,
             log_prefix="[ModelFallback]",
         )
-        state = {**getattr(request, "state", {}), "_fallback_image_url_mode": mode}
+        vision = await resolve_model_supports_vision(
+            getattr(request.model, "quota_model_config_id", None),
+            self._fallback_model,
+            log_prefix="[ModelFallback]",
+        )
+        state = {
+            **getattr(request, "state", {}),
+            "_fallback_image_url_mode": mode,
+            "_fallback_supports_vision": vision,
+        }
         return await handler(request.override(state=cast("AgentState[Any]", state)))
 
     async def _invoke_fallback(
