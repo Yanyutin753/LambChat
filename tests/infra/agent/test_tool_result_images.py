@@ -337,3 +337,160 @@ async def test_multiple_native_results_preserve_call_and_image_order():
     assert [
         [b["image_url"]["url"] for b in m.content] for m in result.messages[len(tools) :]
     ] == groups
+
+
+def _native_block(url: str) -> dict:
+    return {"type": "image_url", "image_url": {"url": url}}
+
+
+def _appended_image_urls(result, original_count: int) -> list[str]:
+    return [
+        block["image_url"]["url"]
+        for message in result.messages[original_count:]
+        for block in message.content
+        if isinstance(block, dict) and block.get("type") == "image_url"
+    ]
+
+
+async def test_native_image_batch_is_bounded_across_tool_results():
+    groups = [["a", "b"], ["c", "d"], ["e", "f"]]
+    tools = [
+        ToolMessage(
+            name="image_analyze",
+            content="inspect",
+            tool_call_id=str(i),
+            artifact={"native_image_input": [_native_block(url) for url in urls]},
+        )
+        for i, urls in enumerate(groups)
+    ]
+    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
+        Request(tools), capture
+    )
+    assert _appended_image_urls(result, len(tools)) == ["a", "b", "c", "d"]
+    omitted = [
+        block
+        for message in result.messages[len(tools) :]
+        for block in message.content
+        if isinstance(block, dict) and block.get("type") == "text" and "omitted" in block.get("text", "")
+    ]
+    assert len(omitted) == 2
+
+
+async def test_native_image_batch_deduplicates_repeated_urls():
+    tools = [
+        ToolMessage(
+            name="image_analyze",
+            content="inspect",
+            tool_call_id="1",
+            artifact={"native_image_input": [_native_block("a")]},
+        ),
+        ToolMessage(
+            name="image_analyze",
+            content="inspect",
+            tool_call_id="2",
+            artifact={"native_image_input": [_native_block("a"), _native_block("b")]},
+        ),
+    ]
+    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
+        Request(tools), capture
+    )
+    assert _appended_image_urls(result, len(tools)) == ["a", "b"]
+
+
+async def test_native_data_url_artifact_is_materialized_to_storage_url(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool.image_analysis_tool import native_image_inputs
+
+    data_block = _native_block("data:image/png;base64,iVBORw0KGgo=")
+    http_block = _native_block("https://example.org/keep.png")
+
+    async def execute(request):
+        captured = native_image_inputs.get()
+        captured.append(data_block)
+        captured.append(http_block)
+        return ToolMessage(content="inspect", name="image_analyze", tool_call_id="call-1")
+
+    middleware = ToolResultBinaryMiddleware(supports_vision=True)
+    upload = AsyncMock(
+        return_value="https://app.example.com/api/upload/file/tool_binaries/abc.png"
+    )
+    monkeypatch.setattr(middleware, "_upload_block", upload)
+
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(tool_call={"name": "image_analyze", "args": {}, "id": "call-1"}),
+        execute,
+    )
+    stored = result.artifact["native_image_input"]
+    assert stored[0]["image_url"]["url"].endswith("/api/upload/file/tool_binaries/abc.png")
+    assert "base64" not in json.dumps(stored)
+    assert stored[1]["image_url"]["url"] == "https://example.org/keep.png"
+    upload.assert_awaited_once()
+
+
+async def test_native_data_url_survives_when_storage_upload_fails(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from src.infra.tool.image_analysis_tool import native_image_inputs
+
+    data_block = _native_block("data:image/png;base64,iVBORw0KGgo=")
+
+    async def execute(request):
+        native_image_inputs.get().append(data_block)
+        return ToolMessage(content="inspect", name="image_analyze", tool_call_id="call-1")
+
+    middleware = ToolResultBinaryMiddleware(supports_vision=True)
+    monkeypatch.setattr(middleware, "_upload_block", AsyncMock(return_value=None))
+
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(tool_call={"name": "image_analyze", "args": {}, "id": "call-1"}),
+        execute,
+    )
+    stored = result.artifact["native_image_input"]
+    assert stored[0]["image_url"]["url"] == "data:image/png;base64,iVBORw0KGgo="
+
+
+async def test_text_fallback_replays_cached_analysis_without_repeat_calls(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    describe = AsyncMock(return_value='{"success": true, "analysis": "blue circle"}')
+    monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
+    pending = ToolMessage(
+        content="Inspect image",
+        name="image_analyze",
+        tool_call_id="1",
+        artifact={"native_image_input": [_native_block("https://example.org/circle.png")]},
+    )
+    request = Request([pending])
+    request.state = {"_fallback_supports_vision": False}
+    middleware = ToolResultBinaryMiddleware(supports_vision=True)
+    first = await middleware.awrap_model_call(request, capture)
+    second = await middleware.awrap_model_call(request, capture)
+    assert first.messages[0].content == '{"success": true, "analysis": "blue circle"}'
+    assert second.messages[0].content == first.messages[0].content
+    assert describe.await_count == 1
+    assert pending.content == "Inspect image"
+
+
+async def test_text_fallback_retries_analysis_that_did_not_succeed(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    describe = AsyncMock(
+        side_effect=['{"error": "Image analysis failed"}', '{"success": true, "analysis": "ok"}']
+    )
+    monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
+    pending = ToolMessage(
+        content="Inspect image",
+        name="image_analyze",
+        tool_call_id="1",
+        artifact={"native_image_input": [_native_block("https://example.org/circle.png")]},
+    )
+    request = Request([pending])
+    request.state = {"_fallback_supports_vision": False}
+    middleware = ToolResultBinaryMiddleware(supports_vision=True)
+    await middleware.awrap_model_call(request, capture)
+    second = await middleware.awrap_model_call(request, capture)
+    assert describe.await_count == 2
+    assert second.messages[0].content == '{"success": true, "analysis": "ok"}'

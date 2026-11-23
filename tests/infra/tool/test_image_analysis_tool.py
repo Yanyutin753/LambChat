@@ -325,6 +325,27 @@ async def test_image_analyze_retries_failed_model_calls(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_image_analyze_caps_native_url_batch():
+    from src.infra.tool.image_analysis_tool import image_analyze, native_image_inputs
+
+    urls = [f"https://example.org/p{index}.png" for index in range(6)]
+    captured: list = []
+    token = native_image_inputs.set(captured)
+    try:
+        result = await image_analyze.ainvoke({"image_urls": urls, "prompt": "describe"})
+    finally:
+        native_image_inputs.reset(token)
+
+    image_blocks = [
+        block
+        for block in captured
+        if isinstance(block, dict) and block.get("type") == "image_url"
+    ]
+    assert [block["image_url"]["url"] for block in image_blocks] == urls[:4]
+    assert "first 4 of 6" in result
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "path",
     [

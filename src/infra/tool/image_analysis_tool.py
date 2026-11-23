@@ -53,6 +53,11 @@ logger = get_logger(__name__)
 # Scoped to one tool invocation, including parallel calls in the same agent.
 native_image_inputs: ContextVar[list[Any] | None] = ContextVar("native_image_inputs", default=None)
 
+# 单次 image_analyze 最多携带的图片数；与 ToolResultBinaryMiddleware 的
+# _BINARY_BLOCK_UPLOAD_MAX_BLOCKS（单次模型请求 4 图上限）保持同一口径，
+# 避免无上限的下载/编码/持久化放大。
+NATIVE_IMAGE_INPUT_MAX = 4
+
 DEFAULT_IMAGE_ANALYSIS_PROMPT = "Describe the image clearly and objectively."
 IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG = {
     "metadata": {"lc_source": "image_analysis_tool", "internal_tool_call": True},
@@ -471,6 +476,15 @@ async def image_analyze(
         if not attachments:
             return await _json_dumps_result({"error": "image_urls must include at least one image"})
 
+        requested_images = len(attachments)
+        if requested_images > NATIVE_IMAGE_INPUT_MAX:
+            logger.warning(
+                "[image_analyze] capping image batch: requested=%s max=%s",
+                requested_images,
+                NATIVE_IMAGE_INPUT_MAX,
+            )
+            attachments = attachments[:NATIVE_IMAGE_INPUT_MAX]
+
         attachments = await _inline_backend_image_paths(attachments, runtime)
         try:
             await run_long_blocking_io(_validate_attachment_data_urls, attachments)
@@ -485,6 +499,12 @@ async def image_analyze(
 
         if native is not None:
             native.extend(message.content)
+            if requested_images > NATIVE_IMAGE_INPUT_MAX:
+                return (
+                    "Inspect the supplied images and answer the requested question. "
+                    f"(Only the first {NATIVE_IMAGE_INPUT_MAX} of {requested_images} "
+                    "requested images were attached.)"
+                )
             return "Inspect the supplied images and answer the requested question."
 
         return await analyze_image_message(
