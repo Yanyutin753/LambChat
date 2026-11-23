@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from hashlib import sha256
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.messages import AIMessage, BaseMessage
@@ -17,6 +19,7 @@ from src.infra.llm.providers import is_zhipu_thinking_model
 from src.infra.llm.quota import QuotaChatMixin
 from src.infra.llm.responses_cache import current_responses_prompt_cache_key
 from src.infra.llm.streaming import aiter_with_first_event_timeout
+from src.infra.logging.context import TraceContext
 from src.kernel.config import settings
 
 _OPENAI_OFFICIAL_HOSTS = frozenset({"api.openai.com"})
@@ -115,6 +118,7 @@ class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     stream_idle_timeout: float | None = Field(default=None, exclude=True)
     stream_gap_warn_timeout: float | None = Field(default=None, exclude=True)
+    opencode_session_header: bool = Field(default=False, exclude=True)
 
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
@@ -123,6 +127,17 @@ class LambChatOpenAIChatModel(QuotaChatMixin, ChatOpenAI):
         if not self._use_responses_api({**self._default_params, **kwargs}):
             messages = chat_file_url_references(messages)
         payload = super()._get_request_payload(messages, stop=stop, **kwargs)
+        if self.opencode_session_header:
+            headers = payload.get("extra_headers") or {}
+            if not any(header.lower() == "x-opencode-session" for header in headers):
+                user_id = TraceContext.get_user_id()
+                session_id = TraceContext.get_session_id()
+                # Keep routing stable within a conversation without exposing internal IDs.
+                if user_id and session_id:
+                    route_id = sha256(f"{user_id}\0{session_id}".encode()).hexdigest()[:32]
+                else:
+                    route_id = uuid4().hex
+                payload["extra_headers"] = {**headers, "x-opencode-session": f"ses_{route_id}"}
         # 历史回传的 reasoning/function_call 等输出 item 带 status 只读字段，
         # 严格校验的端点会整体 400（生产 2026-09-17：input[13].status），
         # 在统一出口剥离后再注入其余字段。
