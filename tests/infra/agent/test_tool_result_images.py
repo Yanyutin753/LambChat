@@ -371,7 +371,9 @@ async def test_native_image_batch_is_bounded_across_tool_results():
         block
         for message in result.messages[len(tools) :]
         for block in message.content
-        if isinstance(block, dict) and block.get("type") == "text" and "omitted" in block.get("text", "")
+        if isinstance(block, dict)
+        and block.get("type") == "text"
+        and "omitted" in block.get("text", "")
     ]
     assert len(omitted) == 2
 
@@ -413,9 +415,7 @@ async def test_native_data_url_artifact_is_materialized_to_storage_url(monkeypat
         return ToolMessage(content="inspect", name="image_analyze", tool_call_id="call-1")
 
     middleware = ToolResultBinaryMiddleware(supports_vision=True)
-    upload = AsyncMock(
-        return_value="https://app.example.com/api/upload/file/tool_binaries/abc.png"
-    )
+    upload = AsyncMock(return_value="https://app.example.com/api/upload/file/tool_binaries/abc.png")
     monkeypatch.setattr(middleware, "_upload_block", upload)
 
     result = await middleware.awrap_tool_call(

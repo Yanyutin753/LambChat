@@ -337,9 +337,7 @@ async def test_image_analyze_caps_native_url_batch():
         native_image_inputs.reset(token)
 
     image_blocks = [
-        block
-        for block in captured
-        if isinstance(block, dict) and block.get("type") == "image_url"
+        block for block in captured if isinstance(block, dict) and block.get("type") == "image_url"
     ]
     assert [block["image_url"]["url"] for block in image_blocks] == urls[:4]
     assert "first 4 of 6" in result

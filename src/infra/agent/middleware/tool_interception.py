@@ -48,6 +48,11 @@ from src.infra.agent.middleware.binary_tool_blocks import (
     _redact_oversized_binary_block,
     _write_bytes_to_file,
 )
+from src.infra.agent.middleware.native_image_blocks import (
+    bounded_native_image_messages,
+    materialize_native_blocks,
+    native_analysis_succeeded,
+)
 from src.infra.async_utils import run_blocking_io, run_long_blocking_io
 from src.infra.image_utils import (
     MODEL_SAFE_IMAGE_MIME_TYPES,
@@ -170,49 +175,6 @@ def _pending_tool_results(messages: Sequence[BaseMessage]) -> Iterator[tuple[int
             break
 
 
-_NATIVE_IMAGE_OMITTED_NOTE = "[image omitted: per-request native image limit]"
-
-
-def _bounded_native_image_messages(groups: list[list[Any]]) -> list[HumanMessage]:
-    """按时间序限制单次模型请求携带的 native 图片总量并按 URL 去重。
-
-    与附件路径的 _BINARY_BLOCK_UPLOAD_MAX_BLOCKS 同一口径（4 图）：超限图片
-    替换为文本占位、重复 URL 直接省略（同请求内模型已见过该图）。预算与
-    computer_use/read_file 附件路径相互独立，互不挤占。
-    """
-    seen: set[str] = set()
-    kept = 0
-    messages: list[HumanMessage] = []
-    for blocks in groups:
-        bounded: list[Any] = []
-        for block in blocks:
-            image_url = block.get("image_url") if isinstance(block, dict) else None
-            url = image_url.get("url") if isinstance(image_url, dict) else None
-            if not isinstance(url, str):
-                bounded.append(block)
-                continue
-            if url in seen:
-                continue
-            if kept >= _BINARY_BLOCK_UPLOAD_MAX_BLOCKS:
-                bounded.append({"type": "text", "text": _NATIVE_IMAGE_OMITTED_NOTE})
-                continue
-            seen.add(url)
-            kept += 1
-            bounded.append(block)
-        if bounded:
-            messages.append(HumanMessage(content=bounded))
-    return messages
-
-
-def _native_analysis_succeeded(analysis: str) -> bool:
-    """只有成功分析才值得缓存；失败结果保留后续重试机会。"""
-    try:
-        payload = json.loads(analysis)
-    except (ValueError, TypeError):
-        return False
-    return isinstance(payload, dict) and payload.get("success") is True
-
-
 class ToolResultBinaryMiddleware(AgentMiddleware):
     """Upload base64 binary data and replace with URL before sending ToolMessage to LLM.
 
@@ -265,7 +227,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                             session_id=self._session_id,
                             base_url=self._base_url,
                         )
-                        if _native_analysis_succeeded(analysis):
+                        if native_analysis_succeeded(analysis):
                             self._native_analysis_cache[pending.tool_call_id] = analysis
                     if messages is request.messages:
                         messages = list(messages)
@@ -370,9 +332,9 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     attachment = inlined[0]
                 attachments.append(attachment)
         if native_groups:
-            # _pending_tool_results 从新到旧产出；反转恢复时间序后按 4 图上限
-            # 去重收敛（_bounded_native_image_messages）。
-            bounded = _bounded_native_image_messages(list(reversed(native_groups)))
+            # _pending_tool_results 从新到旧产出；反转恢复时间序后按单请求图片
+            # 上限去重收敛（bounded_native_image_messages）。
+            bounded = bounded_native_image_messages(list(reversed(native_groups)))
             if bounded:
                 request = request.override(messages=[*request.messages, *bounded])
         if attachments:
@@ -410,7 +372,9 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 result = await handler(request)
             finally:
                 native_image_inputs.reset(token)
-            artifact = {"native_image_input": await self._materialize_native_blocks(blocks)}
+            artifact = {
+                "native_image_input": await materialize_native_blocks(blocks, self._upload_block)
+            }
             if blocks and isinstance(result, ToolMessage):
                 result = result.model_copy(update={"artifact": artifact})
             elif blocks and isinstance(result, Command) and isinstance(result.update, dict):
@@ -482,40 +446,6 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
             status=getattr(result, "status", None),
             artifact=getattr(result, "artifact", None),
         )
-
-    async def _materialize_native_blocks(self, blocks: list[Any]) -> list[Any]:
-        """把 native 图片块中的 data URL 上传存储换成本站 URL。
-
-        ToolMessage 的 artifact 会随 checkpoint 持久化，完整 base64 会让
-        MongoDB 状态体积随图片数线性膨胀；换成 /api/upload/file/ URL 引用后
-        由内层图片中间件在模型请求侧按模式做私钥授权与格式转换。上传失败时
-        保留原 data URL（宁可状态膨胀也不丢图）。
-        """
-        materialized: list[Any] = []
-        for block in blocks:
-            image_url = block.get("image_url") if isinstance(block, dict) else None
-            url = image_url.get("url") if isinstance(image_url, dict) else None
-            if (
-                isinstance(url, str)
-                and url.startswith("data:")
-                and isinstance(image_url, dict)
-            ):
-                uploaded = await self._upload_data_url_image(url)
-                if uploaded:
-                    block = {**block, "image_url": {**image_url, "url": uploaded}}
-            materialized.append(block)
-        return materialized
-
-    async def _upload_data_url_image(self, data_url: str) -> str | None:
-        header, _, payload = data_url.partition(",")
-        mime_type = (
-            header[len("data:") :].split(";", 1)[0].lower()
-            if header.startswith("data:")
-            else ""
-        )
-        if not mime_type.startswith("image/") or not payload:
-            return None
-        return await self._upload_block({"base64": payload, "mime_type": mime_type})
 
     @staticmethod
     async def _format_uploaded_blocks_for_llm(blocks: list[str | dict[str, Any]]) -> str:
