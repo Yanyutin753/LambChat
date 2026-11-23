@@ -82,6 +82,8 @@ class _AsyncSandboxConnection:
 _DEFAULT_TIMEOUT = 30 * 60
 SANDBOX_GLOB_MAX_MATCHES = 1000
 SANDBOX_GLOB_TIMEOUT_SECONDS = 15
+# async 车道不可用时流式下载的慢道分块大小（与 Cube 原生流的 256KiB 对齐）
+_STREAM_FALLBACK_CHUNK_BYTES = 256 * 1024
 
 
 def _grep_result(parsed: list[GrepMatch] | str, max_count: int | None) -> GrepResult:
@@ -210,7 +212,14 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
     async def _aiter_file_bytes(self, path: str) -> AsyncGenerator[bytes, None]:
         sandbox = await self._async_client_or_none()
         if sandbox is None:
-            raise IOError("async file stream unavailable")
+            # async 车道不可用（如凭据缺失被禁用）时回落线程慢道：同步整读后分块
+            # 产出，保持流式接口可用，与 als/aread 的回落策略一致。整读内存占用
+            # 与既有同步 download 路径相同，大小上限由 download_files 与
+            # bounded_async_chunks 双重把关。
+            content = await run_long_blocking_io(self._stream_fallback_read, path)
+            for offset in range(0, len(content), _STREAM_FALLBACK_CHUNK_BYTES):
+                yield content[offset : offset + _STREAM_FALLBACK_CHUNK_BYTES]
+            return
         reader = await self._asdk(
             "files.read", lambda: sandbox.files.read(path=path, format="stream")
         )
@@ -219,6 +228,16 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
                 yield chunk
         finally:
             await reader.aclose()
+
+    def _stream_fallback_read(self, path: str) -> bytes:
+        """慢道兜底读取：复用 download_files 的大小上限与错误分类。"""
+        responses = self.download_files([path])
+        if not responses:
+            raise IOError("file stream fallback failed")
+        response = responses[0]
+        if response.content is None:
+            raise IOError(response.error or "file stream fallback failed")
+        return response.content
 
     async def astream_file(self, path: str) -> AsyncGenerator[bytes, None]:
         from src.infra.sandbox.file_stream import bounded_async_chunks

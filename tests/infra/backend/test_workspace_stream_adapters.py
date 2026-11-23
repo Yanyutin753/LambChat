@@ -74,3 +74,25 @@ async def test_e2b_async_stream_is_closed_on_cancel(monkeypatch):
     assert await anext(stream) == b"abc"
     await stream.aclose()
     assert closed == [True]
+
+
+async def test_e2b_stream_falls_back_to_sync_lane_when_async_unavailable(monkeypatch):
+    from src.infra.backend.e2b import E2BBackend
+
+    payload = b"x" * (300 * 1024)
+
+    async def no_client():
+        return None
+
+    def download_files(paths):
+        assert paths == ["/w/image.png"]
+        return [SimpleNamespace(path="/w/image.png", content=payload, error=None)]
+
+    backend = E2BBackend(SimpleNamespace(sandbox_id="sandbox"), work_dir="/w")
+    monkeypatch.setattr(backend, "_file_size", lambda path: len(payload))
+    monkeypatch.setattr(backend, "_async_client_or_none", no_client)
+    monkeypatch.setattr(backend, "download_files", download_files)
+    chunks = [chunk async for chunk in backend.astream_file("image.png")]
+    assert b"".join(chunks) == payload
+    assert max(len(chunk) for chunk in chunks) <= 256 * 1024
+    assert len(chunks) == 2
