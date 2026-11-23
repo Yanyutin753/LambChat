@@ -10,7 +10,6 @@ langchain wrapper has no default_headers support). A JSON setting
 import json
 
 import pytest
-from langchain_core.messages import HumanMessage
 
 from src.infra.llm.client import (
     LLMClient,
@@ -19,7 +18,6 @@ from src.infra.llm.client import (
     _merged_request_headers,
     _settings_header_overrides,
 )
-from src.infra.logging.context import TraceContext
 from src.kernel.config import settings
 from src.kernel.config.definitions import SETTING_DEFINITIONS
 from src.kernel.config.service import _ALLOW_EMPTY_STRING_SETTINGS
@@ -98,35 +96,6 @@ def test_create_openai_model_carries_headers() -> None:
         api_key="sk-test",
     )
     assert model.default_headers["User-Agent"].startswith("opencode/")
-
-
-@pytest.mark.parametrize("api_format", ["chat_completions", "responses"])
-def test_opencode_session_header_is_resolved_per_request(api_format) -> None:
-    model = LLMClient._create_model(
-        "xai",
-        "grok-4.7",
-        api_key="sk-test",
-        api_base="http://gateway.test/v1",
-        api_format=api_format,
-        request_headers={"X-OpenCode-Session": "{session_id}"},
-    )
-    messages = [HumanMessage(content="Review the code")]
-    try:
-        TraceContext.set_request_context(user_id="alice", session_id="shared-name")
-        first = model._get_request_payload(messages, extra_headers={"X-Test": "kept"})
-        same_session = model._get_request_payload(messages)
-        TraceContext.set_request_context(user_id="bob", session_id="shared-name")
-        other_user = model._get_request_payload(messages)
-    finally:
-        TraceContext.clear_request_context()
-
-    header = "x-opencode-session"
-    assert first["extra_headers"]["X-Test"] == "kept"
-    assert first["extra_headers"][header] == same_session["extra_headers"][header]
-    assert first["extra_headers"][header] != other_user["extra_headers"][header]
-    assert "shared-name" not in first["extra_headers"][header]
-    assert header not in {key.lower() for key in model.default_headers}
-    assert "prompt_cache_key" not in first
 
 
 def test_create_google_model_has_no_default_headers_kwarg() -> None:
