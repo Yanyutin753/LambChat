@@ -375,13 +375,6 @@ class LLMClient:
                 google_kwargs["profile"] = profile
             return ChatGoogleGenerativeAI(**google_kwargs, **kwargs)
 
-        opencode_session_header = False
-        if request_headers:
-            for header, value in list(request_headers.items()):
-                if header.lower() == "x-opencode-session" and value == "{session_id}":
-                    del request_headers[header]
-                    opencode_session_header = True
-
         openai_kwargs: dict[str, Any] = {
             "model": model_name,
             "temperature": temperature,
@@ -400,7 +393,6 @@ class LLMClient:
             "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
             "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
             "stream_gap_warn_timeout": _effective_timeout(settings.LLM_STREAM_GAP_WARN_TIMEOUT),
-            "opencode_session_header": opencode_session_header,
         }
         # Share one httpx connection pool across parameter variants of the
         # same endpoint (see _acquire_pooled_http_async_client).
