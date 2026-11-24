@@ -3813,6 +3813,36 @@ test.each([false, true])(
   },
 );
 
+test.each([
+  ['[{"content":"Review the result","status":"pending"}]'],
+  ['[{"content":'],
+  [{ content: "Review the result", status: "pending" }],
+])(
+  "keeps the last checklist when a tool sends non-array todos (%j)",
+  (todos) => {
+    const events: HistoryEvent[] = [
+      {
+        event_type: "todo:updated",
+        run_id: "todo-history",
+        data: {
+          todos: [{ content: "Review the result", status: "completed" }],
+        },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "todo-history",
+        data: { tool: "write_todos", tool_call_id: "todo-1", args: { todos } },
+      },
+    ];
+    const [message] = reconstructMessagesFromEvents(events, new Set(), {
+      activeSubagentStack: [],
+    });
+    expect(message.parts?.find((part) => part.type === "todo")).toMatchObject({
+      items: [{ content: "Review the result", status: "completed" }],
+    });
+  },
+);
+
 test.each(["todo_write", "write_todos"])(
   "%s with an existing tool ID retains checklist dispatch precedence",
   (tool) => {

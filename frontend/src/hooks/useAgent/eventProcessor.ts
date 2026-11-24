@@ -711,8 +711,9 @@ export function processMessageEvent(
     // ---- Todo events ----
 
     case "todo:updated": {
-      const todos = (data.todos || []) as TodoPart["items"];
-      if (!todos.length) break;
+      const todos = data.todos;
+      // Tool-start can contain rejected arguments, including a JSON string.
+      if (!Array.isArray(todos) || !todos.length) break;
       const todoPart: TodoPart = { type: "todo", items: todos, isStreaming };
       if (depth > 0) {
         result.parts = addPartToDepth(
