@@ -50,9 +50,12 @@ def _fake_fallback_llm(monkeypatch, *, text: str = "fallback summary"):
     return get_model, fake
 
 
-async def test_retryable_summary_failure_switches_to_fallback_model(monkeypatch) -> None:
+@pytest.mark.parametrize("keep", [None, ("fraction", 0.1)])
+async def test_retryable_summary_failure_switches_to_fallback_model(monkeypatch, keep) -> None:
     mw = _stub_middleware(fail_with=TimeoutError("model stream produced no first event"))
-    get_model, _ = _fake_fallback_llm(monkeypatch)
+    mw._lc_helper.keep = keep
+    get_model, fallback = _fake_fallback_llm(monkeypatch)
+    assert not fallback.profile
 
     protected = protect_summarization_middleware(
         mw, fallback_model="openai/fallback-model", thinking=None
@@ -62,6 +65,7 @@ async def test_retryable_summary_failure_switches_to_fallback_model(monkeypatch)
 
     assert result == "fallback summary"
     get_model.assert_awaited_once_with(model="openai/fallback-model", thinking=None)
+    assert mw._lc_helper.keep == keep
 
 
 def _openai_authentication_error():

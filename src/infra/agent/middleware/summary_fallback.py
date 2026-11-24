@@ -54,9 +54,8 @@ _summary_patch_originals: tuple[Any, Any] | None = None
 # 字节/token ≈ 1844）。langchain 默认按 85 token/张计，图片再多也推不动压缩触发器。
 _IMAGE_TOKEN_ESTIMATE = 1844
 
-# 从 lc SummarizationMiddleware 实例上拷贝到兜底 helper 的配置项，
-# 保证兜底摘要使用与主摘要一致的提示词与裁剪预算。
-_HELPER_SETTINGS = ("summary_prompt", "trim_tokens_to_summarize", "token_counter", "keep")
+# 兜底只生成已切分历史的摘要。keep 属于主中间件，可能依赖其模型的 profile。
+_HELPER_SETTINGS = ("summary_prompt", "trim_tokens_to_summarize", "token_counter")
 
 
 def _reuse_summary_prefix(
