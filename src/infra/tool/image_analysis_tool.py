@@ -11,7 +11,6 @@ import mimetypes
 import os
 import re
 import sys
-from contextvars import ContextVar
 from typing import Annotated, Any
 from urllib.parse import unquote, urlsplit
 
@@ -49,9 +48,6 @@ except ImportError:  # pragma: no cover
 from langchain.tools import tool  # noqa: E402
 
 logger = get_logger(__name__)
-
-# Scoped to one tool invocation, including parallel calls in the same agent.
-native_image_inputs: ContextVar[list[Any] | None] = ContextVar("native_image_inputs", default=None)
 
 DEFAULT_IMAGE_ANALYSIS_PROMPT = "Describe the image clearly and objectively."
 IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG = {
@@ -464,9 +460,8 @@ async def image_analyze(
     ] = DEFAULT_IMAGE_ANALYSIS_PROMPT,
     runtime: Annotated[ToolRuntime | None, InjectedToolArg] = None,
 ) -> str:
-    """Inspect images with the current vision model or the configured image analysis model."""
+    """Inspect images with the configured vision model and return a text analysis."""
     try:
-        native = native_image_inputs.get()
         attachments = _image_attachments_from_urls(image_urls)
         if not attachments:
             return await _json_dumps_result({"error": "image_urls must include at least one image"})
@@ -482,10 +477,6 @@ async def image_analyze(
         )
         if isinstance(message.content, str):
             return await _json_dumps_result({"error": "No readable image URLs were provided"})
-
-        if native is not None:
-            native.extend(message.content)
-            return "Inspect the supplied images and answer the requested question."
 
         return await analyze_image_message(
             message,

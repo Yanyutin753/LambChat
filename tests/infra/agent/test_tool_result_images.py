@@ -1,6 +1,8 @@
 """Images from tool observations must reach the model without changing stored results."""
 
 import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -9,11 +11,17 @@ from src.infra.agent.middleware.tool_interception import ToolResultBinaryMiddlew
 
 
 class Request:
-    def __init__(self, messages):
+    def __init__(self, messages, *, model=None, state=None):
         self.messages = messages
+        self.model = model
+        self.state = state or {}
 
     def override(self, **kwargs):
-        return Request(kwargs.get("messages", self.messages))
+        return Request(
+            kwargs.get("messages", self.messages),
+            model=kwargs.get("model", self.model),
+            state=kwargs.get("state", self.state),
+        )
 
 
 async def capture(request):
@@ -22,8 +30,6 @@ async def capture(request):
 
 @pytest.mark.parametrize("tool_name", ["read_file", "computer_use"])
 async def test_tool_image_is_injected_only_into_the_outbound_model_request(tool_name, monkeypatch):
-    from unittest.mock import AsyncMock
-
     monkeypatch.setattr(
         "src.infra.upload.file_record.FileRecordStorage.find_by_key", AsyncMock(return_value=None)
     )
@@ -211,51 +217,61 @@ async def test_visual_tool_result_has_valid_openai_and_anthropic_payloads():
     assert tool.content == result.messages[1].content
 
 
-@pytest.mark.parametrize("with_evidence", [False, True])
-async def test_native_analysis_places_image_in_request_and_allows_text_model_switch(with_evidence):
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock, patch
-
-    from langgraph.types import Command
-
+@pytest.mark.parametrize("fallback_vision", [False, True])
+async def test_image_analysis_returns_text_to_primary_and_fallback(fallback_vision, monkeypatch):
+    from src.infra.agent.middleware.image_url import ImageUrlAccessMiddleware
+    from src.infra.agent.middleware.retry import ModelFallbackMiddleware
     from src.infra.tool.image_analysis_tool import image_analyze
 
+    describe = AsyncMock(return_value='{"analysis":"blue circle"}')
+    monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
+    monkeypatch.setattr(
+        "src.agents.core.node_utils.resolve_model_image_url_mode",
+        AsyncMock(return_value="storage_direct"),
+    )
+    monkeypatch.setattr(
+        "src.agents.core.node_utils.resolve_model_supports_vision",
+        AsyncMock(return_value=fallback_vision),
+    )
     url = "https://example.org/chart.png"
     call = {"name": "image_analyze", "args": {"image_urls": [url]}, "id": "vision-call"}
     middleware = ToolResultBinaryMiddleware(supports_vision=True)
+    primary, backup = object(), object()
+    fallback = ModelFallbackMiddleware(fallback_model="backup")
+    fallback._fallback_llm = backup
 
     async def execute(request):
-        tool = await image_analyze.ainvoke({**request.tool_call, "type": "tool_call"})
-        return (
-            Command(update={"messages": [tool], "evidence": ["record"]}) if with_evidence else tool
-        )
+        return await image_analyze.ainvoke({**request.tool_call, "type": "tool_call"})
 
-    with patch(
-        "src.infra.tool.image_analysis_tool._resolve_model_config", new_callable=AsyncMock
-    ) as resolve:
-        result = await middleware.awrap_tool_call(SimpleNamespace(tool_call=call), execute)
-        resolve.assert_not_awaited()
-    messages = [result]
-    if with_evidence:
-        assert result.update["evidence"] == ["record"]
-        messages = [
-            *result.update["messages"],
-            HumanMessage(
-                content="snapshot",
-                name="evidence_context",
-                additional_kwargs={"lambchat_evidence_snapshot": True},
-            ),
-        ]
-    visual = await middleware.awrap_model_call(Request(messages), capture)
-    assert visual.messages[-1].content[1]["image_url"]["url"] == url
-    text = await ToolResultBinaryMiddleware().awrap_model_call(visual, capture)
-    assert "image_url" not in str(text.messages[-1].content)
-    assert visual.messages[-1].content[1]["image_url"]["url"] == url
+    tool = await middleware.awrap_tool_call(SimpleNamespace(tool_call=call), execute)
+    describe.assert_awaited_once()
+    assert describe.await_args.args[0].content[1]["image_url"]["url"] == url
+    assert tool.artifact is None
+
+    attempted = []
+
+    async def invoke(request):
+        attempted.append(request.model)
+        assert request.messages == [tool]
+        assert request.messages[0].content == '{"analysis":"blue circle"}'
+        if request.model is primary:
+            raise ValueError("primary failed")
+        return AIMessage(content="fallback answer")
+
+    async def prepare(request):
+        return await ImageUrlAccessMiddleware().awrap_model_call(request, invoke)
+
+    async def process(request):
+        return await middleware.awrap_model_call(request, prepare)
+
+    result = await fallback.awrap_model_call(Request([tool], model=primary), process)
+    assert result.content == "fallback answer"
+    assert attempted == [primary, backup]
+    describe.assert_awaited_once()
 
 
-async def test_text_fallback_receives_description_of_pending_native_analysis(monkeypatch):
-    from unittest.mock import AsyncMock
-
+@pytest.mark.parametrize("vision", [False, True])
+async def test_pending_legacy_analysis_becomes_text_before_model_call(vision, monkeypatch):
     describe = AsyncMock(return_value='{"analysis":"blue circle"}')
     monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
     blocks = [{"type": "image_url", "image_url": {"url": "https://example.org/circle.png"}}]
@@ -265,20 +281,26 @@ async def test_text_fallback_receives_description_of_pending_native_analysis(mon
         tool_call_id="1",
         artifact={"native_image_input": blocks},
     )
-    request = Request([pending])
-    request.state = {"_fallback_supports_vision": False}
+    evidence = HumanMessage(
+        content="snapshot",
+        name="evidence_context",
+        additional_kwargs={"lambchat_evidence_snapshot": True},
+    )
+    request = Request([pending, evidence], state={"_fallback_supports_vision": vision})
     result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
         request, capture
     )
+
+    assert len(result.messages) == 2
     assert result.messages[0].content == '{"analysis":"blue circle"}'
+    assert result.messages[0].artifact is None
+    assert result.messages[1] is evidence
     assert describe.await_args.args[0].content == blocks
     assert pending.content == "Inspect image"
 
 
 @pytest.mark.parametrize("vision", [False, True])
 async def test_failed_tool_result_never_triggers_image_processing(vision, monkeypatch):
-    from unittest.mock import AsyncMock
-
     describe = AsyncMock()
     monkeypatch.setattr("src.infra.tool.image_analysis_tool.analyze_image_message", describe)
     failed = ToolMessage(
@@ -314,26 +336,3 @@ async def test_new_user_turn_never_replays_previous_native_image(marker):
         request, capture
     )
     assert result is request
-
-
-async def test_multiple_native_results_preserve_call_and_image_order():
-    groups = [["a", "b"], ["c"]]
-    tools = [
-        ToolMessage(
-            name="image_analyze",
-            content="inspect",
-            tool_call_id=str(i),
-            artifact={
-                "native_image_input": [
-                    {"type": "image_url", "image_url": {"url": url}} for url in urls
-                ]
-            },
-        )
-        for i, urls in enumerate(groups)
-    ]
-    result = await ToolResultBinaryMiddleware(supports_vision=True).awrap_model_call(
-        Request(tools), capture
-    )
-    assert [
-        [b["image_url"]["url"] for b in m.content] for m in result.messages[len(tools) :]
-    ] == groups
