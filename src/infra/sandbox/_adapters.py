@@ -41,6 +41,9 @@ TRANSITIONAL_STATES = {
 # 可用的最终状态
 READY_STATES = {"running", "started"}
 
+# A stalled discovery request blocks workspace initialization and occupies a fast I/O worker.
+_CUBE_DISCOVERY_REQUEST_TIMEOUT = 10.0
+
 # 需要恢复的暂停状态
 RESUMABLE_STATES = {"stopped", "archived"}
 
@@ -257,7 +260,7 @@ class CubeSandboxAdapter:
         self._auto_pause = getattr(settings, "CUBE_AUTO_PAUSE", True)
         self._auto_resume = getattr(settings, "CUBE_AUTO_RESUME", True)
 
-    def _get_config(self):
+    def _get_config(self, *, request_timeout: float | None = None):
         from cubesandbox import Config
 
         return Config(
@@ -267,7 +270,7 @@ class CubeSandboxAdapter:
             proxy_port=self._proxy_port_http,
             sandbox_domain=self._sandbox_domain,
             timeout=self._timeout,
-            request_timeout=self._request_timeout,
+            request_timeout=self._request_timeout if request_timeout is None else request_timeout,
         )
 
     def _get_cube_class(self):
@@ -322,7 +325,10 @@ class CubeSandboxAdapter:
     def list_user_sandboxes(self, user_id: str) -> list[dict]:
         self._sync_from_settings()
         cube_class = self._get_cube_class()
-        sandboxes = cube_class.list(config=self._get_config())
+        config = self._get_config(
+            request_timeout=min(self._request_timeout, _CUBE_DISCOVERY_REQUEST_TIMEOUT)
+        )
+        sandboxes = cube_class.list(config=config)
         result = []
         for item in sandboxes:
             metadata = item.get("metadata") or {}
