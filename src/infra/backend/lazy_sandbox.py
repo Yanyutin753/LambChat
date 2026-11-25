@@ -6,6 +6,7 @@ import shlex
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import PurePosixPath
+from traceback import walk_tb
 from typing import Protocol, cast
 
 from deepagents.backends import CompositeBackend
@@ -599,16 +600,33 @@ class LazySandboxBackend(BaseSandbox):
         phase: str,
         duration_seconds: float,
         *,
-        exception_category: str | None = None,
+        failure: Exception | None = None,
     ) -> None:
         details: dict[str, object] = {
             "lazy_sandbox_phase": phase,
             "sandbox_platform": self._platform,
             "duration_seconds": duration_seconds,
         }
-        if exception_category is not None:
-            details["exception_category"] = exception_category
-        logger.info("lazy_sandbox_timing", extra=details)
+        if failure is None:
+            logger.info("lazy_sandbox_timing", extra=details)
+            return
+        category = type(failure).__name__
+        details["exception_category"] = category
+        # Provider exception messages can contain credentials and workspace details.
+        frames = " -> ".join(
+            f"{frame.f_globals.get('__name__', '?')}.{frame.f_code.co_name}:{line}"
+            for frame, line in walk_tb(failure.__traceback__)
+        )
+        logger.info(
+            "lazy_sandbox_timing phase=%s platform=%s duration_seconds=%.3f "
+            "exception_category=%s stack=%s",
+            phase,
+            self._platform,
+            duration_seconds,
+            category,
+            frames,
+            extra=details,
+        )
 
     async def _attempt_event(
         self,
@@ -701,7 +719,7 @@ class LazySandboxBackend(BaseSandbox):
             self._log_timing(
                 "failure",
                 time.perf_counter() - initialization_started_at,
-                exception_category=type(exc).__name__,
+                failure=exc,
             )
             raise SandboxInitializationError() from exc
 

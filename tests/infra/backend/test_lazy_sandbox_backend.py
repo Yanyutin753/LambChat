@@ -1652,6 +1652,9 @@ async def test_failure_does_not_leak_provider_details_to_events_or_logs(
 
     event_payloads = repr(presenter.attempts)
     captured_logs = "\n".join(record.getMessage() for record in caplog.records)
+    assert "lazy_sandbox_timing phase=failure" in captured_logs
+    assert "exception_category=RuntimeError" in captured_logs
+    assert "get_or_create:" in captured_logs
     for private_detail in private_details:
         assert private_detail not in event_payloads
         assert private_detail not in captured_logs

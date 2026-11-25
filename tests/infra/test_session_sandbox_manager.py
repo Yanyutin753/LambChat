@@ -1002,3 +1002,36 @@ async def test_runtime_platform_switch_takes_effect_immediately(
     monkeypatch.setattr(manager, "_stop_e2b", fake_stop_e2b)
     assert await manager.stop("user-1") is True
     assert dispatched[-1] == "stop-e2b"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("configured_timeout", "expected_timeout"), [(120.0, 10.0), (3.0, 3.0)])
+async def test_cube_discovery_after_hot_switch_fails_fast_without_creating_workspace(
+    monkeypatch: pytest.MonkeyPatch, configured_timeout: float, expected_timeout: float
+) -> None:
+    from cubesandbox.sandbox import requests
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(sandbox_module.settings, "CUBE_REQUEST_TIMEOUT", configured_timeout)
+    manager = sandbox_module.SessionSandboxManager()
+    binding = AsyncMock(return_value=None)
+    monkeypatch.setattr(manager, "_get_binding", binding)
+    create = AsyncMock()
+    monkeypatch.setattr(manager, "_create_and_bind_cubesandbox", create)
+    timeout_error = requests.exceptions.ReadTimeout("Cube API did not respond")
+    observed_timeouts = []
+
+    def timeout_on_list(self, url, *, headers, timeout):
+        assert url.endswith("/sandboxes")
+        observed_timeouts.append(timeout)
+        raise timeout_error
+
+    monkeypatch.setattr(requests.Session, "get", timeout_on_list)
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
+
+    with pytest.raises(requests.exceptions.ReadTimeout) as error:
+        await manager.get_or_create("session-1", "user-1")
+
+    assert error.value is timeout_error
+    assert observed_timeouts == [expected_timeout]
+    create.assert_not_awaited()
