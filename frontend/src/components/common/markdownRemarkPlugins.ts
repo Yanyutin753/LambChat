@@ -4,6 +4,8 @@ import type { Options } from "react-markdown";
 import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough/parseOnly";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import type {} from "remark-parse";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 
@@ -50,6 +52,47 @@ export const cjkGfmRemarkPlugins = [
   [remarkCjkFriendlyGfmStrikethrough, { singleTilde: false }],
 ] satisfies NonNullable<Options["remarkPlugins"]>;
 
+const DOLLAR = 36;
+const PRICE_PROSE =
+  /^\d+(?:[.,]\d+)*(?:\/?[\p{Script=Han}，。；！？：、（]|[ \t]+[a-z]{2,}\b)/iu;
+
+export const remarkMathWithCurrency: Plugin<[], Root> = function () {
+  remarkMath.call(this);
+  const mathText = this.data().micromarkExtensions?.at(-1)?.text?.[DOLLAR];
+  if (!mathText || Array.isArray(mathText)) return;
+
+  const tokenizeMath = mathText.tokenize;
+  mathText.tokenize = function (effects, ok, nok) {
+    const openingIndex = this.events.length + 1;
+    return tokenizeMath.call(
+      this,
+      effects,
+      (code) => {
+        const opening = this.events[openingIndex][1];
+        if (
+          opening.end.offset - opening.start.offset === 1 &&
+          code !== null &&
+          code > 0
+        ) {
+          const next = String.fromCharCode(code);
+          // Reject the ambiguous delimiter before Markdown resolves emphasis or links.
+          if (
+            /\d/.test(next) ||
+            (/[a-z\\{]/i.test(next) &&
+              PRICE_PROSE.test(
+                this.sliceSerialize({ start: opening.end, end: this.now() }),
+              ))
+          ) {
+            return nok(code);
+          }
+        }
+        return ok(code);
+      },
+      nok,
+    );
+  };
+};
+
 // 带协议/协议相对/锚点/站内绝对路径的 URL 不参与相对解析(保持原样)
 const NON_RELATIVE_URL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
 
@@ -62,7 +105,9 @@ export function remarkRelativeLinkBase(baseUrl: string): Plugin<[], Root> {
   return function remarkRelativeLinkBasePlugin() {
     return (tree: Root) => {
       const origin =
-        typeof window === "undefined" ? "http://localhost" : window.location.origin;
+        typeof window === "undefined"
+          ? "http://localhost"
+          : window.location.origin;
       let base: URL;
       try {
         base = new URL(baseUrl, origin);
@@ -74,7 +119,8 @@ export function remarkRelativeLinkBase(baseUrl: string): Plugin<[], Root> {
       visit(tree, ["link", "image", "definition"], (node) => {
         const target = node as { url?: unknown };
         if (typeof target.url !== "string" || !target.url) return;
-        if (NON_RELATIVE_URL.test(target.url) || target.url.startsWith("/")) return;
+        if (NON_RELATIVE_URL.test(target.url) || target.url.startsWith("/"))
+          return;
         try {
           target.url = new URL(target.url, base).toString();
         } catch {
