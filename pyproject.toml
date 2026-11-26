@@ -68,6 +68,7 @@ dependencies = [
     "langfuse>=5.0.1",
     "trafilatura>=2.3.1",
     "markitdown[docx,pdf,pptx]>=0.1.8",
+    "markdown-it-py>=4.2.0",
 ]
 
 [dependency-groups]

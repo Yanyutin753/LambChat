@@ -394,3 +394,27 @@ def test_inject_public_app_route_seo_noindexes_domestic_and_bing_crawlers() -> N
     assert 'meta name="bingbot" content="noindex, follow, max-image-preview:large"' in rendered
     assert 'meta name="Baiduspider" content="noindex, follow, max-image-preview:large"' in rendered
     assert 'meta name="360Spider" content="noindex, follow, max-image-preview:large"' in rendered
+
+
+def test_shared_session_preview_flattens_markdown_before_truncation() -> None:
+    seo = build_shared_page_seo(
+        base_url="https://lambchat.com",
+        share_id="prices",
+        session={"name": "服务器评测"},
+        owner=None,
+        events=[
+            {"event_type": "user:message", "data": {"content": "帮我比较年费"}},
+            {
+                "event_type": "message:chunk",
+                "data": {
+                    "content": (
+                        "## 先说结论\n\n**每年 $19.99。**\n\n---\n\n"
+                        "- [官网](https://example.com/)优惠码 `SAVE`。"
+                    )
+                },
+            },
+        ],
+    )
+
+    assert seo.description == "帮我比较年费 先说结论 每年 $19.99。 官网优惠码 SAVE。"
+    assert seo.preview_summary == seo.description
