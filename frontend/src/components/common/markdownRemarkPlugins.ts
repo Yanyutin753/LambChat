@@ -53,8 +53,6 @@ export const cjkGfmRemarkPlugins = [
 ] satisfies NonNullable<Options["remarkPlugins"]>;
 
 const DOLLAR = 36;
-const PRICE_PROSE =
-  /^\d+(?:[.,]\d+)*(?:\/?[\p{Script=Han}，。；！？：、（]|[ \t]+[a-z]{2,}\b)/iu;
 
 export const remarkMathWithCurrency: Plugin<[], Root> = function () {
   remarkMath.call(this);
@@ -69,22 +67,16 @@ export const remarkMathWithCurrency: Plugin<[], Root> = function () {
       effects,
       (code) => {
         const opening = this.events[openingIndex][1];
-        if (
-          opening.end.offset - opening.start.offset === 1 &&
-          code !== null &&
-          code > 0
-        ) {
-          const next = String.fromCharCode(code);
-          // Reject the ambiguous delimiter before Markdown resolves emphasis or links.
-          if (
-            /\d/.test(next) ||
-            (/[a-z\\{]/i.test(next) &&
-              PRICE_PROSE.test(
-                this.sliceSerialize({ start: opening.end, end: this.now() }),
-              ))
-          ) {
-            return nok(code);
-          }
+        if (opening.end.offset - opening.start.offset !== 1) return ok(code);
+
+        // Pandoc single-dollar delimiters exclude surrounding whitespace and closing before a digit.
+        if (code !== null && code >= 48 && code <= 57) return nok(code);
+        const bodyAndClosing = this.sliceSerialize({
+          start: opening.end,
+          end: this.now(),
+        });
+        if (/^\s|\s\$$/.test(bodyAndClosing)) {
+          return nok(code);
         }
         return ok(code);
       },

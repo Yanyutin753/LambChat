@@ -122,3 +122,23 @@ test("Markdown retains inline and display math alongside dollar prices", () => {
     "https://example.com/$40",
   );
 });
+
+test("single-dollar math requires non-whitespace next to both delimiters", () => {
+  const content = [
+    "Text $ x$.",
+    "Text $y $.",
+    "The fee is $ and the formula is $x^2$.",
+    "Prices range from $20,000 to $30,000.",
+    "Double-dollar math keeps spaces: $$ y^2 $$.",
+  ].join("\n\n");
+  const { container } = render(<MarkdownContent content={content} />);
+  expect(
+    Array.from(
+      container.querySelectorAll("annotation"),
+      (node) => node.textContent,
+    ),
+  ).toEqual(["x^2", "y^2"]);
+  expect(container).toHaveTextContent("Text $ x$.");
+  expect(container).toHaveTextContent("Text $y $.");
+  expect(container).toHaveTextContent("Prices range from $20,000 to $30,000.");
+});
