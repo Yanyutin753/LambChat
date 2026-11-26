@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping, Sequence
 
+from markdown_it import MarkdownIt
+
 DEFAULT_SHARE_ROBOTS = "noindex, follow, max-image-preview:large"
 INDEX_ROBOTS = "index, follow, max-image-preview:large"
 NOINDEX_ROBOTS = "noindex, follow, max-image-preview:large"
@@ -25,6 +27,7 @@ CRAWLER_ROBOTS_META_NAMES = (
 )
 
 _WHITESPACE_RE = re.compile(r"\s+")
+_PREVIEW_MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
 _ROOT_DIV_RE = re.compile(r'<div id="root"></div>')
 _SHARED_PREVIEW_RE = re.compile(
     r'(<div id="shared-server-preview">.*?</div>\s*)?<div id="root"></div>', re.S
@@ -279,23 +282,35 @@ def _truncate_text(value: str, max_length: int) -> str:
     return f"{clipped}..."
 
 
+def _markdown_preview(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    # The preview only needs a short excerpt, even when a shared message is very long.
+    blocks: list[str] = []
+    for token in _PREVIEW_MARKDOWN.parse(value[:4096]):
+        if token.type == "inline" and token.children:
+            blocks.append(
+                "".join(
+                    " " if child.type in {"softbreak", "hardbreak"} else child.content
+                    for child in token.children
+                    if child.type in {"text", "code_inline", "image", "softbreak", "hardbreak"}
+                )
+            )
+        elif token.type in {"fence", "code_block"}:
+            blocks.append(token.content)
+    return _normalize_text(" ".join(blocks))
+
+
 def _extract_preview_lines(events: Sequence[Mapping[str, Any]]) -> tuple[str, str]:
     first_user = ""
     first_assistant = ""
 
     for event in events:
         event_type = event.get("event_type", "")
-        data = event.get("data") or {}
-        content = _normalize_text(data.get("content"))
-        if not content:
-            continue
-
         if event_type == "user:message" and not first_user:
-            first_user = content
-            continue
-
-        if event_type in {"message:chunk", "assistant:message"} and not first_assistant:
-            first_assistant = content
+            first_user = _markdown_preview((event.get("data") or {}).get("content"))
+        elif event_type in {"message:chunk", "assistant:message"} and not first_assistant:
+            first_assistant = _markdown_preview((event.get("data") or {}).get("content"))
 
         if first_user and first_assistant:
             break

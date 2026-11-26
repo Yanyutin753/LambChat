@@ -1,6 +1,5 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
-import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import React, {
@@ -20,13 +19,16 @@ import { getOwnUploadFileUrl } from "../../../services/api/uploadFileUrl";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
 import { ImageViewer } from "../../common";
-import { cjkGfmRemarkPlugins } from "../../common/markdownRemarkPlugins";
+import {
+  cjkGfmRemarkPlugins,
+  remarkMathWithCurrency,
+  remarkRelativeLinkBase,
+} from "../../common/markdownRemarkPlugins";
 import { createHeadingAnchorId } from "../../layout/AppContent/messageOutline";
 import { getFileLinkInfo } from "../../documents/utils";
 import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
 import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 import { shouldInterceptFilePreviewLink } from "./items/revealPreviewLinks";
-import { remarkRelativeLinkBase } from "../../common/markdownRemarkPlugins";
 import { useClipboardCopy } from "../../../hooks/useClipboardCopy";
 import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
@@ -659,7 +661,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             ...(linkBaseUrl ? [remarkRelativeLinkBase(linkBaseUrl)] : []),
             ...cjkGfmRemarkPlugins,
             remarkBreaks,
-            remarkMath,
+            remarkMathWithCurrency,
           ]}
           rehypePlugins={
             userMessageReferences
