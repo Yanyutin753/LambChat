@@ -842,6 +842,10 @@ export function prepareMessagesForRunningRun(
     };
   }
 
+  // 该 run 的首条用户消息：身份沿用其快照，时间戳作为流式计时锚点
+  const runUser = messagesWithPendingUser.find(
+    (message) => message.role === "user" && message.runId === runId,
+  );
   const streamingMessageId = createId();
   return {
     streamingMessageId,
@@ -850,11 +854,11 @@ export function prepareMessagesForRunningRun(
       {
         id: streamingMessageId,
         role: "assistant",
-        assistantIdentity: messagesWithPendingUser.find(
-          (message) => message.role === "user" && message.runId === runId,
-        )?.assistantIdentity,
+        assistantIdentity: runUser?.assistantIdentity,
         content: "",
-        timestamp: new Date(),
+        // 继承提问时刻（run 起点）：重载历史时 live 计时从提问起算，
+        // 而不是从页面加载时刻重新走秒；无用户消息才退回当前时间
+        timestamp: runUser?.timestamp ?? new Date(),
         parts: [],
         isStreaming: true,
         runId,

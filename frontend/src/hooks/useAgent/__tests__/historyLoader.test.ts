@@ -15,6 +15,7 @@ import { clearAllLoadingStates } from "../messageParts";
 import * as sharedParts from "../messageParts";
 import * as suspendedParts from "../suspendedToolParts";
 import type { Message } from "../../../types";
+import { getRunStartedAtMs } from "../../../components/chat/ChatMessage/runStepsCollapseUtils";
 import type { EventData, HistoryEvent, SubagentStackItem } from "../types.ts";
 
 test("interleaved historical runs keep text and usage on their own assistant", () => {
@@ -5930,4 +5931,140 @@ test("a reserved Goal run has a visible assistant before its first event", () =>
     runId: "goal-2",
     isStreaming: true,
   });
+});
+
+test("prepareMessagesForRunningRun anchors a rebuilt streaming placeholder to the run's user message", () => {
+  const askedAt = new Date("2026-11-28T09:00:00.000Z");
+  const result = prepareMessagesForRunningRun(
+    [
+      {
+        id: "run-1:user",
+        role: "user",
+        content: "latest question",
+        timestamp: askedAt,
+        runId: "run-1",
+      },
+    ],
+    "run-1",
+    () => "assistant-rebuilt",
+  );
+
+  const placeholder = result.messages.find(
+    (message) => message.id === "assistant-rebuilt",
+  );
+  expect(placeholder?.isStreaming).toBe(true);
+  expect(placeholder?.timestamp).toEqual(askedAt);
+  expect(getRunStartedAtMs(placeholder!)).toBe(askedAt.getTime());
+});
+
+test("prepareMessagesForRunningRun keeps the send time when the user message is still optimistic", () => {
+  const sentAt = new Date("2026-11-28T09:00:00.000Z");
+  const result = prepareMessagesForRunningRun(
+    [],
+    "run-latest",
+    () => "assistant-latest",
+    [
+      {
+        id: "optimistic-user-latest",
+        role: "user",
+        content: "latest question",
+        timestamp: sentAt,
+        runId: "run-latest",
+      },
+      {
+        id: "run-latest",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-11-28T09:00:10.000Z"),
+        isStreaming: true,
+        runId: "run-latest",
+      },
+    ],
+  );
+
+  const placeholder = result.messages.find(
+    (message) => message.id === "assistant-latest",
+  );
+  expect(placeholder?.isStreaming).toBe(true);
+  expect(placeholder?.timestamp).toEqual(sentAt);
+});
+
+test("prepareMessagesForRunningRun falls back to now for a Goal run without a user message", () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date("2026-11-28T09:00:00.000Z"));
+    const result = prepareMessagesForRunningRun(
+      [],
+      "goal-2",
+      () => "placeholder",
+      [],
+      true,
+    );
+    expect(result.messages[0].timestamp).toEqual(
+      new Date("2026-11-28T09:00:00.000Z"),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("prepareMessagesForRunningRun keeps an existing assistant timestamp", () => {
+  const askedAt = new Date("2026-11-28T09:00:00.000Z");
+  const assistantAt = new Date("2026-11-28T09:00:05.000Z");
+  const result = prepareMessagesForRunningRun(
+    [
+      {
+        id: "run-1:user",
+        role: "user",
+        content: "latest question",
+        timestamp: askedAt,
+        runId: "run-1",
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "partial",
+        timestamp: assistantAt,
+        runId: "run-1",
+      },
+    ],
+    "run-1",
+    () => "unused",
+  );
+
+  expect(result.streamingMessageId).toBe("assistant-1");
+  const kept = result.messages.find((message) => message.id === "assistant-1");
+  expect(kept?.timestamp).toEqual(assistantAt);
+  expect(kept?.isStreaming).toBe(true);
+});
+
+test("prepareMessagesForRunningRun ignores a later steer message as the anchor", () => {
+  const askedAt = new Date("2026-11-28T09:00:00.000Z");
+  const steerAt = new Date("2026-11-28T09:05:00.000Z");
+  const result = prepareMessagesForRunningRun(
+    [
+      {
+        id: "run-1:user",
+        role: "user",
+        content: "first question",
+        timestamp: askedAt,
+        runId: "run-1",
+      },
+      {
+        id: "steer-h-1",
+        role: "user",
+        content: "补充要求",
+        timestamp: steerAt,
+        runId: "run-1",
+        metadata: { steer: true },
+      },
+    ],
+    "run-1",
+    () => "assistant-rebuilt",
+  );
+
+  const placeholder = result.messages.find(
+    (message) => message.id === "assistant-rebuilt",
+  );
+  expect(placeholder?.timestamp).toEqual(askedAt);
 });
