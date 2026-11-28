@@ -109,6 +109,13 @@ def get_mongo_sync_client() -> "MongoClient":
 
 async def close_mongo_client() -> None:
     """关闭 MongoDB 连接池"""
+    global _sync_client
+    if _sync_client is not None:
+        sync_client, _sync_client = _sync_client, None
+        try:
+            sync_client.close()
+        except Exception as e:
+            logger.warning(f"Error closing synchronous MongoDB client: {e}")
     try:
         if get_mongo_client.cache_info().currsize == 0:
             return

@@ -39,6 +39,7 @@ class EmbeddedArqRuntime:
         self._worker: Any | None = None
         self._supervisor: asyncio.Future | None = None
         self._stopping = False
+        self._release_drain = False
         self._last_poll_at: float | None = None
         self._poll_in_progress = False
         self._recovery_tasks: set[asyncio.Task[None]] = set()
@@ -101,11 +102,12 @@ class EmbeddedArqRuntime:
         # ARQ None normally falls back to the worker deadline; ordinary functions
         # carry explicit limits, while scheduled jobs renew their finite Redis leases.
         worker.job_timeout_s = None
+        worker.allow_pick_jobs = not self._release_drain
         poll_iteration = getattr(worker, "_poll_iteration", None)
         if poll_iteration is not None:
 
             async def observed_poll() -> None:
-                self._poll_in_progress = not self._stopping
+                self._poll_in_progress = worker.allow_pick_jobs
                 try:
                     await poll_iteration()
                     if self._worker is worker and not self._stopping:
@@ -167,6 +169,20 @@ class EmbeddedArqRuntime:
                 recovery_task = asyncio.create_task(callback())
                 self._recovery_tasks.add(recovery_task)
                 recovery_task.add_done_callback(self._recovery_tasks.discard)
+
+    def set_release_drain(self, enabled: bool) -> bool:
+        """Acknowledge only after the last claim and every job it started have finished."""
+        self._release_drain = enabled
+        worker = self._worker
+        if worker is None or self._stopping:
+            return False
+        worker.allow_pick_jobs = not enabled
+        return (
+            enabled
+            and self.is_ready
+            and not self._poll_in_progress
+            and all(task.done() for task in getattr(worker, "tasks", {}).values())
+        )
 
     async def stop(self) -> None:
         self._stopping = True

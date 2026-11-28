@@ -536,3 +536,27 @@ async def test_readiness_requires_completed_consumer_poll_and_fails_during_drain
             if not task.done():
                 task.cancel()
         await runtime.stop()
+
+
+async def test_release_drain_ack_waits_for_claim_and_active_job(monkeypatch):
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    runtime = arq_runtime.EmbeddedArqRuntime(worker_factory=_DrainingWorker)
+    await runtime.start()
+    worker = runtime._worker
+    worker.start_poll.clear()
+    await asyncio.sleep(0.01)
+    assert not runtime.set_release_drain(True)
+    assert not worker.allow_pick_jobs
+    release = asyncio.Event()
+    active = asyncio.create_task(release.wait())
+    worker.tasks["chat"] = active
+    worker.start_poll.set()
+    await asyncio.sleep(0.01)
+    assert not runtime.set_release_drain(True)
+    release.set()
+    await active
+    await _wait_until(lambda: runtime.set_release_drain(True))
+    assert not worker.allow_pick_jobs
+    runtime.set_release_drain(False)
+    assert worker.allow_pick_jobs
+    await runtime.stop()
