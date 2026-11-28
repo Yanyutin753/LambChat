@@ -210,7 +210,17 @@ class E2BBackend(E2BAsyncMixin, BaseSandbox):
     async def _aiter_file_bytes(self, path: str) -> AsyncGenerator[bytes, None]:
         sandbox = await self._async_client_or_none()
         if sandbox is None:
-            raise IOError("async file stream unavailable")
+            sync_reader = await run_long_blocking_io(
+                self._sdk,
+                "files.read",
+                lambda: self._sandbox.files.read(path=path, format="stream"),
+            )
+            try:
+                while (part := await run_long_blocking_io(next, sync_reader, None)) is not None:
+                    yield part
+            finally:
+                await run_long_blocking_io(sync_reader.close)
+            return
         reader = await self._asdk(
             "files.read", lambda: sandbox.files.read(path=path, format="stream")
         )
