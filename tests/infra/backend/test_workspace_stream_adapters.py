@@ -74,3 +74,33 @@ async def test_e2b_async_stream_is_closed_on_cancel(monkeypatch):
     assert await anext(stream) == b"abc"
     await stream.aclose()
     assert closed == [True]
+
+
+async def test_e2b_sync_fallback_reads_on_demand_and_closes(monkeypatch):
+    from src.infra.backend.e2b import E2BBackend
+
+    closed = []
+
+    def chunks():
+        try:
+            yield b"abc"
+            raise AssertionError("read past the requested chunk")
+        finally:
+            closed.append(True)
+
+    def read(path, format):
+        assert (path, format) == ("/w/image.png", "stream")
+        return chunks()
+
+    async def unavailable():
+        return None
+
+    sandbox = SimpleNamespace(sandbox_id="sandbox", files=SimpleNamespace(read=read))
+    backend = E2BBackend(sandbox, work_dir="/w")
+    monkeypatch.setattr(backend, "_file_size", lambda path: None)
+    monkeypatch.setattr(backend, "_async_client_or_none", unavailable)
+    monkeypatch.setattr(backend, "_sdk", lambda name, call: call())
+    stream = backend.astream_file("image.png")
+    assert await anext(stream) == b"abc"
+    await stream.aclose()
+    assert closed == [True]
