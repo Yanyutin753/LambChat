@@ -22,6 +22,10 @@ def updater(monkeypatch):
     spec.loader.exec_module(module)
     monkeypatch.setattr(module, "service_probe", lambda route: None, raising=False)
 
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(module, "protect_worker_change", lambda *args: nullcontext())
+
     class FreeSocket:
         def __enter__(self):
             return self
@@ -532,3 +536,55 @@ def test_service_probe_rejects_html_returned_for_javascript(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", urlopen)
     with pytest.raises(RuntimeError, match="asset"):
         module.service_probe({"ports": [{"port": 80, "nodePort": 30080, "targetPort": "http"}]})
+
+
+@pytest.mark.parametrize("busy", [False, True])
+def test_handoff_accepts_new_jobs_before_draining_and_preserves_busy_workers(updater, busy):
+    import worker_handoff as handoff
+
+    calls = []
+
+    def kube(*args, payload=None):
+        if args[:1] == ("create",):
+            template = payload["spec"]["template"]
+            assert template["spec"]["restartPolicy"] == "Never"
+            assert "slot" not in template["metadata"]["labels"]
+        elif args[:2] == ("get", "pods"):
+            return {
+                "items": [
+                    {"metadata": {"name": pod}, "status": {"phase": "Running"}}
+                    for pod in (["bridge"] if "-l" in args else ["bridge", "old"])
+                ]
+            }
+        elif args[0] == "wait":
+            calls.append("bridge ready")
+        elif args[0] == "exec":
+            if args[3] == "grep":
+                return ""
+            if handoff.ACK in args:
+                calls.append("wait for old jobs")
+                if busy:
+                    raise RuntimeError("busy")
+            elif args[3] == "rm":
+                calls.append("resume " + args[1])
+            else:
+                calls.append("drain " + args[1])
+        return ""
+
+    def roll():
+        with handoff.protect_worker_change(kube, deployment("worker"), ["old"]):
+            calls.append("patch")
+
+    if busy:
+        with pytest.raises(RuntimeError, match="busy"):
+            roll()
+    else:
+        roll()
+    assert calls == [
+        "bridge ready",
+        "drain old",
+        "wait for old jobs",
+        *([] if busy else ["patch"]),
+        "resume old",
+        "drain bridge",
+    ]

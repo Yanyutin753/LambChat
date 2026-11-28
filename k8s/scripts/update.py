@@ -14,10 +14,11 @@ import signal
 import socket
 import subprocess
 import urllib.request
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 from publish_assets import publish_assets
+from worker_handoff import protect_worker_change
 
 _MISSING = object()
 _CONTAINER = "/spec/template/spec/containers/0"
@@ -335,6 +336,30 @@ def deploy(namespace, apis, worker, service, image):
     changed = []
 
     def apply(name, patch, generation):
+        current = kubectl(namespace, "get", "deployment", name, "-o", "json")
+        guard = nullcontext()
+        if name == worker and any(
+            op["path"].startswith("/spec/template/")
+            and _value(current, op["path"]) != op.get("value", _MISSING)
+            for op in patch
+        ):
+            pods = _owned_pods(
+                current,
+                kubectl(namespace, "get", "pods", "-o", "json")["items"],
+                kubectl(namespace, "get", "replicasets", "-o", "json")["items"],
+            )
+            retiring = [
+                pod["metadata"]["name"]
+                for pod in pods
+                if not pod["metadata"].get("deletionTimestamp")
+            ]
+            guard = protect_worker_change(
+                lambda *args, **kw: kubectl(namespace, *args, **kw), current, retiring
+            )
+        with guard:
+            return apply_patch(name, patch, generation)
+
+    def apply_patch(name, patch, generation):
         fence = {"op": "test", "path": "/metadata/generation", "value": generation}
         kubectl(
             namespace,
@@ -427,6 +452,7 @@ def main():
     parser.add_argument(
         "tag", help="explicit main-YYYYMMDD-HHMMSS or develop-YYYYMMDD-HHMMSS image tag"
     )
+    parser.add_argument("--restart-worker", action="store_true")
     parser.add_argument("--namespace", default="lambchat")
     parser.add_argument("--api", action="append", metavar="DEPLOYMENT:PORT1:PORT2")
     parser.add_argument("--worker", default="lambchat-worker")
@@ -453,6 +479,28 @@ def main():
             parser.error("--api requires DEPLOYMENT:PORT1:PORT2 with two distinct valid ports")
         apis.append((name, ports))
     with deployment_lock("/data/lambchat-k8s/deployment.lock"):
+        if args.restart_worker:
+            name = args.worker
+
+            def kube(*cmd, **kw):
+                return kubectl(args.namespace, *cmd, **kw)
+
+            current = kube("get", "deployment", name, "-o", "json")
+            _require_ready(current)
+            if (
+                current["spec"]["template"]["spec"]["containers"][0]["image"].rsplit(":", 1)[-1]
+                != args.tag
+            ):
+                raise RuntimeError("worker image changed before maintenance")
+            pods = _owned_pods(
+                current,
+                kube("get", "pods", "-o", "json")["items"],
+                kube("get", "replicasets", "-o", "json")["items"],
+            )
+            with protect_worker_change(kube, current, [p["metadata"]["name"] for p in pods]):
+                kube("rollout", "restart", "deployment/" + name)
+                kube("rollout", "status", "deployment/" + name, "--timeout=600s")
+            return
         deploy(
             args.namespace,
             apis,

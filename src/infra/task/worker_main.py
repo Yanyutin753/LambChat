@@ -35,6 +35,7 @@ import asyncio
 import contextlib
 import os
 import signal
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -83,7 +84,27 @@ def _make_signal_handler(stop: asyncio.Event) -> Callable[[], None]:
 
 
 async def _publish_readiness(runtime: Any, stop: asyncio.Event) -> None:
+    request = _READINESS_PATH.with_suffix(".drain")
+    drained = _READINESS_PATH.with_suffix(".drained")
+    bridge = os.environ.get("LAMBCHAT_RETIRE_AFTER_DRAIN") == "1"
+    bridge_deadline = time.monotonic() + 3600
+    drained.unlink(missing_ok=True)
     while not stop.is_set():
+        try:
+            token = request.read_text(encoding="ascii").strip()
+            if not bridge and time.time() - request.stat().st_mtime > 3600:
+                token = ""
+        except FileNotFoundError:
+            token = ""
+        if bridge and time.monotonic() >= bridge_deadline:
+            token = "expired"
+        if runtime.set_release_drain(bool(token)):
+            drained.write_text(token, encoding="ascii")
+            if bridge:
+                _make_signal_handler(stop)()
+                return
+        else:
+            drained.unlink(missing_ok=True)
         if runtime.is_ready:
             _READINESS_PATH.write_text(str(os.getpid()), encoding="ascii")
         else:
@@ -177,6 +198,17 @@ async def _amain(stop: asyncio.Event) -> None:
             await close_memory_monitor()
         except Exception:  # noqa: BLE101
             logger.warning("memory monitor stop failed", exc_info=True)
+        from src.infra.session.event_merger import close_event_merger
+        from src.infra.session.trace_storage import close_trace_storage
+        from src.infra.storage.checkpoint import reset_checkpointer_runtime_state
+        from src.infra.storage.mongodb import close_mongo_client
+        from src.infra.storage.postgres import close_connection_pool
+
+        await close_event_merger()
+        await close_trace_storage()
+        await reset_checkpointer_runtime_state()
+        close_connection_pool()
+        await close_mongo_client()
         logger.info("standalone arq worker stopped")
 
 

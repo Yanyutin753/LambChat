@@ -5,8 +5,8 @@ envFrom、Service 与入口 OpenResty 保持现有配置；`lambchat.yaml` 是�
 不是生产双分片清单，不能直接覆盖生产。
 
 发布入口现在由仓库维护：`scripts/update.sh`、`scripts/update-staging.sh`、
-`scripts/update.py` 与 `scripts/publish_assets.py`。
-将这四个文件一起部署到服务器同一目录，使用服务器已有的 Kubernetes 身份运行。
+`scripts/update.py` 、`scripts/worker_handoff.py` 与 `scripts/publish_assets.py`。
+将以上文件一起部署到服务器同一目录，使用服务器已有的 Kubernetes 身份运行。
 脚本不拉取或改写 Secret，不根据时间戳自动选择“最新”镜像。
 
 ```bash
@@ -34,7 +34,7 @@ KUBECTL='k3s kubectl' python3 k8s/scripts/update.py main-YYYYMMDD-HHMMSS
   OpenResty 继续访问 NodePort，不能绕过 Service 直接绑定某一分片。
 - worker 默认 `lambchat-worker`，镜像必须包含 `/tmp/lambchat-worker.ready`
   的 PID 与更新时间约定，以及停止取新任务后最多 240 秒的排空逻辑。
-  仅把 Kubernetes 宽限改成 300 秒不能实现排空。
+  计划发布先启动临时 worker 接收新请求，再通知旧 worker 停止领取任务。旧 worker 确认在途领取及任务均已结束后才开始替换。等待超过 10 分钟会中止替换并恢复原 worker 接单。临时 worker 完成自己的任务后退出。首次接入需先将支持交接信号的镜像部署到现有 worker。
 - 发布机必须能够非交互执行 kubectl；发布锁固定为
   `/data/lambchat-k8s/deployment.lock`，所有发布入口共用。不得删除锁文件、后台排队或并行运行旧发布脚本。
 - assets 缓存是宿主目录 `/data/lambchat-k8s/static-assets`，容器只读挂载到
@@ -81,7 +81,7 @@ hostNetwork 下每个 API 分片只能有 1 个副本；不能直接把 `lambcha
 不要在旧部署入口与新入口之间同时发布。手工改 Deployment 前也要确认没有发布正在运行。
 API 分片禁止直接执行 `kubectl rollout restart`，包括 cron、timer 和同镜像模板变更；
 它不会切换端口，新旧 Pod 会争用同一 hostNetwork 端口而永久 Pending。
-现有凌晨维护任务仅保留 worker 重启，使用 `flock -n -E 75 /data/lambchat-k8s/deployment.lock` 串行保护，并等待 worker rollout（设置有限超时）；
+现有凌晨维护任务仅保留 worker 重启，使用 `update.py <当前镜像 tag> --restart-worker` 复用交接流程和部署锁，并等待 worker rollout（设置有限超时）；
 锁被占用时跳过本次维护，不排队、不重启 API，也不改成 `Recreate` 掩盖端口冲突。
 排查内存时须记录该维护造成的进程更换，不能将重启后的低 RSS 当作内存回收证据。
 共享资源采用增量保留，失败发布不会删除新资源；清理旧资源属于独立维护任务，必须考虑仍打开的旧页面。

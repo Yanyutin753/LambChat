@@ -47,6 +47,9 @@ class _FakeArqRuntime:
         self.stopped = 0
         self.is_ready = False
 
+    def set_release_drain(self, enabled):
+        return False
+
     async def start(self, **kwargs) -> None:
         self.started_with = kwargs
 
@@ -360,3 +363,37 @@ async def test_readiness_file_is_removed_on_startup_failure(wired, monkeypatch):
         await worker_main._amain(asyncio.Event())
 
     assert not marker.exists()
+
+
+async def test_worker_closes_process_storage_after_jobs_stop(wired, monkeypatch):
+    from src.infra.storage import checkpoint, mongodb, postgres
+
+    calls = []
+
+    async def reset():
+        assert wired.runtime.stopped == 1
+        calls.append("checkpoint")
+
+    async def close_mongo():
+        calls.append("mongo")
+
+    monkeypatch.setattr(checkpoint, "reset_checkpointer_runtime_state", reset)
+    monkeypatch.setattr(mongodb, "close_mongo_client", close_mongo)
+    monkeypatch.setattr(postgres, "close_connection_pool", lambda: calls.append("postgres"))
+    stop = asyncio.Event()
+    stop.set()
+    await worker_main._amain(stop)
+    assert calls == ["checkpoint", "postgres", "mongo"]
+
+
+async def test_closing_mongo_also_closes_only_initialized_sync_client(monkeypatch):
+    from unittest.mock import Mock
+
+    from src.infra.storage import mongodb
+
+    sync = Mock()
+    monkeypatch.setattr(mongodb, "_sync_client", sync)
+    await mongodb.close_mongo_client()
+    await mongodb.close_mongo_client()
+    sync.close.assert_called_once_with()
+    assert mongodb._sync_client is None
